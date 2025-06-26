@@ -8,5 +8,9 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- 🎉(conversations) bootstrap backend & frontend #1
+
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main

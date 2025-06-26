@@ -1,0 +1,12 @@
+name: conversations
+
+services:
+  app-dev:
+    models:
+      llm:
+        endpoint_var: AI_BASE_URL
+        model_var: AI_MODEL
+
+models:
+  llm:
+    model: ai/smollm2

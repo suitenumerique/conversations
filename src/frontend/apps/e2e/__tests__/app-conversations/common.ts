@@ -1,0 +1,78 @@
+import { Page, expect } from '@playwright/test';
+
+export const CONFIG = {
+  CRISP_WEBSITE_ID: null,
+  ENVIRONMENT: 'development',
+  FRONTEND_CSS_URL: null,
+  FRONTEND_HOMEPAGE_FEATURE_ENABLED: true,
+  FRONTEND_THEME: null,
+  MEDIA_BASE_URL: 'http://localhost:8083',
+  LANGUAGES: [
+    ['en-us', 'English'],
+    ['fr-fr', 'Français'],
+    ['de-de', 'Deutsch'],
+    ['nl-nl', 'Nederlands'],
+    ['es-es', 'Español'],
+  ],
+  LANGUAGE_CODE: 'en-us',
+  POSTHOG_KEY: {},
+  SENTRY_DSN: null,
+  theme_customization: {},
+} as const;
+
+export const overrideConfig = async (
+  page: Page,
+  newConfig: { [K in keyof typeof CONFIG]?: unknown },
+) =>
+  await page.route('**/api/v1.0/config/', async (route) => {
+    const request = route.request();
+    if (request.method().includes('GET')) {
+      await route.fulfill({
+        json: {
+          ...CONFIG,
+          ...newConfig,
+        },
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+export const keyCloakSignIn = async (
+  page: Page,
+  browserName: string,
+  fromHome: boolean = true,
+) => {
+  if (fromHome) {
+    await page
+      .getByRole('button', { name: 'Start conversation' })
+      .first()
+      .click();
+  }
+
+  const login = `user-e2e-${browserName}`;
+  const password = `password-e2e-${browserName}`;
+
+  await expect(page).toHaveURL(/http:\/\/localhost:8083\/.+/);
+  await expect(
+    page.getByText('conversations'),
+  ).toBeVisible();
+
+  if (await page.getByLabel('Restart login').isVisible()) {
+    await page.getByLabel('Restart login').click();
+  }
+
+  await page.getByRole('textbox', { name: 'username' }).fill(login);
+  await page.getByRole('textbox', { name: 'password' }).fill(password);
+  await page.getByRole('button', { name: 'Sign In' }).click({ force: true });
+};
+
+export const randomName = (name: string, browserName: string, length: number) =>
+  Array.from({ length }, (_el, index) => {
+    return `${browserName}-${Math.floor(Math.random() * 10000)}-${index}-${name}`;
+  });
+
+export const expectLoginPage = async (page: Page) =>
+  await expect(
+    page.getByRole('heading', { name: 'Conversation with AI' }),
+  ).toBeVisible();

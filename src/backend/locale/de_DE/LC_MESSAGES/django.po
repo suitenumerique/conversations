@@ -1,0 +1,390 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: lasuite-docs\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-05-22 12:09+0000\n"
+"PO-Revision-Date: 2025-05-22 14:16\n"
+"Last-Translator: \n"
+"Language-Team: German\n"
+"Language: de_DE\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Crowdin-Project: lasuite-docs\n"
+"X-Crowdin-Project-ID: 754523\n"
+"X-Crowdin-Language: de\n"
+"X-Crowdin-File: backend-conversations.pot\n"
+"X-Crowdin-File-ID: 18\n"
+
+#: build/lib/core/admin.py:37 core/admin.py:37
+msgid "Personal info"
+msgstr "Persönliche Daten"
+
+#: build/lib/core/admin.py:50 build/lib/core/admin.py:138 core/admin.py:50
+#: core/admin.py:138
+msgid "Permissions"
+msgstr "Berechtigungen"
+
+#: build/lib/core/admin.py:62 core/admin.py:62
+msgid "Important dates"
+msgstr "Wichtige Daten"
+
+#: build/lib/core/admin.py:148 core/admin.py:148
+msgid "Tree structure"
+msgstr "Baumstruktur"
+
+#: build/lib/core/api/filters.py:47 core/api/filters.py:47
+msgid "Title"
+msgstr "Titel"
+
+#: build/lib/core/api/filters.py:61 core/api/filters.py:61
+msgid "Creator is me"
+msgstr "Ersteller bin ich"
+
+#: build/lib/core/api/filters.py:64 core/api/filters.py:64
+msgid "Favorite"
+msgstr "Favorit"
+
+#: build/lib/core/api/serializers.py:446 core/api/serializers.py:446
+msgid "A new document was created on your behalf!"
+msgstr "Ein neues Dokument wurde in Ihrem Namen erstellt!"
+
+#: build/lib/core/api/serializers.py:450 core/api/serializers.py:450
+msgid "You have been granted ownership of a new document:"
+msgstr "Sie sind Besitzer eines neuen Dokuments:"
+
+#: build/lib/core/api/serializers.py:586 core/api/serializers.py:586
+msgid "Body"
+msgstr "Inhalt"
+
+#: build/lib/core/api/serializers.py:589 core/api/serializers.py:589
+msgid "Body type"
+msgstr "Typ"
+
+#: build/lib/core/api/serializers.py:595 core/api/serializers.py:595
+msgid "Format"
+msgstr "Format"
+
+#: build/lib/core/api/viewsets.py:967 core/api/viewsets.py:967
+#, python-brace-format
+msgid "copy of {title}"
+msgstr "Kopie von {title}"
+
+#: build/lib/core/enums.py:36 core/enums.py:36
+msgid "First child"
+msgstr "Erstes Unterelement"
+
+#: build/lib/core/enums.py:37 core/enums.py:37
+msgid "Last child"
+msgstr "Letztes Unterelement"
+
+#: build/lib/core/enums.py:38 core/enums.py:38
+msgid "First sibling"
+msgstr "Erstes Nebenelement"
+
+#: build/lib/core/enums.py:39 core/enums.py:39
+msgid "Last sibling"
+msgstr "Letztes Nebenelement"
+
+#: build/lib/core/enums.py:40 core/enums.py:40
+msgid "Left"
+msgstr "Links"
+
+#: build/lib/core/enums.py:41 core/enums.py:41
+msgid "Right"
+msgstr "Rechts"
+
+#: build/lib/core/models.py:56 build/lib/core/models.py:63 core/models.py:56
+#: core/models.py:63
+msgid "Reader"
+msgstr "Lesen"
+
+#: build/lib/core/models.py:57 build/lib/core/models.py:64 core/models.py:57
+#: core/models.py:64
+msgid "Editor"
+msgstr "Bearbeiten"
+
+#: build/lib/core/models.py:65 core/models.py:65
+msgid "Administrator"
+msgstr "Administrator"
+
+#: build/lib/core/models.py:66 core/models.py:66
+msgid "Owner"
+msgstr "Besitzer"
+
+#: build/lib/core/models.py:77 core/models.py:77
+msgid "Restricted"
+msgstr "Beschränkt"
+
+#: build/lib/core/models.py:81 core/models.py:81
+msgid "Authenticated"
+msgstr "Authentifiziert"
+
+#: build/lib/core/models.py:83 core/models.py:83
+msgid "Public"
+msgstr "Öffentlich"
+
+#: build/lib/core/models.py:154 core/models.py:154
+msgid "id"
+msgstr "id"
+
+#: build/lib/core/models.py:155 core/models.py:155
+msgid "primary key for the record as UUID"
+msgstr "primärer Schlüssel für den Datensatz als UUID"
+
+#: build/lib/core/models.py:161 core/models.py:161
+msgid "created on"
+msgstr "Erstellt"
+
+#: build/lib/core/models.py:162 core/models.py:162
+msgid "date and time at which a record was created"
+msgstr "Datum und Uhrzeit, an dem ein Datensatz erstellt wurde"
+
+#: build/lib/core/models.py:167 core/models.py:167
+msgid "updated on"
+msgstr "Aktualisiert"
+
+#: build/lib/core/models.py:168 core/models.py:168
+msgid "date and time at which a record was last updated"
+msgstr "Datum und Uhrzeit, an dem zuletzt aktualisiert wurde"
+
+#: build/lib/core/models.py:204 core/models.py:204
+msgid "We couldn't find a user with this sub but the email is already associated with a registered user."
+msgstr "Wir konnten keinen Benutzer mit diesem Abo finden, aber die E-Mail-Adresse ist bereits einem registrierten Benutzer zugeordnet."
+
+#: build/lib/core/models.py:217 core/models.py:217
+msgid "Enter a valid sub. This value may contain only letters, numbers, and @/./+/-/_/: characters."
+msgstr "Geben Sie eine gültige Unterseite ein. Dieser Wert darf nur Buchstaben, Zahlen und die @/./+/-/_/: Zeichen enthalten."
+
+#: build/lib/core/models.py:223 core/models.py:223
+msgid "sub"
+msgstr "unter"
+
+#: build/lib/core/models.py:225 core/models.py:225
+msgid "Required. 255 characters or fewer. Letters, numbers, and @/./+/-/_/: characters only."
+msgstr "Erforderlich. 255 Zeichen oder weniger. Buchstaben, Zahlen und die Zeichen @/./+/-/_/:"
+
+#: build/lib/core/models.py:234 core/models.py:234
+msgid "full name"
+msgstr "Name"
+
+#: build/lib/core/models.py:235 core/models.py:235
+msgid "short name"
+msgstr "Kurzbezeichnung"
+
+#: build/lib/core/models.py:237 core/models.py:237
+msgid "identity email address"
+msgstr "Identitäts-E-Mail-Adresse"
+
+#: build/lib/core/models.py:242 core/models.py:242
+msgid "admin email address"
+msgstr "Admin E-Mail-Adresse"
+
+#: build/lib/core/models.py:249 core/models.py:249
+msgid "language"
+msgstr "Sprache"
+
+#: build/lib/core/models.py:250 core/models.py:250
+msgid "The language in which the user wants to see the interface."
+msgstr "Die Sprache, in der der Benutzer die Benutzeroberfläche sehen möchte."
+
+#: build/lib/core/models.py:258 core/models.py:258
+msgid "The timezone in which the user wants to see times."
+msgstr "Die Zeitzone, in der der Nutzer Zeiten sehen möchte."
+
+#: build/lib/core/models.py:261 core/models.py:261
+msgid "device"
+msgstr "Gerät"
+
+#: build/lib/core/models.py:263 core/models.py:263
+msgid "Whether the user is a device or a real user."
+msgstr "Ob der Benutzer ein Gerät oder ein echter Benutzer ist."
+
+#: build/lib/core/models.py:266 core/models.py:266
+msgid "staff status"
+msgstr "Status des Teammitgliedes"
+
+#: build/lib/core/models.py:268 core/models.py:268
+msgid "Whether the user can log into this admin site."
+msgstr "Gibt an, ob der Benutzer sich in diese Admin-Seite einloggen kann."
+
+#: build/lib/core/models.py:271 core/models.py:271
+msgid "active"
+msgstr "aktiviert"
+
+#: build/lib/core/models.py:274 core/models.py:274
+msgid "Whether this user should be treated as active. Unselect this instead of deleting accounts."
+msgstr "Ob dieser Benutzer als aktiviert behandelt werden soll. Deaktivieren Sie diese Option, anstatt Konten zu löschen."
+
+#: build/lib/core/models.py:286 core/models.py:286
+msgid "user"
+msgstr "Benutzer"
+
+#: build/lib/core/models.py:287 core/models.py:287
+msgid "users"
+msgstr "Benutzer"
+
+#: build/lib/core/models.py:470 build/lib/core/models.py:1155
+#: core/models.py:470 core/models.py:1155
+msgid "title"
+msgstr "Titel"
+
+#: build/lib/core/models.py:471 core/models.py:471
+msgid "excerpt"
+msgstr "Auszug"
+
+#: build/lib/core/models.py:519 core/models.py:519
+msgid "Document"
+msgstr "Dokument"
+
+#: build/lib/core/models.py:520 core/models.py:520
+msgid "Documents"
+msgstr "Dokumente"
+
+#: build/lib/core/models.py:532 build/lib/core/models.py:873 core/models.py:532
+#: core/models.py:873
+msgid "Untitled Document"
+msgstr "Unbenanntes Dokument"
+
+#: build/lib/core/models.py:908 core/models.py:908
+#, python-brace-format
+msgid "{name} shared a document with you!"
+msgstr "{name} hat ein Dokument mit Ihnen geteilt!"
+
+#: build/lib/core/models.py:912 core/models.py:912
+#, python-brace-format
+msgid "{name} invited you with the role \"{role}\" on the following document:"
+msgstr "{name} hat Sie mit der Rolle \"{role}\" zu folgendem Dokument eingeladen:"
+
+#: build/lib/core/models.py:918 core/models.py:918
+#, python-brace-format
+msgid "{name} shared a document with you: {title}"
+msgstr "{name} hat ein Dokument mit Ihnen geteilt: {title}"
+
+#: build/lib/core/models.py:1016 core/models.py:1016
+msgid "Document/user link trace"
+msgstr "Dokument/Benutzer Linkverfolgung"
+
+#: build/lib/core/models.py:1017 core/models.py:1017
+msgid "Document/user link traces"
+msgstr "Dokument/Benutzer Linkverfolgung"
+
+#: build/lib/core/models.py:1023 core/models.py:1023
+msgid "A link trace already exists for this document/user."
+msgstr "Für dieses Dokument/ diesen Benutzer ist bereits eine Linkverfolgung vorhanden."
+
+#: build/lib/core/models.py:1046 core/models.py:1046
+msgid "Document favorite"
+msgstr "Dokumentenfavorit"
+
+#: build/lib/core/models.py:1047 core/models.py:1047
+msgid "Document favorites"
+msgstr "Dokumentfavoriten"
+
+#: build/lib/core/models.py:1053 core/models.py:1053
+msgid "This document is already targeted by a favorite relation instance for the same user."
+msgstr "Dieses Dokument ist bereits durch den gleichen Benutzer favorisiert worden."
+
+#: build/lib/core/models.py:1075 core/models.py:1075
+msgid "Document/user relation"
+msgstr "Dokument/Benutzerbeziehung"
+
+#: build/lib/core/models.py:1076 core/models.py:1076
+msgid "Document/user relations"
+msgstr "Dokument/Benutzerbeziehungen"
+
+#: build/lib/core/models.py:1082 core/models.py:1082
+msgid "This user is already in this document."
+msgstr "Dieser Benutzer befindet sich bereits in diesem Dokument."
+
+#: build/lib/core/models.py:1088 core/models.py:1088
+msgid "This team is already in this document."
+msgstr "Dieses Team befindet sich bereits in diesem Dokument."
+
+#: build/lib/core/models.py:1094 build/lib/core/models.py:1242
+#: core/models.py:1094 core/models.py:1242
+msgid "Either user or team must be set, not both."
+msgstr "Benutzer oder Team müssen gesetzt werden, nicht beides."
+
+#: build/lib/core/models.py:1156 core/models.py:1156
+msgid "description"
+msgstr "Beschreibung"
+
+#: build/lib/core/models.py:1157 core/models.py:1157
+msgid "code"
+msgstr "Code"
+
+#: build/lib/core/models.py:1158 core/models.py:1158
+msgid "css"
+msgstr "CSS"
+
+#: build/lib/core/models.py:1160 core/models.py:1160
+msgid "public"
+msgstr "öffentlich"
+
+#: build/lib/core/models.py:1162 core/models.py:1162
+msgid "Whether this template is public for anyone to use."
+msgstr "Ob diese Vorlage für jedermann öffentlich ist."
+
+#: build/lib/core/models.py:1168 core/models.py:1168
+msgid "Template"
+msgstr "Vorlage"
+
+#: build/lib/core/models.py:1169 core/models.py:1169
+msgid "Templates"
+msgstr "Vorlagen"
+
+#: build/lib/core/models.py:1223 core/models.py:1223
+msgid "Template/user relation"
+msgstr "Vorlage/Benutzer-Beziehung"
+
+#: build/lib/core/models.py:1224 core/models.py:1224
+msgid "Template/user relations"
+msgstr "Vorlage/Benutzerbeziehungen"
+
+#: build/lib/core/models.py:1230 core/models.py:1230
+msgid "This user is already in this template."
+msgstr "Dieser Benutzer ist bereits in dieser Vorlage."
+
+#: build/lib/core/models.py:1236 core/models.py:1236
+msgid "This team is already in this template."
+msgstr "Dieses Team ist bereits in diesem Template."
+
+#: build/lib/core/models.py:1259 core/models.py:1259
+msgid "email address"
+msgstr "E-Mail-Adresse"
+
+#: build/lib/core/models.py:1278 core/models.py:1278
+msgid "Document invitation"
+msgstr "Einladung zum Dokument"
+
+#: build/lib/core/models.py:1279 core/models.py:1279
+msgid "Document invitations"
+msgstr "Dokumenteinladungen"
+
+#: build/lib/core/models.py:1299 core/models.py:1299
+msgid "This email is already associated to a registered user."
+msgstr "Diese E-Mail ist bereits einem registrierten Benutzer zugeordnet."
+
+#: core/templates/mail/html/invitation.html:162
+#: core/templates/mail/text/invitation.txt:3
+msgid "Logo email"
+msgstr "Logo-E-Mail"
+
+#: core/templates/mail/html/invitation.html:209
+#: core/templates/mail/text/invitation.txt:10
+msgid "Open"
+msgstr "Öffnen"
+
+#: core/templates/mail/html/invitation.html:226
+#: core/templates/mail/text/invitation.txt:14
+msgid " Docs, your new essential tool for organizing, sharing and collaborating on your documents as a team. "
+msgstr " Docs, Ihr neues unentbehrliches Werkzeug für die Organisation, den Austausch und die Zusammenarbeit in Ihren Dokumenten als Team. "
+
+#: core/templates/mail/html/invitation.html:233
+#: core/templates/mail/text/invitation.txt:16
+#, python-format
+msgid " Brought to you by %(brandname)s "
+msgstr " Erstellt von %(brandname)s "
+
