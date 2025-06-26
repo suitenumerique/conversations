@@ -1,0 +1,200 @@
+name: conversations
+
+services:
+  postgresql:
+    image: postgres:16
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 1s
+      timeout: 2s
+      retries: 300
+    env_file:
+      - env.d/development/postgresql
+    ports:
+      - "15432:5432"
+
+  redis:
+    image: redis:5
+
+  maildev:
+    image: maildev/maildev:latest
+    ports:
+      - "1081:1080"
+
+  minio:
+    user: ${DOCKER_USER:-1000}
+    image: minio/minio
+    environment:
+      - MINIO_ROOT_USER=conversations
+      - MINIO_ROOT_PASSWORD=password
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 1s
+      timeout: 20s
+      retries: 300
+    entrypoint: ""
+    command: minio server --console-address :9001 /data
+    volumes:
+      - ./data/media:/data
+
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+        restart: true
+    entrypoint: >
+      sh -c "
+      /usr/bin/mc alias set conversations http://minio:9000 conversations password && \
+      /usr/bin/mc mb conversations/conversations-media-storage && \
+      /usr/bin/mc version enable conversations/conversations-media-storage && \
+      exit 0;"
+
+  app-dev:
+    build:
+      context: .
+      target: backend-development
+      args:
+        DOCKER_USER: ${DOCKER_USER:-1000}
+    user: ${DOCKER_USER:-1000}
+    image: conversations:backend-development
+    environment:
+      - PYLINTHOME=/app/.pylint.d
+      - DJANGO_CONFIGURATION=Development
+    env_file:
+      - env.d/development/common
+      - env.d/development/postgresql
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8071:8000"
+    volumes:
+      - ./src/backend:/app
+      - ./data/static:/data/static
+    depends_on:
+        postgresql:
+            condition: service_healthy
+            restart: true
+        maildev:
+          condition: service_started
+        redis:
+          condition: service_started
+        createbuckets:
+          condition: service_started
+        ai_runner:
+          condition: service_started
+
+  nginx:
+    image: nginx:1.25
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./docker/files/etc/nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      app-dev:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+        restart: true
+
+  frontend-development:
+    user: "${DOCKER_USER:-1000}"
+    build: 
+      context: .
+      dockerfile: ./src/frontend/Dockerfile
+      target: conversations-dev
+      args:
+        API_ORIGIN: "http://localhost:8071"
+    image: conversations:frontend-development
+    volumes:
+      - ./src/frontend:/home/frontend
+      - /home/frontend/node_modules
+      - /home/frontend/apps/conversations/node_modules
+    ports:
+      - "3000:3000"
+
+  crowdin:
+    image: crowdin/cli:3.16.0
+    volumes:
+      - ".:/app"
+    env_file:
+      - env.d/development/crowdin
+    user: "${DOCKER_USER:-1000}"
+    working_dir: /app
+
+  node:
+    image: node:22
+    user: "${DOCKER_USER:-1000}"
+    environment:
+      HOME: /tmp 
+    volumes:
+      - ".:/app"
+
+  kc_postgresql:
+    image: postgres:14.3
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 1s
+      timeout: 2s
+      retries: 300
+    ports:
+      - "5433:5432"
+    env_file:
+      - env.d/development/kc_postgresql
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:20.0.1
+    volumes:
+      - ./docker/auth/realm.json:/opt/keycloak/data/import/realm.json
+    command:
+      - start-dev
+      - --features=preview
+      - --import-realm
+      - --proxy=edge
+      - --hostname-url=http://localhost:8083
+      - --hostname-admin-url=http://localhost:8083/
+      - --hostname-strict=false
+      - --hostname-strict-https=false
+      - --health-enabled=true
+      - --metrics-enabled=true
+    healthcheck:
+      test: ["CMD", "curl", "--head", "-fsS", "http://localhost:8080/health/ready"]
+      interval: 1s
+      timeout: 2s
+      retries: 300
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL_HOST: kc_postgresql
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_PASSWORD: pass
+      KC_DB_USERNAME: conversations
+      KC_DB_SCHEMA: public
+      PROXY_ADDRESS_FORWARDING: 'true'
+    ports:
+      - "8080:8080"
+    depends_on:
+      kc_postgresql:
+        condition: service_healthy
+        restart: true
+
+  ml-flow:
+    image: ghcr.io/mlflow/mlflow:v3.0.0
+    environment:
+      MLFLOW_TRACKING_URI: http://localhost:5050
+      MLFLOW_ARTIFACT_ROOT: /mlflow/artifacts
+    ports:
+      - "5050:5050"
+    volumes:
+      - ./data/mlflow:/mlflow/artifacts
+    command: mlflow server --host 0.0.0.0:5050
+
+  ai_runner:
+    provider:
+      type: model
+      options:
+        model: ai/smollm2

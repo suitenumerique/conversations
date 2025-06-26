@@ -1,0 +1,39 @@
+{
+  "name": "conversations",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*",
+      "servers/*"
+    ]
+  },
+  "scripts": {
+    "APP_CONVERSATIONS": "yarn workspace app-conversations",
+    "APP_E2E": "yarn workspace app-e2e",
+    "I18N": "yarn workspace packages-i18n",
+    "app:dev": "yarn APP_CONVERSATIONS run dev",
+    "app:start": "yarn APP_CONVERSATIONS run start",
+    "app:build": "yarn APP_CONVERSATIONS run build",
+    "app:test": "yarn APP_CONVERSATIONS run test",
+    "ci:build": "yarn APP_CONVERSATIONS run build:ci",
+    "e2e:test": "yarn APP_E2E run test",
+    "lint": "yarn APP_CONVERSATIONS run lint --fix && yarn APP_E2E run lint --fix && yarn workspace eslint-config-conversations run lint --fix && yarn I18N run lint --fix",
+    "i18n:extract": "yarn I18N run extract-translation",
+    "i18n:deploy": "yarn I18N run format-deploy && yarn APP_CONVERSATIONS prettier",
+    "i18n:test": "yarn I18N run test",
+    "test": "yarn server:test && yarn app:test"
+  },
+  "resolutions": {
+    "@types/node": "22.15.29",
+    "@types/react": "19.1.6",
+    "@types/react-dom": "19.1.6",
+    "@typescript-eslint/eslint-plugin": "8.33.1",
+    "@typescript-eslint/parser": "8.33.1",
+    "eslint": "8.57.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "typescript": "5.8.3"
+  }
+}

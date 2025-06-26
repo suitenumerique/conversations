@@ -1,0 +1,148 @@
+djangoSecretKey: &djangoSecretKey "lkjsdlfkjsldkfjslkdfjslkdjfslkdjf"
+djangoSuperUserEmail: admin@example.com
+djangoSuperUserPass: admin
+aiApiKey: changeme
+aiBaseUrl: changeme
+
+image:
+  repository: localhost:5001/conversations-backend
+  pullPolicy: Always
+  tag: "latest"
+
+backend:
+  replicas: 1
+  envVars:
+    COLLABORATION_SERVER_SECRET: my-secret
+    DJANGO_CSRF_TRUSTED_ORIGINS: https://conversations.127.0.0.1.nip.io
+    DJANGO_CONFIGURATION: Feature
+    DJANGO_ALLOWED_HOSTS: conversations.127.0.0.1.nip.io
+    DJANGO_SERVER_TO_SERVER_API_TOKENS: secret-api-key
+    DJANGO_SECRET_KEY: *djangoSecretKey
+    DJANGO_SETTINGS_MODULE: conversations.settings
+    DJANGO_SUPERUSER_PASSWORD: admin
+    DJANGO_EMAIL_BRAND_NAME: "La Suite Numérique"
+    DJANGO_EMAIL_HOST: "maildev"
+    DJANGO_EMAIL_LOGO_IMG: https://conversations.127.0.0.1.nip.io/assets/logo-suite-numerique.png
+    DJANGO_EMAIL_PORT: 1025
+    DJANGO_EMAIL_USE_SSL: False
+    LOGGING_LEVEL_HANDLERS_CONSOLE: ERROR
+    LOGGING_LEVEL_LOGGERS_ROOT: INFO
+    LOGGING_LEVEL_LOGGERS_APP: INFO
+    OIDC_USERINFO_SHORTNAME_FIELD: "given_name"
+    OIDC_USERINFO_FULLNAME_FIELDS: "given_name,usual_name"
+    OIDC_OP_JWKS_ENDPOINT: https://fca.integ01.dev-agentconnect.fr/api/v2/jwks
+    OIDC_OP_AUTHORIZATION_ENDPOINT: https://fca.integ01.dev-agentconnect.fr/api/v2/authorize
+    OIDC_OP_TOKEN_ENDPOINT: https://fca.integ01.dev-agentconnect.fr/api/v2/token
+    OIDC_OP_USER_ENDPOINT: https://fca.integ01.dev-agentconnect.fr/api/v2/userinfo
+    OIDC_OP_LOGOUT_ENDPOINT: https://fca.integ01.dev-agentconnect.fr/api/v2/session/end
+    OIDC_RP_CLIENT_ID: 29eeb7c9-38e3-4e4f-8b39-7f7f1fec9efb
+    OIDC_RP_CLIENT_SECRET: 98a736e58775584a1051479703d5e0966d3b782e2a49b0068534f149f943c85f
+    OIDC_RP_SIGN_ALGO: RS256
+    OIDC_RP_SCOPES: "openid email given_name usual_name groups"
+    OIDC_STORE_REFRESH_TOKEN_KEY: qnw7gZrOFLkLuZIixzuxksNORFJyjWyi5ACugNchKJY=
+    OIDC_STORE_ACCESS_TOKEN: True
+    OIDC_STORE_REFRESH_TOKEN: True
+    OIDC_USERINFO_SHORTNAME_FIELD: "given_name"
+    OIDC_USERINFO_FULLNAME_FIELDS: "given_name,usual_name"
+    LOGIN_REDIRECT_URL: https://conversations.127.0.0.1.nip.io
+    LOGIN_REDIRECT_URL_FAILURE: https://conversations.127.0.0.1.nip.io
+    LOGOUT_REDIRECT_URL: https://conversations.127.0.0.1.nip.io
+    DB_HOST: postgres-postgresql
+    DB_NAME: conversations
+    DB_USER: dinum
+    DB_PASSWORD: pass
+    DB_PORT: 5432
+    POSTGRES_DB: conversations
+    POSTGRES_USER: dinum
+    POSTGRES_PASSWORD: pass
+    REDIS_URL: redis://default:pass@redis-master:6379/2
+    AWS_S3_ENDPOINT_URL: http://minio.conversations.svc.cluster.local:9000
+    AWS_S3_ACCESS_KEY_ID: root
+    AWS_S3_SECRET_ACCESS_KEY: password
+    AWS_STORAGE_BUCKET_NAME: conversations-media-storage
+    STORAGES_STATICFILES_BACKEND: django.contrib.staticfiles.storage.StaticFilesStorage
+    OIDC_STORE_ACCESS_TOKEN: True
+    OIDC_STORE_REFRESH_TOKEN: True
+    OIDC_STORE_REFRESH_TOKEN_KEY: qnw7gZrOFLkLuZIixzuxksNORFJyjWyi5ACugNchKJY=
+  migrate:
+    command:
+      - "/bin/sh"
+      - "-c"
+      - |
+        python manage.py migrate --no-input &&
+        python manage.py create_demo --force
+    restartPolicy: Never
+
+  command:
+    - "gunicorn"
+    - "-c"
+    - "/usr/local/etc/gunicorn/conversations.py"
+    - "conversations.wsgi:application"
+    - "--reload"
+
+  createsuperuser:
+    command:
+      - "/bin/sh"
+      - "-c"
+      - |
+        python manage.py createsuperuser --email admin@example.com --password admin
+    restartPolicy: Never
+
+  # Extra volume mounts to manage our local custom CA and avoid to set ssl_verify: false
+  extraVolumeMounts:
+    - name: certs
+      mountPath: /usr/local/lib/python3.12/site-packages/certifi/cacert.pem
+      subPath: cacert.pem
+
+  # Extra volumes to manage our local custom CA and avoid to set ssl_verify: false
+  extraVolumes:
+    - name: certs
+      configMap:
+        name: certifi
+        items:
+        - key: cacert.pem
+          path: cacert.pem
+
+frontend:
+  envVars:
+    PORT: 8080
+    NEXT_PUBLIC_API_ORIGIN: https://conversations.127.0.0.1.nip.io
+
+  replicas: 1
+  command:
+    - yarn
+    - dev
+
+  image:
+    repository: localhost:5001/conversations-frontend
+    pullPolicy: Always
+    tag: "latest"
+
+ingress:
+  enabled: true
+  host: conversations.127.0.0.1.nip.io
+
+ingressAdmin:
+  enabled: true
+  host: conversations.127.0.0.1.nip.io
+
+posthog:
+  ingress:
+    enabled: false
+
+  ingressAssets:
+    enabled: false
+
+ingressMedia:
+  enabled: true
+  host: conversations.127.0.0.1.nip.io
+
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: https://conversations.127.0.0.1.nip.io/api/v1.0/documents/media-auth/
+    nginx.ingress.kubernetes.io/auth-response-headers: "Authorization, X-Amz-Date, X-Amz-Content-SHA256"
+    nginx.ingress.kubernetes.io/upstream-vhost: minio.conversations.svc.cluster.local:9000
+    nginx.ingress.kubernetes.io/rewrite-target: /conversations-media-storage/$1
+
+serviceMedia:
+  host: minio.conversations.svc.cluster.local
+  port: 9000

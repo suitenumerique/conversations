@@ -1,0 +1,31 @@
+{
+  "extends": ["github>numerique-gouv/renovate-configuration"],
+  "dependencyDashboard": true,
+  "labels": ["dependencies", "noChangeLog", "automated"],
+  "packageRules": [
+    {
+      "enabled": false,
+      "groupName": "ignored python dependencies",
+      "matchManagers": ["pep621"],
+      "matchPackageNames": []
+    },
+    {
+      "groupName": "allowed redis versions",
+      "matchManagers": ["pep621"],
+      "matchPackageNames": ["redis"],
+      "allowedVersions": "<6.0.0"
+    },
+    {
+      "enabled": false,
+      "groupName": "ignored js dependencies",
+      "matchManagers": ["npm"],
+      "matchPackageNames": [
+        "eslint",
+        "fetch-mock",
+        "node",
+        "node-fetch",
+        "workbox-webpack-plugin"
+      ]
+    }
+  ]
+}
