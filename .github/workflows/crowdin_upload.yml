@@ -16,7 +16,7 @@ jobs:
 
   synchronize-with-crowdin:
     needs: install-dependencies
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout

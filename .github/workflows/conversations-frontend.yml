@@ -18,7 +18,7 @@ jobs:
 
   test-front:
     needs: install-dependencies
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
         run: cd src/frontend/ && yarn test
 
   lint-front:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: install-dependencies
     steps:
       - name: Checkout repository
@@ -60,7 +60,7 @@ jobs:
         run: cd src/frontend/ && yarn lint
 
   test-e2e-chromium:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: install-dependencies
     timeout-minutes: 20
     steps:
@@ -99,7 +99,7 @@ jobs:
           retention-days: 7
 
   test-e2e-other-browser:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: test-e2e-chromium
     timeout-minutes: 20
     steps:

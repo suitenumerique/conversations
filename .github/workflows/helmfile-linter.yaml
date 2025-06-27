@@ -9,7 +9,7 @@ on:
 
 jobs:
   helmfile-lint:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: ghcr.io/helmfile/helmfile:v0.171.0
     steps:
