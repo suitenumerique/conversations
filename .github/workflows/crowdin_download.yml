@@ -14,7 +14,7 @@ jobs:
       with-front-dependencies-installation: true
 
   synchronize-with-crowdin:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: write
       pull-requests: write
