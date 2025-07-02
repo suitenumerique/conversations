@@ -467,7 +467,12 @@ class Base(Configuration):
         environ_prefix=None,
     )
     AI_AGENT_INSTRUCTIONS = values.Value(
-        "You are a helpful assistant",
+        (
+            "You are a helpful assistant. "
+            "Escape formulas or any math notation between `$$`, "
+            "like `$$x^2 + y^2 = z^2$$` or `$$C_l$$`. "
+            "You can use Markdown to format your answers. "
+        ),
         environ_name="AI_AGENT_INSTRUCTIONS",
         environ_prefix=None,
     )

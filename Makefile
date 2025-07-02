@@ -141,10 +141,14 @@ run-backend: ## Start only the backend application and all needed services
 	@$(COMPOSE) up --force-recreate -d nginx ml-flow app-dev
 .PHONY: run-backend
 
+run-frontend: ## Start only the frontend application
+	@$(COMPOSE) up --force-recreate -d frontend-development
+.PHONY: run-frontend
+
 run: ## start the wsgi (production) and development server
 run: 
 	@$(MAKE) run-backend
-	@$(COMPOSE) up --force-recreate -d frontend-development
+	@$(MAKE) run-frontend
 .PHONY: run
 
 run-e2e: ## start the e2e server

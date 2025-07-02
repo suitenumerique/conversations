@@ -1,11 +1,14 @@
-import { Message } from '@ai-sdk/ui-utils';
+import { Message, ToolInvocationUIPart } from '@ai-sdk/ui-utils';
 import { Loader } from '@openfun/cunningham-react';
+import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Markdown from 'react-markdown';
+import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 
 import { Box, BoxButton, Icon, Text } from '@/components';
 import { DropdownMenu } from '@/components/DropdownMenu';
@@ -213,30 +216,35 @@ export const Chat = ({
             <Box $direction="column" $gap="2">
               {message.content && (
                 <Markdown
-                  remarkPlugins={[remarkGfm]}
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
                   components={{
                     // Custom components for Markdown rendering
                     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                    p: ({ node, ...props }) => <Text {...props} />,
+                    p: ({ node, ...props }) => (
+                      <Text $display="inline" {...props} />
+                    ),
                   }}
                 >
                   {message.content}
                 </Markdown>
               )}
               <Box $direction="row" $gap="2">
-                {message.toolInvocations?.map((toolInvocation) => (
-                  <Box
-                    as="pre"
-                    key={toolInvocation.toolCallId}
-                    $background="var(--c--theme--colors--greyscale-100)"
-                    $color="var(--c--theme--colors--greyscale-500)"
-                    $padding={{ all: 'sm' }}
-                    $radius="md"
-                    $css="font-family: monospace; font-size: 0.9em;"
-                  >
-                    {`${toolInvocation.toolName}(${JSON.stringify(toolInvocation.args, null, 2)})`}
-                  </Box>
-                ))}
+                {message.parts
+                  ?.filter((part) => part.type === 'tool-invocation')
+                  .map((part: ToolInvocationUIPart) => (
+                    <Box
+                      as="pre"
+                      key={part.toolInvocation.toolCallId}
+                      $background="var(--c--theme--colors--greyscale-100)"
+                      $color="var(--c--theme--colors--greyscale-500)"
+                      $padding={{ all: 'sm' }}
+                      $radius="md"
+                      $css="font-family: monospace; font-size: 0.9em;"
+                    >
+                      {`${part.toolInvocation.toolName}(${JSON.stringify(part.toolInvocation.args, null, 2)})`}
+                    </Box>
+                  ))}
                 {/* Show attachments if present */}
                 {message.experimental_attachments?.map(
                   (attachment: Attachment, index: number) =>
@@ -276,7 +284,7 @@ export const Chat = ({
             $direction="row"
             $align="center"
             $justify="center"
-            $gap="2"
+            $gap="1rem"
             $margin={{ top: 'base' }}
           >
             <Loader size="small" />

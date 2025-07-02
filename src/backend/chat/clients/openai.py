@@ -80,9 +80,10 @@ class AIAgentService:
         self.conversation = conversation
 
     @staticmethod
-    def _convert_to_openai_messages(  # noqa: PLR0912
+    def _convert_to_openai_messages(
         messages: List[UIMessage],
     ) -> List[ResponseInputItemParam]:
+        """Convert UI messages to OpenAI format."""
         openai_messages = []
 
         for message in messages:
@@ -92,7 +93,12 @@ class AIAgentService:
             for part in message.parts:
                 match part.type:
                     case "text":
-                        content_parts.append({"type": "input_text", "text": part.text})
+                        content_parts.append(
+                            {
+                                "type": "input_text" if message.role == "user" else "output_text",
+                                "text": part.text,
+                            }
+                        )
 
                     case "image":
                         content_parts.append(
@@ -146,13 +152,14 @@ class AIAgentService:
                             }
                         )
 
-            # Add tool calls separately
-            for tool_call in tool_calls:
-                openai_messages.append(tool_call)
-
             # Add message with content parts if there are any
             if content_parts:
-                openai_messages.append({"role": message.role, "content": content_parts})
+                openai_messages.append(
+                    {"role": message.role, "content": content_parts, "type": "message"}
+                )
+
+            # Add tool calls separately, will be merged by `items_to_messages`
+            openai_messages += tool_calls
 
         return openai_messages
 
@@ -219,7 +226,7 @@ class AIAgentService:
                 name=settings.AI_AGENT_NAME,
                 instructions=settings.AI_AGENT_INSTRUCTIONS,
                 model=self.model,
-                #tools=[agent_get_current_weather],
+                tools=[agent_get_current_weather],
                 mcp_servers=initialized_mcp_servers,
             )
             result = Runner.run_streamed(
