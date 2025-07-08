@@ -477,6 +477,18 @@ class Base(Configuration):
         environ_prefix=None,
     )
 
+    # Web search
+    TAVILY_API_KEY = values.Value(
+        None,  # Tavily API key is not set by default
+        environ_name="TAVILY_API_KEY",
+        environ_prefix=None,
+    )
+    TAVILY_MAX_RESULTS = values.PositiveIntegerValue(
+        default=5,
+        environ_name="TAVILY_MAX_RESULTS",
+        environ_prefix=None,
+    )
+
     # Logging
     # We want to make it easy to log to console but by default we log production
     # to Sentry and don't want to log to console.

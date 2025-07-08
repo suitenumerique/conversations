@@ -134,7 +134,7 @@ services:
       - ".:/app"
 
   kc_postgresql:
-    image: postgres:14.3
+    image: postgres:17.5
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
       interval: 1s
@@ -146,7 +146,7 @@ services:
       - env.d/development/kc_postgresql
 
   keycloak:
-    image: quay.io/keycloak/keycloak:20.0.1
+    image: quay.io/keycloak/keycloak:26.3
     volumes:
       - ./docker/auth/realm.json:/opt/keycloak/data/import/realm.json
     command:
@@ -154,20 +154,20 @@ services:
       - --features=preview
       - --import-realm
       - --proxy=edge
-      - --hostname-url=http://localhost:8083
-      - --hostname-admin-url=http://localhost:8083/
+      - --hostname=http://localhost:8083
       - --hostname-strict=false
-      - --hostname-strict-https=false
       - --health-enabled=true
       - --metrics-enabled=true
+      - --http-enabled=true
     healthcheck:
-      test: ["CMD", "curl", "--head", "-fsS", "http://localhost:8080/health/ready"]
+      test: ['CMD-SHELL', '[ -f /tmp/HealthCheck.java ] || echo "public class HealthCheck { public static void main(String[] args) throws java.lang.Throwable { java.net.URI uri = java.net.URI.create(args[0]); System.exit(java.net.HttpURLConnection.HTTP_OK == ((java.net.HttpURLConnection)uri.toURL().openConnection()).getResponseCode() ? 0 : 1); } }" > /tmp/HealthCheck.java && java /tmp/HealthCheck.java http://localhost:9000/health/live']
+      start_period: 10s
       interval: 1s
       timeout: 2s
       retries: 300
     environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_DB: postgres
       KC_DB_URL_HOST: kc_postgresql
       KC_DB_URL_DATABASE: keycloak
@@ -175,8 +175,6 @@ services:
       KC_DB_USERNAME: conversations
       KC_DB_SCHEMA: public
       PROXY_ADDRESS_FORWARDING: 'true'
-    ports:
-      - "8080:8080"
     depends_on:
       kc_postgresql:
         condition: service_healthy

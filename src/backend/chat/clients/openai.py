@@ -30,7 +30,6 @@ from chat.ai_sdk_types import (
     UIMessage,
 )
 from chat.mcp_servers import get_mcp_servers
-from chat.tools import agent_get_current_weather
 
 logger = logging.getLogger(__name__)
 
@@ -171,28 +170,30 @@ class AIAgentService:
     async def stream_text_async(self, messages: List[UIMessage]):
         """Async generator for streaming agent events."""
         openai_messages = self._convert_to_openai_messages(messages)
-        logger.info("[stream_data_async] Received messages: %s", openai_messages)
+        logger.debug("[stream_data_async] Received messages: %s", openai_messages)
 
-        mcp_servers = get_mcp_servers()
-
-        async with mcp_servers[0] as mcp_server:
+        async with AsyncExitStack() as stack:
+            initialized_mcp_servers = [
+                await stack.enter_async_context(mcp_server) for mcp_server in get_mcp_servers()
+            ]
             agent = Agent(
                 name=settings.AI_AGENT_NAME,
                 instructions=settings.settings.AI_AGENT_INSTRUCTIONS,
                 model=self.model,
-                tools=[agent_get_current_weather],
-                mcp_servers=[mcp_server],
+                #tools=[agent_get_current_weather],
+                mcp_servers=initialized_mcp_servers,
             )
+
             result = Runner.run_streamed(
                 agent,
                 input=openai_messages,
             )
 
             async for event in result.stream_events():
-                logger.info("[stream_text_async] Received event: %s", event)
+                logger.debug("[stream_text_async] Received event: %s", event)
                 if event.type == "raw_response_event":
                     data = event.data
-                    logger.info("[stream_text_async]  - data: %s", data)
+                    logger.debug("[stream_text_async]  - data: %s", data)
                     if data.type == "response.output_text.delta":
                         yield data.delta
 
@@ -215,19 +216,38 @@ class AIAgentService:
         finish_reason = "stop"
 
         openai_messages = self._convert_to_openai_messages(messages)
-        logger.info("[stream_data_async] Received messages: %s", openai_messages)
+        logger.debug("[stream_data_async] Received messages: %s", openai_messages)
 
         async with AsyncExitStack() as stack:
             initialized_mcp_servers = [
                 await stack.enter_async_context(mcp_server) for mcp_server in get_mcp_servers()
             ]
 
+            # websearch_agent = Agent(
+            #     name="web search",
+            #     instructions=(
+            #         "You are a web search agent. "
+            #         "Your task is to search the web for up-to-date information."
+            #         " You will be called by the main agent to perform web searches."
+            #         " You will receive a query and return the search results."
+            #         " The results should be in the format of a list of dictionaries, "
+            #         "each containing 'link', 'title', and 'snippet' keys."
+            #         " If you cannot find any results, return an empty list."
+            #         " Do not include any other information in your response."
+            #         " Do not include any additional text or explanations."
+            #         " You must always annotate the response mentioning the url, title, and snippet."
+            #     ),
+            #     handoff_description="You are a web search agent. Your task is to search the web for up-to-date information.",
+            #     model=self.model,
+            #     tools=[agent_web_search_tavily],
+            # )
+
             agent = Agent(
                 name=settings.AI_AGENT_NAME,
                 instructions=settings.AI_AGENT_INSTRUCTIONS,
                 model=self.model,
-                tools=[agent_get_current_weather],
                 mcp_servers=initialized_mcp_servers,
+                # handoffs=[websearch_agent],
             )
             result = Runner.run_streamed(
                 agent,
@@ -236,11 +256,10 @@ class AIAgentService:
 
             try:
                 async for event in result.stream_events():
-                    # logger.info("[stream_data_async] Received event: %s", event)
+                    logger.debug("[stream_data_async] Received event: %s", event)
 
                     if event.type == "raw_response_event":
                         data = event.data
-                        # logger.info("[stream_data_async]   - data: %s", data)
                         if data.type == "response.output_text.delta":
                             yield f"0:{json.dumps(data.delta)}\n"
 
@@ -267,7 +286,7 @@ class AIAgentService:
                             }
                             yield f"a:{json.dumps(_tool_call_result)}\n"
                     elif event.type == "agent_updated_stream_event":
-                        logger.info(
+                        logger.debug(
                             "[stream_data_async] Agent switched to: %s", event.new_agent.name
                         )
 

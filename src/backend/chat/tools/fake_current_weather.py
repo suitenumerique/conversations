@@ -1,8 +1,8 @@
-"""Tools for the chat agent."""
-
+"""Fake weather tool for the chat agent."""
 from agents import function_tool
 from openai.types.chat import ChatCompletionToolParam
 from openai.types.shared_params import FunctionDefinition
+
 
 current_weather = ChatCompletionToolParam(
     type="function",
@@ -37,3 +37,4 @@ def get_current_weather(location: str, unit: str):
 def agent_get_current_weather(location: str, unit: str) -> dict:
     """Get the current weather in a given location."""
     return get_current_weather(location, unit)
+
