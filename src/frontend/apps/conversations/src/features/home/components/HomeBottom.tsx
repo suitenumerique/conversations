@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import IconDocs from '@/assets/icons/icon-docs.svg';
+import IconAssistant from '@/assets/logo/assistant.svg';
 import { Box, Text } from '@/components';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
@@ -45,7 +45,7 @@ function HomeProConnect() {
           $height="fit-content"
           $css="zoom: 1.9;"
         >
-          <IconDocs
+          <IconAssistant
             aria-label={t('{{productName}} Logo', { productName })}
             width={34}
             color={colorsTokens['primary-text']}
@@ -53,7 +53,7 @@ function HomeProConnect() {
           <Title />
         </Box>
         <Text $size="md" $variation="1000" $textAlign="center">
-          {t('Conversations is already available, log in to use it now.')}
+          {t('Assistant is already available, log in to use it now.')}
         </Text>
         <ProConnectButton />
       </Box>

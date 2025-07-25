@@ -5,7 +5,6 @@ import { createGlobalStyle, css } from 'styled-components';
 import { Box, SeparatedSection } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { ButtonLogin } from '@/features/auth';
-import { HEADER_HEIGHT } from '@/features/header/conf';
 import { LanguagePicker } from '@/features/language';
 import { useResponsiveStore } from '@/stores';
 
@@ -38,7 +37,7 @@ export const LeftPanel = () => {
         <Box
           data-testid="left-panel-desktop"
           $css={`
-            height: calc(100vh - ${HEADER_HEIGHT}px);
+            height: 100vh;
             width: 300px;
             min-width: 300px;
             overflow: hidden;
@@ -64,11 +63,13 @@ export const LeftPanel = () => {
             $hasTransition
             $css={css`
               z-index: 999;
-              width: 100dvw;
+              overflow: hidden;
+              width: ${isPanelOpen ? '100%' : '200px'};
               height: calc(100dvh - 52px);
               border-right: 1px solid var(--c--theme--colors--greyscale-200);
               position: fixed;
-              transform: translateX(${isPanelOpen ? '0' : '-100dvw'});
+              top: 52px;
+              left: ${isPanelOpen ? '0' : '-300px'};
               background-color: var(--c--theme--colors--greyscale-000);
             `}
             className="--docs--left-panel-mobile"

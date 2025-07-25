@@ -1,26 +1,25 @@
-import { Button } from '@openfun/cunningham-react';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import { Box, Text } from '@/components';
-import { productName } from '@/core';
+import { Box } from '@/components';
+import { productName as _productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
 import { Footer } from '@/features/footer';
 import { LeftPanel } from '@/features/left-panel';
 import { useResponsiveStore } from '@/stores';
 
-import SC5 from '../assets/SC5.png';
-import GithubIcon from '../assets/github.svg';
-
 import HomeBanner from './HomeBanner';
-import { HomeBottom } from './HomeBottom';
 import { HomeHeader, getHeaderHeight } from './HomeHeader';
-import { HomeSection } from './HomeSection';
+// import { HomeSection } from './HomeSection';
 
 export function HomeContent() {
-  const { t } = useTranslation();
-  const { colorsTokens } = useCunninghamTheme();
-  const { isMobile, isSmallMobile, isTablet } = useResponsiveStore();
+  const { t: _t } = useTranslation();
+  const { colorsTokens: _colorsTokens } = useCunninghamTheme();
+  const {
+    isMobile: _isMobile,
+    isSmallMobile,
+    isTablet: _isTablet,
+  } = useResponsiveStore();
 
   return (
     <Box as="main" className="--docs--home-content">
@@ -45,7 +44,7 @@ export function HomeContent() {
           $margin="auto"
         >
           <HomeBanner />
-          <Box
+          {/*          <Box
             id="docs-app-info"
             $maxWidth="100%"
             $gap={isMobile ? '115px' : '230px'}
@@ -152,9 +151,9 @@ export function HomeContent() {
                   </Box>
                 }
               />
-            </Box>
-            <HomeBottom />
-          </Box>
+            </Box>*/}
+          {/*            <HomeBottom />
+          </Box>*/}
         </Box>
         <Footer />
       </Box>

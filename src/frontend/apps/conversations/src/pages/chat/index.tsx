@@ -9,7 +9,7 @@ const Page: NextPageWithLayout = () => {
 };
 
 Page.getLayout = function getLayout(page: ReactElement) {
-  return <MainLayout backgroundColor="grey">{page}</MainLayout>;
+  return <MainLayout>{page}</MainLayout>;
 };
 
 export default Page;

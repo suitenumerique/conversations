@@ -14,7 +14,7 @@ interface SourceItemProps {
   url: string;
 }
 
-const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
+export const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
   const [title, setTitle] = useState<string | null>(null);
   const [favicon, setFavicon] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,5 +130,3 @@ const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
     </Box>
   );
 };
-
-export default SourceItem;
