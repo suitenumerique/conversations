@@ -1,10 +1,14 @@
 """Unit tests for chat conversation actions in the chat API view."""
+# pylint: disable=too-many-lines
 
 import json
+
+from django.utils import timezone
 
 import httpx
 import pytest
 import respx
+from freezegun import freeze_time
 from rest_framework import status
 
 from core.factories import UserFactory
@@ -28,6 +32,7 @@ def ai_settings(settings):
 
 
 @pytest.fixture(name="mock_openai_stream")
+@freeze_time("2025-07-25T10:36:35.297675Z")
 def fixture_mock_openai_stream():
     """
     Fixture to mock the OpenAI stream response.
@@ -38,6 +43,8 @@ def fixture_mock_openai_stream():
         "data: "
         + json.dumps(
             {
+                "id": "chatcmpl-1234567890",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
                 "choices": [
                     {
                         "delta": {"content": "Hello"},
@@ -52,6 +59,8 @@ def fixture_mock_openai_stream():
         "data: "
         + json.dumps(
             {
+                "id": "chatcmpl-1234567890",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
                 "choices": [
                     {
                         "delta": {"content": " there"},
@@ -60,6 +69,11 @@ def fixture_mock_openai_stream():
                     }
                 ],
                 "object": "chat.completion.chunk",
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
             }
         )
         + "\n\n"
@@ -78,6 +92,7 @@ def fixture_mock_openai_stream():
 
 
 @pytest.fixture(name="mock_openai_stream_image")
+@freeze_time("2025-07-25T10:36:35.297675Z")
 def fixture_mock_openai_stream_image():
     """
     Mock a very simple OpenAI stream that *mentions* the image
@@ -88,6 +103,8 @@ def fixture_mock_openai_stream_image():
         "data: "
         + json.dumps(
             {
+                "id": "chatcmpl-1234567890",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
                 "choices": [
                     {
                         "delta": {"content": "I see a cat"},
@@ -102,6 +119,8 @@ def fixture_mock_openai_stream_image():
         "data: "
         + json.dumps(
             {
+                "id": "chatcmpl-1234567890",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
                 "choices": [
                     {
                         "delta": {"content": " in the picture."},
@@ -110,6 +129,11 @@ def fixture_mock_openai_stream_image():
                     }
                 ],
                 "object": "chat.completion.chunk",
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
             }
         )
         + "\n\n"
@@ -127,6 +151,7 @@ def fixture_mock_openai_stream_image():
 
 
 @pytest.fixture(name="mock_openai_stream_tool")
+@freeze_time("2025-07-25T10:36:35.297675Z")
 def fixture_mock_openai_stream_tool():
     """
     Mock both API calls in the tool call flow:
@@ -140,6 +165,7 @@ def fixture_mock_openai_stream_tool():
         + json.dumps(
             {
                 "id": "chatcmpl-tool-call",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
                 "object": "chat.completion.chunk",
                 "choices": [
                     {
@@ -152,6 +178,33 @@ def fixture_mock_openai_stream_tool():
                                     "type": "function",
                                     "function": {
                                         "name": "get_current_weather",
+                                        "arguments": "",
+                                    },
+                                }
+                            ]
+                        },
+                    }
+                ],
+            }
+        )
+        + "\n\n"
+        "data: "
+        + json.dumps(
+            {
+                "id": "chatcmpl-tool-call",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
+                "object": "chat.completion.chunk",
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "",
                                         "arguments": '{"location":"Paris", "unit":"celsius"}',
                                     },
                                 }
@@ -166,7 +219,13 @@ def fixture_mock_openai_stream_tool():
         + json.dumps(
             {
                 "id": "chatcmpl-tool-call",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
                 "choices": [{"delta": {}, "finish_reason": "tool_calls"}],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
             }
         )
         + "\n\n"
@@ -179,6 +238,7 @@ def fixture_mock_openai_stream_tool():
         + json.dumps(
             {
                 "id": "chatcmpl-final",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
                 "object": "chat.completion.chunk",
                 "choices": [{"delta": {"role": "assistant"}, "index": 0}],
             }
@@ -188,9 +248,15 @@ def fixture_mock_openai_stream_tool():
         + json.dumps(
             {
                 "id": "chatcmpl-final",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
                 "choices": [
                     {"delta": {"content": "The current weather in Paris is nice"}, "index": 0}
                 ],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
             }
         )
         + "\n\n"
@@ -198,6 +264,47 @@ def fixture_mock_openai_stream_tool():
         + json.dumps(
             {
                 "id": "chatcmpl-final",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
+                "choices": [{"delta": {}, "finish_reason": "stop"}],
+            }
+        )
+        + "\n\n"
+        "data: [DONE]\n\n"
+    )
+
+    # Second response - final answer when failing
+    second_response_fail = (
+        "data: "
+        + json.dumps(
+            {
+                "id": "chatcmpl-final",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
+                "object": "chat.completion.chunk",
+                "choices": [{"delta": {"role": "assistant"}, "index": 0}],
+            }
+        )
+        + "\n\n"
+        "data: "
+        + json.dumps(
+            {
+                "id": "chatcmpl-final",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
+                "choices": [
+                    {"delta": {"content": "I cannot give you an answer to that."}, "index": 0}
+                ],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
+            }
+        )
+        + "\n\n"
+        "data: "
+        + json.dumps(
+            {
+                "id": "chatcmpl-final",
+                "created": timezone.make_naive(timezone.now()).timestamp(),
                 "choices": [{"delta": {}, "finish_reason": "stop"}],
             }
         )
@@ -213,10 +320,20 @@ def fixture_mock_openai_stream_tool():
         for line in second_response.splitlines(keepends=True):
             yield line.encode()
 
+    async def mock_second_response_failing_stream():
+        for line in second_response_fail.splitlines(keepends=True):
+            yield line.encode()
+
+    def tool_answer_side_effect(request):
+        if "Unknown tool name:" in request.content.decode():
+            # Simulate the second response with tool call failure
+            return httpx.Response(200, stream=mock_second_response_failing_stream())
+        return httpx.Response(200, stream=mock_second_response_stream())
+
     route = respx.post("https://www.external-ai-service.com/chat/completions").mock(
         side_effect=[
             httpx.Response(200, stream=mock_first_response_stream()),
-            httpx.Response(200, stream=mock_second_response_stream()),
+            tool_answer_side_effect,
         ]
     )
 
@@ -269,6 +386,7 @@ def test_post_conversation_invalid_protocol(api_client):
     assert "Invalid protocol" in response.data["error"]
 
 
+@freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_data_protocol(api_client, mock_openai_stream):
     """Test posting messages to a conversation using the 'data' protocol."""
@@ -317,27 +435,70 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
     ]
 
     assert len(chat_conversation.messages) == 2
+    assert chat_conversation.messages[0].pop("createdAt")  # Remove timestamp for comparison
     assert chat_conversation.messages[0] == {
+        "annotations": None,
         "content": "Hello",
-        "createdAt": "2025-07-03T15:22:17.105Z",
-        "id": "yuPoOuBkKA4FnKvk",
+        "experimental_attachments": None,
+        "id": "",  # ID is not set in the response
         "parts": [{"text": "Hello", "type": "text"}],
+        "reasoning": None,
         "role": "user",
+        "toolInvocations": None,
     }
 
-    assert chat_conversation.messages[1].pop("id")  # Remove ID for comparison
+    assert chat_conversation.messages[1].pop("createdAt")  # Remove timestamp for comparison
     assert chat_conversation.messages[1] == {
         "annotations": None,
         "content": "Hello there",
-        "createdAt": None,
         "experimental_attachments": None,
+        "id": "",  # ID is not set in the response
         "parts": [{"text": "Hello there", "type": "text"}],
         "reasoning": None,
         "role": "assistant",
         "toolInvocations": None,
     }
 
+    assert chat_conversation.openai_messages == [
+        {
+            "instructions": None,
+            "kind": "request",
+            "parts": [
+                {
+                    "content": "You are a helpful assistant. Escape formulas or any "
+                    "math notation between `$$`, like `$$x^2 + y^2 = "
+                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
+                    "your answers. ",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": ["Hello"],
+                    "part_kind": "user-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+            ],
+        },
+        {
+            "kind": "response",
+            "model_name": "test-model",
+            "parts": [{"content": "Hello there", "part_kind": "text"}],
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+            "usage": {
+                "details": None,
+                "request_tokens": 0,
+                "requests": 1,
+                "response_tokens": 0,
+                "total_tokens": 0,
+            },
+            "vendor_details": None,
+            "vendor_id": None,
+        },
+    ]
 
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_text_protocol(api_client, mock_openai_stream):
     """Test posting messages to a conversation using the 'text' protocol."""
@@ -380,27 +541,70 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
     ]
 
     assert len(chat_conversation.messages) == 2
+    assert chat_conversation.messages[0].pop("createdAt")  # Remove timestamp for comparison
     assert chat_conversation.messages[0] == {
+        "annotations": None,
         "content": "Hello",
-        "createdAt": "2025-07-03T15:22:17.105Z",
-        "id": "yuPoOuBkKA4FnKvk",
+        "experimental_attachments": None,
+        "id": "",  # ID is not set in the response
         "parts": [{"text": "Hello", "type": "text"}],
+        "reasoning": None,
         "role": "user",
+        "toolInvocations": None,
     }
 
-    assert chat_conversation.messages[1].pop("id")
+    assert chat_conversation.messages[1].pop("createdAt")  # Remove timestamp for comparison
     assert chat_conversation.messages[1] == {
         "annotations": None,
         "content": "Hello there",
-        "createdAt": None,
         "experimental_attachments": None,
+        "id": "",  # ID is not set in the response
         "parts": [{"text": "Hello there", "type": "text"}],
         "reasoning": None,
         "role": "assistant",
         "toolInvocations": None,
     }
 
+    assert chat_conversation.openai_messages == [
+        {
+            "instructions": None,
+            "kind": "request",
+            "parts": [
+                {
+                    "content": "You are a helpful assistant. Escape formulas or any "
+                    "math notation between `$$`, like `$$x^2 + y^2 = "
+                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
+                    "your answers. ",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": ["Hello"],
+                    "part_kind": "user-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+            ],
+        },
+        {
+            "kind": "response",
+            "model_name": "test-model",
+            "parts": [{"content": "Hello there", "part_kind": "text"}],
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+            "usage": {
+                "details": None,
+                "request_tokens": 0,
+                "requests": 1,
+                "response_tokens": 0,
+                "total_tokens": 0,
+            },
+            "vendor_details": None,
+            "vendor_id": None,
+        },
+    ]
 
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_with_image(api_client, mock_openai_stream_image):
     """Ensure an image URL is correctly forwarded to the AI service."""
@@ -417,9 +621,13 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
                 "createdAt": "2025-07-07T15:52:27.822Z",
                 "experimental_attachments": [
                     {
-                        "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD",
+                        "url": (
+                            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAA"
+                            "ABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5C"
+                            "YII="
+                        ),
                         "name": "FELV-cat.jpg",
-                        "contentType": "image/jpeg",
+                        "contentType": "image/png",
                     }
                 ],
             }
@@ -460,8 +668,12 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
                 {"text": "Hello, what do you see on this picture?", "type": "text"},
                 {
                     "image_url": {
-                        "detail": "auto",
-                        "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD",
+                        # "detail": "auto",
+                        "url": (
+                            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAA"
+                            "ABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5C"
+                            "YII="
+                        ),
                     },
                     "type": "image_url",
                 },
@@ -472,7 +684,114 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
     assert body["model"] == "test-model"
     assert body["stream"] is True
 
+    chat_conversation.refresh_from_db()
+    assert chat_conversation.ui_messages == [
+        {
+            "content": "Hello, what do you see on this picture?",
+            "createdAt": "2025-07-07T15:52:27.822Z",
+            "experimental_attachments": [
+                {
+                    "contentType": "image/png",
+                    "name": "FELV-cat.jpg",
+                    "url": (
+                        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAA"
+                        "ABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5C"
+                        "YII="
+                    ),
+                }
+            ],
+            "id": "7x3hLsq6rB3xp91T",
+            "parts": [{"text": "Hello, what do you see on this picture?", "type": "text"}],
+            "role": "user",
+        }
+    ]
 
+    assert len(chat_conversation.messages) == 2
+    assert chat_conversation.messages[0].pop("createdAt")  # Remove timestamp for comparison
+    assert chat_conversation.messages[0] == {
+        "annotations": None,
+        "content": "Hello, what do you see on this picture?",
+        "experimental_attachments": [
+            {
+                "contentType": "image/png",
+                "name": None,
+                "url": (
+                    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wS"
+                    "zIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAA"
+                    "AASUVORK5CYII="
+                ),
+            }
+        ],
+        "id": "",
+        "parts": [{"text": "Hello, what do you see on this picture?", "type": "text"}],
+        "reasoning": None,
+        "role": "user",
+        "toolInvocations": None,
+    }
+
+    assert chat_conversation.messages[1].pop("createdAt")  # Remove timestamp for comparison
+    assert chat_conversation.messages[1] == {
+        "annotations": None,
+        "content": "I see a cat in the picture.",
+        "experimental_attachments": None,
+        "id": "",
+        "parts": [{"text": "I see a cat in the picture.", "type": "text"}],
+        "reasoning": None,
+        "role": "assistant",
+        "toolInvocations": None,
+    }
+
+    assert chat_conversation.openai_messages == [
+        {
+            "instructions": None,
+            "kind": "request",
+            "parts": [
+                {
+                    "content": "You are a helpful assistant. Escape formulas or any "
+                    "math notation between `$$`, like `$$x^2 + y^2 = "
+                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
+                    "your answers. ",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": [
+                        "Hello, what do you see on this picture?",
+                        {
+                            "data": (
+                                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD-wSzIAAAABlBMVEX___-_"
+                                "v7-jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD_aNpbtEAAAAASUVORK5CYII="
+                            ),
+                            "kind": "binary",
+                            "media_type": "image/png",
+                            "vendor_metadata": None,
+                        },
+                    ],
+                    "part_kind": "user-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+            ],
+        },
+        {
+            "kind": "response",
+            "model_name": "test-model",
+            "parts": [{"content": "I see a cat in the picture.", "part_kind": "text"}],
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+            "usage": {
+                "details": None,
+                "request_tokens": 0,
+                "requests": 1,
+                "response_tokens": 0,
+                "total_tokens": 0,
+            },
+            "vendor_details": None,
+            "vendor_id": None,
+        },
+    ]
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settings):
     """Ensure tool calls are correctly forwarded and streamed back."""
@@ -504,10 +823,12 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
     assert response_content == (
-        '9:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "toolName": '
-        '"get_current_weather", "args": {"location": "Paris", "unit": "celsius"}}\n'
-        'a:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "result": '
-        "\"{'location': 'Paris', 'temperature': 22, 'unit': 'celsius'}\"}\n"
+        'b:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "toolName": '
+        '"get_current_weather"}\n'
+        'c:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "argsTextDelta": '
+        '"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n'
+        'a:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "result": {"location": '
+        '"Paris", "temperature": 22, "unit": "celsius"}}\n'
         '0:"The current weather in Paris is nice"\n'
         'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": '
         "0}}\n"
@@ -539,60 +860,118 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
     ]
 
     assert len(chat_conversation.messages) == 2
+    assert chat_conversation.messages[0].pop("createdAt")  # Remove timestamp for comparison
     assert chat_conversation.messages[0] == {
+        "annotations": None,
         "content": "Weather in Paris?",
-        "createdAt": "2025-07-18T12:00:00Z",
-        "id": "tool-msg-1",
+        "experimental_attachments": None,
+        "id": "",
         "parts": [{"text": "Weather in Paris?", "type": "text"}],
+        "reasoning": None,
         "role": "user",
+        "toolInvocations": None,
     }
 
-    assert chat_conversation.messages[1].pop("id")
+    assert chat_conversation.messages[1].pop("createdAt")  # Remove timestamp for comparison
     assert chat_conversation.messages[1] == {
         "annotations": None,
         "content": "The current weather in Paris is nice",
-        "createdAt": None,
         "experimental_attachments": None,
-        "parts": [{"text": "The current weather in Paris is nice", "type": "text"}],
+        "id": "",
+        "parts": [
+            {
+                "toolInvocation": {
+                    "args": {"location": "Paris", "unit": "celsius"},
+                    "state": "call",
+                    "step": None,
+                    "toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    "toolName": "get_current_weather",
+                },
+                "type": "tool-invocation",
+            },
+            {"text": "The current weather in Paris is nice", "type": "text"},
+        ],
         "reasoning": None,
         "role": "assistant",
         "toolInvocations": None,
     }
-    # To be fixed, because in real life, the tool invocation is added to the message...
-    # assert chat_conversation.messages[1] == {
-    #     "annotations": None,
-    #     "content": "The weather is sunny",
-    #     "createdAt": None,
-    #     "experimental_attachments": None,
-    #     "parts": [
-    #         {
-    #             "type": "tool-invocation",
-    #             "toolInvocation": {
-    #                 "args": {"unit": "celsius", "location": "Paris"},
-    #                 "step": 0,
-    #                 "state": "result",
-    #                 "result": "{'location': 'Paris', 'temperature': 22, 'unit': 'celsius'}",
-    #                 "toolName": "get_current_weather",
-    #                 "toolCallId": "FCBUEY5SpcsaB72P9taJR7Bcx0bAuqOu",
-    #             },
-    #         },
-    #         {"text": "The weather is sunny", "type": "text"},
-    #     ],
-    #     "reasoning": None,
-    #     "role": "assistant",
-    #     "toolInvocations": [
-    #         {
-    #             "args": {"unit": "celsius", "location": "Paris"},
-    #             "step": 0,
-    #             "state": "result",
-    #             "result": "{'location': 'Paris', 'temperature': 22, 'unit': 'celsius'}",
-    #             "toolName": "get_current_weather",
-    #             "toolCallId": "FCBUEY5SpcsaB72P9taJR7Bcx0bAuqOu",
-    #         }
-    #     ],
-    # }
+
+    assert chat_conversation.openai_messages == [
+        {
+            "instructions": None,
+            "kind": "request",
+            "parts": [
+                {
+                    "content": "You are a helpful assistant. Escape formulas or any "
+                    "math notation between `$$`, like `$$x^2 + y^2 = "
+                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
+                    "your answers. ",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": ["Weather in Paris?"],
+                    "part_kind": "user-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+            ],
+        },
+        {
+            "kind": "response",
+            "model_name": "test-model",
+            "parts": [
+                {
+                    "args": '{"location":"Paris", "unit":"celsius"}',
+                    "part_kind": "tool-call",
+                    "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    "tool_name": "get_current_weather",
+                }
+            ],
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+            "usage": {
+                "details": None,
+                "request_tokens": 0,
+                "requests": 1,
+                "response_tokens": 0,
+                "total_tokens": 0,
+            },
+            "vendor_details": None,
+            "vendor_id": None,
+        },
+        {
+            "instructions": None,
+            "kind": "request",
+            "parts": [
+                {
+                    "content": {"location": "Paris", "temperature": 22, "unit": "celsius"},
+                    "metadata": None,
+                    "part_kind": "tool-return",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                    "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    "tool_name": "get_current_weather",
+                }
+            ],
+        },
+        {
+            "kind": "response",
+            "model_name": "test-model",
+            "parts": [{"content": "The current weather in Paris is nice", "part_kind": "text"}],
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+            "usage": {
+                "details": None,
+                "request_tokens": 0,
+                "requests": 1,
+                "response_tokens": 0,
+                "total_tokens": 0,
+            },
+            "vendor_details": None,
+            "vendor_id": None,
+        },
+    ]
 
 
+@freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, settings):
     """Ensure tool calls are correctly forwarded and streamed back when failing."""
@@ -624,8 +1003,14 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
     assert response_content == (
-        '3:"Tool get_current_weather not found in agent Conversations Assistant"\n'
-        'd:{"finishReason": "error", "usage": {"promptTokens": 0, "completionTokens": '
+        'b:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "toolName": '
+        '"get_current_weather"}\n'
+        'c:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "argsTextDelta": '
+        '"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n'
+        'a:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "result": "Unknown tool '
+        "name: 'get_current_weather'. No tools available.\"}\n"
+        '0:"I cannot give you an answer to that."\n'
+        'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": '
         "0}}\n"
     )
 
@@ -654,11 +1039,112 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
         }
     ]
 
-    assert len(chat_conversation.messages) == 1
+    assert len(chat_conversation.messages) == 2
+    assert chat_conversation.messages[0].pop("createdAt")  # Remove timestamp for comparison
     assert chat_conversation.messages[0] == {
+        "annotations": None,
         "content": "Weather in Paris?",
-        "createdAt": "2025-07-18T12:00:00Z",
-        "id": "tool-msg-1",
+        "experimental_attachments": None,
+        "id": "",
         "parts": [{"text": "Weather in Paris?", "type": "text"}],
+        "reasoning": None,
         "role": "user",
+        "toolInvocations": None,
     }
+
+    assert chat_conversation.messages[1].pop("createdAt")  # Remove timestamp for comparison
+    assert chat_conversation.messages[1] == {
+        "annotations": None,
+        "content": "I cannot give you an answer to that.",
+        "experimental_attachments": None,
+        "id": "",
+        "parts": [
+            {
+                "toolInvocation": {
+                    "args": {"location": "Paris", "unit": "celsius"},
+                    "state": "call",
+                    "step": None,
+                    "toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    "toolName": "get_current_weather",
+                },
+                "type": "tool-invocation",
+            },
+            {"text": "I cannot give you an answer to that.", "type": "text"},
+        ],
+        "reasoning": None,
+        "role": "assistant",
+        "toolInvocations": None,
+    }
+
+    assert chat_conversation.openai_messages == [
+        {
+            "instructions": None,
+            "kind": "request",
+            "parts": [
+                {
+                    "content": "You are a helpful assistant. Escape formulas or any "
+                    "math notation between `$$`, like `$$x^2 + y^2 = "
+                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
+                    "your answers. ",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": ["Weather in Paris?"],
+                    "part_kind": "user-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+            ],
+        },
+        {
+            "kind": "response",
+            "model_name": "test-model",
+            "parts": [
+                {
+                    "args": '{"location":"Paris", "unit":"celsius"}',
+                    "part_kind": "tool-call",
+                    "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    "tool_name": "get_current_weather",
+                }
+            ],
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+            "usage": {
+                "details": None,
+                "request_tokens": 0,
+                "requests": 1,
+                "response_tokens": 0,
+                "total_tokens": 0,
+            },
+            "vendor_details": None,
+            "vendor_id": None,
+        },
+        {
+            "instructions": None,
+            "kind": "request",
+            "parts": [
+                {
+                    "content": "Unknown tool name: 'get_current_weather'. No tools available.",
+                    "part_kind": "retry-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                    "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    "tool_name": "get_current_weather",
+                }
+            ],
+        },
+        {
+            "kind": "response",
+            "model_name": "test-model",
+            "parts": [{"content": "I cannot give you an answer to that.", "part_kind": "text"}],
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+            "usage": {
+                "details": None,
+                "request_tokens": 0,
+                "requests": 1,
+                "response_tokens": 0,
+                "total_tokens": 0,
+            },
+            "vendor_details": None,
+            "vendor_id": None,
+        },
+    ]

@@ -1,4 +1,8 @@
-import { Message, ToolInvocationUIPart } from '@ai-sdk/ui-utils';
+import {
+  Message,
+  ReasoningUIPart,
+  ToolInvocationUIPart,
+} from '@ai-sdk/ui-utils';
 import { Loader } from '@openfun/cunningham-react';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import Image from 'next/image';
@@ -229,22 +233,39 @@ export const Chat = ({
                   {message.content}
                 </Markdown>
               )}
-              <Box $direction="row" $gap="2">
+              <Box $direction="column">
                 {message.parts
-                  ?.filter((part) => part.type === 'tool-invocation')
-                  .map((part: ToolInvocationUIPart) => (
-                    <Box
-                      as="pre"
-                      key={part.toolInvocation.toolCallId}
-                      $background="var(--c--theme--colors--greyscale-100)"
-                      $color="var(--c--theme--colors--greyscale-500)"
-                      $padding={{ all: 'sm' }}
-                      $radius="md"
-                      $css="font-family: monospace; font-size: 0.9em;"
-                    >
-                      {`${part.toolInvocation.toolName}(${JSON.stringify(part.toolInvocation.args, null, 2)})`}
-                    </Box>
-                  ))}
+                  ?.filter(
+                    (part) =>
+                      part.type === 'reasoning' ||
+                      part.type === 'tool-invocation',
+                  )
+                  .map((part: ReasoningUIPart | ToolInvocationUIPart) =>
+                    part.type === 'reasoning' ? (
+                      <Box
+                        key={part.reasoning}
+                        $background="var(--c--theme--colors--greyscale-100)"
+                        $color="var(--c--theme--colors--greyscale-500)"
+                        $padding={{ all: 'sm' }}
+                        $radius="md"
+                        $css="font-size: 0.9em;"
+                      >
+                        {part.reasoning}
+                      </Box>
+                    ) : part.type === 'tool-invocation' ? (
+                      <Box
+                        as="pre"
+                        key={part.toolInvocation.toolCallId}
+                        $background="var(--c--theme--colors--greyscale-100)"
+                        $color="var(--c--theme--colors--greyscale-500)"
+                        $padding={{ all: 'sm' }}
+                        $radius="md"
+                        $css="font-family: monospace; font-size: 0.9em;"
+                      >
+                        {`${part.toolInvocation.toolName}(${JSON.stringify(part.toolInvocation.args, null, 2)})`}
+                      </Box>
+                    ) : null,
+                  )}
                 {/* Show attachments if present */}
                 {message.experimental_attachments?.map(
                   (attachment: Attachment, index: number) =>

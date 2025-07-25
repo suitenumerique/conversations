@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- ♻️(chat) rewrite backend using Pydantic AI SDK #4
+
 ### Added
 
 - 🎉(conversations) bootstrap backend & frontend #1

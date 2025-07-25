@@ -13,7 +13,7 @@ from core.filters import remove_accents
 
 from chat import models, serializers
 from chat.ai_sdk_types import UIMessage
-from chat.clients.openai import AIAgentService
+from chat.clients.pydantic_ai import AIAgentService
 
 logger = logging.getLogger(__name__)
 

@@ -1,10 +1,7 @@
 """AIAgentService class for handling AI agent interactions."""
 
-import asyncio
 import json
 import logging
-import queue
-import threading
 import uuid
 from contextlib import AsyncExitStack
 from typing import List
@@ -29,44 +26,11 @@ from chat.ai_sdk_types import (
     ToolInvocationUIPart,
     UIMessage,
 )
+from chat.clients.async_to_sync import convert_async_generator_to_sync
 from chat.mcp_servers import get_mcp_servers
 from chat.tools import get_tool_by_name
 
 logger = logging.getLogger(__name__)
-
-
-def convert_async_generator_to_sync(async_gen):
-    """Convert an async generator to a sync generator."""
-    q = queue.Queue()
-    sentinel = object()
-    exc_sentinel = object()
-
-    async def run_async_gen():
-        try:
-            async for item in async_gen:
-                q.put(item)
-        except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
-            q.put((exc_sentinel, exc))
-        finally:
-            q.put(sentinel)
-
-    def start_async_loop():
-        asyncio.run(run_async_gen())
-
-    thread = threading.Thread(target=start_async_loop, daemon=True)
-    thread.start()
-
-    try:
-        while True:
-            item = q.get()
-            if item is sentinel:
-                break
-            if isinstance(item, tuple) and item[0] is exc_sentinel:
-                # re-raise the exception in the sync context
-                raise item[1]
-            yield item
-    finally:
-        thread.join()
 
 
 class AIAgentService:
