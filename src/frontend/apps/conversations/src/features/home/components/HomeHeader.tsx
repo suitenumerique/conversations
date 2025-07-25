@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { useTranslation } from 'react-i18next';
 
-import IconDocs from '@/assets/icons/icon-docs.svg';
+import IconAssistant from '@/assets/logo/assistant.svg';
 import { Box } from '@/components';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
@@ -62,7 +62,7 @@ export const HomeHeader = () => {
           $position="relative"
           $height="fit-content"
         >
-          <IconDocs
+          <IconAssistant
             aria-label={t('{{productName}} Logo', { productName })}
             width={32}
             color={colorsTokens['primary-text']}

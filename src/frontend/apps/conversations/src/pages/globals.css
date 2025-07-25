@@ -76,3 +76,7 @@ main ::-webkit-scrollbar-thumb:hover,
 nextjs-portal {
   display: none;
 }
+
+.c__modal {
+  box-shadow: 0 6px 18px 0 rgb(0 0 0 / 16%);
+}

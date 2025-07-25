@@ -20,8 +20,6 @@ const SideModalStyle = createGlobalStyle<SideModalStyleProps>`
   }
 
   & .c__modal{
-    animation: slidein 0.7s;
-
     width: ${({ width }) => width};
     ${({ side }) => side === 'right' && 'left: auto;'};
     

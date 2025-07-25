@@ -2,13 +2,13 @@ import { SourceUIPart } from '@ai-sdk/ui-utils';
 import React from 'react';
 
 import { Box } from '@/components';
-import SourceItem from '@/features/chat/components/SourceItem';
+import { SourceItem } from '@/features/chat/components/SourceItem';
 
 interface SourceItemListProps {
   parts: readonly SourceUIPart[];
 }
 
-const SourceItemList: React.FC<SourceItemListProps> = ({ parts }) => {
+export const SourceItemList: React.FC<SourceItemListProps> = ({ parts }) => {
   if (parts.length === 0) {
     return null;
   }
@@ -31,5 +31,3 @@ const SourceItemList: React.FC<SourceItemListProps> = ({ parts }) => {
     </Box>
   );
 };
-
-export default SourceItemList;

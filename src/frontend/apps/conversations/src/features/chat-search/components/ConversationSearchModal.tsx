@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { InView } from 'react-intersection-observer';
 import { useDebouncedCallback } from 'use-debounce';
 
-import { Box } from '@/components';
+import { Box, Text } from '@/components';
 import {
   QuickSearch,
   QuickSearchData,
@@ -55,7 +55,7 @@ export const ConversationSearchModal = ({
     const conversations = data?.pages.flatMap((page) => page.results) || [];
 
     return {
-      groupName: conversations.length > 0 ? t('Select a conversation') : '',
+      groupName: conversations.length > 0 ? t('Select a chat') : '',
       elements: search ? conversations : [],
       emptyString: t('No conversation found'),
       endActions: hasNextPage
@@ -76,8 +76,15 @@ export const ConversationSearchModal = ({
         $justify="space-between"
         className="--docs--doc-search-modal"
       >
+        <Text
+          $padding={{ all: 'base', bottom: 'none', top: 'xs' }}
+          $size="sm"
+          $weight="600"
+        >
+          {t('Search for a chat')}
+        </Text>
         <QuickSearch
-          placeholder={t('Type the name of a conversation')}
+          placeholder={t('Type a keyword related to a previous chat')}
           loading={loading}
           onFilter={handleInputSearch}
         >
