@@ -1,16 +1,16 @@
 import { Button } from '@openfun/cunningham-react';
-import Image from 'next/image';
+import _Image from 'next/image';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import IconDocs from '@/assets/icons/icon-docs.svg';
+import IconAssistant from '@/assets/logo/assistant.svg';
 import { Box, Icon, Text } from '@/components';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
 import { ProConnectButton, gotoLogin } from '@/features/auth';
 import { useResponsiveStore } from '@/stores';
 
-import banner from '../assets/banner.jpg';
+import Banner from '../assets/banner.svg';
 
 import { getHeaderHeight } from './HomeHeader';
 
@@ -44,11 +44,12 @@ export default function HomeBanner() {
       >
         <Box
           $width={!isMobile ? '50%' : '100%'}
+          $maxWidth="400px"
           $justify="center"
           $align="center"
-          $gap={spacingsTokens['sm']}
+          $gap={spacingsTokens['md']}
         >
-          <IconDocs
+          <IconAssistant
             aria-label={t('{{productName}} Logo', { productName })}
             width={64}
             color={colorsTokens['primary-text']}
@@ -64,15 +65,17 @@ export default function HomeBanner() {
               line-height: ${!isMobile ? '56px' : '45px'};
             `}
           >
-            {t('Conversation with AI, simplified.')}
+            {t('Your digital assistant')}
           </Text>
           <Text
+            $padding={{ horizontal: 'base' }}
             $size="lg"
             $variation="700"
             $textAlign="center"
-            $margin={{ bottom: 'small' }}
           >
-            {t('Talk with an AI agent with all your collaborative tools.')}
+            {t(
+              'Ask questions, get help with writing, or find reliable information online — Assistant simplifies your work while keeping your data secure.',
+            )}
           </Text>
           {withProConnect ? (
             <ProConnectButton />
@@ -85,23 +88,9 @@ export default function HomeBanner() {
             </Button>
           )}
         </Box>
-        {!isMobile && (
-          <Image
-            className="c__image-system-filter"
-            src={banner}
-            alt={t('Banner image')}
-            priority
-            style={{
-              width: 'auto',
-              maxWidth: '100%',
-              height: 'fit-content',
-              overflow: 'auto',
-              maxHeight: '100%',
-            }}
-          />
-        )}
+        {!isMobile && <Banner />}
       </Box>
-      <Box $css="bottom: 3rem" $position="absolute">
+      {/*      <Box $css="bottom: 3rem" $position="absolute">
         <Button
           color="secondary"
           icon={
@@ -116,7 +105,7 @@ export default function HomeBanner() {
         >
           {t('Show more')}
         </Button>
-      </Box>
+      </Box>*/}
     </Box>
   );
 }
