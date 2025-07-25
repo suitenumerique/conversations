@@ -3,7 +3,6 @@
 from django.conf import settings
 
 import requests
-from agents import function_tool
 
 
 def tavily_web_search(query: str) -> list[dict]:
@@ -37,17 +36,3 @@ def tavily_web_search(query: str) -> list[dict]:
         }
         for result in raw_search_results
     ]
-
-
-@function_tool(name_override="tavily_web_search")
-def agent_web_search_tavily(query: str) -> list[dict]:
-    """
-    Search the web for up-to-date information
-
-    Args:
-        query (str): The query to search for.
-
-    Returns:
-        list[dict]: A list of search results, each represented as a dictionary.
-    """
-    return tavily_web_search(query)
