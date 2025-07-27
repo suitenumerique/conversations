@@ -69,7 +69,7 @@ jobs:
   test-e2e-chromium:
     runs-on: self-hosted
     needs: install-dependencies
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

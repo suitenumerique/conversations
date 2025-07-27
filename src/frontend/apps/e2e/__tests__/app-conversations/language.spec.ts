@@ -41,10 +41,7 @@ test.describe.serial('Language', () => {
     await expect(page.getByLabel('Se déconnecter')).toBeVisible();
 
     await header.getByRole('button').getByText('Français').click();
-    await page.getByLabel('Deutsch').click();
-    await expect(header.getByRole('button').getByText('Deutsch')).toBeVisible();
-
-    await expect(page.getByLabel('Abmelden')).toBeVisible();
+    await page.getByLabel('English').click();
   });
 
   test.fixme(

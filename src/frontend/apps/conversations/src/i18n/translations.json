@@ -1,5 +1,9 @@
 {
-  "en": { "translation": {} },
+  "en": {
+    "translation": {
+      "Generating...": "Generating..."
+    }
+  },
   "fr": {
     "translation": {
       "Access Denied - Error 403": "Accès refusé - Erreur 403",
