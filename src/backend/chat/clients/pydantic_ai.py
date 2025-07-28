@@ -278,11 +278,6 @@ class AIAgentService:
             model_message_to_ui_message(msg)
             for msg in chain(history, [_merged_final_output_request, _merged_final_output_message])
         ]
-        for message in self.conversation.messages:
-            logger.debug("conversation.messages: %s %s", type(message), message)
-        self.conversation.messages = [
-            msg.model_dump(mode="json") for msg in self.conversation.messages if msg
-        ]
         self.conversation.agent_usage = usage
 
         logger.debug(

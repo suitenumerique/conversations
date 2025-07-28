@@ -13,6 +13,13 @@ from rest_framework import status
 
 from core.factories import UserFactory
 
+from chat.ai_sdk_types import (
+    Attachment,
+    TextUIPart,
+    ToolInvocationCall,
+    ToolInvocationUIPart,
+    UIMessage,
+)
 from chat.factories import ChatConversationFactory
 
 # enable database transactions for tests:
@@ -435,29 +442,34 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
     ]
 
     assert len(chat_conversation.messages) == 2
-    assert chat_conversation.messages[0].pop("createdAt")  # Remove timestamp for comparison
-    assert chat_conversation.messages[0] == {
-        "annotations": None,
-        "content": "Hello",
-        "experimental_attachments": None,
-        "id": "",  # ID is not set in the response
-        "parts": [{"text": "Hello", "type": "text"}],
-        "reasoning": None,
-        "role": "user",
-        "toolInvocations": None,
-    }
 
-    assert chat_conversation.messages[1].pop("createdAt")  # Remove timestamp for comparison
-    assert chat_conversation.messages[1] == {
-        "annotations": None,
-        "content": "Hello there",
-        "experimental_attachments": None,
-        "id": "",  # ID is not set in the response
-        "parts": [{"text": "Hello there", "type": "text"}],
-        "reasoning": None,
-        "role": "assistant",
-        "toolInvocations": None,
-    }
+    assert chat_conversation.messages[0].createdAt is not None
+    chat_conversation.messages[0].createdAt = None  # Remove timestamp for comparison
+    assert chat_conversation.messages[0] == UIMessage(
+        id="",
+        createdAt=None,
+        content="Hello",
+        reasoning=None,
+        experimental_attachments=None,
+        role="user",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello")],
+    )
+
+    assert chat_conversation.messages[1].createdAt is not None
+    chat_conversation.messages[1].createdAt = None  # Remove timestamp for comparison
+    assert chat_conversation.messages[1] == UIMessage(
+        id="",
+        createdAt=None,
+        content="Hello there",
+        reasoning=None,
+        experimental_attachments=None,
+        role="assistant",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello there")],
+    )
 
     assert chat_conversation.openai_messages == [
         {
@@ -541,29 +553,33 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
     ]
 
     assert len(chat_conversation.messages) == 2
-    assert chat_conversation.messages[0].pop("createdAt")  # Remove timestamp for comparison
-    assert chat_conversation.messages[0] == {
-        "annotations": None,
-        "content": "Hello",
-        "experimental_attachments": None,
-        "id": "",  # ID is not set in the response
-        "parts": [{"text": "Hello", "type": "text"}],
-        "reasoning": None,
-        "role": "user",
-        "toolInvocations": None,
-    }
+    assert chat_conversation.messages[0].createdAt is not None
+    chat_conversation.messages[0].createdAt = None  # Remove timestamp for comparison
+    assert chat_conversation.messages[0] == UIMessage(
+        id="",
+        createdAt=None,
+        content="Hello",
+        reasoning=None,
+        experimental_attachments=None,
+        role="user",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello")],
+    )
 
-    assert chat_conversation.messages[1].pop("createdAt")  # Remove timestamp for comparison
-    assert chat_conversation.messages[1] == {
-        "annotations": None,
-        "content": "Hello there",
-        "experimental_attachments": None,
-        "id": "",  # ID is not set in the response
-        "parts": [{"text": "Hello there", "type": "text"}],
-        "reasoning": None,
-        "role": "assistant",
-        "toolInvocations": None,
-    }
+    assert chat_conversation.messages[1].createdAt is not None
+    chat_conversation.messages[1].createdAt = None  # Remove timestamp for comparison
+    assert chat_conversation.messages[1] == UIMessage(
+        id="",
+        createdAt=None,
+        content="Hello there",
+        reasoning=None,
+        experimental_attachments=None,
+        role="assistant",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello there")],
+    )
 
     assert chat_conversation.openai_messages == [
         {
@@ -707,39 +723,43 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
     ]
 
     assert len(chat_conversation.messages) == 2
-    assert chat_conversation.messages[0].pop("createdAt")  # Remove timestamp for comparison
-    assert chat_conversation.messages[0] == {
-        "annotations": None,
-        "content": "Hello, what do you see on this picture?",
-        "experimental_attachments": [
-            {
-                "contentType": "image/png",
-                "name": None,
-                "url": (
-                    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wS"
-                    "zIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAA"
-                    "AASUVORK5CYII="
+    assert chat_conversation.messages[0].createdAt is not None
+    chat_conversation.messages[0].createdAt = None  # Remove timestamp for comparison
+    assert chat_conversation.messages[0] == UIMessage(
+        id="",
+        createdAt=None,
+        content="Hello, what do you see on this picture?",
+        reasoning=None,
+        experimental_attachments=[
+            Attachment(
+                name=None,
+                contentType="image/png",
+                url=(
+                    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+w"
+                    "SzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEA"
+                    "AAAASUVORK5CYII="
                 ),
-            }
+            )
         ],
-        "id": "",
-        "parts": [{"text": "Hello, what do you see on this picture?", "type": "text"}],
-        "reasoning": None,
-        "role": "user",
-        "toolInvocations": None,
-    }
+        role="user",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello, what do you see on this picture?")],
+    )
 
-    assert chat_conversation.messages[1].pop("createdAt")  # Remove timestamp for comparison
-    assert chat_conversation.messages[1] == {
-        "annotations": None,
-        "content": "I see a cat in the picture.",
-        "experimental_attachments": None,
-        "id": "",
-        "parts": [{"text": "I see a cat in the picture.", "type": "text"}],
-        "reasoning": None,
-        "role": "assistant",
-        "toolInvocations": None,
-    }
+    assert chat_conversation.messages[1].createdAt is not None
+    chat_conversation.messages[1].createdAt = None  # Remove timestamp for comparison
+    assert chat_conversation.messages[1] == UIMessage(
+        id="",
+        createdAt=None,
+        content="I see a cat in the picture.",
+        reasoning=None,
+        experimental_attachments=None,
+        role="assistant",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="I see a cat in the picture.")],
+    )
 
     assert chat_conversation.openai_messages == [
         {
@@ -860,41 +880,45 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
     ]
 
     assert len(chat_conversation.messages) == 2
-    assert chat_conversation.messages[0].pop("createdAt")  # Remove timestamp for comparison
-    assert chat_conversation.messages[0] == {
-        "annotations": None,
-        "content": "Weather in Paris?",
-        "experimental_attachments": None,
-        "id": "",
-        "parts": [{"text": "Weather in Paris?", "type": "text"}],
-        "reasoning": None,
-        "role": "user",
-        "toolInvocations": None,
-    }
+    assert chat_conversation.messages[0].createdAt is not None
+    chat_conversation.messages[0].createdAt = None  # Remove timestamp for comparison
+    assert chat_conversation.messages[0] == UIMessage(
+        id="",
+        createdAt=None,
+        content="Weather in Paris?",
+        reasoning=None,
+        experimental_attachments=None,
+        role="user",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Weather in Paris?")],
+    )
 
-    assert chat_conversation.messages[1].pop("createdAt")  # Remove timestamp for comparison
-    assert chat_conversation.messages[1] == {
-        "annotations": None,
-        "content": "The current weather in Paris is nice",
-        "experimental_attachments": None,
-        "id": "",
-        "parts": [
-            {
-                "toolInvocation": {
-                    "args": {"location": "Paris", "unit": "celsius"},
-                    "state": "call",
-                    "step": None,
-                    "toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
-                    "toolName": "get_current_weather",
-                },
-                "type": "tool-invocation",
-            },
-            {"text": "The current weather in Paris is nice", "type": "text"},
+    assert chat_conversation.messages[1].createdAt is not None
+    chat_conversation.messages[1].createdAt = None  # Remove timestamp for comparison
+    assert chat_conversation.messages[1] == UIMessage(
+        id="",
+        createdAt=None,
+        content="The current weather in Paris is nice",
+        reasoning=None,
+        experimental_attachments=None,
+        role="assistant",
+        annotations=None,
+        toolInvocations=None,
+        parts=[
+            ToolInvocationUIPart(
+                type="tool-invocation",
+                toolInvocation=ToolInvocationCall(
+                    toolCallId="xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    toolName="get_current_weather",
+                    args={"unit": "celsius", "location": "Paris"},
+                    state="call",
+                    step=None,
+                ),
+            ),
+            TextUIPart(type="text", text="The current weather in Paris is nice"),
         ],
-        "reasoning": None,
-        "role": "assistant",
-        "toolInvocations": None,
-    }
+    )
 
     assert chat_conversation.openai_messages == [
         {
@@ -1040,41 +1064,46 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
     ]
 
     assert len(chat_conversation.messages) == 2
-    assert chat_conversation.messages[0].pop("createdAt")  # Remove timestamp for comparison
-    assert chat_conversation.messages[0] == {
-        "annotations": None,
-        "content": "Weather in Paris?",
-        "experimental_attachments": None,
-        "id": "",
-        "parts": [{"text": "Weather in Paris?", "type": "text"}],
-        "reasoning": None,
-        "role": "user",
-        "toolInvocations": None,
-    }
 
-    assert chat_conversation.messages[1].pop("createdAt")  # Remove timestamp for comparison
-    assert chat_conversation.messages[1] == {
-        "annotations": None,
-        "content": "I cannot give you an answer to that.",
-        "experimental_attachments": None,
-        "id": "",
-        "parts": [
-            {
-                "toolInvocation": {
-                    "args": {"location": "Paris", "unit": "celsius"},
-                    "state": "call",
-                    "step": None,
-                    "toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
-                    "toolName": "get_current_weather",
-                },
-                "type": "tool-invocation",
-            },
-            {"text": "I cannot give you an answer to that.", "type": "text"},
+    assert chat_conversation.messages[0].createdAt is not None
+    chat_conversation.messages[0].createdAt = None  # Remove timestamp for comparison
+    assert chat_conversation.messages[0] == UIMessage(
+        id="",
+        createdAt=None,
+        content="Weather in Paris?",
+        reasoning=None,
+        experimental_attachments=None,
+        role="user",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Weather in Paris?")],
+    )
+
+    assert chat_conversation.messages[1].createdAt is not None
+    chat_conversation.messages[1].createdAt = None  # Remove timestamp for comparison
+    assert chat_conversation.messages[1] == UIMessage(
+        id="",
+        createdAt=None,
+        content="I cannot give you an answer to that.",
+        reasoning=None,
+        experimental_attachments=None,
+        role="assistant",
+        annotations=None,
+        toolInvocations=None,
+        parts=[
+            ToolInvocationUIPart(
+                type="tool-invocation",
+                toolInvocation=ToolInvocationCall(
+                    toolCallId="xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    toolName="get_current_weather",
+                    args={"unit": "celsius", "location": "Paris"},
+                    state="call",
+                    step=None,
+                ),
+            ),
+            TextUIPart(type="text", text="I cannot give you an answer to that."),
         ],
-        "reasoning": None,
-        "role": "assistant",
-        "toolInvocations": None,
-    }
+    )
 
     assert chat_conversation.openai_messages == [
         {

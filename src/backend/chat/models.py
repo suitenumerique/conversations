@@ -1,9 +1,15 @@
 """Models for chat conversations."""
 
+from typing import Sequence
+
 from django.contrib.auth import get_user_model
 from django.db import models
 
+from django_pydantic_field import SchemaField
+
 from core.models import BaseModel
+
+from chat.ai_sdk_types import UIMessage
 
 User = get_user_model()
 
@@ -48,7 +54,8 @@ class ChatConversation(BaseModel):
         blank=True,
         help_text="OpenAI messages for the chat conversation, not used",
     )
-    messages = models.JSONField(
+    messages: Sequence[UIMessage] = SchemaField(
+        schema=list[UIMessage],
         default=list,
         blank=True,
         help_text="Stored messages for the chat conversation, sent to frontend",

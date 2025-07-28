@@ -11,6 +11,7 @@ and this project adheres to
 ### Changed
 
 - ♻️(chat) rewrite backend using Pydantic AI SDK #4
+- 🗃️(chat) enforce messages stored JSON format #6
 
 ### Added
 

@@ -36,6 +36,7 @@ dependencies = [
     "django-filter==25.1",
     "django-lasuite[all]==0.0.9",
     "django-parler==2.3",
+    "django-pydantic-field==0.3.13",
     "django-redis==5.4.0",
     "django-storages[s3]==1.14.6",
     "django-timezone-field>=5.1",

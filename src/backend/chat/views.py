@@ -8,11 +8,10 @@ from django.http import StreamingHttpResponse
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.response import Response
 
-from core.api.viewsets import Pagination
+from core.api.viewsets import Pagination, SerializerPerActionMixin
 from core.filters import remove_accents
 
 from chat import models, serializers
-from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService
 
 logger = logging.getLogger(__name__)
@@ -28,7 +27,8 @@ class ChatConversationFilter(filters.BaseFilterBackend):
         return queryset
 
 
-class ChatViewSet(
+class ChatViewSet(  # pylint: disable=too-many-ancestors
+    SerializerPerActionMixin,
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
@@ -51,6 +51,7 @@ class ChatViewSet(
         permissions.IsAuthenticated,
     ]
     serializer_class = serializers.ChatConversationSerializer
+    post_conversation_serializer_class = serializers.ChatConversationInputSerializer
     filter_backends = [filters.OrderingFilter, ChatConversationFilter]
     ordering = ["-created_at"]
     ordering_fields = ["created_at", "updated_at"]
@@ -102,7 +103,10 @@ class ChatViewSet(
         conversation.ui_messages = request.data.get("messages", [])
         conversation.save()
 
-        messages = [UIMessage(**msg) for msg in request.data.get("messages", [])]
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        messages = serializer.validated_data["messages"]
 
         logger.info("Received messages: %s", messages)
         logger.info("Using protocol: %s", protocol)
