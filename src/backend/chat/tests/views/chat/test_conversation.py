@@ -2,6 +2,8 @@
 # pylint: disable=too-many-lines
 
 import json
+import uuid
+from unittest.mock import patch
 
 from django.utils import timezone
 
@@ -36,6 +38,14 @@ def ai_settings(settings):
     settings.AI_MODEL = "test-model"
 
     return settings
+
+
+@pytest.fixture(name="mock_uuid4")
+def mock_uuid4_fixture():
+    """Fixture to mock UUID generation for testing."""
+    value = uuid.uuid4()
+    with patch("uuid.uuid4", return_value=value):
+        yield value
 
 
 @pytest.fixture(name="mock_openai_stream")
@@ -395,7 +405,7 @@ def test_post_conversation_invalid_protocol(api_client):
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_data_protocol(api_client, mock_openai_stream):
+def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uuid4):
     """Test posting messages to a conversation using the 'data' protocol."""
     chat_conversation = ChatConversationFactory()
 
@@ -443,11 +453,9 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
 
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].createdAt is not None
-    chat_conversation.messages[0].createdAt = None  # Remove timestamp for comparison
     assert chat_conversation.messages[0] == UIMessage(
-        id="",
-        createdAt=None,
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
         content="Hello",
         reasoning=None,
         experimental_attachments=None,
@@ -457,11 +465,9 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
         parts=[TextUIPart(type="text", text="Hello")],
     )
 
-    assert chat_conversation.messages[1].createdAt is not None
-    chat_conversation.messages[1].createdAt = None  # Remove timestamp for comparison
     assert chat_conversation.messages[1] == UIMessage(
-        id="",
-        createdAt=None,
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
         content="Hello there",
         reasoning=None,
         experimental_attachments=None,
@@ -512,7 +518,7 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_text_protocol(api_client, mock_openai_stream):
+def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uuid4):
     """Test posting messages to a conversation using the 'text' protocol."""
     chat_conversation = ChatConversationFactory()
 
@@ -553,11 +559,10 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
     ]
 
     assert len(chat_conversation.messages) == 2
-    assert chat_conversation.messages[0].createdAt is not None
-    chat_conversation.messages[0].createdAt = None  # Remove timestamp for comparison
+
     assert chat_conversation.messages[0] == UIMessage(
-        id="",
-        createdAt=None,
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
         content="Hello",
         reasoning=None,
         experimental_attachments=None,
@@ -567,11 +572,9 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
         parts=[TextUIPart(type="text", text="Hello")],
     )
 
-    assert chat_conversation.messages[1].createdAt is not None
-    chat_conversation.messages[1].createdAt = None  # Remove timestamp for comparison
     assert chat_conversation.messages[1] == UIMessage(
-        id="",
-        createdAt=None,
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
         content="Hello there",
         reasoning=None,
         experimental_attachments=None,
@@ -622,7 +625,7 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_with_image(api_client, mock_openai_stream_image):
+def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock_uuid4):
     """Ensure an image URL is correctly forwarded to the AI service."""
     chat_conversation = ChatConversationFactory()
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
@@ -723,11 +726,10 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
     ]
 
     assert len(chat_conversation.messages) == 2
-    assert chat_conversation.messages[0].createdAt is not None
-    chat_conversation.messages[0].createdAt = None  # Remove timestamp for comparison
+
     assert chat_conversation.messages[0] == UIMessage(
-        id="",
-        createdAt=None,
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
         content="Hello, what do you see on this picture?",
         reasoning=None,
         experimental_attachments=[
@@ -747,11 +749,9 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
         parts=[TextUIPart(type="text", text="Hello, what do you see on this picture?")],
     )
 
-    assert chat_conversation.messages[1].createdAt is not None
-    chat_conversation.messages[1].createdAt = None  # Remove timestamp for comparison
     assert chat_conversation.messages[1] == UIMessage(
-        id="",
-        createdAt=None,
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
         content="I see a cat in the picture.",
         reasoning=None,
         experimental_attachments=None,
@@ -813,7 +813,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settings):
+def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_uuid4, settings):
     """Ensure tool calls are correctly forwarded and streamed back."""
     settings.AI_AGENT_TOOLS = ["get_current_weather"]
 
@@ -880,11 +880,10 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
     ]
 
     assert len(chat_conversation.messages) == 2
-    assert chat_conversation.messages[0].createdAt is not None
-    chat_conversation.messages[0].createdAt = None  # Remove timestamp for comparison
+
     assert chat_conversation.messages[0] == UIMessage(
-        id="",
-        createdAt=None,
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
         content="Weather in Paris?",
         reasoning=None,
         experimental_attachments=None,
@@ -894,11 +893,9 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
         parts=[TextUIPart(type="text", text="Weather in Paris?")],
     )
 
-    assert chat_conversation.messages[1].createdAt is not None
-    chat_conversation.messages[1].createdAt = None  # Remove timestamp for comparison
     assert chat_conversation.messages[1] == UIMessage(
-        id="",
-        createdAt=None,
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
         content="The current weather in Paris is nice",
         reasoning=None,
         experimental_attachments=None,
@@ -997,7 +994,9 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, settings):
+def test_post_conversation_tool_call_fails(
+    api_client, mock_openai_stream_tool, mock_uuid4, settings
+):
     """Ensure tool calls are correctly forwarded and streamed back when failing."""
     settings.AI_AGENT_TOOLS = []
 
@@ -1065,11 +1064,9 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
 
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].createdAt is not None
-    chat_conversation.messages[0].createdAt = None  # Remove timestamp for comparison
     assert chat_conversation.messages[0] == UIMessage(
-        id="",
-        createdAt=None,
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
         content="Weather in Paris?",
         reasoning=None,
         experimental_attachments=None,
@@ -1079,11 +1076,9 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
         parts=[TextUIPart(type="text", text="Weather in Paris?")],
     )
 
-    assert chat_conversation.messages[1].createdAt is not None
-    chat_conversation.messages[1].createdAt = None  # Remove timestamp for comparison
     assert chat_conversation.messages[1] == UIMessage(
-        id="",
-        createdAt=None,
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
         content="I cannot give you an answer to that.",
         reasoning=None,
         experimental_attachments=None,

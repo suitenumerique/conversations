@@ -6,6 +6,7 @@ and UserContent/ModelMessage (pydantic_ai.messages.py).
 import base64
 import json
 import logging
+import uuid
 from dataclasses import asdict
 from typing import List
 
@@ -212,7 +213,7 @@ def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # no
             return None
 
         return UIMessage(
-            id="",
+            id=str(uuid.uuid4()),
             role="user",
             content="".join(part.text for part in parts if isinstance(part, TextUIPart)),
             parts=parts,
@@ -265,7 +266,7 @@ def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # no
                 raise ValueError(f"Unsupported ModelMessage part type: {type(part)}")
 
         return UIMessage(
-            id="",
+            id=str(uuid.uuid4()),
             role="assistant",
             content="".join(part.text for part in parts if isinstance(part, TextUIPart)),
             parts=parts,

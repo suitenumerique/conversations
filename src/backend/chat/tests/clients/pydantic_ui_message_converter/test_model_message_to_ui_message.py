@@ -2,6 +2,8 @@
 
 import datetime
 import json
+import uuid
+from unittest.mock import patch
 
 from django.utils import timezone
 
@@ -34,6 +36,13 @@ from chat.ai_sdk_types import (
 from chat.clients.pydantic_ui_message_converter import model_message_to_ui_message
 
 
+@pytest.fixture(autouse=True)
+def mock_uuid4_fixture():
+    """Fixture to mock UUID generation for testing."""
+    with patch("uuid.uuid4", return_value=uuid.UUID("f0cc3bb5-f207-401b-8281-4cba6202991d")):
+        yield
+
+
 def test_model_message_to_ui_message_text_user_full():
     """Test converting a ModelRequest with UserPromptPart containing text to UIMessage."""
     timestamp = datetime.datetime.now()
@@ -41,7 +50,7 @@ def test_model_message_to_ui_message_text_user_full():
         parts=[UserPromptPart(content="Hello!", timestamp=timestamp)], kind="request"
     )
     expected = UIMessage(
-        id="",
+        id="f0cc3bb5-f207-401b-8281-4cba6202991d",  # Mocked UUID
         role="user",
         content="Hello!",
         parts=[TextUIPart(type="text", text="Hello!")],
@@ -56,7 +65,7 @@ def test_model_message_to_ui_message_text_assistant_full():
     """Test converting a ModelResponse with TextPart to UIMessage."""
     model_message = ModelResponse(parts=[TextPart(content="Hi there!")])
     expected = UIMessage(
-        id="",
+        id="f0cc3bb5-f207-401b-8281-4cba6202991d",  # Mocked UUID
         role="assistant",
         content="Hi there!",
         parts=[TextUIPart(type="text", text="Hi there!")],
@@ -74,7 +83,7 @@ def test_model_message_to_ui_message_tool_call_full():
         parts=[ToolCallPart(tool_call_id="id1", tool_name="tool", args=args)]
     )
     expected = UIMessage(
-        id="",
+        id="f0cc3bb5-f207-401b-8281-4cba6202991d",  # Mocked UUID
         role="assistant",
         content="",
         parts=[
@@ -99,7 +108,7 @@ def test_model_message_to_ui_message_reasoning_full():
     """Test converting a ModelResponse with ThinkingPart to UIMessage."""
     model_message = ModelResponse(parts=[ThinkingPart(content="reason", signature="sig")])
     expected = UIMessage(
-        id="",
+        id="f0cc3bb5-f207-401b-8281-4cba6202991d",  # Mocked UUID
         role="assistant",
         content="",
         parts=[
