@@ -1,6 +1,7 @@
 import {
   Message,
   ReasoningUIPart,
+  SourceUIPart,
   ToolInvocationUIPart,
 } from '@ai-sdk/ui-utils';
 import { Loader } from '@openfun/cunningham-react';
@@ -20,6 +21,7 @@ import { useAuth } from '@/features/auth';
 import { useChat } from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
 import { useCreateChatConversation } from '@/features/chat/api/useCreateConversation';
+import SourceItemList from '@/features/chat/components/SourceItemList';
 
 import { usePendingChatStore } from '../stores/usePendingChatStore';
 
@@ -295,6 +297,14 @@ export const Chat = ({
                         {attachment.url}
                       </div>
                     ) : null,
+                )}
+                {/* Show sources if present */}
+                {message.parts && (
+                  <SourceItemList
+                    parts={message.parts.filter(
+                      (part): part is SourceUIPart => part.type === 'source',
+                    )}
+                  />
                 )}
               </Box>
             </Box>
