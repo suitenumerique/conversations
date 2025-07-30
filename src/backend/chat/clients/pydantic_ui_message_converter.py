@@ -14,9 +14,7 @@ from pydantic_ai.messages import (
     BinaryContent,
     ModelMessage,
     ModelRequest,
-    ModelRequestPart,
     ModelResponse,
-    ModelResponsePart,
     RetryPromptPart,
     SystemPromptPart,
     TextPart,
@@ -38,64 +36,6 @@ from chat.ai_sdk_types import (
     UIMessage,
     UIPart,
 )
-
-
-def ui_message_to_model_message(message: UIMessage) -> ModelMessage:  # noqa: PLR0912
-    """
-    Convert a UIMessage to a ModelMessage (ModelRequest or ModelResponse) for Pydantic-AI.
-    """
-    # pylint: disable=too-many-branches
-    parts_request: List[ModelRequestPart] = []
-    parts_response: List[ModelResponsePart] = []
-    for part in message.parts:
-        if isinstance(part, TextUIPart):
-            if message.role == "user":
-                parts_request.append(UserPromptPart(content=part.text, timestamp=message.createdAt))
-            elif message.role == "assistant":
-                parts_response.append(TextPart(content=part.text))
-        elif isinstance(part, ToolInvocationUIPart):
-            parts_response.append(
-                ToolCallPart(
-                    tool_call_id=part.toolInvocation.toolCallId,
-                    tool_name=part.toolInvocation.toolName,
-                    args=part.toolInvocation.args,
-                )
-            )
-        elif isinstance(part, ReasoningUIPart):
-            parts_response.append(
-                ThinkingPart(
-                    content=part.reasoning,
-                )
-            )
-        else:
-            raise ValueError(f"Unsupported UIPart type: {type(part)}")
-    # Handle experimental attachments
-    for experimental_attachment in message.experimental_attachments or []:
-        if experimental_attachment.url.startswith("data:"):
-            raw_data = base64.b64decode(experimental_attachment.url.split(",")[1])
-            if message.role == "user":
-                parts_request.append(
-                    UserPromptPart(
-                        content=[
-                            BinaryContent(
-                                data=raw_data, media_type=experimental_attachment.contentType
-                            )
-                        ]
-                    )
-                )
-            elif message.role == "assistant":
-                raise ValueError(
-                    "Experimental attachments are not supported in assistant responses."
-                )
-        else:
-            raise ValueError(
-                f"Unsupported experimental attachment URL format: {experimental_attachment.url}"
-            )
-    if message.role == "user":
-        return ModelRequest(parts=parts_request, kind="request")
-    if message.role == "assistant":
-        return ModelResponse(parts=parts_response)
-    raise ValueError(f"Unsupported message role: {message.role}")
 
 
 def ui_message_to_user_content(message: UIMessage) -> List[UserContent]:

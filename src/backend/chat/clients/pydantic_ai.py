@@ -51,7 +51,6 @@ from chat.ai_sdk_types import (
 from chat.clients.async_to_sync import convert_async_generator_to_sync
 from chat.clients.pydantic_ui_message_converter import (
     model_message_to_ui_message,
-    ui_message_to_model_message,
     ui_message_to_user_content,
 )
 from chat.mcp_servers import get_mcp_servers
@@ -178,7 +177,7 @@ class AIAgentService:
         if messages[-1].role != "user":
             return
 
-        history = [ui_message_to_model_message(message) for message in messages[:-1]]
+        history = ModelMessagesTypeAdapter.validate_python(self.conversation.openai_messages)
         prompt = ui_message_to_user_content(messages[-1])
         usage = {"promptTokens": 0, "completionTokens": 0}
 
