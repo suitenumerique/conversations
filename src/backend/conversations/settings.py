@@ -469,6 +469,27 @@ class Base(Configuration):
         environ_prefix=None,
     )
 
+    AI_ROUTING_MODEL = values.Value(None, environ_name="AI_ROUTING_MODEL", environ_prefix=None)
+    AI_ROUTING_MODEL_BASE_URL = values.Value(
+        values.Value(None, environ_name="AI_BASE_URL", environ_prefix=None),
+        environ_name="AI_ROUTING_MODEL_BASE_URL",
+        environ_prefix=None,
+    )
+    AI_ROUTING_MODEL_API_KEY = values.Value(
+        values.Value(None, environ_name="AI_API_KEY", environ_prefix=None),
+        environ_name="AI_ROUTING_MODEL_API_KEY",
+        environ_prefix=None,
+    )
+    AI_ROUTING_SYSTEM_PROMPT = values.Value(
+        "Your only job is to detect the following user intents, based on the user request:\n"
+        " - `web_search`: The user requests, explicitly or not, to have recent or precise"
+        " information, or anything which would request to do some web research to add"
+        " context before answering. Any semantic language like 'recent', 'latest information'"
+        " and similar should trigger a web search.\n",
+        environ_name="AI_ROUTING_SYSTEM_PROMPT",
+        environ_prefix=None,
+    )
+
     # Tools
     AI_AGENT_TOOLS = values.ListValue(
         default=[],
@@ -477,6 +498,70 @@ class Base(Configuration):
     )
 
     # Web search
+    RAG_WEB_SEARCH_BACKEND = values.Value(
+        # "chat.agent_rag.web_search.albert_api.AlbertWebSearchManager",
+        "chat.agent_rag.web_search.mocked.MockedWebSearchManager",
+        environ_name="RAG_WEB_SEARCH_BACKEND",
+        environ_prefix=None,
+    )
+    RAG_WEB_SEARCH_PROMPT_UPDATE = values.Value(
+        '''
+You are a subject-matter expert assistant. You are given web search result(s) or raw webpage text 
+that may contain navigation, menus, comments, category names, and other unrelated page details.
+
+**Your mission:**
+- Use ONLY the main informational content that directly and factually answers the user's explicit 
+  question.
+- *Completely ignore and do NOT mention* any of the following in your answer:
+    - Web page or site structure
+    - Navigation elements, headers, menus, search bars, categories
+    - Lists of links, footers, or any site design features
+    - Any meta-observations about how the content is organized
+- NEVER include sections titled “Website Structure”, “Format”, “Layout”, or similar.
+- NEVER narrate, summarize, or analyze how the website is arranged or how links are presented.
+- If given a block of mixed web text, locate the relevant information AT THE SENTENCE LEVEL; 
+  include ONLY those sentences (possibly paraphrased) that respond to the user’s direct question.
+- If the relevant answer cannot be found in the content, simply state: “The provided content 
+  does not contain information directly answering the question.” Do not speculate or elaborate.
+
+#### Example output:
+
+> - John Doe criticized Jane the prime minister for "the absence of consultation" with other 
+    political forces regarding the 2025 the government budget, focusing on economic policy and 
+    spending plans.
+> - The country unemployment insurance system is noted as more generous than other neighbor's 
+    systems.
+> - [If more is needed, continue, but only with factual statements explicitly present in the 
+    provided content. Stop when unrelated content begins.]
+
+**Do NOT:**
+- Discuss the page’s design, link structure, main/secondary categories, branding, or site 
+  navigation tools.
+- Invent summaries for structure or offer general commentary about the website.
+
+WEB SEARCH RESULTS TO USE AS CONTEXT:
+"""
+{search_results}
+"""
+
+USER QUESTION:
+{user_prompt}
+        ''',
+        environ_name="RAG_WEB_SEARCH_PROMPT_UPDATE",
+        environ_prefix=None,
+    )
+    RAG_WEB_SEARCH_MAX_RESULTS = values.PositiveIntegerValue(
+        default=5,
+        environ_name="RAG_WEB_SEARCH_MAX_RESULTS",
+        environ_prefix=None,
+    )
+    RAG_WEB_SEARCH_CHUNK_NUMBER = values.PositiveIntegerValue(
+        default=4,
+        environ_name="RAG_WEB_SEARCH_CHUNK_NUMBER",
+        environ_prefix=None,
+    )
+
+    # Tavily API
     TAVILY_API_KEY = values.Value(
         None,  # Tavily API key is not set by default
         environ_name="TAVILY_API_KEY",
@@ -490,6 +575,23 @@ class Base(Configuration):
     TAVILY_API_TIMEOUT = values.PositiveIntegerValue(
         default=10,  # seconds
         environ_name="TAVILY_API_TIMEOUT",
+        environ_prefix=None,
+    )
+
+    # Albert API
+    ALBERT_API_KEY = values.Value(
+        None,  # Albert API key is not set by default
+        environ_name="ALBERT_API_KEY",
+        environ_prefix=None,
+    )
+    ALBERT_API_URL = values.Value(
+        "https://albert.api.etalab.gouv.fr",  # Default Albert API URL
+        environ_name="ALBERT_API_URL",
+        environ_prefix=None,
+    )
+    ALBERT_API_TIMEOUT = values.PositiveIntegerValue(
+        default=10,  # seconds
+        environ_name="ALBERT_API_TIMEOUT",
         environ_prefix=None,
     )
 

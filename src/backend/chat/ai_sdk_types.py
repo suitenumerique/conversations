@@ -177,15 +177,21 @@ class ToolInvocationUIPart(BaseModel):
 
 class LanguageModelV1Source(BaseModel):
     """
-    Represents source information from a language model.
+    Represents a source that has been used as input to generate the response.
 
     Attributes:
-        source_type: The type of source.
-        details: Additional details about the source.
+        source_type: A URL source. This is return by web search RAG models.
+        id: The ID of the source.
+        url: The URL of the source.
+        title: The title of the source.
+        providerMetadata: Additional provider metadata for the source.
     """
 
-    source_type: str
-    details: Dict[str, Any]
+    source_type: Literal["url"]
+    id: str
+    url: str
+    title: Optional[str] = None
+    providerMetadata: Dict[str, Any]  # LanguageModelV1ProviderMetadata
 
 
 class SourceUIPart(BaseModel):

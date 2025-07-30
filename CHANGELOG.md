@@ -17,6 +17,7 @@ and this project adheres to
 ### Added
 
 - 🎉(conversations) bootstrap backend & frontend #1
+- ✨(web-search) add RAG capability to do web search #7
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main

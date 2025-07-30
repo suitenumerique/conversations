@@ -37,6 +37,9 @@ def ai_settings(settings):
     settings.AI_API_KEY = "test-api-key"
     settings.AI_MODEL = "test-model"
 
+    # Disable web search backend for tests
+    settings.RAG_WEB_SEARCH_BACKEND = None
+
     return settings
 
 
@@ -400,7 +403,7 @@ def test_post_conversation_invalid_protocol(api_client):
     response = api_client.post(url, data, format="json")
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Invalid protocol" in response.data["error"]
+    assert response.json() == {"protocol": ["Protocol must be either 'text' or 'data'."]}
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
@@ -784,6 +787,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
                                 "v7-jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD_aNpbtEAAAAASUVORK5CYII="
                             ),
                             "kind": "binary",
+                            "identifier": None,
                             "media_type": "image/png",
                             "vendor_metadata": None,
                         },

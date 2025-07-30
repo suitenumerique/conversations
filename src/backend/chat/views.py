@@ -13,6 +13,7 @@ from core.filters import remove_accents
 
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
+from chat.serializers import ChatConversationRequestSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -78,12 +79,10 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
         Returns:
             StreamingHttpResponse: A streaming response containing the chat completion
         """
-        protocol = request.query_params.get("protocol", "data")
-        if protocol not in ["text", "data"]:
-            return Response(
-                {"error": "Invalid protocol. Must be 'text' or 'data'"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        query_params_serializer = ChatConversationRequestSerializer(data=request.query_params)
+        query_params_serializer.is_valid(raise_exception=True)
+        protocol = query_params_serializer.validated_data["protocol"]
+        force_web_search = query_params_serializer.validated_data["force_web_search"]
 
         logger.info("Received messages: %s", request.data.get("messages", []))
 
@@ -104,8 +103,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
         conversation.save()
 
         serializer = self.get_serializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
         messages = serializer.validated_data["messages"]
 
         logger.info("Received messages: %s", messages)
@@ -116,9 +114,9 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
 
         ai_service = AIAgentService(conversation=conversation)
         if protocol == "data":
-            streaming_content = ai_service.stream_data(messages)
-        else:
-            streaming_content = ai_service.stream_text(messages)
+            streaming_content = ai_service.stream_data(messages, force_web_search=force_web_search)
+        else:  # Default to 'text' protocol
+            streaming_content = ai_service.stream_text(messages, force_web_search=force_web_search)
 
         response = StreamingHttpResponse(
             streaming_content,
