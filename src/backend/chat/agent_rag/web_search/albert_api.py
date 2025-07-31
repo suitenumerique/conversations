@@ -90,7 +90,7 @@ class AlbertWebSearchManager(BaseWebSearchManager):
         response = requests.post(
             self._search_endpoint,
             headers=self._headers,
-            json=search_request.model_dump(),
+            json=search_request.model_dump(mode="json", exclude_unset=True),
             timeout=settings.ALBERT_API_TIMEOUT,
         )
         response.raise_for_status()
