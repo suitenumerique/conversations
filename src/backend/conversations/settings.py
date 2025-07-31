@@ -630,7 +630,7 @@ USER QUESTION:
                 ),
                 "propagate": False,
             },
-            "docs.security": {
+            "conversations.security": {
                 "handlers": ["console"],
                 "level": values.Value(
                     "INFO",

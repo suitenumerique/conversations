@@ -2,7 +2,7 @@
 
 Thank you for taking the time to contribute! Please follow these guidelines to ensure a smooth and productive workflow. 🚀🚀🚀
 
-To get started with the project, please refer to the [README.md](https://github.com/suitenumerique/conversations/blob/main/README.md) for detailed instructions on how to run Docs locally.
+To get started with the project, please refer to the [README.md](https://github.com/suitenumerique/conversations/blob/main/README.md) for detailed instructions on how to run Conversations locally.
 
 Contributors are required to sign off their commits with `git commit --signoff`: this confirms that they have read and accepted the [Developer's Certificate of Origin 1.1](https://developercertificate.org/). For security reasons we also require [signing your commits with your SSH or GPG key](https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification) with `git commit -S`.
 
@@ -92,11 +92,3 @@ Make sure that all new features or fixes have corresponding tests. Run the test 
 If you need any help while contributing, feel free to open a discussion or ask for guidance in the issue tracker. We are more than happy to assist!
 
 Thank you for your contributions! 👍
-
-## Contribute to BlockNote
-We use [BlockNote](https://www.blocknotejs.org/) for the text editing features of Docs. 
-If you find and issue with the editor you can [report it](https://github.com/TypeCellOS/BlockNote/issues) directly on their repository.
-
-Please consider contributing to BlockNotejs, as a library, it's useful to many projects not just Docs.
-
-The project is licended with Mozilla Public License Version 2.0 but be aware that [XL packages](https://github.com/TypeCellOS/BlockNote/blob/main/packages/xl-docx-exporter/LICENSE) are dual licenced with GNU AFFERO GENERAL PUBLIC LICENCE Version 3 and proprietary licence if you are [sponsor](https://www.blocknotejs.org/pricing).

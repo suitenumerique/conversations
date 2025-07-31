@@ -1,9 +1,9 @@
-# La Suite Docs – System & Requirements (2025-06)
+# La Suite Conversations – System & Requirements (2025-06)
 
 ## 1. Quick-Reference Matrix (single VM / laptop)
 
 | Scenario                  | RAM   | vCPU | SSD     | Notes                     |
-| ------------------------- | ----- | ---- | ------- | ------------------------- |
+|---------------------------|-------|------|---------|---------------------------|
 | **Solo dev**              | 8 GB  | 4    | 15 GB   | Hot-reload + one IDE      |
 | **Team QA**               | 16 GB | 6    | 30 GB   | Runs integration tests    |
 | **Prod ≤ 100 live users** | 32 GB | 8 +  | 50 GB + | Scale linearly above this |
@@ -14,16 +14,15 @@ Memory is the first bottleneck; CPU matters only when Celery or the Next.js buil
 
 ## 2. Development Environment Memory Requirements
 
-| Service                  | Typical use                   | Rationale / source                                                                      |
-| ------------------------ | ----------------------------- | --------------------------------------------------------------------------------------- |
-| PostgreSQL               | **1 – 2 GB**                 | `shared_buffers` starting point ≈ 25% RAM ([postgresql.org][1])                       |
-| Keycloak                 | **≈ 1.3 GB**                 | 70% of limit for heap + ~300 MB non-heap ([keycloak.org][2])                         |
-| Redis                    | **≤ 256 MB**                 | Empty instance ≈ 3 MB; budget 256 MB to allow small datasets ([stackoverflow.com][3]) |
-| MinIO                    | **2 GB (dev) / 32 GB (prod)**| Pre-allocates 1–2 GiB; docs recommend 32 GB per host for ≤ 100 Ti storage ([min.io][4]) |
-| Django API (+ Celery)    | **0.8 – 1.5 GB**              | Empirical in-house metrics                                                              |
-| Next.js frontend         | **0.5 – 1 GB**                | Dev build chain                                                                         |
-| Y-Provider (y-websocket) | **< 200 MB**                  | Large 40 MB YDoc called “big” in community thread ([discuss.yjs.dev][5])                |
-| Nginx                    | **< 100 MB**                  | Static reverse-proxy footprint                                                          |
+| Service               | Typical use                   | Rationale / source                                                                      |
+|-----------------------|-------------------------------|-----------------------------------------------------------------------------------------|
+| PostgreSQL            | **1 – 2 GB**                  | `shared_buffers` starting point ≈ 25% RAM ([postgresql.org][1])                         |
+| Keycloak              | **≈ 1.3 GB**                  | 70% of limit for heap + ~300 MB non-heap ([keycloak.org][2])                            |
+| Redis                 | **≤ 256 MB**                  | Empty instance ≈ 3 MB; budget 256 MB to allow small datasets ([stackoverflow.com][3])   |
+| MinIO                 | **2 GB (dev) / 32 GB (prod)** | Pre-allocates 1–2 GiB; docs recommend 32 GB per host for ≤ 100 Ti storage ([min.io][4]) |
+| Django API (+ Celery) | **0.8 – 1.5 GB**              | Empirical in-house metrics                                                              |
+| Next.js frontend      | **0.5 – 1 GB**                | Dev build chain                                                                         |
+| Nginx                 | **< 100 MB**                  | Static reverse-proxy footprint                                                          |
 
 [1]: https://www.postgresql.org/docs/9.1/runtime-config-resource.html "PostgreSQL: Documentation: 9.1: Resource Consumption"
 [2]: https://www.keycloak.org/high-availability/concepts-memory-and-cpu-sizing "Concepts for sizing CPU and memory resources - Keycloak"
@@ -37,16 +36,16 @@ Memory is the first bottleneck; CPU matters only when Celery or the Next.js buil
 
 Production deployments differ significantly from development environments. The table below shows typical memory usage for production services:
 
-| Service                  | Typical use                   | Rationale / notes                                                                       |
-| ------------------------ | ----------------------------- | --------------------------------------------------------------------------------------- |
-| PostgreSQL               | **2 – 8 GB**                 | Higher `shared_buffers` and connection pooling for concurrent users                    |
-| OIDC Provider (optional) | **Variable**                  | Any OIDC-compatible provider (Keycloak, Auth0, Azure AD, etc.) - external or self-hosted |
-| Redis                    | **256 MB – 2 GB**             | Session storage and caching; scales with active user sessions                          |
-| Object Storage (optional)| **External or self-hosted**   | Can use AWS S3, Azure Blob, Google Cloud Storage, or self-hosted MinIO               |
-| Django API (+ Celery)    | **1 – 3 GB**                 | Production workloads with background tasks and higher concurrency                      |
-| Static Files (Nginx)     | **< 200 MB**                 | Serves Next.js build output and static assets; no development overhead                |
-| Y-Provider (y-websocket) | **200 MB – 1 GB**             | Scales with concurrent document editing sessions                                        |
-| Nginx (Load Balancer)    | **< 200 MB**                  | Reverse proxy, SSL termination, static file serving                                    |
+| Service                   | Typical use                 | Rationale / notes                                                                        |
+|---------------------------|-----------------------------|------------------------------------------------------------------------------------------|
+| PostgreSQL                | **2 – 8 GB**                | Higher `shared_buffers` and connection pooling for concurrent users                      |
+| OIDC Provider (optional)  | **Variable**                | Any OIDC-compatible provider (Keycloak, Auth0, Azure AD, etc.) - external or self-hosted |
+| Redis                     | **256 MB – 2 GB**           | Session storage and caching; scales with active user sessions                            |
+| Object Storage (optional) | **External or self-hosted** | Can use AWS S3, Azure Blob, Google Cloud Storage, or self-hosted MinIO                   |
+| Django API (+ Celery)     | **1 – 3 GB**                | Production workloads with background tasks and higher concurrency                        |
+| Static Files (Nginx)      | **< 200 MB**                | Serves Next.js build output and static assets; no development overhead                   |
+| Y-Provider (y-websocket)  | **200 MB – 1 GB**           | Scales with concurrent document editing sessions                                         |
+| Nginx (Load Balancer)     | **< 200 MB**                | Reverse proxy, SSL termination, static file serving                                      |
 
 ### Production Architecture Notes
 
@@ -69,7 +68,7 @@ Production deployments differ significantly from development environments. The t
 ## 4. Recommended Software Versions
 
 | Tool                    | Minimum |
-| ----------------------- | ------- |
+|-------------------------|---------|
 | Docker Engine / Desktop | 24.0    |
 | Docker Compose          | v2      |
 | Git                     | 2.40    |
@@ -85,10 +84,9 @@ Production deployments differ significantly from development environments. The t
 ## 5. Ports (dev defaults)
 
 | Port      | Service               |
-| --------- |-----------------------|
+|-----------|-----------------------|
 | 3000      | Next.js               |
 | 8071      | Django                |
-| 4444      | Y-Provider            |
 | 8080      | Keycloak              |
 | 8083      | Nginx proxy           |
 | 9000/9001 | MinIO                 |

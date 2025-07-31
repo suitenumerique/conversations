@@ -6,7 +6,7 @@ Security is very important to us.
 
 If you have any issue regarding security, please disclose the information responsibly submitting [this form](https://vdp.numerique.gouv.fr/p/Send-a-report?lang=en) and not by creating an issue on the repository. You can also email us at docs@numerique.gouv.fr
 
-We appreciate your effort to make Docs more secure.
+We appreciate your effort to make Conversations more secure.
 
 ## Vulnerability disclosure policy
 

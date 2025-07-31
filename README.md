@@ -30,9 +30,11 @@ In the works: Docker Compose, soon YunoHost
 
 You can test Conversations on your browser by visiting this => TBD
 
-### Run Docs locally
+### Run Conversations locally
 
-> ⚠️ The methods described below for running Docs locally is **for testing purposes only**. It is based on building Docs using [Minio](https://min.io/) as an S3-compatible storage solution. Of course you can choose any S3-compatible storage solution.
+> ⚠️ The methods described below for running Conversations locally is **for testing purposes only**. 
+> It is based on building Conversations using [Minio](https://min.io/) as an S3-compatible storage solution. 
+> Of course you can choose any S3-compatible storage solution.
 
 **Prerequisite**
 
