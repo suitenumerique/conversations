@@ -70,15 +70,7 @@ jobs:
       - name: Install codespell
         run: pip install --user codespell
       - name: Check for typos
-        run: |
-          codespell \
-            --check-filenames \
-            --ignore-words-list "Dokument,afterAll,excpt,statics" \
-            --skip "./git/" \
-            --skip "**/*.po" \
-            --skip "**/*.pot" \
-            --skip "**/*.json" \
-            --skip "**/yarn.lock"
+        run: codespell
 
   lint-back:
     runs-on: self-hosted

@@ -1,0 +1,16 @@
+[codespell]
+skip =
+    ./git/,
+    **/*.po,
+    **/*.pot,
+    **/*.json,
+    **/yarn.lock,
+    **/node_modules/**,
+    **/e2e/report/**,
+    *.tsbuildinfo,
+check-filenames = true
+ignore-words-list =
+    afterAll,
+    statics,
+exclude-file =
+    ./src/backend/chat/agent_rag/web_search/mocked.py,
