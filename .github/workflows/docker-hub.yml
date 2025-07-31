@@ -55,6 +55,7 @@ jobs:
 
   build-and-push-frontend:
     runs-on: self-hosted
+    timeout-minutes: 40
     steps:
       -
         name: Checkout repository
