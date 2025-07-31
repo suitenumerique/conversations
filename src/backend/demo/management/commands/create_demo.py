@@ -112,25 +112,28 @@ def create_demo(stdout):
     queue = BulkQueue(stdout)
 
     with Timeit(stdout, "Creating users"):
-        name_size = int(math.sqrt(defaults.NB_OBJECTS["users"]))
-        first_names = [fake.first_name() for _ in range(name_size)]
-        last_names = [fake.last_name() for _ in range(name_size)]
-        for i in range(defaults.NB_OBJECTS["users"]):
-            first_name = random.choice(first_names)
-            queue.push(
-                models.User(
-                    admin_email=f"user{i:d}@example.com",
-                    email=f"user{i:d}@example.com",
-                    password="!",
-                    is_superuser=False,
-                    is_active=True,
-                    is_staff=False,
-                    short_name=first_name,
-                    full_name=f"{first_name:s} {random.choice(last_names):s}",
-                    language=random.choice(settings.LANGUAGES)[0],
+        if models.User.objects.filter(email="user0@example.com").exists():
+            stdout.write("Users already exist, skipping user creation.")
+        else:
+            name_size = int(math.sqrt(defaults.NB_OBJECTS["users"]))
+            first_names = [fake.first_name() for _ in range(name_size)]
+            last_names = [fake.last_name() for _ in range(name_size)]
+            for i in range(defaults.NB_OBJECTS["users"]):
+                first_name = random.choice(first_names)
+                queue.push(
+                    models.User(
+                        admin_email=f"user{i:d}@example.com",
+                        email=f"user{i:d}@example.com",
+                        password="!",
+                        is_superuser=False,
+                        is_active=True,
+                        is_staff=False,
+                        short_name=first_name,
+                        full_name=f"{first_name:s} {random.choice(last_names):s}",
+                        language=random.choice(settings.LANGUAGES)[0],
+                    )
                 )
-            )
-        queue.flush()
+            queue.flush()
 
 
 class Command(BaseCommand):

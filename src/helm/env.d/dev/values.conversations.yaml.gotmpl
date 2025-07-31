@@ -33,11 +33,11 @@ backend:
     LOGGING_LEVEL_LOGGERS_APP: INFO
     OIDC_USERINFO_SHORTNAME_FIELD: "given_name"
     OIDC_USERINFO_FULLNAME_FIELDS: "given_name,usual_name"
-    OIDC_OP_JWKS_ENDPOINT: https://docs-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/certs
-    OIDC_OP_AUTHORIZATION_ENDPOINT: https://docs-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/auth
-    OIDC_OP_TOKEN_ENDPOINT: https://docs-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/token
-    OIDC_OP_USER_ENDPOINT: https://docs-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/userinfo
-    OIDC_OP_LOGOUT_ENDPOINT: https://docs-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/logout
+    OIDC_OP_JWKS_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/certs
+    OIDC_OP_AUTHORIZATION_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/auth
+    OIDC_OP_TOKEN_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/token
+    OIDC_OP_USER_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/userinfo
+    OIDC_OP_LOGOUT_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/logout
     OIDC_RP_CLIENT_ID: conversations
     OIDC_RP_CLIENT_SECRET: ThisIsAnExampleKeyForDevPurposeOnly
     OIDC_RP_SIGN_ALGO: RS256
@@ -122,6 +122,7 @@ frontend:
   envVars:
     PORT: 8080
     NEXT_PUBLIC_API_ORIGIN: https://conversations.127.0.0.1.nip.io
+    NEXT_PUBLIC_PRODUCT_NAME: "Assistant"
 
   replicas: 1
   command:

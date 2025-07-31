@@ -10,10 +10,6 @@ docker_build(
     target = 'backend-production',
     live_update=[
         sync('../src/backend', '/app'),
-        run(
-            'pip install -r /app/requirements.txt',
-            trigger=['./api/requirements.txt']
-        )
     ]
 )
 
@@ -28,9 +24,9 @@ docker_build(
     ]
 )
 
-k8s_resource('conversations-conversations-backend-migrate', resource_deps=['postgres-postgresql'])
-k8s_resource('conversations-conversations-backend-createsuperuser', resource_deps=['conversations-conversations-backend-migrate'])
-k8s_resource('conversations-conversations-backend', resource_deps=['conversations-conversations-backend-migrate'])
+k8s_resource('conversations-backend-migrate', resource_deps=['postgres-postgresql'])
+k8s_resource('conversations-backend-createsuperuser', resource_deps=['conversations-backend-migrate'])
+k8s_resource('conversations-backend', resource_deps=['conversations-backend-migrate'])
 k8s_yaml(local('cd ../src/helm && helmfile -n conversations -e dev template .'))
 
 migration = '''

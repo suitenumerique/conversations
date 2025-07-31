@@ -125,7 +125,7 @@ spec:
         {{- if .Values.backend.themeCustomization.enabled }}
         - name: theme-customization
           configMap:
-            name: docs-theme-customization
+            name: conversations-theme-customization
         {{- end }}
         {{- range .Values.backend.extraVolumes }}
         - name: {{ .name }}

@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: docs-theme-customization
+  name: conversations-theme-customization
   namespace: {{ .Release.Namespace }}
 data:
   default.json: |
