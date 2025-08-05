@@ -18,6 +18,26 @@ export const CONFIG = {
   POSTHOG_KEY: {},
   SENTRY_DSN: null,
   theme_customization: {},
+  chat_upload_accept:
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document,' +
+    'application/vnd.openxmlformats-officedocument.presentationml,' +
+    'application/vnd.ms-excel,' +
+    'application/excel,' +
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,' +
+    'text/plain,' +
+    'text/csv,' +
+    'application/csv,' +
+    'application/pdf,' +
+    'text/html,' +
+    'application/xhtml+xml,' +
+    'text/markdown,' +
+    'application/markdown,' +
+    'application/x-markdown' +
+    ',application/vnd.ms-outlook,' +
+    'image/jpeg,' +
+    'image/png,' +
+    'image/gif,' +
+    'image/webp',
 } as const;
 
 export const overrideConfig = async (
@@ -54,9 +74,7 @@ export const keyCloakSignIn = async (
   const password = `password-e2e-${browserName}`;
 
   await expect(page).toHaveURL(/http:\/\/localhost:8083\/.+/);
-  await expect(
-    page.getByText('conversations'),
-  ).toBeVisible();
+  await expect(page.getByText('conversations')).toBeVisible();
 
   if (await page.getByLabel('Restart login').isVisible()) {
     await page.getByLabel('Restart login').click();

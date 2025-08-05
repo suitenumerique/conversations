@@ -23,6 +23,7 @@ export interface ConfigResponse {
   POSTHOG_KEY?: PostHogConf;
   SENTRY_DSN?: string;
   theme_customization?: ThemeCustomization;
+  chat_upload_accept?: string;
 }
 
 const LOCAL_STORAGE_KEY = 'conversations_config';

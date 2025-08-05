@@ -216,6 +216,8 @@ class ConfigView(drf.views.APIView):
 
         dict_settings["theme_customization"] = self._load_theme_customization()
 
+        dict_settings["chat_upload_accept"] = ",".join(settings.RAG_FILES_ACCEPTED_FORMATS)
+
         return drf.response.Response(dict_settings)
 
     def _load_theme_customization(self):

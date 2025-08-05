@@ -500,6 +500,42 @@ class Base(Configuration):
         environ_prefix=None,
     )
 
+    # Uploaded files
+    RAG_FILES_ACCEPTED_FORMATS = values.ListValue(
+        default=[
+            # docx files
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            # pptx files
+            "application/vnd.openxmlformats-officedocument.presentationml",
+            # xlsx and xls files
+            "application/vnd.ms-excel",
+            "application/excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            # txt and csv files
+            "text/plain",
+            "text/csv",
+            "application/csv",
+            # pdf files
+            "application/pdf",
+            # html files
+            "text/html",
+            "application/xhtml+xml",
+            # markdown files
+            "text/markdown",
+            "application/markdown",
+            "application/x-markdown",
+            # outlook msg files
+            "application/vnd.ms-outlook",
+            # images
+            "image/jpeg",
+            "image/png",
+            "image/gif",
+            "image/webp",
+        ],
+        environ_name="RAG_FILES_ACCEPTED_FORMATS",
+        environ_prefix=None,
+    )
+
     # Documents
     ALBERT_API_PARSE_TIMEOUT = values.PositiveIntegerValue(
         default=120,  # seconds

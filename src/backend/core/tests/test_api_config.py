@@ -25,6 +25,10 @@ pytestmark = pytest.mark.django_db
     POSTHOG_KEY={"id": "132456", "host": "https://eu.i.posthog-test.com"},
     SENTRY_DSN="https://sentry.test/123",
     THEME_CUSTOMIZATION_FILE_PATH="",
+    RAG_FILES_ACCEPTED_FORMATS=[
+        "application/pdf",
+        "text/plain",
+    ],
 )
 @pytest.mark.parametrize("is_authenticated", [False, True])
 def test_api_config(is_authenticated):
@@ -55,6 +59,7 @@ def test_api_config(is_authenticated):
         "POSTHOG_KEY": {"id": "132456", "host": "https://eu.i.posthog-test.com"},
         "SENTRY_DSN": "https://sentry.test/123",
         "theme_customization": {},
+        "chat_upload_accept": "application/pdf,text/plain",
     }
 
 
