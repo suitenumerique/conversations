@@ -134,7 +134,7 @@ def fixture_mock_intent_detection_web_search():
                 "index": 0,
                 "message": {
                     "role": "assistant",
-                    "content": '{"web_search": true}',
+                    "content": '{"web_search": true, "attachment_summary": false}',
                 },
                 "finish_reason": "stop",
             }

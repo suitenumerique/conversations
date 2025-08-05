@@ -485,7 +485,10 @@ class Base(Configuration):
         " - `web_search`: The user requests, explicitly or not, to have recent or precise"
         " information, or anything which would request to do some web research to add"
         " context before answering. Any semantic language like 'recent', 'latest information'"
-        " and similar should trigger a web search.\n",
+        " and similar should trigger a web search.\n"
+        " - `attachment_summary`: The user requests, explicitly or not, to have a summary of"
+        " a document, or any specific file. Any semantic language like 'summary', 'overview',"
+        " 'highlights', 'key points' and similar should trigger a document summary.\n",
         environ_name="AI_ROUTING_SYSTEM_PROMPT",
         environ_prefix=None,
     )
@@ -497,6 +500,18 @@ class Base(Configuration):
         environ_prefix=None,
     )
 
+    # Documents
+    ALBERT_API_PARSE_TIMEOUT = values.PositiveIntegerValue(
+        default=120,  # seconds
+        environ_name="ALBERT_API_PARSE_TIMEOUT",
+        environ_prefix=None,
+    )
+    RAG_DOCUMENT_SEARCH_BACKEND = values.Value(
+        "chat.agent_rag.document_search.albert_api.AlbertRagDocumentSearch",
+        environ_name="RAG_DOCUMENT_SEARCH_BACKEND",
+        environ_prefix=None,
+    )
+
     # Web search
     RAG_WEB_SEARCH_BACKEND = values.Value(
         # "chat.agent_rag.web_search.albert_api.AlbertWebSearchManager",
@@ -505,9 +520,12 @@ class Base(Configuration):
         environ_prefix=None,
     )
     RAG_WEB_SEARCH_PROMPT_UPDATE = values.Value(
-        '''
-You are a subject-matter expert assistant. You are given web search result(s) or raw webpage text 
-that may contain navigation, menus, comments, category names, and other unrelated page details.
+        """
+You are a subject-matter expert assistant. 
+You are given :
+ - web search result(s) or raw webpage text that may contain navigation, menus, comments, 
+   category names, and other unrelated page details.
+ - document(s) that may contain text, images, and metadata, formatted in markdown.
 
 **Your mission:**
 - Use ONLY the main informational content that directly and factually answers the user's explicit 
@@ -539,14 +557,12 @@ that may contain navigation, menus, comments, category names, and other unrelate
   navigation tools.
 - Invent summaries for structure or offer general commentary about the website.
 
-WEB SEARCH RESULTS TO USE AS CONTEXT:
-"""
 {search_results}
-"""
 
 USER QUESTION:
+
 {user_prompt}
-        ''',
+        """,
         environ_name="RAG_WEB_SEARCH_PROMPT_UPDATE",
         environ_prefix=None,
     )
@@ -794,6 +810,14 @@ class Test(Base):
     STATIC_ROOT = None
 
     os.environ["OPENAI_AGENTS_DISABLE_TRACING"] = "true"
+
+    AI_BASE_URL = None
+    AI_API_KEY = None
+    AI_MODEL = None
+
+    AI_ROUTING_MODEL_BASE_URL = None
+    AI_ROUTING_MODEL = None
+    AI_ROUTING_MODEL_API_KEY = None
 
     def __init__(self):
         # pylint: disable=invalid-name

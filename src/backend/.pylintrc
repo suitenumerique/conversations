@@ -23,7 +23,9 @@ jobs=0
 
 # List of plugins (as comma separated values of python modules names) to load,
 # usually to register additional checkers.
-load-plugins=pylint_django,pylint.extensions.no_self_use
+load-plugins=pylint_django,
+             pylint.extensions.no_self_use,
+             pylint_pydantic,
 
 # Pickle collected data for later comparisons.
 persistent=yes

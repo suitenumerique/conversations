@@ -66,3 +66,9 @@ class ChatConversation(BaseModel):
         blank=True,
         help_text="Agent usage for the chat conversation, provided by OpenAI API",
     )
+
+    collection_id = models.CharField(
+        blank=True,
+        null=True,
+        help_text="Collection ID for the conversation, used for RAG document search",
+    )

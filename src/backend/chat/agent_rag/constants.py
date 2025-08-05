@@ -32,7 +32,7 @@ class RAGWebResults(BaseModel):
 
     def to_prompt(self) -> str:
         """Convert the web results to a prompt string."""
-        _format = " - URL: {url}:\n   content: {content}\n\n"
+        _format = " - From: {url}:\n   content: {content}\n\n"
         return (
             "\n\n".join(
                 _format.format(url=result.url, content=result.content) for result in self.data

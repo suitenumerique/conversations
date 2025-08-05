@@ -63,7 +63,11 @@ def ui_message_to_user_content(message: UIMessage) -> List[UserContent]:
             # Handle data URLs
             raw_data = base64.b64decode(experimental_attachment.url.split(",")[1])
             user_contents.append(
-                BinaryContent(data=raw_data, media_type=experimental_attachment.contentType)
+                BinaryContent(
+                    data=raw_data,
+                    media_type=experimental_attachment.contentType,
+                    identifier=experimental_attachment.name,
+                )
             )
         else:
             raise ValueError(

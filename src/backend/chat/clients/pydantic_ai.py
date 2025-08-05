@@ -11,16 +11,18 @@ import json
 import logging
 import uuid
 from contextlib import AsyncExitStack
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.module_loading import import_string
+from django.utils.translation import gettext_lazy as _
 
 from asgiref.sync import sync_to_async
 from pydantic import BaseModel
 from pydantic_ai import Agent, NativeOutput
 from pydantic_ai.messages import (
+    BinaryContent,
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     ModelMessage,
@@ -37,18 +39,19 @@ from pydantic_ai.messages import (
     ToolCallPart,
     ToolCallPartDelta,
     ToolReturnPart,
-    UserContent,
     UserPromptPart,
 )
 from pydantic_ai.models.openai import OpenAIModel, OpenAIResponsesModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
 
+from chat.agent_rag.document_search.albert_api import AlbertRagDocumentSearch
 from chat.ai_sdk_types import (
     LanguageModelV1Source,
     SourceUIPart,
     UIMessage,
 )
 from chat.clients.async_to_sync import convert_async_generator_to_sync
+from chat.clients.exceptions import WebSearchEmptyException
 from chat.clients.pydantic_ui_message_converter import (
     model_message_to_ui_message,
     ui_message_to_user_content,
@@ -88,6 +91,7 @@ class UserIntent(BaseModel):
     """Model to represent the detected user intent."""
 
     web_search: bool = False
+    attachment_summary: bool = False
 
 
 class AIAgentService:
@@ -127,12 +131,12 @@ class AIAgentService:
     # Core agent runner
     # --------------------------------------------------------------------- #
 
-    async def _detect_user_intent(self, user_prompt: List[UserContent]) -> UserIntent:
+    async def _detect_user_intent(self, user_prompt: str) -> UserIntent:
         """
         Detect the user intent by calling a small LLM.
 
         Args:
-            user_prompt (List[UserContent]): The user prompt to analyze.
+            user_prompt str: The user prompt to analyze.
         Returns:
             UserIntent: The detected user intent, indicating if a web search is needed.
         Raises:
@@ -148,9 +152,8 @@ class AIAgentService:
             )
             if not setting  # ie if setting is None or setting == ""
         ]:
-            raise ImproperlyConfigured(
-                f"AI routing model configuration not set: {missing_settings}"
-            )
+            logger.error("AI routing model configuration not set: %s", missing_settings)
+            return UserIntent()
 
         agent = Agent(
             model=OpenAIModel(
@@ -166,7 +169,144 @@ class AIAgentService:
 
         result = await agent.run(user_prompt)
         logger.debug("Detected user intent: %s", result)
+
+        # Disable some intent if the project settings do not allow it
+        if not settings.RAG_WEB_SEARCH_BACKEND:
+            # If web search is not enabled, we can skip the intent detection
+            result.output.web_search = False
+            logger.info("Web search backend is disabled, skipping intent detection.")
+
         return result.output
+
+    def parse_input_documents(self, documents: List[BinaryContent]):
+        """
+        Parse and store input documents in the conversation's document store.
+        """
+        document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+        document_store = document_store_backend(self.conversation)
+        for document in documents:
+            document_store.parse_and_store_document(
+                name=document.identifier,
+                content_type=document.media_type,
+                content=document.data,
+            )
+
+    def perform_rag(
+        self,
+        user_prompt: str,
+        intent_web_search: bool = False,
+        force_web_search: bool = False,
+        document_search: bool = False,
+    ) -> Tuple[str, List[SourceUIPart]]:
+        """
+        Perform RAG (Retrieval-Augmented Generation) based on the conversation settings.
+
+        Args:
+            web_search (bool): Whether to perform a web search.
+            document_search (bool): Whether to query attachments.
+        """
+        ui_sources = []
+
+        if intent_web_search or force_web_search:
+            web_search_backend = import_string(settings.RAG_WEB_SEARCH_BACKEND)
+            web_search_results = web_search_backend().web_search(user_prompt)
+        else:
+            web_search_results = None
+
+        if force_web_search and web_search_results is None:
+            logger.error("Forced web search was requested but no results were found.")
+            raise WebSearchEmptyException()
+
+        if document_search:
+            document_search_backend = AlbertRagDocumentSearch(self.conversation)
+            document_search_results = document_search_backend.search(user_prompt)
+        else:
+            document_search_results = None
+
+        if web_search_results is None and document_search_results is None:
+            logger.warning("No web search or document search results found, skipping RAG.")
+            return "", ui_sources
+
+        prompted_results = "\n\n".join(
+            search_results.to_prompt()
+            for search_results in [web_search_results, document_search_results]
+            if search_results is not None
+        )
+        new_prompt = settings.RAG_WEB_SEARCH_PROMPT_UPDATE.format(
+            search_results=prompted_results, user_prompt=user_prompt
+        )
+
+        _unique_sources = set()
+        for search_results in [web_search_results, document_search_results]:
+            if search_results is None:
+                continue
+
+            for result in search_results.data:
+                logger.debug("Search result: %s", result.model_dump())
+
+                # Several chunks may come from the same URL,
+                # so we need to ensure we don't duplicate sources.
+                if result.url in _unique_sources:
+                    logger.debug("Skipping duplicated source: %s", result.url)
+                    continue
+
+                _unique_sources.add(result.url)
+                url_source = LanguageModelV1Source(
+                    source_type="url",
+                    id=str(uuid.uuid4()),
+                    url=result.url,
+                    providerMetadata={},
+                )
+                ui_sources.append(SourceUIPart(type="source", source=url_source))
+
+        return new_prompt, ui_sources
+
+    def prepare_prompt(
+        self, message: UIMessage
+    ) -> Tuple[str, List[BinaryContent], List[BinaryContent]]:
+        """
+        Prepare the user prompt for the agent.
+
+        This method is used to convert a UIMessage into a format suitable for the agent.
+        It extracts the user content from the message and returns it as a list of UserContent.
+        """
+        user_content = ui_message_to_user_content(message)
+
+        user_prompt = []
+        attachment_images = []
+        attachment_documents = []
+        attachment_audio = []
+        attachment_video = []
+        for content in user_content:
+            if isinstance(content, str):
+                user_prompt.append(content)
+            elif isinstance(content, BinaryContent):
+                if content.is_audio:
+                    attachment_audio.append(content)
+                elif content.is_video:
+                    attachment_video.append(content)
+                elif content.is_image:
+                    attachment_images.append(content)
+                else:
+                    attachment_documents.append(content)
+            else:
+                # Should never happen, but just in case
+                raise ValueError(f"Unsupported UserContent type: {type(content)}")
+
+        if any(attachment_audio):
+            # Should be handled by the frontend, but just in case
+            raise ValueError("Audio attachments are not supported in the current implementation.")
+        if any(attachment_video):
+            # Should be handled by the frontend, but just in case
+            raise ValueError("Video attachments are not supported in the current implementation.")
+
+        if len(user_prompt) != 1:
+            raise ValueError(
+                "User prompt must contain exactly one text part, "
+                f"but got {len(user_prompt)} parts: {user_prompt}"
+            )
+
+        return user_prompt[0], attachment_images, attachment_documents
 
     async def _run_agent(  # noqa: PLR0912, PLR0915
         self,
@@ -178,86 +318,101 @@ class AIAgentService:
             return
 
         history = ModelMessagesTypeAdapter.validate_python(self.conversation.openai_messages)
-        prompt = ui_message_to_user_content(messages[-1])
+        user_prompt, input_images, input_documents = self.prepare_prompt(messages[-1])
+
         usage = {"promptTokens": 0, "completionTokens": 0}
 
-        # Check is the user prompt requires web search
-        if not settings.RAG_WEB_SEARCH_BACKEND:
-            # If web search is not enabled, we can skip the intent detection
-            user_intent = UserIntent(web_search=False)
-            logger.info("Web search backend is disabled, skipping intent detection.")
-        elif force_web_search:
-            # While the only intent detection is web search, we can
-            # skip the detection if the user has explicitly requested a web search.
-            user_intent = UserIntent(web_search=True)
-            logger.info("Web search requested by user, skipping intent detection.")
-        else:
-            user_intent: UserIntent = await self._detect_user_intent(prompt)
+        # Detect the user intent
+        if not force_web_search:
+            user_intent: UserIntent = await self._detect_user_intent(user_prompt)
             logger.info("User intent detected: %s", user_intent.model_dump())
+        else:
+            # If the user has requested a web search, we consider it as the no intent
+            # of document summarization.
+            user_intent = UserIntent()
 
-        logger.debug("User intent %s", user_intent)
+        if input_documents and user_intent.attachment_summary:
+            # If the user has provided documents and requested a summary,
+            # we need to handle that.
+            logger.warning(
+                "Attachment summarization is not supported yet, ignoring the user intent."
+            )
+            user_intent.attachment_summary = False
+            yield {"type": "3", "payload": "attachment_summary_not_supported"}
+            return
+
+        # If user uploaded documents and did not enforce a web search, we disable the intent
+        if input_documents and not force_web_search:
+            user_intent.web_search = False
+            logger.info("User intent web search disabled due to input documents.")
+
+        conversation_has_documents = bool(self.conversation.collection_id)
+        if input_documents:
+            _tool_call_id = str(uuid.uuid4())
+            yield {
+                "type": "9",
+                "payload": {
+                    "toolCallId": _tool_call_id,
+                    "toolName": "document_parsing",
+                    "args": {
+                        "documents": [
+                            {
+                                "identifier": doc.identifier,
+                            }
+                            for doc in input_documents
+                        ],
+                    },
+                },
+            }
+            self.parse_input_documents(input_documents)
+            if not conversation_has_documents:
+                conversation_has_documents = True
+                await self.conversation.asave(update_fields=["collection_id", "updated_at"])
+
+            yield {
+                "type": "a",
+                "payload": {
+                    "toolCallId": _tool_call_id,
+                    "result": {"state": "done"},
+                },
+            }
+
+        # Prepare the prompt for the agent
+        try:
+            _new_prompt, _ui_sources = self.perform_rag(
+                user_prompt=user_prompt,
+                intent_web_search=user_intent.web_search,
+                force_web_search=force_web_search,
+                document_search=conversation_has_documents,
+            )
+        except WebSearchEmptyException:
+            yield {
+                "type": "h",
+                "payload": {
+                    "source_type": "error",
+                    "id": str(uuid.uuid4()),
+                    "error": _("No web search results found."),
+                },
+            }
+            return
 
         _user_initial_prompt_str = None
-        _ui_sources = []
-        if user_intent.web_search:  # might be forced by force_web_search
-            search_backend = import_string(settings.RAG_WEB_SEARCH_BACKEND)
-            search_results = search_backend().web_search(
-                " ".join(prompt for prompt in prompt if isinstance(prompt, str))
-            )
-
-            if search_results.data:
-                for idx, prompt_item in enumerate(prompt):
-                    if isinstance(prompt_item, str):
-                        _user_initial_prompt_str = str(prompt_item)
-                        prompt[idx] = settings.RAG_WEB_SEARCH_PROMPT_UPDATE.format(
-                            search_results=search_results.to_prompt(),
-                            user_prompt=prompt_item,
-                        )
-                        break
-
-                _unique_sources = set()
-                for result in search_results.data:
-                    logger.debug("Search result: %s", result.model_dump())
-
-                    # Several chunks may come from the same URL,
-                    # so we need to ensure we don't duplicate sources.
-                    if result.url in _unique_sources:
-                        logger.debug("Skipping duplicated source: %s", result.url)
-                        continue
-
-                    _unique_sources.add(result.url)
-                    url_source = LanguageModelV1Source(
-                        source_type="url",
-                        id=str(uuid.uuid4()),
-                        url=result.url,
-                        providerMetadata={},
-                    )
-                    _ui_sources.append(SourceUIPart(type="source", source=url_source))
-
-                    yield {
-                        "type": "h",
-                        "payload": url_source.model_dump(mode="json"),
-                    }
-            elif force_web_search:
-                logger.warning("Web search was forced but no results were found.")
+        if _new_prompt:
+            _user_initial_prompt_str = str(user_prompt)  # copy the original user prompt
+            user_prompt = _new_prompt
+            for _ui_source in _ui_sources:
                 yield {
                     "type": "h",
-                    "payload": {
-                        "source_type": "error",
-                        "id": str(uuid.uuid4()),
-                        "error": "No web search results found.",
-                    },
+                    "payload": _ui_source.source.model_dump(mode="json"),
                 }
-                return
-            else:
-                logger.warning("No web search results found, continuing without web search.")
 
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
 
             async with _build_pydantic_agent(mcp_servers).iter(
-                prompt, message_history=history
+                [user_prompt] + input_images,
+                message_history=history,
             ) as run:
                 async for node in run:
                     if Agent.is_user_prompt_node(node):

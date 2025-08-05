@@ -467,7 +467,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
                                 "v7-jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD_aNpbtEAAAAASUVORK5CYII="
                             ),
                             "kind": "binary",
-                            "identifier": None,
+                            "identifier": "FELV-cat.jpg",
                             "media_type": "image/png",
                             "vendor_metadata": None,
                         },
