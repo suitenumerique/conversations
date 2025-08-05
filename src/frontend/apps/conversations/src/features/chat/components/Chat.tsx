@@ -22,6 +22,7 @@ import { useChat } from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
 import { useCreateChatConversation } from '@/features/chat/api/useCreateConversation';
 import SourceItemList from '@/features/chat/components/SourceItemList';
+import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
 
 import { usePendingChatStore } from '../stores/usePendingChatStore';
 
@@ -255,17 +256,9 @@ export const Chat = ({
                         {part.reasoning}
                       </Box>
                     ) : part.type === 'tool-invocation' ? (
-                      <Box
-                        as="pre"
-                        key={part.toolInvocation.toolCallId}
-                        $background="var(--c--theme--colors--greyscale-100)"
-                        $color="var(--c--theme--colors--greyscale-500)"
-                        $padding={{ all: 'sm' }}
-                        $radius="md"
-                        $css="font-family: monospace; font-size: 0.9em;"
-                      >
-                        {`${part.toolInvocation.toolName}(${JSON.stringify(part.toolInvocation.args, null, 2)})`}
-                      </Box>
+                      <ToolInvocationItem
+                        toolInvocation={part.toolInvocation}
+                      />
                     ) : null,
                   )}
                 {/* Show attachments if present */}
