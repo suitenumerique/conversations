@@ -4,7 +4,7 @@ import {
   SourceUIPart,
   ToolInvocationUIPart,
 } from '@ai-sdk/ui-utils';
-import { Loader } from '@openfun/cunningham-react';
+import { Loader, Modal, ModalSize } from '@openfun/cunningham-react';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import Image from 'next/image';
 import { useRouter } from 'next/router';
@@ -49,6 +49,10 @@ export const Chat = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const [conversationId, setConversationId] = useState(initialConversationId);
+  const [chatErrorModal, setChatErrorModal] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
   const [initialConversationMessages, setInitialConversationMessages] =
     useState<Message[] | undefined>(undefined);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
@@ -67,6 +71,17 @@ export const Chat = ({
     clearPendingChat,
   } = usePendingChatStore();
 
+  // Handle errors from the chat API
+  const onErrorChat = (error: Error) => {
+    if (error.message === 'attachment_summary_not_supported') {
+      setChatErrorModal({
+        title: t('Attachment summary not supported'),
+        message: t('The summary feature is not supported yet.'),
+      });
+    }
+    console.error('Chat error:', error);
+  };
+
   const {
     messages,
     input,
@@ -79,6 +94,7 @@ export const Chat = ({
     api: apiUrl,
     streamProtocol: streamProtocol,
     sendExtraMessageFields: true,
+    onError: onErrorChat,
   });
 
   // Synchronize conversationId state with prop when it changes (e.g., after navigation)
@@ -316,6 +332,20 @@ export const Chat = ({
           </Box>
         )}
       </Box>
+
+      <Modal
+        isOpen={!!chatErrorModal}
+        onClose={() => {
+          setChatErrorModal(null);
+        }}
+        title={chatErrorModal?.title}
+        hideCloseButton={true}
+        closeOnClickOutside={true}
+        closeOnEsc={true}
+        size={ModalSize.MEDIUM}
+      >
+        <Text>{chatErrorModal?.message}</Text>
+      </Modal>
 
       {messages.length === 0 && (
         <Box
