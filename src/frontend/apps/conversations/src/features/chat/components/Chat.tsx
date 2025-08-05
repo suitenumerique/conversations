@@ -17,6 +17,7 @@ import remarkMath from 'remark-math';
 
 import { Box, BoxButton, Icon, Text } from '@/components';
 import { DropdownMenu } from '@/components/DropdownMenu';
+import { useConfig } from '@/core';
 import { useAuth } from '@/features/auth';
 import { useChat } from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
@@ -45,6 +46,7 @@ export const Chat = ({
 
   const router = useRouter();
   const { user } = useAuth();
+  const { data: conf } = useConfig();
   const [files, setFiles] = useState<FileList | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragActive, setIsDragActive] = useState(false);
@@ -582,6 +584,7 @@ export const Chat = ({
             multiple
             ref={fileInputRef}
             style={{ display: 'none' }}
+            accept={conf?.chat_upload_accept}
           />
           <BoxButton
             aria-label="Send"
