@@ -26,6 +26,12 @@ const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
         setLoading(true);
         setError(false);
 
+        if (!url.startsWith('http')) {
+          setLoading(false);
+          setFavicon('📄');
+          return;
+        }
+
         // We should ideally have a backend endpoint for this
         // but for demonstration, we'll use a simplified approach
         const parser = new DOMParser();
@@ -75,6 +81,9 @@ const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
     if (loading || error || !favicon) {
       return <Box>🔗</Box>;
     }
+    if (favicon === '📄') {
+      return <Box>📄</Box>;
+    }
 
     return (
       <Box>
@@ -93,20 +102,24 @@ const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
     <Box $direction="row" $gap="0.25rem" $align="center">
       {renderFavicon()}
       <Box $direction="row" $gap="0.25rem" $align="center">
-        <StyledLink
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          $css={`
+        {url.startsWith('http') ? (
+          <StyledLink
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            $css={`
                 text-decoration: none;
                 color: var(--c--theme--colors--greyscale-500);
                 &:hover {
                   color: var(--c--theme--colors--greyscale-700);
                 }
             `}
-        >
-          {new URL(url).hostname}
-        </StyledLink>
+          >
+            {new URL(url).hostname}
+          </StyledLink>
+        ) : (
+          <Box>{url}</Box>
+        )}
         <Box $direction="row" $align="center" style={styles.title}>
           {/* Need to better manage the text ellipsis */}
           {title && title.length > 100
