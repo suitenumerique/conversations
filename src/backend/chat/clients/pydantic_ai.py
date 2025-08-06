@@ -317,7 +317,7 @@ class AIAgentService:
         if messages[-1].role != "user":
             return
 
-        history = ModelMessagesTypeAdapter.validate_python(self.conversation.openai_messages)
+        history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
         user_prompt, input_images, input_documents = self.prepare_prompt(messages[-1])
 
         usage = {"promptTokens": 0, "completionTokens": 0}
@@ -606,6 +606,6 @@ class AIAgentService:
             raw_final_output.decode("utf-8"),
             json.loads(raw_final_output.decode("utf-8")),
         )
-        self.conversation.openai_messages += json.loads(raw_final_output.decode("utf-8"))
+        self.conversation.pydantic_messages += json.loads(raw_final_output.decode("utf-8"))
 
         self.conversation.save()

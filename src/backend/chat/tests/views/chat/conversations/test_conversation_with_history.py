@@ -118,7 +118,7 @@ def history_conversation_fixture():
     ]
 
     # Set up the OpenAI message format as well
-    conversation.openai_messages = [
+    conversation.pydantic_messages = [
         {
             "instructions": None,
             "kind": "request",
@@ -287,8 +287,8 @@ def test_post_conversation_data_protocol_with_history(
         parts=[TextUIPart(type="text", text="Hello there")],
     )
 
-    # Verify that the openai_messages were appended correctly
-    assert len(history_conversation.openai_messages) == 6  # Original 4 + 2 new ones
+    # Verify that the pydantic_messages were appended correctly
+    assert len(history_conversation.pydantic_messages) == 6  # Original 4 + 2 new ones
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
@@ -601,9 +601,9 @@ def test_post_conversation_tool_call_with_history(
         ],
     )
 
-    # Verify that the openai_messages were appended correctly
+    # Verify that the pydantic_messages were appended correctly
     assert (
-        len(history_conversation.openai_messages) == 8
+        len(history_conversation.pydantic_messages) == 8
     )  # Original 4 + 4 new ones (2 tool requests)
 
 
@@ -718,9 +718,9 @@ def test_post_conversation_tool_call_fails_with_history(
         ],
     )
 
-    # Verify that the openai_messages were appended correctly
+    # Verify that the pydantic_messages were appended correctly
     assert (
-        len(history_conversation.openai_messages) == 8
+        len(history_conversation.pydantic_messages) == 8
     )  # Original 4 + 4 new ones (2 tool requests)
 
 
@@ -803,7 +803,7 @@ def history_conversation_with_image_fixture():
     ]
 
     # Set up the OpenAI message format as well
-    conversation.openai_messages = [
+    conversation.pydantic_messages = [
         {
             "instructions": None,
             "kind": "request",
@@ -984,7 +984,7 @@ def history_conversation_with_tool_fixture():
     ]
 
     # Set up the OpenAI message format as well
-    conversation.openai_messages = [
+    conversation.pydantic_messages = [
         {
             "instructions": None,
             "kind": "request",
@@ -1240,8 +1240,8 @@ def test_post_conversation_with_existing_image_history(
         parts=[TextUIPart(type="text", text="Hello there")],
     )
 
-    # Verify that the openai_messages were appended correctly
-    assert len(history_conversation_with_image.openai_messages) == 6  # Original 4 + 2 new ones
+    # Verify that the pydantic_messages were appended correctly
+    assert len(history_conversation_with_image.pydantic_messages) == 6  # Original 4 + 2 new ones
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
@@ -1339,11 +1339,11 @@ def test_post_conversation_with_existing_tool_history(
         ],
     )
 
-    # The openai_messages should include both the original tool calls and the new ones
-    assert len(history_conversation_with_tool.openai_messages) == 12  # Original 8 + 4 new ones
+    # The pydantic_messages should include both the original tool calls and the new ones
+    assert len(history_conversation_with_tool.pydantic_messages) == 12  # Original 8 + 4 new ones
 
     # Verify the new tool call request is included
-    assert history_conversation_with_tool.openai_messages[8] == {
+    assert history_conversation_with_tool.pydantic_messages[8] == {
         "instructions": None,
         "kind": "request",
         "parts": [
@@ -1355,7 +1355,7 @@ def test_post_conversation_with_existing_tool_history(
         ],
     }
 
-    assert history_conversation_with_tool.openai_messages[9] == {
+    assert history_conversation_with_tool.pydantic_messages[9] == {
         "kind": "response",
         "model_name": "test-model",
         "parts": [
@@ -1378,7 +1378,7 @@ def test_post_conversation_with_existing_tool_history(
         "vendor_id": None,
     }
 
-    assert history_conversation_with_tool.openai_messages[10] == {
+    assert history_conversation_with_tool.pydantic_messages[10] == {
         "instructions": None,
         "kind": "request",
         "parts": [
@@ -1393,7 +1393,7 @@ def test_post_conversation_with_existing_tool_history(
         ],
     }
 
-    assert history_conversation_with_tool.openai_messages[11] == {
+    assert history_conversation_with_tool.pydantic_messages[11] == {
         "kind": "response",
         "model_name": "test-model",
         "parts": [{"content": "The current weather in Paris is nice", "part_kind": "text"}],

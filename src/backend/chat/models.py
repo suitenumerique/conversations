@@ -24,7 +24,7 @@ class ChatConversation(BaseModel):
       the 100 first characters of the first user input message.
     - `ui_messages`: A JSON field of UI messages sent by the frontend, all content is
       overridden at each new request from the frontend.
-    - `openai_messages`: A JSON field of OpenAI messages, only for debug purpose, not used.
+    - `pydantic_messages`: A JSON field of PydanticAI messages, used to store conversation history.
     - `messages`: A JSON field of stored messages for the conversation, sent to frontend
        when loading the conversation.
     - `agent_usage`: A JSON field of agent usage statistics for the conversation,
@@ -49,10 +49,10 @@ class ChatConversation(BaseModel):
         blank=True,
         help_text="UI messages for the chat conversation, sent by frontend, not used",
     )
-    openai_messages = models.JSONField(
+    pydantic_messages = models.JSONField(
         default=list,
         blank=True,
-        help_text="OpenAI messages for the chat conversation, not used",
+        help_text="Pydantic messages for the chat conversation, used for history",
     )
     messages: Sequence[UIMessage] = SchemaField(
         schema=list[UIMessage],

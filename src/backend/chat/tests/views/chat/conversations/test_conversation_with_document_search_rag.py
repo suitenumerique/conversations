@@ -299,7 +299,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     # Check that the conversation was updated
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 0  # might be improved in the future
-    assert len(chat_conversation.openai_messages) == 0  # might be improved in the future
+    assert len(chat_conversation.pydantic_messages) == 0  # might be improved in the future
 
 
 @responses.activate
@@ -402,8 +402,8 @@ def test_post_conversation_with_document_upload(  # noqa:PLR0913  # pylint: disa
         ],
     )
 
-    assert len(chat_conversation.openai_messages) == 2
-    assert chat_conversation.openai_messages[0] == {
+    assert len(chat_conversation.pydantic_messages) == 2
+    assert chat_conversation.pydantic_messages[0] == {
         "instructions": None,
         "kind": "request",
         "parts": [
@@ -435,7 +435,7 @@ def test_post_conversation_with_document_upload(  # noqa:PLR0913  # pylint: disa
             },
         ],
     }
-    assert chat_conversation.openai_messages[1] == {
+    assert chat_conversation.pydantic_messages[1] == {
         "kind": "response",
         "model_name": "test-model",
         "parts": [

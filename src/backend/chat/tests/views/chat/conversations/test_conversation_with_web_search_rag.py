@@ -367,7 +367,7 @@ def test_conversation_with_forced_web_search_no_history(
         ),
     ]
 
-    _user_request_parts = chat_conversation.openai_messages[0].pop("parts")
+    _user_request_parts = chat_conversation.pydantic_messages[0].pop("parts")
     assert len(_user_request_parts) == 2
 
     assert _user_request_parts[0] == {
@@ -396,13 +396,13 @@ def test_conversation_with_forced_web_search_no_history(
         "timestamp": "2025-07-25T10:36:35.297675Z",
         # content as been tested above
     }
-    assert chat_conversation.openai_messages[0] == {
+    assert chat_conversation.pydantic_messages[0] == {
         "instructions": None,
         "kind": "request",
         # parts are already checked above
     }
 
-    assert chat_conversation.openai_messages[1] == {
+    assert chat_conversation.pydantic_messages[1] == {
         "kind": "response",
         "model_name": "test-model",
         "parts": [

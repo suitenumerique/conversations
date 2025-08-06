@@ -160,7 +160,7 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
         parts=[TextUIPart(type="text", text="Hello there")],
     )
 
-    assert chat_conversation.openai_messages == [
+    assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
             "kind": "request",
@@ -267,7 +267,7 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uu
         parts=[TextUIPart(type="text", text="Hello there")],
     )
 
-    assert chat_conversation.openai_messages == [
+    assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
             "kind": "request",
@@ -444,7 +444,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
         parts=[TextUIPart(type="text", text="I see a cat in the picture.")],
     )
 
-    assert chat_conversation.openai_messages == [
+    assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
             "kind": "request",
@@ -601,7 +601,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
         ],
     )
 
-    assert chat_conversation.openai_messages == [
+    assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
             "kind": "request",
@@ -784,7 +784,7 @@ def test_post_conversation_tool_call_fails(
         ],
     )
 
-    assert chat_conversation.openai_messages == [
+    assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
             "kind": "request",
