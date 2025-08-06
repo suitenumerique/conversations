@@ -65,6 +65,8 @@ from chat.clients.pydantic_ui_message_converter import (
 )
 from chat.mcp_servers import get_mcp_servers
 from chat.tools import get_pydantic_tools_by_name
+from chat.vercel_ai_sdk.core import events_v4, events_v5
+from chat.vercel_ai_sdk.encoder import EventEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +185,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._last_stop_check = 0
 
         self._store_analytics = settings.LANGFUSE_ENABLED and user.allow_conversation_analytics
+        self.event_encoder = EventEncoder("v4")  # Always use v4 for now
 
         # Feature flags
         self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
@@ -224,9 +227,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if self._store_analytics:
                 span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
                 span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
-            async for delta in self._run_agent(messages, force_web_search):
-                if delta["type"] == "0":
-                    yield delta["payload"]
+
+            async for event in self._run_agent(messages, force_web_search):
+                if stream_text := self.event_encoder.encode_text(event):
+                    yield stream_text
 
     async def stream_data_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return Vercel-AI-SDK formatted events."""
@@ -235,8 +239,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if self._store_analytics:
                 span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
                 span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
-            async for delta in self._run_agent(messages, force_web_search):
-                yield f"{delta['type']}:{json.dumps(delta['payload'])}\n"
+            async for event in self._run_agent(messages, force_web_search):
+                if stream_data := self.event_encoder.encode(event):
+                    yield stream_data
 
     async def _agent_stop_streaming(self, force_cache_check: Optional[bool] = False) -> None:
         """Check if the agent should stop streaming."""
@@ -441,11 +446,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         return user_prompt[0], attachment_images, attachment_documents
 
-    async def _run_agent(  # noqa: PLR0912, PLR0915
+    async def _run_agent(  # noqa: PLR0912, PLR0915 # pylint: disable=too-many-branches,too-many-statements, too-many-locals, too-many-return-statements
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
-    ):  # pylint: disable=too-many-branches,too-many-statements, too-many-locals, too-many-return-statements
+    ) -> events_v4.Event | events_v5.Event:
         """Run the Pydantic AI agent and stream events."""
         if messages[-1].role != "user":
             return
@@ -492,7 +497,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 "Attachment summarization is not supported yet, ignoring the user intent."
             )
             user_intent.attachment_summary = False
-            yield {"type": "3", "payload": "attachment_summary_not_supported"}
+            yield events_v4.ErrorPart(error="attachment_summary_not_supported")
             return
 
         await self._agent_stop_streaming(force_cache_check=True)
@@ -505,33 +510,27 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         conversation_has_documents = bool(self.conversation.collection_id)
         if input_documents:
             _tool_call_id = str(uuid.uuid4())
-            yield {
-                "type": "9",
-                "payload": {
-                    "toolCallId": _tool_call_id,
-                    "toolName": "document_parsing",
-                    "args": {
-                        "documents": [
-                            {
-                                "identifier": doc.identifier,
-                            }
-                            for doc in input_documents
-                        ],
-                    },
+            yield events_v4.ToolCallPart(
+                tool_call_id=_tool_call_id,
+                tool_name="document_parsing",
+                args={
+                    "documents": [
+                        {
+                            "identifier": doc.identifier,
+                        }
+                        for doc in input_documents
+                    ],
                 },
-            }
+            )
             self.parse_input_documents(input_documents)
             if not conversation_has_documents:
                 conversation_has_documents = True
                 await self.conversation.asave(update_fields=["collection_id", "updated_at"])
 
-            yield {
-                "type": "a",
-                "payload": {
-                    "toolCallId": _tool_call_id,
-                    "result": {"state": "done"},
-                },
-            }
+            yield events_v4.ToolResultPart(
+                tool_call_id=_tool_call_id,
+                result={"state": "done"},
+            )
 
         await self._agent_stop_streaming(force_cache_check=True)
 
@@ -544,14 +543,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 document_search=conversation_has_documents,
             )
         except WebSearchEmptyException:
-            yield {
-                "type": "h",
-                "payload": {
-                    "source_type": "error",
-                    "id": str(uuid.uuid4()),
-                    "error": _("No web search results found."),
-                },
-            }
+            yield events_v4.SourcePart(
+                id=str(uuid.uuid4()),
+                url=str(_("No web search results found.")),
+            )
             return
 
         _user_initial_prompt_str = None
@@ -559,10 +554,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             _user_initial_prompt_str = str(user_prompt)  # copy the original user prompt
             user_prompt = _new_prompt
             for _ui_source in _ui_sources:
-                yield {
-                    "type": "h",
-                    "payload": _ui_source.source.model_dump(mode="json"),
-                }
+                yield events_v4.SourcePart(**_ui_source.source.model_dump())
 
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
@@ -593,17 +585,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                     logger.debug("PartStartEvent: %s", dataclasses.asdict(event))
 
                                     if isinstance(event.part, TextPart):
-                                        yield {"type": "0", "payload": event.part.content}
+                                        yield events_v4.TextPart(text=event.part.content)
                                     elif isinstance(event.part, ToolCallPart):
-                                        yield {
-                                            "type": "b",
-                                            "payload": {
-                                                "toolCallId": event.part.tool_call_id,
-                                                "toolName": event.part.tool_name,
-                                            },
-                                        }
+                                        yield events_v4.ToolCallStreamingStartPart(
+                                            tool_call_id=event.part.tool_call_id,
+                                            tool_name=event.part.tool_name,
+                                        )
                                     elif isinstance(event.part, ThinkingPart):
-                                        yield {"type": "g", "payload": event.part.content}
+                                        yield events_v4.ReasoningPart(
+                                            reasoning=event.part.content,
+                                        )
 
                                 elif isinstance(event, PartDeltaEvent):
                                     logger.debug(
@@ -612,17 +603,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                         dataclasses.asdict(event),
                                     )
                                     if isinstance(event.delta, TextPartDelta):
-                                        yield {"type": "0", "payload": event.delta.content_delta}
+                                        yield events_v4.TextPart(text=event.delta.content_delta)
                                     elif isinstance(event.delta, ToolCallPartDelta):
-                                        yield {
-                                            "type": "c",
-                                            "payload": {
-                                                "toolCallId": event.delta.tool_call_id,
-                                                "argsTextDelta": event.delta.args_delta,
-                                            },
-                                        }
+                                        yield events_v4.ToolCallDeltaPart(
+                                            tool_call_id=event.delta.tool_call_id,
+                                            args_text_delta=event.delta.args_delta,
+                                        )
                                     elif isinstance(event.delta, ThinkingPartDelta):
-                                        yield {"type": "g", "payload": event.delta.content_delta}
+                                        yield events_v4.ReasoningPart(
+                                            reasoning=event.delta.content_delta,
+                                        )
 
                     elif Agent.is_call_tools_node(node):
                         # A handle-response node => The model returned some data,
@@ -649,21 +639,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                     # }
                                 elif isinstance(event, FunctionToolResultEvent):
                                     if isinstance(event.result, ToolReturnPart):
-                                        yield {
-                                            "type": "a",
-                                            "payload": {
-                                                "toolCallId": event.tool_call_id,
-                                                "result": event.result.content,
-                                            },
-                                        }
+                                        yield events_v4.ToolResultPart(
+                                            tool_call_id=event.tool_call_id,
+                                            result=event.result.content,
+                                        )
                                     elif isinstance(event.result, RetryPromptPart):
-                                        yield {
-                                            "type": "a",
-                                            "payload": {
-                                                "toolCallId": event.tool_call_id,
-                                                "result": event.result.content,
-                                            },
-                                        }
+                                        yield events_v4.ToolResultPart(
+                                            tool_call_id=event.tool_call_id,
+                                            result=event.result.content,
+                                        )
                                     else:
                                         logger.warning(
                                             "Unexpected tool result type: %s %s",
@@ -699,13 +683,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             langfuse.update_current_trace(output=run.result.output)
 
         # Vercel finish message
-        yield {
-            "type": "d",
-            "payload": {
-                "finishReason": "stop",
-                "usage": usage,
-            },
-        }
+        yield events_v4.FinishMessagePart(
+            finish_reason=events_v4.FinishReason.STOP,
+            usage=events_v4.Usage(
+                prompt_tokens=usage["promptTokens"],
+                completion_tokens=usage["completionTokens"],
+            ),
+        )
 
     def _update_conversation(
         self,

@@ -356,15 +356,14 @@ def test_post_conversation_with_document_upload(  # noqa:PLR0913  # pylint: disa
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
     assert response_content == (
-        f'9:{{"toolCallId": "{mock_uuid4}", "toolName": '
-        '"document_parsing", "args": {"documents": [{"identifier": "sample.pdf"}]}}\n'
-        f'a:{{"toolCallId": "{mock_uuid4}", "result": {{"state": "done"}}}}\n'
-        f'h:{{"source_type": "url", "id": "{mock_uuid4}", '
-        '"url": "sample.pdf", "title": null, "providerMetadata": {}}\n'
+        f'9:{{"toolCallId":"{mock_uuid4}","toolName":'
+        '"document_parsing","args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
+        f'a:{{"toolCallId":"{mock_uuid4}","result":{{"state":"done"}}}}\n'
+        f'h:{{"sourceType":"url","id":"{mock_uuid4}",'
+        '"url":"sample.pdf","title":null,"providerMetadata":{}}\n'
         '0:"From the document, I can see that "\n'
         "0:\"it says 'Hello PDF'.\"\n"
-        'd:{"finishReason": "stop", "usage": {"promptTokens": 150, '
-        '"completionTokens": 25}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":150,"completionTokens":25}}\n'
     )
 
     # Check that the conversation was updated
@@ -530,8 +529,7 @@ def test_post_conversation_with_document_upload_feature_disabled(  # noqa:PLR091
     assert response_content == (
         '0:"From the document, I can see that "\n'
         "0:\"it says 'Hello PDF'.\"\n"
-        'd:{"finishReason": "stop", "usage": {"promptTokens": 150, '
-        '"completionTokens": 25}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":150,"completionTokens":25}}\n'
     )
 
     # This behavior must be improved in the future to inform the user properly

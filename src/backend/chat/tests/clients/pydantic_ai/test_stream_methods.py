@@ -8,6 +8,7 @@ from asgiref.sync import sync_to_async
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService
 from chat.factories import ChatConversationFactory
+from chat.vercel_ai_sdk.core import events_v4
 
 pytestmark = pytest.mark.django_db()
 
@@ -62,10 +63,16 @@ async def test_stream_text_async_filters_text_deltas(ui_messages):
 
     # Mock _run_agent to return various delta types
     async def mock_run_agent(*args, **kwargs):
-        yield {"type": "0", "payload": "Hello"}
-        yield {"type": "b", "payload": {"toolCallId": "123", "toolName": "search"}}
-        yield {"type": "0", "payload": " world"}
-        yield {"type": "d", "payload": {"finishReason": "stop"}}
+        yield events_v4.TextPart(text="Hello")
+        yield events_v4.ToolCallStreamingStartPart(tool_call_id="123", tool_name="search")
+        yield events_v4.TextPart(text=" world")
+        yield events_v4.FinishMessagePart(
+            finish_reason=events_v4.FinishReason.STOP,
+            usage=events_v4.Usage(
+                prompt_tokens=120,
+                completion_tokens=456,
+            ),
+        )
 
     with patch.object(service, "_run_agent", side_effect=mock_run_agent):
         results = []
@@ -82,12 +89,21 @@ async def test_stream_data_async_formats_as_sdk_events(ui_messages):
     service = AIAgentService(conversation, user=conversation.owner)
 
     async def mock_run_agent(*args, **kwargs):
-        yield {"type": "0", "payload": "Hello"}
-        yield {"type": "d", "payload": {"finishReason": "stop"}}
+        yield events_v4.TextPart(text="Hello")
+        yield events_v4.FinishMessagePart(
+            finish_reason=events_v4.FinishReason.STOP,
+            usage=events_v4.Usage(
+                prompt_tokens=120,
+                completion_tokens=456,
+            ),
+        )
 
     with patch.object(service, "_run_agent", side_effect=mock_run_agent):
         results = []
         async for result in service.stream_data_async(ui_messages):
             results.append(result)
 
-        assert results == ['0:"Hello"\n', 'd:{"finishReason": "stop"}\n']
+        assert results == [
+            '0:"Hello"\n',
+            'd:{"finishReason":"stop","usage":{"promptTokens":120,"completionTokens":456}}\n',
+        ]

@@ -239,7 +239,7 @@ def test_post_conversation_data_protocol_with_history(
     assert response_content == (
         '0:"Hello"\n'
         '0:" there"\n'
-        'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": 0}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
     assert mock_openai_stream.called
@@ -415,8 +415,7 @@ def test_post_conversation_with_image_with_history(
     assert response_content == (
         '0:"I see a cat"\n'
         '0:" in the picture."\n'
-        'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": '
-        "0}}\n"
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
     # --- Verify the outgoing HTTP request body contains the image ---
@@ -531,15 +530,14 @@ def test_post_conversation_tool_call_with_history(
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
     assert response_content == (
-        'b:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "toolName": '
+        'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":'
         '"get_current_weather"}\n'
-        'c:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "argsTextDelta": '
+        'c:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","argsTextDelta":'
         '"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n'
-        'a:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "result": {"location": '
-        '"Paris", "temperature": 22, "unit": "celsius"}}\n'
+        'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":{"location":'
+        '"Paris","temperature":22,"unit":"celsius"}}\n'
         '0:"The current weather in Paris is nice"\n'
-        'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": '
-        "0}}\n"
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
     # --- Verify the outgoing HTTP request body ---
@@ -648,15 +646,14 @@ def test_post_conversation_tool_call_fails_with_history(
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
     assert response_content == (
-        'b:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "toolName": '
+        'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":'
         '"get_current_weather"}\n'
-        'c:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "argsTextDelta": '
+        'c:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","argsTextDelta":'
         '"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n'
-        'a:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "result": "Unknown tool '
+        'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":"Unknown tool '
         "name: 'get_current_weather'. No tools available.\"}\n"
         '0:"I cannot give you an answer to that."\n'
-        'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": '
-        "0}}\n"
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
     # --- Verify the outgoing HTTP request body ---
@@ -1191,7 +1188,7 @@ def test_post_conversation_with_existing_image_history(
     assert response_content == (
         '0:"Hello"\n'
         '0:" there"\n'
-        'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": 0}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
     assert mock_openai_stream.called
@@ -1281,15 +1278,14 @@ def test_post_conversation_with_existing_tool_history(
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
     assert response_content == (
-        'b:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "toolName": '
+        'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":'
         '"get_current_weather"}\n'
-        'c:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "argsTextDelta": '
+        'c:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","argsTextDelta":'
         '"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n'
-        'a:{"toolCallId": "xLDcIljdsDrz0idal7tATWSMm2jhMj47", "result": {"location": '
-        '"Paris", "temperature": 22, "unit": "celsius"}}\n'
+        'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":{"location":'
+        '"Paris","temperature":22,"unit":"celsius"}}\n'
         '0:"The current weather in Paris is nice"\n'
-        'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": '
-        "0}}\n"
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
     assert mock_openai_stream_tool.called
@@ -1459,8 +1455,7 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
     assert response_content == (
         '0:"I see a cat"\n'
         '0:" in the picture."\n'
-        'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": '
-        "0}}\n"
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
     # Verify that the request to OpenAI included both
