@@ -58,6 +58,8 @@ from chat.clients.pydantic_ui_message_converter import (
 )
 from chat.mcp_servers import get_mcp_servers
 from chat.tools import get_pydantic_tools_by_name
+from chat.vercel_ai_sdk.encoder import EventEncoder
+from chat.vercel_ai_sdk.core import events_v4, events_v5
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +101,7 @@ class AIAgentService:
 
     def __init__(self, conversation):
         self.conversation = conversation
+        self.event_encoder = EventEncoder("v4")
 
     # --------------------------------------------------------------------- #
     # Public streaming API (unchanged signatures)
@@ -118,14 +121,15 @@ class AIAgentService:
 
     async def stream_text_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return only the assistant text deltas (legacy text mode)."""
-        async for delta in self._run_agent(messages, force_web_search):
-            if delta["type"] == "0":
-                yield delta["payload"]
+        async for event in self._run_agent(messages, force_web_search):
+            if stream_text := self.event_encoder.encode_text(event):
+                yield stream_text
 
     async def stream_data_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return Vercel-AI-SDK formatted events."""
-        async for delta in self._run_agent(messages, force_web_search):
-            yield f"{delta['type']}:{json.dumps(delta['payload'])}\n"
+        async for event in self._run_agent(messages, force_web_search):
+            if stream_data := self.event_encoder.encode(event):
+                yield stream_data
 
     # --------------------------------------------------------------------- #
     # Core agent runner
@@ -312,7 +316,7 @@ class AIAgentService:
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
-    ):  # pylint: disable=too-many-branches,too-many-statements, too-many-locals
+    ) -> events_v4.Event | events_v5.Event:  # pylint: disable=too-many-branches,too-many-statements, too-many-locals
         """Run the Pydantic AI agent and stream events."""
         if messages[-1].role != "user":
             return
@@ -338,7 +342,7 @@ class AIAgentService:
                 "Attachment summarization is not supported yet, ignoring the user intent."
             )
             user_intent.attachment_summary = False
-            yield {"type": "3", "payload": "attachment_summary_not_supported"}
+            yield events_v4.ErrorPart(error="attachment_summary_not_supported")
             return
 
         # If user uploaded documents and did not enforce a web search, we disable the intent
@@ -349,33 +353,27 @@ class AIAgentService:
         conversation_has_documents = bool(self.conversation.collection_id)
         if input_documents:
             _tool_call_id = str(uuid.uuid4())
-            yield {
-                "type": "9",
-                "payload": {
-                    "toolCallId": _tool_call_id,
-                    "toolName": "document_parsing",
-                    "args": {
-                        "documents": [
-                            {
-                                "identifier": doc.identifier,
-                            }
-                            for doc in input_documents
-                        ],
-                    },
+            yield events_v4.ToolCallPart(
+                tool_call_id=_tool_call_id,
+                tool_name="document_parsing",
+                args={
+                    "documents": [
+                        {
+                            "identifier": doc.identifier,
+                        }
+                        for doc in input_documents
+                    ],
                 },
-            }
+            )
             self.parse_input_documents(input_documents)
             if not conversation_has_documents:
                 conversation_has_documents = True
                 await self.conversation.asave(update_fields=["collection_id", "updated_at"])
 
-            yield {
-                "type": "a",
-                "payload": {
-                    "toolCallId": _tool_call_id,
-                    "result": {"state": "done"},
-                },
-            }
+            yield events_v4.ToolResultPart(
+                tool_call_id=_tool_call_id,
+                result={"state": "done"},
+            )
 
         # Prepare the prompt for the agent
         try:
@@ -386,14 +384,10 @@ class AIAgentService:
                 document_search=conversation_has_documents,
             )
         except WebSearchEmptyException:
-            yield {
-                "type": "h",
-                "payload": {
-                    "source_type": "error",
-                    "id": str(uuid.uuid4()),
-                    "error": _("No web search results found."),
-                },
-            }
+            yield events_v4.SourcePart(
+                id=str(uuid.uuid4()),
+                url=str(_("No web search results found.")),
+            )
             return
 
         _user_initial_prompt_str = None
@@ -401,10 +395,7 @@ class AIAgentService:
             _user_initial_prompt_str = str(user_prompt)  # copy the original user prompt
             user_prompt = _new_prompt
             for _ui_source in _ui_sources:
-                yield {
-                    "type": "h",
-                    "payload": _ui_source.source.model_dump(mode="json"),
-                }
+                yield events_v4.SourcePart(**_ui_source.source.model_dump())
 
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
@@ -428,17 +419,16 @@ class AIAgentService:
                                     logger.debug("PartStartEvent: %s", dataclasses.asdict(event))
 
                                     if isinstance(event.part, TextPart):
-                                        yield {"type": "0", "payload": event.part.content}
+                                        yield events_v4.TextPart(text= event.part.content)
                                     elif isinstance(event.part, ToolCallPart):
-                                        yield {
-                                            "type": "b",
-                                            "payload": {
-                                                "toolCallId": event.part.tool_call_id,
-                                                "toolName": event.part.tool_name,
-                                            },
-                                        }
+                                        yield events_v4.ToolCallStreamingStartPart(
+                                            tool_call_id=event.part.tool_call_id,
+                                            tool_name=event.part.tool_name,
+                                        )
                                     elif isinstance(event.part, ThinkingPart):
-                                        yield {"type": "g", "payload": event.part.content}
+                                        yield events_v4.ReasoningPart(
+                                            reasoning=event.part.content,
+                                        )
 
                                 elif isinstance(event, PartDeltaEvent):
                                     logger.debug(
@@ -447,17 +437,16 @@ class AIAgentService:
                                         dataclasses.asdict(event),
                                     )
                                     if isinstance(event.delta, TextPartDelta):
-                                        yield {"type": "0", "payload": event.delta.content_delta}
+                                        yield events_v4.TextPart(text=event.delta.content_delta)
                                     elif isinstance(event.delta, ToolCallPartDelta):
-                                        yield {
-                                            "type": "c",
-                                            "payload": {
-                                                "toolCallId": event.delta.tool_call_id,
-                                                "argsTextDelta": event.delta.args_delta,
-                                            },
-                                        }
+                                        yield events_v4.ToolCallDeltaPart(
+                                            tool_call_id=event.delta.tool_call_id,
+                                            args_text_delta=event.delta.args_delta,
+                                        )
                                     elif isinstance(event.delta, ThinkingPartDelta):
-                                        yield {"type": "g", "payload": event.delta.content_delta}
+                                        yield events_v4.ReasoningPart(
+                                            reasoning=event.delta.content_delta,
+                                        )
 
                     elif Agent.is_call_tools_node(node):
                         # A handle-response node => The model returned some data,
@@ -483,21 +472,15 @@ class AIAgentService:
                                     # }
                                 elif isinstance(event, FunctionToolResultEvent):
                                     if isinstance(event.result, ToolReturnPart):
-                                        yield {
-                                            "type": "a",
-                                            "payload": {
-                                                "toolCallId": event.tool_call_id,
-                                                "result": event.result.content,
-                                            },
-                                        }
+                                        yield events_v4.ToolResultPart(
+                                            tool_call_id=event.tool_call_id,
+                                            result=event.result.content,
+                                        )
                                     elif isinstance(event.result, RetryPromptPart):
-                                        yield {
-                                            "type": "a",
-                                            "payload": {
-                                                "toolCallId": event.tool_call_id,
-                                                "result": event.result.content,
-                                            },
-                                        }
+                                        yield events_v4.ToolResultPart(
+                                            tool_call_id=event.tool_call_id,
+                                            result=event.result.content,
+                                        )
                                     else:
                                         logger.warning(
                                             "Unexpected tool result type: %s %s",
@@ -528,13 +511,13 @@ class AIAgentService:
         )
 
         # Vercel finish message
-        yield {
-            "type": "d",
-            "payload": {
-                "finishReason": "stop",
-                "usage": usage,
-            },
-        }
+        yield events_v4.FinishMessagePart(
+            finish_reason=events_v4.FinishReason.STOP,
+            usage=events_v4.Usage(
+                prompt_tokens=usage["promptTokens"],
+                completion_tokens=usage["completionTokens"],
+            ),
+        )
 
     def _update_conversation(
         self,
