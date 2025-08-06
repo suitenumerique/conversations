@@ -12,7 +12,7 @@ class DocumentConverter:
 
     def __init__(self):
         """Initialize the DocumentConverter with MarkItDown."""
-        self.converter = MarkItDown(enable_plugins=False)
+        self.converter = MarkItDown()
 
     def convert_raw(  # pylint: disable=unused-argument
         self,
