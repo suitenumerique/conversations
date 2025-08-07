@@ -3,6 +3,10 @@ import { Page, expect } from '@playwright/test';
 export const CONFIG = {
   CRISP_WEBSITE_ID: null,
   ENVIRONMENT: 'development',
+  FEATURE_FLAGS: {
+    'document-upload': 'enabled',
+    'web-search': 'enabled',
+  },
   FRONTEND_CSS_URL: null,
   FRONTEND_HOMEPAGE_FEATURE_ENABLED: true,
   FRONTEND_THEME: null,

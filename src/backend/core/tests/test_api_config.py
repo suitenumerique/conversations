@@ -44,6 +44,7 @@ def test_api_config(is_authenticated):
     assert response.json() == {
         "CRISP_WEBSITE_ID": "123",
         "ENVIRONMENT": "test",
+        "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},
         "FRONTEND_CSS_URL": "http://testcss/",
         "FRONTEND_HOMEPAGE_FEATURE_ENABLED": True,
         "FRONTEND_THEME": "test-theme",

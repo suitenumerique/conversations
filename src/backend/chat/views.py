@@ -112,7 +112,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
         if not messages:
             return Response({"error": "No messages provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-        ai_service = AIAgentService(conversation=conversation)
+        ai_service = AIAgentService(conversation=conversation, user=self.request.user)
         if protocol == "data":
             streaming_content = ai_service.stream_data(messages, force_web_search=force_web_search)
         else:  # Default to 'text' protocol
@@ -159,6 +159,6 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
         """
         conversation = self.get_object()
 
-        AIAgentService(conversation=conversation).stop_streaming()
+        AIAgentService(conversation=conversation, user=self.request.user).stop_streaming()
 
         return Response({"status": "OK"}, status=status.HTTP_200_OK)

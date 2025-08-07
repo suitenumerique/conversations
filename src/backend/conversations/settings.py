@@ -9,15 +9,19 @@ https://docs.djangoproject.com/en/3.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.1/ref/settings/
 """
+# pylint: disable=too-many-lines
 
 import os
 import tomllib
 from socket import gethostbyname, gethostname
 
+import posthog
 import sentry_sdk
 from configurations import Configuration, values
 from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import ignore_logger
+
+from core.feature_flags.flags import FeatureFlags, FeatureToggle
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -175,6 +179,7 @@ class Base(Configuration):
         "django.middleware.common.CommonMiddleware",
         "django.middleware.csrf.CsrfViewMiddleware",
         "django.contrib.auth.middleware.AuthenticationMiddleware",
+        "core.middleware.PostHogMiddleware",
         "django.contrib.messages.middleware.MessageMiddleware",
         "dockerflow.django.middleware.DockerflowMiddleware",
     ]
@@ -310,6 +315,7 @@ class Base(Configuration):
     )
 
     # Posthog
+    # Looks like "{'id': 'posthog_key', 'host': 'https://product.conversations.127.0.0.1.nip.io'}"
     POSTHOG_KEY = values.DictValue(None, environ_name="POSTHOG_KEY", environ_prefix=None)
 
     # Crisp
@@ -733,6 +739,39 @@ USER QUESTION:
             },
         }
 
+    @property
+    def FEATURE_FLAGS(self) -> FeatureFlags:  # pylint: disable=invalid-name
+        """
+        Return a dictionary of feature flags for the application.
+        This can be used to enable or disable features dynamically.
+        """
+        features = FeatureFlags(
+            **{
+                field_name: FeatureToggle[
+                    values.Value(
+                        field.default.name,
+                        environ_name=f"FEATURE_FLAG_{field_name.upper()}",
+                        environ_prefix=None,
+                    )
+                ]
+                for field_name, field in FeatureFlags.model_fields.items()
+            }
+        )
+
+        # Sanity check to ensure that the RAG_WEB_SEARCH_BACKEND and RAG_DOCUMENT_SEARCH_BACKEND
+        if features.web_search and not self.RAG_WEB_SEARCH_BACKEND:
+            raise RuntimeError(
+                "RAG_WEB_SEARCH_BACKEND is not set, but web_search feature flag is enabled."
+            )
+
+        if features.document_upload and not self.RAG_DOCUMENT_SEARCH_BACKEND:
+            raise RuntimeError(
+                "RAG_DOCUMENT_SEARCH_BACKEND is not set, "
+                "but document_upload feature flag is enabled."
+            )
+
+        return features
+
     @classmethod
     def post_setup(cls):
         """Post setup configuration.
@@ -753,6 +792,11 @@ USER QUESTION:
 
             # Ignore the logs added by the DockerflowMiddleware
             ignore_logger("request.summary")
+
+        # Enable Posthog if the key is set
+        if cls.POSTHOG_KEY:
+            posthog.api_key = cls.POSTHOG_KEY["id"]
+            posthog.host = cls.POSTHOG_KEY["host"]
 
         if cls.OIDC_FALLBACK_TO_EMAIL_FOR_IDENTIFICATION and cls.OIDC_ALLOW_DUPLICATE_EMAILS:
             raise ValueError(
@@ -831,9 +875,35 @@ class Test(Base):
     AI_ROUTING_MODEL = None
     AI_ROUTING_MODEL_API_KEY = None
 
+    POSTHOG_KEY = None
+
     def __init__(self):
         # pylint: disable=invalid-name
         self.INSTALLED_APPS += ["drf_spectacular_sidecar"]
+
+    @property
+    def FEATURE_FLAGS(self) -> FeatureFlags:  # pylint: disable=invalid-name
+        """
+        In the test environment, we want to enable all features to test them.
+
+        We willingly call the super to validate it works (coverage), but we override all
+        the feature flags to always enabled.
+        """
+        _feature_flags = super().FEATURE_FLAGS
+
+        for field_name in FeatureFlags.model_fields.keys():
+            setattr(_feature_flags, field_name, FeatureToggle.ENABLED)
+
+        return _feature_flags
+
+    @classmethod
+    def post_setup(cls):
+        """Post setup configuration."""
+        super().post_setup()
+
+        # Force logger propagation to allow caplog to work
+        # see https://github.com/pytest-dev/pytest/issues/3697
+        cls.LOGGING["loggers"]["core"]["propagate"] = True
 
 
 class ContinuousIntegration(Test):

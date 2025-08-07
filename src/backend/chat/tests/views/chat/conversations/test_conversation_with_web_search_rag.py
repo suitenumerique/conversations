@@ -2,6 +2,7 @@
 # pylint: disable=too-many-lines
 
 import json
+import logging
 
 from django.utils import timezone
 
@@ -10,6 +11,8 @@ import pytest
 import respx
 from freezegun import freeze_time
 from rest_framework import status
+
+from core.feature_flags.flags import FeatureToggle
 
 from chat.ai_sdk_types import (
     LanguageModelV1Source,
@@ -721,3 +724,54 @@ def test_conversation_with_web_search_text_protocol(api_client, mock_openai_stre
         part for part in assistant_message.parts if hasattr(part, "type") and part.type == "source"
     ]
     assert len(source_parts) > 0, "Expected source parts in assistant message"
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@respx.mock
+def test_post_conversation_data_protocol_feature_disabled_force_web(
+    api_client,
+    caplog,
+    mock_openai_stream,
+    feature_flags,
+):
+    """Test posting messages to a conversation using the 'data' protocol."""
+    feature_flags.web_search = FeatureToggle.DISABLED
+    feature_flags.document_upload = FeatureToggle.DISABLED
+    caplog.set_level(logging.WARNING)
+
+    chat_conversation = ChatConversationFactory()
+
+    url = (
+        f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data&force_web_search=true"
+    )
+    data = {
+        "messages": [
+            {
+                "id": "yuPoOuBkKA4FnKvk",
+                "role": "user",
+                "parts": [{"text": "Hello", "type": "text"}],
+                "content": "Hello",
+                "createdAt": "2025-07-03T15:22:17.105Z",
+            }
+        ]
+    }
+    api_client.force_login(chat_conversation.owner)
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.get("Content-Type") == "text/event-stream"
+    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.streaming
+
+    # Wait for the streaming content to be fully received
+    response_content = b"".join(response.streaming_content).decode("utf-8")
+    assert response_content == (
+        '0:"Hello"\n'
+        '0:" there"\n'
+        'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": 0}}\n'
+    )
+
+    assert mock_openai_stream.called
+
+    assert "Web search feature is disabled, ignoring force_web_search." in caplog.text

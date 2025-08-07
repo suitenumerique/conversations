@@ -3,6 +3,7 @@
 # pylint: disable=too-many-lines
 import base64
 import json
+import logging
 from io import BytesIO
 
 from django.utils import timezone
@@ -13,6 +14,8 @@ import responses
 import respx
 from freezegun import freeze_time
 from rest_framework import status
+
+from core.feature_flags.flags import FeatureToggle
 
 from chat.ai_sdk_types import (
     Attachment,
@@ -461,3 +464,69 @@ def test_post_conversation_with_document_upload(  # noqa:PLR0913  # pylint: disa
         "vendor_details": None,
         "vendor_id": None,
     }
+
+
+@responses.activate
+@respx.mock
+@freeze_time("2025-07-25T10:36:35.297675Z")
+def test_post_conversation_with_document_upload_feature_disabled(  # noqa:PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    api_client,
+    caplog,
+    mock_albert_api,  # pylint: disable=unused-argument
+    mock_openai_stream,  # pylint: disable=unused-argument
+    mock_intent_detection_document,  # pylint: disable=unused-argument
+    sample_pdf_content,
+    feature_flags,
+):
+    """
+    Test POST to /api/v1/chats/{pk}/conversation/ with a PDF document while feature is disabled.
+    """
+    feature_flags.web_search = FeatureToggle.DISABLED
+    feature_flags.document_upload = FeatureToggle.DISABLED
+    caplog.set_level(logging.WARNING)
+
+    chat_conversation = ChatConversationFactory()
+    api_client.force_authenticate(user=chat_conversation.owner)
+
+    pdf_base64 = base64.b64encode(sample_pdf_content.read()).decode("utf-8")
+    message = UIMessage(
+        id="1",
+        role="user",
+        content="What does the document say?",
+        parts=[
+            TextUIPart(
+                text="What does the document say?",
+                type="text",
+            ),
+        ],
+        experimental_attachments=[
+            Attachment(
+                name="sample.pdf",
+                contentType="application/pdf",
+                url=f"data:application/pdf;base64,{pdf_base64}",
+            )
+        ],
+    )
+
+    response = api_client.post(
+        f"/api/v1.0/chats/{chat_conversation.pk}/conversation/",
+        data={"messages": [message.model_dump(mode="json")]},
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.get("Content-Type") == "text/event-stream"
+    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.streaming
+
+    # Wait for the streaming content to be fully received
+    response_content = b"".join(response.streaming_content).decode("utf-8")
+    assert response_content == (
+        '0:"From the document, I can see that "\n'
+        "0:\"it says 'Hello PDF'.\"\n"
+        'd:{"finishReason": "stop", "usage": {"promptTokens": 150, '
+        '"completionTokens": 25}}\n'
+    )
+
+    # This behavior must be improved in the future to inform the user properly
+    assert "Document upload feature is disabled, ignoring input documents." in caplog.text

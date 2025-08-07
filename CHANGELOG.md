@@ -23,6 +23,7 @@ and this project adheres to
 - ✨(chat) add document RAG on document uploaded by user #8
 - ✨(backend) allow use to stop conversation streaming #14
 - 🐛(agent) add the current date in the system prompt #18
+- ✨(backend) add feature flags from posthog #13
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main

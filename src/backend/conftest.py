@@ -24,3 +24,13 @@ def no_http_requests(monkeypatch):
         raise RuntimeError(f"The test was about to {method} {self.scheme}://{self.host}{url}")
 
     monkeypatch.setattr("urllib3.connectionpool.HTTPConnectionPool.urlopen", urlopen_mock)
+
+
+@pytest.fixture(name="feature_flags", scope="function")
+def feature_flags_fixture(settings):
+    """
+    Ease feature flags setting in tests by working on a copy
+    to allow proper restore by SettingsWrapper after the test.
+    """
+    settings.FEATURE_FLAGS = settings.FEATURE_FLAGS.model_copy(deep=True)
+    yield settings.FEATURE_FLAGS

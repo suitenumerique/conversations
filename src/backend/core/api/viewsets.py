@@ -10,6 +10,7 @@ from django.db.models.expressions import RawSQL
 from django.utils.text import slugify
 
 import rest_framework as drf
+from pydantic import BaseModel
 from rest_framework import viewsets
 from rest_framework.permissions import AllowAny
 from rest_framework.throttling import UserRateThrottle
@@ -208,10 +209,14 @@ class ConfigView(drf.views.APIView):
             "LANGUAGES",
             "LANGUAGE_CODE",
             "SENTRY_DSN",
+            "FEATURE_FLAGS",
         ]
         dict_settings = {}
         for setting in array_settings:
-            if hasattr(settings, setting):
+            _setting_value = getattr(settings, setting)
+            if isinstance(_setting_value, BaseModel):
+                dict_settings[setting] = _setting_value.model_dump(by_alias=True)
+            else:
                 dict_settings[setting] = getattr(settings, setting)
 
         dict_settings["theme_customization"] = self._load_theme_customization()

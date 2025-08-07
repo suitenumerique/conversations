@@ -32,7 +32,7 @@ def ui_messages_fixture():
 def test_stream_text_delegates_to_async(mock_convert, ui_messages):
     """Test stream_text method delegates to async version."""
     conversation = ChatConversationFactory()
-    service = AIAgentService(conversation)
+    service = AIAgentService(conversation, user=conversation.owner)
     mock_convert.return_value = iter(["Hello", " world"])
 
     result = service.stream_text(ui_messages, force_web_search=True)
@@ -45,7 +45,7 @@ def test_stream_text_delegates_to_async(mock_convert, ui_messages):
 def test_stream_data_delegates_to_async(mock_convert, ui_messages):
     """Test stream_data method delegates to async version."""
     conversation = ChatConversationFactory()
-    service = AIAgentService(conversation)
+    service = AIAgentService(conversation, user=conversation.owner)
     mock_convert.return_value = iter(['0:"Hello"\n', 'd:{"finishReason":"stop"}\n'])
 
     result = service.stream_data(ui_messages, force_web_search=False)
@@ -58,7 +58,7 @@ def test_stream_data_delegates_to_async(mock_convert, ui_messages):
 async def test_stream_text_async_filters_text_deltas(ui_messages):
     """Test stream_text_async only yields text deltas."""
     conversation = await sync_to_async(ChatConversationFactory)()
-    service = AIAgentService(conversation)
+    service = AIAgentService(conversation, user=conversation.owner)
 
     # Mock _run_agent to return various delta types
     async def mock_run_agent(*args, **kwargs):
@@ -79,7 +79,7 @@ async def test_stream_text_async_filters_text_deltas(ui_messages):
 async def test_stream_data_async_formats_as_sdk_events(ui_messages):
     """Test stream_data_async formats events correctly."""
     conversation = await sync_to_async(ChatConversationFactory)()
-    service = AIAgentService(conversation)
+    service = AIAgentService(conversation, user=conversation.owner)
 
     async def mock_run_agent(*args, **kwargs):
         yield {"type": "0", "payload": "Hello"}

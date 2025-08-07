@@ -54,6 +54,7 @@ dependencies = [
     "mozilla-django-oidc==4.0.1",
     "nested-multipart-parser==1.5.0",
     "openai==1.99.1",  # see https://github.com/pydantic/pydantic-ai/issues/2476
+    "posthog==6.4.1",
     "pydantic==2.11.7",
     "pydantic-ai==0.6.2",
     "psycopg[binary]==3.2.9",

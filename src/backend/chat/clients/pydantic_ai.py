@@ -47,6 +47,8 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
+from core.feature_flags.helpers import is_feature_enabled
+
 from chat.agent_rag.document_search.albert_api import AlbertRagDocumentSearch
 from chat.ai_sdk_types import (
     LanguageModelV1Source,
@@ -107,8 +109,16 @@ class UserIntent(BaseModel):
 class AIAgentService:
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
-    def __init__(self, conversation):
+    def __init__(self, conversation, user):
+        """
+        Initialize the AI agent service.
+
+        Args:
+            conversation: The chat conversation instance
+            user: The authenticated user instance, only used for dynamic feature flags
+        """
         self.conversation = conversation
+        self.user = user  # authenticated user only
         self._last_stop_check = 0
 
     @property
@@ -195,6 +205,14 @@ class AIAgentService:
         Raises:
             ImproperlyConfigured: If the AI configuration is not set.
         """
+        if not any(
+            is_feature_enabled(self.user, feature) for feature in ["web_search", "document_upload"]
+        ):
+            logger.info(
+                "No web search or document upload features enabled, skipping intent detection.",
+            )
+            return UserIntent()
+
         if missing_settings := [
             setting
             for setting in (
@@ -228,6 +246,16 @@ class AIAgentService:
             # If web search is not enabled, we can skip the intent detection
             result.output.web_search = False
             logger.info("Web search backend is disabled, skipping intent detection.")
+
+        if not is_feature_enabled(self.user, "document_upload"):
+            # If document upload is not enabled, we can skip the attachment summary intent
+            result.output.attachment_summary = False
+            logger.info("Document upload feature is disabled, skipping attachment summary intent.")
+
+        if not is_feature_enabled(self.user, "web_search"):
+            # If web search is not enabled, we can skip the web search intent
+            result.output.web_search = False
+            logger.info("Web search feature is disabled, skipping web search intent.")
 
         return result.output
 
@@ -374,6 +402,18 @@ class AIAgentService:
         user_prompt, input_images, input_documents = self.prepare_prompt(messages[-1])
 
         usage = {"promptTokens": 0, "completionTokens": 0}
+
+        # Feature flag management
+        if force_web_search and not is_feature_enabled(self.user, "web_search"):
+            logger.warning("Web search feature is disabled, ignoring force_web_search.")
+            force_web_search = False
+
+        if any([input_images, input_documents]) and not is_feature_enabled(
+            self.user, "document_upload"
+        ):
+            logger.warning("Document upload feature is disabled, ignoring input documents.")
+            input_images = []
+            input_documents = []
 
         # Detect the user intent
         if not force_web_search:
