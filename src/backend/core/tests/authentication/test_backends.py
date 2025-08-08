@@ -18,6 +18,12 @@ from core.factories import UserFactory
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True, scope="function")
+def reset_user_model():
+    """Reset the user model before each test to ensure a clean state."""
+    models.User.objects.all().delete()
+
+
 def test_authentication_getter_existing_user_no_email(django_assert_num_queries, monkeypatch):
     """
     If an existing user matches the user's info sub, the user should be returned.

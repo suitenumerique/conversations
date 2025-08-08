@@ -11,6 +11,12 @@ from core.api import serializers
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True, scope="function")
+def reset_user_model():
+    """Reset the user model before each test to ensure a clean state."""
+    models.User.objects.all().delete()
+
+
 def test_api_users_list_anonymous():
     """Anonymous users should not be allowed to list users."""
     factories.UserFactory()

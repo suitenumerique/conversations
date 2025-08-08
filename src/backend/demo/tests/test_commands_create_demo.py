@@ -21,6 +21,8 @@ pytestmark = pytest.mark.django_db
 @override_settings(DEBUG=True)
 def test_commands_create_demo():
     """The create_demo management command should create objects as expected."""
+    models.User.objects.all().delete()  # Ensure a clean state before running the command
+
     call_command("create_demo")
 
     assert models.User.objects.count() == 10
