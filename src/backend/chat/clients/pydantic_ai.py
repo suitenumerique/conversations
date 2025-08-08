@@ -9,11 +9,13 @@ changes are needed in views.py or tests.
 import dataclasses
 import json
 import logging
+import time
 import uuid
 from contextlib import AsyncExitStack
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
@@ -51,7 +53,7 @@ from chat.ai_sdk_types import (
     UIMessage,
 )
 from chat.clients.async_to_sync import convert_async_generator_to_sync
-from chat.clients.exceptions import WebSearchEmptyException
+from chat.clients.exceptions import StreamCancelException, WebSearchEmptyException
 from chat.clients.pydantic_ui_message_converter import (
     model_message_to_ui_message,
     ui_message_to_user_content,
@@ -99,6 +101,11 @@ class AIAgentService:
 
     def __init__(self, conversation):
         self.conversation = conversation
+        self._last_stop_check = 0
+
+    @property
+    def _stop_cache_key(self):
+        return f"streaming:stop:{self.conversation.pk}"
 
     # --------------------------------------------------------------------- #
     # Public streaming API (unchanged signatures)
@@ -112,20 +119,58 @@ class AIAgentService:
         """Return Vercel-AI-SDK formatted events."""
         return convert_async_generator_to_sync(self.stream_data_async(messages, force_web_search))
 
+    def stop_streaming(self):
+        """
+        Stop the current streaming operation.
+
+        This method is a placeholder for stopping the streaming operation.
+        """
+        logger.info("Stopping streaming for conversation %s", self.conversation.id)
+        cache.set(self._stop_cache_key, "1", timeout=30 * 60)  # 30 minutes timeout
+
     # --------------------------------------------------------------------- #
     # Async internals
     # --------------------------------------------------------------------- #
 
     async def stream_text_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return only the assistant text deltas (legacy text mode)."""
+        await self._clean()
         async for delta in self._run_agent(messages, force_web_search):
             if delta["type"] == "0":
                 yield delta["payload"]
 
     async def stream_data_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return Vercel-AI-SDK formatted events."""
+        await self._clean()
         async for delta in self._run_agent(messages, force_web_search):
             yield f"{delta['type']}:{json.dumps(delta['payload'])}\n"
+
+    async def _agent_stop_streaming(self, force_cache_check: Optional[bool] = False) -> None:
+        """Check if the agent should stop streaming."""
+        now = time.time()  # Current time in seconds since epoch
+
+        # Check if we should skip the cache check to avoid frequent checks
+        # This is useful to avoid unnecessary cache checks during streaming
+        # Check every 2 seconds
+        if not force_cache_check and now - self._last_stop_check < 2:
+            return
+        self._last_stop_check = now
+
+        if await cache.aget(self._stop_cache_key):
+            logger.info("Streaming stopped by cache key for conversation %s", self.conversation.id)
+            await cache.adelete(self._stop_cache_key)
+            raise StreamCancelException()
+        return
+
+    async def _clean(self):
+        """
+        Clean up the agent service.
+
+        This method is called when the agent service is no longer needed.
+        It can be used to release resources or perform any necessary cleanup.
+        """
+        self._last_stop_check = 0
+        await cache.adelete(self._stop_cache_key)
 
     # --------------------------------------------------------------------- #
     # Core agent runner
@@ -312,7 +357,7 @@ class AIAgentService:
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
-    ):  # pylint: disable=too-many-branches,too-many-statements, too-many-locals
+    ):  # pylint: disable=too-many-branches,too-many-statements, too-many-locals, too-many-return-statements
         """Run the Pydantic AI agent and stream events."""
         if messages[-1].role != "user":
             return
@@ -340,6 +385,8 @@ class AIAgentService:
             user_intent.attachment_summary = False
             yield {"type": "3", "payload": "attachment_summary_not_supported"}
             return
+
+        await self._agent_stop_streaming(force_cache_check=True)
 
         # If user uploaded documents and did not enforce a web search, we disable the intent
         if input_documents and not force_web_search:
@@ -376,6 +423,8 @@ class AIAgentService:
                     "result": {"state": "done"},
                 },
             }
+
+        await self._agent_stop_streaming(force_cache_check=True)
 
         # Prepare the prompt for the agent
         try:
@@ -415,6 +464,7 @@ class AIAgentService:
                 message_history=history,
             ) as run:
                 async for node in run:
+                    await self._agent_stop_streaming()
                     if Agent.is_user_prompt_node(node):
                         # A user prompt node => The user has provided input
                         pass
@@ -423,6 +473,7 @@ class AIAgentService:
                         # A model request node => We can stream tokens from the model's request
                         async with node.stream(run.ctx) as request_stream:
                             async for event in request_stream:
+                                await self._agent_stop_streaming()
                                 logger.debug("Received request_stream event: %s", type(event))
                                 if isinstance(event, PartStartEvent):
                                     logger.debug("PartStartEvent: %s", dataclasses.asdict(event))
@@ -464,6 +515,7 @@ class AIAgentService:
                         # potentially calls a tool
                         async with node.stream(run.ctx) as handle_stream:
                             async for event in handle_stream:
+                                await self._agent_stop_streaming()
                                 logger.debug(
                                     "Received request_stream event: %s, %s",
                                     type(event),
@@ -517,6 +569,8 @@ class AIAgentService:
                 final_usage = run.usage()
                 usage["promptTokens"] = final_usage.request_tokens
                 usage["completionTokens"] = final_usage.response_tokens
+
+        await self._agent_stop_streaming(force_cache_check=True)
 
         # Persist conversation
         await sync_to_async(self._update_conversation)(

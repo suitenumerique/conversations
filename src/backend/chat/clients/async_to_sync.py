@@ -9,6 +9,8 @@ import asyncio
 import queue
 import threading
 
+from chat.clients.exceptions import StreamCancelException
+
 
 def convert_async_generator_to_sync(async_gen):
     """Convert an async generator to a sync generator."""
@@ -20,6 +22,9 @@ def convert_async_generator_to_sync(async_gen):
         try:
             async for async_item in async_gen:
                 q.put(async_item)
+        except StreamCancelException:
+            # Handle cancellation gracefully, do not put anything in the queue
+            q.put(sentinel)
         except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
             q.put((exc_sentinel, exc))
         finally:

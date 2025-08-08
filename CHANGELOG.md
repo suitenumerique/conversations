@@ -19,6 +19,7 @@ and this project adheres to
 - 🎉(conversations) bootstrap backend & frontend #1
 - ✨(web-search) add RAG capability to do web search #7
 - ✨(chat) add document RAG on document uploaded by user #8
+- ✨(backend) allow use to stop conversation streaming #14
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main

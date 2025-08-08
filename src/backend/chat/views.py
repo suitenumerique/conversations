@@ -126,3 +126,39 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
             },
         )
         return response
+
+    @decorators.action(
+        methods=["post"],
+        detail=True,
+        url_path="stop-streaming",
+        url_name="stop-streaming",
+    )
+    def post_stop_steaming(self, request, pk):  # pylint: disable=unused-argument
+        """Handle POST requests to stop streaming the chat conversation.
+
+        This action will put a poison pill in the redis cache to stop any ongoing streaming.
+        It is used to stop the streaming when the user decides to cancel the chat.
+
+        Note:
+            We currently use uWSGI workers, which will not automatically stop the streaming
+            when the request is cancelled by the client. Therefore, we need to
+            explicitly stop the streaming by calling this endpoint.
+            When (if) we switch to Gunicorn with Uvicorn workers, this will not be necessary
+            as the Uvicorn workers will automatically stop the streaming when the request
+            is cancelled. BUT, we will then need to handle the streaming cancellation when the
+            user is simply offline and still waiting for a response and the conversation to
+            be updated with the result. So this endpoint will still be useful to be able to
+            detect the cancellation of the streaming versus the user being offline.
+
+        Args:
+            request: The HTTP request object.
+            pk: The primary key of the chat conversation.
+
+        Returns:
+            Response: A response indicating that the streaming has been stopped.
+        """
+        conversation = self.get_object()
+
+        AIAgentService(conversation=conversation).stop_streaming()
+
+        return Response({"status": "OK"}, status=status.HTTP_200_OK)

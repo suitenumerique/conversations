@@ -806,12 +806,8 @@ class Development(Base):
     SESSION_COOKIE_NAME = "conversations_sessionid"
 
     USE_SWAGGER = True
-    SESSION_CACHE_ALIAS = "session"
     CACHES = {
         "default": {
-            "BACKEND": "django.core.cache.backends.dummy.DummyCache",
-        },
-        "session": {
             "BACKEND": "django_redis.cache.RedisCache",
             "LOCATION": values.Value(
                 "redis://redis:6379/2",

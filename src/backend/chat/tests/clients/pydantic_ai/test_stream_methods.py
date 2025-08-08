@@ -57,7 +57,7 @@ def test_stream_data_delegates_to_async(mock_convert, ui_messages):
 @pytest.mark.asyncio
 async def test_stream_text_async_filters_text_deltas(ui_messages):
     """Test stream_text_async only yields text deltas."""
-    conversation = sync_to_async(ChatConversationFactory)()
+    conversation = await sync_to_async(ChatConversationFactory)()
     service = AIAgentService(conversation)
 
     # Mock _run_agent to return various delta types
@@ -78,7 +78,7 @@ async def test_stream_text_async_filters_text_deltas(ui_messages):
 @pytest.mark.asyncio
 async def test_stream_data_async_formats_as_sdk_events(ui_messages):
     """Test stream_data_async formats events correctly."""
-    conversation = sync_to_async(ChatConversationFactory)()
+    conversation = await sync_to_async(ChatConversationFactory)()
     service = AIAgentService(conversation)
 
     async def mock_run_agent(*args, **kwargs):
