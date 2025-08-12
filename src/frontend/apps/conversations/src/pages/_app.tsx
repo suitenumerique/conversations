@@ -27,7 +27,7 @@ export default function App({ Component, pageProps }: AppPropsWithLayout) {
         <meta
           name="description"
           content={t(
-            `${productName}: Your new companion to use AI efficiently, intuitively, and securely.`,
+            `${productName}: ${t('Your new companion to use AI efficiently, intuitively, and securely.')}`,
           )}
         />
         <link rel="icon" href={favicon['ico']} sizes="any" />

@@ -1,9 +1,10 @@
-import { VariantType, useToastProvider } from '@openfun/cunningham-react';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { useToast } from '@/components';
+
 export const useClipboard = () => {
-  const { toast } = useToastProvider();
+  const { showToast } = useToast();
   const { t } = useTranslation();
 
   return useCallback(
@@ -11,24 +12,22 @@ export const useClipboard = () => {
       navigator.clipboard
         .writeText(text)
         .then(() => {
-          toast(
-            successMessage ?? t('Copied to clipboard'),
-            VariantType.SUCCESS,
-            {
-              duration: 3000,
-            },
+          showToast(
+            'success',
+            successMessage ?? t('Copied'),
+            'content_copy',
+            3000,
           );
         })
         .catch(() => {
-          toast(
-            errorMessage ?? t('Failed to copy to clipboard'),
-            VariantType.ERROR,
-            {
-              duration: 3000,
-            },
+          showToast(
+            'error',
+            errorMessage ?? t('Failed to copy'),
+            'content_copy',
+            3000,
           );
         });
     },
-    [t, toast],
+    [t, showToast],
   );
 };

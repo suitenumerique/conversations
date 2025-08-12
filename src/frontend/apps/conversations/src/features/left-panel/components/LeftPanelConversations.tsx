@@ -28,10 +28,9 @@ export const LeftPanelConversations = () => {
   return (
     <Box className="--conversations--left-panel-favorites">
       <Box
-        $justify="center"
         $padding={{ horizontal: 'sm', top: 'sm' }}
         $gap={spacingsTokens['2xs']}
-        $height="100%"
+        $height="50vh"
         data-testid="left-panel-favorites"
       >
         <Text

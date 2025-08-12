@@ -9,12 +9,14 @@ import {
   getMatchingLocales,
   useSynchronizedLanguage,
 } from '@/features/language';
+import { useResponsiveStore } from '@/stores';
 
 export const LanguagePicker = () => {
   const { t, i18n } = useTranslation();
   const { data: conf } = useConfig();
   const { data: user } = useAuthQuery();
   const { changeLanguageSynchronized } = useSynchronizedLanguage();
+  const { isDesktop } = useResponsiveStore();
   const language = i18n.language;
 
   // Compute options for dropdown
@@ -38,7 +40,7 @@ export const LanguagePicker = () => {
   return (
     <DropdownMenu
       options={optionsPicker}
-      showArrow
+      showArrow={isDesktop}
       buttonCss={css`
         &:hover {
           background-color: var(
@@ -64,7 +66,7 @@ export const LanguagePicker = () => {
         className="--docs--language-picker-text"
       >
         <Icon iconName="translate" $color="inherit" $size="xl" />
-        {currentLanguageLabel}
+        {isDesktop ? currentLanguageLabel : ''}
       </Text>
     </DropdownMenu>
   );

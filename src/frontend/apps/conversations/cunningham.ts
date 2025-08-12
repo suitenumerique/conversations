@@ -62,9 +62,9 @@ tokens.themes.default.components = {
     beta: false,
     'image-system-filter': '',
     favicon: {
-      ico: '/assets/favicon-light.ico',
-      'png-light': '/assets/favicon-light.png',
-      'png-dark': '/assets/favicon-dark.png',
+      ico: '/assets/favicon.ico',
+      'png-light': '/assets/icon-assistant.svg',
+      'png-dark': '/assets/icon-assistant.svg',
     },
   },
 };
@@ -88,9 +88,9 @@ const dsfrTheme = {
       alpha: true,
       beta: true,
       favicon: {
-        ico: '/assets/favicon-dsfr.ico',
-        'png-light': '/assets/favicon-dsfr.png',
-        'png-dark': '/assets/favicon-dark-dsfr.png',
+        ico: '/assets/favicon.ico',
+        'png-light': '/assets/icon-assistant.svg',
+        'png-dark': '/assets/icon-assistant.svg',
       },
     },
   },
@@ -137,6 +137,7 @@ const genericTheme = {
         'greyscale-350': '#eee',
         'greyscale-400': '#96948E',
         'greyscale-500': '#817E77',
+        'greyscale-550': '#626A80',
         'greyscale-600': '#6A6862',
         'greyscale-700': '#3C3B38',
         'greyscale-750': '#383632',

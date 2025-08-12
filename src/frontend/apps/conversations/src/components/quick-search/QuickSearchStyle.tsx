@@ -9,24 +9,17 @@ export const QuickSearchStyle = createGlobalStyle`
         overflow: hidden;
         transition: transform 100ms ease;
         outline: none;
+        border: none;
   }
 
   [cmdk-input] {
     border: none;
-    width: 100%;
-    font-size: 17px;
-    padding: 8px;
-    background: white;
-    outline: none;
-    color: var(--c--theme--colors--greyscale-1000);
-    border-radius: 0;
 
     &::placeholder {
-      color: var(--c--theme--colors--greyscale-500);
+      font-size: 14px;
+      color: #626A80;
     }
   }
-
-
 
   [cmdk-item] {
     content-visibility: auto;
@@ -96,7 +89,7 @@ export const QuickSearchStyle = createGlobalStyle`
   [cmdk-separator] {
     height: 1px;
     width: 100%;
-    background: var(--c--theme--colors--greyscale-500);
+    background: transparent;
     margin: 4px 0;
   }
 
@@ -105,17 +98,12 @@ export const QuickSearchStyle = createGlobalStyle`
   }
 
   [cmdk-group-heading] {
+    padding: 0 var(--c--theme--spacings--xs);
     user-select: none;
-    font-size: var(--c--theme--font--sizes--sm);
+    font-size: 12px;
     color: var(--c--theme--colors--greyscale-700);
-    font-weight: bold;
-
-    display: flex;
-    align-items: center;
+    font-weight: 700;;
     margin-bottom: var(--c--theme--spacings--xs);
-  }
-
-  [cmdk-empty] {
   }
 }
 

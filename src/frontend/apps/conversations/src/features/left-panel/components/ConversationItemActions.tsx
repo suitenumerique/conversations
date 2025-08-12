@@ -1,7 +1,8 @@
-import { Button, useModal } from '@openfun/cunningham-react';
+import { Button as _Button, useModal } from '@openfun/cunningham-react';
 import { useTranslation } from 'react-i18next';
+import { css } from 'styled-components';
 
-import { DropdownMenu, DropdownMenuOption, Icon } from '@/components';
+import { Box, DropdownMenu, DropdownMenuOption, Icon } from '@/components';
 import { ChatConversation } from '@/features/chat/types';
 
 import { ModalRemoveConversation } from './ModalRemoveConversation';
@@ -30,19 +31,29 @@ export const ConversationItemActions = ({
   return (
     <>
       <DropdownMenu options={options}>
-        <Button
-          size="medium"
-          aria-label={t('Open the modal delete chat')}
-          color="tertiary-text"
-          icon={
-            <Icon
-              data-testid={`conversation-item-actions-button-${conversation.id}`}
-              iconName="more_horiz"
-              $theme="primary"
-              $variation="600"
-            />
-          }
-        ></Button>
+        <Box
+          $css={css`
+            display: block;
+            width: 24px;
+            height: 24px;
+            padding: 4px;
+            border-radius: 4px;
+            &:hover {
+              background-color: #e1e3e7 !important;
+            }
+          `}
+        >
+          <Icon
+            data-testid={`conversation-item-actions-button-${conversation.id}`}
+            iconName="more_horiz"
+            $theme="primary"
+            $variation="600"
+            $css={css`
+              font-size: 1rem;
+              color: var(--c--theme--colors--primary-text-text);
+            `}
+          />
+        </Box>
       </DropdownMenu>
 
       {deleteModal.isOpen && (

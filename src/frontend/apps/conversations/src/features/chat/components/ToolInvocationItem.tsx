@@ -1,8 +1,7 @@
 import { ToolInvocation } from '@ai-sdk/ui-utils';
-import { Loader } from '@openfun/cunningham-react';
 import React from 'react';
 
-import { Box, Text } from '@/components';
+import { Box, Loader, Text } from '@/components';
 
 interface ToolInvocationItemProps {
   toolInvocation: ToolInvocation;
@@ -28,20 +27,17 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
         : [];
     return (
       <Box
-        as="pre"
         key={toolInvocation.toolCallId}
-        $background="var(--c--theme--colors--greyscale-100)"
         $color="var(--c--theme--colors--greyscale-500)"
-        $padding={{ all: 'sm' }}
         $radius="8px"
-        $css="font-size: 0.9em;"
+        $css="font-size: 0.9em; font-family: inherit;"
       >
         {toolInvocation.state === 'result' ? (
-          <Text>{`Parsing done: ${documentIdentifiers.join(', ')}`}</Text>
+          <Text $variation="600" $size="md">{`Parsing done: ${documentIdentifiers.join(', ')}`}</Text>
         ) : (
           <Box $direction="row" $gap="1rem" $align="center">
-            <Loader size="small" />
-            <Text>{`Parsing documents: ${documentIdentifiers.join(', ')} ...`}</Text>
+            <Loader />
+            <Text $variation="600" $size="md">{`Parsing documents: ${documentIdentifiers.join(', ')} ...`}</Text>
           </Box>
         )}
       </Box>
@@ -54,9 +50,7 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
       key={toolInvocation.toolCallId}
       $background="var(--c--theme--colors--greyscale-100)"
       $color="var(--c--theme--colors--greyscale-500)"
-      $padding={{ all: 'sm' }}
       $radius="md"
-      $css="font-family: monospace; font-size: 0.9em;"
     >
       {`${toolInvocation.toolName}(${JSON.stringify(
         toolInvocation.args,
