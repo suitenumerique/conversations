@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
 
+import { ToastProvider } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { Auth, KEY_AUTH, setAuthUrl } from '@/features/auth';
 import { useResponsiveStore } from '@/stores/';
@@ -63,7 +64,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <CunninghamProvider theme={theme}>
         <ConfigProvider>
-          <Auth>{children}</Auth>
+          <ToastProvider>
+            <Auth>{children}</Auth>
+          </ToastProvider>
         </ConfigProvider>
       </CunninghamProvider>
     </QueryClientProvider>

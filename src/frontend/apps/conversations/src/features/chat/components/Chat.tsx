@@ -1,20 +1,23 @@
 import { Message, ToolInvocationUIPart } from '@ai-sdk/ui-utils';
-import { Loader } from '@openfun/cunningham-react';
+import { Button as _Button } from '@openfun/cunningham-react';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
-import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import Markdown from 'react-markdown';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
-import { Box, Text } from '@/components';
+import { APIError, errorCauses, fetchAPI } from '@/api';
+import { Box, Icon, Loader, Text } from '@/components';
 import { useChat } from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
 import { useCreateChatConversation } from '@/features/chat/api/useCreateConversation';
 import { InputChat } from '@/features/chat/components/InputChat';
+import { setChatContainerRef } from '@/features/chat/hooks/useChatScroll';
+import { useClipboard } from '@/hook';
+import { useResponsiveStore } from '@/stores';
 
 import { usePendingChatStore } from '../stores/usePendingChatStore';
 
@@ -31,6 +34,7 @@ export const Chat = ({
   initialConversationId: string | undefined;
 }) => {
   const { t } = useTranslation();
+  const copyToClipboard = useClipboard();
 
   const streamProtocol = 'data'; // or 'text'
   const apiUrl = `chats/${initialConversationId}/conversation/?protocol=${streamProtocol}`;
@@ -39,7 +43,14 @@ export const Chat = ({
   const [files, setFiles] = useState<FileList | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const [conversationId, setConversationId] = useState(initialConversationId);
+  const { isDesktop } = useResponsiveStore();
+
+  // Définir la ref globale pour le hook useChatScroll
+  useEffect(() => {
+    setChatContainerRef(chatContainerRef);
+  }, []);
   const [initialConversationMessages, setInitialConversationMessages] =
     useState<Message[] | undefined>(undefined);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
@@ -47,6 +58,7 @@ export const Chat = ({
     attachments?: FileList | null;
   } | null>(null);
   const [shouldAutoSubmit, setShouldAutoSubmit] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
 
@@ -64,6 +76,7 @@ export const Chat = ({
     handleSubmit: baseHandleSubmit,
     handleInputChange,
     status,
+    stop: stopChat,
   } = useChat({
     id: conversationId,
     initialMessages: initialConversationMessages,
@@ -71,6 +84,61 @@ export const Chat = ({
     streamProtocol: streamProtocol,
     sendExtraMessageFields: true,
   });
+
+  // Scroll to bottom when new messages arrive
+  const scrollToBottom = useCallback(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: hasInitialized ? 'smooth' : 'auto',
+      });
+    }
+  }, [hasInitialized]);
+
+  // Handle the chat stop
+  const stopGeneration = async () => {
+    stopChat();
+
+    const response = await fetchAPI(`chats/${conversationId}/stop-steaming/`, {
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      throw new APIError(
+        'Failed to stop the conversation',
+        await errorCauses(response),
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      // Find the last user message
+      const userMessages = messages.filter((msg) => msg.role === 'user');
+      const lastUserMessage = userMessages[userMessages.length - 1];
+
+      if (lastUserMessage) {
+        // Find the element of the last user message
+        const messageElements =
+          chatContainerRef.current.querySelectorAll('[data-message-id]');
+        const lastUserMessageElement = Array.from(messageElements).find(
+          (el) => el.getAttribute('data-message-id') === lastUserMessage.id,
+        );
+
+        if (lastUserMessageElement) {
+          // Scroll to position the last user message at the very top
+          const messageTop = (lastUserMessageElement as HTMLElement).offsetTop;
+
+          chatContainerRef.current.scrollTo({
+            top: messageTop,
+            behavior: 'auto',
+          });
+        }
+      } else {
+        scrollToBottom();
+      }
+    }
+  }, [messages, hasInitialized, scrollToBottom]);
 
   // Synchronize conversationId state with prop when it changes (e.g., after navigation)
   useEffect(() => {
@@ -109,7 +177,7 @@ export const Chat = ({
         preventDefault: () => {},
         target: form,
       } as unknown as React.FormEvent<HTMLFormElement>;
-      handleSubmit(syntheticFormEvent);
+      void handleSubmit(syntheticFormEvent);
       setShouldAutoSubmit(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -126,11 +194,13 @@ export const Chat = ({
           });
           if (!ignore) {
             setInitialConversationMessages(conversation.messages);
+            setHasInitialized(true);
           }
         } catch {
           // Optionally handle error (e.g., setInitialConversationMessages([]) or show error)
           if (!ignore) {
             setInitialConversationMessages([]);
+            setHasInitialized(true);
           }
         }
       }
@@ -143,8 +213,29 @@ export const Chat = ({
   }, [initialConversationId, pendingInput]);
 
   // Custom handleSubmit to include attachments and handle chat creation
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    // Convert files to base64 if they exist
+    let attachments: Attachment[] = [];
+    if (files && files.length > 0) {
+      attachments = await Promise.all(
+        Array.from(files).map(async (file) => {
+          return new Promise<Attachment>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              resolve({
+                name: file.name,
+                contentType: file.type,
+                url: reader.result as string,
+              });
+            };
+            reader.readAsDataURL(file);
+          });
+        }),
+      );
+    }
+
     if (!conversationId) {
       // Save the event and files, then create the chat
       setPendingFirstMessage({ event, attachments: files });
@@ -182,45 +273,72 @@ export const Chat = ({
       );
       return;
     }
-    if (files && files.length > 0) {
-      baseHandleSubmit(event, { experimental_attachments: files });
+
+    if (attachments.length > 0) {
+      baseHandleSubmit(event, { experimental_attachments: attachments });
+      // Attendre un peu avant de vider les fichiers pour s'assurer qu'ils sont traités
+      setTimeout(() => {
+        setFiles(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }, 100);
     } else {
       baseHandleSubmit(event);
-    }
-    setFiles(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      setFiles(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
   return (
-    <Box $direction="column" $height="100%" $width="100%">
+    <Box
+      $direction="column"
+      $width="100%"
+      $css={`
+          flex-basis: auto;
+          height: 100%;
+          flex-grow: 1;`}
+    >
       <Box
+        ref={chatContainerRef}
         $gap="1rem"
-        $padding={{ all: 'base', horizontal: '5vw', bottom: '0' }}
-        $margin="auto"
+        $padding={{ all: 'base', left: '13px', bottom: '0', right: '0' }}
         $width="100%"
         $flex={1}
-        $overflow="auto"
+        $overflow="scroll"
+        $css={`
+          flex-basis: auto;
+          flex-grow: 1;
+          position: relative;
+          margin-bottom: 0;
+          height: ${messages.length > 1 ? 'calc(100vh - 62px)' : '0'}; 
+          max-height: ${messages.length > 1 ? 'calc(100vh - 62px)' : '0'}; 
+        `}
       >
         {messages.length > 0 && (
-          <Box $margin="auto" $css="min-width: 80%; max-width: 700px">
+          <Box>
             {messages.map((message) => (
               <Box
                 key={message.id}
+                data-message-id={message.id}
                 $css={`
-              width: 100%;
-              text-align: ${message.role === 'user' ? 'right' : 'left'};
-              flex-direction: ${message.role === 'user' ? 'row-reverse' : 'row'};
-            `}
+                display: flex;
+                  width: 100%;
+                  margin: auto;
+                  padding-left: 12px;
+                  max-width: 750px;
+                  text-align: ${message.role === 'user' ? 'right' : 'left'};
+                  flex-direction: ${message.role === 'user' ? 'row-reverse' : 'row'};
+                `}
               >
                 <Box
                   $gap="2"
                   $radius="8px"
-                  $padding="12px"
+                  $padding={`${message.role === 'user' ? '12px' : '0'}`}
                   $margin={{ vertical: 'base' }}
-                  $maxWidth="80%"
-                  $background={`${message.role === 'user' ? 'rgba(0,0,0,0.05)' : 'white'}`}
+                  $background={`${message.role === 'user' ? '#EEF1F4' : 'white'}`}
                 >
                   {message.content && (
                     <Markdown
@@ -235,7 +353,7 @@ export const Chat = ({
                       {message.content}
                     </Markdown>
                   )}
-                  <Box $direction="row" $gap="2">
+                  <Box $gap="2">
                     {message.parts
                       ?.filter((part) => part.type === 'tool-invocation')
                       .map((part: ToolInvocationUIPart) => (
@@ -254,34 +372,71 @@ export const Chat = ({
                     {/* Show attachments if present */}
                     {message.experimental_attachments?.map(
                       (attachment: Attachment, index: number) =>
+                        attachment.contentType?.includes('text/') ||
                         attachment.contentType?.includes('image/') ? (
-                          <Image
-                            key={`${message.id}-${index}`}
-                            style={{ width: 96, borderRadius: 8 }}
-                            src={attachment.url}
-                            alt={attachment.name || ''}
-                            width={96}
-                            height={96}
-                          />
-                        ) : attachment.contentType?.includes('text/') ? (
                           <div
                             key={`${message.id}-${index}`}
                             style={{
-                              width: 128,
-                              height: 96,
-                              padding: 8,
-                              overflow: 'hidden',
+                              display: 'block',
+                              width: 'auto',
                               fontSize: 12,
-                              border: '1px solid #eee',
                               borderRadius: 8,
                               color: '#888',
                             }}
                           >
-                            {attachment.url}
+                            {attachment.name}
                           </div>
                         ) : null,
                     )}
                   </Box>
+                  {message.role !== 'user' && (
+                    <Box
+                      $css="color: #626A80; font-size: 12px;"
+                      $direction="row"
+                      $align="center"
+                      $gap="6px"
+                      $margin={{ top: 'base' }}
+                    >
+                      <Box
+                        $direction="row"
+                        $align="center"
+                        $gap="4px"
+                        $css="
+                      cursor: pointer;
+                      z-index: 100;
+                      font-size: 12px;
+                      padding: 2px 8px;
+                      margin-left: -8px;
+                      transition: background-color 0.4s;
+                      border-radius: 4px;
+                      &:hover {
+                        background-color: #EEF1F4 !important;
+                      }
+                    "
+                        onClick={() => copyToClipboard(message.content)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            copyToClipboard(message.content);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <Icon
+                          iconName="content_copy"
+                          $theme="greyscale"
+                          $variation="600"
+                          $size="16px"
+                        />
+                        {isDesktop && (
+                          <Text $color="#626A80" $weight="500">
+                            {t('Copy')}
+                          </Text>
+                        )}
+                      </Box>
+                    </Box>
+                  )}
                 </Box>
               </Box>
             ))}
@@ -291,14 +446,30 @@ export const Chat = ({
           <Box
             $direction="row"
             $align="center"
-            $justify="center"
-            $gap="1rem"
-            $margin={{ top: 'base' }}
+            $gap="6px"
+            $width="100%"
+            $maxWidth="750px"
+            $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
+            $padding={{ left: '13px' }}
           >
-            <Loader size="small" />
-            <Text $variation="600">{t('Generating...')}</Text>
+            <Loader />
+            <Text $variation="600" $size="md">
+              {t('Thinking...')}
+            </Text>
           </Box>
         )}
+      </Box>
+      <Box
+        $css={`
+          position: relative;
+          bottom: 20px;
+          margin: auto;
+        `}
+        $gap="6px"
+        $height="auto"
+        $width="100%"
+        $margin={{ all: 'auto', top: 'base' }}
+      >
         <InputChat
           messagesLength={messages.length}
           input={input}
@@ -307,6 +478,11 @@ export const Chat = ({
           status={status}
           files={files}
           setFiles={setFiles}
+          onScrollToBottom={scrollToBottom}
+          containerRef={chatContainerRef}
+          onStop={() => {
+            void stopGeneration();
+          }}
         />
       </Box>
     </Box>

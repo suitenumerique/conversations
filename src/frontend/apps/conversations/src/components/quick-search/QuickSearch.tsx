@@ -24,6 +24,7 @@ export type QuickSearchData<T> = {
 
 export type QuickSearchProps = {
   onFilter?: (str: string) => void;
+  onClear?: () => void;
   inputValue?: string;
   inputContent?: ReactNode;
   showInput?: boolean;
@@ -35,6 +36,7 @@ export type QuickSearchProps = {
 
 export const QuickSearch = ({
   onFilter,
+  onClear,
   inputContent,
   inputValue,
   loading,
@@ -48,24 +50,23 @@ export const QuickSearch = ({
   return (
     <>
       <QuickSearchStyle />
-      <div className="quick-search-container">
-        <Command label={label} shouldFilter={false} ref={ref}>
-          {showInput && (
-            <QuickSearchInput
-              loading={loading}
-              withSeparator={hasChildrens(children)}
-              inputValue={inputValue}
-              onFilter={onFilter}
-              placeholder={placeholder}
-            >
-              {inputContent}
-            </QuickSearchInput>
-          )}
-          <Command.List>
-            <Box>{children}</Box>
-          </Command.List>
-        </Command>
-      </div>
+      <Command label={label} shouldFilter={false} ref={ref}>
+        {showInput && (
+          <QuickSearchInput
+            loading={loading}
+            withSeparator={hasChildrens(children)}
+            inputValue={inputValue}
+            onFilter={onFilter}
+            onClear={onClear}
+            placeholder={placeholder}
+          >
+            {inputContent}
+          </QuickSearchInput>
+        )}
+        <Command.List>
+          <Box $padding={{ horizontal: 'sm', top: 'sm' }}>{children}</Box>
+        </Command.List>
+      </Command>
     </>
   );
 };

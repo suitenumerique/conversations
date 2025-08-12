@@ -22,18 +22,22 @@ export const LeftPanelConversationItem = ({
     <Box
       $direction="row"
       $align="center"
-      $padding={{ horizontal: 'xs' }}
+      $padding={{ horizontal: 'xs', vertical: '4px' }}
       $justify="space-between"
       $css={css`
         border-radius: 4px;
         width: 100%;
-        background-color: ${isCurrentConversation ? '#eaecee' : ''};
+        background-color: ${isCurrentConversation ? '#ebedf1' : ''};
         font-weight: ${isCurrentConversation ? '700' : '500'};
+        transition: background-color 0.2s cubic-bezier(1, 0, 0, 1);
         .pinned-actions {
+          padding: 2px 0;
           opacity: ${isDesktop ? 0 : 1};
+          background-color: transparent
+          transition: all 0.3s cubic-bezier(1, 0, 0, 1);
         }
-        &:hover {
-          background-color: var(--c--theme--colors--greyscale-100);
+        &:hover, &:focus {
+          background-color: #ebedf1;
           .pinned-actions {
             opacity: 1;
           }
@@ -45,13 +49,12 @@ export const LeftPanelConversationItem = ({
         href={`/chat/${conversation.id}/`}
         $css="overflow: auto; flex-grow: 1;"
       >
-        {/*To do : close panel onClick*/}
         <SimpleConversationItem showAccesses conversation={conversation} />
       </StyledLink>
 
-      <div className="pinned-actions">
+      <Box className="pinned-actions">
         <ConversationItemActions conversation={conversation} />
-      </div>
+      </Box>
     </Box>
   );
 };

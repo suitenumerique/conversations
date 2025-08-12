@@ -1,7 +1,11 @@
 import { Command } from 'cmdk';
 import { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import { useCunninghamTheme } from '@/cunningham';
 
 import { Box } from '../Box';
+import { Text } from '../Text';
 
 import { QuickSearchData } from './QuickSearch';
 import { QuickSearchItem } from './QuickSearchItem';
@@ -17,13 +21,22 @@ export const QuickSearchGroup = <T,>({
   onSelect,
   renderElement,
 }: Props<T>) => {
+  const { t } = useTranslation();
+  const { spacingsTokens } = useCunninghamTheme();
+
   return (
-    <Box $margin={{ top: 'base' }}>
-      <Command.Group
-        key={group.groupName}
-        heading={group.groupName}
-        forceMount={false}
-      >
+    <Box>
+      <Command.Group key={group.groupName} forceMount={false}>
+        <Text
+          $size="sm"
+          $variation="700"
+          $margin={{ bottom: spacingsTokens['2xs'] }}
+          $padding={{ horizontal: 'xs' }}
+          $weight="700"
+        >
+          {t('Search results')}
+        </Text>
+
         {group.startActions?.map((action, index) => {
           return (
             <QuickSearchItem
@@ -58,7 +71,14 @@ export const QuickSearchGroup = <T,>({
           );
         })}
         {group.emptyString && group.elements.length === 0 && (
-          <span className="ml-b clr-greyscale-500">{group.emptyString}</span>
+          <Text
+            $size="sm"
+            $variation="500"
+            $margin={{ bottom: spacingsTokens['2xs'] }}
+            $padding={{ horizontal: 'xs' }}
+          >
+            {group.emptyString}
+          </Text>
         )}
       </Command.Group>
     </Box>

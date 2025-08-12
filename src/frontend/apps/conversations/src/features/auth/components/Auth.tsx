@@ -1,8 +1,7 @@
-import { Loader } from '@openfun/cunningham-react';
 import { useRouter } from 'next/router';
 import { PropsWithChildren } from 'react';
 
-import { Box } from '@/components';
+import { Box, Loader } from '@/components';
 import { useConfig } from '@/core';
 
 import { HOME_URL } from '../conf';
