@@ -27,7 +27,7 @@ test.describe.serial('Language', () => {
     // initial language should be english
     await expect(
       page.getByRole('button', {
-        name: 'New conversation',
+        name: 'New chat',
       }),
     ).toBeVisible();
 

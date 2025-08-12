@@ -1,15 +1,9 @@
-import {
-  Button,
-  Modal,
-  ModalSize,
-  VariantType,
-  useToastProvider,
-} from '@openfun/cunningham-react';
+import { Button, Modal, ModalSize } from '@openfun/cunningham-react';
 import { t } from 'i18next';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/router';
 
-import { Box, Text, TextErrors } from '@/components';
+import { Box, Text, TextErrors, useToast } from '@/components';
 import { useRemoveConversation } from '@/features/chat/api/useRemoveConversation';
 import { ChatConversation } from '@/features/chat/types';
 
@@ -22,20 +16,22 @@ export const ModalRemoveConversation = ({
   onClose,
   conversation,
 }: ModalRemoveConversationProps) => {
-  const { toast } = useToastProvider();
+  const { showToast } = useToast();
   const { push } = useRouter();
   const pathname = usePathname();
 
   const {
     mutate: removeDoc,
-
     isError,
     error,
   } = useRemoveConversation({
     onSuccess: () => {
-      toast(t('The conversation has been deleted.'), VariantType.SUCCESS, {
-        duration: 4000,
-      });
+      showToast(
+        'success',
+        t('The conversation has been deleted.'),
+        undefined,
+        4000,
+      );
       if (pathname === '/') {
         onClose();
       } else {

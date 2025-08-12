@@ -80,3 +80,21 @@ nextjs-portal {
 .c__modal {
   box-shadow: 0 6px 18px 0 rgb(0 0 0 / 16%);
 }
+
+.c__button--bordered,
+.c__button--bordered:hover {
+  border: 1px solid var(--c--theme--colors--greyscale-200);
+  background-color: #fff;
+}
+
+.c__button--bordered:focus {
+  border: 1px solid rgb(0 0 0 / 16%);
+}
+
+ul a {
+  color: var(--c--theme--colors--greyscale-700);
+}
+
+ul a:hover {
+  color: var(--c--theme--colors--primary-800);
+}

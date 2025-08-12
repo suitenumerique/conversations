@@ -92,5 +92,5 @@ export const randomName = (name: string, browserName: string, length: number) =>
 
 export const expectLoginPage = async (page: Page) =>
   await expect(
-    page.getByRole('heading', { name: 'Conversation with AI' }),
+    page.getByRole('heading', { name: 'Your digital assistant' }),
   ).toBeVisible();

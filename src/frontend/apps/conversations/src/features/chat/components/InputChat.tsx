@@ -1,10 +1,12 @@
 import { Button } from '@openfun/cunningham-react';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Box, BoxButton, Icon, Text } from '@/components';
 import { useResponsiveStore } from '@/stores';
-import {useConfig} from "@/core";
+
+import { ScrollDown } from './ScrollDown';
+import { SendButton } from './SendButton';
 
 interface InputChatProps {
   messagesLength: number;
@@ -14,6 +16,11 @@ interface InputChatProps {
   status: string | null;
   files: FileList | null;
   setFiles: React.Dispatch<React.SetStateAction<FileList | null>>;
+  onScrollToBottom?: () => void;
+  containerRef?: React.RefObject<HTMLDivElement | null>;
+  forceWebSearch?: boolean;
+  onToggleWebSearch?: () => void;
+  onStop?: () => void;
 }
 
 export const InputChat = ({
@@ -24,40 +31,111 @@ export const InputChat = ({
   status,
   files,
   setFiles,
+  onScrollToBottom,
+  containerRef,
+  forceWebSearch = false,
+  onToggleWebSearch,
+  onStop,
 }: InputChatProps) => {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const { isDesktop } = useResponsiveStore();
-  const { data: conf } = useConfig();
+  const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
+
+  const suggestions = [
+    'Turn this list into bullet points',
+    'Write a short product description',
+    'Find recent news about...',
+    'Ask a question',
+  ];
+
+  useEffect(() => {
+    if (messagesLength === 0) {
+      const interval = setInterval(() => {
+        setCurrentSuggestionIndex((prev) => (prev + 1) % suggestions.length);
+      }, 3000);
+
+      return () => clearInterval(interval);
+    }
+  }, [messagesLength, suggestions.length]);
 
   return (
     <Box
       $css={`
-      position: sticky;
-      bottom: 0;
-      width: 100%;
-      min-width: 80%;
-      max-width: 700px;
+      display: block;
+      position: relative;
       margin: auto;
+      width: 100%;
+      padding: ${isDesktop ? '0' : '0 10px'};
+      max-width: 750px;
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes fadeInDown {
+        from {
+          opacity: 0;
+          transform: translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @keyframes slideOutToBottom {
+        from {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        to {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+      }
     `}
     >
+      {/* Bouton de scroll vers le bas */}
+      {messagesLength > 1 && containerRef && (
+        <Box
+          $css={`
+            position: relative;
+            bottom: 0;
+            width: 100%;
+            margin: auto;
+            max-width: 750px;
+            opacity: ${onScrollToBottom ? '1' : '0'};
+            transition: opacity 0.4s;
+        `}
+        >
+          <ScrollDown
+            onClick={onScrollToBottom || (() => {})}
+            containerRef={containerRef}
+          />
+        </Box>
+      )}
       {/* Message de bienvenue */}
       {messagesLength === 0 && (
         <Box
-          $padding={{ all: 'base' }}
+          $padding={{ all: 'base', bottom: 'md' }}
           $background="white"
-          $radius="md"
           $align="center"
-          $margin={{ horizontal: 'base', bottom: 'base', top: '-80px' }}
+          $margin={{ horizontal: 'base', bottom: 'md', top: '0' }}
+          $css={`
+            opacity: 0;
+            animation: fadeIn 0.2s cubic-bezier(1,0,0,1) 0.2s both;
+          `}
         >
-          <Text as="h2" $size="xl" $weight="600" $margin={{ bottom: 'xs' }}>
+          <Text as="h2" $size="xl" $weight="600" $margin={{ all: '0' }}>
             {t('What is on your mind?')}
           </Text>
         </Box>
       )}
 
-      {/* Formulaire d'envoi */}
       <form
         onSubmit={handleSubmit}
         onDragOver={(e) => {
@@ -96,10 +174,16 @@ export const InputChat = ({
         style={{ width: '100%' }}
       >
         <Box
-          $direction="row"
-          $align="center"
-          $padding={{ bottom: 'base' }}
+          $padding={{ bottom: `${isDesktop ? 'base' : ''}` }}
           $background="white"
+          $css={
+            messagesLength === 0
+              ? `
+            opacity: 0;
+            animation: fadeIn 0.4s cubic-bezier(1,0,0,1) 0s both;
+          `
+              : 'animation: fadeIn 0.4s cubic-bezier(1,0,0,1) 0.4s both;'
+          }
         >
           <Box
             $flex={1}
@@ -111,16 +195,27 @@ export const InputChat = ({
                   ? '2px dashed var(--c--theme--colors--primary-400)'
                   : '1px solid var(--c--theme--colors--greyscale-200)'
               };
+              position: relative;
             `}
           >
             <textarea
               value={input ?? ''}
-              placeholder={t('Ask a question')}
-              onChange={handleInputChange}
+              name="inputchat-textarea"
+              placeholder={
+                messagesLength === 0
+                  ? suggestions[currentSuggestionIndex]
+                  : t('Ask a question')
+              }
+              onChange={(e) => {
+                handleInputChange(e);
+                const textarea = e.target as HTMLTextAreaElement;
+                textarea.style.height = 'auto';
+                const newHeight = Math.min(textarea.scrollHeight, 200);
+                textarea.style.height = `${newHeight}px`;
+              }}
               disabled={status !== 'ready'}
               rows={1}
               style={{
-                width: '100%',
                 padding: '1rem 1.5rem',
                 background: 'transparent',
                 outline: 'none',
@@ -128,17 +223,56 @@ export const InputChat = ({
                 border: 'none',
                 resize: 'none',
                 fontFamily: 'inherit',
+                minHeight: '60px',
+                maxHeight: '200px',
+                overflowY: 'auto',
+                transition: 'all 0.3s ease',
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
                   e.preventDefault();
+                  const textarea = e.target as HTMLTextAreaElement;
+                  textarea.style.height = '0';
                   e.currentTarget.form?.requestSubmit?.();
                 }
               }}
             />
 
+            {messagesLength === 0 && !input && (
+              <Box
+                $css={`
+                  position: absolute;
+                  top: 1rem;
+                  left: 1.5rem;
+                  right: 1.5rem;
+                  pointer-events: none;
+                  color: var(--c--theme--colors--greyscale-500);
+                  font-size: 1rem;
+                  font-family: inherit;
+                  line-height: 1.5;
+                `}
+              >
+                {suggestions.map((suggestion, index) => (
+                  <Box
+                    key={index}
+                    $css={`
+                      position: absolute;
+                      top: 0;
+                      left: 0;
+                      right: 0;
+                      opacity: ${index === currentSuggestionIndex ? 1 : 0};
+                      &::placeholder {
+                        transition: opacity ${index === currentSuggestionIndex ? '0.4s' : '0s'};
+                      }
+                    `}
+                  >
+                    {suggestion}
+                  </Box>
+                ))}
+              </Box>
+            )}
+
             <input
-              accept={conf?.chat_upload_accept}
               type="file"
               multiple
               ref={fileInputRef}
@@ -148,6 +282,7 @@ export const InputChat = ({
                 if (!fileList) {
                   return;
                 }
+                console.log(fileList);
                 setFiles((prev) => {
                   const dt = new DataTransfer();
                   if (prev) {
@@ -173,8 +308,13 @@ export const InputChat = ({
             {files && files.length > 0 && (
               <Box
                 $direction="row"
-                $gap="2"
-                $margin={{ horizontal: 'base', bottom: 'xs', top: 'xs' }}
+                $gap="0.5rem"
+                $width="100%"
+                $css={`
+                  overflow-x: scroll;
+                `}
+                $margin={{ horizontal: '0', bottom: 'xs', top: 'xs' }}
+                $padding={{ horizontal: 'base' }}
               >
                 {Array.from(files).map((file, idx) => {
                   const { type: _type, name } = file;
@@ -196,21 +336,21 @@ export const InputChat = ({
                       $gap="xs"
                     >
                       {/*{type.startsWith('image/') ? (
-                  <Image
-                    style={{ width: 96, borderRadius: 8 }}
-                    src={URL.createObjectURL(file)}
-                    alt={name}
-                    width={96}
-                    height={96}
-                  />
-                ) : (
-                  <Box
-                    $background="var(--c--theme--colors--greyscale-100)"
-                    $width="64px"
-                    $height="80px"
-                    $radius="md"
-                  />
-                )}*/}
+                      <Image
+                        style={{ width: 96, borderRadius: 8 }}
+                        src={URL.createObjectURL(file)}
+                        alt={name}
+                        width={96}
+                        height={96}
+                      />
+                    ) : (
+                      <Box
+                        $background="var(--c--theme--colors--greyscale-100)"
+                        $width="64px"
+                        $height="80px"
+                        $radius="md"
+                      />
+                    )}*/}
                       <Box
                         $background="var(--c--theme--colors--greyscale-050)"
                         $width="200px"
@@ -227,14 +367,14 @@ export const InputChat = ({
                           $size="sm"
                           $color="var(--c--theme--colors--greyscale-850)"
                           $css={`
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: initial;
-                    display: -webkit-box;
-                    line-clamp: 1;
-                    -webkit-line-clamp: 1;
-                    -webkit-box-orient: vertical;
-                    `}
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: initial;
+                            display: -webkit-box;
+                            line-clamp: 1;
+                            -webkit-line-clamp: 1;
+                            -webkit-box-orient: vertical;
+                            `}
                         >
                           {name}
                         </Text>
@@ -263,6 +403,7 @@ export const InputChat = ({
               <Box $flex="1" $direction="row" $padding={{ horizontal: 'base' }}>
                 <Button
                   size="small"
+                  type="button"
                   onClick={() => fileInputRef.current?.click()}
                   aria-label={t('Add attach file')}
                   color="tertiary-text"
@@ -277,64 +418,56 @@ export const InputChat = ({
                 >
                   {isDesktop && <Text $weight="500">{t('Attach file')}</Text>}
                 </Button>
-                <Button
-                  size="small"
-                  onClick={() => fileInputRef.current?.click()}
-                  aria-label={t('Research on the web')}
-                  color="tertiary-text"
-                  icon={
-                    <Icon
-                      iconName="language"
-                      $theme="greyscale"
-                      $variation="600"
-                      $size="24px"
-                    />
-                  }
-                >
-                  {isDesktop && (
-                    <Text $weight="500">{t('Research on the web')}</Text>
-                  )}
-                </Button>
+                {onToggleWebSearch && (
+                  <Box
+                    $css={
+                      forceWebSearch
+                        ? `
+                      .c__button {
+                        background-color: var(--c--theme--colors--primary-100) !important;
+                      }
+                    `
+                        : ''
+                    }
+                  >
+                    <Button
+                      size="small"
+                      type="button"
+                      onClick={onToggleWebSearch}
+                      aria-label={t('Research on the web')}
+                      color="tertiary-text"
+                      icon={
+                        <Icon
+                          iconName="language"
+                          $theme={forceWebSearch ? 'primary' : 'greyscale'}
+                          $variation={forceWebSearch ? '800' : '600'}
+                          $size="24px"
+                        />
+                      }
+                    >
+                      {isDesktop && (
+                        <Text
+                          $color={forceWebSearch ? 'primary' : 'greyscale'}
+                          $weight="500"
+                        >
+                          {t('Research on the web')}
+                        </Text>
+                      )}
+                    </Button>
+                  </Box>
+                )}
               </Box>
               <Box $padding={{ horizontal: 'sm' }}>
-                <Button
-                  size="small"
-                  aria-label="Send"
+                <SendButton
+                  status={status}
                   disabled={!input || !input.trim()}
-                  icon={
-                    <Icon
-                      $variation="800"
-                      $theme="primary-text"
-                      iconName={
-                        status === 'ready' ? 'arrow_upward' : 'crop_square'
-                      }
-                    />
-                  }
-                >
-                  {status !== 'ready' && <Text>Stop</Text>}
-                </Button>
+                  onClick={onStop}
+                />
               </Box>
             </Box>
           </Box>
         </Box>
       </form>
     </Box>
-
-    /*          <DropdownMenu
-            options={[
-              {
-                icon: 'attach_file',
-                label: 'Attach files',
-                callback: () => fileInputRef.current?.click(),
-              },
-            ]}
-          >
-            <Icon
-              iconName="attach_file"
-              $theme="primary"
-              $variation="800"
-              $size="24px"
-            />
-          </DropdownMenu>*/
   );
 };
