@@ -18,7 +18,7 @@ env:
 
 jobs:
   build-and-push-backend:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       -
         name: Checkout repository
@@ -54,8 +54,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   build-and-push-frontend:
-    runs-on: self-hosted
-    timeout-minutes: 40
+    runs-on: ubuntu-latest
     steps:
       -
         name: Checkout repository
@@ -96,7 +95,7 @@ jobs:
     needs:
       - build-and-push-frontend
       - build-and-push-backend
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
     steps:
       - uses: numerique-gouv/action-argocd-webhook-notification@main
