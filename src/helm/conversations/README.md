@@ -34,24 +34,6 @@
 | `ingressAdmin.tls.secretName`                                                       | Secret name for TLS config                                | `nil`                                                              |
 | `ingressAdmin.tls.additional[].secretName`                                          | Secret name for additional TLS config                     |                                                                    |
 | `ingressAdmin.tls.additional[].hosts[]`                                             | Hosts for additional TLS config                           |                                                                    |
-| `ingressMedia.enabled`                                                              | whether to enable the Ingress or not                      | `false`                                                            |
-| `ingressMedia.className`                                                            | IngressClass to use for the Ingress                       | `nil`                                                              |
-| `ingressMedia.host`                                                                 | Host for the Ingress                                      | `conversations.example.com`                                        |
-| `ingressMedia.path`                                                                 | Path to use for the Ingress                               | `/media/(.*)`                                                      |
-| `ingressMedia.hosts`                                                                | Additional host to configure for the Ingress              | `[]`                                                               |
-| `ingressMedia.tls.enabled`                                                          | Weather to enable TLS for the Ingress                     | `true`                                                             |
-| `ingressMedia.tls.secretName`                                                       | Secret name for TLS config                                | `nil`                                                              |
-| `ingressMedia.tls.additional[].secretName`                                          | Secret name for additional TLS config                     |                                                                    |
-| `ingressMedia.tls.additional[].hosts[]`                                             | Hosts for additional TLS config                           |                                                                    |
-| `ingressMedia.annotations.nginx.ingress.kubernetes.io/auth-url`                     |                                                           | `https://conversations.example.com/api/v1.0/documents/media-auth/` |
-| `ingressMedia.annotations.nginx.ingress.kubernetes.io/auth-response-headers`        |                                                           | `Authorization, X-Amz-Date, X-Amz-Content-SHA256`                  |
-| `ingressMedia.annotations.nginx.ingress.kubernetes.io/upstream-vhost`               |                                                           | `minio.conversations.svc.cluster.local:9000`                       |
-| `ingressMedia.annotations.nginx.ingress.kubernetes.io/configuration-snippet`        |                                                           | `add_header Content-Security-Policy "default-src 'none'" always;   |
-| `                                                                                   |                                                           |                                                                    |
-| `serviceMedia.host`                                                                 |                                                           | `minio.conversations.svc.cluster.local`                            |
-| `serviceMedia.port`                                                                 |                                                           | `9000`                                                             |
-| `serviceMedia.annotations`                                                          |                                                           | `{}`                                                               |
-
 ### backend
 
 | Name                                                  | Description                                                                        | Value                                                                                                                                                                                                                                                                                 |

@@ -8,7 +8,6 @@ This document is a step-by-step guide that describes how to install Conversation
 - an OIDC provider (if you don't have one, we provide an example)
 - a PostgreSQL server (if you don't have one, we provide an example)
 - a Memcached server (if you don't have one, we provide an example)
-- a S3 bucket (if you don't have one, we provide an example)
 
 ### Test cluster
 
@@ -173,22 +172,6 @@ POSTGRES_USER: dinum
 POSTGRES_PASSWORD: pass
 ```
 
-### Find s3 bucket connection values
-
-Conversations uses an s3 bucket to store documents, so if you have a provider obtain the necessary information to use it. If you don't, you can install a local minio testing environment as follow:
-
-```
-$ helm install minio oci://registry-1.docker.io/bitnamicharts/minio -f examples/minio.values.yaml
-$ kubectl get po
-NAME                       READY   STATUS      RESTARTS   AGE
-keycloak-0                 1/1     Running     0          38m
-keycloak-postgresql-0      1/1     Running     0          38m
-minio-84f5c66895-bbhsk     1/1     Running     0          42s
-minio-provisioning-2b5sq   0/1     Completed   0          42s
-postgresql-0               1/1     Running     0          24m
-redis-master-0             1/1     Running     0          10m
-```
-
 ## Deployment
 
 Now you are ready to deploy Conversations without AI. AI requires more dependencies (OpenAI API). To deploy Conversations you need to provide all previous information to the helm chart.
@@ -205,8 +188,6 @@ conversations-conversations-backend-migrate-c949s           0/1     Completed   
 conversations-conversations-frontend-6749f644f7-p5s42       1/1     Running     0          79s
 keycloak-0                                   1/1     Running     0          48m
 keycloak-postgresql-0                        1/1     Running     0          48m
-minio-84f5c66895-bbhsk                       1/1     Running     0          10m
-minio-provisioning-2b5sq                     0/1     Completed   0          10m
 postgresql-0                                 1/1     Running     0          34m
 redis-master-0                               1/1     Running     0          20m
 ```
@@ -220,7 +201,6 @@ $ kubectl get ingress
 NAME                             CLASS    HOSTS                       ADDRESS     PORTS     AGE
 conversations-conversations                     <none>   conversations.127.0.0.1.nip.io    localhost   80, 443   114s
 conversations-conversations-admin               <none>   conversations.127.0.0.1.nip.io    localhost   80, 443   114s
-conversations-conversations-media               <none>   conversations.127.0.0.1.nip.io    localhost   80, 443   114s
 conversations-conversations-ws                  <none>   conversations.127.0.0.1.nip.io    localhost   80, 443   114s
 keycloak                         <none>   keycloak.127.0.0.1.nip.io   localhost   80        49m
 ```
