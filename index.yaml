@@ -1,0 +1,13 @@
+apiVersion: v1
+entries:
+  conversations:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2025-08-26T15:16:31.353977765Z"
+    digest: 7cf536cb82cee9e78cf7e847eac83f0968683772242b304aca1e781251d5645c
+    name: conversations
+    type: application
+    urls:
+    - https://suitenumerique.github.io/conversations/conversations-0.0.1.tgz
+    version: 0.0.1
+generated: "2025-08-26T15:16:31.352687615Z"
