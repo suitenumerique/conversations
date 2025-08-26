@@ -44,7 +44,6 @@ Production deployments differ significantly from development environments. The t
 | Object Storage (optional) | **External or self-hosted** | Can use AWS S3, Azure Blob, Google Cloud Storage, or self-hosted MinIO                   |
 | Django API (+ Celery)     | **1 – 3 GB**                | Production workloads with background tasks and higher concurrency                        |
 | Static Files (Nginx)      | **< 200 MB**                | Serves Next.js build output and static assets; no development overhead                   |
-| Y-Provider (y-websocket)  | **200 MB – 1 GB**           | Scales with concurrent document editing sessions                                         |
 | Nginx (Load Balancer)     | **< 200 MB**                | Reverse proxy, SSL termination, static file serving                                      |
 
 ### Production Architecture Notes
@@ -53,7 +52,7 @@ Production deployments differ significantly from development environments. The t
 - **Authentication**: Any OIDC-compatible provider can be used instead of self-hosted Keycloak
 - **Object Storage**: External services (S3, Azure Blob) or self-hosted solutions (MinIO) are both viable
 - **Database**: Consider PostgreSQL clustering or managed database services for high availability
-- **Scaling**: Horizontal scaling is recommended for Django API and Y-Provider services
+- **Scaling**: Horizontal scaling is recommended for Django API service
 
 ### Minimal Production Setup (Core Services Only)
 

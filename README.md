@@ -16,6 +16,24 @@
 </p>
 
 
+**Warning:** This project is in active development and in a very early stage. Breaking changes may occur at any time.
+
+
+## Yet another AI chatbot
+
+Conversations is an open-source AI chatbot designed to be simple, secure and privacy-friendly.
+
+Why another AI chatbot? Because we want to be able to fully control our data and the way we interact with AI.
+We want to have a very friendly end-user interface and code, and we want to be able to easily customize the
+chatbot to our needs.
+
+We leverage open-source projects such as [Vercel&lsquo;s AI SDK](https://ai-sdk.dev/) and [Pydantic AI](https://ai.pydantic.dev)
+and only assemble them in a way that makes sense for us and allows us to focus on the product.
+
+This assistant's purpose is also to be integrated into the "La Suite numérique" ecosystem of tools for public services.
+
+Any help to improve the project is very welcome!
+
 
 ### Self-host
 🚀 Conversations is easy to install on your own servers
@@ -32,9 +50,7 @@ You can test Conversations on your browser by visiting this => TBD
 
 ### Run Conversations locally
 
-> ⚠️ The methods described below for running Conversations locally is **for testing purposes only**. 
-> It is based on building Conversations using [Minio](https://min.io/) as an S3-compatible storage solution. 
-> Of course you can choose any S3-compatible storage solution.
+> ⚠️ The methods described below for running Conversations locally is **for testing purposes only**.
 
 **Prerequisite**
 
@@ -154,9 +170,7 @@ docs
 
 ### Stack
 
-Conversations is built on top of [Django Rest Framework](https://www.django-rest-framework.org/), [Next.js](https://nextjs.org/), [Vercel&lsquo;s AI SDK](https://ai-sdk.dev/) and [OpenAI Agents SDK](https://github.com/openai/openai-agents-python). We thank the contributors of all these projects for their awesome work!
-
-
+Conversations is built on top of [Django Rest Framework](https://www.django-rest-framework.org/), [Next.js](https://nextjs.org/), [Vercel&lsquo;s AI SDK](https://ai-sdk.dev/) and [Pydantic AI](https://ai.pydantic.dev). We thank the contributors of all these projects for their awesome work!
 
 
 ### Gov ❤️ open source

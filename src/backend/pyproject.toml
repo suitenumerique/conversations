@@ -20,7 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 description = "An application to chat with your own AI."
-keywords = ["Django", "AI", "Chatbot", "OpenAI", "Conversations"]
+keywords = ["Django", "AI", "Chatbot", "OpenAI", "Pydantic AI", "Conversations"]
 license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.12"
