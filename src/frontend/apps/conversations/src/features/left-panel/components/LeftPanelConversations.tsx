@@ -1,3 +1,4 @@
+import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
 
 import { Box, InfiniteScroll, Text } from '@/components';
@@ -7,6 +8,8 @@ import { LeftPanelConversationItem } from '@/features/left-panel/components/Left
 
 export const LeftPanelConversations = () => {
   const { t } = useTranslation();
+  const router = useRouter();
+  const { id } = router.query;
 
   const { spacingsTokens } = useCunninghamTheme();
 
@@ -25,19 +28,18 @@ export const LeftPanelConversations = () => {
   return (
     <Box className="--conversations--left-panel-favorites">
       <Box
-        $justify="center"
         $padding={{ horizontal: 'sm', top: 'sm' }}
         $gap={spacingsTokens['2xs']}
-        $height="100%"
+        $height="50vh"
         data-testid="left-panel-favorites"
       >
         <Text
           $size="sm"
           $variation="700"
-          $padding={{ horizontal: '3xs' }}
+          $padding={{ horizontal: 'xs' }}
           $weight="700"
         >
-          {t('Recent conversations')}
+          {t('History')}
         </Text>
         <InfiniteScroll
           hasMore={conversations.hasNextPage}
@@ -47,6 +49,7 @@ export const LeftPanelConversations = () => {
           {favoriteConversations.map((conversation) => (
             <LeftPanelConversationItem
               key={conversation.id}
+              isCurrentConversation={conversation.id === id}
               conversation={conversation}
             />
           ))}

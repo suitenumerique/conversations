@@ -6,6 +6,7 @@ import { useCunninghamTheme } from '@/cunningham';
 import { Header } from '@/features/header';
 import { HEADER_HEIGHT } from '@/features/header/conf';
 import { LeftPanel } from '@/features/left-panel';
+import { useLeftPanelStore } from '@/features/left-panel/stores';
 import { MAIN_LAYOUT_ID } from '@/layouts/conf';
 import { useResponsiveStore } from '@/stores';
 
@@ -15,42 +16,52 @@ type MainLayoutProps = {
 
 export function MainLayout({
   children,
-  backgroundColor = 'white',
+  backgroundColor: _backgroundColor = 'white',
 }: PropsWithChildren<MainLayoutProps>) {
   const { isDesktop } = useResponsiveStore();
   const { colorsTokens } = useCunninghamTheme();
-  const currentBackgroundColor = !isDesktop ? 'white' : backgroundColor;
+  const { togglePanel: _togglePanel, isPanelOpen } = useLeftPanelStore();
 
   return (
     <Box className="--docs--main-layout">
-      <Header />
       <Box
-        $direction="row"
-        $margin={{ top: `${HEADER_HEIGHT}px` }}
-        $width="100%"
+        $css={css`
+          z-index: 1000;
+          transition: left 0.3s ease;
+          position: fixed;
+          width: 300px;
+          left: ${isPanelOpen ? '0px' : '-300px'};
+        `}
       >
         <LeftPanel />
-        <Box
-          as="main"
-          id={MAIN_LAYOUT_ID}
-          $align="center"
-          $flex={1}
-          $width="100%"
-          $height={`calc(100dvh - ${HEADER_HEIGHT}px)`}
-          $padding={{
-            all: isDesktop ? '0' : '0',
-          }}
-          $background={
-            currentBackgroundColor === 'white'
-              ? colorsTokens['greyscale-000']
-              : colorsTokens['greyscale-050']
-          }
-          $css={css`
-            overflow-y: auto;
-            overflow-x: clip;
-          `}
-        >
-          {children}
+      </Box>
+      <Box
+        $css={css`
+          transition: all 0.3s ease;
+          position: fixed;
+          left: ${isDesktop && isPanelOpen ? '300px' : '0px'};
+          width: calc(100vw - ${isDesktop && isPanelOpen ? '300px' : '0px'});
+        `}
+      >
+        <Header />
+        <Box $direction="row" $width="100%">
+          <Box
+            as="main"
+            id={MAIN_LAYOUT_ID}
+            $align="center"
+            $width="100vw"
+            $height={`calc(100dvh - ${HEADER_HEIGHT}px)`}
+            $padding={{
+              all: isDesktop ? '0' : '0',
+            }}
+            $background={colorsTokens['greyscale-000']}
+            $css={css`
+              overflow-y: auto;
+              overflow-x: clip;
+            `}
+          >
+            {children}
+          </Box>
         </Box>
       </Box>
     </Box>

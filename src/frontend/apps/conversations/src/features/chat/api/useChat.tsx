@@ -14,6 +14,14 @@ const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
   } else {
     throw new Error('Unsupported input type for fetchAPIAdapter');
   }
+
+  // Add force_web_search parameter if it's globally enabled
+  if ((window as { globalForceWebSearch?: boolean }).globalForceWebSearch) {
+    const urlObj = new URL(url);
+    urlObj.searchParams.set('force_web_search', 'true');
+    url = urlObj.toString();
+  }
+
   return fetchAPI(url, init);
 };
 

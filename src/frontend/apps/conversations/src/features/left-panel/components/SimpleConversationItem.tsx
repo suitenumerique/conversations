@@ -1,4 +1,4 @@
-import { DateTime } from 'luxon';
+// A SUPPRIMER ?
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
@@ -7,7 +7,7 @@ import { useCunninghamTheme } from '@/cunningham';
 import { ChatConversation } from '@/features/chat/types';
 import { useResponsiveStore } from '@/stores';
 
-import SimpleFileIcon from '../assets/simple-document.svg';
+import BubbleIcon from '../assets/bubble-bold.svg';
 
 const ItemTextCss = css`
   overflow: hidden;
@@ -26,11 +26,11 @@ type SimpleConversationItemProps = {
 
 export const SimpleConversationItem = ({
   conversation,
-  showAccesses = false,
+  showAccesses: _showAccesses = false,
 }: SimpleConversationItemProps) => {
   const { t } = useTranslation();
   const { spacingsTokens, colorsTokens } = useCunninghamTheme();
-  const { isDesktop } = useResponsiveStore();
+  const { isDesktop: _isDesktop } = useResponsiveStore();
 
   return (
     <Box
@@ -48,8 +48,8 @@ export const SimpleConversationItem = ({
         `}
         $padding={`${spacingsTokens['3xs']} 0`}
       >
-        <SimpleFileIcon
-          aria-label={t('Simple document icon')}
+        <BubbleIcon
+          aria-label={t('Simple chat icon')}
           color={colorsTokens['primary-500']}
         />
       </Box>
@@ -59,23 +59,10 @@ export const SimpleConversationItem = ({
           aria-label={conversation.title || t('Untitled conversation')}
           $size="sm"
           $variation="1000"
-          $weight="500"
           $css={ItemTextCss}
         >
           {conversation.title || t('Untitled conversation')}
         </Text>
-        {(!isDesktop || showAccesses) && (
-          <Box
-            $direction="row"
-            $align="center"
-            $gap={spacingsTokens['3xs']}
-            $margin={{ top: '-2px' }}
-          >
-            <Text $variation="600" $size="xs">
-              {DateTime.fromISO(conversation.updated_at).toRelative()}
-            </Text>
-          </Box>
-        )}
       </Box>
     </Box>
   );

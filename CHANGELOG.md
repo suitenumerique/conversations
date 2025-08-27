@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- ✨(front) global layout UI
+
 ### Changed
 
 - ♻️(chat) rewrite backend using Pydantic AI SDK #4

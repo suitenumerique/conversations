@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await expect(
-    page.locator('header').first().locator('h2').getByText('Assistant'),
+    page.locator('header').first().locator('svg[aria-label*="Logo"]'),
   ).toBeVisible();
   await page.goto('unknown-page404');
 });

@@ -1,11 +1,11 @@
 import Image from 'next/image';
 import { useTranslation } from 'react-i18next';
 
-import IconDocs from '@/assets/icons/icon-docs.svg';
+import Logo from '@/assets/logo/logo-assistant.svg';
 import { Box } from '@/components';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
-import { ButtonTogglePanel, Title } from '@/features/header/';
+import { ButtonTogglePanel, Title as _Title } from '@/features/header/';
 import { LaGaufre } from '@/features/header/components/LaGaufre';
 import { LanguagePicker } from '@/features/language';
 import { useResponsiveStore } from '@/stores';
@@ -62,12 +62,11 @@ export const HomeHeader = () => {
           $position="relative"
           $height="fit-content"
         >
-          <IconDocs
+          <Logo
             aria-label={t('{{productName}} Logo', { productName })}
-            width={32}
+            width={188}
             color={colorsTokens['primary-text']}
           />
-          <Title />
         </Box>
       </Box>
       {!isSmallMobile && (

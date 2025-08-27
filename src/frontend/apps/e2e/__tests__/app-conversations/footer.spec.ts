@@ -18,11 +18,6 @@ test.describe('Footer', () => {
     await page.goto('/');
     const footer = page.locator('footer').first();
 
-    await expect(footer.getByAltText('Docs Logo')).toBeVisible();
-    await expect(
-      footer.getByRole('heading', { name: 'Assistant' }),
-    ).toBeVisible();
-
     await expect(footer.getByRole('link', { name: 'Github' })).toBeVisible();
     await expect(footer.getByRole('link', { name: 'DINUM' })).toBeVisible();
 
@@ -104,11 +99,6 @@ test.describe('Footer', () => {
     const footer = page.locator('footer').first();
 
     await expect(footer.getByAltText('Gouvernement Logo')).toBeVisible();
-
-    await expect(
-      footer.getByRole('heading', { name: 'Assistant' }),
-    ).toBeHidden();
-    await expect(footer.getByText('BETA')).toBeHidden();
 
     await expect(
       footer.getByRole('link', { name: 'legifrance.gouv.fr' }),

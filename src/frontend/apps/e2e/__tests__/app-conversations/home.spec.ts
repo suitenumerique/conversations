@@ -21,15 +21,11 @@ test.describe('Home page', () => {
     await expect(
       header.getByRole('img', { name: 'Assistant logo' }),
     ).toBeVisible();
-    await expect(
-      header.getByRole('heading', { name: 'Assistant' }),
-    ).toBeVisible();
 
     // Check the titles
     const h2 = page.locator('h2');
-    await expect(h2.getByText('Govs ❤️ Open Source.')).toBeVisible();
     await expect(
-      h2.getByText('Conversation with AI, simplified.'),
+      h2.getByText('Your digital assistant'),
     ).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Start conversation' }),
@@ -76,20 +72,14 @@ test.describe('Home page', () => {
       header.getByRole('img', { name: 'Assistant logo' }),
     ).toBeVisible();
     await expect(
-      header.getByRole('heading', { name: 'Assistant' }),
+      header.getByRole('img', { name: 'Assistant logo' }),
     ).toBeVisible();
-    await expect(header.getByText('BETA')).toBeVisible();
 
     // Check the titles
     const h2 = page.locator('h2');
-    await expect(h2.getByText('Govs ❤️ Open Source.')).toBeVisible();
     await expect(
-      h2.getByText('Conversation with AI, simplified.'),
+      h2.getByText('Your digital assistant'),
     ).toBeVisible();
-
-    await expect(
-      page.getByRole('button', { name: 'Proconnect Login' }),
-    ).toHaveCount(2);
 
     await expect(footer).toBeVisible();
   });

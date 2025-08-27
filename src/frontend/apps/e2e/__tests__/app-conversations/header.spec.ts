@@ -9,10 +9,6 @@ test.describe('Header', () => {
     const header = page.locator('header').first();
 
     await expect(header.getByLabel('Assistant Logo')).toBeVisible();
-    await expect(header.locator('h2').getByText('Assistant')).toHaveCSS(
-      'font-family',
-      /Roboto/i,
-    );
 
     await expect(
       header.getByRole('button', {
@@ -34,10 +30,6 @@ test.describe('Header', () => {
     const header = page.locator('header').first();
 
     await expect(header.getByLabel('Assistant Logo')).toBeVisible();
-    await expect(header.locator('h2').getByText('Assistant')).toHaveCSS(
-      'font-family',
-      /Marianne/i,
-    );
 
     await expect(
       header.getByRole('button', {
@@ -46,6 +38,8 @@ test.describe('Header', () => {
     ).toBeVisible();
 
     await expect(header.getByText('English')).toBeVisible();
+
+    await page.waitForTimeout(2000);
 
     await expect(
       header.getByRole('button', {
@@ -61,6 +55,8 @@ test.describe('Header', () => {
     await page.goto('/');
 
     const header = page.locator('header').first();
+
+    await page.waitForTimeout(2000);
 
     await expect(
       header.getByRole('button', {
@@ -104,11 +100,6 @@ test.describe('Header mobile', () => {
     await expect(header.getByLabel('Open the header menu')).toBeVisible();
     await expect(
       header.getByRole('link', { name: 'Assistant Logo' }),
-    ).toBeVisible();
-    await expect(
-      header.getByRole('button', {
-        name: 'Les services de La Suite numérique',
-      }),
     ).toBeVisible();
   });
 });

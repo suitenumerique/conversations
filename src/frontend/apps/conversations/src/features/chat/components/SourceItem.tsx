@@ -5,7 +5,8 @@ import { Box, StyledLink } from '@/components';
 
 const styles: Record<string, React.CSSProperties> = {
   title: {
-    color: 'var(--c-gray-700, #495057)',
+    color: '#222631',
+    fontWeight: '500',
     whiteSpace: 'nowrap',
   },
 };
@@ -14,7 +15,7 @@ interface SourceItemProps {
   url: string;
 }
 
-const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
+export const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
   const [title, setTitle] = useState<string | null>(null);
   const [favicon, setFavicon] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,12 +36,35 @@ const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
         // We should ideally have a backend endpoint for this
         // but for demonstration, we'll use a simplified approach
         const parser = new DOMParser();
-        const response = await fetch(url, { mode: 'cors' });
+
+        // Try to fetch with CORS, but handle errors gracefully
+        let response;
+        try {
+          response = await fetch(url, {
+            mode: 'cors',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; ChatBot/1.0)',
+            },
+          });
+        } catch {
+          console.log('CORS fetch failed, using fallback for:', url);
+          // If CORS fails, just use the URL as title
+          setTitle(new URL(url).hostname);
+          setFavicon(null);
+          setLoading(false);
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
         const html = await response.text();
         const doc = parser.parseFromString(html, 'text/html');
 
         // Get the title
-        const pageTitle = doc.querySelector('title')?.textContent || url;
+        const pageTitle =
+          doc.querySelector('title')?.textContent || new URL(url).hostname;
         setTitle(pageTitle);
 
         // Get the favicon
@@ -63,9 +87,9 @@ const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
 
         setFavicon(faviconUrl || null);
       } catch (err) {
-        console.error('Error fetching metadata:', err);
+        console.log('Error fetching metadata for:', url, err);
         setError(true);
-        setTitle(url);
+        setTitle(new URL(url).hostname);
       } finally {
         setLoading(false);
       }
@@ -99,9 +123,9 @@ const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
   };
 
   return (
-    <Box $direction="row" $gap="0.25rem" $align="center">
+    <Box $direction="row" $gap="4px" $align="center">
       {renderFavicon()}
-      <Box $direction="row" $gap="0.25rem" $align="center">
+      <Box $direction="row" $gap="4px" $align="center" $css="font-size: 14px;">
         {url.startsWith('http') ? (
           <StyledLink
             href={url}
@@ -116,19 +140,22 @@ const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
             `}
           >
             {new URL(url).hostname}
+
+            <Box
+              $direction="row"
+              $padding={{ left: '4px' }}
+              $align="center"
+              style={styles.title}
+            >
+              {title && title.length > 100
+                ? `${title.substring(0, 50)}...${title.substring(title.length - 20)}`
+                : title}
+            </Box>
           </StyledLink>
         ) : (
           <Box>{url}</Box>
         )}
-        <Box $direction="row" $align="center" style={styles.title}>
-          {/* Need to better manage the text ellipsis */}
-          {title && title.length > 100
-            ? `${title.substring(0, 50)}...${title.substring(title.length - 20)}`
-            : title}
-        </Box>
       </Box>
     </Box>
   );
 };
-
-export default SourceItem;

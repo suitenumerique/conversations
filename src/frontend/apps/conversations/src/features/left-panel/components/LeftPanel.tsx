@@ -5,8 +5,8 @@ import { createGlobalStyle, css } from 'styled-components';
 import { Box, SeparatedSection } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { ButtonLogin } from '@/features/auth';
-import { HEADER_HEIGHT } from '@/features/header/conf';
 import { LanguagePicker } from '@/features/language';
+import { SettingsButton } from '@/features/settings';
 import { useResponsiveStore } from '@/stores';
 
 import { useLeftPanelStore } from '../stores';
@@ -29,8 +29,8 @@ export const LeftPanel = () => {
   const pathname = usePathname();
 
   useEffect(() => {
-    togglePanel(false);
-  }, [pathname, togglePanel]);
+    togglePanel(isDesktop ? true : false);
+  }, [pathname, togglePanel, isDesktop]);
 
   return (
     <>
@@ -38,11 +38,12 @@ export const LeftPanel = () => {
         <Box
           data-testid="left-panel-desktop"
           $css={`
-            height: calc(100vh - ${HEADER_HEIGHT}px);
+            height: 100vh;
             width: 300px;
             min-width: 300px;
             overflow: hidden;
             border-right: 1px solid ${colorsTokens['greyscale-200']};
+            background-color: #F7F8FA;
           `}
           className="--docs--left-panel-desktop"
         >
@@ -64,12 +65,14 @@ export const LeftPanel = () => {
             $hasTransition
             $css={css`
               z-index: 999;
-              width: 100dvw;
+              overflow: hidden;
+              width: ${isPanelOpen ? '100%' : '200px'};
               height: calc(100dvh - 52px);
               border-right: 1px solid var(--c--theme--colors--greyscale-200);
               position: fixed;
-              transform: translateX(${isPanelOpen ? '0' : '-100dvw'});
-              background-color: var(--c--theme--colors--greyscale-000);
+              top: 52px;
+              left: ${isPanelOpen ? '0' : '-300px'};
+              background-color: #fff;
             `}
             className="--docs--left-panel-mobile"
           >
@@ -82,16 +85,33 @@ export const LeftPanel = () => {
                 gap: ${spacingsTokens['base']};
               `}
             >
-              <LeftPanelHeader />
               <LeftPanelContent />
               <SeparatedSection showSeparator={false}>
                 <Box
-                  $justify="center"
+                  $css={css`
+                    display: flex;
+                    position: absolute;
+                    bottom: 0;
+                    height: 52px;
+                    width: 100%;
+                    gap: ${spacingsTokens['base']};
+                    border-top: 1px solid #dfe2ea;
+                  `}
+                  $justify="space-between"
                   $align="center"
+                  $direction="row"
+                  $padding={{ horizontal: 'sm' }}
                   $gap={spacingsTokens['sm']}
                 >
                   <ButtonLogin />
-                  <LanguagePicker />
+                  <Box
+                    $direction="row"
+                    $gap={spacingsTokens['sm']}
+                    $align="center"
+                  >
+                    <LanguagePicker />
+                    <SettingsButton />
+                  </Box>
                 </Box>
               </SeparatedSection>
             </Box>

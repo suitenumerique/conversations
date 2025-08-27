@@ -2,13 +2,13 @@ import { SourceUIPart } from '@ai-sdk/ui-utils';
 import React from 'react';
 
 import { Box } from '@/components';
-import SourceItem from '@/features/chat/components/SourceItem';
+import { SourceItem } from '@/features/chat/components/SourceItem';
 
 interface SourceItemListProps {
   parts: readonly SourceUIPart[];
 }
 
-const SourceItemList: React.FC<SourceItemListProps> = ({ parts }) => {
+export const SourceItemList: React.FC<SourceItemListProps> = ({ parts }) => {
   if (parts.length === 0) {
     return null;
   }
@@ -16,13 +16,26 @@ const SourceItemList: React.FC<SourceItemListProps> = ({ parts }) => {
   return (
     <Box
       $direction="column"
-      $gap="0.1rem"
-      $padding="0.5rem"
-      $background="var(--c-gray-100, #f8f9fa)"
+      $padding={{ all: 'sm' }}
+      $gap="4px"
       $css={`
        border: 1px solid var(--c--theme--colors--greyscale-200);
        border-radius: 8px;
        margin-top: 0.5rem;
+       overflow: hidden;
+       opacity: 0;
+       animation: slideInFade 0.3s ease-out forwards;
+       
+       @keyframes slideInFade {
+         from {
+           opacity: 0;
+           height: 0;
+         }
+         to {
+           opacity: 1;
+           height: auto;
+         }
+       }
      `}
     >
       {parts.map((part) => (
@@ -31,5 +44,3 @@ const SourceItemList: React.FC<SourceItemListProps> = ({ parts }) => {
     </Box>
   );
 };
-
-export default SourceItemList;
