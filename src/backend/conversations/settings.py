@@ -468,14 +468,18 @@ class Base(Configuration):
         environ_prefix=None,
     )
     AI_ROUTING_SYSTEM_PROMPT = values.Value(
-        "Your only job is to detect the following user intents, based on the user request:\n"
-        " - `web_search`: The user requests, explicitly or not, to have recent or precise"
-        " information, or anything which would request to do some web research to add"
-        " context before answering. Any semantic language like 'recent', 'latest information'"
-        " and similar should trigger a web search.\n"
-        " - `attachment_summary`: The user requests, explicitly or not, to have a summary of"
-        " a document, or any specific file. Any semantic language like 'summary', 'overview',"
-        " 'highlights', 'key points' and similar should trigger a document summary.\n",
+        "Your only job is to detect the following user intents based on the user's request:\n"
+        "\n"
+        " - `web_search`: Make `True` this intent only if the user explicitly asks for recent,"
+        " precise, or up-to-date information about a specific topic, or if web research is "
+        " required to provide context before answering."
+        " Do not trigger this intent for generic or trivial questions, or when the answer"
+        " does not require updated data (e.g., 'what is the date today', 'rewrite this for me').\n"
+        "\n"
+        " - `attachment_summary`: Make `True` this intent if the user requests, explicitly or"
+        " implicitly, a summary of a document or file. Any wording such as"
+        ' "summary", "overview", "highlights", "key points", or similar should activate this'
+        " intent.",
         environ_name="AI_ROUTING_SYSTEM_PROMPT",
         environ_prefix=None,
     )
