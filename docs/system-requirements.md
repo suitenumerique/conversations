@@ -19,7 +19,6 @@ Memory is the first bottleneck; CPU matters only when Celery or the Next.js buil
 | PostgreSQL            | **1 – 2 GB**                  | `shared_buffers` starting point ≈ 25% RAM ([postgresql.org][1])                         |
 | Keycloak              | **≈ 1.3 GB**                  | 70% of limit for heap + ~300 MB non-heap ([keycloak.org][2])                            |
 | Redis                 | **≤ 256 MB**                  | Empty instance ≈ 3 MB; budget 256 MB to allow small datasets ([stackoverflow.com][3])   |
-| MinIO                 | **2 GB (dev) / 32 GB (prod)** | Pre-allocates 1–2 GiB; docs recommend 32 GB per host for ≤ 100 Ti storage ([min.io][4]) |
 | Django API (+ Celery) | **0.8 – 1.5 GB**              | Empirical in-house metrics                                                              |
 | Next.js frontend      | **0.5 – 1 GB**                | Dev build chain                                                                         |
 | Nginx                 | **< 100 MB**                  | Static reverse-proxy footprint                                                          |
@@ -27,8 +26,6 @@ Memory is the first bottleneck; CPU matters only when Celery or the Next.js buil
 [1]: https://www.postgresql.org/docs/9.1/runtime-config-resource.html "PostgreSQL: Documentation: 9.1: Resource Consumption"
 [2]: https://www.keycloak.org/high-availability/concepts-memory-and-cpu-sizing "Concepts for sizing CPU and memory resources - Keycloak"
 [3]: https://stackoverflow.com/questions/45233052/memory-footprint-for-redis-empty-instance "Memory footprint for Redis empty instance - Stack Overflow"
-[4]: https://min.io/docs/minio/kubernetes/upstream/operations/checklists/hardware.html "Hardware Checklist — MinIO Object Storage for Kubernetes"
-[5]: https://discuss.yjs.dev/t/understanding-memory-requirements-for-production-usage/198 "Understanding memory requirements for production usage - Yjs Community"
 
 > **Rule of thumb:** add 2 GB for OS/overhead, then sum only the rows you actually run.
 
@@ -86,7 +83,6 @@ Production deployments differ significantly from development environments. The t
 | 8071      | Django                |
 | 8080      | Keycloak              |
 | 8083      | Nginx proxy           |
-| 9000/9001 | MinIO                 |
 | 15432     | PostgreSQL (main)     |
 | 5433      | PostgreSQL (Keycloak) |
 | 1081      | Maildev               |
@@ -100,5 +96,3 @@ Production deployments differ significantly from development environments. The t
 **CPU** – budget one vCPU per busy container until Celery or Next.js builds saturate.
 
 **Disk** – SSD; add 10 GB extra for the Docker layer cache.
-
-**MinIO** – for demos, mount a local folder instead of running MinIO to save 2 GB+ of RAM.
