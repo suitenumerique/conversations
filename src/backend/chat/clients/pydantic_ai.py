@@ -44,7 +44,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
-from pydantic_ai.models.openai import OpenAIModel, OpenAIResponsesModelSettings
+from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from chat.agent_rag.document_search.albert_api import AlbertRagDocumentSearch
@@ -76,10 +76,6 @@ def _build_pydantic_agent(mcp_servers) -> Agent[None, str]:
             provider=OpenAIProvider(
                 base_url=settings.AI_BASE_URL,
                 api_key=settings.AI_API_KEY,
-            ),
-            settings=OpenAIResponsesModelSettings(
-                openai_reasoning_effort="low",
-                openai_reasoning_summary="detailed",
             ),
         ),
         system_prompt=settings.AI_AGENT_INSTRUCTIONS,
