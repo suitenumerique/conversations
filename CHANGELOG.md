@@ -22,6 +22,7 @@ and this project adheres to
 - ✨(web-search) add RAG capability to do web search #7
 - ✨(chat) add document RAG on document uploaded by user #8
 - ✨(backend) allow use to stop conversation streaming #14
+- 🐛(agent) add the current date in the system prompt #18
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main

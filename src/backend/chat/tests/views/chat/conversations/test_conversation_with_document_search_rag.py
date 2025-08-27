@@ -417,6 +417,12 @@ def test_post_conversation_with_document_upload(  # noqa:PLR0913  # pylint: disa
                 "timestamp": "2025-07-25T10:36:35.297675Z",
             },
             {
+                "content": "Today is Friday 25/07/2025.",
+                "dynamic_ref": None,
+                "part_kind": "system-prompt",
+                "timestamp": "2025-07-25T10:36:35.297675Z",
+            },
+            {
                 "content": [
                     "Based on the following document contents:\n"
                     "\n"

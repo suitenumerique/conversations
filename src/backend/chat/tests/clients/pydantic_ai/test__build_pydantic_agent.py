@@ -4,6 +4,7 @@
 from django.core.exceptions import ImproperlyConfigured
 
 import pytest
+from freezegun import freeze_time
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 
@@ -72,3 +73,13 @@ def test_build_pydantic_agent_missing_model(settings):
 
     with pytest.raises(ImproperlyConfigured, match="AIChatService configuration not set"):
         _build_pydantic_agent([])
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+def test_add_the_date_system_prompt():
+    """Ensure add_the_date system prompt is registered and returns the formatted date string."""
+    agent = _build_pydantic_agent([])
+
+    assert len(agent._system_prompt_functions) == 1
+    assert agent._system_prompt_functions[0].function.__name__ == "add_the_date"
+    assert agent._system_prompt_functions[0].function() == "Today is Friday 25/07/2025."

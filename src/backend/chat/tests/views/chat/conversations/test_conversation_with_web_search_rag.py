@@ -368,9 +368,9 @@ def test_conversation_with_forced_web_search_no_history(
     ]
 
     _user_request_parts = chat_conversation.pydantic_messages[0].pop("parts")
-    assert len(_user_request_parts) == 2
+    assert len(_user_request_parts) == 3
 
-    assert _user_request_parts[0] == {
+    assert _user_request_parts.pop(0) == {
         "content": "You are a helpful assistant. Escape formulas or any "
         "math notation between `$$`, like `$$x^2 + y^2 = "
         "z^2$$` or `$$C_l$$`. You can use Markdown to format "
@@ -380,7 +380,15 @@ def test_conversation_with_forced_web_search_no_history(
         "timestamp": "2025-07-25T10:36:35.297675Z",
     }
 
-    _user_request_parts_1_content = _user_request_parts[1].pop("content")
+    assert _user_request_parts.pop(0) == {
+        "content": "Today is Friday 25/07/2025.",
+        "dynamic_ref": None,
+        "part_kind": "system-prompt",
+        "timestamp": "2025-07-25T10:36:35.297675Z",
+    }
+
+    _last_user_request_part = _user_request_parts.pop(0)
+    _user_request_parts_1_content = _last_user_request_part.pop("content")
     assert len(_user_request_parts_1_content) == 1
     # check the web result are properly prompted
     assert "Based on the following web search results:\n" in _user_request_parts_1_content[0]
@@ -391,7 +399,7 @@ def test_conversation_with_forced_web_search_no_history(
     # check the web search results are included
     assert "le JWST a aidé à caractériser plusieurs" in _user_request_parts_1_content[0]
 
-    assert _user_request_parts[1] == {
+    assert _last_user_request_part == {
         "part_kind": "user-prompt",
         "timestamp": "2025-07-25T10:36:35.297675Z",
         # content as been tested above

@@ -17,6 +17,7 @@ from typing import Dict, List, Optional, Tuple
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
+from django.utils import formats, timezone
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
@@ -85,6 +86,17 @@ def _build_pydantic_agent(mcp_servers) -> Agent[None, str]:
         mcp_servers=mcp_servers,
         tools=[get_pydantic_tools_by_name(tool_name) for tool_name in settings.AI_AGENT_TOOLS],
     )
+
+    @agent.system_prompt
+    def add_the_date() -> str:
+        """
+        Dynamic system prompt function to add the current date.
+
+        Warning: this will always use the date in the server timezone,
+        not the user's timezone...
+        """
+        _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
+        return f"Today is {_formatted_date}."
 
     return agent
 

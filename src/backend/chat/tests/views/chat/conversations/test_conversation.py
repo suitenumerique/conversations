@@ -175,6 +175,12 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
                 {
+                    "content": "Today is Friday 25/07/2025.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
                     "content": ["Hello"],
                     "part_kind": "user-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -282,6 +288,12 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uu
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
                 {
+                    "content": "Today is Friday 25/07/2025.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
                     "content": ["Hello"],
                     "part_kind": "user-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -365,6 +377,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
             "You can use Markdown to format your answers. ",
             "role": "system",
         },
+        {"content": "Today is Friday 25/07/2025.", "role": "system"},
         {
             "content": [
                 {"text": "Hello, what do you see on this picture?", "type": "text"},
@@ -454,6 +467,12 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
                     "math notation between `$$`, like `$$x^2 + y^2 = "
                     "z^2$$` or `$$C_l$$`. You can use Markdown to format "
                     "your answers. ",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": "Today is Friday 25/07/2025.",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -549,6 +568,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
             "You can use Markdown to format your answers. ",
             "role": "system",
         },
+        {"content": "Today is Friday 25/07/2025.", "role": "system"},
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
     ]
 
@@ -611,6 +631,12 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
                     "math notation between `$$`, like `$$x^2 + y^2 = "
                     "z^2$$` or `$$C_l$$`. You can use Markdown to format "
                     "your answers. ",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": "Today is Friday 25/07/2025.",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -732,6 +758,7 @@ def test_post_conversation_tool_call_fails(
             "You can use Markdown to format your answers. ",
             "role": "system",
         },
+        {"content": "Today is Friday 25/07/2025.", "role": "system"},
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
     ]
 
@@ -794,6 +821,12 @@ def test_post_conversation_tool_call_fails(
                     "math notation between `$$`, like `$$x^2 + y^2 = "
                     "z^2$$` or `$$C_l$$`. You can use Markdown to format "
                     "your answers. ",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": "Today is Friday 25/07/2025.",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
