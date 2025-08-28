@@ -17,7 +17,7 @@ from socket import gethostbyname, gethostname
 
 import posthog
 import sentry_sdk
-from configurations import Configuration, values
+from configurations import Configuration, pristinemethod, values
 from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import ignore_logger
 
@@ -179,6 +179,7 @@ class Base(Configuration):
         "django.middleware.common.CommonMiddleware",
         "django.middleware.csrf.CsrfViewMiddleware",
         "django.contrib.auth.middleware.AuthenticationMiddleware",
+        "posthog.integrations.django.PosthogContextMiddleware",
         "core.middleware.PostHogMiddleware",
         "django.contrib.messages.middleware.MessageMiddleware",
         "dockerflow.django.middleware.DockerflowMiddleware",
@@ -317,6 +318,9 @@ class Base(Configuration):
     # Posthog
     # Looks like "{'id': 'posthog_key', 'host': 'https://product.conversations.127.0.0.1.nip.io'}"
     POSTHOG_KEY = values.DictValue(None, environ_name="POSTHOG_KEY", environ_prefix=None)
+    POSTHOG_MW_CAPTURE_EXCEPTIONS = values.BooleanValue(
+        default=False, environ_name="POSTHOG_MW_CAPTURE_EXCEPTIONS", environ_prefix=None
+    )
 
     # Crisp
     CRISP_WEBSITE_ID = values.Value(None, environ_name="CRISP_WEBSITE_ID", environ_prefix=None)
@@ -771,6 +775,18 @@ USER QUESTION:
             )
 
         return features
+
+    @staticmethod
+    @pristinemethod
+    def POSTHOG_MW_REQUEST_FILTER(request):  # pylint: disable=invalid-name
+        """Return a function that filters requests to be sent to Posthog."""
+        return not request.path.startswith(
+            (
+                "/__heartbeat__",
+                "/__lbheartbeat__",
+                "/admin",
+            )
+        )
 
     @classmethod
     def post_setup(cls):
