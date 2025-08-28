@@ -17,7 +17,8 @@ from socket import gethostbyname, gethostname
 
 import posthog
 import sentry_sdk
-from configurations import Configuration, values
+from configurations import Configuration, pristinemethod, values
+from corsheaders.defaults import default_headers
 from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import ignore_logger
 
@@ -179,6 +180,7 @@ class Base(Configuration):
         "django.middleware.common.CommonMiddleware",
         "django.middleware.csrf.CsrfViewMiddleware",
         "django.contrib.auth.middleware.AuthenticationMiddleware",
+        "posthog.integrations.django.PosthogContextMiddleware",
         "core.middleware.PostHogMiddleware",
         "django.contrib.messages.middleware.MessageMiddleware",
         "dockerflow.django.middleware.DockerflowMiddleware",
@@ -289,6 +291,13 @@ class Base(Configuration):
     CORS_ALLOW_ALL_ORIGINS = values.BooleanValue(False)
     CORS_ALLOWED_ORIGINS = values.ListValue([])
     CORS_ALLOWED_ORIGIN_REGEXES = values.ListValue([])
+    CORS_ALLOW_HEADERS = values.ListValue(
+        [
+            "x-posthog-distinct-id",
+            "x-posthog-session-id",
+        ],
+        environ_name="CORS_ALLOW_HEADERS",
+    ) + list(default_headers)
 
     # Sentry
     SENTRY_DSN = values.Value(None, environ_name="SENTRY_DSN", environ_prefix=None)
@@ -317,6 +326,9 @@ class Base(Configuration):
     # Posthog
     # Looks like "{'id': 'posthog_key', 'host': 'https://product.conversations.127.0.0.1.nip.io'}"
     POSTHOG_KEY = values.DictValue(None, environ_name="POSTHOG_KEY", environ_prefix=None)
+    POSTHOG_MW_CAPTURE_EXCEPTIONS = values.BooleanValue(
+        default=False, environ_name="POSTHOG_MW_CAPTURE_EXCEPTIONS", environ_prefix=None
+    )
 
     # Crisp
     CRISP_WEBSITE_ID = values.Value(None, environ_name="CRISP_WEBSITE_ID", environ_prefix=None)
@@ -771,6 +783,26 @@ USER QUESTION:
             )
 
         return features
+
+    @pristinemethod
+    def POSTHOG_MW_REQUEST_FILTER(self, request):  # pylint: disable=bad-staticmethod-argument, invalid-name, unused-argument
+        """Return a function that filters requests to be sent to Posthog."""
+        return not request.path.startswith(
+            (
+                "/__heartbeat__",
+                "/__lbheartbeat__",
+                "/admin",
+            )
+        )
+
+    @pristinemethod
+    def POSTHOG_MW_EXTRA_TAGS(self, request):  # pylint: disable=bad-staticmethod-argument, invalid-name, unused-argument
+        """Return extra tags to be sent to Posthog."""
+        return {
+            "$host": request.get_host(),
+            "$environment": self.ENVIRONMENT,
+            "$release": self.RELEASE,
+        }
 
     @classmethod
     def post_setup(cls):
