@@ -9,6 +9,7 @@ User = get_user_model()
 
 try:
     import posthog
+    from posthog.contexts import get_tags
 except ImportError:
     posthog = None
 
@@ -36,7 +37,11 @@ def is_feature_enabled(
 
     # Then it's dynamic
     if posthog is not None:
-        return posthog.feature_enabled(frontend_feature_name(feature_name), user.email)
+        return posthog.feature_enabled(
+            frontend_feature_name(feature_name),
+            user.email,
+            person_properties={"$host": get_tags().get("$host")},
+        )
 
     # No feature flag manager
     logger.warning(

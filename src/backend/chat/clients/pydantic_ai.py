@@ -121,6 +121,10 @@ class AIAgentService:
         self.user = user  # authenticated user only
         self._last_stop_check = 0
 
+        # Feature flags
+        self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
+        self._is_web_search_enabled = is_feature_enabled(self.user, "web_search")
+
     @property
     def _stop_cache_key(self):
         return f"streaming:stop:{self.conversation.pk}"
@@ -205,9 +209,7 @@ class AIAgentService:
         Raises:
             ImproperlyConfigured: If the AI configuration is not set.
         """
-        if not any(
-            is_feature_enabled(self.user, feature) for feature in ["web_search", "document_upload"]
-        ):
+        if not any([self._is_web_search_enabled, self._is_document_upload_enabled]):
             logger.info(
                 "No web search or document upload features enabled, skipping intent detection.",
             )
@@ -247,12 +249,12 @@ class AIAgentService:
             result.output.web_search = False
             logger.info("Web search backend is disabled, skipping intent detection.")
 
-        if not is_feature_enabled(self.user, "document_upload"):
+        if not self._is_document_upload_enabled:
             # If document upload is not enabled, we can skip the attachment summary intent
             result.output.attachment_summary = False
             logger.info("Document upload feature is disabled, skipping attachment summary intent.")
 
-        if not is_feature_enabled(self.user, "web_search"):
+        if not self._is_web_search_enabled:
             # If web search is not enabled, we can skip the web search intent
             result.output.web_search = False
             logger.info("Web search feature is disabled, skipping web search intent.")
@@ -404,13 +406,11 @@ class AIAgentService:
         usage = {"promptTokens": 0, "completionTokens": 0}
 
         # Feature flag management
-        if force_web_search and not is_feature_enabled(self.user, "web_search"):
+        if force_web_search and not self._is_web_search_enabled:
             logger.warning("Web search feature is disabled, ignoring force_web_search.")
             force_web_search = False
 
-        if any([input_images, input_documents]) and not is_feature_enabled(
-            self.user, "document_upload"
-        ):
+        if any([input_images, input_documents]) and not self._is_document_upload_enabled:
             logger.warning("Document upload feature is disabled, ignoring input documents.")
             input_images = []
             input_documents = []
