@@ -42,16 +42,7 @@ export const ScrollDown: React.FC<ScrollDownProps> = ({
         z-index: 1000;
         opacity: ${isVisible ? '1' : '0'};
         transition: opacity 0.3s ease;
-        animation: fadeIn 0.3s ease;
-        
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
+        pointer-events: ${isVisible ? 'auto' : 'none'};
       `}
     >
       <Button

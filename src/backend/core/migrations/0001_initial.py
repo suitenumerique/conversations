@@ -117,9 +117,9 @@ class Migration(migrations.Migration):
                         choices=[
                             ("en-us", "English"),
                             ("fr-fr", "Français"),
-                            ("de-de", "Deutsch"),
-                            ("nl-nl", "Nederlands"),
-                            ("es-es", "Español"),
+                            # ("de-de", "Deutsch"),
+                            # ("nl-nl", "Nederlands"),
+                            # ("es-es", "Español"),
                         ],
                         default=None,
                         help_text="The language in which the user wants to see the interface.",

@@ -24,18 +24,7 @@ export const SourceItemList: React.FC<SourceItemListProps> = ({ parts }) => {
        margin-top: 0.5rem;
        overflow: hidden;
        opacity: 0;
-       animation: slideInFade 0.3s ease-out forwards;
-       
-       @keyframes slideInFade {
-         from {
-           opacity: 0;
-           height: 0;
-         }
-         to {
-           opacity: 1;
-           height: auto;
-         }
-       }
+      animation: fade-in 0.3s ease-out forwards;
      `}
     >
       {parts.map((part) => (

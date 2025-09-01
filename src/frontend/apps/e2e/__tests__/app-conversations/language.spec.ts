@@ -80,10 +80,10 @@ export const TestLanguage = {
     label: 'Français',
     expectedLocale: ['fr-fr'],
   },
-  German: {
-    label: 'Deutsch',
-    expectedLocale: ['de-de'],
-  },
+  // German: {
+  //   label: 'Deutsch',
+  //   expectedLocale: ['de-de'],
+  // },
 } as const;
 
 type TestLanguageKey = keyof typeof TestLanguage;

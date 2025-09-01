@@ -19,6 +19,7 @@ import { Box, Icon, Loader, Text } from '@/components';
 import { useChat } from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
 import { useCreateChatConversation } from '@/features/chat/api/useCreateConversation';
+import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
@@ -42,7 +43,7 @@ export const Chat = ({
 }) => {
   const { t } = useTranslation();
   const copyToClipboard = useClipboard();
-  const { isDesktop } = useResponsiveStore();
+  const { isMobile } = useResponsiveStore();
 
   const streamProtocol = 'data'; // or 'text'
   const [forceWebSearch, setForceWebSearch] = useState(false);
@@ -374,14 +375,7 @@ export const Chat = ({
           flex-basis: auto;
           height: 100%;
           flex-grow: 1;
-          @keyframes fadeIn {
-            from {
-              opacity: 0;
-            }
-            to {
-              opacity: 1;
-            }
-          }
+          animation: fade-in 0.3s ease-out forwards;
         `}
     >
       <Box
@@ -396,8 +390,8 @@ export const Chat = ({
           flex-grow: 1;
           position: relative;
           margin-bottom: 0;
-          height: ${messages.length > 1 ? 'calc(100vh - 62px)' : '0'}; 
-          max-height: ${messages.length > 1 ? 'calc(100vh - 62px)' : '0'}; 
+          height: ${messages.length > 0 ? 'calc(100vh - 62px)' : '0'}; 
+          max-height: ${messages.length > 0 ? 'calc(100vh - 62px)' : '0'}; 
         `}
       >
         {messages.length > 0 && (
@@ -407,7 +401,7 @@ export const Chat = ({
                 key={message.id}
                 data-message-id={message.id}
                 $css={`
-                display: flex;
+                  display: flex;
                   width: 100%;
                   margin: auto;
                   padding-left: 12px;
@@ -419,23 +413,45 @@ export const Chat = ({
                 <Box
                   $gap="2"
                   $radius="8px"
+                  $maxWidth="100%"
                   $padding={`${message.role === 'user' ? '12px' : '0'}`}
                   $margin={{ vertical: 'base' }}
                   $background={`${message.role === 'user' ? '#EEF1F4' : 'white'}`}
                 >
+                  {/* Message content */}
                   {message.content && (
-                    <Markdown
-                      remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={{
-                        // Custom components for Markdown rendering
-                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                        p: ({ node, ...props }) => <Text {...props} />,
-                      }}
+                    <Box
+                      $css={`
+                        opacity: 0;
+                        animation: fade-in 0.3s ease-in-out forwards;
+                      `}
                     >
-                      {message.content}
-                    </Markdown>
+                      <Markdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={{
+                          // Custom components for Markdown rendering
+                          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                          p: ({ node, ...props }) => <Text {...props} />,
+                        }}
+                      >
+                        {message.content}
+                      </Markdown>
+                    </Box>
                   )}
+
+                  {/* Attachments section */}
+                  {message.experimental_attachments &&
+                    message.experimental_attachments.length > 0 && (
+                      <Box>
+                        <AttachmentList
+                          attachments={message.experimental_attachments}
+                          isReadOnly={true}
+                        />
+                      </Box>
+                    )}
+
+                  {/* Reasoning and tool invocations */}
                   <Box $direction="column" $gap="2">
                     {message.parts
                       ?.filter(
@@ -461,25 +477,6 @@ export const Chat = ({
                           />
                         ) : null,
                       )}
-                    {/* Show attachments if present */}
-                    {message.experimental_attachments?.map(
-                      (attachment: Attachment, index: number) =>
-                        attachment.contentType?.includes('text/') ||
-                        attachment.contentType?.includes('image/') ? (
-                          <div
-                            key={`${message.id}-${index}`}
-                            style={{
-                              display: 'block',
-                              width: 'auto',
-                              fontSize: 12,
-                              borderRadius: 8,
-                              color: '#888',
-                            }}
-                          >
-                            {attachment.name}
-                          </div>
-                        ) : null,
-                    )}
                   </Box>
                   {message.role !== 'user' && (
                     <Box
@@ -522,7 +519,7 @@ export const Chat = ({
                           $variation="600"
                           $size="16px"
                         />
-                        {isDesktop && (
+                        {!isMobile && (
                           <Text $color="#626A80" $weight="500">
                             {t('Copy')}
                           </Text>
@@ -564,7 +561,7 @@ export const Chat = ({
                             $variation="600"
                             $size="16px"
                           />
-                          {isDesktop && (
+                          {!isMobile && (
                             <Text $color="#626A80" $weight="500">
                               {t('Show sources')}
                             </Text>
@@ -607,6 +604,7 @@ export const Chat = ({
           position: relative;
           bottom: 20px;
           margin: auto;
+          z-index: 1000;
         `}
         $gap="6px"
         $height="auto"
