@@ -98,3 +98,13 @@ ul a {
 ul a:hover {
   color: var(--c--theme--colors--primary-800);
 }
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

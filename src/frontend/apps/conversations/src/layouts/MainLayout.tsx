@@ -4,7 +4,6 @@ import { css } from 'styled-components';
 import { Box } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { Header } from '@/features/header';
-import { HEADER_HEIGHT } from '@/features/header/conf';
 import { LeftPanel } from '@/features/left-panel';
 import { useLeftPanelStore } from '@/features/left-panel/stores';
 import { MAIN_LAYOUT_ID } from '@/layouts/conf';
@@ -21,6 +20,8 @@ export function MainLayout({
   const { isDesktop } = useResponsiveStore();
   const { colorsTokens } = useCunninghamTheme();
   const { togglePanel: _togglePanel, isPanelOpen } = useLeftPanelStore();
+
+  const HEADER_HEIGHT = `${isDesktop ? '65' : '52'}`;
 
   return (
     <Box className="--docs--main-layout">

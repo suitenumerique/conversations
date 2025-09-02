@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- ✨(front) global layout UI
+- 🎨(front) global layout modification
 
 ### Changed
 
+- ✨(front) global layout UI
 - ♻️(chat) rewrite backend using Pydantic AI SDK #4
 - 🗃️(chat) enforce messages stored JSON format #6
 - 🐛(chat) UI messages must have a unique identifier #6
