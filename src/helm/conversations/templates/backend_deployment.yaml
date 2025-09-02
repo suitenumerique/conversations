@@ -95,6 +95,11 @@ spec:
               mountPath: {{ .Values.backend.themeCustomization.mount_path }}
               readOnly: true
             {{- end }}
+            {{- if .Values.backend.llmConfiguration.enabled }}
+            - name: llm-configuration
+              mountPath: {{ .Values.backend.llmConfiguration.mount_path }}
+              readOnly: true
+            {{- end }}
       {{- with .Values.backend.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -126,6 +131,11 @@ spec:
         - name: theme-customization
           configMap:
             name: conversations-theme-customization
+        {{- end }}
+        {{- if .Values.backend.llmConfiguration.enabled }}
+        - name: llm-configuration
+          configMap:
+            name: conversations-llm-configuration
         {{- end }}
         {{- range .Values.backend.extraVolumes }}
         - name: {{ .name }}

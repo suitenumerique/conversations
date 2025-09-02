@@ -235,6 +235,14 @@ backend:
     file_content: ""
     mount_path: /app/conversations/configuration/theme
 
+  ## @param backend.llmConfiguration.enabled Enable LLM configuration from JSON file
+  ## @param backend.llmConfiguration.file_content Content of the LLM configuration file. Must be a json object.
+  ## @param backend.llmConfiguration.mount_path Path where the LLM configuration file will be mounted in the backend deployment.
+  llmConfiguration:
+    enabled: false
+    file_content: ""
+    mount_path: /app/conversations/configuration/llm
+
 ## @section frontend
 
 frontend:

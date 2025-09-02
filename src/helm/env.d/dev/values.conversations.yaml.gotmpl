@@ -100,6 +100,10 @@ backend:
     enabled: true
     file_content: {{ readFile "./configuration/theme/demo.json" }}
 
+  llmConfiguration:
+    enabled: true
+    file_content: {{ readFile "./configuration/llm/demo.json" }}
+
   # Extra volume mounts to manage our local custom CA and avoid to set ssl_verify: false
   extraVolumeMounts:
     - name: certs
