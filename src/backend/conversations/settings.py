@@ -15,6 +15,8 @@ import os
 import tomllib
 from socket import gethostbyname, gethostname
 
+from django.utils.functional import lazy
+
 import posthog
 import sentry_sdk
 from configurations import Configuration, pristinemethod, values
@@ -23,6 +25,8 @@ from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import ignore_logger
 
 from core.feature_flags.flags import FeatureFlags, FeatureToggle
+
+from chat.llm_configuration import cached_load_llm_configuration, load_llm_configuration
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -455,14 +459,23 @@ class Base(Configuration):
     )
 
     # AI service
+    _llm_configuration_file_path = values.Value(
+        os.path.join(BASE_DIR, "conversations/configuration/llm/default.json"),
+        environ_name="LLM_CONFIGURATION_FILE_PATH",
+        environ_prefix=None,
+    )
+    LLM_DEFAULT_MODEL_HRID = values.Value(
+        "default-model", environ_name="LLM_DEFAULT_MODEL_HRID", environ_prefix=None
+    )
+    LLM_ROUTING_MODEL_HRID = values.Value(
+        "default-routing-model", environ_name="LLM_ROUTING_MODEL_HRID", environ_prefix=None
+    )
+
+    # These settings are default values used in the default LLM_CONFIGURATIONS
+    # They allow a deployment with only one model without a specific configuration file
     AI_API_KEY = values.Value(None, environ_name="AI_API_KEY", environ_prefix=None)
     AI_BASE_URL = values.Value(None, environ_name="AI_BASE_URL", environ_prefix=None)
     AI_MODEL = values.Value(None, environ_name="AI_MODEL", environ_prefix=None)
-    AI_AGENT_NAME = values.Value(
-        "Conversations Assistant",
-        environ_name="AI_AGENT_NAME",
-        environ_prefix=None,
-    )
     AI_AGENT_INSTRUCTIONS = values.Value(
         (
             "You are a helpful assistant. "
@@ -784,6 +797,15 @@ USER QUESTION:
 
         return features
 
+    @property
+    def LLM_CONFIGURATIONS(self):
+        """
+        Return the LLM configuration loaded from the configuration file.
+
+        The configuration is lazy loaded to allow settings access and settings update in tests.
+        """
+        return lazy(load_llm_configuration, dict)(self._llm_configuration_file_path)
+
     @pristinemethod
     def POSTHOG_MW_REQUEST_FILTER(self, request):  # pylint: disable=bad-staticmethod-argument, invalid-name, unused-argument
         """Return a function that filters requests to be sent to Posthog."""
@@ -1017,6 +1039,15 @@ class Production(Base):
             ),
         },
     }
+
+    @property
+    def LLM_CONFIGURATIONS(self):
+        """
+        Return the LLM configuration loaded from the configuration file.
+
+        The configuration is lazy loaded to allow settings access and cached to reduce footprint.
+        """
+        return lazy(cached_load_llm_configuration, dict)(self._llm_configuration_file_path)
 
 
 class Feature(Production):

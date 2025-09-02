@@ -1,7 +1,6 @@
 """Test cases for the _build_pydantic_agent function in the chat.clients.pydantic_ai module."""
 
 # pylint:disable=protected-access
-from django.core.exceptions import ImproperlyConfigured
 
 import pytest
 from freezegun import freeze_time
@@ -19,6 +18,11 @@ def base_settings(settings):
     settings.AI_MODEL = "model-123"
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
     settings.AI_AGENT_TOOLS = []
+
+    # Unused settings but required for initialization
+    settings.AI_ROUTING_MODEL = ""
+    settings.AI_ROUTING_MODEL_BASE_URL = ""
+    settings.AI_ROUTING_MODEL_API_KEY = ""
 
 
 def test_build_pydantic_agent_success_no_tools():
@@ -49,30 +53,6 @@ def test_build_pydantic_agent_with_tools(settings):
     assert str(agent.model.client.base_url) == "https://api.llm.com/v1/"
     assert agent.model.client.api_key == "test-key"
     assert list(agent._function_toolset.tools.keys()) == ["get_current_weather"]
-
-
-def test_build_pydantic_agent_missing_base_url(settings):
-    """Test agent creation fails with missing base URL."""
-    settings.AI_BASE_URL = None
-
-    with pytest.raises(ImproperlyConfigured, match="AIChatService configuration not set"):
-        _build_pydantic_agent([])
-
-
-def test_build_pydantic_agent_missing_api_key(settings):
-    """Test agent creation fails with missing API key."""
-    settings.AI_API_KEY = None
-
-    with pytest.raises(ImproperlyConfigured, match="AIChatService configuration not set"):
-        _build_pydantic_agent([])
-
-
-def test_build_pydantic_agent_missing_model(settings):
-    """Test agent creation fails with missing model."""
-    settings.AI_MODEL = None
-
-    with pytest.raises(ImproperlyConfigured, match="AIChatService configuration not set"):
-        _build_pydantic_agent([])
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")

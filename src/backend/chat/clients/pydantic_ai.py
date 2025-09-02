@@ -67,23 +67,38 @@ from chat.tools import get_pydantic_tools_by_name
 logger = logging.getLogger(__name__)
 
 
-def _build_pydantic_agent(mcp_servers) -> Agent[None, str]:
-    """Create a Pydantic AI Agent instance with the configured settings."""
-    if settings.AI_BASE_URL is None or settings.AI_API_KEY is None or settings.AI_MODEL is None:
-        raise ImproperlyConfigured("AIChatService configuration not set")
+def _get_pydantic_agent(model_hrid, mcp_servers=None, **kwargs) -> Agent:
+    """Get the PydanticAI Agent instance with the configured settings."""
+    try:
+        _model = settings.LLM_CONFIGURATIONS[model_hrid]
+    except KeyError as exc:
+        raise ImproperlyConfigured(f"LLM model configuration '{model_hrid}' not found.") from exc
 
-    agent = Agent(
-        model=OpenAIModel(
-            model_name=settings.AI_MODEL,
-            provider=OpenAIProvider(
-                base_url=settings.AI_BASE_URL,
-                api_key=settings.AI_API_KEY,
-            ),
-        ),
-        system_prompt=settings.AI_AGENT_INSTRUCTIONS,
-        mcp_servers=mcp_servers,
-        tools=[get_pydantic_tools_by_name(tool_name) for tool_name in settings.AI_AGENT_TOOLS],
+    _model_instance = OpenAIModel(
+        model_name=_model.model_name,
+        provider=OpenAIProvider(
+            base_url=_model.provider.base_url,
+            api_key=_model.provider.api_key,
+        )
+        if _model.provider
+        else None,
     )
+    _system_prompt = _model.system_prompt
+    _tools = [get_pydantic_tools_by_name(tool_name) for tool_name in _model.tools]
+
+    return Agent(
+        model=_model_instance,
+        system_prompt=_system_prompt,
+        mcp_servers=mcp_servers or [],
+        tools=_tools,
+        **kwargs,
+    )
+
+
+def _build_pydantic_agent(mcp_servers, model_hrid=None) -> Agent[None, str]:
+    """Create a Pydantic AI Agent instance with the configured settings."""
+    model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID
+    agent = _get_pydantic_agent(model_hrid, mcp_servers)
 
     @agent.system_prompt
     def add_the_date() -> str:
@@ -95,6 +110,36 @@ def _build_pydantic_agent(mcp_servers) -> Agent[None, str]:
         """
         _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
         return f"Today is {_formatted_date}."
+
+    return agent
+
+
+def _build_routing_agent(model_hrid=None) -> Agent[None, str] | None:
+    """
+    Create a Pydantic AI routing Agent instance with the configured settings.
+
+    This agent is used to detect the user intent from the user prompt.
+
+    Args:
+        model_hrid (str | None): The HRID of the routing model to use.
+            If None, the default routing model from settings will be used.
+    Returns:
+        Agent | None: The Pydantic AI Agent instance or None if not configured.
+    Raises:
+        ImproperlyConfigured: If the routing model configuration is invalid.
+    """
+    model_hrid = model_hrid or settings.LLM_ROUTING_MODEL_HRID
+
+    try:
+        agent = _get_pydantic_agent(model_hrid, output_type=NativeOutput([UserIntent]))
+    except ImproperlyConfigured:
+        logger.info("AI routing model does not exist -> disabled")
+        return None
+
+    # Simple detection of configuration not set
+    if not agent.model.model_name:
+        logger.info("AI routing model configuration not set -> disabled")
+        return None
 
     return agent
 
@@ -215,30 +260,9 @@ class AIAgentService:
             )
             return UserIntent()
 
-        if missing_settings := [
-            setting
-            for setting in (
-                settings.AI_ROUTING_MODEL,
-                settings.AI_ROUTING_MODEL_BASE_URL,
-                settings.AI_ROUTING_MODEL_API_KEY,
-                settings.AI_ROUTING_SYSTEM_PROMPT,
-            )
-            if not setting  # ie if setting is None or setting == ""
-        ]:
-            logger.error("AI routing model configuration not set: %s", missing_settings)
+        agent = _build_routing_agent()
+        if not agent:
             return UserIntent()
-
-        agent = Agent(
-            model=OpenAIModel(
-                model_name=settings.AI_ROUTING_MODEL,
-                provider=OpenAIProvider(
-                    base_url=settings.AI_ROUTING_MODEL_BASE_URL,
-                    api_key=settings.AI_ROUTING_MODEL_API_KEY,
-                ),
-            ),
-            system_prompt=settings.AI_ROUTING_SYSTEM_PROMPT,
-            output_type=NativeOutput([UserIntent]),
-        )
 
         result = await agent.run(user_prompt)
         logger.debug("Detected user intent: %s", result)
