@@ -1,6 +1,9 @@
 """Serializers for chat application."""
 
+from django.conf import settings
+
 from django_pydantic_field.rest_framework import SchemaField  # pylint: disable=no-name-in-module
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from chat import models
@@ -71,3 +74,33 @@ class ChatConversationRequestSerializer(serializers.Serializer):
         if value not in ["text", "data"]:
             raise serializers.ValidationError("Protocol must be either 'text' or 'data'.")
         return value
+
+
+class LLModelSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for LL models."""
+
+    hrid = serializers.CharField(help_text="Human-readable ID of the model.")
+    model_name = serializers.CharField(help_text="Name of the model.")
+    human_readable_name = serializers.CharField(help_text="Human-readable name of the model.")
+    icon = serializers.CharField(
+        help_text="Icon representing the model.",
+        allow_blank=True,
+        required=False,
+    )
+
+    # Computed field to indicate if the model is the default model
+    is_default = serializers.SerializerMethodField(
+        help_text="Indicates if the model is the default model.",
+    )
+
+    @staticmethod
+    @extend_schema_field(serializers.BooleanField)
+    def get_is_default(obj) -> bool:
+        """Check if the model is the default model."""
+        return obj.hrid == settings.LLM_DEFAULT_MODEL_HRID
+
+
+class LLMConfigurationSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for LLM configuration."""
+
+    models = LLModelSerializer(many=True)

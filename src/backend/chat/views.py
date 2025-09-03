@@ -7,6 +7,7 @@ from django.http import StreamingHttpResponse
 
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from core.api.viewsets import Pagination, SerializerPerActionMixin
 from core.filters import remove_accents
@@ -162,3 +163,27 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
         AIAgentService(conversation=conversation, user=self.request.user).stop_streaming()
 
         return Response({"status": "OK"}, status=status.HTTP_200_OK)
+
+
+class LLMConfigurationView(APIView):
+    """View for listing available LLM models."""
+
+    permission_classes = [
+        permissions.IsAuthenticated,
+    ]
+
+    def get(self, request):
+        """Handle GET requests to list available LLM models.
+
+        For now the results are not filtered by user, but in the future we will want to
+        filter the models based on user.
+
+        Returns:
+            Response: A response containing the list of available LLM models.
+        """
+        serializer = serializers.LLMConfigurationSerializer(
+            {
+                "models": settings.LLM_CONFIGURATIONS.values(),
+            },
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
