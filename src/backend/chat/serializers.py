@@ -60,6 +60,13 @@ class ChatConversationRequestSerializer(serializers.Serializer):
         default=False,
         help_text="Force web search.",
     )
+    model_hrid = serializers.CharField(
+        required=False,
+        default=None,
+        help_text="HRID of the model to use for the conversation.",
+        allow_blank=True,
+        trim_whitespace=True,
+    )
 
     def update(self, instance, validated_data):
         """Update method is not applicable in this context."""
@@ -73,6 +80,15 @@ class ChatConversationRequestSerializer(serializers.Serializer):
         """Validate the protocol field."""
         if value not in ["text", "data"]:
             raise serializers.ValidationError("Protocol must be either 'text' or 'data'.")
+        return value
+
+    def validate_model_hrid(self, value):
+        """Validate the model_hrid field."""
+        value = value or None  # Convert empty string to None
+
+        if value and value not in settings.LLM_CONFIGURATIONS:
+            raise serializers.ValidationError("Invalid model_hrid.")
+
         return value
 
 

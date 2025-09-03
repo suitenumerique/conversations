@@ -154,7 +154,7 @@ class UserIntent(BaseModel):
 class AIAgentService:
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
-    def __init__(self, conversation, user):
+    def __init__(self, conversation, user, model_hrid=None):
         """
         Initialize the AI agent service.
 
@@ -164,6 +164,7 @@ class AIAgentService:
         """
         self.conversation = conversation
         self.user = user  # authenticated user only
+        self.model_hrid = model_hrid  # HRID of the model to use, might be None
         self._last_stop_check = 0
 
         # Feature flags
@@ -531,7 +532,7 @@ class AIAgentService:
             # MCP servers (if any) can be initialized here
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
 
-            async with _build_pydantic_agent(mcp_servers).iter(
+            async with _build_pydantic_agent(mcp_servers, model_hrid=self.model_hrid).iter(
                 [user_prompt] + input_images,
                 message_history=history,
             ) as run:
