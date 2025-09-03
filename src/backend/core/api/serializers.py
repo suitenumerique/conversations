@@ -10,7 +10,14 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.User
-        fields = ["id", "email", "full_name", "short_name", "language"]
+        fields = [
+            "id",
+            "allow_conversation_analytics",
+            "email",
+            "full_name",
+            "short_name",
+            "language",
+        ]
         read_only_fields = ["id", "email", "full_name", "short_name"]
 
 

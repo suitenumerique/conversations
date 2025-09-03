@@ -156,6 +156,13 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         ),
     )
 
+    # Application specific fields
+    allow_conversation_analytics = models.BooleanField(
+        _("allow conversation analytics"),
+        default=False,
+        help_text=_("Whether the user allows to use their conversations for analytics."),
+    )
+
     objects = UserManager()
 
     USERNAME_FIELD = "admin_email"

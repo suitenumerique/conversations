@@ -224,6 +224,7 @@ def test_api_users_retrieve_me_authenticated():
     assert response.status_code == 200
     assert response.json() == {
         "id": str(user.id),
+        "allow_conversation_analytics": user.allow_conversation_analytics,
         "email": user.email,
         "full_name": user.full_name,
         "language": user.language,
@@ -335,8 +336,8 @@ def test_api_users_update_anonymous():
 
 def test_api_users_update_authenticated_self():
     """
-    Authenticated users should be able to update their own user but only "language"
-    and "timezone" fields.
+    Authenticated users should be able to update their own user but only "language",
+    "allow_conversation_analytics" and "timezone" fields.
     """
     user = factories.UserFactory()
 
@@ -344,7 +345,13 @@ def test_api_users_update_authenticated_self():
     client.force_login(user)
 
     old_user_values = dict(serializers.UserSerializer(instance=user).data)
-    new_user_values = dict(serializers.UserSerializer(instance=factories.UserFactory()).data)
+    new_user_values = dict(
+        serializers.UserSerializer(
+            instance=factories.UserFactory(
+                allow_conversation_analytics=not user.allow_conversation_analytics,
+            )
+        ).data
+    )
 
     response = client.put(
         f"/api/v1.0/users/{user.id!s}/",
@@ -356,7 +363,7 @@ def test_api_users_update_authenticated_self():
     user.refresh_from_db()
     user_values = dict(serializers.UserSerializer(instance=user).data)
     for key, value in user_values.items():
-        if key in ["language", "timezone"]:
+        if key in ["allow_conversation_analytics", "language", "timezone"]:
             assert value == new_user_values[key]
         else:
             assert value == old_user_values[key]
@@ -410,8 +417,8 @@ def test_api_users_patch_anonymous():
 
 def test_api_users_patch_authenticated_self():
     """
-    Authenticated users should be able to patch their own user but only "language"
-    and "timezone" fields.
+    Authenticated users should be able to patch their own user but only "language",
+    "allow_conversation_analytics" and "timezone" fields.
     """
     user = factories.UserFactory()
 
@@ -419,7 +426,13 @@ def test_api_users_patch_authenticated_self():
     client.force_login(user)
 
     old_user_values = dict(serializers.UserSerializer(instance=user).data)
-    new_user_values = dict(serializers.UserSerializer(instance=factories.UserFactory()).data)
+    new_user_values = dict(
+        serializers.UserSerializer(
+            instance=factories.UserFactory(
+                allow_conversation_analytics=not user.allow_conversation_analytics,
+            )
+        ).data
+    )
 
     for key, new_value in new_user_values.items():
         response = client.patch(
@@ -432,7 +445,7 @@ def test_api_users_patch_authenticated_self():
     user.refresh_from_db()
     user_values = dict(serializers.UserSerializer(instance=user).data)
     for key, value in user_values.items():
-        if key in ["language", "timezone"]:
+        if key in ["allow_conversation_analytics", "language", "timezone"]:
             assert value == new_user_values[key]
         else:
             assert value == old_user_values[key]
