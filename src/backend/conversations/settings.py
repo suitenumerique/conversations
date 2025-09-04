@@ -722,18 +722,6 @@ USER QUESTION:
         environ_prefix=None,
     )
 
-    # ML Flow
-    ML_FLOW_TRACKING_URI = values.Value(
-        None,
-        environ_name="ML_FLOW_TRACKING_URI",
-        environ_prefix=None,
-    )
-    ML_FLOW_EXPERIMENT_NAME = values.Value(
-        "conversations-openai-tracing",
-        environ_name="ML_FLOW_EXPERIMENT_NAME",
-        environ_prefix=None,
-    )
-
     # pylint: disable=invalid-name
     @property
     def ENVIRONMENT(self):
