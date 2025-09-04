@@ -6,5 +6,5 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   default.json: |
-    {{ .Values.backend.themeCustomization.file_content | toJson | indent 4 }}
+    {{ .Values.backend.llmConfiguration.file_content | toJson | indent 4 }}
 {{- end }}
