@@ -47,6 +47,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
+from core.enums import get_language_name
 from core.feature_flags.helpers import is_feature_enabled
 
 from chat.agent_rag.document_search.albert_api import AlbertRagDocumentSearch
@@ -95,7 +96,7 @@ def _get_pydantic_agent(model_hrid, mcp_servers=None, **kwargs) -> Agent:
     )
 
 
-def _build_pydantic_agent(mcp_servers, model_hrid=None) -> Agent[None, str]:
+def _build_pydantic_agent(mcp_servers, model_hrid=None, language=None) -> Agent[None, str]:
     """Create a Pydantic AI Agent instance with the configured settings."""
     model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID
     agent = _get_pydantic_agent(model_hrid, mcp_servers)
@@ -110,6 +111,11 @@ def _build_pydantic_agent(mcp_servers, model_hrid=None) -> Agent[None, str]:
         """
         _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
         return f"Today is {_formatted_date}."
+
+    @agent.system_prompt
+    def enforce_response_language() -> str:
+        """Dynamic system prompt function to set the expected language to use."""
+        return f"Answer in {get_language_name(language).lower()}." if language else ""
 
     return agent
 
@@ -154,7 +160,7 @@ class UserIntent(BaseModel):
 class AIAgentService:
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
-    def __init__(self, conversation, user, model_hrid=None):
+    def __init__(self, conversation, user, model_hrid=None, language=None):
         """
         Initialize the AI agent service.
 
@@ -165,6 +171,7 @@ class AIAgentService:
         self.conversation = conversation
         self.user = user  # authenticated user only
         self.model_hrid = model_hrid  # HRID of the model to use, might be None
+        self.language = language  # might be None
         self._last_stop_check = 0
 
         # Feature flags
@@ -532,7 +539,9 @@ class AIAgentService:
             # MCP servers (if any) can be initialized here
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
 
-            async with _build_pydantic_agent(mcp_servers, model_hrid=self.model_hrid).iter(
+            async with _build_pydantic_agent(
+                mcp_servers, model_hrid=self.model_hrid, language=self.language
+            ).iter(
                 [user_prompt] + input_images,
                 message_history=history,
             ) as run:

@@ -56,10 +56,20 @@ def test_build_pydantic_agent_with_tools(settings):
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
-def test_add_the_date_system_prompt():
-    """Ensure add_the_date system prompt is registered and returns the formatted date string."""
+def test_add_dynamic_system_prompt():
+    """
+    Ensure add_the_date and enforce_response_language system prompt are registered
+    and returns proper values.
+    """
     agent = _build_pydantic_agent([])
 
-    assert len(agent._system_prompt_functions) == 1
+    assert len(agent._system_prompt_functions) == 2
+
     assert agent._system_prompt_functions[0].function.__name__ == "add_the_date"
     assert agent._system_prompt_functions[0].function() == "Today is Friday 25/07/2025."
+
+    assert agent._system_prompt_functions[1].function.__name__ == "enforce_response_language"
+    assert agent._system_prompt_functions[1].function() == ""
+
+    agent = _build_pydantic_agent([], language="fr-fr")
+    assert agent._system_prompt_functions[1].function() == "Answer in french."

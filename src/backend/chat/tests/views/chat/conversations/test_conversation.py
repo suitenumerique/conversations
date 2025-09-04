@@ -98,7 +98,7 @@ def test_post_conversation_invalid_protocol(api_client):
 @respx.mock
 def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uuid4):
     """Test posting messages to a conversation using the 'data' protocol."""
-    chat_conversation = ChatConversationFactory()
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
 
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
     data = {
@@ -189,6 +189,12 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
                 {
+                    "content": "Answer in english.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
                     "content": ["Hello"],
                     "part_kind": "user-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -217,7 +223,7 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
 @respx.mock
 def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uuid4):
     """Test posting messages to a conversation using the 'text' protocol."""
-    chat_conversation = ChatConversationFactory()
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
 
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=text"
     data = {
@@ -302,6 +308,12 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uu
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
                 {
+                    "content": "Answer in english.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
                     "content": ["Hello"],
                     "part_kind": "user-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -330,7 +342,7 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uu
 @respx.mock
 def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock_uuid4):
     """Ensure an image URL is correctly forwarded to the AI service."""
-    chat_conversation = ChatConversationFactory()
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
 
     data = {
@@ -386,6 +398,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
             "role": "system",
         },
         {"content": "Today is Friday 25/07/2025.", "role": "system"},
+        {"content": "Answer in english.", "role": "system"},
         {
             "content": [
                 {"text": "Hello, what do you see on this picture?", "type": "text"},
@@ -486,6 +499,12 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
                 {
+                    "content": "Answer in english.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
                     "content": [
                         "Hello, what do you see on this picture?",
                         {
@@ -528,7 +547,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
     """Ensure tool calls are correctly forwarded and streamed back."""
     settings.AI_AGENT_TOOLS = ["get_current_weather"]
 
-    chat_conversation = ChatConversationFactory()
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
 
     data = {
@@ -577,6 +596,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
             "role": "system",
         },
         {"content": "Today is Friday 25/07/2025.", "role": "system"},
+        {"content": "Answer in english.", "role": "system"},
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
     ]
 
@@ -650,6 +670,12 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
                 {
+                    "content": "Answer in english.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
                     "content": ["Weather in Paris?"],
                     "part_kind": "user-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -718,7 +744,7 @@ def test_post_conversation_tool_call_fails(
     """Ensure tool calls are correctly forwarded and streamed back when failing."""
     settings.AI_AGENT_TOOLS = []
 
-    chat_conversation = ChatConversationFactory()
+    chat_conversation = ChatConversationFactory(owner__language="fr-fr")
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
 
     data = {
@@ -767,6 +793,7 @@ def test_post_conversation_tool_call_fails(
             "role": "system",
         },
         {"content": "Today is Friday 25/07/2025.", "role": "system"},
+        {"content": "Answer in french.", "role": "system"},
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
     ]
 
@@ -835,6 +862,12 @@ def test_post_conversation_tool_call_fails(
                 },
                 {
                     "content": "Today is Friday 25/07/2025.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": "Answer in french.",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",

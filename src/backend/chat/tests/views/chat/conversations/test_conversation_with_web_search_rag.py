@@ -247,7 +247,7 @@ def test_conversation_with_forced_web_search_no_history(
     force_web_search,
 ):
     """Test conversation with forced web search and no message history."""
-    chat_conversation = ChatConversationFactory()
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
 
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
     if force_web_search:
@@ -371,7 +371,7 @@ def test_conversation_with_forced_web_search_no_history(
     ]
 
     _user_request_parts = chat_conversation.pydantic_messages[0].pop("parts")
-    assert len(_user_request_parts) == 3
+    assert len(_user_request_parts) == 4
 
     assert _user_request_parts.pop(0) == {
         "content": "You are a helpful assistant. Escape formulas or any "
@@ -385,6 +385,13 @@ def test_conversation_with_forced_web_search_no_history(
 
     assert _user_request_parts.pop(0) == {
         "content": "Today is Friday 25/07/2025.",
+        "dynamic_ref": None,
+        "part_kind": "system-prompt",
+        "timestamp": "2025-07-25T10:36:35.297675Z",
+    }
+
+    assert _user_request_parts.pop(0) == {
+        "content": "Answer in english.",
         "dynamic_ref": None,
         "part_kind": "system-prompt",
         "timestamp": "2025-07-25T10:36:35.297675Z",

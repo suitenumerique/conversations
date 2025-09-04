@@ -27,6 +27,7 @@ and this project adheres to
 - 🐛(agent) add the current date in the system prompt #18
 - ✨(backend) add feature flags from posthog #13
 - ✨(user) allow to use conversation data for analytics #23
+- ✨(chat) enforce response in user language #24
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main

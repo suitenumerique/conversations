@@ -118,6 +118,10 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
             conversation=conversation,
             user=self.request.user,
             model_hrid=model_hrid,
+            language=(
+                self.request.user.language
+                or self.request.LANGUAGE_CODE  # from the LocaleMiddleware
+            ),
         )
         if protocol == "data":
             streaming_content = ai_service.stream_data(messages, force_web_search=force_web_search)
@@ -169,6 +173,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
             conversation=conversation,
             user=self.request.user,
             model_hrid=None,  # model_hrid is not needed to stop streaming
+            language=None,  # language is not needed to stop streaming
         ).stop_streaming()
 
         return Response({"status": "OK"}, status=status.HTTP_200_OK)
