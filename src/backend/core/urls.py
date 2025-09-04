@@ -8,7 +8,7 @@ from rest_framework.routers import DefaultRouter
 
 from core.api import viewsets
 
-from chat.views import ChatViewSet
+from chat.views import ChatViewSet, LLMConfigurationView
 
 # - Main endpoints
 router = DefaultRouter()
@@ -22,6 +22,9 @@ urlpatterns = [
             [
                 *router.urls,
                 *oidc_urls,
+                path(
+                    "llm-configuration/", LLMConfigurationView.as_view(), name="llm-configuration"
+                ),
             ]
         ),
     ),

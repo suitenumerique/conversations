@@ -22,3 +22,16 @@ MEDIA_STORAGE_URL_EXTRACT = re.compile(
 # active in the app.
 # pylint: disable=no-member
 ALL_LANGUAGES = {language: _(name) for language, name in global_settings.LANGUAGES}
+
+
+def get_language_name(language_code):
+    """Get the language name from the language code.
+
+    Args:
+        language_code (str): The language code.
+
+    Returns:
+        str: The language name.
+    """
+    _language_code = language_code.lower()
+    return ALL_LANGUAGES.get(_language_code, ALL_LANGUAGES.get(_language_code[:2], _language_code))

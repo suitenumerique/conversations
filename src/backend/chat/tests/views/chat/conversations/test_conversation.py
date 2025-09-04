@@ -22,6 +22,7 @@ from chat.ai_sdk_types import (
     UIMessage,
 )
 from chat.factories import ChatConversationFactory
+from chat.llm_configuration import LLModel, LLMProvider
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -38,6 +39,11 @@ def ai_settings(settings):
 
     # Disable web search backend for tests
     settings.RAG_WEB_SEARCH_BACKEND = None
+
+    # Unused settings but required for initialization
+    settings.AI_ROUTING_MODEL = ""
+    settings.AI_ROUTING_MODEL_BASE_URL = ""
+    settings.AI_ROUTING_MODEL_API_KEY = ""
 
     return settings
 
@@ -92,7 +98,7 @@ def test_post_conversation_invalid_protocol(api_client):
 @respx.mock
 def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uuid4):
     """Test posting messages to a conversation using the 'data' protocol."""
-    chat_conversation = ChatConversationFactory()
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
 
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
     data = {
@@ -183,6 +189,12 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
                 {
+                    "content": "Answer in english.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
                     "content": ["Hello"],
                     "part_kind": "user-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -211,7 +223,7 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
 @respx.mock
 def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uuid4):
     """Test posting messages to a conversation using the 'text' protocol."""
-    chat_conversation = ChatConversationFactory()
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
 
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=text"
     data = {
@@ -296,6 +308,12 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uu
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
                 {
+                    "content": "Answer in english.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
                     "content": ["Hello"],
                     "part_kind": "user-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -324,7 +342,7 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uu
 @respx.mock
 def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock_uuid4):
     """Ensure an image URL is correctly forwarded to the AI service."""
-    chat_conversation = ChatConversationFactory()
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
 
     data = {
@@ -380,6 +398,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
             "role": "system",
         },
         {"content": "Today is Friday 25/07/2025.", "role": "system"},
+        {"content": "Answer in english.", "role": "system"},
         {
             "content": [
                 {"text": "Hello, what do you see on this picture?", "type": "text"},
@@ -480,6 +499,12 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
                 {
+                    "content": "Answer in english.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
                     "content": [
                         "Hello, what do you see on this picture?",
                         {
@@ -522,7 +547,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
     """Ensure tool calls are correctly forwarded and streamed back."""
     settings.AI_AGENT_TOOLS = ["get_current_weather"]
 
-    chat_conversation = ChatConversationFactory()
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
 
     data = {
@@ -571,6 +596,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
             "role": "system",
         },
         {"content": "Today is Friday 25/07/2025.", "role": "system"},
+        {"content": "Answer in english.", "role": "system"},
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
     ]
 
@@ -644,6 +670,12 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
                 {
+                    "content": "Answer in english.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
                     "content": ["Weather in Paris?"],
                     "part_kind": "user-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -712,7 +744,7 @@ def test_post_conversation_tool_call_fails(
     """Ensure tool calls are correctly forwarded and streamed back when failing."""
     settings.AI_AGENT_TOOLS = []
 
-    chat_conversation = ChatConversationFactory()
+    chat_conversation = ChatConversationFactory(owner__language="fr-fr")
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
 
     data = {
@@ -761,6 +793,7 @@ def test_post_conversation_tool_call_fails(
             "role": "system",
         },
         {"content": "Today is Friday 25/07/2025.", "role": "system"},
+        {"content": "Answer in french.", "role": "system"},
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
     ]
 
@@ -829,6 +862,12 @@ def test_post_conversation_tool_call_fails(
                 },
                 {
                     "content": "Today is Friday 25/07/2025.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": "Answer in french.",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -944,3 +983,81 @@ def test_post_conversation_data_protocol_feature_disabled(
         in caplog.text
     )
     assert "User intent detected: {'web_search': False, 'attachment_summary': False}" in caplog.text
+
+
+def test_post_conversation_model_selection_invalid(api_client):
+    """Test the user cannot select a different model if it does not exist."""
+    chat_conversation = ChatConversationFactory()
+
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data&model_hrid=plop"
+    data = {
+        "messages": [
+            {
+                "id": "yuPoOuBkKA4FnKvk",
+                "role": "user",
+                "parts": [{"text": "Hello", "type": "text"}],
+                "content": "Hello",
+                "createdAt": "2025-07-03T15:22:17.105Z",
+            }
+        ],
+    }
+    api_client.force_login(chat_conversation.owner)
+    response = api_client.post(url, data, format="json")
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    assert response.json() == {"model_hrid": ["Invalid model_hrid."]}
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@respx.mock
+def test_post_conversation_model_selection_new(api_client, mock_openai_stream, settings):
+    """Test the user can select a different model."""
+    settings.LLM_CONFIGURATIONS = {
+        "plop": LLModel(
+            hrid="plop",
+            model_name="plop-model",
+            human_readable_name="Plop Model",
+            is_active=True,
+            system_prompt="You are a helpful assistant.",
+            tools=[],
+            provider=LLMProvider(
+                hrid="external-ai-service",
+                base_url="https://www.external-ai-service.com/",
+                api_key="test-api-key",
+            ),
+        ),
+    }
+
+    chat_conversation = ChatConversationFactory()
+
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data&model_hrid=plop"
+    data = {
+        "messages": [
+            {
+                "id": "yuPoOuBkKA4FnKvk",
+                "role": "user",
+                "parts": [{"text": "Hello", "type": "text"}],
+                "content": "Hello",
+                "createdAt": "2025-07-03T15:22:17.105Z",
+            }
+        ]
+    }
+    api_client.force_login(chat_conversation.owner)
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.get("Content-Type") == "text/event-stream"
+    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.streaming
+
+    # Wait for the streaming content to be fully received
+    response_content = b"".join(response.streaming_content).decode("utf-8")
+    assert response_content == (
+        '0:"Hello"\n'
+        '0:" there"\n'
+        'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": 0}}\n'
+    )
+
+    # We check the model used in the outgoing request to the AI service
+    assert json.loads(mock_openai_stream.calls.last.request.content)["model"] == "plop-model"

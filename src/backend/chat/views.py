@@ -7,6 +7,7 @@ from django.http import StreamingHttpResponse
 
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from core.api.viewsets import Pagination, SerializerPerActionMixin
 from core.filters import remove_accents
@@ -83,6 +84,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
         query_params_serializer.is_valid(raise_exception=True)
         protocol = query_params_serializer.validated_data["protocol"]
         force_web_search = query_params_serializer.validated_data["force_web_search"]
+        model_hrid = query_params_serializer.validated_data["model_hrid"]
 
         logger.info("Received messages: %s", request.data.get("messages", []))
 
@@ -112,7 +114,15 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
         if not messages:
             return Response({"error": "No messages provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-        ai_service = AIAgentService(conversation=conversation, user=self.request.user)
+        ai_service = AIAgentService(
+            conversation=conversation,
+            user=self.request.user,
+            model_hrid=model_hrid,
+            language=(
+                self.request.user.language
+                or self.request.LANGUAGE_CODE  # from the LocaleMiddleware
+            ),
+        )
         if protocol == "data":
             streaming_content = ai_service.stream_data(messages, force_web_search=force_web_search)
         else:  # Default to 'text' protocol
@@ -159,6 +169,35 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
         """
         conversation = self.get_object()
 
-        AIAgentService(conversation=conversation, user=self.request.user).stop_streaming()
+        AIAgentService(
+            conversation=conversation,
+            user=self.request.user,
+            model_hrid=None,  # model_hrid is not needed to stop streaming
+            language=None,  # language is not needed to stop streaming
+        ).stop_streaming()
 
         return Response({"status": "OK"}, status=status.HTTP_200_OK)
+
+
+class LLMConfigurationView(APIView):
+    """View for listing available LLM models."""
+
+    permission_classes = [
+        permissions.IsAuthenticated,
+    ]
+
+    def get(self, request):
+        """Handle GET requests to list available LLM models.
+
+        For now the results are not filtered by user, but in the future we will want to
+        filter the models based on user.
+
+        Returns:
+            Response: A response containing the list of available LLM models.
+        """
+        serializer = serializers.LLMConfigurationSerializer(
+            {
+                "models": settings.LLM_CONFIGURATIONS.values(),
+            },
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)

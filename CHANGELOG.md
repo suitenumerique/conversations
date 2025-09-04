@@ -17,6 +17,7 @@ and this project adheres to
 - ♻️(chat) rewrite backend using Pydantic AI SDK #4
 - 🗃️(chat) enforce messages stored JSON format #6
 - 🐛(chat) UI messages must have a unique identifier #6
+- ✨(llm) allow configuration from JSON file #22
 
 ### Added
 
@@ -26,6 +27,8 @@ and this project adheres to
 - ✨(backend) allow use to stop conversation streaming #14
 - 🐛(agent) add the current date in the system prompt #18
 - ✨(backend) add feature flags from posthog #13
+- ✨(user) allow to use conversation data for analytics #23
+- ✨(chat) enforce response in user language #24
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main

@@ -319,7 +319,7 @@ def test_post_conversation_with_document_upload(  # noqa:PLR0913  # pylint: disa
     """
     Test POST to /api/v1/chats/{pk}/conversation/ with a PDF document.
     """
-    chat_conversation = ChatConversationFactory()
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
     api_client.force_authenticate(user=chat_conversation.owner)
 
     pdf_base64 = base64.b64encode(sample_pdf_content.read()).decode("utf-8")
@@ -421,6 +421,12 @@ def test_post_conversation_with_document_upload(  # noqa:PLR0913  # pylint: disa
             },
             {
                 "content": "Today is Friday 25/07/2025.",
+                "dynamic_ref": None,
+                "part_kind": "system-prompt",
+                "timestamp": "2025-07-25T10:36:35.297675Z",
+            },
+            {
+                "content": "Answer in english.",
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
                 "timestamp": "2025-07-25T10:36:35.297675Z",

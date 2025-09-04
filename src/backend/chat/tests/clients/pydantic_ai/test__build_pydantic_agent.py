@@ -1,7 +1,6 @@
 """Test cases for the _build_pydantic_agent function in the chat.clients.pydantic_ai module."""
 
 # pylint:disable=protected-access
-from django.core.exceptions import ImproperlyConfigured
 
 import pytest
 from freezegun import freeze_time
@@ -19,6 +18,11 @@ def base_settings(settings):
     settings.AI_MODEL = "model-123"
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
     settings.AI_AGENT_TOOLS = []
+
+    # Unused settings but required for initialization
+    settings.AI_ROUTING_MODEL = ""
+    settings.AI_ROUTING_MODEL_BASE_URL = ""
+    settings.AI_ROUTING_MODEL_API_KEY = ""
 
 
 def test_build_pydantic_agent_success_no_tools():
@@ -51,35 +55,21 @@ def test_build_pydantic_agent_with_tools(settings):
     assert list(agent._function_toolset.tools.keys()) == ["get_current_weather"]
 
 
-def test_build_pydantic_agent_missing_base_url(settings):
-    """Test agent creation fails with missing base URL."""
-    settings.AI_BASE_URL = None
-
-    with pytest.raises(ImproperlyConfigured, match="AIChatService configuration not set"):
-        _build_pydantic_agent([])
-
-
-def test_build_pydantic_agent_missing_api_key(settings):
-    """Test agent creation fails with missing API key."""
-    settings.AI_API_KEY = None
-
-    with pytest.raises(ImproperlyConfigured, match="AIChatService configuration not set"):
-        _build_pydantic_agent([])
-
-
-def test_build_pydantic_agent_missing_model(settings):
-    """Test agent creation fails with missing model."""
-    settings.AI_MODEL = None
-
-    with pytest.raises(ImproperlyConfigured, match="AIChatService configuration not set"):
-        _build_pydantic_agent([])
-
-
 @freeze_time("2025-07-25T10:36:35.297675Z")
-def test_add_the_date_system_prompt():
-    """Ensure add_the_date system prompt is registered and returns the formatted date string."""
+def test_add_dynamic_system_prompt():
+    """
+    Ensure add_the_date and enforce_response_language system prompt are registered
+    and returns proper values.
+    """
     agent = _build_pydantic_agent([])
 
-    assert len(agent._system_prompt_functions) == 1
+    assert len(agent._system_prompt_functions) == 2
+
     assert agent._system_prompt_functions[0].function.__name__ == "add_the_date"
     assert agent._system_prompt_functions[0].function() == "Today is Friday 25/07/2025."
+
+    assert agent._system_prompt_functions[1].function.__name__ == "enforce_response_language"
+    assert agent._system_prompt_functions[1].function() == ""
+
+    agent = _build_pydantic_agent([], language="fr-fr")
+    assert agent._system_prompt_functions[1].function() == "Answer in french."
