@@ -11,7 +11,7 @@ import json
 import logging
 import time
 import uuid
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, ExitStack
 from typing import Dict, List, Optional, Tuple
 
 from django.conf import settings
@@ -22,6 +22,7 @@ from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
 from asgiref.sync import sync_to_async
+from langfuse import get_client
 from pydantic import BaseModel
 from pydantic_ai import Agent, NativeOutput
 from pydantic_ai.messages import (
@@ -96,10 +97,13 @@ def _get_pydantic_agent(model_hrid, mcp_servers=None, **kwargs) -> Agent:
     )
 
 
-def _build_pydantic_agent(mcp_servers, model_hrid=None, language=None) -> Agent[None, str]:
+def _build_pydantic_agent(
+    mcp_servers, model_hrid=None, language=None, instrument=False
+) -> Agent[None, str]:
     """Create a Pydantic AI Agent instance with the configured settings."""
     model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID
-    agent = _get_pydantic_agent(model_hrid, mcp_servers)
+
+    agent = _get_pydantic_agent(model_hrid, mcp_servers, instrument=instrument)
 
     @agent.system_prompt
     def add_the_date() -> str:
@@ -120,7 +124,7 @@ def _build_pydantic_agent(mcp_servers, model_hrid=None, language=None) -> Agent[
     return agent
 
 
-def _build_routing_agent(model_hrid=None) -> Agent[None, str] | None:
+def _build_routing_agent(model_hrid=None, instrument=False) -> Agent[None, str] | None:
     """
     Create a Pydantic AI routing Agent instance with the configured settings.
 
@@ -137,7 +141,11 @@ def _build_routing_agent(model_hrid=None) -> Agent[None, str] | None:
     model_hrid = model_hrid or settings.LLM_ROUTING_MODEL_HRID
 
     try:
-        agent = _get_pydantic_agent(model_hrid, output_type=NativeOutput([UserIntent]))
+        agent = _get_pydantic_agent(
+            model_hrid,
+            output_type=NativeOutput([UserIntent]),
+            instrument=instrument,
+        )
     except ImproperlyConfigured:
         logger.info("AI routing model does not exist -> disabled")
         return None
@@ -157,7 +165,7 @@ class UserIntent(BaseModel):
     attachment_summary: bool = False
 
 
-class AIAgentService:
+class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
     def __init__(self, conversation, user, model_hrid=None, language=None):
@@ -173,6 +181,8 @@ class AIAgentService:
         self.model_hrid = model_hrid  # HRID of the model to use, might be None
         self.language = language  # might be None
         self._last_stop_check = 0
+
+        self._store_analytics = settings.LANGFUSE_ENABLED and user.allow_conversation_analytics
 
         # Feature flags
         self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
@@ -210,15 +220,23 @@ class AIAgentService:
     async def stream_text_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return only the assistant text deltas (legacy text mode)."""
         await self._clean()
-        async for delta in self._run_agent(messages, force_web_search):
-            if delta["type"] == "0":
-                yield delta["payload"]
+        with ExitStack() as stack:
+            if self._store_analytics:
+                span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
+                span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
+            async for delta in self._run_agent(messages, force_web_search):
+                if delta["type"] == "0":
+                    yield delta["payload"]
 
     async def stream_data_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return Vercel-AI-SDK formatted events."""
         await self._clean()
-        async for delta in self._run_agent(messages, force_web_search):
-            yield f"{delta['type']}:{json.dumps(delta['payload'])}\n"
+        with ExitStack() as stack:
+            if self._store_analytics:
+                span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
+                span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
+            async for delta in self._run_agent(messages, force_web_search):
+                yield f"{delta['type']}:{json.dumps(delta['payload'])}\n"
 
     async def _agent_stop_streaming(self, force_cache_check: Optional[bool] = False) -> None:
         """Check if the agent should stop streaming."""
@@ -268,7 +286,7 @@ class AIAgentService:
             )
             return UserIntent()
 
-        agent = _build_routing_agent()
+        agent = _build_routing_agent(instrument=self._store_analytics)
         if not agent:
             return UserIntent()
 
@@ -432,8 +450,19 @@ class AIAgentService:
         if messages[-1].role != "user":
             return
 
+        # Langfuse settings
+        if self._store_analytics:
+            langfuse = get_client()
+            langfuse.update_current_trace(
+                session_id=str(self.conversation.pk),
+                user_id=str(self.user.sub),
+            )
+
         history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
         user_prompt, input_images, input_documents = self.prepare_prompt(messages[-1])
+
+        if self._store_analytics:
+            langfuse.update_current_trace(input=user_prompt)
 
         usage = {"promptTokens": 0, "completionTokens": 0}
 
@@ -540,7 +569,10 @@ class AIAgentService:
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
 
             async with _build_pydantic_agent(
-                mcp_servers, model_hrid=self.model_hrid, language=self.language
+                mcp_servers,
+                model_hrid=self.model_hrid,
+                language=self.language,
+                instrument=self._store_analytics,
             ).iter(
                 [user_prompt] + input_images,
                 message_history=history,
@@ -662,6 +694,9 @@ class AIAgentService:
             user_initial_prompt_str=_user_initial_prompt_str,
             ui_sources=_ui_sources,
         )
+
+        if self._store_analytics:
+            langfuse.update_current_trace(output=run.result.output)
 
         # Vercel finish message
         yield {

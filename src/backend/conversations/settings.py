@@ -21,6 +21,7 @@ import posthog
 import sentry_sdk
 from configurations import Configuration, pristinemethod, values
 from corsheaders.defaults import default_headers
+from langfuse import Langfuse
 from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import ignore_logger
 
@@ -722,16 +723,22 @@ USER QUESTION:
         environ_prefix=None,
     )
 
-    # ML Flow
-    ML_FLOW_TRACKING_URI = values.Value(
-        None,
-        environ_name="ML_FLOW_TRACKING_URI",
-        environ_prefix=None,
+    # LLM Instrumentation
+    LANGFUSE_ENABLED = values.BooleanValue(
+        default=False, environ_name="LANGFUSE_ENABLED", environ_prefix=None
     )
-    ML_FLOW_EXPERIMENT_NAME = values.Value(
-        "conversations-openai-tracing",
-        environ_name="ML_FLOW_EXPERIMENT_NAME",
-        environ_prefix=None,
+    LANGFUSE_PUBLIC_KEY = values.Value(
+        None, environ_name="LANGFUSE_PUBLIC_KEY", environ_prefix=None
+    )
+    LANGFUSE_SECRET_KEY = values.Value(
+        None, environ_name="LANGFUSE_SECRET_KEY", environ_prefix=None
+    )
+    LANGFUSE_HOST = values.Value(None, environ_name="LANGFUSE_HOST", environ_prefix=None)
+    LANGFUSE_DEBUG = values.BooleanValue(
+        default=False, environ_name="LANGFUSE_DEBUG", environ_prefix=None
+    )
+    LANGFUSE_MEDIA_UPLOAD_ENABLED = values.BooleanValue(
+        default=False, environ_name="LANGFUSE_MEDIA_UPLOAD_ENABLED", environ_prefix=None
     )
 
     # pylint: disable=invalid-name
@@ -856,6 +863,19 @@ USER QUESTION:
             raise ValueError(
                 "Both OIDC_FALLBACK_TO_EMAIL_FOR_IDENTIFICATION and "
                 "OIDC_ALLOW_DUPLICATE_EMAILS cannot be set to True simultaneously. "
+            )
+
+        # Langfuse initialization
+        if cls.LANGFUSE_ENABLED:
+            if not cls.LANGFUSE_MEDIA_UPLOAD_ENABLED:
+                os.environ["LANGFUSE_MEDIA_UPLOAD_ENABLED"] = "false"
+            Langfuse(
+                public_key=cls.LANGFUSE_PUBLIC_KEY,
+                secret_key=cls.LANGFUSE_SECRET_KEY,
+                host=cls.LANGFUSE_HOST,
+                environment=cls.__name__.lower(),
+                release=get_release(),
+                debug=cls.LANGFUSE_DEBUG,
             )
 
 
