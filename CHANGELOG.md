@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 🎨(front) global layout modification
+- 🎨(front) amelioration chat ux
 
 ### Changed
 
+- 🎨(front) global layout modification
 - ✨(front) global layout UI
 - ♻️(chat) rewrite backend using Pydantic AI SDK #4
 - 🗃️(chat) enforce messages stored JSON format #6
