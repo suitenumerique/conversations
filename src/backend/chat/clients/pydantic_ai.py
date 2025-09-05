@@ -11,7 +11,7 @@ import json
 import logging
 import time
 import uuid
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, ExitStack
 from typing import Dict, List, Optional, Tuple
 
 from django.conf import settings
@@ -22,6 +22,7 @@ from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
 from asgiref.sync import sync_to_async
+from langfuse import get_client
 from pydantic import BaseModel
 from pydantic_ai import Agent, NativeOutput
 from pydantic_ai.messages import (
@@ -64,6 +65,8 @@ from chat.clients.pydantic_ui_message_converter import (
 )
 from chat.mcp_servers import get_mcp_servers
 from chat.tools import get_pydantic_tools_by_name
+from chat.vercel_ai_sdk.core import events_v4, events_v5
+from chat.vercel_ai_sdk.encoder import EventEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -96,10 +99,13 @@ def _get_pydantic_agent(model_hrid, mcp_servers=None, **kwargs) -> Agent:
     )
 
 
-def _build_pydantic_agent(mcp_servers, model_hrid=None, language=None) -> Agent[None, str]:
+def _build_pydantic_agent(
+    mcp_servers, model_hrid=None, language=None, instrument=False
+) -> Agent[None, str]:
     """Create a Pydantic AI Agent instance with the configured settings."""
     model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID
-    agent = _get_pydantic_agent(model_hrid, mcp_servers)
+
+    agent = _get_pydantic_agent(model_hrid, mcp_servers, instrument=instrument)
 
     @agent.system_prompt
     def add_the_date() -> str:
@@ -120,7 +126,7 @@ def _build_pydantic_agent(mcp_servers, model_hrid=None, language=None) -> Agent[
     return agent
 
 
-def _build_routing_agent(model_hrid=None) -> Agent[None, str] | None:
+def _build_routing_agent(model_hrid=None, instrument=False) -> Agent[None, str] | None:
     """
     Create a Pydantic AI routing Agent instance with the configured settings.
 
@@ -137,7 +143,11 @@ def _build_routing_agent(model_hrid=None) -> Agent[None, str] | None:
     model_hrid = model_hrid or settings.LLM_ROUTING_MODEL_HRID
 
     try:
-        agent = _get_pydantic_agent(model_hrid, output_type=NativeOutput([UserIntent]))
+        agent = _get_pydantic_agent(
+            model_hrid,
+            output_type=NativeOutput([UserIntent]),
+            instrument=instrument,
+        )
     except ImproperlyConfigured:
         logger.info("AI routing model does not exist -> disabled")
         return None
@@ -157,7 +167,7 @@ class UserIntent(BaseModel):
     attachment_summary: bool = False
 
 
-class AIAgentService:
+class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
     def __init__(self, conversation, user, model_hrid=None, language=None):
@@ -173,6 +183,9 @@ class AIAgentService:
         self.model_hrid = model_hrid  # HRID of the model to use, might be None
         self.language = language  # might be None
         self._last_stop_check = 0
+
+        self._store_analytics = settings.LANGFUSE_ENABLED and user.allow_conversation_analytics
+        self.event_encoder = EventEncoder("v4")  # Always use v4 for now
 
         # Feature flags
         self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
@@ -210,15 +223,25 @@ class AIAgentService:
     async def stream_text_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return only the assistant text deltas (legacy text mode)."""
         await self._clean()
-        async for delta in self._run_agent(messages, force_web_search):
-            if delta["type"] == "0":
-                yield delta["payload"]
+        with ExitStack() as stack:
+            if self._store_analytics:
+                span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
+                span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
+
+            async for event in self._run_agent(messages, force_web_search):
+                if stream_text := self.event_encoder.encode_text(event):
+                    yield stream_text
 
     async def stream_data_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return Vercel-AI-SDK formatted events."""
         await self._clean()
-        async for delta in self._run_agent(messages, force_web_search):
-            yield f"{delta['type']}:{json.dumps(delta['payload'])}\n"
+        with ExitStack() as stack:
+            if self._store_analytics:
+                span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
+                span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
+            async for event in self._run_agent(messages, force_web_search):
+                if stream_data := self.event_encoder.encode(event):
+                    yield stream_data
 
     async def _agent_stop_streaming(self, force_cache_check: Optional[bool] = False) -> None:
         """Check if the agent should stop streaming."""
@@ -268,7 +291,7 @@ class AIAgentService:
             )
             return UserIntent()
 
-        agent = _build_routing_agent()
+        agent = _build_routing_agent(instrument=self._store_analytics)
         if not agent:
             return UserIntent()
 
@@ -423,17 +446,28 @@ class AIAgentService:
 
         return user_prompt[0], attachment_images, attachment_documents
 
-    async def _run_agent(  # noqa: PLR0912, PLR0915
+    async def _run_agent(  # noqa: PLR0912, PLR0915 # pylint: disable=too-many-branches,too-many-statements, too-many-locals, too-many-return-statements
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
-    ):  # pylint: disable=too-many-branches,too-many-statements, too-many-locals, too-many-return-statements
+    ) -> events_v4.Event | events_v5.Event:
         """Run the Pydantic AI agent and stream events."""
         if messages[-1].role != "user":
             return
 
+        # Langfuse settings
+        if self._store_analytics:
+            langfuse = get_client()
+            langfuse.update_current_trace(
+                session_id=str(self.conversation.pk),
+                user_id=str(self.user.sub),
+            )
+
         history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
         user_prompt, input_images, input_documents = self.prepare_prompt(messages[-1])
+
+        if self._store_analytics:
+            langfuse.update_current_trace(input=user_prompt)
 
         usage = {"promptTokens": 0, "completionTokens": 0}
 
@@ -463,7 +497,7 @@ class AIAgentService:
                 "Attachment summarization is not supported yet, ignoring the user intent."
             )
             user_intent.attachment_summary = False
-            yield {"type": "3", "payload": "attachment_summary_not_supported"}
+            yield events_v4.ErrorPart(error="attachment_summary_not_supported")
             return
 
         await self._agent_stop_streaming(force_cache_check=True)
@@ -476,33 +510,27 @@ class AIAgentService:
         conversation_has_documents = bool(self.conversation.collection_id)
         if input_documents:
             _tool_call_id = str(uuid.uuid4())
-            yield {
-                "type": "9",
-                "payload": {
-                    "toolCallId": _tool_call_id,
-                    "toolName": "document_parsing",
-                    "args": {
-                        "documents": [
-                            {
-                                "identifier": doc.identifier,
-                            }
-                            for doc in input_documents
-                        ],
-                    },
+            yield events_v4.ToolCallPart(
+                tool_call_id=_tool_call_id,
+                tool_name="document_parsing",
+                args={
+                    "documents": [
+                        {
+                            "identifier": doc.identifier,
+                        }
+                        for doc in input_documents
+                    ],
                 },
-            }
+            )
             self.parse_input_documents(input_documents)
             if not conversation_has_documents:
                 conversation_has_documents = True
                 await self.conversation.asave(update_fields=["collection_id", "updated_at"])
 
-            yield {
-                "type": "a",
-                "payload": {
-                    "toolCallId": _tool_call_id,
-                    "result": {"state": "done"},
-                },
-            }
+            yield events_v4.ToolResultPart(
+                tool_call_id=_tool_call_id,
+                result={"state": "done"},
+            )
 
         await self._agent_stop_streaming(force_cache_check=True)
 
@@ -515,14 +543,10 @@ class AIAgentService:
                 document_search=conversation_has_documents,
             )
         except WebSearchEmptyException:
-            yield {
-                "type": "h",
-                "payload": {
-                    "source_type": "error",
-                    "id": str(uuid.uuid4()),
-                    "error": _("No web search results found."),
-                },
-            }
+            yield events_v4.SourcePart(
+                id=str(uuid.uuid4()),
+                url=str(_("No web search results found.")),
+            )
             return
 
         _user_initial_prompt_str = None
@@ -530,17 +554,17 @@ class AIAgentService:
             _user_initial_prompt_str = str(user_prompt)  # copy the original user prompt
             user_prompt = _new_prompt
             for _ui_source in _ui_sources:
-                yield {
-                    "type": "h",
-                    "payload": _ui_source.source.model_dump(mode="json"),
-                }
+                yield events_v4.SourcePart(**_ui_source.source.model_dump())
 
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
 
             async with _build_pydantic_agent(
-                mcp_servers, model_hrid=self.model_hrid, language=self.language
+                mcp_servers,
+                model_hrid=self.model_hrid,
+                language=self.language,
+                instrument=self._store_analytics,
             ).iter(
                 [user_prompt] + input_images,
                 message_history=history,
@@ -561,17 +585,16 @@ class AIAgentService:
                                     logger.debug("PartStartEvent: %s", dataclasses.asdict(event))
 
                                     if isinstance(event.part, TextPart):
-                                        yield {"type": "0", "payload": event.part.content}
+                                        yield events_v4.TextPart(text=event.part.content)
                                     elif isinstance(event.part, ToolCallPart):
-                                        yield {
-                                            "type": "b",
-                                            "payload": {
-                                                "toolCallId": event.part.tool_call_id,
-                                                "toolName": event.part.tool_name,
-                                            },
-                                        }
+                                        yield events_v4.ToolCallStreamingStartPart(
+                                            tool_call_id=event.part.tool_call_id,
+                                            tool_name=event.part.tool_name,
+                                        )
                                     elif isinstance(event.part, ThinkingPart):
-                                        yield {"type": "g", "payload": event.part.content}
+                                        yield events_v4.ReasoningPart(
+                                            reasoning=event.part.content,
+                                        )
 
                                 elif isinstance(event, PartDeltaEvent):
                                     logger.debug(
@@ -580,17 +603,16 @@ class AIAgentService:
                                         dataclasses.asdict(event),
                                     )
                                     if isinstance(event.delta, TextPartDelta):
-                                        yield {"type": "0", "payload": event.delta.content_delta}
+                                        yield events_v4.TextPart(text=event.delta.content_delta)
                                     elif isinstance(event.delta, ToolCallPartDelta):
-                                        yield {
-                                            "type": "c",
-                                            "payload": {
-                                                "toolCallId": event.delta.tool_call_id,
-                                                "argsTextDelta": event.delta.args_delta,
-                                            },
-                                        }
+                                        yield events_v4.ToolCallDeltaPart(
+                                            tool_call_id=event.delta.tool_call_id,
+                                            args_text_delta=event.delta.args_delta,
+                                        )
                                     elif isinstance(event.delta, ThinkingPartDelta):
-                                        yield {"type": "g", "payload": event.delta.content_delta}
+                                        yield events_v4.ReasoningPart(
+                                            reasoning=event.delta.content_delta,
+                                        )
 
                     elif Agent.is_call_tools_node(node):
                         # A handle-response node => The model returned some data,
@@ -617,21 +639,15 @@ class AIAgentService:
                                     # }
                                 elif isinstance(event, FunctionToolResultEvent):
                                     if isinstance(event.result, ToolReturnPart):
-                                        yield {
-                                            "type": "a",
-                                            "payload": {
-                                                "toolCallId": event.tool_call_id,
-                                                "result": event.result.content,
-                                            },
-                                        }
+                                        yield events_v4.ToolResultPart(
+                                            tool_call_id=event.tool_call_id,
+                                            result=event.result.content,
+                                        )
                                     elif isinstance(event.result, RetryPromptPart):
-                                        yield {
-                                            "type": "a",
-                                            "payload": {
-                                                "toolCallId": event.tool_call_id,
-                                                "result": event.result.content,
-                                            },
-                                        }
+                                        yield events_v4.ToolResultPart(
+                                            tool_call_id=event.tool_call_id,
+                                            result=event.result.content,
+                                        )
                                     else:
                                         logger.warning(
                                             "Unexpected tool result type: %s %s",
@@ -663,14 +679,17 @@ class AIAgentService:
             ui_sources=_ui_sources,
         )
 
+        if self._store_analytics:
+            langfuse.update_current_trace(output=run.result.output)
+
         # Vercel finish message
-        yield {
-            "type": "d",
-            "payload": {
-                "finishReason": "stop",
-                "usage": usage,
-            },
-        }
+        yield events_v4.FinishMessagePart(
+            finish_reason=events_v4.FinishReason.STOP,
+            usage=events_v4.Usage(
+                prompt_tokens=usage["promptTokens"],
+                completion_tokens=usage["completionTokens"],
+            ),
+        )
 
     def _update_conversation(
         self,

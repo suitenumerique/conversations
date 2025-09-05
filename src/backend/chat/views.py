@@ -88,17 +88,6 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
 
         logger.info("Received messages: %s", request.data.get("messages", []))
 
-        if settings.ML_FLOW_TRACKING_URI:
-            # Set up MLflow experiment, don't import it globally to avoid issues
-            # when running management commands when MLflow is not started
-            import mlflow  # pylint: disable=import-outside-toplevel
-
-            mlflow.set_tracking_uri(settings.ML_FLOW_TRACKING_URI)
-            mlflow.set_experiment(settings.ML_FLOW_EXPERIMENT_NAME)
-
-            # Enable automatic tracing for all OpenAI API calls
-            mlflow.openai.autolog()
-
         # Warning: the messages should be stored more securely in production
         conversation = self.get_object()
         conversation.ui_messages = request.data.get("messages", [])

@@ -143,14 +143,3 @@ services:
       kc_postgresql:
         condition: service_healthy
         restart: true
-
-  ml-flow:
-    image: ghcr.io/mlflow/mlflow:v3.0.0
-    environment:
-      MLFLOW_TRACKING_URI: http://localhost:5050
-      MLFLOW_ARTIFACT_ROOT: /mlflow/artifacts
-    ports:
-      - "5050:5050"
-    volumes:
-      - ./data/mlflow:/mlflow/artifacts
-    command: mlflow server --host 0.0.0.0:5050

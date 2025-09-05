@@ -283,19 +283,18 @@ def test_conversation_with_forced_web_search_no_history(
 
     assert response_content == (
         # source events starts with 'h:'
-        'h:{"source_type": "url", "id": "cb2e1dd7-0f5b-4bed-9aec-93345ad9635b", '
-        '"url": '
+        'h:{"sourceType":"url","id":"cb2e1dd7-0f5b-4bed-9aec-93345ad9635b",'
+        '"url":'
         '"https://www.lemonde.fr/sciences/article/2025/06/25/le-telescope-james-webb-decouvre-'
-        'sa-premiere-exoplanete-identifiee-comme-une-petite-planete-froide_6615888_1650684.html", '
-        '"title": null, "providerMetadata": {}}\n'
-        'h:{"source_type": "url", "id": "cb2e1dd7-0f5b-4bed-9aec-93345ad9635b", '
-        '"url": "https://www.franceinfo.fr/economie/budget/", "title": null, '
-        '"providerMetadata": {}}\n'
+        'sa-premiere-exoplanete-identifiee-comme-une-petite-planete-froide_6615888_1650684.html",'
+        '"title":null,"providerMetadata":{}}\n'
+        'h:{"sourceType":"url","id":"cb2e1dd7-0f5b-4bed-9aec-93345ad9635b",'
+        '"url":"https://www.franceinfo.fr/economie/budget/","title":null,'
+        '"providerMetadata":{}}\n'
         # Then the message text answer
         '0:"Based on the web search results, I can tell you that"\n'
         '0:" the James-Webb telescope has made significant discoveries."\n'
-        'd:{"finishReason": "stop", "usage": {"promptTokens": 150, '
-        '"completionTokens": 25}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":150,"completionTokens":25}}\n'
     ).replace("cb2e1dd7-0f5b-4bed-9aec-93345ad9635b", str(mock_uuid4))
 
     # We should not have called intent detection if force_web_search is True
@@ -523,8 +522,7 @@ def test_conversation_without_web_search_by_intent(
         # The message text answer without web search sources (h: prefix)
         '0:"Hello"\n'
         '0:" there"\n'
-        'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": '
-        "0}}\n"
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
     # Intent detection should be called, but not web search
@@ -776,7 +774,7 @@ def test_post_conversation_data_protocol_feature_disabled_force_web(
     assert response_content == (
         '0:"Hello"\n'
         '0:" there"\n'
-        'd:{"finishReason": "stop", "usage": {"promptTokens": 0, "completionTokens": 0}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
     assert mock_openai_stream.called
