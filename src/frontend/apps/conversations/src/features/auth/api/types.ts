@@ -12,4 +12,5 @@ export interface User {
   full_name: string;
   short_name: string;
   language?: string;
+  allow_conversation_analytics: boolean;
 }

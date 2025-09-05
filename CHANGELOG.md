@@ -8,10 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 🎨(front) global layout modification
+- ✅(front) add enabled/disabled conversation analysis
 
 ### Changed
 
+- 🎨(front) amelioration chat ux
+- 🎨(front) global layout modification
 - ✨(front) global layout UI
 - ♻️(chat) rewrite backend using Pydantic AI SDK #4
 - 🗃️(chat) enforce messages stored JSON format #6

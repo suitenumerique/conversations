@@ -1,8 +1,9 @@
 import { Modal, ModalSize } from '@openfun/cunningham-react';
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Icon, Text } from '@/components';
+import { Box, Icon, Text, useToast } from '@/components';
+import { useUserUpdate } from '@/core/api/useUserUpdate';
+import { useAuthQuery } from '@/features/auth/api';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -11,10 +12,36 @@ interface SettingsModalProps {
 
 export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
   const { t } = useTranslation();
-  const [isToggleEnabled, setIsToggleEnabled] = useState(false);
+  const { data: user } = useAuthQuery();
+  const { mutateAsync: updateUser, isPending } = useUserUpdate();
+  const { showToast } = useToast();
 
-  const handleToggleChange = () => {
-    setIsToggleEnabled(!isToggleEnabled);
+  const handleToggleChange = async () => {
+    if (!user) {
+      return;
+    }
+
+    try {
+      await updateUser({
+        id: user.id,
+        allow_conversation_analytics: !user.allow_conversation_analytics,
+      });
+
+      // Toast de succès
+      showToast(
+        'success',
+        user.allow_conversation_analytics
+          ? t('Conversation analysis disabled')
+          : t('Conversation analysis enabled'),
+        'check_circle',
+        3000,
+      );
+    } catch (error) {
+      console.error('Error updating user settings:', error);
+
+      // Toast d'erreur
+      showToast('error', t('Failed to update settings'), 'error', 3000);
+    }
   };
 
   return (
@@ -71,20 +98,25 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
                     position: relative;
                     width: 44px;
                     height: 24px;
-                    background-color: ${isToggleEnabled ? 'var(--c--theme--colors--primary-500)' : 'var(--c--theme--colors--greyscale-300)'};
+                    background-color: ${user?.allow_conversation_analytics ? 'var(--c--theme--colors--primary-500)' : 'var(--c--theme--colors--greyscale-300)'};
                     border-radius: 12px;
-                    cursor: pointer;
+                    cursor: ${isPending ? 'not-allowed' : 'pointer'};
                     transition: all 0.2s ease;
+                    opacity: ${isPending ? 0.6 : 1};
                     
                     &:hover {
-                      background-color: ${isToggleEnabled ? 'var(--c--theme--colors--primary-600)' : 'var(--c--theme--colors--greyscale-400)'};
+                      background-color: ${user?.allow_conversation_analytics ? 'var(--c--theme--colors--primary-600)' : 'var(--c--theme--colors--greyscale-400)'};
                     }
                   `}
-                onClick={handleToggleChange}
+                onClick={
+                  isPending ? undefined : () => void handleToggleChange()
+                }
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    handleToggleChange();
+                    if (!isPending) {
+                      void handleToggleChange();
+                    }
                   }
                 }}
                 role="button"
@@ -94,7 +126,7 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
                   $css={`
                     position: absolute;
                     top: 2px;
-                    left: ${isToggleEnabled ? '22px' : '2px'};
+                    left: ${user?.allow_conversation_analytics ? '22px' : '2px'};
                     width: 20px;
                     height: 20px;
                     background-color: white;
@@ -107,7 +139,9 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
                   `}
                 >
                   <Icon
-                    iconName={isToggleEnabled ? 'check' : 'close'}
+                    iconName={
+                      user?.allow_conversation_analytics ? 'check' : 'close'
+                    }
                     $size="12px"
                     $theme="primary"
                     $variation="600"
