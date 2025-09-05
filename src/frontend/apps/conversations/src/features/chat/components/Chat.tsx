@@ -432,7 +432,9 @@ export const Chat = ({
                         components={{
                           // Custom components for Markdown rendering
                           // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                          p: ({ node, ...props }) => <Text {...props} />,
+                          p: ({ node, ...props }) => (
+                            <Text $css="display: block" {...props} />
+                          ),
                         }}
                       >
                         {message.content}
