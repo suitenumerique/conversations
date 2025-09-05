@@ -45,10 +45,10 @@ export const InputChat = ({
   const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
 
   const suggestions = [
+    'Ask a question',
     'Turn this list into bullet points',
     'Write a short product description',
     'Find recent news about...',
-    'Ask a question',
   ];
 
   useEffect(() => {
@@ -175,11 +175,6 @@ export const InputChat = ({
             <textarea
               value={input ?? ''}
               name="inputchat-textarea"
-              placeholder={
-                messagesLength === 0
-                  ? suggestions[currentSuggestionIndex]
-                  : t('Ask a question')
-              }
               onChange={(e) => {
                 handleInputChange(e);
                 const textarea = e.target as HTMLTextAreaElement;
@@ -212,7 +207,7 @@ export const InputChat = ({
               }}
             />
 
-            {messagesLength === 0 && !input && (
+            {!input && (
               <Box
                 $css={`
                   position: absolute;
@@ -235,9 +230,7 @@ export const InputChat = ({
                       left: 0;
                       right: 0;
                       opacity: ${index === currentSuggestionIndex ? 1 : 0};
-                      &::placeholder {
-                        transition: opacity ${index === currentSuggestionIndex ? '0.4s' : '0s'};
-                      }
+                      transition: opacity ${index === currentSuggestionIndex ? '0.4s' : '0s'} ease;
                     `}
                   >
                     {suggestion}
@@ -256,7 +249,6 @@ export const InputChat = ({
                 if (!fileList) {
                   return;
                 }
-                console.log(fileList);
                 setFiles((prev) => {
                   const dt = new DataTransfer();
                   if (prev) {

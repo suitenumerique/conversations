@@ -16,7 +16,6 @@ export const SendButton = ({
 }: SendButtonProps) => {
   const { t } = useTranslation();
   const isStopMode = status === 'submitted' || status === 'streaming';
-  console.log(status);
 
   return (
     <>
