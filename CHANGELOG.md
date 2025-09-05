@@ -29,6 +29,7 @@ and this project adheres to
 - ✨(backend) add feature flags from posthog #13
 - ✨(user) allow to use conversation data for analytics #23
 - ✨(chat) enforce response in user language #24
+- 📈(langfuse) add light instrumentation #26
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main

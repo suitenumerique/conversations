@@ -47,6 +47,7 @@ dependencies = [
     "factory_boy==3.3.3",
     "gunicorn==23.0.0",
     "jsonschema==4.24.0",
+    "langfuse==3.3.4",
     "lxml==5.4.0",
     "markdown==3.8",
     "markitdown==0.0.2",
