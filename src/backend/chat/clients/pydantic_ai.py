@@ -390,7 +390,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
                 _unique_sources.add(result.url)
                 url_source = LanguageModelV1Source(
-                    source_type="url",
+                    sourceType="url",
                     id=str(uuid.uuid4()),
                     url=result.url,
                     providerMetadata={},

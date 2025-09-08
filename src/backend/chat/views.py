@@ -6,6 +6,7 @@ from django.conf import settings
 from django.http import StreamingHttpResponse
 
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -94,7 +95,14 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
         conversation.save()
 
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except ValidationError as exc:
+            # Log validation error, because it should not happen
+            # If there is a problem, we need to fix the frontend or backend...
+            logger.exception("Frontend input error: %s", exc)
+            raise  # Let DRF handle the exception and return a 400 response
+
         messages = serializer.validated_data["messages"]
 
         logger.info("Received messages: %s", messages)

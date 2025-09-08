@@ -344,7 +344,7 @@ def test_conversation_with_forced_web_search_no_history(
                 SourceUIPart(
                     type="source",
                     source=LanguageModelV1Source(
-                        source_type="url",
+                        sourceType="url",
                         id=str(mock_uuid4),
                         url=(
                             "https://www.lemonde.fr/sciences/article/2025/06/25/le-telescope-james-"
@@ -358,7 +358,7 @@ def test_conversation_with_forced_web_search_no_history(
                 SourceUIPart(
                     type="source",
                     source=LanguageModelV1Source(
-                        source_type="url",
+                        sourceType="url",
                         id=str(mock_uuid4),
                         url="https://www.franceinfo.fr/economie/budget/",
                         title=None,

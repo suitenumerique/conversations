@@ -394,7 +394,7 @@ def test_post_conversation_with_document_upload(  # noqa:PLR0913  # pylint: disa
             SourceUIPart(
                 type="source",
                 source=LanguageModelV1Source(
-                    source_type="url",
+                    sourceType="url",
                     id=str(mock_uuid4),
                     url="sample.pdf",
                     title=None,

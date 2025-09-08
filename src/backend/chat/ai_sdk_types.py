@@ -180,14 +180,14 @@ class LanguageModelV1Source(BaseModel):
     Represents a source that has been used as input to generate the response.
 
     Attributes:
-        source_type: A URL source. This is return by web search RAG models.
+        sourceType: A URL source. This is return by web search RAG models.
         id: The ID of the source.
         url: The URL of the source.
         title: The title of the source.
         providerMetadata: Additional provider metadata for the source.
     """
 
-    source_type: Literal["url"]
+    sourceType: Literal["url"]
     id: str
     url: str
     title: Optional[str] = None

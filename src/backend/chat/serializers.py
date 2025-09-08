@@ -39,6 +39,12 @@ class ChatConversationInputSerializer(serializers.Serializer):
         """Create method is not applicable in this context."""
         raise NotImplementedError("`create()` should not be used in this context.")
 
+    def validate_messages(self, messages):
+        """Validate that messages is not empty."""
+        if not messages:
+            raise serializers.ValidationError("This list must not be empty.")
+        return messages
+
 
 class ChatConversationRequestSerializer(serializers.Serializer):
     """

@@ -79,7 +79,6 @@ def test_post_conversation_no_messages(api_client):
     response = api_client.post(url, data, format="json")
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "No messages provided" in response.data["error"]
 
 
 def test_post_conversation_invalid_protocol(api_client):
