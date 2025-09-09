@@ -1,4 +1,4 @@
-"""Test cases for the _build_pydantic_agent function in the chat.clients.pydantic_ai module."""
+"""Test cases for the build_conversation_agent function in the chat.clients.pydantic_ai module."""
 
 # pylint:disable=protected-access
 
@@ -7,7 +7,7 @@ from freezegun import freeze_time
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 
-from chat.clients.pydantic_ai import _build_pydantic_agent
+from chat.agents.conversation import build_conversation_agent
 
 
 @pytest.fixture(autouse=True)
@@ -27,7 +27,7 @@ def base_settings(settings):
 
 def test_build_pydantic_agent_success_no_tools():
     """Test successful agent creation without tools."""
-    agent = _build_pydantic_agent([])
+    agent = build_conversation_agent([])
     assert isinstance(agent, Agent)
 
     assert agent._system_prompts == ("You are a helpful assistant",)
@@ -43,7 +43,7 @@ def test_build_pydantic_agent_with_tools(settings):
     """Test successful agent creation with tools."""
     settings.AI_AGENT_TOOLS = ["get_current_weather"]
 
-    agent = _build_pydantic_agent([])
+    agent = build_conversation_agent([])
     assert isinstance(agent, Agent)
 
     assert agent._system_prompts == ("You are a helpful assistant",)
@@ -61,7 +61,7 @@ def test_add_dynamic_system_prompt():
     Ensure add_the_date and enforce_response_language system prompt are registered
     and returns proper values.
     """
-    agent = _build_pydantic_agent([])
+    agent = build_conversation_agent([])
 
     assert len(agent._system_prompt_functions) == 2
 
@@ -71,5 +71,5 @@ def test_add_dynamic_system_prompt():
     assert agent._system_prompt_functions[1].function.__name__ == "enforce_response_language"
     assert agent._system_prompt_functions[1].function() == ""
 
-    agent = _build_pydantic_agent([], language="fr-fr")
+    agent = build_conversation_agent([], language="fr-fr")
     assert agent._system_prompt_functions[1].function() == "Answer in french."

@@ -7,7 +7,7 @@ from .web_search_tavily import tavily_web_search
 
 
 def get_pydantic_tools_by_name(name: str) -> Tool:
-    """Get a Pydantic AI agent by its name."""
+    """Get a tool by its name."""
     tool_dict = {
         "get_current_weather": Tool(get_current_weather, takes_ctx=False),
         "tavily_web_search": Tool(tavily_web_search, takes_ctx=False),
