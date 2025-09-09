@@ -32,6 +32,7 @@ and this project adheres to
 - ✨(user) allow to use conversation data for analytics #23
 - ✨(chat) enforce response in user language #24
 - 📈(langfuse) add light instrumentation #26
+- 💩(chat) add frontend feature flags #29
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main

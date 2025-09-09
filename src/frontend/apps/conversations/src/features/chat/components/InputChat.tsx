@@ -3,6 +3,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Box, Icon, Text } from '@/components';
+import { FeatureFlagState, useConfig } from '@/core';
+import { useAnalytics } from '@/libs';
 import { useResponsiveStore } from '@/stores';
 
 import { AttachmentList } from './AttachmentList';
@@ -43,6 +45,10 @@ export const InputChat = ({
   const [isDragActive, setIsDragActive] = useState(false);
   const { isDesktop, isMobile } = useResponsiveStore();
   const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
+  const { data: conf } = useConfig();
+  const { isFeatureFlagActivated } = useAnalytics();
+  const [fileUploadEnabled, setFileUploadEnabled] = useState(false);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
 
   const suggestions = [
     'Ask a question',
@@ -50,6 +56,29 @@ export const InputChat = ({
     'Write a short product description',
     'Find recent news about...',
   ];
+
+  useEffect(() => {
+    if (!conf?.FEATURE_FLAGS) {
+      setWebSearchEnabled(false);
+      setFileUploadEnabled(false);
+      return;
+    }
+    const isFeatureEnabled = (featureKey: string): boolean => {
+      const configValue = conf.FEATURE_FLAGS[featureKey];
+      if (!configValue) {
+        return false;
+      } else if (configValue === FeatureFlagState.DISABLED) {
+        return false;
+      } else if (configValue === FeatureFlagState.ENABLED) {
+        return true;
+      } else {
+        return isFeatureFlagActivated(featureKey);
+      }
+    };
+
+    setWebSearchEnabled(isFeatureEnabled('web-search'));
+    setFileUploadEnabled(isFeatureEnabled('document-upload'));
+  }, [conf, isFeatureFlagActivated]);
 
   useEffect(() => {
     if (messagesLength === 0) {
@@ -114,7 +143,7 @@ export const InputChat = ({
         onSubmit={handleSubmit}
         onDragOver={(e) => {
           e.preventDefault();
-          setIsDragActive(true);
+          setIsDragActive(fileUploadEnabled);
         }}
         onDragLeave={(e) => {
           e.preventDefault();
@@ -123,6 +152,9 @@ export const InputChat = ({
         onDrop={(e) => {
           e.preventDefault();
           setIsDragActive(false);
+          if (!fileUploadEnabled) {
+            return;
+          }
           if (e.dataTransfer.files?.length) {
             setFiles((prev) => {
               const dt = new DataTransfer();
@@ -302,24 +334,26 @@ export const InputChat = ({
               $align="space-between"
             >
               <Box $flex="1" $direction="row" $padding={{ horizontal: 'base' }}>
-                <Button
-                  size="small"
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  aria-label={t('Add attach file')}
-                  color="tertiary-text"
-                  icon={
-                    <Icon
-                      iconName="attach_file"
-                      $theme="greyscale"
-                      $variation="600"
-                      $size="24px"
-                    />
-                  }
-                >
-                  {!isMobile && <Text $weight="500">{t('Attach file')}</Text>}
-                </Button>
-                {onToggleWebSearch && (
+                {fileUploadEnabled && (
+                  <Button
+                    size="small"
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    aria-label={t('Add attach file')}
+                    color="tertiary-text"
+                    icon={
+                      <Icon
+                        iconName="attach_file"
+                        $theme="greyscale"
+                        $variation="600"
+                        $size="24px"
+                      />
+                    }
+                  >
+                    {!isMobile && <Text $weight="500">{t('Attach file')}</Text>}
+                  </Button>
+                )}
+                {onToggleWebSearch && webSearchEnabled && (
                   <Box
                     $margin={{ left: '4px' }}
                     $css={`
