@@ -473,8 +473,9 @@ export const Chat = ({
                     width: 100%;
                     margin: auto;
                     padding-left: 12px;
+                    padding-right: 12px;
                     max-width: 750px;
-                    text-align: ${message.role === 'user' ? 'right' : 'left'};
+                    text-align: left;
                     flex-direction: ${message.role === 'user' ? 'row-reverse' : 'row'};
                     ${shouldApplyStreamingHeight ? `min-height: ${status !== 'ready' ? streamingMessageHeight : streamingMessageHeight + 80}px;` : ''}
                   `}
@@ -634,7 +635,9 @@ export const Chat = ({
                             />
                             {!isMobile && (
                               <Text $color="#626A80" $weight="500">
-                                {t('Show sources')}
+                                {!isSourceOpen
+                                  ? t('Show sources')
+                                  : t('Hide sources')}
                               </Text>
                             )}
                           </Box>

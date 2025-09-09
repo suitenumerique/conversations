@@ -11,6 +11,7 @@ import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
 import { ButtonLogin } from '@/features/auth';
 import { useChatScroll } from '@/features/chat/hooks';
+import { Feedback } from '@/features/feedback/Feedback';
 import { LanguagePicker } from '@/features/language';
 import { useLeftPanelStore } from '@/features/left-panel/stores';
 import { useResponsiveStore } from '@/stores';
@@ -66,6 +67,7 @@ export const Header = () => {
             color={colorsTokens['primary-text']}
           />
         </StyledLink>
+        {isDesktop && <Feedback />}
       </Box>
       {!isDesktop ? (
         <Box $direction="row" $gap={spacingsTokens['sm']}>
