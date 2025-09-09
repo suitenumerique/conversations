@@ -1,7 +1,8 @@
+import { Button } from '@openfun/cunningham-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { BoxButton, Icon } from '@/components';
+import { Icon } from '@/components';
 
 import { SettingsModal } from './SettingsModal';
 
@@ -11,12 +12,14 @@ export const SettingsButton = () => {
 
   return (
     <>
-      <BoxButton
-        aria-label={t('Settings')}
+      <Button
+        size="medium"
+        color="primary-text"
         onClick={() => setIsSettingsOpen(true)}
-      >
-        <Icon iconName="settings" $theme="primary" $size="24px" />
-      </BoxButton>
+        aria-label={t('Settings')}
+        icon={<Icon iconName="settings" $theme="primary" $size="24px" />}
+        className="--docs--button-toggle-panel"
+      />
 
       <SettingsModal
         isOpen={isSettingsOpen}

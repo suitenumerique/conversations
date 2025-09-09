@@ -13,7 +13,7 @@ export const ButtonToggleLeftPanel = () => {
       size="medium"
       onClick={() => togglePanel()}
       aria-label={t('Open the header menu')}
-      color="tertiary-text"
+      color="primary-text"
       icon={<LeftPanelIcon />}
       className="--docs--button-toggle-panel"
     />

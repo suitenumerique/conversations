@@ -463,6 +463,9 @@ export const Chat = ({
                   messages.findLastIndex((msg) => msg.role === 'assistant');
               const shouldApplyStreamingHeight =
                 isLastAssistantMessageInConversation && streamingMessageHeight;
+              const isCurrentlyStreaming =
+                isLastAssistantMessageInConversation &&
+                (status === 'streaming' || status === 'submitted');
 
               return (
                 <Box
@@ -472,15 +475,16 @@ export const Chat = ({
                     display: flex;
                     width: 100%;
                     margin: auto;
+                    color: var(--c--theme--colors--greyscale-850);
                     padding-left: 12px;
+                    padding-right: 12px;
                     max-width: 750px;
-                    text-align: ${message.role === 'user' ? 'right' : 'left'};
+                    text-align: left;
                     flex-direction: ${message.role === 'user' ? 'row-reverse' : 'row'};
-                    ${shouldApplyStreamingHeight ? `min-height: ${status !== 'ready' ? streamingMessageHeight : streamingMessageHeight + 80}px;` : ''}
+                    ${shouldApplyStreamingHeight ? `min-height: ${streamingMessageHeight}px;` : ''}
                   `}
                 >
                   <Box
-                    $gap="2"
                     $radius="8px"
                     $maxWidth="100%"
                     $padding={`${message.role === 'user' ? '12px' : '0'}`}
@@ -502,7 +506,12 @@ export const Chat = ({
                             // Custom components for Markdown rendering
                             // eslint-disable-next-line @typescript-eslint/no-unused-vars
                             p: ({ node, ...props }) => (
-                              <Text $css="display: block" {...props} />
+                              <Text
+                                $css="display: block"
+                                $theme="greyscale"
+                                $variation="850"
+                                {...props}
+                              />
                             ),
                           }}
                         >
@@ -549,9 +558,9 @@ export const Chat = ({
                           ) : null,
                         )}
                     </Box>
-                    {message.role !== 'user' && (
+                    {message.role !== 'user' && !isCurrentlyStreaming && (
                       <Box
-                        $css="color: #626A80; font-size: 12px;"
+                        $css="color: #222631; font-size: 12px;"
                         $direction="row"
                         $align="center"
                         $gap="6px"
@@ -561,19 +570,7 @@ export const Chat = ({
                           $direction="row"
                           $align="center"
                           $gap="4px"
-                          $css="
-                      cursor: pointer;
-                      z-index: 100;
-                      font-size: 12px;
-                      padding: 2px 8px;
-                      margin-left: -8px;
-                      transition: background-color 0.4s;
-                      border-radius: 4px;
-
-                      &:hover {
-                        background-color: #EEF1F4 !important;
-                      }
-                    "
+                          className="c__button--neutral"
                           onClick={() => copyToClipboard(message.content)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
@@ -587,11 +584,11 @@ export const Chat = ({
                           <Icon
                             iconName="content_copy"
                             $theme="greyscale"
-                            $variation="600"
+                            $variation="550"
                             $size="16px"
                           />
                           {!isMobile && (
-                            <Text $color="#626A80" $weight="500">
+                            <Text $theme="greyscale" $variation="550">
                               {t('Copy')}
                             </Text>
                           )}
@@ -603,19 +600,7 @@ export const Chat = ({
                             $direction="row"
                             $align="center"
                             $gap="4px"
-                            $css="
-                        cursor: pointer;
-                        z-index: 100;
-                        font-size: 12px;
-                        padding: 2px 8px;
-                        margin-left: -8px;
-                        transition: background-color 0.4s;
-                        border-radius: 4px;
-
-                        &:hover {
-                          background-color: #EEF1F4 !important;
-                        }
-                      "
+                            className="c__button--neutral"
                             onClick={() => openSources(message.id)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' || e.key === ' ') {
@@ -629,12 +614,18 @@ export const Chat = ({
                             <Icon
                               iconName="book"
                               $theme="greyscale"
-                              $variation="600"
+                              $variation="550"
                               $size="16px"
                             />
                             {!isMobile && (
-                              <Text $color="#626A80" $weight="500">
-                                {t('Show sources')}
+                              <Text
+                                $theme="greyscale"
+                                $variation="550"
+                                $weight="500"
+                              >
+                                {!isSourceOpen
+                                  ? t('Show sources')
+                                  : t('Hide sources')}
                               </Text>
                             )}
                           </Box>
@@ -655,7 +646,7 @@ export const Chat = ({
             })}
           </Box>
         )}
-        {status !== 'ready' && (
+        {status !== 'ready' && status !== 'streaming' && (
           <Box
             $direction="row"
             $align="center"

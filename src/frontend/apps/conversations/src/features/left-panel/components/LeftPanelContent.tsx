@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { Box } from '@/components';
+import { Feedback } from '@/features/feedback/Feedback';
 import { LeftPanelConversations } from '@/features/left-panel/components/LeftPanelConversations';
 import { LeftPanelSearch } from '@/features/left-panel/components/LeftPanelSearch';
 import { useResponsiveStore } from '@/stores';
@@ -18,6 +19,11 @@ export const LeftPanelContent = () => {
         height: calc(100dvh - ${isDesktop ? '52px' : '104px'});
       `}
     >
+      {!isDesktop && (
+        <Box $padding={{ horizontal: 'sm', top: 'sm' }}>
+          <Feedback />
+        </Box>
+      )}
       <LeftPanelSearch onSearchChange={setHasSearch} />
       {!hasSearch && <LeftPanelConversations />}
     </Box>

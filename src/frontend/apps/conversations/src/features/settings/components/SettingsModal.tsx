@@ -1,7 +1,7 @@
 import { Modal, ModalSize } from '@openfun/cunningham-react';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Icon, Text, useToast } from '@/components';
+import { Box, Icon, StyledLink, Text, useToast } from '@/components';
 import { useUserUpdate } from '@/core/api/useUserUpdate';
 import { useAuthQuery } from '@/features/auth/api';
 
@@ -56,7 +56,8 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
           as="h6"
           $margin={{ all: '0' }}
           $align="flex-start"
-          $variation="1000"
+          $theme="greyscale"
+          $variation="850"
         >
           {t('Assistant settings')}
         </Text>
@@ -68,7 +69,8 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
             <Text
               $size="xs"
               $weight="400"
-              $variation="700"
+              $theme="greyscale"
+              $variation="600"
               $padding={{ top: 'sm', bottom: 'sm' }}
             >
               {t(
@@ -78,7 +80,8 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
             <Text
               $size="md"
               $weight="500"
-              $variation="1000"
+              $theme="greyscale"
+              $variation="850"
               $padding={{ top: 'xs' }}
             >
               {t('Allow conversation analysis')}
@@ -86,10 +89,37 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
           </Box>
           <Box $direction="row" $justify="space-between" $align="flex-start">
             <Box $css="max-width: 70%;">
-              <Text $size="xs" $weight="400" $variation="700">
+              <Text
+                $css={`
+                  display: inline-block;
+                `}
+                $size="xs"
+                $theme="greyscale"
+                $variation="600"
+                $weight="400"
+              >
                 {t(
-                  'If enabled, this allows us to analyse your exchanges to improve the Assistant. If disabled, all conversations remain confidential and are not used in any way. Learn more about data usage.',
+                  'If enabled, this allows us to analyse your exchanges to improve the Assistant. If disabled, all conversations remain confidential and are not used in any way. ',
                 )}
+                <StyledLink
+                  $css={`
+                    display: inline-block;
+                  `}
+                  target="_blank"
+                  href="https://docs.numerique.gouv.fr/docs/f307df3d-275c-4e0b-b53f-3d20052be8be/"
+                >
+                  <Text
+                    $css={`
+                    text-decoration: underline !important;
+                  `}
+                    $size="xs"
+                    $theme="greyscale"
+                    $variation="600"
+                    $weight="400"
+                  >
+                    {t('Learn more about data usage.')}
+                  </Text>
+                </StyledLink>
               </Text>
             </Box>
             <Box $css="padding-top: 2px;">
@@ -103,10 +133,6 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
                     cursor: ${isPending ? 'not-allowed' : 'pointer'};
                     transition: all 0.2s ease;
                     opacity: ${isPending ? 0.6 : 1};
-                    
-                    &:hover {
-                      background-color: ${user?.allow_conversation_analytics ? 'var(--c--theme--colors--primary-600)' : 'var(--c--theme--colors--greyscale-400)'};
-                    }
                   `}
                 onClick={
                   isPending ? undefined : () => void handleToggleChange()
@@ -139,9 +165,7 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
                   `}
                 >
                   <Icon
-                    iconName={
-                      user?.allow_conversation_analytics ? 'check' : 'close'
-                    }
+                    iconName={user?.allow_conversation_analytics ? 'check' : ''}
                     $size="12px"
                     $theme="primary"
                     $variation="600"
