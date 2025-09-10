@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- ✨(ui) delete flex message
+- 🎨(alpha) adjustment for alpha version
 
 ### Changed
 
+- ✨(ui) delete flex message
 - ✅(front) add enabled/disabled conversation analysis
 - 🎨(front) amelioration chat ux
 - 🎨(front) global layout modification

@@ -27,9 +27,6 @@ test.describe('Home page', () => {
     await expect(
       h2.getByText('Your digital assistant'),
     ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: 'Start conversation' }),
-    ).toBeVisible();
 
     await expect(footer).toBeVisible();
   });
