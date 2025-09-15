@@ -5,6 +5,8 @@ import Logo from '@/assets/logo/logo-assistant.svg';
 import { Box } from '@/components';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
+import { ButtonLogin } from '@/features/auth';
+import { Feedback } from '@/features/feedback/Feedback';
 import { ButtonTogglePanel, Title as _Title } from '@/features/header/';
 import { LaGaufre } from '@/features/header/components/LaGaufre';
 import { LanguagePicker } from '@/features/language';
@@ -35,7 +37,7 @@ export const HomeHeader = () => {
     >
       <Box
         $align="center"
-        $gap="2rem"
+        $gap="1.6rem"
         $direction="row"
         $width={isSmallMobile ? '100%' : 'auto'}
         $justify="center"
@@ -68,9 +70,11 @@ export const HomeHeader = () => {
             color={colorsTokens['primary-text']}
           />
         </Box>
+        {!isSmallMobile && <Feedback />}
       </Box>
       {!isSmallMobile && (
         <Box $direction="row" $gap="1rem" $align="center">
+          <ButtonLogin />
           <LanguagePicker />
           <LaGaufre />
         </Box>

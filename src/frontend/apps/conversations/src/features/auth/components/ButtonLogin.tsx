@@ -2,7 +2,7 @@ import { Button } from '@openfun/cunningham-react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import { BoxButton } from '@/components';
+import { BoxButton, Icon } from '@/components';
 
 import ProConnectImg from '../assets/button-proconnect.svg';
 import { useAuth } from '../hooks';
@@ -29,6 +29,7 @@ export const ButtonLogin = () => {
     <Button
       onClick={gotoLogout}
       color="primary-text"
+      icon={<Icon iconName="logout" $theme="primary" />}
       aria-label={t('Logout')}
       className="--docs--button-logout"
     >

@@ -19,9 +19,8 @@
   --c--theme--colors--info-700: #273961;
   --c--theme--colors--info-800: #222a3f;
   --c--theme--colors--info-900: #1d2437;
-  --c--theme--colors--greyscale-050: #eaecf0;
   --c--theme--colors--greyscale-100: #eee;
-  --c--theme--colors--greyscale-200: #d9dde6;
+  --c--theme--colors--greyscale-200: #e5e5e5;
   --c--theme--colors--greyscale-300: #cecece;
   --c--theme--colors--greyscale-400: #929292;
   --c--theme--colors--greyscale-500: #7c7c7c;
@@ -37,7 +36,7 @@
   --c--theme--colors--primary-500: #6a6af4;
   --c--theme--colors--primary-600: #313178;
   --c--theme--colors--primary-700: #272747;
-  --c--theme--colors--primary-800: #3e5de7;
+  --c--theme--colors--primary-800: #000091;
   --c--theme--colors--primary-900: #21213f;
   --c--theme--colors--success-100: #dffee6;
   --c--theme--colors--success-200: #b8fec9;
@@ -66,18 +65,19 @@
   --c--theme--colors--danger-700: #642626;
   --c--theme--colors--danger-800: #412121;
   --c--theme--colors--danger-900: #391c1c;
-  --c--theme--colors--primary-text: #4c6cef;
+  --c--theme--colors--primary-text: #000091;
   --c--theme--colors--success-text: #1f8d49;
   --c--theme--colors--warning-text: #d64d00;
   --c--theme--colors--danger-text: #fff;
   --c--theme--colors--primary-050: #f5f5fe;
   --c--theme--colors--primary-150: #f4f4fd;
   --c--theme--colors--greyscale-text: #303c4b;
+  --c--theme--colors--greyscale-050: #f6f6f6;
   --c--theme--colors--greyscale-250: #ddd;
   --c--theme--colors--greyscale-350: #ddd;
   --c--theme--colors--greyscale-750: #353535;
   --c--theme--colors--greyscale-950: #1e1e1e;
-  --c--theme--colors--greyscale-1000: #2a2f3c;
+  --c--theme--colors--greyscale-1000: #161616;
   --c--theme--colors--danger-050: #fff4f4;
   --c--theme--colors--blue-500: #417dc4;
   --c--theme--colors--brown-500: #bd987a;
@@ -205,8 +205,10 @@
   --c--components--button--medium-text-height: 40px;
   --c--components--button--border-radius: 4px;
   --c--components--button--small-height: 26px;
-  --c--components--button--primary--background--color: #3e5de6;
-  --c--components--button--primary--background--color-hover: #2944c2;
+  --c--components--button--primary--background--color: var(
+    --c--theme--colors--primary-text
+  );
+  --c--components--button--primary--background--color-hover: #1212ff;
   --c--components--button--primary--background--color-active: #2323ff;
   --c--components--button--primary--background--color-disabled: var(
     --c--theme--colors--greyscale-100
@@ -218,7 +220,9 @@
   --c--components--button--primary--disabled: var(
     --c--theme--colors--greyscale-500
   );
-  --c--components--button--primary-text--background--color: #3e5de6;
+  --c--components--button--primary-text--background--color: var(
+    --c--theme--colors--primary-text
+  );
   --c--components--button--primary-text--background--color-hover: var(
     --c--theme--colors--greyscale-100
   );
@@ -485,11 +489,12 @@
   --c--components--badge--info--color: var(--c--theme--colors--info-600);
   --c--components--la-gaufre: false;
   --c--components--home-proconnect: false;
+  --c--components--alpha: false;
   --c--components--beta: false;
   --c--components--image-system-filter: ;
   --c--components--favicon--ico: /assets/favicon.ico;
-  --c--components--favicon--png-light: /assets/favicon-light.png;
-  --c--components--favicon--png-dark: /assets/favicon-dark.png;
+  --c--components--favicon--png-light: /assets/icon-assistant.svg;
+  --c--components--favicon--png-dark: /assets/icon-assistant.svg;
 }
 
 .cunningham-theme--dark {
@@ -542,17 +547,131 @@
 }
 
 .cunningham-theme--dsfr {
-  --c--theme--colors--secondary-icon: #c9191e;
+  --c--theme--colors--primary-action: #3e5de7;
+  --c--theme--colors--primary-focus: #3e5de7;
+  --c--theme--colors--primary-text: #3e5de7;
+  --c--theme--colors--primary-050: #edf0ff;
+  --c--theme--colors--primary-100: #dae2ff;
+  --c--theme--colors--primary-150: #c8d3ff;
+  --c--theme--colors--primary-200: #b5c4ff;
+  --c--theme--colors--primary-250: #a2b6ff;
+  --c--theme--colors--primary-300: #90a7ff;
+  --c--theme--colors--primary-350: #7e98ff;
+  --c--theme--colors--primary-400: #6c89fe;
+  --c--theme--colors--primary-450: #5c7af7;
+  --c--theme--colors--primary-500: #4c6cef;
+  --c--theme--colors--primary-550: #3e5de7;
+  --c--theme--colors--primary-600: #304ddf;
+  --c--theme--colors--primary-650: #2845c1;
+  --c--theme--colors--primary-700: #223e9e;
+  --c--theme--colors--primary-750: #1f367d;
+  --c--theme--colors--primary-800: #1b2e5f;
+  --c--theme--colors--primary-850: #172446;
+  --c--theme--colors--primary-900: #121b30;
+  --c--theme--colors--primary-950: #0c111a;
+  --c--theme--colors--secondary-text: #fff;
+  --c--theme--colors--secondary-000: #fff;
+  --c--theme--colors--secondary-025: #f6f8f9;
+  --c--theme--colors--secondary-050: #eef1f4;
+  --c--theme--colors--secondary-100: #dfe2ea;
+  --c--theme--colors--secondary-150: #cfd5de;
+  --c--theme--colors--secondary-200: #c1c7d3;
+  --c--theme--colors--secondary-250: #b2b9c7;
+  --c--theme--colors--secondary-300: #a4abbc;
+  --c--theme--colors--secondary-350: #969eb0;
+  --c--theme--colors--secondary-400: #8891a4;
+  --c--theme--colors--secondary-450: #7b8498;
+  --c--theme--colors--secondary-500: #6d778c;
+  --c--theme--colors--secondary-550: #626a80;
+  --c--theme--colors--secondary-600: #555e74;
+  --c--theme--colors--secondary-650: #4a5267;
+  --c--theme--colors--secondary-700: #3f4759;
+  --c--theme--colors--secondary-750: #363b4c;
+  --c--theme--colors--secondary-800: #2b303d;
+  --c--theme--colors--secondary-850: #222631;
+  --c--theme--colors--secondary-900: #181b24;
+  --c--theme--colors--secondary-950: #0f1117;
+  --c--theme--colors--secondary-1000: #000;
+  --c--theme--colors--greyscale-text: #3c3b38;
+  --c--theme--colors--greyscale-000: #fff;
+  --c--theme--colors--greyscale-025: #f6f8f9;
+  --c--theme--colors--greyscale-050: #eef1f4;
+  --c--theme--colors--greyscale-100: #dfe2ea;
+  --c--theme--colors--greyscale-150: #cfd5de;
+  --c--theme--colors--greyscale-200: #c1c7d3;
+  --c--theme--colors--greyscale-250: #b2b9c7;
+  --c--theme--colors--greyscale-300: #a4abbc;
+  --c--theme--colors--greyscale-350: #969eb0;
+  --c--theme--colors--greyscale-400: #8891a4;
+  --c--theme--colors--greyscale-450: #7b8498;
+  --c--theme--colors--greyscale-500: #6d778c;
+  --c--theme--colors--greyscale-550: #626a80;
+  --c--theme--colors--greyscale-600: #555e74;
+  --c--theme--colors--greyscale-650: #4a5267;
+  --c--theme--colors--greyscale-700: #3f4759;
+  --c--theme--colors--greyscale-750: #363b4c;
+  --c--theme--colors--greyscale-800: #2b303d;
+  --c--theme--colors--greyscale-850: #222631;
+  --c--theme--colors--greyscale-900: #181b24;
+  --c--theme--colors--greyscale-950: #0f1117;
+  --c--theme--colors--greyscale-1000: #000;
+  --c--theme--colors--success-text: #234935;
+  --c--theme--colors--success-50: #def7e6;
+  --c--theme--colors--success-100: #baeecf;
+  --c--theme--colors--success-150: #a5e2c0;
+  --c--theme--colors--success-200: #95d4b3;
+  --c--theme--colors--success-250: #85c6a7;
+  --c--theme--colors--success-300: #74b99b;
+  --c--theme--colors--success-350: #65ab8f;
+  --c--theme--colors--success-400: #579e84;
+  --c--theme--colors--success-450: #4b9079;
+  --c--theme--colors--success-500: #40836f;
+  --c--theme--colors--success-550: #367664;
+  --c--theme--colors--success-600: #2b695a;
+  --c--theme--colors--success-650: #2c5a50;
+  --c--theme--colors--success-700: #2a4d45;
+  --c--theme--colors--success-750: #26403c;
+  --c--theme--colors--success-800: #213430;
+  --c--theme--colors--success-850: #1b2826;
+  --c--theme--colors--success-900: #151d1c;
+  --c--theme--colors--success-950: #0d1212;
   --c--theme--logo--src: /assets/logo-gouv.svg;
   --c--theme--logo--widthHeader: 110px;
   --c--theme--logo--widthFooter: 220px;
   --c--theme--logo--alt: gouvernement logo;
+  --c--components--button--primary--background--color: #3e5de7;
+  --c--components--button--primary--background--color-hover: #2845c1;
+  --c--components--button--primary--background--color-active: #2845c1;
+  --c--components--button--primary--background--color-disabled: #eee;
+  --c--components--button--primary--color: #edf0ff;
+  --c--components--button--primary--color-hover: #fff;
+  --c--components--button--primary--color-active: #fff;
+  --c--components--button--primary--color-focus-visible: #fff;
+  --c--components--button--primary--disabled: #7c7c7c;
+  --c--components--button--primary-text--color: #3e5de7;
+  --c--components--button--primary-text--color-hover: #000091;
+  --c--components--button--primary-text--background--color-hover: #eef1f4;
+  --c--components--button--primary-text--disabled: #929292;
+  --c--components--button--secondary--background--color: #dae2ff;
+  --c--components--button--secondary--background--color-hover: #c8d3ff;
+  --c--components--button--secondary--background--color-active: #c8d3ff;
+  --c--components--button--secondary--background--color-disabled: #eee;
+  --c--components--button--secondary--color: #304ddf;
+  --c--components--button--secondary--color-hover: #304ddf;
+  --c--components--button--secondary--disabled: #7c7c7c;
+  --c--components--button--secondary--border--color: #dae2ff;
+  --c--components--button--secondary--border--color-hover: #c8d3ff;
+  --c--components--button--tertiary--color: #3e5de7;
+  --c--components--button--info--background--color: #cfe5ff;
+  --c--components--button--info--background--color-hover: #b7d7ff;
+  --c--components--button--info--color: #265eaa;
   --c--components--la-gaufre: true;
   --c--components--home-proconnect: true;
+  --c--components--alpha: true;
   --c--components--beta: true;
-  --c--components--favicon--ico: /assets/favicon-dsfr.ico;
-  --c--components--favicon--png-light: /assets/favicon-dsfr.png;
-  --c--components--favicon--png-dark: /assets/favicon-dark-dsfr.png;
+  --c--components--favicon--ico: /assets/favicon.ico;
+  --c--components--favicon--png-light: /assets/icon-assistant.svg;
+  --c--components--favicon--png-dark: /assets/icon-assistant.svg;
 }
 
 .cunningham-theme--generic {
@@ -593,6 +712,7 @@
   --c--theme--colors--greyscale-350: #eee;
   --c--theme--colors--greyscale-400: #96948e;
   --c--theme--colors--greyscale-500: #817e77;
+  --c--theme--colors--greyscale-550: #626a80;
   --c--theme--colors--greyscale-600: #6a6862;
   --c--theme--colors--greyscale-700: #3c3b38;
   --c--theme--colors--greyscale-750: #383632;

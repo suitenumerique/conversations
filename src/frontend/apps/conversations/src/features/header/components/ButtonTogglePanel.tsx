@@ -13,9 +13,8 @@ export const ButtonTogglePanel = () => {
       size="medium"
       onClick={() => togglePanel()}
       aria-label={t('Open the header menu')}
-      color="tertiary-text"
+      color="primary-text"
       icon={<Icon $theme="primary" iconName={isPanelOpen ? 'close' : 'menu'} />}
-      className="--docs--button-toggle-panel"
     />
   );
 };

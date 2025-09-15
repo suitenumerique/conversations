@@ -57,7 +57,10 @@ export const QuickSearchInput = ({
             padding: 5px 7px;
           }
           & input {
+            font-family: 'Marianne' !important;
             border: none;
+            font-size: 0.9rem;
+            font-weight: 400;
             background-color: transparent;
             &:focus {
               border: none;
@@ -69,8 +72,6 @@ export const QuickSearchInput = ({
         {!loading && <Icon iconName="search" $variation="600" />}
         {loading && <Loader />}
         <Command.Input
-          /* eslint-disable-next-line jsx-a11y/no-autofocus */
-          autoFocus={true}
           aria-label={t('Quick search input')}
           value={inputValue}
           role="combobox"

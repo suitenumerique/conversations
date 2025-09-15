@@ -296,8 +296,8 @@ export const InputChat = ({
               </Box>
             )}
             <Box
-              $flex="1"
               $direction="row"
+              $gap="sm"
               $padding={{ bottom: 'base' }}
               $align="space-between"
             >
@@ -307,17 +307,21 @@ export const InputChat = ({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   aria-label={t('Add attach file')}
-                  color="tertiary-text"
+                  className="c__button--neutral"
                   icon={
                     <Icon
                       iconName="attach_file"
                       $theme="greyscale"
-                      $variation="600"
-                      $size="24px"
+                      $variation="550"
+                      $size="16px"
                     />
                   }
                 >
-                  {!isMobile && <Text $weight="500">{t('Attach file')}</Text>}
+                  {!isMobile && (
+                    <Text $theme="greyscale" $variation="550" $weight="500">
+                      {t('Attach file')}
+                    </Text>
+                  )}
                 </Button>
                 {onToggleWebSearch && (
                   <Box
@@ -335,7 +339,7 @@ export const InputChat = ({
                       ${
                         forceWebSearch
                           ? `
-                      .c__button {
+                      .research-web-button {
                         background-color: var(--c--theme--colors--primary-100) !important;
                       }
                     `
@@ -348,13 +352,15 @@ export const InputChat = ({
                       type="button"
                       onClick={onToggleWebSearch}
                       aria-label={t('Research on the web')}
-                      color="tertiary-text"
-                      className="research-web-button"
+                      className="c__button--neutral research-web-button"
                       icon={
                         <Icon
                           iconName="language"
-                          $theme={forceWebSearch ? 'primary' : 'greyscale'}
-                          $variation={forceWebSearch ? '800' : '600'}
+                          $theme="greyscale"
+                          $variation="550"
+                          $css={`
+                            color: ${forceWebSearch ? 'var(--c--theme--colors--primary-600) !important' : 'var(--c--theme--colors--greyscale-600)'}
+                          `}
                           $size="24px"
                         />
                       }
@@ -362,7 +368,7 @@ export const InputChat = ({
                       {!isMobile && (
                         <Text
                           $theme={forceWebSearch ? 'primary' : 'greyscale'}
-                          $weight="500"
+                          $variation="550"
                         >
                           {t('Research on the web')}
                         </Text>

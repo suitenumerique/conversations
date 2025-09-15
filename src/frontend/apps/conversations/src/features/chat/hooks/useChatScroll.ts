@@ -9,7 +9,6 @@ export const setChatContainerRef = (
   ref: React.RefObject<HTMLDivElement | null>,
 ) => {
   chatContainerRef = ref;
-  console.log('Chat container ref set:', ref.current);
 };
 
 export const useChatScroll = () => {
@@ -19,28 +18,31 @@ export const useChatScroll = () => {
     const handleScroll = () => {
       if (chatContainerRef.current) {
         const scrollTop = chatContainerRef.current.scrollTop;
-        const newIsAtTop = scrollTop <= 0;
-        console.log('Scroll detected:', scrollTop, 'isAtTop:', newIsAtTop);
+        const newIsAtTop = scrollTop <= 5;
         setIsAtTop(newIsAtTop);
       }
     };
 
-    // Vérifier si le conteneur existe
-    if (chatContainerRef.current) {
-      console.log('Setting up scroll listener for container');
-      const container = chatContainerRef.current;
-      container.addEventListener('scroll', handleScroll, { passive: true });
+    // Attendre que le conteneur soit disponible
+    const checkContainer = () => {
+      if (chatContainerRef.current) {
+        const container = chatContainerRef.current;
+        container.addEventListener('scroll', handleScroll, { passive: true });
 
-      // Vérifier la position initiale
-      handleScroll();
+        // Vérifier la position initiale
+        handleScroll();
 
-      return () => {
-        console.log('Removing scroll listener');
-        container.removeEventListener('scroll', handleScroll);
-      };
-    } else {
-      console.log('No chat container found');
-    }
+        return () => {
+          container.removeEventListener('scroll', handleScroll);
+        };
+      } else {
+        // Réessayer après un court délai si le conteneur n'est pas encore disponible
+        const timeoutId = setTimeout(checkContainer, 100);
+        return () => clearTimeout(timeoutId);
+      }
+    };
+
+    return checkContainer();
   }, []);
 
   return { isAtTop };

@@ -16,8 +16,8 @@ export const Icon = ({
     <Text
       {...textProps}
       className={clsx('--docs--icon-bg', textProps.className, {
-        'material-icons-filled': variant === 'filled',
-        'material-icons': variant === 'outlined',
+        'material-symbols': variant === 'filled',
+        'material-symbols-outlined': variant === 'outlined',
       })}
     >
       {iconName}
