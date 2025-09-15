@@ -99,10 +99,6 @@ export const InputChat = ({
           $background="white"
           $align="center"
           $margin={{ horizontal: 'base', bottom: 'md', top: '0' }}
-          $css={`
-            opacity: 0;
-            animation: fade-in 0.2s cubic-bezier(1,0,0,1) 0.2s both;
-          `}
         >
           <Text as="h2" $size="xl" $weight="600" $margin={{ all: '0' }}>
             {t('What is on your mind?')}
@@ -150,14 +146,6 @@ export const InputChat = ({
         <Box
           $padding={{ bottom: `${isDesktop ? 'base' : ''}` }}
           $background="white"
-          $css={
-            messagesLength === 0
-              ? `
-            opacity: 0;
-            animation: fade-in 0.4s cubic-bezier(1,0,0,1) 0s both;
-          `
-              : 'animation: fade-in 0.4s cubic-bezier(1,0,0,1) 0.4s both;'
-          }
         >
           <Box
             $flex={1}
