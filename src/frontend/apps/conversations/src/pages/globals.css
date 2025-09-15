@@ -62,11 +62,11 @@ nextjs-portal {
 .c__button--bordered,
 .c__button--bordered:hover {
   border: 1px solid var(--c--theme--colors--greyscale-200) !important;
-  background-color: #fff;
+  background-color: #fff !important;
 }
 
 .c__button--bordered:focus {
-  border: 1px solid rgb(0 0 0 / 16%);
+  border: 1px solid rgb(0 0 0 / 16%) !important;
 }
 
 .c__button--neutral {
@@ -74,8 +74,8 @@ nextjs-portal {
   color: var(--c--theme--colors--greyscale-550) !important;
   font-weight: 500 !important;
   cursor: pointer !important;
-  background-color: inherit;
-  z-index: 100;
+  background-color: inherit !important;
+  z-index: 100 !important;
   font-size: 12px !important;
   padding: 4px !important;
   padding-right: 9px !important;

@@ -12,6 +12,7 @@ and this project adheres to
 
 ### Changed
 
+- 🐛(fix) broken staging css
 - 🎨(alpha) adjustment for alpha version
 - ✨(ui) delete flex message
 - ✅(front) add enabled/disabled conversation analysis
