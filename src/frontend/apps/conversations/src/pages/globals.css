@@ -61,7 +61,7 @@ nextjs-portal {
 
 .c__button--bordered,
 .c__button--bordered:hover {
-  border: 1px solid var(--c--theme--colors--greyscale-200);
+  border: 1px solid var(--c--theme--colors--greyscale-200) !important;
   background-color: #fff;
 }
 
@@ -70,30 +70,30 @@ nextjs-portal {
 }
 
 .c__button--neutral {
-  transition: background-color 0.4s;
-  color: var(--c--theme--colors--greyscale-550);
-  font-weight: 500;
-  cursor: pointer;
+  transition: background-color 0.4s !important;
+  color: var(--c--theme--colors--greyscale-550) !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
   background-color: inherit;
   z-index: 100;
-  font-size: 12px;
-  padding: 4px;
-  padding-right: 9px;
-  border-radius: 4px;
+  font-size: 12px !important;
+  padding: 4px !important;
+  padding-right: 9px !important;
+  border-radius: 4px !important;
 }
 
 .c__button--neutral:hover,
 .c__button--neutral:active,
 .c__button--neutral:focus {
-  background-color: #f2f5f4;
+  background-color: #f2f5f4 !important;
 }
 
 ul a {
-  color: var(--c--theme--colors--greyscale-700);
+  color: var(--c--theme--colors--greyscale-700) !important;
 }
 
 ul a:hover {
-  color: var(--c--theme--colors--primary-800);
+  color: var(--c--theme--colors--primary-800) !important;
 }
 
 @keyframes fade-in {
@@ -111,20 +111,20 @@ ul a:hover {
 }
 
 .c__button--info {
-  background-color: #cfe5ff;
-  color: #265eaa;
-  font-weight: 500;
+  background-color: #cfe5ff !important;
+  color: #265eaa !important;
+  font-weight: 500 !important;
 }
 
 .c__button--info:hover,
 .c__button--info:active,
 .c__button--info:focus {
-  background-color: #b7d7ff;
-  color: #265eaa;
+  background-color: #b7d7ff !important;
+  color: #265eaa !important;
 }
 
 .research-web-button:focus {
-  outline: none;
+  outline: none !important;
   box-shadow: none !important;
 }
 

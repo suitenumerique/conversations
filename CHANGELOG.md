@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 🎨(alpha) adjustment for alpha version
+- 🐛(fix) broken staging css
 
 ### Changed
 
+- 🎨(alpha) adjustment for alpha version
 - ✨(ui) delete flex message
 - ✅(front) add enabled/disabled conversation analysis
 - 🎨(front) amelioration chat ux

@@ -23,8 +23,6 @@ export const SourceItemList: React.FC<SourceItemListProps> = ({ parts }) => {
        border-radius: 8px;
        margin-top: 0.5rem;
        overflow: hidden;
-       opacity: 0;
-      animation: fade-in 0.3s ease-out forwards;
      `}
     >
       {parts.map((part) => (

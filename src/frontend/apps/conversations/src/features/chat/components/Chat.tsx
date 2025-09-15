@@ -435,7 +435,6 @@ export const Chat = ({
           flex-basis: auto;
           height: 100%;
           flex-grow: 1;
-          animation: fade-in 0.3s ease-out forwards;
         `}
     >
       <Box
@@ -481,7 +480,7 @@ export const Chat = ({
                     max-width: 750px;
                     text-align: left;
                     flex-direction: ${message.role === 'user' ? 'row-reverse' : 'row'};
-                    ${shouldApplyStreamingHeight ? `min-height: ${streamingMessageHeight}px;` : ''}
+                    ${shouldApplyStreamingHeight ? `min-height: ${streamingMessageHeight + 70}px;` : ''}
                   `}
                 >
                   <Box
@@ -493,12 +492,7 @@ export const Chat = ({
                   >
                     {/* Message content */}
                     {message.content && (
-                      <Box
-                        $css={`
-                        opacity: 0;
-                        animation: fade-in 0.3s ease-in-out forwards;
-                      `}
-                      >
+                      <Box $padding={{ all: 'xxs' }}>
                         <Markdown
                           remarkPlugins={[remarkGfm, remarkMath]}
                           rehypePlugins={[rehypeKatex]}
