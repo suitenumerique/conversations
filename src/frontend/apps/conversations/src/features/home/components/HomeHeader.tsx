@@ -22,7 +22,7 @@ export const HomeHeader = () => {
   const { t } = useTranslation();
   const { themeTokens, spacingsTokens, colorsTokens } = useCunninghamTheme();
   const logo = themeTokens.logo;
-  const { isSmallMobile } = useResponsiveStore();
+  const { isSmallMobile, isDesktop } = useResponsiveStore();
 
   return (
     <Box
@@ -70,7 +70,7 @@ export const HomeHeader = () => {
             color={colorsTokens['primary-text']}
           />
         </Box>
-        {!isSmallMobile && <Feedback />}
+        {isDesktop && <Feedback />}
       </Box>
       {!isSmallMobile && (
         <Box $direction="row" $gap="1rem" $align="center">

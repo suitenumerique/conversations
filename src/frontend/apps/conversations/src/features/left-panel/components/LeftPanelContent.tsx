@@ -24,7 +24,21 @@ export const LeftPanelContent = () => {
           <Feedback />
         </Box>
       )}
-      <LeftPanelSearch onSearchChange={setHasSearch} />
+      <Box
+        $position="sticky"
+        $zIndex="100"
+        $css={`
+          top: 0;
+          background: linear-gradient(
+            to bottom,
+            rgba(255, 255, 255, 1) 0%,
+            rgba(255, 255, 255, 1) 70%,
+            rgba(255, 255, 255, 0) 100%
+          );
+        `}
+      >
+        <LeftPanelSearch onSearchChange={setHasSearch} />
+      </Box>
       {!hasSearch && <LeftPanelConversations />}
     </Box>
   );

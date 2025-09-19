@@ -28,7 +28,6 @@ export type QuickSearchProps = {
   inputValue?: string;
   inputContent?: ReactNode;
   showInput?: boolean;
-  loading?: boolean;
   label?: string;
   placeholder?: string;
   children?: ReactNode;
@@ -39,7 +38,6 @@ export const QuickSearch = ({
   onClear,
   inputContent,
   inputValue,
-  loading,
   showInput = true,
   label,
   placeholder,
@@ -53,7 +51,6 @@ export const QuickSearch = ({
       <Command label={label} shouldFilter={false} ref={ref}>
         {showInput && (
           <QuickSearchInput
-            loading={loading}
             withSeparator={hasChildrens(children)}
             inputValue={inputValue}
             onFilter={onFilter}

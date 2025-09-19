@@ -32,14 +32,30 @@ export const ConversationItemActions = ({
     <>
       <DropdownMenu options={options}>
         <Box
+          role="button"
+          tabIndex={0}
+          aria-label={t('Conversation actions')}
+          aria-haspopup="menu"
+          aria-expanded="false"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              // Le DropdownMenu gère l'ouverture
+            }
+          }}
           $css={css`
             display: block;
             width: 24px;
             height: 24px;
             padding: 4px;
             border-radius: 4px;
+            cursor: pointer;
             &:hover {
               background-color: #e1e3e7 !important;
+            }
+            &:focus {
+              outline: 2px solid #3e5de7;
+              outline-offset: 2px;
             }
           `}
         >
@@ -51,6 +67,7 @@ export const ConversationItemActions = ({
             $css={css`
               font-size: 1rem;
               color: var(--c--theme--colors--primary-text-text);
+              pointer-events: none;
             `}
           />
         </Box>

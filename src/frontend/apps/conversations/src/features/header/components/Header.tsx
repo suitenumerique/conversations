@@ -67,7 +67,7 @@ export const Header = () => {
             color={colorsTokens['primary-text']}
           />
         </StyledLink>
-        {isDesktop && <Feedback />}
+        <Box className="c__button--feedback">{isDesktop && <Feedback />}</Box>
       </Box>
       {!isDesktop ? (
         <Box $direction="row" $gap={spacingsTokens['sm']}>
@@ -77,6 +77,7 @@ export const Header = () => {
               router.push('/');
               togglePanel(false);
             }}
+            className="mobile-no-focus"
             aria-label={t('New chat')}
             color="primary-text"
             icon={<NewChatIcon />}

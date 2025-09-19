@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import { BoxButton, Icon } from '@/components';
+import { useResponsiveStore } from '@/stores';
 
 import ProConnectImg from '../assets/button-proconnect.svg';
 import { useAuth } from '../hooks';
@@ -11,6 +12,7 @@ import { gotoLogin, gotoLogout } from '../utils';
 export const ButtonLogin = () => {
   const { t } = useTranslation();
   const { authenticated } = useAuth();
+  const { isDesktop } = useResponsiveStore();
 
   if (!authenticated) {
     return (
@@ -29,7 +31,7 @@ export const ButtonLogin = () => {
     <Button
       onClick={gotoLogout}
       color="primary-text"
-      icon={<Icon iconName="logout" $theme="primary" />}
+      icon={!isDesktop ? <Icon iconName="logout" $theme="primary" /> : ''}
       aria-label={t('Logout')}
       className="--docs--button-logout"
     >
