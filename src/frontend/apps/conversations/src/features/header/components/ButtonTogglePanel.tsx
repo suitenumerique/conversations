@@ -15,6 +15,7 @@ export const ButtonTogglePanel = () => {
       aria-label={t('Open the header menu')}
       color="primary-text"
       icon={<Icon $theme="primary" iconName={isPanelOpen ? 'close' : 'menu'} />}
+      className="mobile-no-focus"
     />
   );
 };

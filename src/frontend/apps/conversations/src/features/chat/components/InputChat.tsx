@@ -40,26 +40,56 @@ export const InputChat = ({
 }: InputChatProps) => {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const { isDesktop, isMobile } = useResponsiveStore();
   const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
+  const [isResetting, setIsResetting] = useState(false);
 
   const suggestions = [
-    'Ask a question',
-    'Turn this list into bullet points',
-    'Write a short product description',
-    'Find recent news about...',
+    t('Ask a question'),
+    t('Turn this list into bullet points'),
+    t('Write a short product description'),
+    t('Find recent news about...'),
   ];
 
   useEffect(() => {
     if (messagesLength === 0) {
       const interval = setInterval(() => {
-        setCurrentSuggestionIndex((prev) => (prev + 1) % suggestions.length);
+        setCurrentSuggestionIndex((prev) => {
+          if (prev === suggestions.length - 1) {
+            return suggestions.length;
+          }
+          return prev + 1;
+        });
       }, 3000);
 
       return () => clearInterval(interval);
     }
   }, [messagesLength, suggestions.length]);
+
+  useEffect(() => {
+    if (currentSuggestionIndex === suggestions.length) {
+      const timeout = setTimeout(() => {
+        setIsResetting(true);
+        setCurrentSuggestionIndex(0);
+        setTimeout(() => setIsResetting(false), 50);
+      }, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [currentSuggestionIndex, suggestions.length]);
+
+  useEffect(() => {
+    if (textareaRef.current && messagesLength === 0 && status === 'ready') {
+      textareaRef.current.focus();
+    }
+  }, [messagesLength, status]);
+
+  useEffect(() => {
+    if (textareaRef.current && status === 'ready' && !input) {
+      textareaRef.current.focus();
+    }
+  }, [status, input]);
 
   return (
     <Box
@@ -155,12 +185,13 @@ export const InputChat = ({
               border: ${
                 isDragActive
                   ? '2px dashed var(--c--theme--colors--primary-400)'
-                  : '1px solid var(--c--theme--colors--greyscale-200)'
+                  : '1px solid var(--c--theme--colors--greyscale-100)'
               };
               position: relative;
             `}
           >
             <textarea
+              ref={textareaRef}
               value={input ?? ''}
               name="inputchat-textarea"
               onChange={(e) => {
@@ -169,6 +200,7 @@ export const InputChat = ({
                 textarea.style.height = 'auto';
                 const newHeight = Math.min(textarea.scrollHeight, 200);
                 textarea.style.height = `${newHeight}px`;
+                textarea.focus();
               }}
               disabled={status !== 'ready'}
               rows={1}
@@ -183,7 +215,7 @@ export const InputChat = ({
                 minHeight: '60px',
                 maxHeight: '200px',
                 overflowY: 'auto',
-                transition: 'all 0.3s ease',
+                transition: 'all 0.3s cubic-bezier(1, 0, 0, 1)',
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
@@ -191,6 +223,7 @@ export const InputChat = ({
                   const textarea = e.target as HTMLTextAreaElement;
                   textarea.style.height = '0';
                   e.currentTarget.form?.requestSubmit?.();
+                  textarea.focus();
                 }
               }}
             />
@@ -202,28 +235,39 @@ export const InputChat = ({
                   top: 1rem;
                   left: 1.5rem;
                   right: 1.5rem;
+                  height: 1.5rem;
                   pointer-events: none;
                   color: var(--c--theme--colors--greyscale-500);
                   font-size: 1rem;
                   font-family: inherit;
                   line-height: 1.5;
+                  overflow: hidden;
                 `}
               >
-                {suggestions.map((suggestion, index) => (
-                  <Box
-                    key={index}
-                    $css={`
-                      position: absolute;
-                      top: 0;
-                      left: 0;
-                      right: 0;
-                      opacity: ${index === currentSuggestionIndex ? 1 : 0};
-                      transition: opacity ${index === currentSuggestionIndex ? '0.4s' : '0s'} ease;
-                    `}
-                  >
-                    {suggestion}
-                  </Box>
-                ))}
+                <Box
+                  $css={`
+                    display: flex;
+                    flex-direction: column;
+                    height: ${(suggestions.length + 1) * 100}%;
+                    transform: translateY(-${currentSuggestionIndex * (100 / (suggestions.length + 1))}%);
+                    transition: ${isResetting ? 'none' : 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)'};
+                  `}
+                >
+                  {[...suggestions, suggestions[0]].map((suggestion, index) => (
+                    <Box
+                      key={index}
+                      $css={`
+                        height: calc(100% / ${suggestions.length + 1});
+                        flex-shrink: 0;
+                        white-space: nowrap;
+                        display: flex;
+                        justify-content: flex-start;
+                      `}
+                    >
+                      {suggestion}
+                    </Box>
+                  ))}
+                </Box>
               </Box>
             )}
 
@@ -295,13 +339,13 @@ export const InputChat = ({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   aria-label={t('Add attach file')}
-                  className="c__button--neutral"
+                  className="c__button--neutral attach-file-button"
                   icon={
                     <Icon
                       iconName="attach_file"
                       $theme="greyscale"
                       $variation="550"
-                      $size="16px"
+                      $size={`${isMobile ? '24px' : '16px'}`}
                     />
                   }
                 >
@@ -349,7 +393,6 @@ export const InputChat = ({
                           $css={`
                             color: ${forceWebSearch ? 'var(--c--theme--colors--primary-600) !important' : 'var(--c--theme--colors--greyscale-600)'}
                           `}
-                          $size="24px"
                         />
                       }
                     >
@@ -384,7 +427,7 @@ export const InputChat = ({
                           </Text>
                           <Icon
                             iconName="close"
-                            $variation="800"
+                            $variation="text"
                             $theme="primary"
                             $size="md"
                             $css={`

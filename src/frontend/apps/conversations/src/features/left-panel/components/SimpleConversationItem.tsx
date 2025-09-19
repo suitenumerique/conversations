@@ -58,7 +58,7 @@ export const SimpleConversationItem = ({
           aria-describedby="doc-title"
           aria-label={conversation.title || t('Untitled conversation')}
           $size="sm"
-          $variation="1000"
+          $variation="850"
           $css={ItemTextCss}
         >
           {conversation.title || t('Untitled conversation')}

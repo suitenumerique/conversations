@@ -564,7 +564,7 @@ export const Chat = ({
                           $direction="row"
                           $align="center"
                           $gap="4px"
-                          className="c__button--neutral"
+                          className="c__button--neutral action-chat-button"
                           onClick={() => copyToClipboard(message.content)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
@@ -594,7 +594,7 @@ export const Chat = ({
                             $direction="row"
                             $align="center"
                             $gap="4px"
-                            className="c__button--neutral"
+                            className="c__button--neutral action-chat-button"
                             onClick={() => openSources(message.id)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' || e.key === ' ') {
@@ -660,7 +660,7 @@ export const Chat = ({
       <Box
         $css={`
           position: relative;
-          bottom: 20px;
+          bottom: ${isMobile ? '8px' : '20px'};
           margin: auto;
           z-index: 1000;
         `}

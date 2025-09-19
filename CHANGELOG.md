@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 🐛(fix) broken staging css
+- ✨(ui) fix retour global ui 
 
 ### Changed
 
+- 🐛(fix) broken staging css
 - 🎨(alpha) adjustment for alpha version
 - ✨(ui) delete flex message
 - ✅(front) add enabled/disabled conversation analysis
