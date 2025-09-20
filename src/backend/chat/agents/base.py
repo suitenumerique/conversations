@@ -9,6 +9,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.toolsets import FunctionToolset
 
 from chat.tools import get_pydantic_tools_by_name
 
@@ -23,7 +24,7 @@ class BaseAgent(Agent):
 
     def __init__(self, *, model_hrid, **kwargs):
         """Initialize the agent with model configuration from settings."""
-        _ignored_kwargs = {"model", "system_prompt", "tools"}
+        _ignored_kwargs = {"model", "system_prompt", "tools", "toolsets"}
         if set(kwargs).intersection(_ignored_kwargs):
             raise ValueError(f"{_ignored_kwargs} arguments must not be provided.")
 
@@ -49,6 +50,19 @@ class BaseAgent(Agent):
             else None,
         )
         _system_prompt = self.configuration.system_prompt
+        _base_toolset = (
+            [
+                FunctionToolset(
+                    tools=[
+                        get_pydantic_tools_by_name(tool_name)
+                        for tool_name in self.configuration.tools
+                    ]
+                )
+            ]
+            if self.configuration.tools
+            else None
+        )
+
         _tools = [get_pydantic_tools_by_name(tool_name) for tool_name in self.configuration.tools]
 
         super().__init__(

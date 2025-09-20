@@ -35,11 +35,6 @@ def ai_settings(settings):
     # Disable web search backend for tests
     settings.RAG_WEB_SEARCH_BACKEND = None
 
-    # Unused settings but required for initialization
-    settings.AI_ROUTING_MODEL = ""
-    settings.AI_ROUTING_MODEL_BASE_URL = ""
-    settings.AI_ROUTING_MODEL_API_KEY = ""
-
     return settings
 
 

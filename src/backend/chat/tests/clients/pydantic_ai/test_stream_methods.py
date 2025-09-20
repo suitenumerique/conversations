@@ -22,11 +22,6 @@ def base_settings(settings):
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
     settings.AI_AGENT_TOOLS = []
 
-    # Unused settings but required for initialization
-    settings.AI_ROUTING_MODEL = ""
-    settings.AI_ROUTING_MODEL_BASE_URL = ""
-    settings.AI_ROUTING_MODEL_API_KEY = ""
-
 
 @pytest.fixture(name="ui_messages")
 def ui_messages_fixture():

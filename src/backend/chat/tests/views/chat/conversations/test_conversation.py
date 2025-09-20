@@ -2,7 +2,6 @@
 # pylint: disable=too-many-lines
 
 import json
-import logging
 
 from django.utils import timezone
 
@@ -12,7 +11,6 @@ from freezegun import freeze_time
 from rest_framework import status
 
 from core.factories import UserFactory
-from core.feature_flags.flags import FeatureToggle
 
 from chat.ai_sdk_types import (
     Attachment,
@@ -39,11 +37,6 @@ def ai_settings(settings):
 
     # Disable web search backend for tests
     settings.RAG_WEB_SEARCH_BACKEND = None
-
-    # Unused settings but required for initialization
-    settings.AI_ROUTING_MODEL = ""
-    settings.AI_ROUTING_MODEL_BASE_URL = ""
-    settings.AI_ROUTING_MODEL_API_KEY = ""
 
     return settings
 
@@ -964,59 +957,6 @@ def test_post_conversation_tool_call_fails(
             },
         },
     ]
-
-
-@freeze_time("2025-07-25T10:36:35.297675Z")
-@respx.mock
-def test_post_conversation_data_protocol_feature_disabled(
-    api_client,
-    caplog,
-    mock_openai_stream,
-    feature_flags,
-):
-    """Test posting messages to a conversation using the 'data' protocol."""
-    feature_flags.web_search = FeatureToggle.DISABLED
-    feature_flags.document_upload = FeatureToggle.DISABLED
-    caplog.set_level(logging.INFO)
-
-    chat_conversation = ChatConversationFactory()
-
-    url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
-    data = {
-        "messages": [
-            {
-                "id": "yuPoOuBkKA4FnKvk",
-                "role": "user",
-                "parts": [{"text": "Hello", "type": "text"}],
-                "content": "Hello",
-                "createdAt": "2025-07-03T15:22:17.105Z",
-            }
-        ]
-    }
-    api_client.force_login(chat_conversation.owner)
-
-    response = api_client.post(url, data, format="json")
-
-    assert response.status_code == status.HTTP_200_OK
-    assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
-    assert response.streaming
-
-    # Wait for the streaming content to be fully received
-    response_content = b"".join(response.streaming_content).decode("utf-8")
-    assert response_content == (
-        '0:"Hello"\n'
-        '0:" there"\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
-    )
-
-    assert mock_openai_stream.called
-
-    assert (
-        "No web search or document upload features enabled, skipping intent detection."
-        in caplog.text
-    )
-    assert "User intent detected: {'web_search': False, 'attachment_summary': False}" in caplog.text
 
 
 def test_post_conversation_model_selection_invalid(api_client):

@@ -3,11 +3,14 @@
 # pylint:disable=protected-access
 
 import pytest
+import responses
 from freezegun import freeze_time
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.models.test import TestModel
 
 from chat.agents.conversation import ConversationAgent
+from chat.clients.pydantic_ai import ContextDeps
 
 
 @pytest.fixture(autouse=True)
@@ -19,15 +22,10 @@ def base_settings(settings):
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
     settings.AI_AGENT_TOOLS = []
 
-    # Unused settings but required for initialization
-    settings.AI_ROUTING_MODEL = ""
-    settings.AI_ROUTING_MODEL_BASE_URL = ""
-    settings.AI_ROUTING_MODEL_API_KEY = ""
-
 
 def test_build_pydantic_agent_success_no_tools():
     """Test successful agent creation without tools."""
-    agent = ConversationAgent(mcp_servers=[], model_hrid="default-model")
+    agent = ConversationAgent(model_hrid="default-model")
     assert isinstance(agent, Agent)
 
     assert agent._system_prompts == ("You are a helpful assistant",)
@@ -43,7 +41,7 @@ def test_build_pydantic_agent_with_tools(settings):
     """Test successful agent creation with tools."""
     settings.AI_AGENT_TOOLS = ["get_current_weather"]
 
-    agent = ConversationAgent(toolsets=[], model_hrid="default-model")
+    agent = ConversationAgent(model_hrid="default-model")
     assert isinstance(agent, Agent)
 
     assert agent._system_prompts == ("You are a helpful assistant",)
@@ -61,7 +59,7 @@ def test_add_dynamic_system_prompt():
     Ensure add_the_date and enforce_response_language system prompt are registered
     and returns proper values.
     """
-    agent = ConversationAgent(toolsets=[], model_hrid="default-model")
+    agent = ConversationAgent(model_hrid="default-model")
 
     assert len(agent._system_prompt_functions) == 2
 
@@ -71,5 +69,47 @@ def test_add_dynamic_system_prompt():
     assert agent._system_prompt_functions[1].function.__name__ == "enforce_response_language"
     assert agent._system_prompt_functions[1].function() == ""
 
-    agent = ConversationAgent(toolsets=[], model_hrid="default-model", language="fr-fr")
+    agent = ConversationAgent(model_hrid="default-model", language="fr-fr")
     assert agent._system_prompt_functions[1].function() == "Answer in french."
+
+
+def test_agent_web_search_available(settings):
+    """Test the web_search_available method."""
+    settings.AI_AGENT_TOOLS = ["get_current_weather", "web_search_albert_rag"]
+    agent = ConversationAgent(model_hrid="default-model")
+    assert agent.web_search_available() is True
+
+    settings.AI_AGENT_TOOLS = ["get_current_weather"]
+    agent = ConversationAgent(model_hrid="default-model")
+    assert agent.web_search_available() is False
+
+
+@responses.activate
+def test_web_search_tool_avalability(settings):
+    """Test the web search tool availability according to context."""
+    responses.add(
+        responses.POST,
+        "https://api.tavily.com/search",
+        json={"results": []},
+        status=200,
+    )
+    context_deps = ContextDeps(conversation=None, user=None, web_search_enabled=True)
+
+    # No tools (context allows web search, but no tool configured)
+    agent = ConversationAgent(model_hrid="default-model")
+    with agent.override(model=TestModel(), deps=context_deps):
+        response = agent.run_sync("What tools do you have?")
+        assert response.output == "success (no tool calls)"
+
+    # Tool configured, context allows web search
+    settings.AI_AGENT_TOOLS = ["web_search_tavily"]
+    agent = ConversationAgent(model_hrid="default-model")  # re-init to pick up new settings
+    with agent.override(model=TestModel(), deps=context_deps):
+        response = agent.run_sync("What tools do you have?")
+        assert response.output == '{"web_search_tavily":[]}'
+
+    # Tool configured, context disables web search
+    context_deps.web_search_enabled = False
+    with agent.override(model=TestModel(), deps=context_deps):
+        response = agent.run_sync("What tools do you have?")
+        assert response.output == "success (no tool calls)"

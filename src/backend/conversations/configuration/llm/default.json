@@ -20,15 +20,15 @@
       "tools": "settings.AI_AGENT_TOOLS"
     },
     {
-      "hrid": "default-routing-model",
-      "model_name": "settings.AI_ROUTING_MODEL",
-      "human_readable_name": "Default Routing Model",
-      "provider_name": "default-routing-provider",
+      "hrid": "default-summarization-model",
+      "model_name": "settings.AI_MODEL",
+      "human_readable_name": "Default Summarization Model",
+      "provider_name": "default-provider",
       "profile": null,
       "settings": {},
       "is_active": true,
       "icon": null,
-      "system_prompt": "settings.AI_ROUTING_SYSTEM_PROMPT",
+      "system_prompt": "settings.SUMMARIZATION_SYSTEM_PROMPT",
       "tools": []
     }
   ],
@@ -37,11 +37,6 @@
       "hrid": "default-provider",
       "base_url": "settings.AI_BASE_URL",
       "api_key": "settings.AI_API_KEY"
-    },
-    {
-      "hrid": "default-routing-provider",
-      "base_url": "settings.AI_ROUTING_MODEL_BASE_URL",
-      "api_key": "settings.AI_ROUTING_MODEL_API_KEY"
     }
   ]
 }

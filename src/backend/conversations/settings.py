@@ -471,6 +471,11 @@ class Base(Configuration):
     LLM_ROUTING_MODEL_HRID = values.Value(
         "default-routing-model", environ_name="LLM_ROUTING_MODEL_HRID", environ_prefix=None
     )
+    LLM_SUMMARIZATION_MODEL_HRID = values.Value(
+        "default-summarization-model",
+        environ_name="LLM_SUMMARIZATION_MODEL_HRID",
+        environ_prefix=None,
+    )
     FAKE_STREAMING_DELAY = values.FloatValue(
         default=0.0025,
         environ_name="FAKE_STREAMING_DELAY",
@@ -490,34 +495,6 @@ class Base(Configuration):
             "You can use Markdown to format your answers. "
         ),
         environ_name="AI_AGENT_INSTRUCTIONS",
-        environ_prefix=None,
-    )
-
-    AI_ROUTING_MODEL = values.Value(None, environ_name="AI_ROUTING_MODEL", environ_prefix=None)
-    AI_ROUTING_MODEL_BASE_URL = values.Value(
-        values.Value(None, environ_name="AI_BASE_URL", environ_prefix=None),
-        environ_name="AI_ROUTING_MODEL_BASE_URL",
-        environ_prefix=None,
-    )
-    AI_ROUTING_MODEL_API_KEY = values.Value(
-        values.Value(None, environ_name="AI_API_KEY", environ_prefix=None),
-        environ_name="AI_ROUTING_MODEL_API_KEY",
-        environ_prefix=None,
-    )
-    AI_ROUTING_SYSTEM_PROMPT = values.Value(
-        "Your only job is to detect the following user intents based on the user's request:\n"
-        "\n"
-        " - `web_search`: Make `True` this intent only if the user explicitly asks for recent,"
-        " precise, or up-to-date information about a specific topic, or if web research is "
-        " required to provide context before answering."
-        " Do not trigger this intent for generic or trivial questions, or when the answer"
-        " does not require updated data (e.g., 'what is the date today', 'rewrite this for me').\n"
-        "\n"
-        " - `attachment_summary`: Make `True` this intent if the user requests, explicitly or"
-        " implicitly, a summary of a document or file. Any wording such as"
-        ' "summary", "overview", "highlights", "key points", or similar should activate this'
-        " intent.",
-        environ_name="AI_ROUTING_SYSTEM_PROMPT",
         environ_prefix=None,
     )
 
@@ -641,6 +618,16 @@ USER QUESTION:
         environ_prefix=None,
     )
 
+    # Summarization
+    SUMMARIZATION_SYSTEM_PROMPT = values.Value(
+        (
+            "You are a helpful assistant that summarizes the content "
+            "of documents following user request.\n\n"
+        ),
+        environ_name="SUMMARIZATION_SYSTEM_PROMPT",
+        environ_prefix=None,
+    )
+
     # Tavily API
     TAVILY_API_KEY = values.Value(
         None,  # Tavily API key is not set by default
@@ -670,7 +657,7 @@ USER QUESTION:
         environ_prefix=None,
     )
     ALBERT_API_TIMEOUT = values.PositiveIntegerValue(
-        default=10,  # seconds
+        default=30,  # seconds
         environ_name="ALBERT_API_TIMEOUT",
         environ_prefix=None,
     )
@@ -949,10 +936,6 @@ class Test(Base):
     AI_BASE_URL = None
     AI_API_KEY = None
     AI_MODEL = None
-
-    AI_ROUTING_MODEL_BASE_URL = None
-    AI_ROUTING_MODEL = None
-    AI_ROUTING_MODEL_API_KEY = None
 
     POSTHOG_KEY = None
 

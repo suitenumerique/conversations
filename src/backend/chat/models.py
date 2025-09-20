@@ -72,3 +72,51 @@ class ChatConversation(BaseModel):
         null=True,
         help_text="Collection ID for the conversation, used for RAG document search",
     )
+
+
+class ChatConversationContextKind(models.TextChoices):
+    """Enumeration of chat conversation context kinds."""
+
+    IMAGE = "image"  # Context related to an image in base64 format
+    DOCUMENT = "document"
+
+
+class ChatConversationContext(BaseModel):
+    """
+    Model representing a chat conversation context.
+
+    This model stores the details of a chat conversation context:
+    - `conversation`: The conversation this context belongs to.
+    - `kind`: The kind of context (e.g., 'image', 'document').
+    - `name`: The key of the context.
+    - `content`: The value of the context.
+    """
+
+    conversation = models.ForeignKey(
+        ChatConversation,
+        related_name="contexts",
+        on_delete=models.CASCADE,
+        null=False,
+        blank=False,
+    )
+    kind = models.CharField(
+        max_length=50,
+        blank=False,
+        null=False,
+        help_text="Kind of the chat conversation context (e.g., 'image', 'document')",
+        choices=ChatConversationContextKind,
+    )
+    name = models.CharField(
+        max_length=100,
+        blank=False,
+        null=False,
+        help_text="Key of the chat conversation context",
+    )
+    content = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Value of the chat conversation context",
+    )
+
+    class Meta:
+        unique_together = ("conversation", "name")

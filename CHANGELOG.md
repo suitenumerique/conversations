@@ -28,6 +28,7 @@ and this project adheres to
 - 🗃️(chat) enforce messages stored JSON format #6
 - 🐛(chat) UI messages must have a unique identifier #6
 - ✨(llm) allow configuration from JSON file #22
+- 💥(agent) replace routing w/ tool calls #40
 
 ### Added
 

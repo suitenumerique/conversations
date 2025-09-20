@@ -35,3 +35,16 @@ class ConversationAgent(BaseAgent):
         def enforce_response_language() -> str:
             """Dynamic system prompt function to set the expected language to use."""
             return f"Answer in {get_language_name(language).lower()}." if language else ""
+
+    def web_search_available(self) -> bool:
+        """
+        Check if web search tool is available.
+
+        Warning, this says the tool is available, not that
+        it (the tool/feature) is enabled for the current conversation.
+        """
+        return any(
+            tool.name.startswith("web_search_")
+            for toolset in self.toolsets
+            for tool in toolset.tools.values()
+        )
