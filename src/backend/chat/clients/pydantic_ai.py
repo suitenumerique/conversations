@@ -567,8 +567,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
                 # Final usage summary
                 final_usage = run.usage()
-                usage["promptTokens"] = final_usage.request_tokens
-                usage["completionTokens"] = final_usage.response_tokens
+                usage["promptTokens"] = final_usage.input_tokens
+                usage["completionTokens"] = final_usage.output_tokens
 
         await self._agent_stop_streaming(force_cache_check=True)
 

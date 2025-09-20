@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from chat.tools import get_pydantic_tools_by_name
@@ -17,7 +17,7 @@ def _get_pydantic_agent(model_hrid, mcp_servers=None, **kwargs) -> Agent:
     except KeyError as exc:
         raise ImproperlyConfigured(f"LLM model configuration '{model_hrid}' not found.") from exc
 
-    _model_instance = OpenAIModel(
+    _model_instance = OpenAIChatModel(
         model_name=_model.model_name,
         provider=OpenAIProvider(
             base_url=_model.provider.base_url,

@@ -53,10 +53,9 @@ dependencies = [
     "markitdown==0.0.2",
     "mozilla-django-oidc==4.0.1",
     "nested-multipart-parser==1.5.0",
-    "openai==1.99.1",  # see https://github.com/pydantic/pydantic-ai/issues/2476
     "posthog==6.4.1",
     "pydantic==2.11.7",
-    "pydantic-ai==0.6.2",
+    "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.0.8",
     "psycopg[binary]==3.2.9",
     "PyJWT==2.10.1",
     "python-magic==0.4.27",

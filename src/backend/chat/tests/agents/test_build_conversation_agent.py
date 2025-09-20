@@ -5,7 +5,7 @@
 import pytest
 from freezegun import freeze_time
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel
 
 from chat.agents.conversation import build_conversation_agent
 
@@ -32,7 +32,7 @@ def test_build_pydantic_agent_success_no_tools():
 
     assert agent._system_prompts == ("You are a helpful assistant",)
     assert agent._instructions is None
-    assert isinstance(agent.model, OpenAIModel)
+    assert isinstance(agent.model, OpenAIChatModel)
     assert agent.model.model_name == "model-123"
     assert str(agent.model.client.base_url) == "https://api.llm.com/v1/"
     assert agent.model.client.api_key == "test-key"
@@ -48,7 +48,7 @@ def test_build_pydantic_agent_with_tools(settings):
 
     assert agent._system_prompts == ("You are a helpful assistant",)
     assert agent._instructions is None
-    assert isinstance(agent.model, OpenAIModel)
+    assert isinstance(agent.model, OpenAIChatModel)
     assert agent.model.model_name == "model-123"
     assert str(agent.model.client.base_url) == "https://api.llm.com/v1/"
     assert agent.model.client.api_key == "test-key"
