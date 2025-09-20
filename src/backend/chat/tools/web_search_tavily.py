@@ -5,7 +5,7 @@ from django.conf import settings
 import requests
 
 
-def tavily_web_search(query: str) -> list[dict]:
+def web_search_tavily(query: str) -> list[dict]:
     """
     Search the web for up-to-date information
 

@@ -30,6 +30,18 @@
       "icon": null,
       "system_prompt": "settings.AI_ROUTING_SYSTEM_PROMPT",
       "tools": []
+    },
+    {
+      "hrid": "default-summarization-model",
+      "model_name": "settings.AI_MODEL",
+      "human_readable_name": "Default Summarization Model",
+      "provider_name": "default-provider",
+      "profile": null,
+      "settings": {},
+      "is_active": true,
+      "icon": null,
+      "system_prompt": "settings.SUMMARIZATION_SYSTEM_PROMPT",
+      "tools": []
     }
   ],
   "providers": [

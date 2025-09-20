@@ -471,6 +471,11 @@ class Base(Configuration):
     LLM_ROUTING_MODEL_HRID = values.Value(
         "default-routing-model", environ_name="LLM_ROUTING_MODEL_HRID", environ_prefix=None
     )
+    LLM_SUMMARIZATION_MODEL_HRID = values.Value(
+        "default-summarization-model",
+        environ_name="LLM_SUMMARIZATION_MODEL_HRID",
+        environ_prefix=None,
+    )
     FAKE_STREAMING_DELAY = values.FloatValue(
         default=0.0025,
         environ_name="FAKE_STREAMING_DELAY",
@@ -641,6 +646,16 @@ USER QUESTION:
         environ_prefix=None,
     )
 
+    # Summarization
+    SUMMARIZATION_SYSTEM_PROMPT = values.Value(
+        (
+            "You are a helpful assistant that summarizes the content "
+            "of documents following user request.\n\n"
+        ),
+        environ_name="SUMMARIZATION_SYSTEM_PROMPT",
+        environ_prefix=None,
+    )
+
     # Tavily API
     TAVILY_API_KEY = values.Value(
         None,  # Tavily API key is not set by default
@@ -670,7 +685,7 @@ USER QUESTION:
         environ_prefix=None,
     )
     ALBERT_API_TIMEOUT = values.PositiveIntegerValue(
-        default=10,  # seconds
+        default=30,  # seconds
         environ_name="ALBERT_API_TIMEOUT",
         environ_prefix=None,
     )

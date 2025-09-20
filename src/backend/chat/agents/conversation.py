@@ -35,3 +35,19 @@ class ConversationAgent(BaseAgent):
         def enforce_response_language() -> str:
             """Dynamic system prompt function to set the expected language to use."""
             return f"Answer in {get_language_name(language).lower()}." if language else ""
+
+        @self.system_prompt
+        def rag_instructions() -> str:
+            """Dynamic system prompt function to add RAG instructions if any."""
+            return """
+When a user requests a summary or has a question that requires content from a document, you should:
+Call the summarize tool
+If the user wants a summary of a document, invoke summarize without asking the user for the document itself.
+The tool will handle any necessary extraction and summarization based on the internal context.
+Call the document_search_albert_rag tool
+If the user wants specific information from a document, invoke document_search_albert_rag with an appropriate query string.
+Do not ask the user for the document; rely on the tool to locate and return relevant passages.
+    """
+
+
+

@@ -5,7 +5,7 @@ import json
 import pytest
 import responses
 
-from chat.tools.web_search_tavily import tavily_web_search
+from chat.tools.web_search_tavily import web_search_tavily
 
 TAVILY_URL = "https://api.tavily.com/search"
 
@@ -32,7 +32,7 @@ def test_agent_web_search_tavily_success():
         },
         status=200,
     )
-    results = tavily_web_search("test query")
+    results = web_search_tavily("test query")
     assert results == [
         {"link": "https://example.com/1", "title": "Result 1", "snippet": "Snippet 1"},
         {"link": "https://example.com/2", "title": "Result 2", "snippet": "Snippet 2"},
@@ -55,7 +55,7 @@ def test_agent_web_search_tavily_empty_results():
         json={"results": []},
         status=200,
     )
-    results = tavily_web_search("no results query")
+    results = web_search_tavily("no results query")
     assert results == []
 
 
@@ -69,5 +69,5 @@ def test_agent_web_search_tavily_http_error():
         json={"error": "Internal Server Error"},
     )
     with pytest.raises(Exception) as exc:
-        tavily_web_search("error query")
+        web_search_tavily("error query")
     assert "500" in str(exc.value) or "Internal Server Error" in str(exc.value)
