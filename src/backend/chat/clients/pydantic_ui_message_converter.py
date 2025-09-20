@@ -119,7 +119,7 @@ def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # no
                             raise ValueError(
                                 f"Unsupported UserContent in UserPromptPart: {type(c)}"
                             )
-            elif isinstance(part, TextPart):
+            elif isinstance(part, TextPart) and part.content:
                 parts.append(TextUIPart(type="text", text=part.content))
             elif isinstance(part, ToolReturnPart):
                 pass
@@ -188,7 +188,9 @@ def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # no
                             state="call",
                             toolCallId=part.tool_call_id,
                             toolName=part.tool_name,
-                            args=json.loads(part.args) if isinstance(part.args, str) else part.args,
+                            args=json.loads(part.args)
+                            if isinstance(part.args, str)
+                            else part.args or {},
                         ),
                     )
                 )

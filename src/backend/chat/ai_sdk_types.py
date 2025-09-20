@@ -22,7 +22,7 @@ class ToolCall(BaseModel):
 
     toolCallId: str
     toolName: str
-    args: Dict[str, Any]
+    args: Optional[Dict[str, Any]] = None
 
 
 class ToolResult(BaseModel):
@@ -38,7 +38,7 @@ class ToolResult(BaseModel):
 
     toolCallId: str
     toolName: str
-    args: Dict[str, Any]
+    args: Optional[Dict[str, Any]] = None
     result: Any
 
 
