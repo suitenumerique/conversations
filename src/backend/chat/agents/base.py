@@ -5,6 +5,7 @@ from django.core.exceptions import ImproperlyConfigured
 
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from chat.tools import get_pydantic_tools_by_name
@@ -19,6 +20,11 @@ def _get_pydantic_agent(model_hrid, mcp_servers=None, **kwargs) -> Agent:
 
     _model_instance = OpenAIChatModel(
         model_name=_model.model_name,
+        profile=(
+            OpenAIModelProfile(**_model.profile.dict(exclude_unset=True))
+            if _model.profile
+            else None
+        ),
         provider=OpenAIProvider(
             base_url=_model.provider.base_url,
             api_key=_model.provider.api_key,
