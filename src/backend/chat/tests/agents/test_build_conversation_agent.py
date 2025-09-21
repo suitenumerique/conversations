@@ -27,7 +27,7 @@ def base_settings(settings):
 
 def test_build_pydantic_agent_success_no_tools():
     """Test successful agent creation without tools."""
-    agent = build_conversation_agent([])
+    agent = build_conversation_agent(mcp_servers=[], model_hrid="default-model")
     assert isinstance(agent, Agent)
 
     assert agent._system_prompts == ("You are a helpful assistant",)
@@ -43,7 +43,7 @@ def test_build_pydantic_agent_with_tools(settings):
     """Test successful agent creation with tools."""
     settings.AI_AGENT_TOOLS = ["get_current_weather"]
 
-    agent = build_conversation_agent([])
+    agent = build_conversation_agent(mcp_servers=[], model_hrid="default-model")
     assert isinstance(agent, Agent)
 
     assert agent._system_prompts == ("You are a helpful assistant",)
@@ -61,7 +61,7 @@ def test_add_dynamic_system_prompt():
     Ensure add_the_date and enforce_response_language system prompt are registered
     and returns proper values.
     """
-    agent = build_conversation_agent([])
+    agent = build_conversation_agent(mcp_servers=[], model_hrid="default-model")
 
     assert len(agent._system_prompt_functions) == 2
 
@@ -71,5 +71,5 @@ def test_add_dynamic_system_prompt():
     assert agent._system_prompt_functions[1].function.__name__ == "enforce_response_language"
     assert agent._system_prompt_functions[1].function() == ""
 
-    agent = build_conversation_agent([], language="fr-fr")
+    agent = build_conversation_agent(mcp_servers=[], model_hrid="default-model", language="fr-fr")
     assert agent._system_prompt_functions[1].function() == "Answer in french."

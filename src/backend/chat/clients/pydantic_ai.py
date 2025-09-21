@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Tuple
 
 from django.conf import settings
 from django.core.cache import cache
+from django.core.exceptions import ImproperlyConfigured
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
@@ -66,6 +67,14 @@ from chat.vercel_ai_sdk.encoder import EventEncoder
 logger = logging.getLogger(__name__)
 
 
+def get_model_configuration(model_hrid: str):
+    """Get the model configuration from settings."""
+    try:
+        return settings.LLM_CONFIGURATIONS[model_hrid]
+    except KeyError as exc:
+        raise ImproperlyConfigured(f"LLM model configuration '{model_hrid}' not found.") from exc
+
+
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
@@ -79,12 +88,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         self.conversation = conversation
         self.user = user  # authenticated user only
-        self.model_hrid = model_hrid  # HRID of the model to use, might be None
+        self.model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID  # HRID of the model to use
         self.language = language  # might be None
         self._last_stop_check = 0
 
         self._store_analytics = settings.LANGFUSE_ENABLED and user.allow_conversation_analytics
         self.event_encoder = EventEncoder("v4")  # Always use v4 for now
+
+        self._support_streaming = True
+        if (streaming := get_model_configuration(self.model_hrid).supports_streaming) is not None:
+            self._support_streaming = streaming
 
         # Feature flags
         self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
@@ -461,7 +474,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
             # Build the agent
             conversation_agent = build_conversation_agent(
-                mcp_servers,
+                mcp_servers=mcp_servers,
                 model_hrid=self.model_hrid,
                 language=self.language,
                 instrument=self._store_analytics,
@@ -478,7 +491,29 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         pass
 
                     elif Agent.is_model_request_node(node):
-                        # A model request node => We can stream tokens from the model's request
+                        # A model request node => agent is asking the model to generate a response
+                        if not self._support_streaming:
+                            result = await node.run(run.ctx)
+                            logger.debug("node.run result: %s", result)
+                            for part in result.model_response.parts:
+                                if isinstance(part, TextPart):
+                                    yield events_v4.TextPart(text=part.content)
+                                elif isinstance(part, ToolCallPart):
+                                    yield events_v4.ToolCallPart(
+                                        tool_call_id=part.tool_call_id,
+                                        tool_name=part.tool_name,
+                                        args=json.loads(part.args) if part.args else {},
+                                    )
+                                elif isinstance(part, ThinkingPart):
+                                    yield events_v4.ReasoningPart(reasoning=part.content)
+                                else:
+                                    logger.warning(
+                                        "Unknown part type in model response: %s %s",
+                                        type(part),
+                                        dataclasses.asdict(part),
+                                    )
+                            continue
+
                         async with node.stream(run.ctx) as request_stream:
                             async for event in request_stream:
                                 await self._agent_stop_streaming()

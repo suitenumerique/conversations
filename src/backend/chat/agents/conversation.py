@@ -2,7 +2,6 @@
 
 import logging
 
-from django.conf import settings
 from django.utils import formats, timezone
 
 from pydantic_ai import Agent
@@ -15,10 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 def build_conversation_agent(
-    mcp_servers, model_hrid=None, language=None, instrument=False
+    *, mcp_servers, model_hrid, language=None, instrument=False
 ) -> Agent[None, str]:
     """Create a Pydantic AI Agent instance with the configured settings."""
-    model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID
 
     agent = _get_pydantic_agent(model_hrid, mcp_servers, instrument=instrument)
 

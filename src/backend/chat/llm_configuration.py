@@ -112,6 +112,7 @@ class LLModel(BaseModel):
     settings: LLMSettings | None = None
     is_active: bool
     icon: LongStringAsListValue | None = None
+    supports_streaming: bool | None = None
     system_prompt: SettingEnvValue
     tools: list[str]
 
