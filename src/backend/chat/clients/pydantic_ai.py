@@ -47,8 +47,8 @@ from pydantic_ai.messages import (
 from core.feature_flags.helpers import is_feature_enabled
 
 from chat.agent_rag.document_search.albert_api import AlbertRagDocumentSearch
-from chat.agents.conversation import build_conversation_agent
-from chat.agents.routing import UserIntent, build_routing_agent
+from chat.agents.conversation import ConversationAgent
+from chat.agents.routing import RoutingAgent, UserIntent
 from chat.ai_sdk_types import (
     LanguageModelV1Source,
     SourceUIPart,
@@ -204,8 +204,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             )
             return UserIntent()
 
-        agent = build_routing_agent(instrument=self._store_analytics)
-        if not agent:
+        try:
+            agent = RoutingAgent(instrument=self._store_analytics)
+        except ImproperlyConfigured:
             return UserIntent()
 
         result = await agent.run(user_prompt)
@@ -474,10 +475,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
 
             # Build the agent
-            conversation_agent = build_conversation_agent(
-                mcp_servers=mcp_servers,
+            conversation_agent = ConversationAgent(
                 model_hrid=self.model_hrid,
                 language=self.language,
+                toolsets=mcp_servers,
                 instrument=self._store_analytics,
             )
 
