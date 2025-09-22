@@ -102,6 +102,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Feature flags
         self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
         self._is_web_search_enabled = is_feature_enabled(self.user, "web_search")
+        self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
     @property
     def _stop_cache_key(self):
@@ -490,14 +491,20 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         # A user prompt node => The user has provided input
                         pass
 
-                    elif Agent.is_model_request_node(node):
+                    elif Agent.is_model_request_node(node):  # pylint: disable=too-many-nested-blocks
                         # A model request node => agent is asking the model to generate a response
                         if not self._support_streaming:
                             result = await node.run(run.ctx)
                             logger.debug("node.run result: %s", result)
                             for part in result.model_response.parts:
                                 if isinstance(part, TextPart):
-                                    yield events_v4.TextPart(text=part.content)
+                                    if self._fake_streaming_delay:
+                                        for i in range(0, len(part.content), 4):
+                                            await self._agent_stop_streaming()
+                                            yield events_v4.TextPart(text=part.content[i : i + 4])
+                                            time.sleep(self._fake_streaming_delay)
+                                    else:
+                                        yield events_v4.TextPart(text=part.content)
                                 elif isinstance(part, ToolCallPart):
                                     yield events_v4.ToolCallPart(
                                         tool_call_id=part.tool_call_id,

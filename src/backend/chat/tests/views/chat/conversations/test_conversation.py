@@ -1098,16 +1098,19 @@ def test_post_conversation_model_selection_new(api_client, mock_openai_stream, s
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
+@pytest.mark.parametrize("stream_delay", [None, 0.0001])
 @respx.mock
 def test_post_conversation_data_protocol_no_stream(
     api_client,
     mock_openai_no_stream,
     mock_uuid4,
     settings,
+    stream_delay,
 ):
     """
     Test posting messages to a conversation using the 'data' protocol without streaming.
     """
+    settings.FAKE_STREAMING_DELAY = stream_delay
     settings.LLM_CONFIGURATIONS = {
         "default-model": LLModel(
             hrid="model-1",
@@ -1149,12 +1152,35 @@ def test_post_conversation_data_protocol_no_stream(
     assert response.get("x-vercel-ai-data-stream") == "v1"
     assert response.streaming
 
-    # Wait for the streaming content to be fully received
+    # Wait for the content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
-    assert response_content == (
-        '0:"The sky appears blue due to a phenomenon called Rayleigh scattering."\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135}}\n'
-    )
+
+    if stream_delay:
+        assert response_content == (
+            '0:"The "\n'
+            '0:"sky "\n'
+            '0:"appe"\n'
+            '0:"ars "\n'
+            '0:"blue"\n'
+            '0:" due"\n'
+            '0:" to "\n'
+            '0:"a ph"\n'
+            '0:"enom"\n'
+            '0:"enon"\n'
+            '0:" cal"\n'
+            '0:"led "\n'
+            '0:"Rayl"\n'
+            '0:"eigh"\n'
+            '0:" sca"\n'
+            '0:"tter"\n'
+            '0:"ing."\n'
+            'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135}}\n'
+        )
+    else:
+        assert response_content == (
+            '0:"The sky appears blue due to a phenomenon called Rayleigh scattering."\n'
+            'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135}}\n'
+        )
 
     assert mock_openai_no_stream.called
 
