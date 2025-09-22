@@ -71,7 +71,7 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
           <Box
             $css={`
             position: fixed;
-            top: 20px;
+            top: 8px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;

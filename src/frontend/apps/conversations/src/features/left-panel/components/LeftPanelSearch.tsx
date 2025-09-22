@@ -28,19 +28,11 @@ export const LeftPanelSearch = ({ onSearchChange }: LeftPanelSearchProps) => {
 
   const currentConversationId = params?.id as string;
 
-  const {
-    data,
-    isFetching,
-    isRefetching,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-  } = useInfiniteConversations({
+  const { data, fetchNextPage, hasNextPage } = useInfiniteConversations({
     page: 1,
     title: search,
   });
 
-  const loading = isFetching || isRefetching || isLoading;
   const handleInputSearch = useDebouncedCallback((value: string) => {
     setSearch(value);
     onSearchChange?.(value.length > 0);
@@ -71,7 +63,6 @@ export const LeftPanelSearch = ({ onSearchChange }: LeftPanelSearchProps) => {
   return (
     <QuickSearch
       placeholder={t('Search for a chat')}
-      loading={loading}
       onFilter={handleInputSearch}
       onClear={handleClear}
       inputValue={search}

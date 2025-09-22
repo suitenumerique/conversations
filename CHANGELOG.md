@@ -8,7 +8,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 🐛(fix) broken staging css
+- ✨(ui) fix retour global ui 
 
 ### Changed
 
