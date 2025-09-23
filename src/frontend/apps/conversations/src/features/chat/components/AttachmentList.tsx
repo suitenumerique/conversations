@@ -28,7 +28,7 @@ export const AttachmentList = ({
       $gap="0.5rem"
       $width="100%"
       $css={`
-        overflow-x: scroll;
+        overflow-x: auto;
       `}
     >
       {attachments.map((attachment, idx) => {

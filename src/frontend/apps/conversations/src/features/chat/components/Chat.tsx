@@ -513,38 +513,7 @@ export const Chat = ({
                     ${shouldApplyStreamingHeight ? `min-height: ${streamingMessageHeight + 70}px;` : ''}
                   `}
                 >
-                  <Box
-                    $radius="8px"
-                    $maxWidth="100%"
-                    $padding={`${message.role === 'user' ? '12px' : '0'}`}
-                    $margin={{ vertical: 'base' }}
-                    $background={`${message.role === 'user' ? '#EEF1F4' : 'white'}`}
-                  >
-                    {/* Message content */}
-                    {message.content && (
-                      <Box $padding={{ all: 'xxs' }}>
-                        <Markdown
-                          remarkPlugins={[remarkGfm, remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
-                          components={{
-                            // Custom components for Markdown rendering
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            p: ({ node, ...props }) => (
-                              <Text
-                                $css="display: block"
-                                $theme="greyscale"
-                                $variation="850"
-                                {...props}
-                              />
-                            ),
-                          }}
-                        >
-                          {message.content}
-                        </Markdown>
-                      </Box>
-                    )}
-
-                    {/* Attachments section */}
+                  <Box $display="block">
                     {message.experimental_attachments &&
                       message.experimental_attachments.length > 0 && (
                         <Box>
@@ -554,124 +523,158 @@ export const Chat = ({
                           />
                         </Box>
                       )}
+                    <Box
+                      $radius="8px"
+                      $maxWidth="100%"
+                      $padding={`${message.role === 'user' ? '12px' : '0'}`}
+                      $margin={{ vertical: 'base' }}
+                      $background={`${message.role === 'user' ? '#EEF1F4' : 'white'}`}
+                      $css={`
+                      display: inline-block;
+                      float: right;`}
+                    >
+                      {/* Message content */}
+                      {message.content && (
+                        <Box $padding={{ all: 'xxs' }}>
+                          <Markdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                            components={{
+                              // Custom components for Markdown rendering
+                              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                              p: ({ node, ...props }) => (
+                                <Text
+                                  $css="display: block"
+                                  $theme="greyscale"
+                                  $variation="850"
+                                  {...props}
+                                />
+                              ),
+                            }}
+                          >
+                            {message.content}
+                          </Markdown>
+                        </Box>
+                      )}
 
-                    {/* Reasoning and tool invocations */}
-                    <Box $direction="column" $gap="2">
-                      {message.parts
-                        ?.filter(
-                          (part) =>
-                            part.type === 'reasoning' ||
-                            part.type === 'tool-invocation',
-                        )
-                        .map((part: ReasoningUIPart | ToolInvocationUIPart) =>
-                          part.type === 'reasoning' ? (
-                            <Box
-                              key={part.reasoning}
-                              $background="var(--c--theme--colors--greyscale-100)"
-                              $color="var(--c--theme--colors--greyscale-500)"
-                              $padding={{ all: 'sm' }}
-                              $radius="md"
-                              $css="font-size: 0.9em;"
-                            >
-                              {part.reasoning}
-                            </Box>
-                          ) : part.type === 'tool-invocation' ? (
-                            <ToolInvocationItem
-                              toolInvocation={part.toolInvocation}
-                            />
-                          ) : null,
-                        )}
-                    </Box>
-                    {message.role !== 'user' && !isCurrentlyStreaming && (
-                      <Box
-                        $css="color: #222631; font-size: 12px;"
-                        $direction="row"
-                        $align="center"
-                        $gap="6px"
-                        $margin={{ top: 'base' }}
-                      >
+                      <Box $direction="column" $gap="2">
+                        {message.parts
+                          ?.filter(
+                            (part) =>
+                              part.type === 'reasoning' ||
+                              part.type === 'tool-invocation',
+                          )
+                          .map(
+                            (part: ReasoningUIPart | ToolInvocationUIPart) =>
+                              part.type === 'reasoning' ? (
+                                <Box
+                                  key={part.reasoning}
+                                  $background="var(--c--theme--colors--greyscale-100)"
+                                  $color="var(--c--theme--colors--greyscale-500)"
+                                  $padding={{ all: 'sm' }}
+                                  $radius="md"
+                                  $css="font-size: 0.9em;"
+                                >
+                                  {part.reasoning}
+                                </Box>
+                              ) : part.type === 'tool-invocation' ? (
+                                <ToolInvocationItem
+                                  toolInvocation={part.toolInvocation}
+                                />
+                              ) : null,
+                          )}
+                      </Box>
+                      {message.role !== 'user' && !isCurrentlyStreaming && (
                         <Box
+                          $css="color: #222631; font-size: 12px;"
                           $direction="row"
                           $align="center"
-                          $gap="4px"
-                          className="c__button--neutral action-chat-button"
-                          onClick={() => copyToClipboard(message.content)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              copyToClipboard(message.content);
-                            }
-                          }}
-                          role="button"
-                          tabIndex={0}
+                          $gap="6px"
+                          $margin={{ top: 'base' }}
                         >
-                          <Icon
-                            iconName="content_copy"
-                            $theme="greyscale"
-                            $variation="550"
-                            $size="16px"
-                            className="action-chat-button-icon"
-                          />
-                          {!isMobile && (
-                            <Text $theme="greyscale" $variation="550">
-                              {t('Copy')}
-                            </Text>
-                          )}
-                        </Box>
-                        {message.parts?.some(
-                          (part) => part.type === 'source',
-                        ) &&
-                          (() => {
-                            const sourceCount =
-                              message.parts?.filter(
-                                (part) => part.type === 'source',
-                              ).length || 0;
-                            return (
-                              <Box
-                                $direction="row"
-                                $align="center"
-                                $gap="4px"
-                                className={`c__button--neutral action-chat-button ${isSourceOpen ? 'action-chat-button--open' : ''}`}
-                                onClick={() => openSources(message.id)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    openSources(message.id);
-                                  }
-                                }}
-                                role="button"
-                                tabIndex={0}
-                              >
-                                <Icon
-                                  iconName="book"
-                                  $theme="greyscale"
-                                  $variation="550"
-                                  $size="16px"
-                                  className="action-chat-button-icon"
-                                />
-                                <Text
-                                  $theme="greyscale"
-                                  $variation="550"
-                                  $weight="500"
-                                  $size="12px"
+                          <Box
+                            $direction="row"
+                            $align="center"
+                            $gap="4px"
+                            className="c__button--neutral action-chat-button"
+                            onClick={() => copyToClipboard(message.content)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                copyToClipboard(message.content);
+                              }
+                            }}
+                            role="button"
+                            tabIndex={0}
+                          >
+                            <Icon
+                              iconName="content_copy"
+                              $theme="greyscale"
+                              $variation="550"
+                              $size="16px"
+                              className="action-chat-button-icon"
+                            />
+                            {!isMobile && (
+                              <Text $theme="greyscale" $variation="550">
+                                {t('Copy')}
+                              </Text>
+                            )}
+                          </Box>
+                          {message.parts?.some(
+                            (part) => part.type === 'source',
+                          ) &&
+                            (() => {
+                              const sourceCount =
+                                message.parts?.filter(
+                                  (part) => part.type === 'source',
+                                ).length || 0;
+                              return (
+                                <Box
+                                  $direction="row"
+                                  $align="center"
+                                  $gap="4px"
+                                  className={`c__button--neutral action-chat-button ${isSourceOpen ? 'action-chat-button--open' : ''}`}
+                                  onClick={() => openSources(message.id)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      openSources(message.id);
+                                    }
+                                  }}
+                                  role="button"
+                                  tabIndex={0}
                                 >
-                                  {t('Show') +
-                                    ` ${sourceCount} ` +
-                                    t('sources')}
-                                </Text>
-                              </Box>
-                            );
-                          })()}
-                      </Box>
-                    )}
-                    {message.parts && isSourceOpen === message.id && (
-                      <SourceItemList
-                        parts={message.parts.filter(
-                          (part): part is SourceUIPart =>
-                            part.type === 'source',
-                        )}
-                      />
-                    )}
+                                  <Icon
+                                    iconName="book"
+                                    $theme="greyscale"
+                                    $variation="550"
+                                    $size="16px"
+                                    className="action-chat-button-icon"
+                                  />
+                                  <Text
+                                    $theme="greyscale"
+                                    $variation="550"
+                                    $weight="500"
+                                    $size="12px"
+                                  >
+                                    {t('Show') +
+                                      ` ${sourceCount} ` +
+                                      t('sources')}
+                                  </Text>
+                                </Box>
+                              );
+                            })()}
+                        </Box>
+                      )}
+                      {message.parts && isSourceOpen === message.id && (
+                        <SourceItemList
+                          parts={message.parts.filter(
+                            (part): part is SourceUIPart =>
+                              part.type === 'source',
+                          )}
+                        />
+                      )}
+                    </Box>
                   </Box>
                 </Box>
               );
