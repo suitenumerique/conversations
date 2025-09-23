@@ -75,11 +75,6 @@ nextjs-portal {
   border: none;
 }
 
-.c__button--primary:active,
-.c__button--primary.c__button--active {
-  border: none;
-}
-
 .c__button--neutral {
   transition: background-color 0.4s !important;
   color: var(--c--theme--colors--greyscale-550) !important;
