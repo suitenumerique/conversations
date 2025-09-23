@@ -8,6 +8,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#222631',
     fontWeight: '500',
     whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    display: 'block',
   },
 };
 
@@ -124,32 +127,44 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
 
   return (
     <Box $direction="row" $gap="4px" $align="center">
-      {renderFavicon()}
-      <Box $direction="row" $gap="4px" $align="center" $css="font-size: 14px;">
+      <Box
+        $direction="row"
+        $align="center"
+        $css="font-size: 14px;"
+        $width="100%"
+      >
         {url.startsWith('http') ? (
           <StyledLink
             href={url}
             target="_blank"
             rel="noopener noreferrer"
             $css={`
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+                border-radius: 4px;
+                padding: 4px;
+                width: 100%;
                 text-decoration: none;
+                background-color: transparent;
+                transition: background-color 0.3s;
                 color: var(--c--theme--colors--greyscale-500);
                 &:hover {
                   color: var(--c--theme--colors--greyscale-700);
+                  background-color: #EEF1F4;
                 }
             `}
           >
+            {renderFavicon()}
+
             {new URL(url).hostname}
 
             <Box
-              $direction="row"
-              $padding={{ left: '4px' }}
+              $padding={{ right: '4px' }}
               $align="center"
               style={styles.title}
             >
-              {title && title.length > 100
-                ? `${title.substring(0, 50)}...${title.substring(title.length - 20)}`
-                : title}
+              {title}
             </Box>
           </StyledLink>
         ) : (

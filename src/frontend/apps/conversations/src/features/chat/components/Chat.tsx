@@ -66,6 +66,28 @@ export const Chat = ({
     setChatContainerRef(chatContainerRef);
   }, []);
 
+  // Détecter si l'utilisateur scroll vers le haut
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+
+      if (isAtBottom) {
+        setUserScrolledUp(false);
+      } else {
+        setUserScrolledUp(true);
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const [initialConversationMessages, setInitialConversationMessages] =
     useState<Message[] | undefined>(undefined);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
@@ -78,6 +100,7 @@ export const Chat = ({
   const [streamingMessageHeight, setStreamingMessageHeight] = useState<
     number | null
   >(null);
+  const [userScrolledUp, setUserScrolledUp] = useState(false);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
 
@@ -129,7 +152,7 @@ export const Chat = ({
   const stopGeneration = async () => {
     stopChat();
 
-    const response = await fetchAPI(`chats/${conversationId}/stop-steaming/`, {
+    const response = await fetchAPI(`chats/${conversationId}/stop-streaming/`, {
       method: 'POST',
     });
 
@@ -230,7 +253,8 @@ export const Chat = ({
 
       if (
         hasInitialized &&
-        (status === 'streaming' || status === 'submitted')
+        (status === 'streaming' || status === 'submitted') &&
+        !userScrolledUp
       ) {
         const lastUserMessage = userMessages[userMessages.length - 1];
         if (lastUserMessage) {
@@ -251,7 +275,13 @@ export const Chat = ({
         }
       }
     }
-  }, [messages, status, hasInitialized, calculateStreamingHeight]);
+  }, [
+    messages,
+    status,
+    hasInitialized,
+    calculateStreamingHeight,
+    userScrolledUp,
+  ]);
 
   // Synchronize conversationId state with prop when it changes (e.g., after navigation)
   useEffect(() => {
@@ -580,6 +610,7 @@ export const Chat = ({
                             $theme="greyscale"
                             $variation="550"
                             $size="16px"
+                            className="action-chat-button-icon"
                           />
                           {!isMobile && (
                             <Text $theme="greyscale" $variation="550">
@@ -589,41 +620,48 @@ export const Chat = ({
                         </Box>
                         {message.parts?.some(
                           (part) => part.type === 'source',
-                        ) && (
-                          <Box
-                            $direction="row"
-                            $align="center"
-                            $gap="4px"
-                            className="c__button--neutral action-chat-button"
-                            onClick={() => openSources(message.id)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                openSources(message.id);
-                              }
-                            }}
-                            role="button"
-                            tabIndex={0}
-                          >
-                            <Icon
-                              iconName="book"
-                              $theme="greyscale"
-                              $variation="550"
-                              $size="16px"
-                            />
-                            {!isMobile && (
-                              <Text
-                                $theme="greyscale"
-                                $variation="550"
-                                $weight="500"
+                        ) &&
+                          (() => {
+                            const sourceCount =
+                              message.parts?.filter(
+                                (part) => part.type === 'source',
+                              ).length || 0;
+                            return (
+                              <Box
+                                $direction="row"
+                                $align="center"
+                                $gap="4px"
+                                className={`c__button--neutral action-chat-button ${isSourceOpen ? 'action-chat-button--open' : ''}`}
+                                onClick={() => openSources(message.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    openSources(message.id);
+                                  }
+                                }}
+                                role="button"
+                                tabIndex={0}
                               >
-                                {!isSourceOpen
-                                  ? t('Show sources')
-                                  : t('Hide sources')}
-                              </Text>
-                            )}
-                          </Box>
-                        )}
+                                <Icon
+                                  iconName="book"
+                                  $theme="greyscale"
+                                  $variation="550"
+                                  $size="16px"
+                                  className="action-chat-button-icon"
+                                />
+                                <Text
+                                  $theme="greyscale"
+                                  $variation="550"
+                                  $weight="500"
+                                  $size="12px"
+                                >
+                                  {t('Show') +
+                                    ` ${sourceCount} ` +
+                                    t('sources')}
+                                </Text>
+                              </Box>
+                            );
+                          })()}
                       </Box>
                     )}
                     {message.parts && isSourceOpen === message.id && (
