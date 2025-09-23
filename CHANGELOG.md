@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- ✨(ui) fix retour global ui 
+- 🎨(ui) retour ui sources files
 
 ### Changed
 
+- ✨(ui) fix retour global ui 
 - 🐛(fix) broken staging css
 - 🎨(alpha) adjustment for alpha version
 - ✨(ui) delete flex message

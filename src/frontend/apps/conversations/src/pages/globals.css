@@ -60,7 +60,8 @@ nextjs-portal {
 }
 
 .c__button--bordered,
-.c__button--bordered:hover {
+.c__button--bordered:hover,
+.c__button--bordered:focus {
   border: 1px solid var(--c--theme--colors--greyscale-200) !important;
   background-color: #fff !important;
 }
@@ -80,7 +81,8 @@ nextjs-portal {
   font-weight: 500 !important;
   cursor: pointer !important;
   background-color: inherit !important;
-  z-index: 100 !important;
+  border: none !important;
+  z-index: 100;
   font-size: 12px !important;
   padding: 4px !important;
   padding-right: 9px !important;
@@ -96,7 +98,7 @@ nextjs-portal {
   padding: 9px !important;
 }
 
-.c__button--neutral.action-chat-button span,
+.c__button--neutral.action-chat-button .action-chat-button-icon,
 .c__button--neutral.research-web-button .c__button__icon span,
 .c__button--neutral.attach-file-button .c__button__icon span {
   @media (width <= 768px) {
@@ -104,8 +106,15 @@ nextjs-portal {
   }
 }
 
-.c__button--neutral:hover {
+.c__button--neutral:hover,
+.c__button--neutral:active,
+.action-chat-button--open {
   background-color: #f2f5f4 !important;
+  border: none !important;
+}
+
+.c__button--neutral:active {
+  background-color: inherit !important;
 }
 
 ul a {
@@ -139,6 +148,7 @@ ul a:hover {
 .c__button--info:hover,
 .c__button--info:active,
 .c__button--info:focus {
+  outline: none !important;
   background-color: #b7d7ff !important;
   color: #265eaa !important;
 }

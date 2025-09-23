@@ -38,7 +38,9 @@ export const AttachmentList = ({
             onRemove(idx);
           }
         };
-
+        if (!name) {
+          return null;
+        }
         return (
           <Box
             key={(name || 'attachment') + idx}
@@ -49,6 +51,7 @@ export const AttachmentList = ({
               $background="var(--c--theme--colors--greyscale-050)"
               $minWidth="200px"
               $direction="row"
+              $gap="xs"
               $align="center"
               $padding="xs"
               $css={`
@@ -80,7 +83,7 @@ export const AttachmentList = ({
                 </Text>
               </Box>
               <Text
-                $size="sm"
+                $size="xs"
                 $color="var(--c--theme--colors--greyscale-850)"
                 $css={`
                   overflow: hidden;
