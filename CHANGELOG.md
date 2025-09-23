@@ -8,10 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 🎨(ui) retour ui sources files
+- 🎨(front) change list attachment in chat
 
 ### Changed
 
+- 🎨(front) move emplacement for attachment
+- 🎨(ui) retour ui sources files
 - ✨(ui) fix retour global ui 
 - 🐛(fix) broken staging css
 - 🎨(alpha) adjustment for alpha version
