@@ -15,15 +15,18 @@ def test_document_converter(mock_markitdown: MagicMock):
     """Test that the DocumentConverter calls the underlying MarkItDown converter."""
     mock_conversion = MagicMock()
     mock_conversion.text_content = "converted text"
-    mock_markitdown.return_value.convert.return_value = mock_conversion
+    mock_markitdown.return_value.convert_stream.return_value = mock_conversion
 
     converter = DocumentConverter()
 
     result = converter.convert_raw(
         name="test.pdf",
         content_type="application/pdf",
-        content=BytesIO(b"test content"),
+        content=b"test content",
     )
 
     assert result == "converted text"
-    converter.converter.convert.assert_called_once()  # pylint: disable=no-member
+    converter.converter.convert_stream.assert_called_once()  # pylint: disable=no-member
+    args, kwargs = converter.converter.convert_stream.call_args  # pylint: disable=no-member
+    assert isinstance(args[0], BytesIO)
+    assert kwargs["file_extension"] == ".pdf"

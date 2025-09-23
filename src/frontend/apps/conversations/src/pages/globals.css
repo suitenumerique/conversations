@@ -63,11 +63,16 @@ nextjs-portal {
 .c__button--bordered:hover,
 .c__button--bordered:focus {
   border: 1px solid var(--c--theme--colors--greyscale-200) !important;
-  background-color: #fff;
+  background-color: #fff !important;
 }
 
 .c__button--bordered:focus {
-  border: 1px solid rgb(0 0 0 / 16%);
+  border: 1px solid rgb(0 0 0 / 16%) !important;
+}
+
+.c__button--primary:active,
+.c__button--primary.c__button--active {
+  border: none;
 }
 
 .c__button--primary:active,
