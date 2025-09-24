@@ -422,7 +422,7 @@ def test_conversation_with_forced_web_search_no_history(
     assert chat_conversation.pydantic_messages[1] == {
         "finish_reason": "stop",
         "kind": "response",
-        "model_name": None,
+        "model_name": "test-model",
         "parts": [
             {
                 "content": "Based on the web search results, I can tell you that "

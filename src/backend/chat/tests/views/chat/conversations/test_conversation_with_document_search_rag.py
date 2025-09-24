@@ -452,7 +452,7 @@ def test_post_conversation_with_document_upload(  # noqa:PLR0913  # pylint: disa
     assert chat_conversation.pydantic_messages[1] == {
         "finish_reason": "stop",
         "kind": "response",
-        "model_name": None,
+        "model_name": "test-model",
         "parts": [
             {
                 "content": "From the document, I can see that it says 'Hello PDF'.",

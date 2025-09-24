@@ -203,7 +203,7 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
         {
             "finish_reason": "stop",
             "kind": "response",
-            "model_name": None,
+            "model_name": "test-model",
             "parts": [{"content": "Hello there", "id": None, "part_kind": "text"}],
             "provider_details": {"finish_reason": "stop"},
             "provider_name": "openai",
@@ -327,7 +327,7 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uu
         {
             "finish_reason": "stop",
             "kind": "response",
-            "model_name": None,
+            "model_name": "test-model",
             "parts": [{"content": "Hello there", "id": None, "part_kind": "text"}],
             "provider_details": {"finish_reason": "stop"},
             "provider_name": "openai",
@@ -534,7 +534,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
         {
             "finish_reason": "stop",
             "kind": "response",
-            "model_name": None,
+            "model_name": "test-model",
             "parts": [{"content": "I see a cat in the picture.", "id": None, "part_kind": "text"}],
             "provider_details": {"finish_reason": "stop"},
             "provider_name": "openai",
@@ -697,7 +697,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
         {
             "finish_reason": "tool_call",
             "kind": "response",
-            "model_name": None,
+            "model_name": "test-model",
             "parts": [
                 {
                     "args": '{"location":"Paris", "unit":"celsius"}',
@@ -738,7 +738,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
         {
             "finish_reason": "stop",
             "kind": "response",
-            "model_name": None,
+            "model_name": "test-model",
             "parts": [
                 {"content": "The current weather in Paris is nice", "id": None, "part_kind": "text"}
             ],
@@ -904,7 +904,7 @@ def test_post_conversation_tool_call_fails(
         {
             "finish_reason": "tool_call",
             "kind": "response",
-            "model_name": None,
+            "model_name": "test-model",
             "parts": [
                 {
                     "args": '{"location":"Paris", "unit":"celsius"}',
@@ -944,7 +944,7 @@ def test_post_conversation_tool_call_fails(
         {
             "finish_reason": "stop",
             "kind": "response",
-            "model_name": None,
+            "model_name": "test-model",
             "parts": [
                 {"content": "I cannot give you an answer to that.", "id": None, "part_kind": "text"}
             ],

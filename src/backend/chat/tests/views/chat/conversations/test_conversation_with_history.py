@@ -1359,7 +1359,7 @@ def test_post_conversation_with_existing_tool_history(
     assert history_conversation_with_tool.pydantic_messages[9] == {
         "finish_reason": "tool_call",
         "kind": "response",
-        "model_name": None,
+        "model_name": "test-model",
         "parts": [
             {
                 "args": '{"location":"Paris", "unit":"celsius"}',
@@ -1402,7 +1402,7 @@ def test_post_conversation_with_existing_tool_history(
     assert history_conversation_with_tool.pydantic_messages[11] == {
         "finish_reason": "stop",
         "kind": "response",
-        "model_name": None,
+        "model_name": "test-model",
         "parts": [
             {"content": "The current weather in Paris is nice", "id": None, "part_kind": "text"}
         ],

@@ -18,7 +18,7 @@ from pydantic_ai.profiles import JsonSchemaTransformer
 
 def _get_setting_or_env_or_value(value: str) -> Any:
     """Get the value from environment variable, Django settings, or return the value as is."""
-    from django.conf import settings  # pylint: disable=import-outside-toplevel
+    from django.conf import settings  # pylint: disable=import-outside-toplevel # noqa: PLC0415
 
     if value.startswith("environ."):
         env_var = value.split("environ.")[1]
