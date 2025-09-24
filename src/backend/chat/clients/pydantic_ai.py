@@ -15,14 +15,14 @@ from contextlib import AsyncExitStack, ExitStack
 from typing import Dict, List, Optional, Tuple
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.module_loading import import_string
-from django.utils.translation import gettext_lazy as _
 
 from asgiref.sync import sync_to_async
 from langfuse import get_client
-from pydantic_ai import Agent
+from pydantic_ai import Agent, ToolOutput
 from pydantic_ai.messages import (
     BinaryContent,
     FunctionToolCallEvent,
@@ -40,10 +40,13 @@ from pydantic_ai.messages import (
     ThinkingPartDelta,
     ToolCallPart,
     ToolCallPartDelta,
-    ToolReturnPart,
-    UserPromptPart,
+    ToolReturnPart, ToolReturn,
 )
+from pydantic_ai.result import FinalResult
 
+from chat.agents.summarize import hand_off_to_summarization_agent
+from chat.tools.document_search_albert_rag import add_albert_document_rag_search_tool
+from chat.tools.web_seach_albert_rag import add_albert_web_rag_search_tool
 from core.feature_flags.helpers import is_feature_enabled
 
 from chat.agent_rag.document_search.albert_api import AlbertRagDocumentSearch
@@ -56,6 +59,7 @@ from chat.ai_sdk_types import (
 )
 from chat.clients.async_to_sync import convert_async_generator_to_sync
 from chat.clients.exceptions import StreamCancelException, WebSearchEmptyException
+from chat import models
 from chat.clients.pydantic_ui_message_converter import (
     model_message_to_ui_message,
     ui_message_to_user_content,
@@ -65,6 +69,16 @@ from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import EventEncoder
 
 logger = logging.getLogger(__name__)
+
+User = get_user_model()
+
+
+@dataclasses.dataclass
+class ContextDeps:
+    """Dependencies for context management."""
+
+    conversation: models.ChatConversation
+    user: User
 
 
 def get_model_configuration(model_hrid: str):
@@ -78,7 +92,7 @@ def get_model_configuration(model_hrid: str):
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
-    def __init__(self, conversation, user, model_hrid=None, language=None):
+    def __init__(self, conversation: models.ChatConversation, user, model_hrid=None, language=None):
         """
         Initialize the AI agent service.
 
@@ -91,6 +105,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID  # HRID of the model to use
         self.language = language  # might be None
         self._last_stop_check = 0
+
+        self._context_deps = ContextDeps(conversation=conversation, user=user)
 
         self._store_analytics = settings.LANGFUSE_ENABLED and user.allow_conversation_analytics
         self.event_encoder = EventEncoder("v4")  # Always use v4 for now
@@ -230,17 +246,23 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         return result.output
 
-    def parse_input_documents(self, documents: List[BinaryContent]):
+    async def parse_input_documents(self, documents: List[BinaryContent]):
         """
         Parse and store input documents in the conversation's document store.
         """
         document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
         document_store = document_store_backend(self.conversation)
         for document in documents:
-            document_store.parse_and_store_document(
+            parsed_content = document_store.parse_and_store_document(
                 name=document.identifier,
                 content_type=document.media_type,
                 content=document.data,
+            )
+            await models.ChatConversationContext.objects.acreate(
+                conversation=self.conversation,
+                kind=models.ChatConversationContextKind.DOCUMENT.value,
+                name=document.identifier,
+                content=parsed_content,
             )
 
     def perform_rag(
@@ -386,42 +408,37 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         usage = {"promptTokens": 0, "completionTokens": 0}
 
         # Feature flag management
-        if force_web_search and not self._is_web_search_enabled:
-            logger.warning("Web search feature is disabled, ignoring force_web_search.")
-            force_web_search = False
+#        if force_web_search and not self._is_web_search_enabled:
+#            logger.warning("Web search feature is disabled, ignoring force_web_search.")
+#            force_web_search = False
+#
+#        if any([input_images, input_documents]) and not self._is_document_upload_enabled:
+#            logger.warning("Document upload feature is disabled, ignoring input documents.")
+#            input_images = []
+#            input_documents = []
+#
+#        # Detect the user intent
+#        if not force_web_search:
+#            user_intent: UserIntent = await self._detect_user_intent(user_prompt)
+#            logger.info("User intent detected: %s", user_intent.model_dump())
+#        else:
+#            # If the user has requested a web search, we consider it as the no intent
+#            # of document summarization.
+#            user_intent = UserIntent()
+#
+#        await self._agent_stop_streaming(force_cache_check=True)
+#
+#        # If user uploaded documents and did not enforce a web search, we disable the intent
+#        if input_documents and not force_web_search:
+#            user_intent.web_search = False
+#            logger.info("User intent web search disabled due to input documents.")
 
-        if any([input_images, input_documents]) and not self._is_document_upload_enabled:
-            logger.warning("Document upload feature is disabled, ignoring input documents.")
-            input_images = []
-            input_documents = []
-
-        # Detect the user intent
-        if not force_web_search:
-            user_intent: UserIntent = await self._detect_user_intent(user_prompt)
-            logger.info("User intent detected: %s", user_intent.model_dump())
-        else:
-            # If the user has requested a web search, we consider it as the no intent
-            # of document summarization.
-            user_intent = UserIntent()
-
-        if input_documents and user_intent.attachment_summary:
-            # If the user has provided documents and requested a summary,
-            # we need to handle that.
-            logger.warning(
-                "Attachment summarization is not supported yet, ignoring the user intent."
-            )
-            user_intent.attachment_summary = False
-            yield events_v4.ErrorPart(error="attachment_summary_not_supported")
-            return
-
-        await self._agent_stop_streaming(force_cache_check=True)
-
-        # If user uploaded documents and did not enforce a web search, we disable the intent
-        if input_documents and not force_web_search:
-            user_intent.web_search = False
-            logger.info("User intent web search disabled due to input documents.")
-
-        conversation_has_documents = bool(self.conversation.collection_id)
+        conversation_has_documents = bool(self.conversation.collection_id) or bool(
+            await models.ChatConversationContext.objects.filter(
+                conversation=self.conversation,
+                kind=models.ChatConversationContextKind.DOCUMENT.value,
+            ).aexists()
+        )
         if input_documents:
             _tool_call_id = str(uuid.uuid4())
             yield events_v4.ToolCallPart(
@@ -436,7 +453,22 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     ],
                 },
             )
-            self.parse_input_documents(input_documents)
+            try:
+                await self.parse_input_documents(input_documents)
+            except Exception as exc:
+                logger.exception("Error parsing input documents: %s", exc)
+                yield events_v4.ToolResultPart(
+                    tool_call_id=_tool_call_id,
+                    result={"state": "error", "error": str(exc)},
+                )
+                yield events_v4.FinishMessagePart(
+                    finish_reason=events_v4.FinishReason.ERROR,
+                    usage=events_v4.Usage(
+                        prompt_tokens=usage["promptTokens"],
+                        completion_tokens=usage["completionTokens"],
+                    ),
+                )
+                return
             if not conversation_has_documents:
                 conversation_has_documents = True
                 await self.conversation.asave(update_fields=["collection_id", "updated_at"])
@@ -448,28 +480,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         await self._agent_stop_streaming(force_cache_check=True)
 
-        # Prepare the prompt for the agent
-        try:
-            _new_prompt, _ui_sources = self.perform_rag(
-                user_prompt=user_prompt,
-                intent_web_search=user_intent.web_search,
-                force_web_search=force_web_search,
-                document_search=conversation_has_documents,
-            )
-        except WebSearchEmptyException:
-            yield events_v4.SourcePart(
-                id=str(uuid.uuid4()),
-                url=str(_("No web search results found.")),
-            )
-            return
-
-        _user_initial_prompt_str = None
-        if _new_prompt:
-            _user_initial_prompt_str = str(user_prompt)  # copy the original user prompt
-            user_prompt = _new_prompt
-            for _ui_source in _ui_sources:
-                yield events_v4.SourcePart(**_ui_source.source.model_dump())
-
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
@@ -480,11 +490,30 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 language=self.language,
                 toolsets=mcp_servers,
                 instrument=self._store_analytics,
+                deps_type=ContextDeps,
+                output_type=[ToolOutput(hand_off_to_summarization_agent, name="summarize"), str] if conversation_has_documents else str,
             )
+
+            if conversation_has_documents:
+                add_albert_document_rag_search_tool(conversation_agent)
+            if self._is_web_search_enabled:
+                add_albert_web_rag_search_tool(conversation_agent)
+
+            _final_output_from_tool = None
+            _ui_sources = []
+
+            # Help Mistral to prevent `Unexpected role 'user' after role 'tool'` error.
+            if history and history[-1].kind == "request":
+                if history[-1].parts[-1].part_kind == "tool-return":
+                    history.append(
+                        ModelResponse(parts=[TextPart(content="ok")], kind="response")
+                    )
+
 
             async with conversation_agent.iter(
                 [user_prompt] + input_images,
                 message_history=history,
+                deps=self._context_deps,
             ) as run:
                 async for node in run:
                     await self._agent_stop_streaming()
@@ -584,6 +613,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                     # }
                                 elif isinstance(event, FunctionToolResultEvent):
                                     if isinstance(event.result, ToolReturnPart):
+                                        if event.result.metadata and (sources:=event.result.metadata.get("sources")):
+                                            for source_url in sources:
+                                                url_source = LanguageModelV1Source(
+                                                    sourceType="url",
+                                                    id=str(uuid.uuid4()),
+                                                    url=source_url,
+                                                    providerMetadata={},
+                                                )
+                                                _new_source_ui = SourceUIPart(type="source", source=url_source)
+                                                _ui_sources.append(_new_source_ui)
+                                                yield events_v4.SourcePart(**_new_source_ui.source.model_dump())
+
                                         yield events_v4.ToolResultPart(
                                             tool_call_id=event.tool_call_id,
                                             result=event.result.content,
@@ -601,7 +642,35 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                         )
                     elif Agent.is_end_node(node):
                         # Once an End node is reached, the agent run is complete
-                        logger.debug("Received end_node event: %s", dataclasses.asdict(node))
+                        logger.debug("v: %s", dataclasses.asdict(node))
+                        if isinstance(node.data, FinalResult) and node.data.tool_name == "summarize":
+                            yield events_v4.ToolResultPart(
+                                tool_call_id=node.data.tool_call_id,
+                                result={"state": "done"},  # content not needed here
+                            )
+                            final_output = node.data.output
+                            if isinstance(final_output, ToolReturn):
+                                _final_output_from_tool = final_output.content
+                                yield events_v4.TextPart(text=final_output.content)
+
+                                if final_output.metadata and (sources := final_output.metadata.get("sources")):
+                                    for source_url in sources:
+                                        url_source = LanguageModelV1Source(
+                                            sourceType="url",
+                                            id=str(uuid.uuid4()),
+                                            url=source_url,
+                                            providerMetadata={},
+                                        )
+                                        _new_source_ui = SourceUIPart(type="source", source=url_source)
+                                        _ui_sources.append(_new_source_ui)
+                                        yield events_v4.SourcePart(**_new_source_ui.source.model_dump())
+                            else:
+                                logger.warning(
+                                    "Unexpected final result type: %s %s",
+                                    type(final_output),
+                                    final_output,
+                                )
+
                     else:
                         logger.warning(
                             "Unknown node type encountered: %s",
@@ -620,7 +689,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             final_output=run.result.new_messages(),
             raw_final_output=run.result.new_messages_json(),
             usage=usage,
-            user_initial_prompt_str=_user_initial_prompt_str,
+            final_output_from_tool=_final_output_from_tool, ### _user_initial_prompt_str,
             ui_sources=_ui_sources,
         )
 
@@ -642,7 +711,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         final_output: List[ModelRequest | ModelMessage],
         raw_final_output: bytes,
         usage: Dict[str, int],
-        user_initial_prompt_str: str | None,
+        final_output_from_tool: str | None,
         ui_sources: List[SourceUIPart] = None,
     ):  # pylint: disable=too-many-arguments
         """
@@ -669,27 +738,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         _merged_final_output_message = ModelResponse(
             parts=[
                 part for msg in final_output if isinstance(msg, ModelResponse) for part in msg.parts
-            ],
+            ] + [
+                TextPart(content=final_output_from_tool)
+            ] if final_output_from_tool else [],
             kind="response",
         )
-
-        # Remove the RAG web search prompt if it was added
-        if user_initial_prompt_str:  # pylint: disable=too-many-nested-blocks
-            for part in _merged_final_output_request.parts:
-                logger.debug("Part type: %s, content: %s", type(part), part.content)
-                if isinstance(part, UserPromptPart):
-                    if isinstance(part.content, str) and part.content.startswith(
-                        settings.RAG_WEB_SEARCH_PROMPT_UPDATE[:30]
-                    ):
-                        logger.debug("Part content: %s", part.content)
-                        part.content = user_initial_prompt_str
-                    elif isinstance(part.content, list):
-                        for idx, content_part in enumerate(part.content):
-                            if isinstance(content_part, str) and content_part.startswith(
-                                settings.RAG_WEB_SEARCH_PROMPT_UPDATE[:30]
-                            ):
-                                logger.debug("Part content: %s", content_part)
-                                part.content[idx] = user_initial_prompt_str
 
         _output_ui_message = model_message_to_ui_message(_merged_final_output_message)
         if ui_sources:
