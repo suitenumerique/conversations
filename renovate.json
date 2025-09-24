@@ -32,6 +32,12 @@
         "node-fetch",
         "workbox-webpack-plugin"
       ]
+    },
+    {
+      "groupName": "ignore Vercel SDK >= 5.0.0",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["@vercel/sdk"],
+      "allowedVersions": "^1.2.0"
     }
   ]
 }
