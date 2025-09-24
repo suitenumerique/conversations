@@ -70,7 +70,6 @@ nextjs-portal {
   border: 1px solid rgb(0 0 0 / 16%) !important;
 }
 
-.c__button--primary:active,
 .c__button--primary.c__button--active {
   border: none;
 }
@@ -151,6 +150,7 @@ ul a:hover {
   outline: none !important;
   background-color: #b7d7ff !important;
   color: #265eaa !important;
+  border-color: #b7d7ff !important;
 }
 
 .research-web-button:focus {

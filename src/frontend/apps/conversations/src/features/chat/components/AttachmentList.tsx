@@ -24,7 +24,8 @@ export const AttachmentList = ({
 
   return (
     <Box
-      $direction="row"
+      $direction={isReadOnly ? 'column' : 'row'}
+      $align={isReadOnly ? 'flex-end' : ''}
       $gap="0.5rem"
       $width="100%"
       $css={`
@@ -44,8 +45,8 @@ export const AttachmentList = ({
         return (
           <Box
             key={(name || 'attachment') + idx}
-            $direction="column"
-            $align="center"
+            $direction={isReadOnly ? 'row' : 'column'}
+            $align={isReadOnly ? 'left' : 'center'}
           >
             <Box
               $background="var(--c--theme--colors--greyscale-050)"
@@ -61,8 +62,8 @@ export const AttachmentList = ({
               {/* Extension du fichier */}
               <Box
                 $background="var(--c--theme--colors--greyscale-200)"
-                $width="24px"
-                $height="24px"
+                $width="22px"
+                $height="22px"
                 $direction="row"
                 $align="center"
                 $margin={{ right: 'xs' }}
@@ -76,7 +77,7 @@ export const AttachmentList = ({
                   $color="var(--c--theme--colors--greyscale-700)"
                   $weight="500"
                   $css={`
-                    font-size: 8px;
+                    font-size: 7px;
                   `}
                 >
                   {name?.split('.').pop()?.toUpperCase() || 'FILE'}
@@ -84,6 +85,7 @@ export const AttachmentList = ({
               </Box>
               <Text
                 $size="xs"
+                $variation="500"
                 $color="var(--c--theme--colors--greyscale-850)"
                 $css={`
                   overflow: hidden;
