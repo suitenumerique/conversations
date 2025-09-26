@@ -40,17 +40,17 @@ export const useRemoveConversation = (
   return useMutation<void, APIError, RemoveConversationProps>({
     mutationFn: removeConversation,
     ...options,
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, context, meta) => {
       void queryClient.invalidateQueries({
         queryKey: [KEY_LIST_CONVERSATION],
       });
       if (options?.onSuccess) {
-        void options.onSuccess(data, variables, context);
+        void options.onSuccess(data, variables, context, meta);
       }
     },
-    onError: (error, variables, context) => {
+    onError: (error, variables, context, meta) => {
       if (options?.onError) {
-        void options.onError(error, variables, context);
+        void options.onError(error, variables, context, meta);
       }
     },
   });
