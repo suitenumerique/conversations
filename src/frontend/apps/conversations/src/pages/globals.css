@@ -97,6 +97,13 @@ nextjs-portal {
   padding: 9px !important;
 }
 
+.c__button--neutral.research-web-button:disabled,
+.c__button--neutral.attach-file-button:disabled {
+  background-color: inherit !important;
+  opacity: 0.4;
+  cursor: not-allowed !important;
+}
+
 .c__button--neutral.action-chat-button .action-chat-button-icon,
 .c__button--neutral.research-web-button .c__button__icon span,
 .c__button--neutral.attach-file-button .c__button__icon span {

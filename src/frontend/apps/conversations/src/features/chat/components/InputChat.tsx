@@ -3,6 +3,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Box, Icon, Text } from '@/components';
+import { FeatureFlagState, useConfig } from '@/core';
+import { useAnalytics } from '@/libs';
 import { useResponsiveStore } from '@/stores';
 
 import { AttachmentList } from './AttachmentList';
@@ -44,6 +46,10 @@ export const InputChat = ({
   const [isDragActive, setIsDragActive] = useState(false);
   const { isDesktop, isMobile } = useResponsiveStore();
   const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
+  const { data: conf } = useConfig();
+  const { isFeatureFlagActivated } = useAnalytics();
+  const [fileUploadEnabled, setFileUploadEnabled] = useState(false);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
   const suggestions = [
@@ -52,6 +58,29 @@ export const InputChat = ({
     t('Write a short product description'),
     t('Find recent news about...'),
   ];
+
+  useEffect(() => {
+    if (!conf?.FEATURE_FLAGS) {
+      setWebSearchEnabled(false);
+      setFileUploadEnabled(false);
+      return;
+    }
+    const isFeatureEnabled = (featureKey: string): boolean => {
+      const configValue = conf.FEATURE_FLAGS[featureKey];
+      if (!configValue) {
+        return false;
+      } else if (configValue === FeatureFlagState.DISABLED) {
+        return false;
+      } else if (configValue === FeatureFlagState.ENABLED) {
+        return true;
+      } else {
+        return isFeatureFlagActivated(featureKey);
+      }
+    };
+
+    setWebSearchEnabled(isFeatureEnabled('web-search'));
+    setFileUploadEnabled(isFeatureEnabled('document-upload'));
+  }, [conf, isFeatureFlagActivated]);
 
   useEffect(() => {
     if (messagesLength === 0) {
@@ -140,7 +169,7 @@ export const InputChat = ({
         onSubmit={handleSubmit}
         onDragOver={(e) => {
           e.preventDefault();
-          setIsDragActive(true);
+          setIsDragActive(fileUploadEnabled);
         }}
         onDragLeave={(e) => {
           e.preventDefault();
@@ -149,6 +178,9 @@ export const InputChat = ({
         onDrop={(e) => {
           e.preventDefault();
           setIsDragActive(false);
+          if (!fileUploadEnabled) {
+            return;
+          }
           if (e.dataTransfer.files?.length) {
             setFiles((prev) => {
               const dt = new DataTransfer();
@@ -337,6 +369,7 @@ export const InputChat = ({
                 <Button
                   size="small"
                   type="button"
+                  disabled={!fileUploadEnabled}
                   onClick={() => fileInputRef.current?.click()}
                   aria-label={t('Add attach file')}
                   className="c__button--neutral attach-file-button"
@@ -355,6 +388,7 @@ export const InputChat = ({
                     </Text>
                   )}
                 </Button>
+
                 {onToggleWebSearch && (
                   <Box
                     $margin={{ left: '4px' }}
@@ -382,6 +416,7 @@ export const InputChat = ({
                     <Button
                       size="small"
                       type="button"
+                      disabled={!webSearchEnabled}
                       onClick={onToggleWebSearch}
                       aria-label={t('Research on the web')}
                       className="c__button--neutral research-web-button"

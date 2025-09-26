@@ -11,9 +11,20 @@ interface ThemeCustomization {
   translations?: Resource;
 }
 
+export enum FeatureFlagState {
+  ENABLED = 'enabled',
+  DISABLED = 'disabled',
+  DYNAMIC = 'dynamic',
+}
+
+interface FeatureFlags {
+  [key: string]: FeatureFlagState;
+}
+
 export interface ConfigResponse {
   CRISP_WEBSITE_ID?: string;
   ENVIRONMENT: string;
+  FEATURE_FLAGS: FeatureFlags;
   FRONTEND_CSS_URL?: string;
   FRONTEND_HOMEPAGE_FEATURE_ENABLED?: boolean;
   FRONTEND_THEME?: Theme;
