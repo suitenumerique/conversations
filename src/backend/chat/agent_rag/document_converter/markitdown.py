@@ -1,8 +1,7 @@
 """Document Converter using MarkItDown"""
 
+import os.path
 from io import BytesIO
-from pathlib import Path
-from typing import BinaryIO, Union
 
 from markitdown import MarkItDown
 
@@ -19,7 +18,7 @@ class DocumentConverter:
         *,
         name: str,
         content_type: str,
-        content: BytesIO,
+        content: bytes,
     ) -> str:
         """
         Convert a document to Markdown format.
@@ -29,14 +28,16 @@ class DocumentConverter:
         Args:
             name (str): The name of the document.
             content_type (str): The MIME type of the document (e.g., "application/pdf").
-            content (BytesIO): The content of the document as a BytesIO stream.
+            content (bytes): The content of the document as bytes.
         """
-        return self._convert(content)
+        return self._convert(BytesIO(content), file_extension=os.path.splitext(name)[1])
 
-    def _convert(self, document: Union[Path, str, BinaryIO]) -> str:
+    def _convert(self, document: BytesIO, file_extension: str) -> str:
         """
         Convert the given document using the underlying DocumentConverter.
         """
-        conversion = self.converter.convert(document)
+        conversion = self.converter.convert_stream(
+            document, file_extension=file_extension or ".txt"
+        )
         document_markdown = conversion.text_content
         return document_markdown

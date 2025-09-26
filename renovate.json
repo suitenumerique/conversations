@@ -16,6 +16,12 @@
       "allowedVersions": "<6.0.0"
     },
     {
+      "groupName": "ignore recent markitdown versions",
+      "matchManagers": ["pep621"],
+      "matchPackageNames": ["markitdown"],
+      "allowedVersions": "==0.0.2"
+    },
+    {
       "enabled": false,
       "groupName": "ignored js dependencies",
       "matchManagers": ["npm"],
@@ -26,6 +32,12 @@
         "node-fetch",
         "workbox-webpack-plugin"
       ]
+    },
+    {
+      "groupName": "ignore Vercel SDK >= 5.0.0",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["@ai-sdk/react", "@ai-sdk/ui-utils"],
+      "allowedVersions": "^1.2.0"
     }
   ]
 }

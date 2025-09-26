@@ -828,7 +828,7 @@ def history_conversation_with_image_fixture():
                                 "v7-jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD_aNpbtEAAAAASUVORK5CYII="
                             ),
                             "kind": "binary",
-                            "identifier": None,
+                            "identifier": "plop",
                             "media_type": "image/png",
                             "vendor_metadata": None,
                         },
@@ -1357,6 +1357,7 @@ def test_post_conversation_with_existing_tool_history(
     }
 
     assert history_conversation_with_tool.pydantic_messages[9] == {
+        "finish_reason": "tool_call",
         "kind": "response",
         "model_name": "test-model",
         "parts": [
@@ -1367,16 +1368,20 @@ def test_post_conversation_with_existing_tool_history(
                 "tool_name": "get_current_weather",
             }
         ],
+        "provider_details": {"finish_reason": "tool_calls"},
+        "provider_name": "openai",
+        "provider_response_id": "chatcmpl-tool-call",
         "timestamp": "2025-07-25T10:36:35.297675Z",
         "usage": {
-            "details": None,
-            "request_tokens": 0,
-            "requests": 1,
-            "response_tokens": 0,
-            "total_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "details": {},
+            "input_audio_tokens": 0,
+            "input_tokens": 0,
+            "output_audio_tokens": 0,
+            "output_tokens": 0,
         },
-        "vendor_details": None,
-        "vendor_id": None,
     }
 
     assert history_conversation_with_tool.pydantic_messages[10] == {
@@ -1395,19 +1400,26 @@ def test_post_conversation_with_existing_tool_history(
     }
 
     assert history_conversation_with_tool.pydantic_messages[11] == {
+        "finish_reason": "stop",
         "kind": "response",
         "model_name": "test-model",
-        "parts": [{"content": "The current weather in Paris is nice", "part_kind": "text"}],
+        "parts": [
+            {"content": "The current weather in Paris is nice", "id": None, "part_kind": "text"}
+        ],
+        "provider_details": {"finish_reason": "stop"},
+        "provider_name": "openai",
+        "provider_response_id": "chatcmpl-final",
         "timestamp": "2025-07-25T10:36:35.297675Z",
         "usage": {
-            "details": None,
-            "request_tokens": 0,
-            "requests": 1,
-            "response_tokens": 0,
-            "total_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "details": {},
+            "input_audio_tokens": 0,
+            "input_tokens": 0,
+            "output_audio_tokens": 0,
+            "output_tokens": 0,
         },
-        "vendor_details": None,
-        "vendor_id": None,
     }
 
 

@@ -17,14 +17,12 @@ from typing import Dict, List, Optional, Tuple
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
-from django.utils import formats, timezone
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
 from asgiref.sync import sync_to_async
 from langfuse import get_client
-from pydantic import BaseModel
-from pydantic_ai import Agent, NativeOutput
+from pydantic_ai import Agent
 from pydantic_ai.messages import (
     BinaryContent,
     FunctionToolCallEvent,
@@ -45,13 +43,12 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
-from pydantic_ai.models.openai import OpenAIModel
-from pydantic_ai.providers.openai import OpenAIProvider
 
-from core.enums import get_language_name
 from core.feature_flags.helpers import is_feature_enabled
 
 from chat.agent_rag.document_search.albert_api import AlbertRagDocumentSearch
+from chat.agents.conversation import ConversationAgent
+from chat.agents.routing import RoutingAgent, UserIntent
 from chat.ai_sdk_types import (
     LanguageModelV1Source,
     SourceUIPart,
@@ -64,107 +61,18 @@ from chat.clients.pydantic_ui_message_converter import (
     ui_message_to_user_content,
 )
 from chat.mcp_servers import get_mcp_servers
-from chat.tools import get_pydantic_tools_by_name
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import EventEncoder
 
 logger = logging.getLogger(__name__)
 
 
-def _get_pydantic_agent(model_hrid, mcp_servers=None, **kwargs) -> Agent:
-    """Get the PydanticAI Agent instance with the configured settings."""
+def get_model_configuration(model_hrid: str):
+    """Get the model configuration from settings."""
     try:
-        _model = settings.LLM_CONFIGURATIONS[model_hrid]
+        return settings.LLM_CONFIGURATIONS[model_hrid]
     except KeyError as exc:
         raise ImproperlyConfigured(f"LLM model configuration '{model_hrid}' not found.") from exc
-
-    _model_instance = OpenAIModel(
-        model_name=_model.model_name,
-        provider=OpenAIProvider(
-            base_url=_model.provider.base_url,
-            api_key=_model.provider.api_key,
-        )
-        if _model.provider
-        else None,
-    )
-    _system_prompt = _model.system_prompt
-    _tools = [get_pydantic_tools_by_name(tool_name) for tool_name in _model.tools]
-
-    return Agent(
-        model=_model_instance,
-        system_prompt=_system_prompt,
-        mcp_servers=mcp_servers or [],
-        tools=_tools,
-        **kwargs,
-    )
-
-
-def _build_pydantic_agent(
-    mcp_servers, model_hrid=None, language=None, instrument=False
-) -> Agent[None, str]:
-    """Create a Pydantic AI Agent instance with the configured settings."""
-    model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID
-
-    agent = _get_pydantic_agent(model_hrid, mcp_servers, instrument=instrument)
-
-    @agent.system_prompt
-    def add_the_date() -> str:
-        """
-        Dynamic system prompt function to add the current date.
-
-        Warning: this will always use the date in the server timezone,
-        not the user's timezone...
-        """
-        _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
-        return f"Today is {_formatted_date}."
-
-    @agent.system_prompt
-    def enforce_response_language() -> str:
-        """Dynamic system prompt function to set the expected language to use."""
-        return f"Answer in {get_language_name(language).lower()}." if language else ""
-
-    return agent
-
-
-def _build_routing_agent(model_hrid=None, instrument=False) -> Agent[None, str] | None:
-    """
-    Create a Pydantic AI routing Agent instance with the configured settings.
-
-    This agent is used to detect the user intent from the user prompt.
-
-    Args:
-        model_hrid (str | None): The HRID of the routing model to use.
-            If None, the default routing model from settings will be used.
-    Returns:
-        Agent | None: The Pydantic AI Agent instance or None if not configured.
-    Raises:
-        ImproperlyConfigured: If the routing model configuration is invalid.
-    """
-    model_hrid = model_hrid or settings.LLM_ROUTING_MODEL_HRID
-
-    try:
-        agent = _get_pydantic_agent(
-            model_hrid,
-            output_type=NativeOutput([UserIntent]),
-            instrument=instrument,
-        )
-    except ImproperlyConfigured:
-        logger.info("AI routing model does not exist -> disabled")
-        return None
-
-    # Simple detection of configuration not set
-    if not agent.model.model_name:
-        logger.info("AI routing model configuration not set -> disabled")
-        return None
-
-    return agent
-
-
-class UserIntent(BaseModel):
-    """Model to represent the detected user intent."""
-
-    web_search: bool = False
-    attachment_summary: bool = False
 
 
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
@@ -180,16 +88,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         self.conversation = conversation
         self.user = user  # authenticated user only
-        self.model_hrid = model_hrid  # HRID of the model to use, might be None
+        self.model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID  # HRID of the model to use
         self.language = language  # might be None
         self._last_stop_check = 0
 
         self._store_analytics = settings.LANGFUSE_ENABLED and user.allow_conversation_analytics
         self.event_encoder = EventEncoder("v4")  # Always use v4 for now
 
+        self._support_streaming = True
+        if (streaming := get_model_configuration(self.model_hrid).supports_streaming) is not None:
+            self._support_streaming = streaming
+
         # Feature flags
         self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
         self._is_web_search_enabled = is_feature_enabled(self.user, "web_search")
+        self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
     @property
     def _stop_cache_key(self):
@@ -291,8 +204,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             )
             return UserIntent()
 
-        agent = _build_routing_agent(instrument=self._store_analytics)
-        if not agent:
+        try:
+            agent = RoutingAgent(instrument=self._store_analytics)
+        except ImproperlyConfigured:
             return UserIntent()
 
         result = await agent.run(user_prompt)
@@ -390,7 +304,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
                 _unique_sources.add(result.url)
                 url_source = LanguageModelV1Source(
-                    source_type="url",
+                    sourceType="url",
                     id=str(uuid.uuid4()),
                     url=result.url,
                     providerMetadata={},
@@ -560,12 +474,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             # MCP servers (if any) can be initialized here
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
 
-            async with _build_pydantic_agent(
-                mcp_servers,
+            # Build the agent
+            conversation_agent = ConversationAgent(
                 model_hrid=self.model_hrid,
                 language=self.language,
+                toolsets=mcp_servers,
                 instrument=self._store_analytics,
-            ).iter(
+            )
+
+            async with conversation_agent.iter(
                 [user_prompt] + input_images,
                 message_history=history,
             ) as run:
@@ -575,8 +492,36 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         # A user prompt node => The user has provided input
                         pass
 
-                    elif Agent.is_model_request_node(node):
-                        # A model request node => We can stream tokens from the model's request
+                    elif Agent.is_model_request_node(node):  # pylint: disable=too-many-nested-blocks
+                        # A model request node => agent is asking the model to generate a response
+                        if not self._support_streaming:
+                            result = await node.run(run.ctx)
+                            logger.debug("node.run result: %s", result)
+                            for part in result.model_response.parts:
+                                if isinstance(part, TextPart):
+                                    if self._fake_streaming_delay:
+                                        for i in range(0, len(part.content), 4):
+                                            await self._agent_stop_streaming()
+                                            yield events_v4.TextPart(text=part.content[i : i + 4])
+                                            time.sleep(self._fake_streaming_delay)
+                                    else:
+                                        yield events_v4.TextPart(text=part.content)
+                                elif isinstance(part, ToolCallPart):
+                                    yield events_v4.ToolCallPart(
+                                        tool_call_id=part.tool_call_id,
+                                        tool_name=part.tool_name,
+                                        args=json.loads(part.args) if part.args else {},
+                                    )
+                                elif isinstance(part, ThinkingPart):
+                                    yield events_v4.ReasoningPart(reasoning=part.content)
+                                else:
+                                    logger.warning(
+                                        "Unknown part type in model response: %s %s",
+                                        type(part),
+                                        dataclasses.asdict(part),
+                                    )
+                            continue
+
                         async with node.stream(run.ctx) as request_stream:
                             async for event in request_stream:
                                 await self._agent_stop_streaming()
@@ -665,8 +610,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
                 # Final usage summary
                 final_usage = run.usage()
-                usage["promptTokens"] = final_usage.request_tokens
-                usage["completionTokens"] = final_usage.response_tokens
+                usage["promptTokens"] = final_usage.input_tokens
+                usage["completionTokens"] = final_usage.output_tokens
 
         await self._agent_stop_streaming(force_cache_check=True)
 

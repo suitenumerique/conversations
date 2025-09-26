@@ -66,6 +66,28 @@ export const Chat = ({
     setChatContainerRef(chatContainerRef);
   }, []);
 
+  // Détecter si l'utilisateur scroll vers le haut
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+
+      if (isAtBottom) {
+        setUserScrolledUp(false);
+      } else {
+        setUserScrolledUp(true);
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const [initialConversationMessages, setInitialConversationMessages] =
     useState<Message[] | undefined>(undefined);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
@@ -78,6 +100,7 @@ export const Chat = ({
   const [streamingMessageHeight, setStreamingMessageHeight] = useState<
     number | null
   >(null);
+  const [userScrolledUp, setUserScrolledUp] = useState(false);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
 
@@ -129,7 +152,7 @@ export const Chat = ({
   const stopGeneration = async () => {
     stopChat();
 
-    const response = await fetchAPI(`chats/${conversationId}/stop-steaming/`, {
+    const response = await fetchAPI(`chats/${conversationId}/stop-streaming/`, {
       method: 'POST',
     });
 
@@ -230,7 +253,8 @@ export const Chat = ({
 
       if (
         hasInitialized &&
-        (status === 'streaming' || status === 'submitted')
+        (status === 'streaming' || status === 'submitted') &&
+        !userScrolledUp
       ) {
         const lastUserMessage = userMessages[userMessages.length - 1];
         if (lastUserMessage) {
@@ -251,7 +275,13 @@ export const Chat = ({
         }
       }
     }
-  }, [messages, status, hasInitialized, calculateStreamingHeight]);
+  }, [
+    messages,
+    status,
+    hasInitialized,
+    calculateStreamingHeight,
+    userScrolledUp,
+  ]);
 
   // Synchronize conversationId state with prop when it changes (e.g., after navigation)
   useEffect(() => {
@@ -435,7 +465,6 @@ export const Chat = ({
           flex-basis: auto;
           height: 100%;
           flex-grow: 1;
-          animation: fade-in 0.3s ease-out forwards;
         `}
     >
       <Box
@@ -463,6 +492,9 @@ export const Chat = ({
                   messages.findLastIndex((msg) => msg.role === 'assistant');
               const shouldApplyStreamingHeight =
                 isLastAssistantMessageInConversation && streamingMessageHeight;
+              const isCurrentlyStreaming =
+                isLastAssistantMessageInConversation &&
+                (status === 'streaming' || status === 'submitted');
 
               return (
                 <Box
@@ -472,44 +504,16 @@ export const Chat = ({
                     display: flex;
                     width: 100%;
                     margin: auto;
+                    color: var(--c--theme--colors--greyscale-850);
                     padding-left: 12px;
+                    padding-right: 12px;
                     max-width: 750px;
-                    text-align: ${message.role === 'user' ? 'right' : 'left'};
+                    text-align: left;
                     flex-direction: ${message.role === 'user' ? 'row-reverse' : 'row'};
-                    ${shouldApplyStreamingHeight ? `min-height: ${status !== 'ready' ? streamingMessageHeight : streamingMessageHeight + 80}px;` : ''}
+                    ${shouldApplyStreamingHeight ? `min-height: ${streamingMessageHeight + 70}px;` : ''}
                   `}
                 >
-                  <Box
-                    $gap="2"
-                    $radius="8px"
-                    $maxWidth="100%"
-                    $padding={`${message.role === 'user' ? '12px' : '0'}`}
-                    $margin={{ vertical: 'base' }}
-                    $background={`${message.role === 'user' ? '#EEF1F4' : 'white'}`}
-                  >
-                    {/* Message content */}
-                    {message.content && (
-                      <Box
-                        $css={`
-                        opacity: 0;
-                        animation: fade-in 0.3s ease-in-out forwards;
-                      `}
-                      >
-                        <Markdown
-                          remarkPlugins={[remarkGfm, remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
-                          components={{
-                            // Custom components for Markdown rendering
-                            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                            p: ({ node, ...props }) => <Text {...props} />,
-                          }}
-                        >
-                          {message.content}
-                        </Markdown>
-                      </Box>
-                    )}
-
-                    {/* Attachments section */}
+                  <Box $display="block">
                     {message.experimental_attachments &&
                       message.experimental_attachments.length > 0 && (
                         <Box>
@@ -519,141 +523,165 @@ export const Chat = ({
                           />
                         </Box>
                       )}
+                    <Box
+                      $radius="8px"
+                      $maxWidth="100%"
+                      $padding={`${message.role === 'user' ? '12px' : '0'}`}
+                      $margin={{ vertical: 'base' }}
+                      $background={`${message.role === 'user' ? '#EEF1F4' : 'white'}`}
+                      $css={`
+                      display: inline-block;
+                      float: right;`}
+                    >
+                      {/* Message content */}
+                      {message.content && (
+                        <Box $padding={{ all: 'xxs' }}>
+                          <Markdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                            components={{
+                              // Custom components for Markdown rendering
+                              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                              p: ({ node, ...props }) => (
+                                <Text
+                                  $css="display: block"
+                                  $theme="greyscale"
+                                  $variation="850"
+                                  {...props}
+                                />
+                              ),
+                            }}
+                          >
+                            {message.content}
+                          </Markdown>
+                        </Box>
+                      )}
 
-                    {/* Reasoning and tool invocations */}
-                    <Box $direction="column" $gap="2">
-                      {message.parts
-                        ?.filter(
-                          (part) =>
-                            part.type === 'reasoning' ||
-                            part.type === 'tool-invocation',
-                        )
-                        .map((part: ReasoningUIPart | ToolInvocationUIPart) =>
-                          part.type === 'reasoning' ? (
-                            <Box
-                              key={part.reasoning}
-                              $background="var(--c--theme--colors--greyscale-100)"
-                              $color="var(--c--theme--colors--greyscale-500)"
-                              $padding={{ all: 'sm' }}
-                              $radius="md"
-                              $css="font-size: 0.9em;"
-                            >
-                              {part.reasoning}
-                            </Box>
-                          ) : part.type === 'tool-invocation' ? (
-                            <ToolInvocationItem
-                              toolInvocation={part.toolInvocation}
-                            />
-                          ) : null,
-                        )}
-                    </Box>
-                    {message.role !== 'user' && (
-                      <Box
-                        $css="color: #626A80; font-size: 12px;"
-                        $direction="row"
-                        $align="center"
-                        $gap="6px"
-                        $margin={{ top: 'base' }}
-                      >
+                      <Box $direction="column" $gap="2">
+                        {message.parts
+                          ?.filter(
+                            (part) =>
+                              part.type === 'reasoning' ||
+                              part.type === 'tool-invocation',
+                          )
+                          .map(
+                            (part: ReasoningUIPart | ToolInvocationUIPart) =>
+                              part.type === 'reasoning' ? (
+                                <Box
+                                  key={part.reasoning}
+                                  $background="var(--c--theme--colors--greyscale-100)"
+                                  $color="var(--c--theme--colors--greyscale-500)"
+                                  $padding={{ all: 'sm' }}
+                                  $radius="md"
+                                  $css="font-size: 0.9em;"
+                                >
+                                  {part.reasoning}
+                                </Box>
+                              ) : part.type === 'tool-invocation' ? (
+                                <ToolInvocationItem
+                                  toolInvocation={part.toolInvocation}
+                                />
+                              ) : null,
+                          )}
+                      </Box>
+                      {message.role !== 'user' && !isCurrentlyStreaming && (
                         <Box
+                          $css="color: #222631; font-size: 12px;"
                           $direction="row"
                           $align="center"
-                          $gap="4px"
-                          $css="
-                      cursor: pointer;
-                      z-index: 100;
-                      font-size: 12px;
-                      padding: 2px 8px;
-                      margin-left: -8px;
-                      transition: background-color 0.4s;
-                      border-radius: 4px;
-
-                      &:hover {
-                        background-color: #EEF1F4 !important;
-                      }
-                    "
-                          onClick={() => copyToClipboard(message.content)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              copyToClipboard(message.content);
-                            }
-                          }}
-                          role="button"
-                          tabIndex={0}
+                          $gap="6px"
+                          $margin={{ top: 'base' }}
                         >
-                          <Icon
-                            iconName="content_copy"
-                            $theme="greyscale"
-                            $variation="600"
-                            $size="16px"
-                          />
-                          {!isMobile && (
-                            <Text $color="#626A80" $weight="500">
-                              {t('Copy')}
-                            </Text>
-                          )}
-                        </Box>
-                        {message.parts?.some(
-                          (part) => part.type === 'source',
-                        ) && (
                           <Box
                             $direction="row"
                             $align="center"
                             $gap="4px"
-                            $css="
-                        cursor: pointer;
-                        z-index: 100;
-                        font-size: 12px;
-                        padding: 2px 8px;
-                        margin-left: -8px;
-                        transition: background-color 0.4s;
-                        border-radius: 4px;
-
-                        &:hover {
-                          background-color: #EEF1F4 !important;
-                        }
-                      "
-                            onClick={() => openSources(message.id)}
+                            className="c__button--neutral action-chat-button"
+                            onClick={() => copyToClipboard(message.content)}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' || e.key === ' ') {
                                 e.preventDefault();
-                                openSources(message.id);
+                                copyToClipboard(message.content);
                               }
                             }}
                             role="button"
                             tabIndex={0}
                           >
                             <Icon
-                              iconName="book"
+                              iconName="content_copy"
                               $theme="greyscale"
-                              $variation="600"
+                              $variation="550"
                               $size="16px"
+                              className="action-chat-button-icon"
                             />
                             {!isMobile && (
-                              <Text $color="#626A80" $weight="500">
-                                {t('Show sources')}
+                              <Text $theme="greyscale" $variation="550">
+                                {t('Copy')}
                               </Text>
                             )}
                           </Box>
-                        )}
-                      </Box>
-                    )}
-                    {message.parts && isSourceOpen === message.id && (
-                      <SourceItemList
-                        parts={message.parts.filter(
-                          (part): part is SourceUIPart =>
-                            part.type === 'source',
-                        )}
-                      />
-                    )}
+                          {message.parts?.some(
+                            (part) => part.type === 'source',
+                          ) &&
+                            (() => {
+                              const sourceCount =
+                                message.parts?.filter(
+                                  (part) => part.type === 'source',
+                                ).length || 0;
+                              return (
+                                <Box
+                                  $direction="row"
+                                  $align="center"
+                                  $gap="4px"
+                                  className={`c__button--neutral action-chat-button ${isSourceOpen ? 'action-chat-button--open' : ''}`}
+                                  onClick={() => openSources(message.id)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      openSources(message.id);
+                                    }
+                                  }}
+                                  role="button"
+                                  tabIndex={0}
+                                >
+                                  <Icon
+                                    iconName="book"
+                                    $theme="greyscale"
+                                    $variation="550"
+                                    $size="16px"
+                                    className="action-chat-button-icon"
+                                  />
+                                  <Text
+                                    $theme="greyscale"
+                                    $variation="550"
+                                    $weight="500"
+                                    $size="12px"
+                                  >
+                                    {t('Show') +
+                                      ` ${sourceCount} ` +
+                                      t('sources')}
+                                  </Text>
+                                </Box>
+                              );
+                            })()}
+                        </Box>
+                      )}
+                      {message.parts && isSourceOpen === message.id && (
+                        <SourceItemList
+                          parts={message.parts.filter(
+                            (part): part is SourceUIPart =>
+                              part.type === 'source',
+                          )}
+                        />
+                      )}
+                    </Box>
                   </Box>
                 </Box>
               );
             })}
           </Box>
         )}
-        {status !== 'ready' && (
+        {status !== 'ready' && status !== 'streaming' && (
           <Box
             $direction="row"
             $align="center"
@@ -673,7 +701,7 @@ export const Chat = ({
       <Box
         $css={`
           position: relative;
-          bottom: 20px;
+          bottom: ${isMobile ? '8px' : '20px'};
           margin: auto;
           z-index: 1000;
         `}

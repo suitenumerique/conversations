@@ -1,5 +1,5 @@
 @import url('../cunningham/cunningham-style.css');
-@import url('@fontsource/material-icons');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined');
 
 body {
   margin: 0;
@@ -43,32 +43,6 @@ main ::-webkit-scrollbar-thumb:hover,
   outline: inherit;
 }
 
-.material-icons-filled {
-  font-family: 'Material Icons', sans-serif;
-  font-weight: normal;
-  font-style: normal;
-  font-size: 24px; /* Preferred icon size */
-  display: inline-block;
-  line-height: 1;
-  text-transform: none;
-  letter-spacing: normal;
-  word-wrap: normal;
-  white-space: nowrap;
-  direction: ltr;
-
-  /* Support for all WebKit browsers. */
-  -webkit-font-smoothing: antialiased;
-
-  /* Support for Safari and Chrome. */
-  text-rendering: optimizelegibility;
-
-  /* Support for Firefox. */
-  -moz-osx-font-smoothing: grayscale;
-
-  /* Support for IE. */
-  font-feature-settings: 'liga';
-}
-
 [data-nextjs-dialog-overlay] {
   display: none !important;
 }
@@ -81,22 +55,73 @@ nextjs-portal {
   box-shadow: 0 6px 18px 0 rgb(0 0 0 / 16%);
 }
 
+.c__button {
+  font-weight: 500;
+}
+
 .c__button--bordered,
-.c__button--bordered:hover {
-  border: 1px solid var(--c--theme--colors--greyscale-200);
-  background-color: #fff;
+.c__button--bordered:hover,
+.c__button--bordered:focus {
+  border: 1px solid var(--c--theme--colors--greyscale-200) !important;
+  background-color: #fff !important;
 }
 
 .c__button--bordered:focus {
-  border: 1px solid rgb(0 0 0 / 16%);
+  border: 1px solid rgb(0 0 0 / 16%) !important;
+}
+
+.c__button--primary.c__button--active {
+  border: none;
+}
+
+.c__button--neutral {
+  transition: background-color 0.4s !important;
+  color: var(--c--theme--colors--greyscale-550) !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+  background-color: inherit !important;
+  border: none !important;
+  z-index: 100;
+  font-size: 12px !important;
+  padding: 4px !important;
+  padding-right: 9px !important;
+  border-radius: 4px !important;
+
+  @media (width <= 768px) {
+    padding-right: 4px !important;
+  }
+}
+
+.c__button--neutral.research-web-button,
+.c__button--neutral.attach-file-button {
+  padding: 9px !important;
+}
+
+.c__button--neutral.action-chat-button .action-chat-button-icon,
+.c__button--neutral.research-web-button .c__button__icon span,
+.c__button--neutral.attach-file-button .c__button__icon span {
+  @media (width <= 768px) {
+    font-size: 19px !important;
+  }
+}
+
+.c__button--neutral:hover,
+.c__button--neutral:active,
+.action-chat-button--open {
+  background-color: #f2f5f4 !important;
+  border: none !important;
+}
+
+.c__button--neutral:active {
+  background-color: inherit !important;
 }
 
 ul a {
-  color: var(--c--theme--colors--greyscale-700);
+  color: var(--c--theme--colors--greyscale-700) !important;
 }
 
 ul a:hover {
-  color: var(--c--theme--colors--primary-800);
+  color: var(--c--theme--colors--primary-800) !important;
 }
 
 @keyframes fade-in {
@@ -106,5 +131,53 @@ ul a:hover {
 
   to {
     opacity: 1;
+  }
+}
+
+.lasuite-gaufre-btn.lasuite--gaufre-opened {
+  box-shadow: none !important;
+}
+
+.c__button--info {
+  background-color: #cfe5ff !important;
+  color: #265eaa !important;
+  font-weight: 500 !important;
+}
+
+.c__button--info:hover,
+.c__button--info:active,
+.c__button--info:focus {
+  outline: none !important;
+  background-color: #b7d7ff !important;
+  color: #265eaa !important;
+  border-color: #b7d7ff !important;
+}
+
+.research-web-button:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.c__button:disabled {
+  background-color: var(--c--theme--colors--greyscale-100) !important;
+  color: var(--c--theme--colors--greyscale-300) !important;
+}
+
+.c__button--stop {
+  font-size: 0.8rem;
+  padding-right: 9px;
+  background-color: var(--c--theme--colors--greyscale-550) !important;
+  color: var(--c--theme--colors--greyscale-050) !important;
+}
+
+@media (width <= 768px) {
+  .mobile-no-focus:hover {
+    background-color: transparent !important;
+  }
+}
+
+.c__button--feedback {
+  @media (width <= 1150px) {
+    display: none !important;
   }
 }

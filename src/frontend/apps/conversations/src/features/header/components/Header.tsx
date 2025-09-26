@@ -11,6 +11,7 @@ import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
 import { ButtonLogin } from '@/features/auth';
 import { useChatScroll } from '@/features/chat/hooks';
+import { Feedback } from '@/features/feedback/Feedback';
 import { LanguagePicker } from '@/features/language';
 import { useLeftPanelStore } from '@/features/left-panel/stores';
 import { useResponsiveStore } from '@/stores';
@@ -45,7 +46,7 @@ export const Header = () => {
         background-color: ${colorsTokens['greyscale-000']};
         border-bottom: ${isDesktop && isAtTop
           ? `1px solid transparent`
-          : `1px solid ${colorsTokens['greyscale-200']}`};
+          : `1px solid ${colorsTokens['greyscale-100']}`};
         transition: border-bottom 0.2s ease;
       `}
       className="--docs--header"
@@ -66,6 +67,7 @@ export const Header = () => {
             color={colorsTokens['primary-text']}
           />
         </StyledLink>
+        <Box className="c__button--feedback">{isDesktop && <Feedback />}</Box>
       </Box>
       {!isDesktop ? (
         <Box $direction="row" $gap={spacingsTokens['sm']}>
@@ -75,6 +77,7 @@ export const Header = () => {
               router.push('/');
               togglePanel(false);
             }}
+            className="mobile-no-focus"
             aria-label={t('New chat')}
             color="primary-text"
             icon={<NewChatIcon />}

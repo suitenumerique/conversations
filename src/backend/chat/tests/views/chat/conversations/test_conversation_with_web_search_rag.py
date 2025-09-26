@@ -344,7 +344,7 @@ def test_conversation_with_forced_web_search_no_history(
                 SourceUIPart(
                     type="source",
                     source=LanguageModelV1Source(
-                        source_type="url",
+                        sourceType="url",
                         id=str(mock_uuid4),
                         url=(
                             "https://www.lemonde.fr/sciences/article/2025/06/25/le-telescope-james-"
@@ -358,7 +358,7 @@ def test_conversation_with_forced_web_search_no_history(
                 SourceUIPart(
                     type="source",
                     source=LanguageModelV1Source(
-                        source_type="url",
+                        sourceType="url",
                         id=str(mock_uuid4),
                         url="https://www.franceinfo.fr/economie/budget/",
                         title=None,
@@ -420,6 +420,7 @@ def test_conversation_with_forced_web_search_no_history(
     }
 
     assert chat_conversation.pydantic_messages[1] == {
+        "finish_reason": "stop",
         "kind": "response",
         "model_name": "test-model",
         "parts": [
@@ -427,19 +428,24 @@ def test_conversation_with_forced_web_search_no_history(
                 "content": "Based on the web search results, I can tell you that "
                 "the James-Webb telescope has made significant "
                 "discoveries.",
+                "id": None,
                 "part_kind": "text",
             }
         ],
+        "provider_details": {"finish_reason": "stop"},
+        "provider_name": "openai",
+        "provider_response_id": "chatcmpl-1234567890",
         "timestamp": "2025-07-25T10:36:35.297675Z",
         "usage": {
-            "details": None,
-            "request_tokens": 150,
-            "requests": 1,
-            "response_tokens": 25,
-            "total_tokens": 175,
+            "cache_audio_read_tokens": 0,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "details": {},
+            "input_audio_tokens": 0,
+            "input_tokens": 150,
+            "output_audio_tokens": 0,
+            "output_tokens": 25,
         },
-        "vendor_details": None,
-        "vendor_id": None,
     }
 
 

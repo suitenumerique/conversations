@@ -97,7 +97,7 @@ class SourcePart(BaseEvent):
     """
 
     type: Literal[EventType.SOURCE] = EventType.SOURCE
-    source_type: Literal["url"] = "url"
+    sourceType: Literal["url"] = "url"
     id: str
     url: str
     title: Optional[str] = None

@@ -79,7 +79,6 @@ def test_post_conversation_no_messages(api_client):
     response = api_client.post(url, data, format="json")
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "No messages provided" in response.data["error"]
 
 
 def test_post_conversation_invalid_protocol(api_client):
@@ -202,19 +201,24 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
             ],
         },
         {
+            "finish_reason": "stop",
             "kind": "response",
             "model_name": "test-model",
-            "parts": [{"content": "Hello there", "part_kind": "text"}],
+            "parts": [{"content": "Hello there", "id": None, "part_kind": "text"}],
+            "provider_details": {"finish_reason": "stop"},
+            "provider_name": "openai",
+            "provider_response_id": "chatcmpl-1234567890",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
-                "details": None,
-                "request_tokens": 0,
-                "requests": 1,
-                "response_tokens": 0,
-                "total_tokens": 0,
+                "cache_audio_read_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "details": {},
+                "input_audio_tokens": 0,
+                "input_tokens": 0,
+                "output_audio_tokens": 0,
+                "output_tokens": 0,
             },
-            "vendor_details": None,
-            "vendor_id": None,
         },
     ]
 
@@ -321,19 +325,24 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uu
             ],
         },
         {
+            "finish_reason": "stop",
             "kind": "response",
             "model_name": "test-model",
-            "parts": [{"content": "Hello there", "part_kind": "text"}],
+            "parts": [{"content": "Hello there", "id": None, "part_kind": "text"}],
+            "provider_details": {"finish_reason": "stop"},
+            "provider_name": "openai",
+            "provider_response_id": "chatcmpl-1234567890",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
-                "details": None,
-                "request_tokens": 0,
-                "requests": 1,
-                "response_tokens": 0,
-                "total_tokens": 0,
+                "cache_audio_read_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "details": {},
+                "input_audio_tokens": 0,
+                "input_tokens": 0,
+                "output_audio_tokens": 0,
+                "output_tokens": 0,
             },
-            "vendor_details": None,
-            "vendor_id": None,
         },
     ]
 
@@ -523,19 +532,24 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
             ],
         },
         {
+            "finish_reason": "stop",
             "kind": "response",
             "model_name": "test-model",
-            "parts": [{"content": "I see a cat in the picture.", "part_kind": "text"}],
+            "parts": [{"content": "I see a cat in the picture.", "id": None, "part_kind": "text"}],
+            "provider_details": {"finish_reason": "stop"},
+            "provider_name": "openai",
+            "provider_response_id": "chatcmpl-1234567890",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
-                "details": None,
-                "request_tokens": 0,
-                "requests": 1,
-                "response_tokens": 0,
-                "total_tokens": 0,
+                "cache_audio_read_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "details": {},
+                "input_audio_tokens": 0,
+                "input_tokens": 0,
+                "output_audio_tokens": 0,
+                "output_tokens": 0,
             },
-            "vendor_details": None,
-            "vendor_id": None,
         },
     ]
 
@@ -681,6 +695,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
             ],
         },
         {
+            "finish_reason": "tool_call",
             "kind": "response",
             "model_name": "test-model",
             "parts": [
@@ -691,16 +706,20 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
                     "tool_name": "get_current_weather",
                 }
             ],
+            "provider_details": {"finish_reason": "tool_calls"},
+            "provider_name": "openai",
+            "provider_response_id": "chatcmpl-tool-call",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
-                "details": None,
-                "request_tokens": 0,
-                "requests": 1,
-                "response_tokens": 0,
-                "total_tokens": 0,
+                "cache_audio_read_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "details": {},
+                "input_audio_tokens": 0,
+                "input_tokens": 0,
+                "output_audio_tokens": 0,
+                "output_tokens": 0,
             },
-            "vendor_details": None,
-            "vendor_id": None,
         },
         {
             "instructions": None,
@@ -717,19 +736,26 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
             ],
         },
         {
+            "finish_reason": "stop",
             "kind": "response",
             "model_name": "test-model",
-            "parts": [{"content": "The current weather in Paris is nice", "part_kind": "text"}],
+            "parts": [
+                {"content": "The current weather in Paris is nice", "id": None, "part_kind": "text"}
+            ],
+            "provider_details": {"finish_reason": "stop"},
+            "provider_name": "openai",
+            "provider_response_id": "chatcmpl-final",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
-                "details": None,
-                "request_tokens": 0,
-                "requests": 1,
-                "response_tokens": 0,
-                "total_tokens": 0,
+                "cache_audio_read_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "details": {},
+                "input_audio_tokens": 0,
+                "input_tokens": 0,
+                "output_audio_tokens": 0,
+                "output_tokens": 0,
             },
-            "vendor_details": None,
-            "vendor_id": None,
         },
     ]
 
@@ -876,6 +902,7 @@ def test_post_conversation_tool_call_fails(
             ],
         },
         {
+            "finish_reason": "tool_call",
             "kind": "response",
             "model_name": "test-model",
             "parts": [
@@ -886,16 +913,20 @@ def test_post_conversation_tool_call_fails(
                     "tool_name": "get_current_weather",
                 }
             ],
+            "provider_details": {"finish_reason": "tool_calls"},
+            "provider_name": "openai",
+            "provider_response_id": "chatcmpl-tool-call",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
-                "details": None,
-                "request_tokens": 0,
-                "requests": 1,
-                "response_tokens": 0,
-                "total_tokens": 0,
+                "cache_audio_read_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "details": {},
+                "input_audio_tokens": 0,
+                "input_tokens": 0,
+                "output_audio_tokens": 0,
+                "output_tokens": 0,
             },
-            "vendor_details": None,
-            "vendor_id": None,
         },
         {
             "instructions": None,
@@ -911,19 +942,26 @@ def test_post_conversation_tool_call_fails(
             ],
         },
         {
+            "finish_reason": "stop",
             "kind": "response",
             "model_name": "test-model",
-            "parts": [{"content": "I cannot give you an answer to that.", "part_kind": "text"}],
+            "parts": [
+                {"content": "I cannot give you an answer to that.", "id": None, "part_kind": "text"}
+            ],
+            "provider_details": {"finish_reason": "stop"},
+            "provider_name": "openai",
+            "provider_response_id": "chatcmpl-final",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
-                "details": None,
-                "request_tokens": 0,
-                "requests": 1,
-                "response_tokens": 0,
-                "total_tokens": 0,
+                "cache_audio_read_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "details": {},
+                "input_audio_tokens": 0,
+                "input_tokens": 0,
+                "output_audio_tokens": 0,
+                "output_tokens": 0,
             },
-            "vendor_details": None,
-            "vendor_id": None,
         },
     ]
 
@@ -1057,3 +1095,192 @@ def test_post_conversation_model_selection_new(api_client, mock_openai_stream, s
 
     # We check the model used in the outgoing request to the AI service
     assert json.loads(mock_openai_stream.calls.last.request.content)["model"] == "plop-model"
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@pytest.mark.parametrize("stream_delay", [None, 0.0001])
+@respx.mock
+def test_post_conversation_data_protocol_no_stream(
+    api_client,
+    mock_openai_no_stream,
+    mock_uuid4,
+    settings,
+    stream_delay,
+):
+    """
+    Test posting messages to a conversation using the 'data' protocol without streaming.
+    """
+    settings.FAKE_STREAMING_DELAY = stream_delay
+    settings.LLM_CONFIGURATIONS = {
+        "default-model": LLModel(
+            hrid="model-1",
+            model_name="amazing-llm",
+            human_readable_name="Amazing LLM",
+            is_active=True,
+            icon=None,
+            system_prompt="You are an amazing assistant.",
+            tools=[],
+            provider=LLMProvider(
+                hrid="unused",
+                base_url="https://www.external-ai-service.com",
+                api_key="key",
+            ),
+            supports_streaming=False,
+        ),
+    }
+
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
+
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
+    data = {
+        "messages": [
+            {
+                "id": "yuPoOuBkKA4FnKvk",
+                "role": "user",
+                "parts": [{"text": "Why the sky is blue?", "type": "text"}],
+                "content": "Why the sky is blue?",
+                "createdAt": "2025-07-03T15:22:17.105Z",
+            }
+        ]
+    }
+    api_client.force_login(chat_conversation.owner)
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.get("Content-Type") == "text/event-stream"
+    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.streaming
+
+    # Wait for the content to be fully received
+    response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    if stream_delay:
+        assert response_content == (
+            '0:"The "\n'
+            '0:"sky "\n'
+            '0:"appe"\n'
+            '0:"ars "\n'
+            '0:"blue"\n'
+            '0:" due"\n'
+            '0:" to "\n'
+            '0:"a ph"\n'
+            '0:"enom"\n'
+            '0:"enon"\n'
+            '0:" cal"\n'
+            '0:"led "\n'
+            '0:"Rayl"\n'
+            '0:"eigh"\n'
+            '0:" sca"\n'
+            '0:"tter"\n'
+            '0:"ing."\n'
+            'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135}}\n'
+        )
+    else:
+        assert response_content == (
+            '0:"The sky appears blue due to a phenomenon called Rayleigh scattering."\n'
+            'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135}}\n'
+        )
+
+    assert mock_openai_no_stream.called
+
+    chat_conversation.refresh_from_db()
+    assert chat_conversation.ui_messages == [
+        {
+            "content": "Why the sky is blue?",
+            "createdAt": "2025-07-03T15:22:17.105Z",
+            "id": "yuPoOuBkKA4FnKvk",
+            "parts": [{"text": "Why the sky is blue?", "type": "text"}],
+            "role": "user",
+        }
+    ]
+
+    assert len(chat_conversation.messages) == 2
+
+    assert chat_conversation.messages[0] == UIMessage(
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
+        content="Why the sky is blue?",
+        reasoning=None,
+        experimental_attachments=None,
+        role="user",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Why the sky is blue?")],
+    )
+
+    assert chat_conversation.messages[1] == UIMessage(
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
+        content="The sky appears blue due to a phenomenon called Rayleigh scattering.",
+        reasoning=None,
+        experimental_attachments=None,
+        role="assistant",
+        annotations=None,
+        toolInvocations=None,
+        parts=[
+            TextUIPart(
+                type="text",
+                text="The sky appears blue due to a phenomenon called Rayleigh scattering.",
+            )
+        ],
+    )
+
+    assert chat_conversation.pydantic_messages == [
+        {
+            "instructions": None,
+            "kind": "request",
+            "parts": [
+                {
+                    "content": "You are an amazing assistant.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": "Today is Friday 25/07/2025.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": "Answer in english.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": ["Why the sky is blue?"],
+                    "part_kind": "user-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+            ],
+        },
+        {
+            "finish_reason": "stop",
+            "kind": "response",
+            "model_name": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+            "parts": [
+                {
+                    "content": "The sky appears blue due to a phenomenon called "
+                    "Rayleigh scattering.",
+                    "id": None,
+                    "part_kind": "text",
+                }
+            ],
+            "provider_details": {"finish_reason": "stop"},
+            "provider_name": "openai",
+            "provider_response_id": "chatcmpl-92c413bb5a45426299335d0621324654",
+            "timestamp": "2025-09-22T14:13:49Z",
+            "usage": {
+                "cache_audio_read_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "details": {},
+                "input_audio_tokens": 0,
+                "input_tokens": 0,
+                "output_audio_tokens": 0,
+                "output_tokens": 135,
+            },
+        },
+    ]

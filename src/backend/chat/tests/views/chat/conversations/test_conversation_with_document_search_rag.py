@@ -394,7 +394,7 @@ def test_post_conversation_with_document_upload(  # noqa:PLR0913  # pylint: disa
             SourceUIPart(
                 type="source",
                 source=LanguageModelV1Source(
-                    source_type="url",
+                    sourceType="url",
                     id=str(mock_uuid4),
                     url="sample.pdf",
                     title=None,
@@ -450,24 +450,30 @@ def test_post_conversation_with_document_upload(  # noqa:PLR0913  # pylint: disa
         ],
     }
     assert chat_conversation.pydantic_messages[1] == {
+        "finish_reason": "stop",
         "kind": "response",
         "model_name": "test-model",
         "parts": [
             {
                 "content": "From the document, I can see that it says 'Hello PDF'.",
+                "id": None,
                 "part_kind": "text",
             }
         ],
+        "provider_details": {"finish_reason": "stop"},
+        "provider_name": "openai",
+        "provider_response_id": "chatcmpl-1234567890",
         "timestamp": "2025-07-25T10:36:35.297675Z",
         "usage": {
-            "details": None,
-            "request_tokens": 150,
-            "requests": 1,
-            "response_tokens": 25,
-            "total_tokens": 175,
+            "cache_audio_read_tokens": 0,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "details": {},
+            "input_audio_tokens": 0,
+            "input_tokens": 150,
+            "output_audio_tokens": 0,
+            "output_tokens": 25,
         },
-        "vendor_details": None,
-        "vendor_id": None,
     }
 
 

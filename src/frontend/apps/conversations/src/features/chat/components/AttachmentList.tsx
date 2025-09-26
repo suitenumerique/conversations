@@ -24,11 +24,12 @@ export const AttachmentList = ({
 
   return (
     <Box
-      $direction="row"
+      $direction={isReadOnly ? 'column' : 'row'}
+      $align={isReadOnly ? 'flex-end' : ''}
       $gap="0.5rem"
       $width="100%"
       $css={`
-        overflow-x: scroll;
+        overflow-x: auto;
       `}
     >
       {attachments.map((attachment, idx) => {
@@ -38,17 +39,20 @@ export const AttachmentList = ({
             onRemove(idx);
           }
         };
-
+        if (!name) {
+          return null;
+        }
         return (
           <Box
             key={(name || 'attachment') + idx}
-            $direction="column"
-            $align="center"
+            $direction={isReadOnly ? 'row' : 'column'}
+            $align={isReadOnly ? 'left' : 'center'}
           >
             <Box
               $background="var(--c--theme--colors--greyscale-050)"
               $minWidth="200px"
               $direction="row"
+              $gap="xs"
               $align="center"
               $padding="xs"
               $css={`
@@ -58,8 +62,8 @@ export const AttachmentList = ({
               {/* Extension du fichier */}
               <Box
                 $background="var(--c--theme--colors--greyscale-200)"
-                $width="24px"
-                $height="24px"
+                $width="22px"
+                $height="22px"
                 $direction="row"
                 $align="center"
                 $margin={{ right: 'xs' }}
@@ -73,14 +77,15 @@ export const AttachmentList = ({
                   $color="var(--c--theme--colors--greyscale-700)"
                   $weight="500"
                   $css={`
-                    font-size: 8px;
+                    font-size: 7px;
                   `}
                 >
                   {name?.split('.').pop()?.toUpperCase() || 'FILE'}
                 </Text>
               </Box>
               <Text
-                $size="sm"
+                $size="xs"
+                $variation="500"
                 $color="var(--c--theme--colors--greyscale-850)"
                 $css={`
                   overflow: hidden;

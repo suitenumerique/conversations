@@ -471,6 +471,11 @@ class Base(Configuration):
     LLM_ROUTING_MODEL_HRID = values.Value(
         "default-routing-model", environ_name="LLM_ROUTING_MODEL_HRID", environ_prefix=None
     )
+    FAKE_STREAMING_DELAY = values.FloatValue(
+        default=0.0025,
+        environ_name="FAKE_STREAMING_DELAY",
+        environ_prefix=None,  # 25ms
+    )
 
     # These settings are default values used in the default LLM_CONFIGURATIONS
     # They allow a deployment with only one model without a specific configuration file

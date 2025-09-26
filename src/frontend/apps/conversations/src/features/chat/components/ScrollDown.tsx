@@ -50,7 +50,7 @@ export const ScrollDown: React.FC<ScrollDownProps> = ({
         aria-label="See more"
         onClick={onClick}
         icon={
-          <Icon $variation="800" $theme="primary" iconName="arrow_downward" />
+          <Icon $variation="text" $theme="primary" iconName="arrow_downward" />
         }
       />
     </Box>

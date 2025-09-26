@@ -13,6 +13,21 @@ from chat.factories import ChatConversationFactory
 pytestmark = pytest.mark.django_db()
 
 
+@pytest.fixture(autouse=True)
+def base_settings(settings):
+    """Set up base settings for the tests."""
+    settings.AI_BASE_URL = "https://api.llm.com/v1/"
+    settings.AI_API_KEY = "test-key"
+    settings.AI_MODEL = "model-123"
+    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
+    settings.AI_AGENT_TOOLS = []
+
+    # Unused settings but required for initialization
+    settings.AI_ROUTING_MODEL = ""
+    settings.AI_ROUTING_MODEL_BASE_URL = ""
+    settings.AI_ROUTING_MODEL_API_KEY = ""
+
+
 def test_stop_streaming(api_client):
     """Test that the stop_streaming method is called when the endpoint is called."""
     chat_conversation = factories.ChatConversationFactory()

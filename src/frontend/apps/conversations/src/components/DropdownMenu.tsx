@@ -19,7 +19,6 @@ export type DropdownMenuProps = {
   options: DropdownMenuOption[];
   showArrow?: boolean;
   label?: string;
-  arrowCss?: BoxProps['$css'];
   buttonCss?: BoxProps['$css'];
   disabled?: boolean;
   topMessage?: string;
@@ -30,7 +29,6 @@ export const DropdownMenu = ({
   children,
   disabled = false,
   showArrow = false,
-  arrowCss,
   buttonCss,
   label,
   topMessage,
@@ -64,13 +62,8 @@ export const DropdownMenu = ({
           >
             <Box>{children}</Box>
             <Icon
-              $variation="600"
-              $css={
-                arrowCss ??
-                css`
-                  color: var(--c--theme--colors--primary-600);
-                `
-              }
+              $variation="text"
+              $theme="primary"
               iconName={isOpen ? 'arrow_drop_up' : 'arrow_drop_down'}
             />
           </Box>

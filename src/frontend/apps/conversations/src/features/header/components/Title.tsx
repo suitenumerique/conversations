@@ -1,16 +1,9 @@
-import { css } from 'styled-components';
-
 import { Box, Text } from '@/components/';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
 
 export const Title = () => {
-  const { spacingsTokens, colorsTokens, componentTokens } =
-    useCunninghamTheme();
-  const isAlpha = componentTokens['alpha'];
-  const isBeta = componentTokens['beta'];
-
-  const badgeText = isAlpha ? 'ALPHA' : isBeta ? 'BETA' : '';
+  const { spacingsTokens, colorsTokens } = useCunninghamTheme();
 
   return (
     <Box
@@ -28,14 +21,14 @@ export const Title = () => {
       >
         {productName}
       </Text>
-      {!!badgeText && (
+      {/*      {!!badgeText && (
         <Text
           $padding={{
             horizontal: '6px',
             vertical: '4px',
           }}
           $size="11px"
-          $theme="primary"
+          $theme="primaryc"
           $variation="500"
           $weight="bold"
           $radius="12px"
@@ -49,7 +42,7 @@ export const Title = () => {
         >
           {badgeText}
         </Text>
-      )}
+      )}*/}
     </Box>
   );
 };

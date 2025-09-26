@@ -3,11 +3,13 @@ import _Image from 'next/image';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import IconAssistant from '@/assets/logo/assistant.svg';
+// import IconAssistant from '@/assets/logo/assistant.svg';
+import IconAssistant from '@/assets/logo/logo-alpha.svg';
 import { Box, Icon, Text } from '@/components';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
-import { ProConnectButton, gotoLogin } from '@/features/auth';
+import { gotoLogin } from '@/features/auth';
+// import { ProConnectButton } from '@/features/auth';
 import { useResponsiveStore } from '@/stores';
 
 import Banner from '../assets/banner.svg';
@@ -44,10 +46,10 @@ export default function HomeBanner() {
       >
         <Box
           $width={!isMobile ? '50%' : '100%'}
-          $maxWidth="400px"
+          $maxWidth="450px"
           $justify="center"
-          $align="center"
-          $gap={spacingsTokens['md']}
+          $align="left"
+          $gap={spacingsTokens['s']}
         >
           <IconAssistant
             aria-label={t('{{productName}} Logo', { productName })}
@@ -56,37 +58,60 @@ export default function HomeBanner() {
           />
           <Text
             as="h2"
-            $size={!isMobile ? 'xs-alt' : '2.3rem'}
+            $size="xs-alt"
             $variation="800"
             $weight="bold"
-            $textAlign="center"
+            $textAlign="left"
             $margin="none"
             $css={css`
-              line-height: ${!isMobile ? '56px' : '45px'};
+              line-height: 1.2;
             `}
           >
-            {t('Your digital assistant')}
+            {t('Your sovereign AI assistant')}
           </Text>
-          <Text
-            $padding={{ horizontal: 'base' }}
+          {/*          <Text
+            // $padding={{ horizontal: 'base' }}
             $size="lg"
             $variation="700"
-            $textAlign="center"
+            $textAlign="left"
           >
             {t(
               'Ask questions, get help with writing, or find reliable information online — Assistant simplifies your work while keeping your data secure.',
             )}
+          </Text>*/}
+          <Text $variation="500">
+            {t(
+              'You have access to an alpha version of the service, tested internally. It has a limited scope and may contain bugs. Your feedback is essential to help us improve it. Your feedback is essential to help us improve it.',
+            )}
           </Text>
-          {withProConnect ? (
-            <ProConnectButton />
-          ) : (
+
+          <Box $direction={isMobile ? 'column' : 'row'} $gap="0.5rem">
+            {withProConnect ? (
+              // <ProConnectButton />
+              <Button
+                onClick={() => gotoLogin()}
+                icon={<Icon iconName="login" $color="white" />}
+              >
+                {t('Participate in the alpha')}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => gotoLogin()}
+                icon={<Icon iconName="bolt" $color="white" />}
+              >
+                {t('Start conversation')}
+              </Button>
+            )}
+
             <Button
-              onClick={() => gotoLogin()}
-              icon={<Icon iconName="bolt" $color="white" />}
+              href="https://docs.numerique.gouv.fr/docs/c03a6267-c500-490c-9ab3-bbf4855d6f0b/"
+              color="secondary"
+              target="_blank"
+              icon={<Icon iconName="info" $color="inherit" />}
             >
-              {t('Start conversation')}
+              {t('Learn more')}
             </Button>
-          )}
+          </Box>
         </Box>
         {!isMobile && <Banner />}
       </Box>

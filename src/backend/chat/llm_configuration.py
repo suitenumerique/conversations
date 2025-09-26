@@ -2,14 +2,23 @@
 
 import os
 from functools import lru_cache
-from typing import Annotated, Any, Self
+from typing import Annotated, Any, Optional, Self
 
-from pydantic import AfterValidator, BaseModel, BeforeValidator, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    BeforeValidator,
+    Field,
+    ImportString,
+    field_validator,
+    model_validator,
+)
+from pydantic_ai.profiles import JsonSchemaTransformer
 
 
 def _get_setting_or_env_or_value(value: str) -> Any:
     """Get the value from environment variable, Django settings, or return the value as is."""
-    from django.conf import settings  # pylint: disable=import-outside-toplevel
+    from django.conf import settings  # pylint: disable=import-outside-toplevel # noqa: PLC0415
 
     if value.startswith("environ."):
         env_var = value.split("environ.")[1]
@@ -55,8 +64,23 @@ class LLMProfile(BaseModel):
     supports_json_object_output: bool | None = None
     default_structured_output_mode: str | None = None
     prompted_output_template: str | None = None
-    json_schema_transformer: str | None = None
+    json_schema_transformer: ImportString | None = Field(default=None, validate_default=True)
     thinking_tags: tuple[str, str] | None = None
+    ignore_streamed_leading_whitespace: bool | None = None
+
+    @field_validator("json_schema_transformer", mode="after")
+    @classmethod
+    def validate_json_schema_transformer(
+        cls, value: JsonSchemaTransformer | None
+    ) -> Optional[JsonSchemaTransformer]:
+        """Convert the tools if it's a setting or environment variable."""
+        if not value:
+            return None
+
+        if issubclass(value, JsonSchemaTransformer):
+            return value
+
+        raise ValueError(f"Invalid JSON Schema Transformer '{value}'")
 
 
 class LLMSettings(BaseModel):
@@ -88,6 +112,7 @@ class LLModel(BaseModel):
     settings: LLMSettings | None = None
     is_active: bool
     icon: LongStringAsListValue | None = None
+    supports_streaming: bool | None = None
     system_prompt: SettingEnvValue
     tools: list[str]
 

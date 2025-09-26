@@ -47,7 +47,14 @@ ENV NEXT_PUBLIC_PRODUCT_NAME=${PRODUCT_NAME}
 RUN yarn build
 
 # ---- Front-end image ----
-FROM nginxinc/nginx-unprivileged:alpine3.21 AS frontend-production
+FROM nginxinc/nginx-unprivileged:alpine3.22 AS frontend-production
+
+# Upgrade system packages to install security updates
+USER root
+RUN apk update && \
+  apk upgrade && \
+  rm -rf /var/cache/apk/*
+USER -
 
 # Un-privileged user running the application
 ARG DOCKER_USER

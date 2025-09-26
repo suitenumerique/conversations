@@ -80,6 +80,77 @@ def fixture_mock_openai_stream():
     return route
 
 
+@pytest.fixture(name="mock_openai_no_stream")
+@freeze_time("2025-07-25T10:36:35.297675Z")
+def fixture_mock_openai_no_stream():
+    """Fixture to mock the OpenAI response."""
+
+    route = respx.post("https://www.external-ai-service.com/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl-92c413bb5a45426299335d0621324654",
+                "object": "chat.completion",
+                "created": 1758550429,
+                "model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": (
+                                "The sky appears blue due to a "
+                                "phenomenon called Rayleigh scattering."
+                            ),
+                            "refusal": None,
+                            "annotations": None,
+                            "audio": None,
+                            "function_call": None,
+                            "tool_calls": [],
+                            "reasoning_content": None,
+                        },
+                        "logprobs": None,
+                        "finish_reason": "stop",
+                        "stop_reason": None,
+                    }
+                ],
+                "service_tier": None,
+                "system_fingerprint": None,
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 135,
+                    "total_tokens": 135,
+                    "cost": 0.0,
+                    "carbon": {
+                        "kWh": {"min": 0.0, "max": 0.0},
+                        "kgCO2eq": {"min": 0.0, "max": 0.0},
+                    },
+                    "details": [
+                        {
+                            "id": "chatcmpl-92c413bb5a45426299335d0621324654",
+                            "model": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+                            "usage": {
+                                "prompt_tokens": 0,
+                                "completion_tokens": 135,
+                                "total_tokens": 135,
+                                "cost": 0.0,
+                                "carbon": {
+                                    "kWh": {"min": 0.0, "max": 0.0},
+                                    "kgCO2eq": {"min": 0.0, "max": 0.0},
+                                },
+                            },
+                        }
+                    ],
+                },
+                "prompt_logprobs": None,
+                "kv_transfer_params": None,
+            },
+        ),
+    )
+
+    return route
+
+
 @pytest.fixture(name="mock_openai_stream_image")
 @freeze_time("2025-07-25T10:36:35.297675Z")
 def fixture_mock_openai_stream_image():
