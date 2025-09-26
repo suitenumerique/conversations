@@ -366,7 +366,6 @@ export const InputChat = ({
               $align="space-between"
             >
               <Box $flex="1" $direction="row" $padding={{ horizontal: 'base' }}>
-
                 <Button
                   size="small"
                   type="button"
