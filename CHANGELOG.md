@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 🎨(front) change list attachment in chat
+- ✅(chat) add frontend feature flags #29
 
 ### Changed
 
+- 🎨(front) change list attachment in chat
 - 🎨(front) move emplacement for attachment
 - 🎨(ui) retour ui sources files
 - ✨(ui) fix retour global ui 
