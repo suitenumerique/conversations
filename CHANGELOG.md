@@ -8,6 +8,7 @@ and this project adheres to
 
 ## [Unreleased]
 
+- ✨(404) fix front 404 page
 - ✅(chat) add frontend feature flags #29
 
 ### Changed
