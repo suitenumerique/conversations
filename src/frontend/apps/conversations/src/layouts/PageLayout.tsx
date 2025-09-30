@@ -19,7 +19,6 @@ export function PageLayout({
   return (
     <Box
       $minHeight={`calc(100vh - ${HEADER_HEIGHT}px)`}
-      $margin={{ top: `${HEADER_HEIGHT}px` }}
       className="--docs--page-layout"
     >
       <Header />
