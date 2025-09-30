@@ -481,6 +481,11 @@ class Base(Configuration):
         environ_name="FAKE_STREAMING_DELAY",
         environ_prefix=None,  # 25ms
     )
+    DEFAULT_ALLOW_CONVERSATION_ANALYTICS = values.BooleanValue(
+        default=False,
+        environ_name="DEFAULT_ALLOW_CONVERSATION_ANALYTICS",
+        environ_prefix=None,
+    )
 
     # These settings are default values used in the default LLM_CONFIGURATIONS
     # They allow a deployment with only one model without a specific configuration file
