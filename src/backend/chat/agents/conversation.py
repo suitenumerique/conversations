@@ -36,15 +36,17 @@ class ConversationAgent(BaseAgent):
             """Dynamic system prompt function to set the expected language to use."""
             return f"Answer in {get_language_name(language).lower()}." if language else ""
 
-    def web_search_available(self) -> bool:
+    def get_web_search_tool_name(self) -> str | None:
         """
-        Check if web search tool is available.
+        Get the name of the web search tool if available.
+
+        If several are available, return the first one found.
 
         Warning, this says the tool is available, not that
         it (the tool/feature) is enabled for the current conversation.
         """
-        return any(
-            tool.name.startswith("web_search_")
-            for toolset in self.toolsets
-            for tool in toolset.tools.values()
-        )
+        for toolset in self.toolsets:
+            for tool in toolset.tools.values():
+                if tool.name.startswith("web_search_"):
+                    return tool.name
+        return None

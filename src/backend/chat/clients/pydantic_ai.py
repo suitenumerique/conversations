@@ -362,7 +362,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             logger.warning("Web search is forced but the feature is disabled, ignoring.")
             force_web_search = False
 
-        if force_web_search and not self.conversation_agent.web_search_available():
+        web_search_tool_name = self.conversation_agent.get_web_search_tool_name()
+        if force_web_search and not web_search_tool_name:
             logger.warning("Web search is forced but no web search tool is available, ignoring.")
             force_web_search = False
 
@@ -371,7 +372,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             @self.conversation_agent.system_prompt
             def force_web_search_prompt() -> str:
                 """Dynamic system prompt function to force web search."""
-                return "You must call the web search tool to find relevant information."
+                return (
+                    f"You must call the {web_search_tool_name} tool "
+                    "before answering the user request."
+                )
 
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here

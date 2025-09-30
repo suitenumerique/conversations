@@ -73,15 +73,19 @@ def test_add_dynamic_system_prompt():
     assert agent._system_prompt_functions[1].function() == "Answer in french."
 
 
-def test_agent_web_search_available(settings):
+def test_agent_get_web_search_tool_name(settings):
     """Test the web_search_available method."""
     settings.AI_AGENT_TOOLS = ["get_current_weather", "web_search_albert_rag"]
     agent = ConversationAgent(model_hrid="default-model")
-    assert agent.web_search_available() is True
+    assert agent.get_web_search_tool_name() == "web_search_albert_rag"
 
     settings.AI_AGENT_TOOLS = ["get_current_weather"]
     agent = ConversationAgent(model_hrid="default-model")
-    assert agent.web_search_available() is False
+    assert agent.get_web_search_tool_name() is None
+
+    settings.AI_AGENT_TOOLS = ["get_current_weather", "web_search_tavily", "web_search_albert_rag"]
+    agent = ConversationAgent(model_hrid="default-model")
+    assert agent.get_web_search_tool_name() == "web_search_tavily"
 
 
 @responses.activate
