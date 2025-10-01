@@ -4,6 +4,7 @@ from pydantic_ai import Tool, ToolDefinition
 
 from .fake_current_weather import get_current_weather
 from .web_seach_albert_rag import web_search_albert_rag
+from .web_search_brave import web_search_brave
 from .web_search_tavily import web_search_tavily
 
 
@@ -16,6 +17,9 @@ def get_pydantic_tools_by_name(name: str) -> Tool:
     """Get a tool by its name."""
     tool_dict = {
         "get_current_weather": Tool(get_current_weather, takes_ctx=False),
+        "web_search_brave": Tool(
+            web_search_brave, takes_ctx=False, prepare=only_if_web_search_enabled
+        ),
         "web_search_tavily": Tool(
             web_search_tavily, takes_ctx=False, prepare=only_if_web_search_enabled
         ),

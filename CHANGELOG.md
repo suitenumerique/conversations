@@ -42,6 +42,7 @@ and this project adheres to
 - ✨(chat) enforce response in user language #24
 - 📈(langfuse) add light instrumentation #26
 - 🚑️(agent) allow Mistral w/ vLLM & tools #36
+- ✨(web-search) add Brave search tool #47
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main
