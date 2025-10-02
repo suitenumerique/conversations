@@ -2,7 +2,7 @@
 
 import os
 from functools import lru_cache
-from typing import Annotated, Any, Literal, Optional, Self
+from typing import Annotated, Any, Literal, Optional, Self, Sequence
 
 from pydantic import (
     AfterValidator,
@@ -68,6 +68,15 @@ class LLMProfile(BaseModel):
     json_schema_transformer: ImportString | None = Field(default=None, validate_default=True)
     thinking_tags: tuple[str, str] | None = None
     ignore_streamed_leading_whitespace: bool | None = None
+
+    # openai specific settings: should find a way to auto declare these
+    # based on OpenAIModelProfile.
+    openai_supports_strict_tool_definition: bool | None = None
+    openai_unsupported_model_settings: Sequence[str] | None = None
+    openai_supports_tool_choice_required: bool | None = None
+    openai_system_prompt_role: str | None = None
+    openai_chat_supports_web_search: bool | None = None
+    openai_supports_encrypted_reasoning_content: bool | None = None
 
     @field_validator("json_schema_transformer", mode="after")
     @classmethod

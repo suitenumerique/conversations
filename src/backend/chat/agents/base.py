@@ -82,13 +82,23 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
             from pydantic_ai.profiles.openai import OpenAIModelProfile  # noqa: PLC0415
             from pydantic_ai.providers.openai import OpenAIProvider  # noqa: PLC0415
 
+            if configuration.profile and (
+                _config_profile := configuration.profile.dict(exclude_unset=True)
+            ):
+                # set some defaults if not provided, see openai_model_profile which
+                # defines them for known models
+                _model_profile_params = {
+                    "supports_json_schema_output": True,
+                    "supports_json_object_output": True,
+                }
+                _model_profile_params.update(_config_profile)
+                profile = OpenAIModelProfile(**_model_profile_params)
+            else:
+                profile = None
+
             return OpenAIChatModel(
                 model_name=configuration.model_name,
-                profile=(
-                    OpenAIModelProfile(**configuration.profile.dict(exclude_unset=True))
-                    if configuration.profile
-                    else None
-                ),
+                profile=profile,
                 provider=OpenAIProvider(
                     base_url=configuration.provider.base_url,
                     api_key=configuration.provider.api_key,
