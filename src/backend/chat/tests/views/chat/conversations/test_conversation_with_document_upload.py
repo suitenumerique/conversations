@@ -279,6 +279,8 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
         '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
         'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         'b:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_albert_rag"}\n'
+        '9:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_albert_rag",'
+        '"args":{"query":"What does the document say?"}}\n'
         'h:{"sourceType":"url","id":"XXX","url":"sample.pdf","title":null,"providerMetadata":{}}\n'
         'a:{"toolCallId":"pyd_ai_YYY","result":[{"url":"sample.pdf","content":"This '
         'is the content of the PDF.","score":0.9}]}\n'

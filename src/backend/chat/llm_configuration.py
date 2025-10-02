@@ -2,7 +2,7 @@
 
 import os
 from functools import lru_cache
-from typing import Annotated, Any, Optional, Self
+from typing import Annotated, Any, Literal, Optional, Self
 
 from pydantic import (
     AfterValidator,
@@ -54,6 +54,7 @@ class LLMProvider(BaseModel):
     hrid: str
     base_url: SettingEnvValue
     api_key: SettingEnvValue
+    kind: Literal["openai", "mistral"] = "openai"
 
 
 class LLMProfile(BaseModel):
@@ -139,6 +140,11 @@ class LLModel(BaseModel):
                 "unless model_name starts with '<provider>:'."
             )
         return self
+
+    @property
+    def is_custom(self) -> bool:
+        """Return True if the model is a custom model (i.e., defines a provider)."""
+        return self.provider is not None
 
 
 class LLMConfiguration(BaseModel):

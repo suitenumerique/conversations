@@ -1,17 +1,103 @@
 """Base module for PydanticAI agents."""
 
 import dataclasses
+import logging
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
+import httpx
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.profiles.openai import OpenAIModelProfile
-from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.models import get_user_agent
+from pydantic_ai.profiles import ModelProfile
 from pydantic_ai.toolsets import FunctionToolset
 
 from chat.tools import get_pydantic_tools_by_name
+
+logger = logging.getLogger(__name__)
+
+
+def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
+    """
+    Prepare a custom model instance based on the provided configuration.
+
+    Only few providers are supported at the moment, according to our needs.
+    We define custom models/providers to be able to keep specific configuration
+    when needed.
+    """
+    # pylint: disable=import-outside-toplevel
+
+    match configuration.provider.kind:
+        case "mistral":
+            import pydantic_ai.models.mistral as mistral_models  # noqa: PLC0415
+            from pydantic_ai.providers.mistral import MistralProvider  # noqa: PLC0415
+
+            # --- Monkey patch for pydantic_ai.models.mistral._map_content ---
+            # pylint: disable=protected-access
+
+            # ⚠ WARNING ⚠ WARNING ⚠ WARNING ⚠ WARNING ⚠ WARNING ⚠ WARNING ⚠ WARNING ⚠ WARNING ⚠
+            # |  This workaround is fragile and only works because we are in streaming mode.  |
+            # ⚠ WARNING ⚠ WARNING ⚠ WARNING ⚠ WARNING ⚠ WARNING ⚠ WARNING ⚠ WARNING ⚠ WARNING ⚠
+
+            # The original _map_content raises exceptions for some when responses
+            # contains citation/reference data, which is the case anytime we use
+            # web search or other RAG tool (https://docs.mistral.ai/capabilities/citations/).
+            # We make the patch idempotent using a sentinel attribute so repeated calls
+            # to prepare_custom_model do not re-wrap and do not cause recursive calls.
+            if not getattr(mistral_models, "__safe_map_patched__", False):
+                _original_map_content = mistral_models._map_content  # noqa: SLF001
+
+                def _safe_map_content(*args, **kwargs):
+                    try:
+                        return _original_map_content(*args, **kwargs)
+                    except AssertionError as exc:
+                        logger.debug("Caught exception in _map_content: %s", exc)
+                        return None, []
+
+                # Replace the original module-level function
+                # mistral_models._map_content = _safe_map_content
+                mistral_models.__safe_map_patched__ = True
+            # pylint: enable=protected-access
+            # --- End monkey patch ---
+
+            return mistral_models.MistralModel(
+                model_name=configuration.model_name,
+                profile=(
+                    ModelProfile(**configuration.profile.dict(exclude_unset=True))
+                    if configuration.profile
+                    else None
+                ),
+                provider=MistralProvider(
+                    api_key=configuration.provider.api_key,
+                    base_url=configuration.provider.base_url,
+                    # Disable the use of cached client
+                    http_client=httpx.AsyncClient(
+                        timeout=httpx.Timeout(timeout=600, connect=5),
+                        headers={"User-Agent": get_user_agent()},
+                    ),
+                ),
+            )
+        case "openai":
+            from pydantic_ai.models.openai import OpenAIChatModel  # noqa: PLC0415
+            from pydantic_ai.profiles.openai import OpenAIModelProfile  # noqa: PLC0415
+            from pydantic_ai.providers.openai import OpenAIProvider  # noqa: PLC0415
+
+            return OpenAIChatModel(
+                model_name=configuration.model_name,
+                profile=(
+                    OpenAIModelProfile(**configuration.profile.dict(exclude_unset=True))
+                    if configuration.profile
+                    else None
+                ),
+                provider=OpenAIProvider(
+                    base_url=configuration.provider.base_url,
+                    api_key=configuration.provider.api_key,
+                ),
+            )
+        case _:
+            raise ImproperlyConfigured(
+                f"Unsupported provider kind '{configuration.provider.kind}' for custom model."
+            )
 
 
 @dataclasses.dataclass(init=False)
@@ -35,20 +121,14 @@ class BaseAgent(Agent):
                 f"LLM model configuration '{model_hrid}' not found."
             ) from exc
 
-        _model_instance = OpenAIChatModel(
-            model_name=self.configuration.model_name,
-            profile=(
-                OpenAIModelProfile(**self.configuration.profile.dict(exclude_unset=True))
-                if self.configuration.profile
-                else None
-            ),
-            provider=OpenAIProvider(
-                base_url=self.configuration.provider.base_url,
-                api_key=self.configuration.provider.api_key,
-            )
-            if self.configuration.provider
-            else None,
-        )
+        if self.configuration.is_custom:
+            _model_instance = prepare_custom_model(self.configuration)
+        else:
+            # In this case, we rely on PydanticAI's built-in model registry
+            # and configuration: check pydantic_ai.models.KnownModelName
+            # and pydantic_ai.models.infer_model()
+            _model_instance = self.configuration.model_name
+
         _system_prompt = self.configuration.system_prompt
         _base_toolset = (
             [

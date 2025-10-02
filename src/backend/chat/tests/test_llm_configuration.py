@@ -167,3 +167,27 @@ def test_load_llm_configuration(tmp_path, monkeypatch):
     assert "gpt-4" in model_map
     assert model_map["gpt-4"].provider.base_url == "env_value"
     assert model_map["gpt-4"].provider.api_key == "setting_value"
+
+
+def test_llmodel_is_custom_property():
+    """Test the is_custom property of LLModel."""
+    provider = LLMProvider(hrid="custom", base_url="direct", api_key="direct")
+    custom_model = LLModel(
+        hrid="custom-model",
+        model_name="custom-model",
+        human_readable_name="Custom Model",
+        provider=provider,
+        is_active=True,
+        system_prompt="direct",
+        tools=[],
+    )
+    non_custom_model = LLModel(
+        hrid="prefixed-model",
+        model_name="openai:prefixed-model",
+        human_readable_name="Prefixed Model",
+        is_active=True,
+        system_prompt="direct",
+        tools=[],
+    )
+    assert custom_model.is_custom is True
+    assert non_custom_model.is_custom is False

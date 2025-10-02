@@ -45,6 +45,7 @@ and this project adheres to
 - 📈(langfuse) add light instrumentation #26
 - 🚑️(agent) allow Mistral w/ vLLM & tools #36
 - ✨(web-search) add Brave search tool #47
+- ✨(models) add mistral support & customization #51
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main

@@ -377,6 +377,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     "before answering the user request."
                 )
 
+        _tool_is_streaming = False
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
@@ -476,6 +477,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                     if isinstance(event.delta, TextPartDelta):
                                         yield events_v4.TextPart(text=event.delta.content_delta)
                                     elif isinstance(event.delta, ToolCallPartDelta):
+                                        _tool_is_streaming = True
                                         yield events_v4.ToolCallDeltaPart(
                                             tool_call_id=event.delta.tool_call_id,
                                             args_text_delta=event.delta.args_delta,
@@ -497,9 +499,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                     dataclasses.asdict(event),
                                 )
                                 if isinstance(event, FunctionToolCallEvent):
-                                    # We are already streaming the tool call events don't yield
-                                    # the tool call again
-                                    pass
+                                    if not _tool_is_streaming:
+                                        yield events_v4.ToolCallPart(
+                                            tool_call_id=event.tool_call_id,
+                                            tool_name=event.part.tool_name,
+                                            args=json.loads(event.part.args)
+                                            if event.part.args
+                                            else {},
+                                        )
                                 elif isinstance(event, FunctionToolResultEvent):
                                     if isinstance(event.result, ToolReturnPart):
                                         if event.result.metadata and (
