@@ -2,9 +2,10 @@ import { createGlobalStyle } from 'styled-components';
 
 export const QuickSearchStyle = createGlobalStyle`
   .quick-search-container {
+    position: relative;
     [cmdk-root] {
         width: 100%;
-        background: #ffffff;
+        position: relative;
         border-radius: 12px;
         overflow: hidden;
         transition: transform 100ms ease;

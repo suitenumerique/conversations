@@ -8,11 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
-- ✨(404) fix front 404 page
-- ✅(chat) add frontend feature flags #29
+- 🎨(front) improvement search input scroll
 
 ### Changed
 
+- ✨(404) fix front 404 page
+- ✅(chat) add frontend feature flags #29
 - 🎨(front) change list attachment in chat
 - 🎨(front) move emplacement for attachment
 - 🎨(ui) retour ui sources files

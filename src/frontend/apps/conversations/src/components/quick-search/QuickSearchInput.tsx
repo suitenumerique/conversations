@@ -74,7 +74,6 @@ export const QuickSearchInput = ({
         $align="center"
         $gap={spacingsTokens['2xs']}
         $css={`
-          position: relative;
           justify-content: space-between;
           border-radius: 4px;
           margin: 12px 12px 0 12px;
