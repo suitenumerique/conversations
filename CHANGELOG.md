@@ -8,6 +8,7 @@ and this project adheres to
 
 ## [Unreleased]
 
+- 🐛(front) fix button search web on new conversation
 - 🎨(front) improvement search input scroll
 
 ### Changed

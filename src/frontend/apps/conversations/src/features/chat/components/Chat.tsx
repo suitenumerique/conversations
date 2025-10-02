@@ -46,15 +46,28 @@ export const Chat = ({
   const { isMobile } = useResponsiveStore();
 
   const streamProtocol = 'data'; // or 'text'
-  const [forceWebSearch, setForceWebSearch] = useState(false);
-  const apiUrl = `chats/${initialConversationId}/conversation/?protocol=${streamProtocol}`;
+  const [forceWebSearch, setForceWebSearch] = useState(() => {
+    return (
+      (window as { globalForceWebSearch?: boolean }).globalForceWebSearch ||
+      false
+    );
+  });
+
+  const [conversationId, setConversationId] = useState(initialConversationId);
+  const apiUrl = conversationId
+    ? `chats/${conversationId}/conversation/?protocol=${streamProtocol}`
+    : `chats/conversation/?protocol=${streamProtocol}`;
+
+  useEffect(() => {
+    (window as { globalForceWebSearch?: boolean }).globalForceWebSearch =
+      forceWebSearch;
+  }, [forceWebSearch]);
 
   const router = useRouter();
   const [files, setFiles] = useState<FileList | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const [conversationId, setConversationId] = useState(initialConversationId);
   const [chatErrorModal, setChatErrorModal] = useState<{
     title: string;
     message: string;
@@ -165,13 +178,7 @@ export const Chat = ({
   };
 
   const toggleWebSearch = () => {
-    setForceWebSearch((prev) => {
-      const newValue = !prev;
-      // Update global state for the fetch adapter
-      (window as { globalForceWebSearch?: boolean }).globalForceWebSearch =
-        newValue;
-      return newValue;
-    });
+    setForceWebSearch((prev) => !prev);
   };
 
   const handleStop = () => {

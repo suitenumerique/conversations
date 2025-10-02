@@ -1,6 +1,7 @@
 import { Command } from 'cmdk';
 import { ReactNode, useRef } from 'react';
 
+import { useResponsiveStore } from '@/stores';
 import { hasChildrens } from '@/utils/children';
 
 import { Box } from '../Box';
@@ -44,6 +45,7 @@ export const QuickSearch = ({
   children,
 }: QuickSearchProps) => {
   const ref = useRef<HTMLDivElement | null>(null);
+  const { isMobile, isTablet } = useResponsiveStore();
 
   return (
     <>
@@ -54,14 +56,6 @@ export const QuickSearch = ({
             $css={`
               position: sticky;
               top: 0px;
-              &:before {
-                content: "";
-                background-color: #F7F8FA;
-                position: absolute;
-                width: 100%;
-                height: 20px;
-                top: -8px;
-              }
               &:after {
                 content: "";
                 position: absolute;
@@ -74,6 +68,21 @@ export const QuickSearch = ({
                   rgba(247, 248, 250, 0.7) 40%,
                   rgba(255, 255, 255, 0) 100%
                 );
+              }
+              ${
+                !isMobile && !isTablet
+                  ? `
+                &:before {
+                  content: "";
+                  background-color: #F7F8FA;
+                  position: absolute;
+                  width: 100%;
+                  height: 20px;
+                  top: -8px;
+                }
+                background-color: #F7F8FA;
+              `
+                  : 'background-color: #FFF;'
               }
               }`}
           >
@@ -89,6 +98,7 @@ export const QuickSearch = ({
           </Box>
         )}
         <Command.List>
+          <Box $padding={{ horizontal: 'xs', top: 'sm' }}>{children}</Box>
           <Box $padding={{ horizontal: 'xs', top: 'sm' }}>{children}</Box>
         </Command.List>
       </Command>
