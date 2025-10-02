@@ -32,6 +32,7 @@ class UserAdmin(auth_admin.UserAdmin):
                     "short_name",
                     "language",
                     "timezone",
+                    "allow_conversation_analytics",
                 )
             },
         ),
@@ -66,13 +67,20 @@ class UserAdmin(auth_admin.UserAdmin):
         "admin_email",
         "email",
         "is_active",
+        "allow_conversation_analytics",
         "is_staff",
         "is_superuser",
         "is_device",
         "created_at",
         "updated_at",
     )
-    list_filter = ("is_staff", "is_superuser", "is_device", "is_active")
+    list_filter = (
+        "is_staff",
+        "is_superuser",
+        "is_device",
+        "is_active",
+        "allow_conversation_analytics",
+    )
     ordering = (
         "is_active",
         "-is_superuser",
@@ -90,4 +98,12 @@ class UserAdmin(auth_admin.UserAdmin):
         "created_at",
         "updated_at",
     )
-    search_fields = ("id", "sub", "admin_email", "email", "full_name")
+    search_fields = (
+        "id",
+        "sub",
+        "admin_email",
+        "email",
+        "full_name",
+        "allow_conversation_analytics",
+    )
+    list_editable = ("allow_conversation_analytics",)
