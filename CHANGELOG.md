@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 🎨(front) improvement search input scroll
+- 🐛(front) fix button search web on new conversation
 
 ### Changed
 
+- 🎨(front) improvement search input scroll #49
 - ✨(404) fix front 404 page
 - ✅(chat) add frontend feature flags #29
 - 🎨(front) change list attachment in chat
