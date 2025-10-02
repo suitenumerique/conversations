@@ -80,6 +80,7 @@ export const QuickSearch = ({
                   height: 20px;
                   top: -8px;
                 }
+                background-color: #F7F8FA;
               `
                   : 'background-color: #FFF;'
               }
@@ -97,6 +98,7 @@ export const QuickSearch = ({
           </Box>
         )}
         <Command.List>
+          <Box $padding={{ horizontal: 'xs', top: 'sm' }}>{children}</Box>
           <Box $padding={{ horizontal: 'xs', top: 'sm' }}>{children}</Box>
         </Command.List>
       </Command>
