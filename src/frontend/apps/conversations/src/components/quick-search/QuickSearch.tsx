@@ -50,18 +50,46 @@ export const QuickSearch = ({
       <QuickSearchStyle />
       <Command label={label} shouldFilter={false} ref={ref}>
         {showInput && (
-          <QuickSearchInput
-            withSeparator={hasChildrens(children)}
-            inputValue={inputValue}
-            onFilter={onFilter}
-            onClear={onClear}
-            placeholder={placeholder}
+          <Box
+            $css={`
+              position: sticky;
+              top: 0px;
+              &:before {
+                content: "";
+                background-color: #F7F8FA;
+                position: absolute;
+                width: 100%;
+                height: 20px;
+                top: -8px;
+              }
+              &:after {
+                content: "";
+                position: absolute;
+                width: 100%;
+                height: 20px;
+                bottom: -20px;
+                background: linear-gradient(
+                  to bottom,
+                  #F7F8FA 0%,
+                  rgba(247, 248, 250, 0.7) 40%,
+                  rgba(255, 255, 255, 0) 100%
+                );
+              }
+              }`}
           >
-            {inputContent}
-          </QuickSearchInput>
+            <QuickSearchInput
+              withSeparator={hasChildrens(children)}
+              inputValue={inputValue}
+              onFilter={onFilter}
+              onClear={onClear}
+              placeholder={placeholder}
+            >
+              {inputContent}
+            </QuickSearchInput>
+          </Box>
         )}
         <Command.List>
-          <Box $padding={{ horizontal: 'sm', top: 'sm' }}>{children}</Box>
+          <Box $padding={{ horizontal: 'xs', top: 'sm' }}>{children}</Box>
         </Command.List>
       </Command>
     </>

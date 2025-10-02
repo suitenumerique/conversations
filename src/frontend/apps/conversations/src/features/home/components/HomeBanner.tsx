@@ -81,7 +81,7 @@ export default function HomeBanner() {
           </Text>*/}
           <Text $variation="500">
             {t(
-              'You have access to an alpha version of the service, tested internally. It has a limited scope and may contain bugs. Your feedback is essential to help us improve it. Your feedback is essential to help us improve it.',
+              'You are accessing an alpha version, tested internally, with limited scope and likely to contain bugs. Your feedback is essential to improve it. By clicking on "Participate", you agree to the analysis of your usage data to optimize the application; this analysis can be disabled at any time.',
             )}
           </Text>
 

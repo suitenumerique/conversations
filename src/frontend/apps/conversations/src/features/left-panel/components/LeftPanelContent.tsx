@@ -16,6 +16,7 @@ export const LeftPanelContent = () => {
       $css={`
         overflow-y: auto;
         overflow-x: hidden;
+        position: relative;
         height: calc(100dvh - ${isDesktop ? '52px' : '104px'});
       `}
     >
@@ -25,16 +26,10 @@ export const LeftPanelContent = () => {
         </Box>
       )}
       <Box
-        $position="sticky"
-        $zIndex="100"
         $css={`
-          top: 0;
-          background: linear-gradient(
-            to bottom,
-            rgba(255, 255, 255, 1) 0%,
-            rgba(255, 255, 255, 1) 70%,
-            rgba(255, 255, 255, 0) 100%
-          );
+          z-index: 100;
+          position: sticky;
+          top: 0px;
         `}
       >
         <LeftPanelSearch onSearchChange={setHasSearch} />
