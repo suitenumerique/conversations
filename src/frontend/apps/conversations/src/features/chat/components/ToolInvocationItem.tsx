@@ -1,8 +1,7 @@
 import { ToolInvocation } from '@ai-sdk/ui-utils';
-import { Loader } from '@openfun/cunningham-react';
 import React from 'react';
 
-import { Box, Text } from '@/components';
+import { Box, Loader, Text } from '@/components';
 
 interface ToolInvocationItemProps {
   toolInvocation: ToolInvocation;
@@ -40,7 +39,7 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
           <Text>{`Parsing done: ${documentIdentifiers.join(', ')}`}</Text>
         ) : (
           <Box $direction="row" $gap="1rem" $align="center">
-            <Loader size="small" />
+            <Loader />
             <Text>{`Parsing documents: ${documentIdentifiers.join(', ')} ...`}</Text>
           </Box>
         )}
