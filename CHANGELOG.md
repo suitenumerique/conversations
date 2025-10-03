@@ -12,6 +12,7 @@ and this project adheres to
 
 ### Changed
 
+- 🎨(front) fix width chat container
 - 🐛(front) fix button search web on new conversation
 - 🎨(front) improvement search input scroll
 - ✨(404) fix front 404 page

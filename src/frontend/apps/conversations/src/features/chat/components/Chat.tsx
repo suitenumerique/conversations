@@ -520,7 +520,7 @@ export const Chat = ({
                     ${shouldApplyStreamingHeight ? `min-height: ${streamingMessageHeight + 70}px;` : ''}
                   `}
                 >
-                  <Box $display="block" $width="100%">
+                  <Box $display="block">
                     {message.experimental_attachments &&
                       message.experimental_attachments.length > 0 && (
                         <Box>
