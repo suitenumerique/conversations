@@ -55,7 +55,7 @@ dependencies = [
     "nested-multipart-parser==1.6.0",
     "posthog==6.7.6",
     "pydantic==2.11.9",
-    "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.0.10",
+    "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.0.14",
     "psycopg[binary]==3.2.10",
     "PyJWT==2.10.1",
     "python-magic==0.4.27",

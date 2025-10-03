@@ -29,7 +29,7 @@ def test_build_pydantic_agent_success_no_tools():
     assert isinstance(agent, Agent)
 
     assert agent._system_prompts == ("You are a helpful assistant",)
-    assert agent._instructions is None
+    assert agent._instructions == []
     assert isinstance(agent.model, OpenAIChatModel)
     assert agent.model.model_name == "model-123"
     assert str(agent.model.client.base_url) == "https://api.llm.com/v1/"
@@ -45,7 +45,7 @@ def test_build_pydantic_agent_with_tools(settings):
     assert isinstance(agent, Agent)
 
     assert agent._system_prompts == ("You are a helpful assistant",)
-    assert agent._instructions is None
+    assert agent._instructions == []
     assert isinstance(agent.model, OpenAIChatModel)
     assert agent.model.model_name == "model-123"
     assert str(agent.model.client.base_url) == "https://api.llm.com/v1/"
