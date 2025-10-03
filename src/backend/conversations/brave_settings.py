@@ -17,6 +17,25 @@ class BraveSettings:
         environ_prefix=None,
     )
 
+    BRAVE_SUMMARIZATION_ENABLED = values.BooleanValue(
+        default=False,
+        environ_name="BRAVE_SUMMARIZATION_ENABLED",
+        environ_prefix=None,
+    )
+
+    # For optimal performance, BRAVE_MAX_WORKERS should be equal to BRAVE_MAX_RESULTS
+    # also considering the number of concurrent requests your server can handle.
+    BRAVE_MAX_WORKERS = values.IntegerValue(
+        default=1,
+        environ_name="BRAVE_MAX_WORKERS",
+        environ_prefix=None,
+    )
+    BRAVE_CACHE_TTL = values.IntegerValue(
+        default=30 * 60,  # 30 minutes
+        environ_name="BRAVE_CACHE_TTL",
+        environ_prefix=None,
+    )
+
     # Search
     BRAVE_SEARCH_COUNTRY = values.Value(
         default=None,
@@ -29,7 +48,7 @@ class BraveSettings:
         environ_prefix=None,
     )
     BRAVE_MAX_RESULTS = values.IntegerValue(
-        default=10,
+        default=8,
         environ_name="BRAVE_MAX_RESULTS",
         environ_prefix=None,
     )

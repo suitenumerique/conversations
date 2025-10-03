@@ -117,6 +117,45 @@ def test_agent_web_search_brave_success_without_extra_snippets():
 
 
 @responses.activate
+def test_agent_web_search_brave_success_without_extra_snippets_summarization(settings):
+    """Test when the Brave search returns results without extra_snippets."""
+    settings.BRAVE_SUMMARIZATION_ENABLED = True
+
+    responses.add(
+        responses.GET,
+        BRAVE_URL,
+        json={
+            "web": {
+                "results": [
+                    {"url": "https://example.com/c", "title": "Result C"},  # pas d'extra_snippets
+                ]
+            }
+        },
+        status=200,
+    )
+
+    with patch("chat.tools.web_search_brave.fetch_url") as mock_fetch:
+        with patch("chat.tools.web_search_brave.llm_summarize") as mock_llm_summarize:
+            # Fetch should not be called since extra_snippets are provided
+            mock_fetch.return_value = (
+                '<html><body>Extracted Content C<a href="url">link</a></body></html>'
+            )
+            mock_llm_summarize.return_value = "Summarized extracted Content C\nlink"
+            tool_return = web_search_brave("test query")
+
+            mock_llm_summarize.assert_called_with("test query", "Extracted Content C\nlink")
+
+    assert tool_return.return_value == [
+        {
+            "link": "https://example.com/c",
+            "title": "Result C",
+            "extra_snippets": ["Summarized extracted Content C\nlink"],
+        }
+    ]
+    assert tool_return.metadata["sources"] == {"https://example.com/c"}
+
+
+@responses.activate
 def test_agent_web_search_brave_empty_results():
     """Test when the Brave search returns no results."""
     responses.add(
