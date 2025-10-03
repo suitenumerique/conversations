@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-07-21 20:08+0000\n"
-"PO-Revision-Date: 2025-07-22 07:41\n"
+"POT-Creation-Date: 2025-10-02 08:16+0000\n"
+"PO-Revision-Date: 2025-10-03 09:30\n"
 "Last-Translator: \n"
 "Language-Team: French\n"
 "Language: fr_FR\n"
@@ -25,11 +25,11 @@ msgstr "application de chat"
 msgid "Personal info"
 msgstr "Informations personnelles"
 
-#: build/lib/core/admin.py:39 core/admin.py:39
+#: build/lib/core/admin.py:40 core/admin.py:40
 msgid "Permissions"
 msgstr "Permissions"
 
-#: build/lib/core/admin.py:51 core/admin.py:51
+#: build/lib/core/admin.py:52 core/admin.py:52
 msgid "Important dates"
 msgstr "Dates importantes"
 
@@ -125,11 +125,19 @@ msgstr "actif"
 msgid "Whether this user should be treated as active. Unselect this instead of deleting accounts."
 msgstr "Si cet utilisateur doit être traité comme actif. Désélectionnez ceci au lieu de supprimer des comptes."
 
-#: build/lib/core/models.py:166 core/models.py:166
+#: build/lib/core/models.py:161 core/models.py:161
+msgid "allow conversation analytics"
+msgstr "autoriser les analyses de conversation"
+
+#: build/lib/core/models.py:163 core/models.py:163
+msgid "Whether the user allows to use their conversations for analytics."
+msgstr "Si l'utilisateur autorise l'utilisation de ses conversations pour des analyses."
+
+#: build/lib/core/models.py:173 core/models.py:173
 msgid "user"
 msgstr "utilisateur"
 
-#: build/lib/core/models.py:167 core/models.py:167
+#: build/lib/core/models.py:174 core/models.py:174
 msgid "users"
 msgstr "utilisateurs"
 
@@ -146,7 +154,7 @@ msgstr "Ouvrir"
 #: core/templates/mail/html/invitation.html:226
 #: core/templates/mail/text/invitation.txt:14
 msgid " Docs, your new essential tool for organizing, sharing and collaborating on your documents as a team. "
-msgstr ""
+msgstr " Docs, votre nouvel outil incontournable pour organiser, partager et collaborer sur vos documents en équipe. "
 
 #: core/templates/mail/html/invitation.html:233
 #: core/templates/mail/text/invitation.txt:16

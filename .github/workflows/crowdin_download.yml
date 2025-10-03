@@ -80,4 +80,4 @@ jobs:
 
             - [x]  update translated strings
           branch: i18n/update-translations
-          labels: i18n
+          labels: i18n,noChangeLog
