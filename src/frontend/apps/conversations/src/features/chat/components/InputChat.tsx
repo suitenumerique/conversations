@@ -4,10 +4,12 @@ import { useTranslation } from 'react-i18next';
 
 import { Box, Icon, Text } from '@/components';
 import { FeatureFlagState, useConfig } from '@/core';
+import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 import { useAnalytics } from '@/libs';
 import { useResponsiveStore } from '@/stores';
 
 import { AttachmentList } from './AttachmentList';
+import { ModelSelector } from './ModelSelector';
 import { ScrollDown } from './ScrollDown';
 import { SendButton } from './SendButton';
 
@@ -24,6 +26,8 @@ interface InputChatProps {
   forceWebSearch?: boolean;
   onToggleWebSearch?: () => void;
   onStop?: () => void;
+  selectedModel?: LLMModel | null;
+  onModelSelect?: (model: LLMModel) => void;
 }
 
 export const InputChat = ({
@@ -39,6 +43,8 @@ export const InputChat = ({
   forceWebSearch = false,
   onToggleWebSearch,
   onStop,
+  selectedModel,
+  onModelSelect,
 }: InputChatProps) => {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -212,15 +218,22 @@ export const InputChat = ({
           <Box
             $flex={1}
             $css={`
-              box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
-              border-radius: 0.5rem;
-              border: ${
-                isDragActive
-                  ? '2px dashed var(--c--theme--colors--primary-400)'
-                  : '1px solid var(--c--theme--colors--greyscale-100)'
-              };
-              position: relative;
-            `}
+                box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.08);
+                border-radius: 12px;
+                border: ${
+                  isDragActive
+                    ? '2px dashed var(--c--theme--colors--primary-400)'
+                    : '1px solid var(--c--theme--colors--greyscale-200)'
+                };
+                position: relative;
+                background: white;
+                transition: all 0.2s ease;
+                
+                &:focus-within {
+                  border-color: var(--c--theme--colors--primary-300);
+                  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.12), 0 0 0 3px rgba(var(--c--theme--colors--primary-500-rgb), 0.1);
+                }
+              `}
           >
             <textarea
               ref={textareaRef}
@@ -244,10 +257,13 @@ export const InputChat = ({
                 border: 'none',
                 resize: 'none',
                 fontFamily: 'inherit',
-                minHeight: '60px',
+                minHeight: '64px',
                 maxHeight: '200px',
                 overflowY: 'auto',
-                transition: 'all 0.3s cubic-bezier(1, 0, 0, 1)',
+                transition: 'all 0.2s ease',
+                borderRadius: '12px',
+                color: 'var(--c--theme--colors--greyscale-800)',
+                lineHeight: '1.5',
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
@@ -365,7 +381,19 @@ export const InputChat = ({
               $padding={{ bottom: 'base' }}
               $align="space-between"
             >
-              <Box $flex="1" $direction="row" $padding={{ horizontal: 'base' }}>
+              <Box
+                $flex="1"
+                $direction="row"
+                $padding={{ horizontal: 'base' }}
+                $gap="xs"
+              >
+                {onModelSelect && (
+                  <ModelSelector
+                    selectedModel={selectedModel || null}
+                    onModelSelect={onModelSelect}
+                  />
+                )}
+
                 <Button
                   size="small"
                   type="button"
