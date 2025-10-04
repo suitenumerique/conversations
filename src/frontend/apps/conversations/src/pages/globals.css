@@ -177,13 +177,6 @@ ul a:hover {
   color: var(--c--theme--colors--greyscale-050) !important;
 }
 
-code {
-  display: block;
-  width: 100%;
-  overflow: scroll;
-  margin: 5px 0;
-}
-
 @media (width <= 768px) {
   .mobile-no-focus:hover {
     background-color: transparent !important;
