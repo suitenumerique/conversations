@@ -60,7 +60,7 @@ export function PostHogProvider({
       },
       capture_pageview: false,
       capture_pageleave: true,
-      __add_tracing_headers: true,
+      __add_tracing_headers: [],
     });
 
     const handleRouteChange = () => posthog?.capture('$pageview');
