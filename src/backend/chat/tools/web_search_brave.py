@@ -1,13 +1,16 @@
 """Web search tool using Brave for the chat agent."""
 
 import logging
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 
 from django.conf import settings
 from django.core.cache import cache
+from django.utils.module_loading import import_string
 
 import requests
+from pydantic_ai import RunContext, RunUsage
 from pydantic_ai.messages import ToolReturn
 from trafilatura import extract, fetch_url
 from trafilatura.meta import reset_caches
@@ -79,6 +82,13 @@ def _extract_and_summarize_snippets(query: str, url: str) -> List[str]:
         snippet = None
 
     return [snippet] if snippet else []
+
+
+def _fetch_and_store(url: str, document_store) -> None:
+    """Fetch, extract and store text content from the URL in the document store."""
+    document = _fetch_and_extract(url)
+    if document:
+        document_store.store_document(url, document)
 
 
 def _query_brave_api(query: str) -> List[dict]:
@@ -154,4 +164,69 @@ def web_search_brave(query: str) -> ToolReturn:
             for result in raw_search_results
         ],
         metadata={"sources": {result["url"] for result in raw_search_results}},
+    )
+
+
+def web_search_brave_with_document_backend(ctx: RunContext, query: str) -> ToolReturn:
+    """
+    Search the web for up-to-date information
+
+    Args:
+        ctx (RunContext): The run context containing the conversation.
+        query (str): The query to search for.
+    """
+    raw_search_results = _query_brave_api(query)
+
+    reset_caches()  # Clear trafilatura caches to avoid memory bloat/leaks
+
+    # Store documents in a temporary document store for RAG search
+    document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+    with document_store_backend.temporary_collection(f"tmp-{uuid.uuid4()}") as document_store:
+        max_workers = min(settings.BRAVE_MAX_WORKERS, len(raw_search_results))
+        if max_workers == 1:
+            for result in raw_search_results:
+                # Fetch and extract document content
+                _fetch_and_store(result["url"], document_store)
+        else:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(_fetch_and_store, result["url"], document_store)
+                    for result in raw_search_results
+                ]
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except Exception as e:  # pylint: disable=broad-except
+                        logger.exception("Error fetching/storing document: %s", e)
+
+        rag_results = document_store.search(query)
+
+        ctx.usage += RunUsage(
+            input_tokens=rag_results.usage.prompt_tokens,
+            output_tokens=rag_results.usage.completion_tokens,
+        )
+
+        # Map RAG results back to raw search results to include extra_snippets
+        # Suboptimal O(N^2) but N is small...
+        for rag_result in rag_results.data:
+            for result in raw_search_results:
+                if result["url"] == rag_result.url:
+                    result.setdefault("extra_snippets", []).append(rag_result.content)
+                    break
+
+    return ToolReturn(
+        return_value=[
+            {
+                "link": result["url"],
+                "title": result["title"],
+                "extra_snippets": result.get("extra_snippets", []),
+            }
+            for result in raw_search_results
+            if result.get("extra_snippets", [])
+        ],
+        metadata={
+            "sources": {
+                result["url"] for result in raw_search_results if result.get("extra_snippets", [])
+            }
+        },
     )
