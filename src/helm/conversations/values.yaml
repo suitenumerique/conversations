@@ -72,6 +72,47 @@ ingressAdmin:
     secretName: null
     additional: []
 
+## @param ingressMedia.enabled whether to enable the Ingress or not
+## @param ingressMedia.className IngressClass to use for the Ingress
+## @param ingressMedia.host Host for the Ingress
+## @param ingressMedia.path Path to use for the Ingress
+ingressMedia:
+  enabled: false
+  className: null
+  host: conversations.example.com
+  path: /media/(.*)
+  ## @param ingressMedia.hosts Additional host to configure for the Ingress
+  hosts: [ ]
+  #  - chart-example.local
+  ## @param ingressMedia.tls.enabled Weather to enable TLS for the Ingress
+  ## @param ingressMedia.tls.secretName Secret name for TLS config
+  ## @skip ingressMedia.tls.additional
+  ## @extra ingressMedia.tls.additional[].secretName Secret name for additional TLS config
+  ## @extra ingressMedia.tls.additional[].hosts[] Hosts for additional TLS config
+  tls:
+    enabled: true
+    secretName: null
+    additional: []
+
+  ## @param ingressMedia.annotations.nginx.ingress.kubernetes.io/auth-url
+  ## @param ingressMedia.annotations.nginx.ingress.kubernetes.io/auth-response-headers
+  ## @param ingressMedia.annotations.nginx.ingress.kubernetes.io/upstream-vhost
+  ## @param ingressMedia.annotations.nginx.ingress.kubernetes.io/configuration-snippet
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: https://conversations.example.com/api/v1.0/chats/media-auth/
+    nginx.ingress.kubernetes.io/auth-response-headers: "Authorization, X-Amz-Date, X-Amz-Content-SHA256"
+    nginx.ingress.kubernetes.io/upstream-vhost: minio.conversations.svc.cluster.local:9000
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header Content-Security-Policy "default-src 'none'" always;
+
+## @param serviceMedia.host
+## @param serviceMedia.port
+## @param serviceMedia.annotations
+serviceMedia:
+  host: minio.conversations.svc.cluster.local
+  port: 9000
+  annotations: {}
+
 
 ## @section backend
 
