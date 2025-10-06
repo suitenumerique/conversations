@@ -81,14 +81,14 @@ class BaseRagBackend:
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
+    @classmethod
+    @contextmanager
+    def temporary_collection(cls, name: str, description: Optional[str] = None):
+        """Context manager for RAG backend with temporary collections."""
+        backend = cls()
 
-@contextmanager
-def tmp_rag_backend(rag_backend_class, name):
-    """Context manager for RAG backend with temporary collections."""
-    backend = rag_backend_class()
-
-    backend.create_collection(name=name)
-    try:
-        yield backend
-    finally:
-        backend.delete_collection()
+        backend.create_collection(name=name, description=description)
+        try:
+            yield backend
+        finally:
+            backend.delete_collection()

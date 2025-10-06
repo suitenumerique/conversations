@@ -70,7 +70,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         Delete the current collection
         """
         response = requests.delete(
-            urljoin(self._collections_endpoint, self.collection_id),
+            urljoin(f"{self._collections_endpoint}/", self.collection_id),
             headers=self._headers,
             timeout=settings.ALBERT_API_TIMEOUT,
         )
