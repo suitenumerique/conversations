@@ -1,16 +1,17 @@
 """Tool to perform a document search using Albert RAG API."""
 
+from django.conf import settings
+from django.utils.module_loading import import_string
+
 from pydantic_ai import Agent, RunContext, RunUsage
 from pydantic_ai.messages import ToolReturn
 
-from chat.agent_rag.document_search.albert_api import AlbertRagDocumentSearch
 
-
-def add_albert_document_rag_search_tool(agent: Agent) -> None:
+def add_document_rag_search_tool(agent: Agent) -> None:
     """Add the document RAG tool to an existing agent."""
 
     @agent.tool
-    def document_search_albert_rag(ctx: RunContext, query: str) -> ToolReturn:
+    def document_search_rag(ctx: RunContext, query: str) -> ToolReturn:
         """
         Perform a search in the documents provided by the user.
         Must be used whenever the user asks for information that
@@ -21,8 +22,11 @@ def add_albert_document_rag_search_tool(agent: Agent) -> None:
             ctx (RunContext): The run context containing the conversation.
             query (str): The term to search the internet for.
         """
+        document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
-        rag_results = AlbertRagDocumentSearch(conversation=ctx.deps.conversation).search(query)
+        document_store = document_store_backend(ctx.deps.conversation.collection_id)
+
+        rag_results = document_store.search(query)
 
         ctx.usage += RunUsage(
             input_tokens=rag_results.usage.prompt_tokens,

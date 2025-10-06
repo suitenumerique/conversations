@@ -62,7 +62,7 @@ from chat.clients.pydantic_ui_message_converter import (
     ui_message_to_user_content,
 )
 from chat.mcp_servers import get_mcp_servers
-from chat.tools.document_search_albert_rag import add_albert_document_rag_search_tool
+from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import EventEncoder
 
@@ -217,7 +217,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         Parse and store input documents in the conversation's document store.
         """
         document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
-        document_store = document_store_backend(self.conversation)
+
+        document_store = document_store_backend(self.conversation.collection_id)
+        if not document_store.collection_id:
+            # Create a new collection for the conversation
+            collection_id = document_store.create_collection(
+                name=f"conversation-{self.conversation.pk}",
+            )
+            self.conversation.collection_id = str(collection_id)
+            await self.conversation.asave(update_fields=["collection_id", "updated_at"])
+
         for document in documents:
             parsed_content = document_store.parse_and_store_document(
                 name=document.identifier,
@@ -349,7 +358,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 return
             if not conversation_has_documents:
                 conversation_has_documents = True
-                await self.conversation.asave(update_fields=["collection_id", "updated_at"])
 
             yield events_v4.ToolResultPart(
                 tool_call_id=_tool_call_id,
@@ -383,7 +391,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
 
             if conversation_has_documents:
-                add_albert_document_rag_search_tool(self.conversation_agent)
+                add_document_rag_search_tool(self.conversation_agent)
 
                 @self.conversation_agent.system_prompt
                 def summarize_instructions() -> str:

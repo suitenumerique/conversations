@@ -554,7 +554,7 @@ class Base(BraveSettings, Configuration):
         environ_prefix=None,
     )
     RAG_DOCUMENT_SEARCH_BACKEND = values.Value(
-        "chat.agent_rag.document_search.albert_api.AlbertRagDocumentSearch",
+        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend",
         environ_name="RAG_DOCUMENT_SEARCH_BACKEND",
         environ_prefix=None,
     )
