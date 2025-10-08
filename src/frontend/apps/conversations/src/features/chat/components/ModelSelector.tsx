@@ -1,4 +1,5 @@
 import { Button } from '@openfun/cunningham-react';
+import Image from 'next/image';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -7,7 +8,6 @@ import {
   LLMModel,
   useLLMConfiguration,
 } from '@/features/chat/api/useLLMConfiguration';
-import { useResponsiveStore } from '@/stores';
 
 interface ModelSelectorProps {
   selectedModel: LLMModel | null;
@@ -19,7 +19,6 @@ export const ModelSelector = ({
   onModelSelect,
 }: ModelSelectorProps) => {
   const { t } = useTranslation();
-  const { isMobile } = useResponsiveStore();
   const { data: llmConfig, isLoading } = useLLMConfiguration();
   const [isOpen, setIsOpen] = useState(false);
 
@@ -34,29 +33,28 @@ export const ModelSelector = ({
     model: LLMModel,
     size: 'small' | 'medium' = 'small',
   ) => {
-    const iconSize = size === 'small' ? '20px' : '24px';
+    const iconSize = size === 'small' ? '16px' : '24px';
 
     if (model.icon) {
       return (
         <Box
+          $radius="sm"
           $css={`
             width: ${iconSize};
             height: ${iconSize};
-            border-radius: 6px;
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
             background: var(--c--theme--colors--greyscale-100);
-            border: 1px solid var(--c--theme--colors--greyscale-200);
+            position: relative;
           `}
         >
-          <img
+          <Image
             src={`${model.icon}`}
             alt={model.human_readable_name}
+            fill
             style={{
-              width: '100%',
-              height: '100%',
               objectFit: 'cover',
             }}
           />
@@ -69,12 +67,9 @@ export const ModelSelector = ({
         $css={`
           width: ${iconSize};
           height: ${iconSize};
-          border-radius: 6px;
           display: flex;
           align-items: center;
           justify-content: center;
-
-
           font-size: ${size === 'small' ? '12px' : '25px'};
         `}
       >
@@ -94,17 +89,9 @@ export const ModelSelector = ({
       <Box
         $css={`
           .model-selector-button {
-
             background: white;
-
-            
             transition: all 0.2s ease;
-            padding: 8px 12px;
-
-            
-            .c__button__icon {
-              transition: transform 0.2s ease;
-            }
+            padding-right: 0 !important;
           }
         `}
       >
@@ -115,29 +102,17 @@ export const ModelSelector = ({
           aria-label={t('Select model')}
           className="c__button--neutral model-selector-button"
           icon={
-            <Box $css="display: flex; align-items: center; gap: 8px;">
+            <Box $css="display: flex; align-items: center;">
               {currentModel && getModelIcon(currentModel, 'small')}
             </Box>
           }
         >
-          {!isMobile && currentModel && (
-            <>
-              <Text
-                $theme="greyscale"
-                $variation="700"
-                $weight="500"
-                $size="sm"
-              >
-                {currentModel.human_readable_name}
-              </Text>
-              <Icon
-                iconName={isOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
-                $theme="greyscale"
-                $variation="600"
-                $size="18px"
-              />
-            </>
-          )}
+          <Icon
+            iconName={isOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
+            $theme="greyscale"
+            $variation="600"
+            $size="18px"
+          />
         </Button>
       </Box>
 
@@ -154,25 +129,32 @@ export const ModelSelector = ({
               z-index: 999;
             `}
             onClick={() => setIsOpen(false)}
+            onKeyDown={(e: React.KeyboardEvent) => {
+              if (e.key === 'Escape') {
+                setIsOpen(false);
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label={t('Close model selector')}
           />
 
           <Box
             $css={`
               position: absolute;
               bottom: 100%;
-              left: 0;
-              min-width: 280px;
+              right: -30px;
+              width: 300px;
               background: white;
-              border: 1px solid var(--c--theme--colors--greyscale-200);
-              border-radius: 12px;
-              box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+              border: 1px solid var(--c--theme--colors--greyscale-100);
+              border-radius: 4px;
+              box-shadow: 0 0 6px 0 rgba(0, 0, 145, 0.10);
               z-index: 1000;
               margin-bottom: 8px;
               max-height: 320px;
               overflow-y: auto;
               overflow-x: hidden;
               justify-content: space-between;
-              
               
               /* Custom scrollbar */
               &::-webkit-scrollbar {
@@ -190,11 +172,11 @@ export const ModelSelector = ({
               }
             `}
           >
-            {llmConfig.models.map((model, index) => (
+            {llmConfig.models.map((model) => (
               <Box
                 key={model.hrid}
                 $css={`
-                  padding: 12px 16px;
+                  padding: 8px 16px;
                   cursor: pointer;
                   display: flex;
                   align-items: center;
@@ -203,89 +185,62 @@ export const ModelSelector = ({
                   position: relative;
                   
                     &:hover {
-                      background-color: var(--c--theme--colors--primary-100);
+                      background-color: #f2f5f4;
                     }
                   
                   ${
                     currentModel?.hrid === model.hrid
                       ? `
-                    background-color: var(--c--theme--colors--primary-50);
-                    border-left: 3px solid var(--c--theme--colors--primary-500);
-                    
-
+                    background-color: #f2f5f4;
                   `
                       : ''
                   }
                   
-                  ${index === 0 ? 'border-radius: 12px 12px 0 0;' : ''}
-                  ${index === llmConfig.models.length - 1 ? 'border-radius: 0 0 12px 12px;' : ''}
                 `}
                 onClick={() => {
                   onModelSelect(model);
                   setIsOpen(false);
                 }}
+                onKeyDown={(e: React.KeyboardEvent) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onModelSelect(model);
+                    setIsOpen(false);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`${t('Select')} ${model.human_readable_name}`}
               >
                 <Box $align="center" $direction="row" $gap="1rem" $width="100%">
                   {getModelIcon(model, 'medium')}
                   <Box $css="display: flex; flex-direction: column; gap: 2px; flex: 1;">
                     <Box
                       $direction="row"
-                      $css="display: flex; align-items: center; gap: 8px;"
+                      $css="display: flex; align-items: center; justify-content: space-between; gap: 16px;"
                     >
                       <Text
-                        $theme={
-                          currentModel?.hrid === model.hrid
-                            ? 'primary'
-                            : 'greyscale'
-                        }
-                        $variation={
-                          currentModel?.hrid === model.hrid ? '700' : '600'
-                        }
-                        $weight={
-                          currentModel?.hrid === model.hrid ? '600' : '500'
-                        }
-                        $size="sm"
+                        $theme="greyscale"
+                        $variation="850"
+                        $weight="500"
+                        $size="s"
                       >
                         {model.human_readable_name}
                       </Text>
                       {model.is_default && (
-                        <Box
-                          $css={`
-                        padding: 2px 8px;
-                        background: var(--c--theme--colors--primary-100);
-                        border-radius: 12px;
-                        border: 1px solid var(--c--theme--colors--primary-200);
-                      `}
-                        >
+                        <Box>
                           <Text
-                            $theme="primary"
-                            $variation="600"
+                            $theme="greyscale"
+                            $variation="550"
                             $size="xs"
-                            $weight="500"
+                            $weight="400"
                           >
                             {t('Default')}
                           </Text>
                         </Box>
                       )}
                     </Box>
-
-                    <Box
-                      $direction="row"
-                      $css="display: flex; align-items: center; gap: 8px;"
-                    >
-                      <Text $theme="greyscale" $variation="400" $size="xs">
-                        {model.model_name}
-                      </Text>
-                    </Box>
                   </Box>
-                  {currentModel?.hrid === model.hrid && (
-                    <Icon
-                      iconName="check"
-                      $theme="primary"
-                      $variation="600"
-                      $size="16px"
-                    />
-                  )}
                 </Box>
               </Box>
             ))}

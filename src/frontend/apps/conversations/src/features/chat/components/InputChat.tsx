@@ -228,11 +228,6 @@ export const InputChat = ({
                 position: relative;
                 background: white;
                 transition: all 0.2s ease;
-                
-                &:focus-within {
-                  border-color: var(--c--theme--colors--primary-300);
-                  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.12), 0 0 0 3px rgba(var(--c--theme--colors--primary-500-rgb), 0.1);
-                }
               `}
           >
             <textarea
@@ -387,13 +382,6 @@ export const InputChat = ({
                 $padding={{ horizontal: 'base' }}
                 $gap="xs"
               >
-                {onModelSelect && (
-                  <ModelSelector
-                    selectedModel={selectedModel || null}
-                    onModelSelect={onModelSelect}
-                  />
-                )}
-
                 <Button
                   size="small"
                   type="button"
@@ -507,7 +495,16 @@ export const InputChat = ({
                   </Box>
                 )}
               </Box>
-              <Box $padding={{ horizontal: 'sm' }}>
+              <Box $direction="row" $padding={{ horizontal: 'base' }} $gap="xs">
+                <Box $padding={{ horizontal: 'xs' }}>
+                  {onModelSelect && (
+                    <ModelSelector
+                      selectedModel={selectedModel || null}
+                      onModelSelect={onModelSelect}
+                    />
+                  )}
+                </Box>
+
                 <SendButton
                   status={status}
                   disabled={!input || !input.trim()}

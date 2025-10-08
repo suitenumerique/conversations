@@ -617,9 +617,12 @@ export const Chat = ({
                                 >
                                   {part.reasoning}
                                 </Box>
-                              ) : part.type === 'tool-invocation' ? (
+                              ) : part.type === 'tool-invocation' &&
+                                isCurrentlyStreaming &&
+                                isLastAssistantMessageInConversation ? (
                                 <ToolInvocationItem
                                   toolInvocation={part.toolInvocation}
+                                  status={status}
                                 />
                               ) : null,
                           )}

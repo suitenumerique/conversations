@@ -20,13 +20,11 @@ const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
     searchParams.append('force_web_search', 'true');
   }
 
-  if (
-    (window as { globalSelectedModelHrid?: string }).globalSelectedModelHrid
-  ) {
-    searchParams.append(
-      'model_hrid',
-      (window as { globalSelectedModelHrid?: string }).globalSelectedModelHrid!,
-    );
+  const globalSelectedModelHrid = (
+    window as { globalSelectedModelHrid?: string }
+  ).globalSelectedModelHrid;
+  if (globalSelectedModelHrid) {
+    searchParams.append('model_hrid', globalSelectedModelHrid);
   }
 
   if (searchParams.toString()) {
