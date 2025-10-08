@@ -23,6 +23,7 @@ import {
   LLMModel,
   useLLMConfiguration,
 } from '@/features/chat/api/useLLMConfiguration';
+import { scoreMessage } from '@/features/chat/api/useScoreMessage';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
@@ -707,6 +708,86 @@ export const Chat = ({
                                 </Box>
                               );
                             })()}
+
+                          {conversationId &&
+                            message.id &&
+                            // We should display the button, but disabled if no trace linked
+                            message.id.startsWith('trace-') && (
+                              <>
+                                <Box
+                                  $direction="row"
+                                  $align="center"
+                                  className="c__button--neutral action-chat-button"
+                                  onClick={() => {
+                                    if (conversationId) {
+                                      void scoreMessage({
+                                        conversationId,
+                                        message_id: message.id,
+                                        value: 'positive',
+                                      });
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      if (conversationId) {
+                                        void scoreMessage({
+                                          conversationId,
+                                          message_id: message.id,
+                                          value: 'positive',
+                                        });
+                                      }
+                                    }
+                                  }}
+                                  role="button"
+                                  tabIndex={0}
+                                >
+                                  <Icon
+                                    iconName="thumb_up"
+                                    $theme="greyscale"
+                                    $variation="550"
+                                    $size="16px"
+                                    className="action-chat-button-icon"
+                                  />
+                                </Box>
+                                <Box
+                                  $direction="row"
+                                  $align="center"
+                                  className="c__button--neutral action-chat-button"
+                                  onClick={() => {
+                                    if (conversationId) {
+                                      void scoreMessage({
+                                        conversationId,
+                                        message_id: message.id,
+                                        value: 'negative',
+                                      });
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      if (conversationId) {
+                                        void scoreMessage({
+                                          conversationId,
+                                          message_id: message.id,
+                                          value: 'negative',
+                                        });
+                                      }
+                                    }
+                                  }}
+                                  role="button"
+                                  tabIndex={0}
+                                >
+                                  <Icon
+                                    iconName="thumb_down"
+                                    $theme="greyscale"
+                                    $variation="550"
+                                    $size="16px"
+                                    className="action-chat-button-icon"
+                                  />
+                                </Box>
+                              </>
+                            )}
                         </Box>
                       )}
                       {message.parts && isSourceOpen === message.id && (
