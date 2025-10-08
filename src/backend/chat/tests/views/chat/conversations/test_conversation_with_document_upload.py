@@ -48,7 +48,7 @@ def ai_settings(settings):
 
     # Enable Albert API for document search
     settings.RAG_DOCUMENT_SEARCH_BACKEND = (
-        "chat.agent_rag.document_search.albert_api.AlbertRagDocumentSearch"
+        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend"
     )
     settings.ALBERT_API_URL = "https://albert.api.etalab.gouv.fr"
     settings.ALBERT_API_KEY = "albert-api-key"
@@ -250,7 +250,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
         if len(messages) == 1:
             yield {
                 0: DeltaToolCall(
-                    name="document_search_albert_rag",
+                    name="document_search_rag",
                     json_args='{"query": "What does the document say?"}',
                 )
             }
@@ -278,8 +278,8 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
         '9:{"toolCallId":"XXX","toolName":"document_parsing",'
         '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
         'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
-        'b:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_albert_rag"}\n'
-        '9:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_albert_rag",'
+        'b:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_rag"}\n'
+        '9:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_rag",'
         '"args":{"query":"What does the document say?"}}\n'
         'h:{"sourceType":"url","id":"XXX","url":"sample.pdf","title":null,"providerMetadata":{}}\n'
         'a:{"toolCallId":"pyd_ai_YYY","result":[{"url":"sample.pdf","content":"This '
@@ -316,7 +316,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
                 type="tool-invocation",
                 toolInvocation=ToolInvocationCall(
                     toolCallId=toolcall_id,
-                    toolName="document_search_albert_rag",
+                    toolName="document_search_rag",
                     args={"query": "What does the document say?"},
                     state="call",
                     step=None,
@@ -398,7 +398,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
                 "args": '{"query": "What does the document say?"}',
                 "part_kind": "tool-call",
                 "tool_call_id": toolcall_id,
-                "tool_name": "document_search_albert_rag",
+                "tool_name": "document_search_rag",
             }
         ],
         "provider_details": None,
@@ -432,7 +432,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
                 "part_kind": "tool-return",
                 "timestamp": "2025-07-25T10:36:35.297675Z",
                 "tool_call_id": toolcall_id,
-                "tool_name": "document_search_albert_rag",
+                "tool_name": "document_search_rag",
             }
         ],
     }

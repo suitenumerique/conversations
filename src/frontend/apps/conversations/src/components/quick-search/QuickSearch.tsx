@@ -99,7 +99,6 @@ export const QuickSearch = ({
         )}
         <Command.List>
           <Box $padding={{ horizontal: 'xs', top: 'sm' }}>{children}</Box>
-          <Box $padding={{ horizontal: 'xs', top: 'sm' }}>{children}</Box>
         </Command.List>
       </Command>
     </>

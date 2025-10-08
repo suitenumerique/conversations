@@ -55,7 +55,7 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
                         return None, []
 
                 # Replace the original module-level function
-                # mistral_models._map_content = _safe_map_content
+                mistral_models._map_content = _safe_map_content  # noqa: SLF001
                 mistral_models.__safe_map_patched__ = True
             # pylint: enable=protected-access
             # --- End monkey patch ---

@@ -12,6 +12,8 @@ and this project adheres to
 
 ### Changed
 
+- 🎨(front) fix width chat container
+- 🎨(front) fix width chat container #55
 - 🐛(front) fix button search web on new conversation
 - 🎨(front) improvement search input scroll
 - ✨(404) fix front 404 page
@@ -47,6 +49,7 @@ and this project adheres to
 - 🚑️(agent) allow Mistral w/ vLLM & tools #36
 - ✨(web-search) add Brave search tool #47
 - ✨(models) add mistral support & customization #51
+- 🐛(web-search) add summarization to Brave results #58
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main
