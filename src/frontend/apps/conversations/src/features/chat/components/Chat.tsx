@@ -19,6 +19,10 @@ import { Box, Icon, Loader, Text } from '@/components';
 import { useChat } from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
 import { useCreateChatConversation } from '@/features/chat/api/useCreateConversation';
+import {
+  LLMModel,
+  useLLMConfiguration,
+} from '@/features/chat/api/useLLMConfiguration';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
@@ -53,6 +57,15 @@ export const Chat = ({
     );
   });
 
+  const { data: llmConfig } = useLLMConfiguration();
+  const [selectedModel, setSelectedModel] = useState<LLMModel | null>(() => {
+    // Initialize with default model if available
+    if (llmConfig?.models) {
+      return llmConfig.models.find((model) => model.is_default) || null;
+    }
+    return null;
+  });
+
   const [conversationId, setConversationId] = useState(initialConversationId);
   const apiUrl = conversationId
     ? `chats/${conversationId}/conversation/?protocol=${streamProtocol}`
@@ -62,6 +75,26 @@ export const Chat = ({
     (window as { globalForceWebSearch?: boolean }).globalForceWebSearch =
       forceWebSearch;
   }, [forceWebSearch]);
+
+  // Update selected model when LLM config loads
+  useEffect(() => {
+    if (llmConfig?.models && !selectedModel) {
+      const defaultModel = llmConfig.models.find((model) => model.is_default);
+      if (defaultModel) {
+        setSelectedModel(defaultModel);
+      }
+    }
+  }, [llmConfig, selectedModel]);
+
+  // Update global model selection
+  useEffect(() => {
+    (window as { globalSelectedModelHrid?: string }).globalSelectedModelHrid =
+      selectedModel?.hrid || undefined;
+  }, [selectedModel]);
+
+  const handleModelSelect = (model: LLMModel) => {
+    setSelectedModel(model);
+  };
 
   const router = useRouter();
   const [files, setFiles] = useState<FileList | null>(null);
@@ -584,9 +617,12 @@ export const Chat = ({
                                 >
                                   {part.reasoning}
                                 </Box>
-                              ) : part.type === 'tool-invocation' ? (
+                              ) : part.type === 'tool-invocation' &&
+                                isCurrentlyStreaming &&
+                                isLastAssistantMessageInConversation ? (
                                 <ToolInvocationItem
                                   toolInvocation={part.toolInvocation}
+                                  status={status}
                                 />
                               ) : null,
                           )}
@@ -730,6 +766,8 @@ export const Chat = ({
           onStop={handleStop}
           forceWebSearch={forceWebSearch}
           onToggleWebSearch={toggleWebSearch}
+          selectedModel={selectedModel}
+          onModelSelect={handleModelSelect}
         />
       </Box>
       <Modal

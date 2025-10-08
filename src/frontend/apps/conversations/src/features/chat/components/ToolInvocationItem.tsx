@@ -1,15 +1,20 @@
 import { ToolInvocation } from '@ai-sdk/ui-utils';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Box, Loader, Text } from '@/components';
 
 interface ToolInvocationItemProps {
   toolInvocation: ToolInvocation;
+  status?: string;
 }
 
 export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
   toolInvocation,
+  status,
 }) => {
+  const { t } = useTranslation();
+
   if (toolInvocation.toolName === 'document_parsing') {
     if (toolInvocation.state === 'partial-call') {
       return null;
@@ -48,20 +53,24 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
   }
 
   return (
-    <Box
-      as="pre"
-      key={toolInvocation.toolCallId}
-      $background="var(--c--theme--colors--greyscale-100)"
-      $color="var(--c--theme--colors--greyscale-500)"
-      $padding={{ all: 'sm' }}
-      $radius="md"
-      $css="font-family: monospace; font-size: 0.9em;"
-    >
-      {`${toolInvocation.toolName}(${JSON.stringify(
-        toolInvocation.args,
-        null,
-        2,
-      )})`}
-    </Box>
+    <>
+      {status !== 'ready' && (
+        <Box
+          $direction="row"
+          $align="center"
+          $gap="6px"
+          key={toolInvocation.toolCallId}
+          $width="100%"
+          $maxWidth="750px"
+          $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
+          $padding={{ left: '13px' }}
+        >
+          <Loader />
+          <Text $variation="600" $size="md">
+            {t('Search...')}
+          </Text>
+        </Box>
+      )}
+    </>
   );
 };

@@ -8,11 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 🎨(front) fix width chat container #55
+- ✨(frontend) add LLM selection in chat input #53
 
 ### Changed
 
 - 🎨(front) fix width chat container
+- 🎨(front) fix width chat container #55
 - 🐛(front) fix button search web on new conversation
 - 🎨(front) improvement search input scroll
 - ✨(404) fix front 404 page

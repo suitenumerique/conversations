@@ -14,9 +14,22 @@ const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
     throw new Error('Unsupported input type for fetchAPIAdapter');
   }
 
+  const searchParams = new URLSearchParams();
+
   if ((window as { globalForceWebSearch?: boolean }).globalForceWebSearch) {
+    searchParams.append('force_web_search', 'true');
+  }
+
+  const globalSelectedModelHrid = (
+    window as { globalSelectedModelHrid?: string }
+  ).globalSelectedModelHrid;
+  if (globalSelectedModelHrid) {
+    searchParams.append('model_hrid', globalSelectedModelHrid);
+  }
+
+  if (searchParams.toString()) {
     const separator = url.includes('?') ? '&' : '?';
-    url = `${url}${separator}force_web_search=true`;
+    url = `${url}${separator}${searchParams.toString()}`;
   }
 
   return fetchAPI(url, init);
