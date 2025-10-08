@@ -285,6 +285,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
         'a:{"toolCallId":"pyd_ai_YYY","result":[{"url":"sample.pdf","content":"This '
         'is the content of the PDF.","score":0.9}]}\n'
         "0:\"From the document, I can see that it says 'Hello PDF'.\"\n"
+        f'f:{{"messageId":"{mock_uuid4}"}}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":100,"completionTokens":20}}\n'
     ).replace("XXX", str_mock_uuid4).replace("pyd_ai_YYY", toolcall_id)
 
@@ -467,12 +468,13 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
 @responses.activate
 @respx.mock
 @freeze_time("2025-07-25T10:36:35.297675Z")
-def test_post_conversation_with_document_upload_feature_disabled(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def test_post_conversation_with_document_upload_feature_disabled(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
     caplog,
     mock_openai_stream,  # pylint: disable=unused-argument
     sample_pdf_content,
     feature_flags,
+    mock_uuid4,
 ):
     """
     Test POST to /api/v1/chats/{pk}/conversation/ with a PDF document while feature is disabled.
@@ -520,6 +522,7 @@ def test_post_conversation_with_document_upload_feature_disabled(  # pylint: dis
     assert response_content == (
         '0:"From the document, I can see that "\n'
         "0:\"it says 'Hello PDF'.\"\n"
+        f'f:{{"messageId":"{mock_uuid4}"}}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":150,"completionTokens":25}}\n'
     )
 
@@ -597,6 +600,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
         'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         'b:{"toolCallId":"pyd_ai_YYY","toolName":"summarize"}\n'
+        'f:{"messageId":"XXX"}\n'
         'a:{"toolCallId":"pyd_ai_YYY","result":{"state":"done"}}\n'
         '0:"The document discusses various topics."\n'
         'h:{"sourceType":"url","id":"XXX","url":"sample.pdf","title":null,"providerMetadata":{}}\n'

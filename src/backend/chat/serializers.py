@@ -122,6 +122,17 @@ class LLModelSerializer(serializers.Serializer):  # pylint: disable=abstract-met
         return obj.hrid == settings.LLM_DEFAULT_MODEL_HRID
 
 
+class ChatMessageCategoricalScoreSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for chat message scores."""
+
+    message_id = serializers.CharField(help_text="ID of the message to score.")
+    name = serializers.HiddenField(default="sentiment")
+    value = serializers.ChoiceField(
+        choices=["positive", "negative"],
+        help_text="Sentiment of the score.",
+    )
+
+
 class LLMConfigurationSerializer(serializers.Serializer):  # pylint: disable=abstract-method
     """Serializer for LLM configuration."""
 

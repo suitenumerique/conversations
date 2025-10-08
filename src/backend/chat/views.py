@@ -5,6 +5,7 @@ import logging
 from django.conf import settings
 from django.http import StreamingHttpResponse
 
+import langfuse
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -172,6 +173,51 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
             model_hrid=None,  # model_hrid is not needed to stop streaming
             language=None,  # language is not needed to stop streaming
         ).stop_streaming()
+
+        return Response({"status": "OK"}, status=status.HTTP_200_OK)
+
+    @decorators.action(
+        methods=["post"],
+        detail=True,
+        url_path="score-message",
+        url_name="score-message",
+    )
+    def post_score_message(self, request, pk):  # pylint: disable=unused-argument
+        """Handle POST requests to score a message in the chat conversation.
+
+        This sends the score to Langfuse to the trace_id, which is extracted from the message_id.
+        We enforce the unique score_id to be a combination of trace_id and user_id to avoid
+        multiple scores from the same user for the same message (if the user changes the score
+        it will be updated in Langfuse).
+
+        Args:
+            request: The HTTP request object containing:
+                - message_id: The ID of the message to score.
+                - score: The score to assign to the message (e.g., 1-5).
+            pk: The primary key of the chat conversation.
+        Returns:
+            Response: A response indicating that the message has been scored.
+        """
+        _conversation = self.get_object()  # only to check permissions
+
+        serializer = serializers.ChatMessageCategoricalScoreSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        message_id = serializer.validated_data["message_id"]
+        name = serializer.validated_data["name"]
+        value = serializer.validated_data["value"]
+
+        if not message_id.startswith("trace-"):
+            raise ValidationError("Invalid message_id, no trace attached.")
+
+        trace_id = message_id[len("trace-") :]
+        langfuse.get_client().create_score(
+            name=name,
+            value=value,
+            trace_id=trace_id,
+            score_id=f"{trace_id}-{self.request.user.pk}",
+            data_type="CATEGORICAL",
+        )
 
         return Response({"status": "OK"}, status=status.HTTP_200_OK)
 
