@@ -23,8 +23,8 @@ import {
   LLMModel,
   useLLMConfiguration,
 } from '@/features/chat/api/useLLMConfiguration';
-import { scoreMessage } from '@/features/chat/api/useScoreMessage';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
+import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
@@ -554,7 +554,10 @@ export const Chat = ({
                     ${shouldApplyStreamingHeight ? `min-height: ${streamingMessageHeight + 70}px;` : ''}
                   `}
                 >
-                  <Box $display="block">
+                  <Box
+                    $display="block"
+                    $width={`${message.role === 'user' ? 'auto' : '100%'}`}
+                  >
                     {message.experimental_attachments &&
                       message.experimental_attachments.length > 0 && (
                         <Box>
@@ -566,6 +569,7 @@ export const Chat = ({
                       )}
                     <Box
                       $radius="8px"
+                      $width={`${message.role === 'user' ? 'auto' : '100%'}`}
                       $maxWidth="100%"
                       $padding={`${message.role === 'user' ? '12px' : '0'}`}
                       $margin={{ vertical: 'base' }}
@@ -633,6 +637,7 @@ export const Chat = ({
                           $css="color: #222631; font-size: 12px;"
                           $direction="row"
                           $align="center"
+                          $justify="space-between"
                           $gap="6px"
                           $margin={{ top: 'base' }}
                         >
@@ -708,86 +713,17 @@ export const Chat = ({
                                 </Box>
                               );
                             })()}
-
-                          {conversationId &&
-                            message.id &&
-                            // We should display the button, but disabled if no trace linked
-                            message.id.startsWith('trace-') && (
-                              <>
-                                <Box
-                                  $direction="row"
-                                  $align="center"
-                                  className="c__button--neutral action-chat-button"
-                                  onClick={() => {
-                                    if (conversationId) {
-                                      void scoreMessage({
-                                        conversationId,
-                                        message_id: message.id,
-                                        value: 'positive',
-                                      });
-                                    }
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      if (conversationId) {
-                                        void scoreMessage({
-                                          conversationId,
-                                          message_id: message.id,
-                                          value: 'positive',
-                                        });
-                                      }
-                                    }
-                                  }}
-                                  role="button"
-                                  tabIndex={0}
-                                >
-                                  <Icon
-                                    iconName="thumb_up"
-                                    $theme="greyscale"
-                                    $variation="550"
-                                    $size="16px"
-                                    className="action-chat-button-icon"
-                                  />
-                                </Box>
-                                <Box
-                                  $direction="row"
-                                  $align="center"
-                                  className="c__button--neutral action-chat-button"
-                                  onClick={() => {
-                                    if (conversationId) {
-                                      void scoreMessage({
-                                        conversationId,
-                                        message_id: message.id,
-                                        value: 'negative',
-                                      });
-                                    }
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      if (conversationId) {
-                                        void scoreMessage({
-                                          conversationId,
-                                          message_id: message.id,
-                                          value: 'negative',
-                                        });
-                                      }
-                                    }
-                                  }}
-                                  role="button"
-                                  tabIndex={0}
-                                >
-                                  <Icon
-                                    iconName="thumb_down"
-                                    $theme="greyscale"
-                                    $variation="550"
-                                    $size="16px"
-                                    className="action-chat-button-icon"
-                                  />
-                                </Box>
-                              </>
-                            )}
+                          <Box $direction="row" $gap="4px">
+                            {/* We should display the button, but disabled if no trace linked */}
+                            {conversationId &&
+                              message.id &&
+                              message.id.startsWith('trace-') && (
+                                <FeedbackButtons
+                                  conversationId={conversationId}
+                                  messageId={message.id}
+                                />
+                              )}
+                          </Box>
                         </Box>
                       )}
                       {message.parts && isSourceOpen === message.id && (

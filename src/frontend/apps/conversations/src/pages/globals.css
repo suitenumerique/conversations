@@ -92,6 +92,10 @@ nextjs-portal {
   }
 }
 
+.c__button--neutral.c__button--neutral--icon {
+  padding-right: 4px !important;
+}
+
 .c__button--neutral.research-web-button,
 .c__button--neutral.attach-file-button {
   padding: 9px !important;
