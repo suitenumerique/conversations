@@ -199,6 +199,7 @@ class Base(BraveSettings, Configuration):
 
     # Django applications from the highest priority to the lowest
     INSTALLED_APPS = [
+        "activation_codes",
         "chat",
         "core",
         "demo",
@@ -458,6 +459,11 @@ class Base(BraveSettings, Configuration):
 
     ALLOW_LOGOUT_GET_METHOD = values.BooleanValue(
         default=True, environ_name="ALLOW_LOGOUT_GET_METHOD", environ_prefix=None
+    )
+
+    # Activation feature
+    ACTIVATION_REQUIRED = values.BooleanValue(
+        default=False, environ_name="ACTIVATION_REQUIRED", environ_prefix=None
     )
 
     # AI service

@@ -22,6 +22,7 @@ interface FeatureFlags {
 }
 
 export interface ConfigResponse {
+  ACTIVATION_REQUIRED: boolean;
   CRISP_WEBSITE_ID?: string;
   ENVIRONMENT: string;
   FEATURE_FLAGS: FeatureFlags;

@@ -50,6 +50,7 @@ and this project adheres to
 - ✨(web-search) add Brave search tool #47
 - ✨(models) add mistral support & customization #51
 - 🐛(web-search) add summarization to Brave results #58
+- ✨(onboarding) add activation code logic for launch #62
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main
