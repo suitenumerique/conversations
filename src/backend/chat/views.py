@@ -13,6 +13,7 @@ from rest_framework.views import APIView
 from core.api.viewsets import Pagination, SerializerPerActionMixin
 from core.filters import remove_accents
 
+from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
 from chat.serializers import ChatConversationRequestSerializer
@@ -51,6 +52,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
 
     pagination_class = Pagination
     permission_classes = [
+        IsActivatedUser,  # see activation_codes application
         permissions.IsAuthenticated,
     ]
     serializer_class = serializers.ChatConversationSerializer

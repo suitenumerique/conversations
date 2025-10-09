@@ -5,17 +5,10 @@ from contextlib import ExitStack, contextmanager
 from unittest.mock import patch
 
 import pytest
-from rest_framework.test import APIClient
 
 from chat.clients.pydantic_ai import AIAgentService
 
 logger = logging.getLogger(__name__)
-
-
-@pytest.fixture
-def api_client():
-    """Fixture to provide an API client for testing."""
-    return APIClient()
 
 
 @pytest.fixture(name="mock_ai_agent_service")
