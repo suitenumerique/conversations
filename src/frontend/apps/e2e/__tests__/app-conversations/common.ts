@@ -1,6 +1,7 @@
 import { Page, expect } from '@playwright/test';
 
 export const CONFIG = {
+  ACTIVATION_REQUIRED: false,
   CRISP_WEBSITE_ID: null,
   ENVIRONMENT: 'development',
   FEATURE_FLAGS: {

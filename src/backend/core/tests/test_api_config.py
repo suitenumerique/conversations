@@ -42,6 +42,7 @@ def test_api_config(is_authenticated):
     response = client.get("/api/v1.0/config/")
     assert response.status_code == HTTP_200_OK
     assert response.json() == {
+        "ACTIVATION_REQUIRED": False,
         "CRISP_WEBSITE_ID": "123",
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},

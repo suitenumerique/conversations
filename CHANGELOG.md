@@ -52,6 +52,7 @@ and this project adheres to
 - ✨(models) add mistral support & customization #51
 - 🐛(web-search) add summarization to Brave results #58
 - ✨(langfuse) allow user to score messages from LLM #6
+- ✨(onboarding) add activation code logic for launch #62
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main
