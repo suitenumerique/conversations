@@ -109,6 +109,11 @@ class LLModelSerializer(serializers.Serializer):  # pylint: disable=abstract-met
         allow_blank=True,
         required=False,
     )
+    is_active = serializers.BooleanField(
+        help_text="Indicates if the model is active and available for selection.",
+        required=False,
+        default=True,
+    )
 
     # Computed field to indicate if the model is the default model
     is_default = serializers.SerializerMethodField(

@@ -32,6 +32,7 @@ import { setChatContainerRef } from '@/features/chat/hooks/useChatScroll';
 import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
 
+import { useChatPreferencesStore } from '../stores/useChatPreferencesStore';
 import { usePendingChatStore } from '../stores/usePendingChatStore';
 
 // Define Attachment type locally (mirroring backend structure)
@@ -51,47 +52,52 @@ export const Chat = ({
   const { isMobile } = useResponsiveStore();
 
   const streamProtocol = 'data'; // or 'text'
-  const [forceWebSearch, setForceWebSearch] = useState(() => {
-    return (
-      (window as { globalForceWebSearch?: boolean }).globalForceWebSearch ||
-      false
-    );
-  });
+
+  const {
+    forceWebSearch,
+    toggleForceWebSearch,
+    selectedModelHrid,
+    setSelectedModelHrid,
+  } = useChatPreferencesStore();
 
   const { data: llmConfig } = useLLMConfiguration();
-  const [selectedModel, setSelectedModel] = useState<LLMModel | null>(() => {
-    // Initialize with default model if available
-    if (llmConfig?.models) {
-      return llmConfig.models.find((model) => model.is_default) || null;
-    }
-    return null;
-  });
+  const [selectedModel, setSelectedModel] = useState<LLMModel | null>(null);
 
   const [conversationId, setConversationId] = useState(initialConversationId);
   const apiUrl = conversationId
     ? `chats/${conversationId}/conversation/?protocol=${streamProtocol}`
     : `chats/conversation/?protocol=${streamProtocol}`;
 
-  useEffect(() => {
-    (window as { globalForceWebSearch?: boolean }).globalForceWebSearch =
-      forceWebSearch;
-  }, [forceWebSearch]);
-
   // Update selected model when LLM config loads
   useEffect(() => {
     if (llmConfig?.models && !selectedModel) {
-      const defaultModel = llmConfig.models.find((model) => model.is_default);
-      if (defaultModel) {
-        setSelectedModel(defaultModel);
+      let modelToSelect: LLMModel | undefined;
+
+      if (selectedModelHrid) {
+        // Try to find the previously selected model
+        modelToSelect = llmConfig.models.find(
+          (model) =>
+            model.hrid === selectedModelHrid && model.is_active !== false,
+        );
+      }
+
+      // If no saved model or saved model not found/inactive, use default
+      if (!modelToSelect) {
+        modelToSelect = llmConfig.models.find((model) => model.is_default);
+      }
+
+      if (modelToSelect) {
+        setSelectedModel(modelToSelect);
       }
     }
-  }, [llmConfig, selectedModel]);
+  }, [llmConfig, selectedModel, selectedModelHrid]);
 
-  // Update global model selection
+  // Update store when model selection changes
   useEffect(() => {
-    (window as { globalSelectedModelHrid?: string }).globalSelectedModelHrid =
-      selectedModel?.hrid || undefined;
-  }, [selectedModel]);
+    if (selectedModel?.hrid !== selectedModelHrid) {
+      setSelectedModelHrid(selectedModel?.hrid || null);
+    }
+  }, [selectedModel, selectedModelHrid, setSelectedModelHrid]);
 
   const handleModelSelect = (model: LLMModel) => {
     setSelectedModel(model);
@@ -212,7 +218,7 @@ export const Chat = ({
   };
 
   const toggleWebSearch = () => {
-    setForceWebSearch((prev) => !prev);
+    toggleForceWebSearch();
   };
 
   const handleStop = () => {

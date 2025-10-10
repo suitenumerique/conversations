@@ -8,6 +8,7 @@ export interface LLMModel {
   icon: string;
   is_default: boolean;
   model_name: string;
+  is_active?: boolean;
 }
 
 export interface LLMConfigurationResponse {

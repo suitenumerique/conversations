@@ -1,6 +1,7 @@
 import { UseChatOptions, useChat as useAiSdkChat } from '@ai-sdk/react';
 
 import { fetchAPI } from '@/api';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 
 const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
   let url: string;
@@ -16,15 +17,15 @@ const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
 
   const searchParams = new URLSearchParams();
 
-  if ((window as { globalForceWebSearch?: boolean }).globalForceWebSearch) {
+  const { forceWebSearch, selectedModelHrid } =
+    useChatPreferencesStore.getState();
+
+  if (forceWebSearch) {
     searchParams.append('force_web_search', 'true');
   }
 
-  const globalSelectedModelHrid = (
-    window as { globalSelectedModelHrid?: string }
-  ).globalSelectedModelHrid;
-  if (globalSelectedModelHrid) {
-    searchParams.append('model_hrid', globalSelectedModelHrid);
+  if (selectedModelHrid) {
+    searchParams.append('model_hrid', selectedModelHrid);
   }
 
   if (searchParams.toString()) {
