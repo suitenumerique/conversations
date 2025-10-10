@@ -22,11 +22,19 @@ export const ModelSelector = ({
   const { data: llmConfig, isLoading } = useLLMConfiguration();
   const [isOpen, setIsOpen] = useState(false);
 
-  if (isLoading || !llmConfig?.models || llmConfig.models.length <= 1) {
+  if (isLoading || !llmConfig?.models) {
     return null;
   }
 
-  const defaultModel = llmConfig.models.find((model) => model.is_default);
+  const activeModels = llmConfig.models.filter(
+    (model) => model.is_active !== false,
+  );
+
+  if (activeModels.length <= 1) {
+    return null;
+  }
+
+  const defaultModel = activeModels.find((model) => model.is_default);
   const currentModel = selectedModel || defaultModel;
 
   const getModelIcon = (
@@ -172,7 +180,7 @@ export const ModelSelector = ({
               }
             `}
           >
-            {llmConfig.models.map((model) => (
+            {activeModels.map((model) => (
               <Box
                 key={model.hrid}
                 $css={`

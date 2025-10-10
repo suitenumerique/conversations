@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- ✨(frontend) add LLM selection in chat input #53
+-🐛(llm) add is_active field and persist chat preference
 
 ### Changed
 
+- ✨(frontend) add LLM selection in chat input #53
 - 🎨(front) fix width chat container
 - 🎨(front) fix width chat container #55
 - 🐛(front) fix button search web on new conversation
