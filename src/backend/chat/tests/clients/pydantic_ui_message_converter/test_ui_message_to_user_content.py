@@ -3,8 +3,7 @@
 import base64
 import datetime
 
-import pytest
-from pydantic_ai.messages import BinaryContent
+from pydantic_ai.messages import BinaryContent, DocumentUrl
 
 from chat.ai_sdk_types import (
     Attachment,
@@ -209,8 +208,8 @@ def test_user_message_with_reasoning():
     assert result[0] == "Let me think"
 
 
-def test_unsupported_experimental_attachment_url():
-    """Test error handling for unsupported experimental attachment URL format."""
+def test_experimental_attachment_url():
+    """Test conversion of a user message with an experimental attachment URL."""
     ui_message = UIMessage(
         id="msg8",
         role="user",
@@ -224,10 +223,11 @@ def test_unsupported_experimental_attachment_url():
         ],
     )
 
-    with pytest.raises(ValueError) as excinfo:
-        ui_message_to_user_content(ui_message)
-
-    assert "Unsupported experimental attachment URL format" in str(excinfo.value)
+    result = ui_message_to_user_content(ui_message)
+    assert result == [
+        "Check this file",
+        DocumentUrl(url="https://example.com/file.txt", _media_type="text/plain"),
+    ]
 
 
 def test_empty_message():

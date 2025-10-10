@@ -131,6 +131,119 @@ class Base(BraveSettings, Configuration):
         environ_name="AWS_STORAGE_BUCKET_NAME",
         environ_prefix=None,
     )
+    AWS_S3_SIGNATURE_VERSION = values.Value(
+        "s3v4",
+        environ_name="AWS_S3_SIGNATURE_VERSION",
+        environ_prefix=None,
+    )
+
+    AWS_S3_UPLOAD_POLICY_EXPIRATION = values.Value(
+        60,  # 1 minute
+        environ_name="AWS_S3_UPLOAD_POLICY_EXPIRATION",
+        environ_prefix=None,
+    )
+    AWS_S3_RETRIEVE_POLICY_EXPIRATION = values.Value(
+        3 * 60,  # 3 minutes
+        environ_name="AWS_S3_RETRIEVE_POLICY_EXPIRATION",
+        environ_prefix=None,
+    )
+    AWS_S3_DOMAIN_REPLACE = values.Value(
+        environ_name="AWS_S3_DOMAIN_REPLACE",
+        environ_prefix=None,
+    )
+
+    ATTACHMENT_CHECK_UNSAFE_MIME_TYPES_ENABLED = values.BooleanValue(
+        True,
+        environ_name="ATTACHMENT_CHECK_UNSAFE_MIME_TYPES_ENABLED",
+        environ_prefix=None,
+    )
+    ATTACHMENT_UNSAFE_MIME_TYPES = [
+        # Executable Files
+        "application/x-msdownload",
+        "application/x-bat",
+        "application/x-dosexec",
+        "application/x-sh",
+        "application/x-ms-dos-executable",
+        "application/x-msi",
+        "application/java-archive",
+        "application/octet-stream",
+        # Dynamic Web Pages
+        "application/x-httpd-php",
+        "application/x-asp",
+        "application/x-aspx",
+        "application/jsp",
+        "application/xhtml+xml",
+        "application/x-python-code",
+        "application/x-perl",
+        "text/html",
+        "text/javascript",
+        "text/x-php",
+        # System Files
+        "application/x-msdownload",
+        "application/x-sys",
+        "application/x-drv",
+        "application/cpl",
+        "application/x-apple-diskimage",
+        # Script Files
+        "application/javascript",
+        "application/x-vbscript",
+        "application/x-powershell",
+        "application/x-shellscript",
+        # Compressed/Archive Files
+        "application/zip",
+        "application/x-tar",
+        "application/gzip",
+        "application/x-bzip2",
+        "application/x-7z-compressed",
+        "application/x-rar",
+        "application/x-rar-compressed",
+        "application/x-compress",
+        "application/x-lzma",
+        # Macros in Documents
+        "application/vnd.ms-word",
+        "application/vnd.ms-excel",
+        "application/vnd.ms-powerpoint",
+        "application/vnd.ms-word.document.macroenabled.12",
+        "application/vnd.ms-excel.sheet.macroenabled.12",
+        "application/vnd.ms-powerpoint.presentation.macroenabled.12",
+        # Disk Images & Virtual Disk Files
+        "application/x-iso9660-image",
+        "application/x-vmdk",
+        "application/x-apple-diskimage",
+        "application/x-dmg",
+        # Other Dangerous MIME Types
+        "application/x-ms-application",
+        "application/x-msdownload",
+        "application/x-shockwave-flash",
+        "application/x-silverlight-app",
+        "application/x-java-vm",
+        "application/x-bittorrent",
+        "application/hta",
+        "application/x-csh",
+        "application/x-ksh",
+        "application/x-ms-regedit",
+        "application/x-msdownload",
+        "application/xml",
+    ]
+    ATTACHMENT_MAX_SIZE = values.IntegerValue(
+        10 * (2**20),  # 10MB
+        environ_name="ATTACHMENT_MAX_SIZE",
+        environ_prefix=None,
+    )
+    MALWARE_DETECTION = {
+        "BACKEND": values.Value(
+            "lasuite.malware_detection.backends.dummy.DummyBackend",
+            environ_name="MALWARE_DETECTION_BACKEND",
+            environ_prefix=None,
+        ),
+        "PARAMETERS": values.DictValue(
+            default={
+                "callback_path": "core.file_upload.malware_detection.malware_detection_callback",
+            },
+            environ_name="MALWARE_DETECTION_PARAMETERS",
+            environ_prefix=None,
+        ),
+    }
 
     # Internationalization
     # https://docs.djangoproject.com/en/3.1/topics/i18n/
@@ -263,6 +376,16 @@ class Base(BraveSettings, Configuration):
         "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
         "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
         "DEFAULT_THROTTLE_RATES": {
+            "attachment_upload": values.Value(
+                default="60/minute",
+                environ_name="API_ATTACHMENT_UPLOAD_THROTTLE_RATE",
+                environ_prefix=None,
+            ),
+            "attachment_auth": values.Value(
+                default="60/minute",
+                environ_name="API_ATTACHMENT_AUTH_THROTTLE_RATE",
+                environ_prefix=None,
+            ),
             "user_list_sustained": values.Value(
                 default="180/hour",
                 environ_name="API_USERS_LIST_THROTTLE_RATE_SUSTAINED",

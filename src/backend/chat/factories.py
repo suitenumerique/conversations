@@ -14,3 +14,16 @@ class ChatConversationFactory(factory.django.DjangoModelFactory):
 
     class Meta:
         model = models.ChatConversation
+
+
+class ChatConversationAttachmentFactory(factory.django.DjangoModelFactory):
+    """Factory for creating ChatConversationAttachment instances."""
+
+    conversation = factory.SubFactory(ChatConversationFactory)
+    uploaded_by = factory.SubFactory(UserFactory)
+    key = factory.Faker("uuid4")
+    file_name = factory.Faker("file_name")
+    content_type = factory.Faker("mime_type")
+
+    class Meta:
+        model = models.ChatConversationAttachment
