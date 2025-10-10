@@ -118,6 +118,7 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
     assert response_content == (
         '0:"Hello"\n'
         '0:" there"\n'
+        f'f:{{"messageId":"{mock_uuid4}"}}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -383,6 +384,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
     assert response_content == (
         '0:"I see a cat"\n'
         '0:" in the picture."\n'
+        f'f:{{"messageId":"{mock_uuid4}"}}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -586,6 +588,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
         'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":{"location":'
         '"Paris","temperature":22,"unit":"celsius"}}\n'
         '0:"The current weather in Paris is nice"\n'
+        f'f:{{"messageId":"{mock_uuid4}"}}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -793,6 +796,7 @@ def test_post_conversation_tool_call_fails(
         'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":"Unknown tool '
         "name: 'get_current_weather'. No tools available.\"}\n"
         '0:"I cannot give you an answer to that."\n'
+        f'f:{{"messageId":"{mock_uuid4}"}}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -984,7 +988,12 @@ def test_post_conversation_model_selection_invalid(api_client):
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_model_selection_new(api_client, mock_openai_stream, settings):
+def test_post_conversation_model_selection_new(
+    api_client,
+    mock_openai_stream,
+    mock_uuid4,
+    settings,
+):
     """Test the user can select a different model."""
     settings.LLM_CONFIGURATIONS = {
         "plop": LLModel(
@@ -1030,6 +1039,7 @@ def test_post_conversation_model_selection_new(api_client, mock_openai_stream, s
     assert response_content == (
         '0:"Hello"\n'
         '0:" there"\n'
+        f'f:{{"messageId":"{mock_uuid4}"}}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -1114,11 +1124,13 @@ def test_post_conversation_data_protocol_no_stream(
             '0:" sca"\n'
             '0:"tter"\n'
             '0:"ing."\n'
+            f'f:{{"messageId":"{mock_uuid4}"}}\n'
             'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135}}\n'
         )
     else:
         assert response_content == (
             '0:"The sky appears blue due to a phenomenon called Rayleigh scattering."\n'
+            f'f:{{"messageId":"{mock_uuid4}"}}\n'
             'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135}}\n'
         )
 

@@ -386,6 +386,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 )
 
         _tool_is_streaming = False
+        _model_response_message_id = None
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
@@ -553,6 +554,23 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     elif Agent.is_end_node(node):
                         # Once an End node is reached, the agent run is complete
                         logger.debug("v: %s", dataclasses.asdict(node))
+
+                        # Enforce the message ID to store the trace ID and allow scoring later
+                        # We use the start step part (to set the message ID) even if it's
+                        # not the purpose of this event, but Vercel AI SDK does not
+                        # have a better place to set the message ID and we only want to enforce
+                        # The last message to store the trace ID...
+                        if _model_response_message_id:
+                            logger.error("_model_response_message_id already set")
+                        _model_response_message_id = (
+                            str(uuid.uuid4())
+                            if not self._store_analytics
+                            else f"trace-{langfuse.get_current_trace_id()}"
+                        )
+                        yield events_v4.StartStepPart(
+                            message_id=_model_response_message_id,
+                        )
+
                         if (
                             isinstance(node.data, FinalResult)
                             and node.data.tool_name == "summarize"
@@ -610,6 +628,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             usage=usage,
             final_output_from_tool=_final_output_from_tool,
             ui_sources=_ui_sources,
+            model_response_message_id=_model_response_message_id,
         )
 
         if self._store_analytics:
@@ -624,7 +643,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    def _update_conversation(
+    def _update_conversation(  # noqa: PLR0913
         self,
         *,
         final_output: List[ModelRequest | ModelMessage],
@@ -632,6 +651,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         usage: Dict[str, int],
         final_output_from_tool: str | None,
         ui_sources: List[SourceUIPart] = None,
+        model_response_message_id: str | None = None,
     ):  # pylint: disable=too-many-arguments
         """
         Save everything related to the conversation.
@@ -663,6 +683,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         _output_ui_message = model_message_to_ui_message(_merged_final_output_message)
         if ui_sources:
             _output_ui_message.parts += ui_sources
+        if model_response_message_id:
+            _output_ui_message.id = model_response_message_id
+        else:
+            logger.warning("model_response_message_id is None")
 
         self.conversation.messages += [
             model_message_to_ui_message(_merged_final_output_request),
