@@ -12,6 +12,8 @@ from typing import List
 
 from pydantic_ai.messages import (
     BinaryContent,
+    DocumentUrl,
+    ImageUrl,
     ModelMessage,
     ModelRequest,
     ModelResponse,
@@ -69,15 +71,27 @@ def ui_message_to_user_content(message: UIMessage) -> List[UserContent]:
                     identifier=experimental_attachment.name,
                 )
             )
+        elif experimental_attachment.contentType.startswith("image/"):
+            user_contents.append(
+                ImageUrl(
+                    url=experimental_attachment.url,
+                    media_type=experimental_attachment.contentType,
+                    identifier=experimental_attachment.name,
+                )
+            )
         else:
-            raise ValueError(
-                f"Unsupported experimental attachment URL format: {experimental_attachment.url}"
+            user_contents.append(
+                DocumentUrl(
+                    url=experimental_attachment.url,
+                    media_type=experimental_attachment.contentType,
+                    identifier=experimental_attachment.name,
+                )
             )
 
     return user_contents
 
 
-def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # noqa: PLR0912
+def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # noqa: PLR0912, PLR0915  # pylint: disable=too-many-statements
     """
     Convert a ModelMessage (ModelRequest or ModelResponse) to a UIMessage.
     """
@@ -115,7 +129,23 @@ def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # no
                                     + base64.b64encode(c.data).decode("utf-8"),
                                 )
                             )
-                        else:  # ImageUrl, AudioUrl, VideoUrl, DocumentUrl, BinaryContent
+                        elif isinstance(c, ImageUrl):
+                            experimental_attachments.append(
+                                Attachment(
+                                    contentType=c.media_type,
+                                    url=c.url,
+                                    name=c.identifier,
+                                )
+                            )
+                        elif isinstance(c, DocumentUrl):
+                            experimental_attachments.append(
+                                Attachment(
+                                    contentType=c.media_type,
+                                    url=c.url,
+                                    name=c.identifier,
+                                )
+                            )
+                        else:  # AudioUrl, VideoUrl
                             raise ValueError(
                                 f"Unsupported UserContent in UserPromptPart: {type(c)}"
                             )

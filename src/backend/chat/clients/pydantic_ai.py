@@ -12,21 +12,26 @@ import logging
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack
+from io import BytesIO
 from typing import Dict, List, Optional, Tuple
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
+from django.core.files.storage import default_storage
+from django.db.models import Q
 from django.utils.module_loading import import_string
 
 from asgiref.sync import sync_to_async
 from langfuse import get_client
-from pydantic_ai import Agent, ToolOutput
+from pydantic_ai import Agent
 from pydantic_ai.messages import (
     BinaryContent,
+    DocumentUrl,
     FunctionToolCallEvent,
     FunctionToolResultEvent,
+    ImageUrl,
     ModelMessage,
     ModelMessagesTypeAdapter,
     ModelRequest,
@@ -42,13 +47,18 @@ from pydantic_ai.messages import (
     ToolCallPartDelta,
     ToolReturn,
     ToolReturnPart,
+    UserPromptPart,
 )
-from pydantic_ai.result import FinalResult
 
 from core.feature_flags.helpers import is_feature_enabled
+from core.file_upload.utils import generate_retrieve_policy
 
 from chat import models
 from chat.agents.conversation import ConversationAgent
+from chat.agents.local_media_url_processors import (
+    update_history_local_urls,
+    update_local_urls,
+)
 from chat.agents.summarize import hand_off_to_summarization_agent
 from chat.ai_sdk_types import (
     LanguageModelV1Source,
@@ -212,10 +222,24 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # --------------------------------------------------------------------- #
     # Core agent runner
     # --------------------------------------------------------------------- #
-    async def parse_input_documents(self, documents: List[BinaryContent]):
+    async def parse_input_documents(self, documents: List[BinaryContent | DocumentUrl]):
         """
         Parse and store input documents in the conversation's document store.
         """
+        # Early external document URL rejection
+        if any(
+            not document.url.startswith("/media-key/")
+            for document in documents
+            if isinstance(document, DocumentUrl)
+        ):
+            raise ValueError("External document URL are not accepted yet.")
+        if any(
+            not document.url.startswith(f"/media-key/{self.conversation.pk}/")
+            for document in documents
+            if isinstance(document, DocumentUrl)
+        ):
+            raise ValueError("Document URL does not belong to the conversation.")
+
         document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
         document_store = document_store_backend(self.conversation.collection_id)
@@ -228,21 +252,48 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             await self.conversation.asave(update_fields=["collection_id", "updated_at"])
 
         for document in documents:
-            parsed_content = document_store.parse_and_store_document(
-                name=document.identifier,
-                content_type=document.media_type,
-                content=document.data,
-            )
-            await models.ChatConversationContext.objects.acreate(
-                conversation=self.conversation,
-                kind=models.ChatConversationContextKind.DOCUMENT.value,
-                name=document.identifier,
-                content=parsed_content,
-            )
+            key = None
+            if isinstance(document, DocumentUrl):
+                if document.url.startswith("/media-key/"):
+                    # Local file, retrieve from object storage
+                    key = document.url[len("/media-key/") :]
+                    # Security check: ensure the document belongs to the conversation
+                    if not key.startswith(f"{self.conversation.pk}/"):
+                        raise ValueError("Document URL does not belong to the conversation.")
+                    # Retrieve the document data
+                    with default_storage.open(key, "rb") as file:
+                        document_data = file.read()
+                    parsed_content = document_store.parse_and_store_document(
+                        name=document.identifier,
+                        content_type=document.media_type,
+                        content=document_data,
+                    )
+                else:
+                    # Remote URL
+                    raise ValueError("External document URL are not accepted yet.")
+            else:
+                parsed_content = document_store.parse_and_store_document(
+                    name=document.identifier,
+                    content_type=document.media_type,
+                    content=document.data,
+                )
 
-    def prepare_prompt(
+            if not document.media_type.startswith("text/"):
+                md_attachment = await models.ChatConversationAttachment.objects.acreate(
+                    conversation=self.conversation,
+                    uploaded_by=self.user,
+                    key=key or f"{self.conversation.pk}/attachments/{document.identifier}.md",
+                    file_name=f"{document.identifier}.md",
+                    content_type="text/markdown",
+                    conversion_from=key,  # might be None
+                )
+                default_storage.save(md_attachment.key, BytesIO(parsed_content.encode("utf8")))
+                md_attachment.upload_state = models.AttachmentStatus.READY
+                await md_attachment.asave(update_fields=["upload_state", "updated_at"])
+
+    def prepare_prompt(  # noqa: PLR0912  # pylint: disable=too-many-branches
         self, message: UIMessage
-    ) -> Tuple[str, List[BinaryContent], List[BinaryContent]]:
+    ) -> Tuple[str, List[BinaryContent | ImageUrl], List[BinaryContent]]:
         """
         Prepare the user prompt for the agent.
 
@@ -268,6 +319,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     attachment_images.append(content)
                 else:
                     attachment_documents.append(content)
+            elif isinstance(content, ImageUrl):
+                attachment_images.append(content)
+            elif isinstance(content, DocumentUrl):
+                attachment_documents.append(content)
             else:
                 # Should never happen, but just in case
                 raise ValueError(f"Unsupported UserContent type: {type(content)}")
@@ -305,7 +360,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             )
 
         history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
+        history = update_history_local_urls(
+            self.conversation, history
+        )  # presign URLs for local images
+
         user_prompt, input_images, input_documents = self.prepare_prompt(messages[-1])
+
+        image_key_mapping = {}
+        if input_images:
+            # presign URLs for local images
+            input_images = update_local_urls(
+                self.conversation, input_images, updated_url=image_key_mapping
+            )
 
         if self._store_analytics:
             langfuse.update_current_trace(input=user_prompt)
@@ -315,9 +381,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         conversation_has_documents = self._is_document_upload_enabled and (
             bool(self.conversation.collection_id)
             or bool(
-                await models.ChatConversationContext.objects.filter(
+                await models.ChatConversationAttachment.objects.filter(
                     conversation=self.conversation,
-                    kind=models.ChatConversationContextKind.DOCUMENT.value,
+                    content_type__startswith="text/",
                 ).aexists()
             )
         )
@@ -387,21 +453,65 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         _tool_is_streaming = False
         _model_response_message_id = None
+
+        # Check for existing non-PDF documents in the conversation:
+        # - if no document at all: do nothing
+        # - if only PDFs: prepare document URLs for the agent
+        # - if other document types: add the RAG search tool
+        #   to allow searching in all kinds of documents
+        has_not_pdf_docs = await (
+            models.ChatConversationAttachment.objects.filter(
+                Q(conversion_from__isnull=True) | Q(conversion_from=""),
+                conversation=self.conversation,
+            )
+            .exclude(
+                Q(content_type__startswith="image/") | Q(content_type="application/pdf"),
+            )
+            .aexists()
+        )
+
+        document_urls = []
+        if not conversation_has_documents and not has_not_pdf_docs:
+            # No documents to process
+            pass
+        elif has_not_pdf_docs:
+            add_document_rag_search_tool(self.conversation_agent)
+
+            @self.conversation_agent.tool
+            async def summarize(ctx) -> ToolReturn:
+                """
+                Summarize the documents for the user, only when asked for,
+                the documents are in my context.
+                """
+                return await hand_off_to_summarization_agent(ctx)
+        else:
+            conversation_documents = [
+                cd
+                async for cd in models.ChatConversationAttachment.objects.filter(
+                    Q(conversion_from__isnull=True) | Q(conversion_from=""),
+                    conversation=self.conversation,
+                )
+                .exclude(
+                    content_type__startswith="image/",
+                )
+                .values_list("key", "content_type")
+            ]
+
+            for doc_key, doc_content_type in conversation_documents:
+                if doc_content_type == "application/pdf":
+                    _presigned_url = generate_retrieve_policy(doc_key)
+                    document_urls.append(
+                        DocumentUrl(
+                            url=_presigned_url,
+                            identifier=doc_key.split("/")[-1],
+                            media_type="application/pdf",
+                        )
+                    )
+                    image_key_mapping[_presigned_url] = f"/media-key/{doc_key}"
+
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
-
-            if conversation_has_documents:
-                add_document_rag_search_tool(self.conversation_agent)
-
-                @self.conversation_agent.system_prompt
-                def summarize_instructions() -> str:
-                    """Dynamic system prompt function to add RAG instructions if any."""
-                    return (
-                        "If the user wants a summary of document(s), invoke summarize tool "
-                        "without asking the user for the document itself. The tool will handle "
-                        "any necessary extraction and summarization based on the internal context."
-                    )
 
             _final_output_from_tool = None
             _ui_sources = []
@@ -412,15 +522,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
 
             async with self.conversation_agent.iter(
-                [user_prompt] + input_images,
-                message_history=history,
+                [user_prompt] + input_images + document_urls,
+                message_history=history,  # history will pass through agent's history_processors
                 deps=self._context_deps,
                 toolsets=mcp_servers,
-                output_type=(
-                    [ToolOutput(hand_off_to_summarization_agent, name="summarize"), str]
-                    if conversation_has_documents
-                    else str
-                ),
             ) as run:
                 async for node in run:
                     await self._agent_stop_streaming()
@@ -571,49 +676,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                             message_id=_model_response_message_id,
                         )
 
-                        if (
-                            isinstance(node.data, FinalResult)
-                            and node.data.tool_name == "summarize"
-                        ):
-                            yield events_v4.ToolResultPart(
-                                tool_call_id=node.data.tool_call_id,
-                                result={"state": "done"},  # content not needed here
-                            )
-                            final_output = node.data.output
-                            if isinstance(final_output, ToolReturn):
-                                _final_output_from_tool = final_output.content
-                                yield events_v4.TextPart(text=final_output.content)
-
-                                if final_output.metadata and (
-                                    sources := final_output.metadata.get("sources")
-                                ):
-                                    for source_url in sources:
-                                        url_source = LanguageModelV1Source(
-                                            sourceType="url",
-                                            id=str(uuid.uuid4()),
-                                            url=source_url,
-                                            providerMetadata={},
-                                        )
-                                        _new_source_ui = SourceUIPart(
-                                            type="source", source=url_source
-                                        )
-                                        _ui_sources.append(_new_source_ui)
-                                        yield events_v4.SourcePart(
-                                            **_new_source_ui.source.model_dump()
-                                        )
-                            else:
-                                logger.warning(
-                                    "Unexpected final result type: %s %s",
-                                    type(final_output),
-                                    final_output,
-                                )
-
-                    else:
-                        logger.warning(
-                            "Unknown node type encountered: %s",
-                            type(node),
-                        )
-
                 # Final usage summary
                 final_usage = run.usage()
                 usage["promptTokens"] = final_usage.input_tokens
@@ -624,11 +686,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Persist conversation
         await sync_to_async(self._update_conversation)(
             final_output=run.result.new_messages(),
-            raw_final_output=run.result.new_messages_json(),
             usage=usage,
             final_output_from_tool=_final_output_from_tool,
             ui_sources=_ui_sources,
             model_response_message_id=_model_response_message_id,
+            image_key_mapping=image_key_mapping or None,
         )
 
         if self._store_analytics:
@@ -647,11 +709,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         *,
         final_output: List[ModelRequest | ModelMessage],
-        raw_final_output: bytes,
         usage: Dict[str, int],
         final_output_from_tool: str | None,
         ui_sources: List[SourceUIPart] = None,
         model_response_message_id: str | None = None,
+        image_key_mapping: Dict[str, str] = None,
     ):  # pylint: disable=too-many-arguments
         """
         Save everything related to the conversation.
@@ -661,7 +723,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         Args:
             final_output (List[ModelRequest | ModelMessage]): The final output from the agent.
-            raw_final_output (bytes): The raw final output in bytes.
             usage (Dict[str, int]): The token usage statistics.
             user_initial_prompt_str (str | None): The initial user prompt string, if any.
             ui_sources (List[SourceUIPart]): Optional UI sources to include in the conversation.
@@ -680,6 +741,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             kind="response",
         )
 
+        if image_key_mapping:
+            for part in _merged_final_output_request.parts:
+                if isinstance(part, UserPromptPart):
+                    for content in part.content:
+                        if isinstance(content, (ImageUrl, DocumentUrl)) and (
+                            unsigned_url := image_key_mapping.get(content.url)
+                        ):
+                            content.url = unsigned_url
+
         _output_ui_message = model_message_to_ui_message(_merged_final_output_message)
         if ui_sources:
             _output_ui_message.parts += ui_sources
@@ -694,11 +764,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         ]
         self.conversation.agent_usage = usage
 
-        logger.debug(
-            "raw_final_output: %s %s",
-            raw_final_output.decode("utf-8"),
-            json.loads(raw_final_output.decode("utf-8")),
+        final_output_json = json.loads(
+            ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")
         )
-        self.conversation.pydantic_messages += json.loads(raw_final_output.decode("utf-8"))
+        logger.debug("final_output_json: %s", final_output_json)
+        self.conversation.pydantic_messages += json.loads(
+            ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")
+        )
 
         self.conversation.save()

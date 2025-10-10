@@ -8,7 +8,7 @@ import logging
 from io import BytesIO
 from unittest import mock
 
-from django.utils import timezone
+from django.utils import formats, timezone
 
 import httpx
 import pytest
@@ -213,11 +213,12 @@ def fixture_mock_openai_stream():
 
 @responses.activate
 @respx.mock
-@freeze_time("2025-07-25T10:36:35.297675Z")
-def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+@freeze_time()
+def test_post_conversation_with_document_upload(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
     mock_albert_api,  # pylint: disable=unused-argument
     sample_pdf_content,
+    today_promt_date,
     mock_uuid4,
     mock_ai_agent_service,
 ):
@@ -338,6 +339,9 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
         ],
     )
 
+    timezone_now = timezone.now().isoformat().replace("+00:00", "Z")
+    _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
+
     assert len(chat_conversation.pydantic_messages) == 4
     assert chat_conversation.pydantic_messages[0] == {
         "instructions": None,
@@ -347,19 +351,19 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
                 "content": "You are a helpful test assistant :)",
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": timezone_now,
             },
             {
-                "content": "Today is Friday 25/07/2025.",
+                "content": today_promt_date,
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": timezone_now,
             },
             {
                 "content": "Answer in english.",
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": timezone_now,
             },
             {
                 "content": "If the user wants specific information from a "
@@ -369,22 +373,12 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
                 "relevant passages.",
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
-            },
-            {
-                "content": "If the user wants a summary of document(s), invoke "
-                "summarize tool without asking the user for the "
-                "document itself. The tool will handle any necessary "
-                "extraction and summarization based on the internal "
-                "context.",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": timezone_now,
             },
             {
                 "content": ["What does the document say?"],
                 "part_kind": "user-prompt",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": timezone_now,
             },
         ],
     }
@@ -404,7 +398,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
         "provider_details": None,
         "provider_name": None,
         "provider_response_id": None,
-        "timestamp": "2025-07-25T10:36:35.297675Z",
+        "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
@@ -430,7 +424,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
                 ],
                 "metadata": {"sources": ["sample.pdf"]},
                 "part_kind": "tool-return",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": timezone_now,
                 "tool_call_id": toolcall_id,
                 "tool_name": "document_search_rag",
             }
@@ -450,7 +444,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
         "provider_details": None,
         "provider_name": None,
         "provider_response_id": None,
-        "timestamp": "2025-07-25T10:36:35.297675Z",
+        "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
@@ -531,11 +525,12 @@ def test_post_conversation_with_document_upload_feature_disabled(  # noqa: PLR09
 
 @responses.activate
 @respx.mock
-@freeze_time("2025-07-25T10:36:35.297675Z")
+@freeze_time()
 def test_post_conversation_with_document_upload_summarize(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
     api_client,
     mock_albert_api,  # pylint: disable=unused-argument
     sample_pdf_content,
+    today_promt_date,
     mock_uuid4,
     mock_ai_agent_service,
     mock_summarization_agent,  # pylint: disable=unused-argument
@@ -599,11 +594,14 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
         'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         'b:{"toolCallId":"pyd_ai_YYY","toolName":"summarize"}\n'
-        'f:{"messageId":"XXX"}\n'
-        'a:{"toolCallId":"pyd_ai_YYY","result":{"state":"done"}}\n'
+        '9:{"toolCallId":"pyd_ai_YYY","toolName":"summarize","args":{}}\n'
+        'h:{"sourceType":"url","id":"XXX","url":"sample.pdf.md",'
+        '"title":null,"providerMetadata":{}}\n'
+        'a:{"toolCallId":"pyd_ai_YYY","result":"The '
+        'document discusses various topics."}\n'
         '0:"The document discusses various topics."\n'
-        'h:{"sourceType":"url","id":"XXX","url":"sample.pdf","title":null,"providerMetadata":{}}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":150,"completionTokens":7}}\n'
+        'f:{"messageId":"XXX"}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":201,"completionTokens":13}}\n'
     ).replace("XXX", str_mock_uuid4).replace("pyd_ai_YYY", toolcall_id)
 
     # Check that the conversation was updated
@@ -646,7 +644,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 source=LanguageModelV1Source(
                     sourceType="url",
                     id=str_mock_uuid4,
-                    url="sample.pdf",
+                    url="sample.pdf.md",  # might be fixed in the future
                     title=None,
                     providerMetadata={},
                 ),
@@ -654,7 +652,10 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         ],
     )
 
-    assert len(chat_conversation.pydantic_messages) == 3
+    timezone_now = timezone.now().isoformat().replace("+00:00", "Z")
+    _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
+
+    assert len(chat_conversation.pydantic_messages) == 4
     assert chat_conversation.pydantic_messages[0] == {
         "instructions": None,
         "kind": "request",
@@ -663,19 +664,19 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "content": "You are a helpful test assistant :)",
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": timezone_now,
             },
             {
-                "content": "Today is Friday 25/07/2025.",
+                "content": today_promt_date,
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": timezone_now,
             },
             {
                 "content": "Answer in english.",
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": timezone_now,
             },
             {
                 "content": "If the user wants specific information from a "
@@ -685,22 +686,12 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "relevant passages.",
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
-            },
-            {
-                "content": "If the user wants a summary of document(s), invoke "
-                "summarize tool without asking the user for the "
-                "document itself. The tool will handle any necessary "
-                "extraction and summarization based on the internal "
-                "context.",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": timezone_now,
             },
             {
                 "content": ["Make a summary of this document."],
                 "part_kind": "user-prompt",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": timezone_now,
             },
         ],
     }
@@ -720,7 +711,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "provider_details": None,
         "provider_name": None,
         "provider_response_id": None,
-        "timestamp": "2025-07-25T10:36:35.297675Z",
+        "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
@@ -737,12 +728,34 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "kind": "request",
         "parts": [
             {
-                "content": "Final result processed.",
-                "metadata": None,
+                "content": "The document discusses various topics.",
+                "metadata": {"sources": ["sample.pdf.md"]},
                 "part_kind": "tool-return",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": timezone_now,
                 "tool_call_id": toolcall_id,
                 "tool_name": "summarize",
             }
         ],
+    }
+    assert chat_conversation.pydantic_messages[3] == {
+        "finish_reason": None,
+        "kind": "response",
+        "model_name": "function::agent_model",
+        "parts": [
+            {"content": "The document discusses various topics.", "id": None, "part_kind": "text"}
+        ],
+        "provider_details": None,
+        "provider_name": None,
+        "provider_response_id": None,
+        "timestamp": timezone_now,
+        "usage": {
+            "cache_audio_read_tokens": 0,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+            "details": {},
+            "input_audio_tokens": 0,
+            "input_tokens": 50,
+            "output_audio_tokens": 0,
+            "output_tokens": 6,
+        },
     }

@@ -4,11 +4,12 @@ import dataclasses
 import logging
 
 from django.conf import settings
+from django.core.files.storage import default_storage
 
+from asgiref.sync import sync_to_async
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
-from ..models import ChatConversationContextKind
 from .base import BaseAgent
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,13 @@ class SummarizationAgent(BaseAgent):
         )
 
 
+@sync_to_async
+def read_document_content(doc):
+    """Read document content asynchronously."""
+    with default_storage.open(doc.key) as f:
+        return doc.file_name, f.read().decode("utf-8")
+
+
 async def hand_off_to_summarization_agent(ctx: RunContext) -> ToolReturn:
     """
     Summarize the documents for the user, only when asked for,
@@ -41,18 +49,18 @@ async def hand_off_to_summarization_agent(ctx: RunContext) -> ToolReturn:
         "Document contents:\n"
         "{documents_prompt}\n"
     )
-    documents = ctx.deps.conversation.contexts.filter(
-        kind=ChatConversationContextKind.DOCUMENT.value,
+    text_attachment = await sync_to_async(list)(
+        ctx.deps.conversation.attachments.filter(
+            content_type__startswith="text/",
+        )
     )
+
+    documents = [await read_document_content(doc) for doc in text_attachment]
+
     documents_prompt = "\n\n".join(
         [
-            (
-                "<document>\n"
-                f"<name>\n{doc.name}\n</name>\n"
-                f"<content>\n{doc.content}\n</content>\n"
-                "</document>"
-            )
-            async for doc in documents
+            (f"<document>\n<name>\n{name}\n</name>\n<content>\n{content}\n</content>\n</document>")
+            for name, content in documents
         ]
     )
 
@@ -69,6 +77,5 @@ async def hand_off_to_summarization_agent(ctx: RunContext) -> ToolReturn:
 
     return ToolReturn(
         return_value=response.output,
-        content=response.output,
-        metadata={"sources": {doc.name async for doc in documents}},
+        metadata={"sources": {doc[0] for doc in documents}},
     )

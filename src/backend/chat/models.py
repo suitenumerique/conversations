@@ -7,6 +7,7 @@ from django.db import models
 
 from django_pydantic_field import SchemaField
 
+from core.file_upload.enums import AttachmentStatus
 from core.models import BaseModel
 
 from chat.ai_sdk_types import UIMessage
@@ -74,49 +75,59 @@ class ChatConversation(BaseModel):
     )
 
 
-class ChatConversationContextKind(models.TextChoices):
-    """Enumeration of chat conversation context kinds."""
-
-    IMAGE = "image"  # Context related to an image in base64 format
-    DOCUMENT = "document"
-
-
-class ChatConversationContext(BaseModel):
+class ChatConversationAttachment(BaseModel):
     """
-    Model representing a chat conversation context.
+    Model representing an attachment associated with a chat conversation.
 
-    This model stores the details of a chat conversation context:
-    - `conversation`: The conversation this context belongs to.
-    - `kind`: The kind of context (e.g., 'image', 'document').
-    - `name`: The key of the context.
-    - `content`: The value of the context.
+    This model stores the details of an attachment:
+    - `conversation`: The conversation this attachment belongs to.
+    - `uploaded_by`: The user who uploaded the attachment.
+    - `key`: The file path of the attachment in the object storage.
+    - `file_name`: The original name of the attachment file.
+    - `content_type`: The MIME type of the attachment file.
+
     """
 
     conversation = models.ForeignKey(
         ChatConversation,
-        related_name="contexts",
+        related_name="attachments",
         on_delete=models.CASCADE,
         null=False,
         blank=False,
     )
-    kind = models.CharField(
-        max_length=50,
+    uploaded_by = models.ForeignKey(
+        User,
+        related_name="uploaded_attachments",
+        on_delete=models.PROTECT,
+        null=False,
+        blank=False,
+        help_text="User who uploaded the attachment",
+    )
+    upload_state = models.CharField(
+        max_length=40,
+        choices=AttachmentStatus.choices,
+        default=AttachmentStatus.PENDING,
+    )
+    key = models.CharField(
         blank=False,
         null=False,
-        help_text="Kind of the chat conversation context (e.g., 'image', 'document')",
-        choices=ChatConversationContextKind,
+        help_text="File path of the attachment in the object storage",
     )
-    name = models.CharField(
+    file_name = models.CharField(
+        blank=False,
+        null=False,
+        help_text="Original name of the attachment file",
+    )
+    content_type = models.CharField(
         max_length=100,
         blank=False,
         null=False,
-        help_text="Key of the chat conversation context",
+        help_text="MIME type of the attachment file",
     )
-    content = models.TextField(
+    size = models.PositiveBigIntegerField(null=True, blank=True)
+
+    conversion_from = models.CharField(
         blank=True,
         null=True,
-        help_text="Value of the chat conversation context",
+        help_text="Original file key if the Markdown from another file",
     )
-
-    class Meta:
-        unique_together = ("conversation", "name")

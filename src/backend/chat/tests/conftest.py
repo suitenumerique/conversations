@@ -4,11 +4,20 @@ import logging
 from contextlib import ExitStack, contextmanager
 from unittest.mock import patch
 
+from django.utils import formats, timezone
+
 import pytest
 
 from chat.clients.pydantic_ai import AIAgentService
 
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture(name="today_promt_date")
+def today_prompt_date_fixture():
+    """Fixture to mock date the system prompt when useless to test it."""
+    _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
+    return f"Today is {_formatted_date}."
 
 
 @pytest.fixture(name="mock_ai_agent_service")
@@ -39,3 +48,10 @@ def mock_ai_agent_service_fixture():
             yield
 
     yield _mock_service
+
+
+PIXEL_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00"
+    b"\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe"
+    b"\xa7V\xbd\xfa\x00\x00\x00\x00IEND\xaeB`\x82"
+)

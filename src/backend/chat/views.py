@@ -1,17 +1,24 @@
 """Chat API implementation."""
 
 import logging
+from uuid import uuid4
 
 from django.conf import settings
-from django.http import StreamingHttpResponse
+from django.core.files.storage import default_storage
+from django.http import Http404, StreamingHttpResponse
 
 import langfuse
+import magic
+import posthog
+from lasuite.malware_detection import malware_detection
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.api.viewsets import Pagination, SerializerPerActionMixin
+from core.file_upload import enums
+from core.file_upload.enums import AttachmentStatus
 from core.filters import remove_accents
 
 from activation_codes.permissions import IsActivatedUser
@@ -61,10 +68,22 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors
     filter_backends = [filters.OrderingFilter, ChatConversationFilter]
     ordering = ["-created_at"]
     ordering_fields = ["created_at", "updated_at"]
+    queryset = models.ChatConversation.objects  # defined to be used in AttachmentMixin
 
     def get_queryset(self):
         """Return the queryset for the chat conversations."""
-        return models.ChatConversation.objects.filter(owner=self.request.user)
+        return (
+            self.queryset.filter(owner=self.request.user)
+            if self.request.user.is_authenticated
+            else self.queryset.none()
+        )
+
+    def get_permissions(self):
+        """Return the permissions for the viewset."""
+        if self.action in ["media_auth", "media_check"]:
+            # Permission is checked in AttachmentMixin
+            self.permission_classes = []
+        return super().get_permissions()
 
     @decorators.action(
         methods=["post"],
@@ -245,4 +264,114 @@ class LLMConfigurationView(APIView):
                 "models": settings.LLM_CONFIGURATIONS.values(),
             },
         )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ChatConversationAttachmentViewSet(
+    SerializerPerActionMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
+    """ViewSet for managing chat conversation attachments.
+
+    Provides endpoints to create and retrieve chat conversation attachments.
+    """
+
+    pagination_class = None  # No pagination for attachments
+    permission_classes = [
+        IsActivatedUser,  # see activation_codes application
+        permissions.IsAuthenticated,
+    ]
+    serializer_class = serializers.ChatConversationAttachmentSerializer
+    create_serializer_class = serializers.CreateChatConversationAttachmentSerializer
+    queryset = models.ChatConversationAttachment.objects
+
+    def get_queryset(self):
+        """Return the queryset for the chat conversation attachments."""
+        return (
+            self.queryset.filter(
+                conversation_id=self.kwargs["conversation_pk"],
+                conversation__owner=self.request.user,
+            )
+            if self.request.user.is_authenticated
+            else self.queryset.none()
+        )
+
+    def get_serializer_context(self):
+        """Return the context for the serializer."""
+        context = super().get_serializer_context()
+        context["conversation_pk"] = self.kwargs["conversation_pk"]
+        return context
+
+    def perform_create(self, serializer):
+        """Set the uploaded_by field to the current user."""
+        # assert the user is the owner of the conversation
+        if not models.ChatConversation.objects.filter(
+            pk=self.kwargs["conversation_pk"],
+            owner=self.request.user,
+        ).exists():
+            raise Http404
+
+        file_name = serializer.validated_data["file_name"]
+        extension = file_name.rpartition(".")[-1] if "." in file_name else None
+
+        file_id = uuid4()
+        holder_key_base = f"{self.kwargs['conversation_pk']!s}"
+        key = f"{holder_key_base}/{enums.ATTACHMENTS_FOLDER:s}/{file_id!s}.{extension:s}"
+
+        serializer.save(
+            conversation_id=self.kwargs["conversation_pk"],
+            uploaded_by=self.request.user,
+            upload_state=enums.AttachmentStatus.PENDING,
+            key=key,
+        )
+
+    @decorators.action(detail=True, methods=["post"], url_path="upload-ended")
+    def upload_ended(self, request, *args, **kwargs):
+        """
+        Start the analysis of an item after a successful upload.
+        """
+
+        attachment = self.get_object()
+
+        if attachment.upload_state != AttachmentStatus.PENDING:
+            raise ValidationError(
+                {"attachment": "This action is only available for items in PENDING state."},
+                code="upload-state-not-pending",
+            )
+
+        mime_detector = magic.Magic(mime=True)
+        with default_storage.open(attachment.key, "rb") as file:
+            mimetype = mime_detector.from_buffer(file.read(2048))
+            size = file.size
+
+        attachment.upload_state = AttachmentStatus.ANALYZING
+        attachment.content_type = mimetype
+        attachment.size = size
+
+        attachment.save(update_fields=["upload_state", "content_type", "size"])
+
+        malware_detection.analyse_file(
+            attachment.key,
+            safe_callback="chat.malware_detection.conversation_safe_attachment_callback",
+            unknown_callback="chat.malware_detection.unknown_attachment_callback",
+            unsafe_callback="chat.malware_detection.conversation_unsafe_attachment_callback",
+            conversation_id=self.kwargs["conversation_pk"],
+        )
+
+        serializer = self.get_serializer(attachment)
+
+        if settings.POSTHOG_KEY:
+            posthog.capture(
+                "item_uploaded",
+                distinct_id=request.user.email,
+                properties={
+                    "id": attachment.pk,
+                    "file_name": attachment.file_name,
+                    "size": attachment.size,
+                    "mimetype": attachment.content_type,
+                },
+            )
+
         return Response(serializer.data, status=status.HTTP_200_OK)

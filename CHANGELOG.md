@@ -42,6 +42,7 @@ and this project adheres to
 - 🐛(chat) UI messages must have a unique identifier #6
 - ✨(llm) allow configuration from JSON file #22
 - 💥(agent) replace routing w/ tool calls #40
+- 🧱(storage) upload the user documents into S3 #86
 
 ### Added
 
