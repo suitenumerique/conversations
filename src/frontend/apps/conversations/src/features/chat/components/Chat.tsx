@@ -17,6 +17,7 @@ import remarkMath from 'remark-math';
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
 import { Box, Icon, Loader, StyledLink, Text } from '@/components';
+import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
 import { useChat } from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
 import { useCreateChatConversation } from '@/features/chat/api/useCreateConversation';
@@ -70,6 +71,16 @@ export const Chat = ({
     ? `chats/${conversationId}/conversation/?protocol=${streamProtocol}`
     : `chats/conversation/?protocol=${streamProtocol}`;
 
+  // Initialize upload hook
+  const { uploadFile, isErrorAttachment, errorAttachment } = useUploadFile(
+    conversationId || '',
+  );
+
+  useEffect(() => {
+    (window as { globalForceWebSearch?: boolean }).globalForceWebSearch =
+      forceWebSearch;
+  }, [forceWebSearch]);
+
   // Update selected model when LLM config loads
   useEffect(() => {
     if (llmConfig?.models && !selectedModel) {
@@ -107,6 +118,7 @@ export const Chat = ({
 
   const router = useRouter();
   const [files, setFiles] = useState<FileList | null>(null);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -142,7 +154,7 @@ export const Chat = ({
     useState<Message[] | undefined>(undefined);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
     event: React.FormEvent<HTMLFormElement>;
-    attachments?: FileList | null;
+    attachments?: Attachment[];
     forceWebSearch?: boolean;
   } | null>(null);
   const [shouldAutoSubmit, setShouldAutoSubmit] = useState(false);
@@ -171,6 +183,16 @@ export const Chat = ({
       });
     }
   }, [hasInitialized]);
+
+  // Show error modal for upload errors
+  useEffect(() => {
+    if (isErrorAttachment && errorAttachment) {
+      setChatErrorModal({
+        title: t('Upload Error'),
+        message: t('Failed to upload file'),
+      });
+    }
+  }, [isErrorAttachment, errorAttachment, t]);
 
   // Handle errors from the chat API
   const onErrorChat = (error: Error) => {
@@ -438,29 +460,36 @@ export const Chat = ({
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    // Convert files to base64 if they exist
+    // Upload files to server and get URLs
     let attachments: Attachment[] = [];
-    if (files && files.length > 0) {
-      attachments = await Promise.all(
-        Array.from(files).map(async (file) => {
-          return new Promise<Attachment>((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              resolve({
-                name: file.name,
-                contentType: file.type,
-                url: reader.result as string,
-              });
-            };
-            reader.readAsDataURL(file);
-          });
-        }),
-      );
+    if (files && files.length > 0 && conversationId) {
+      try {
+        setIsUploadingFiles(true);
+        const uploadPromises = Array.from(files).map(async (file) => {
+          const url = await uploadFile(file);
+
+          return {
+            name: file.name,
+            contentType: file.type,
+            url: url,
+          };
+        });
+        attachments = await Promise.all(uploadPromises);
+        setIsUploadingFiles(false);
+      } catch (error) {
+        setIsUploadingFiles(false);
+        console.error('File upload error:', error);
+        setChatErrorModal({
+          title: t('Upload Error'),
+          message: t('Failed to upload files. Please try again.'),
+        });
+        return;
+      }
     }
 
     if (!conversationId) {
       // Save the event and files, then create the chat
-      setPendingFirstMessage({ event, attachments: files, forceWebSearch });
+      setPendingFirstMessage({ event, attachments, forceWebSearch });
       // Save input and files to Zustand store before navigation
       setPendingChat(input, files);
       void createChatConversation(
@@ -836,7 +865,8 @@ export const Chat = ({
             })}
           </Box>
         )}
-        {status !== 'ready' && status !== 'streaming' && status !== 'error' && (
+        {(status !== 'ready' && status !== 'streaming' && status !== 'error') ||
+        isUploadingFiles ? (
           <Box
             $direction="row"
             $align="start"
@@ -851,10 +881,10 @@ export const Chat = ({
           >
             <Loader />
             <Text $variation="600" $size="md">
-              {t('Thinking...')}
+              {isUploadingFiles ? t('Uploading files...') : t('Thinking...')}
             </Text>
           </Box>
-        )}
+        ) : null}
         {status === 'error' && (
           <Box
             $direction={isMobile ? 'column' : 'row'}
@@ -906,6 +936,7 @@ export const Chat = ({
           onToggleWebSearch={toggleWebSearch}
           selectedModel={selectedModel}
           onModelSelect={handleModelSelect}
+          isUploadingFiles={isUploadingFiles}
         />
       </Box>
       <Modal
