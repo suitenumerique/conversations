@@ -6,22 +6,21 @@ import { PropsWithChildren } from 'react';
 import NewChatIcon from '@/assets/icons/new-message-bold.svg';
 import { Box, SeparatedSection } from '@/components';
 import { useAuth } from '@/features/auth';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { SettingsButton } from '@/features/settings';
 import { useResponsiveStore } from '@/stores';
-
-import { useLeftPanelStore } from '../stores';
 
 export const LeftPanelHeader = ({ children }: PropsWithChildren) => {
   const router = useRouter();
   const { authenticated } = useAuth();
   const { isDesktop } = useResponsiveStore();
 
-  const { togglePanel } = useLeftPanelStore();
+  const { setPanelOpen } = useChatPreferencesStore();
 
   const goToHome = () => {
     router.push('/');
     if (!isDesktop) {
-      togglePanel(false);
+      setPanelOpen(false);
     }
   };
 

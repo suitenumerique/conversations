@@ -8,6 +8,7 @@ and this project adheres to
 
 ## [Unreleased]
 
+🐛(front) fix left panel status + fix scroll
 -🐛(llm) add is_active field and persist chat preference
 
 ### Changed
