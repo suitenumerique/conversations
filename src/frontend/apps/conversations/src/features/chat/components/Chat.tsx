@@ -9,8 +9,9 @@ import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import Markdown from 'react-markdown';
+import { MarkdownHooks } from 'react-markdown';
 import rehypeKatex from 'rehype-katex';
+import rehypePrettyCode from 'rehype-pretty-code';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
@@ -604,9 +605,17 @@ export const Chat = ({
                       {/* Message content */}
                       {message.content && (
                         <Box $padding={{ all: 'xxs' }}>
-                          <Markdown
+                          <MarkdownHooks
                             remarkPlugins={[remarkGfm, remarkMath]}
-                            rehypePlugins={[rehypeKatex]}
+                            rehypePlugins={[
+                              [
+                                rehypePrettyCode,
+                                {
+                                  theme: 'github-dark-dimmed',
+                                },
+                              ],
+                              rehypeKatex,
+                            ]}
                             components={{
                               // Custom components for Markdown rendering
                               // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -621,7 +630,7 @@ export const Chat = ({
                             }}
                           >
                             {message.content}
-                          </Markdown>
+                          </MarkdownHooks>
                         </Box>
                       )}
 

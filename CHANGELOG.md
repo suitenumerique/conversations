@@ -54,6 +54,7 @@ and this project adheres to
 - 🐛(web-search) add summarization to Brave results #58
 - ✨(langfuse) allow user to score messages from LLM #6
 - ✨(onboarding) add activation code logic for launch #62
+- 💄(chat) add code highlighting for LLM responses #67
 
 
 [unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main
