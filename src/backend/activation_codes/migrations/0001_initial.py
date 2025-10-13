@@ -165,4 +165,64 @@ class Migration(migrations.Migration):
                 "ordering": ["-created_at"],
             },
         ),
+        migrations.CreateModel(
+            name="UserRegistrationRequest",
+            fields=[
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        help_text="primary key for the record as UUID",
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="id",
+                    ),
+                ),
+                (
+                    "created_at",
+                    models.DateTimeField(
+                        auto_now_add=True,
+                        help_text="date and time at which a record was created",
+                        verbose_name="created on",
+                    ),
+                ),
+                (
+                    "updated_at",
+                    models.DateTimeField(
+                        auto_now=True,
+                        help_text="date and time at which a record was last updated",
+                        verbose_name="updated on",
+                    ),
+                ),
+                (
+                    "user",
+                    models.OneToOneField(
+                        help_text="The user who made the registration request",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="registration_request",
+                        to=settings.AUTH_USER_MODEL,
+                        verbose_name="user",
+                    ),
+                ),
+                (
+                    "user_activation",
+                    models.OneToOneField(
+                        blank=True,
+                        help_text="Store if the user received an activation code and used it",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="registration_request",
+                        to="activation_codes.useractivation",
+                        verbose_name="user activation",
+                    ),
+                ),
+            ],
+            options={
+                "verbose_name": "user registration request",
+                "verbose_name_plural": "user registration requests",
+                "db_table": "user_registration_request",
+                "ordering": ["-created_at"],
+            },
+        ),
     ]

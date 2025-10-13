@@ -11,7 +11,7 @@ from rest_framework import status
 from core.factories import UserFactory
 
 from activation_codes.factories import ActivationCodeFactory, UserActivationFactory
-from activation_codes.models import ActivationCode, UserActivation
+from activation_codes.models import ActivationCode, UserActivation, UserRegistrationRequest
 
 
 @pytest.mark.django_db
@@ -254,3 +254,70 @@ def test_validate_code_logging_on_validation_error(api_client):
 
     # Note: In this case the serializer will catch it first
     # so the warning might not be called, but this tests the flow
+
+
+@pytest.mark.django_db
+def test_unauthenticated_register_email(api_client):
+    """Test that unauthenticated users cannot register email."""
+    response = api_client.post(
+        "/api/v1.0/activation/register/",
+        {
+            "email": "test@example.com",
+        },
+    )
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.django_db
+def test_register_email_success(api_client):
+    """Test successfully registering an email."""
+    user = UserFactory()
+    api_client.force_authenticate(user=user)
+
+    response = api_client.post(
+        "/api/v1.0/activation/register/",
+        {},
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.data["code"] == "registration-successful"
+
+    registration = UserRegistrationRequest.objects.get(user=user)
+    assert registration.user == user
+
+
+@pytest.mark.django_db
+def test_register_already_created(api_client):
+    """Test successfully registering an email."""
+    user = UserFactory()
+    _registration = UserRegistrationRequest.objects.create(
+        user=user,
+    )
+
+    api_client.force_authenticate(user=user)
+
+    response = api_client.post(
+        "/api/v1.0/activation/register/",
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data == {"code": "registration-successful"}
+
+    assert UserRegistrationRequest.objects.filter(user=user).count() == 1
+
+
+@pytest.mark.django_db
+def test_validate_code_registered_user(api_client):
+    """Test validating a code for a user with a pre-existing registration."""
+    user = UserFactory()
+    _registration = UserRegistrationRequest.objects.create(
+        user=user,
+    )
+    activation_code = ActivationCodeFactory(code="TEST1234ABCD5678")
+
+    api_client.force_authenticate(user=user)
+
+    response = api_client.post("/api/v1.0/activation/validate/", {"code": "TEST1234ABCD5678"})
+
+    assert response.status_code == status.HTTP_201_CREATED
+
+    _registration.refresh_from_db()
+    assert _registration.user_activation.activation_code == activation_code

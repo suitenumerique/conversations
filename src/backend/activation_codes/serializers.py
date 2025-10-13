@@ -38,3 +38,13 @@ class ActivationStatusSerializer(serializers.Serializer):  # pylint: disable=abs
     is_activated = serializers.BooleanField(read_only=True)
     activation = UserActivationSerializer(read_only=True, allow_null=True)
     requires_activation = serializers.BooleanField(read_only=True)
+
+
+class UserRegistrationRequestSerializer(serializers.ModelSerializer):
+    """Serializer for registering a user for activation notifications."""
+
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+
+    class Meta:
+        model = models.UserRegistrationRequest
+        fields = ["user"]

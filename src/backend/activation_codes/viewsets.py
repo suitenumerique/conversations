@@ -3,6 +3,7 @@
 import logging
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from rest_framework import status, viewsets
@@ -24,6 +25,7 @@ class ActivationViewSet(viewsets.GenericViewSet):
     Endpoints:
     - GET /activation/status/ - Check if current user is activated
     - POST /activation/validate/ - Validate and use an activation code
+    - POST /activation/register/ - Register an email to be notified later
     """
 
     permission_classes = [IsAuthenticated]
@@ -104,5 +106,43 @@ class ActivationViewSet(viewsets.GenericViewSet):
                 "detail": _("Your account has been successfully activated"),
                 "activation": serializers.UserActivationSerializer(activation).data,
             },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=False, methods=["post"], url_path="register")
+    def register_email(self, request):
+        """
+        Register an email to be notified when activation codes are available.
+
+        Request body:
+            - email: The email address to register
+
+        Returns:
+            - Success: Confirmation message
+            - Error: Validation error message
+        """
+        serializer = serializers.UserRegistrationRequestSerializer(
+            data={},
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        # Create the registration
+        try:
+            serializer.save()
+        except ValidationError:
+            # user is already registered, it's OK
+            return Response(
+                {"code": "registration-successful"},
+                status=status.HTTP_200_OK,
+            )
+
+        logger.info(
+            "Registered email %s for activation notifications",
+            serializer.validated_data["user"].email,
+        )
+
+        return Response(
+            {"code": "registration-successful"},
             status=status.HTTP_201_CREATED,
         )

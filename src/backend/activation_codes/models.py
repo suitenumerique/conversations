@@ -127,6 +127,8 @@ class ActivationCode(BaseModel):
                     _("You have already activated your account")
                 ) from exc
 
+            UserRegistrationRequest.objects.filter(user=user).update(user_activation=activation)
+
             # Increment usage counter safely under the same lock.
             locked_code.current_uses += 1
             locked_code.save(update_fields=["current_uses", "updated_at"])
@@ -139,7 +141,7 @@ class ActivationCode(BaseModel):
 
 class UserActivation(BaseModel):
     """
-    Records which user used which activation code and when.
+    Records with user used which activation code and when.
     """
 
     user = models.OneToOneField(
@@ -167,3 +169,37 @@ class UserActivation(BaseModel):
     def __str__(self):
         """Return string representation of the user activation."""
         return f"{self.user} - {self.activation_code.code}"
+
+
+class UserRegistrationRequest(BaseModel):
+    """
+    Records of user registration requests.
+    """
+
+    user = models.OneToOneField(
+        User,
+        verbose_name=_("user"),
+        help_text=_("The user who made the registration request"),
+        on_delete=models.CASCADE,
+        related_name="registration_request",
+    )
+
+    user_activation = models.OneToOneField(
+        UserActivation,
+        verbose_name=_("user activation"),
+        help_text=_("Store if the user received an activation code and used it"),
+        on_delete=models.SET_NULL,
+        related_name="registration_request",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "user_registration_request"
+        verbose_name = _("user registration request")
+        verbose_name_plural = _("user registration requests")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        """Return string representation of the user registration request."""
+        return f"Registration request by {self.user}"

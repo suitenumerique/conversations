@@ -235,3 +235,42 @@ class UserActivationAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         """Disable manual creation of user activations."""
         return False
+
+
+@admin.register(models.UserRegistrationRequest)
+class UserRegistrationRequestAdmin(admin.ModelAdmin):
+    """Admin class for UserRegistrationRequest model"""
+
+    list_display = (
+        "user_display",
+        "created_at",
+        "has_user_activation",
+    )
+
+    readonly_fields = (
+        "id",
+        "user",
+        "created_at",
+        "updated_at",
+        "user_activation",
+    )
+
+    search_fields = (
+        "user__email",
+        "user__full_name",
+    )
+
+    list_filter = ("created_at",)
+
+    def user_display(self, obj):
+        """Display user's full name."""
+        return obj.user.email or str(obj.user.pk)
+
+    user_display.short_description = _("User")
+
+    def has_user_activation(self, obj):
+        """Indicate if the user has used an activation code."""
+        return obj.user_activation_id is not None
+
+    has_user_activation.boolean = True
+    has_user_activation.short_description = _("Has used activation code")
