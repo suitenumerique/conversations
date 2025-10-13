@@ -59,6 +59,10 @@ nextjs-portal {
   font-weight: 500;
 }
 
+.c__button--tertiary {
+  border: 1px solid var(--c--theme--colors--greyscale-150) !important;
+}
+
 .c__button--bordered,
 .c__button--bordered:hover,
 .c__button--bordered:focus {
@@ -188,7 +192,15 @@ ul a:hover {
 }
 
 .c__button--feedback {
+  margin-left: 16px;
+
   @media (width <= 1150px) {
     display: none !important;
+  }
+}
+
+@media screen and (width <= 420px) {
+  .c__modal__scroller {
+    padding: 1.5rem !important;
   }
 }
