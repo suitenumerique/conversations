@@ -32,9 +32,6 @@ def ai_settings(settings):
     settings.AI_API_KEY = "test-api-key"
     settings.AI_MODEL = "test-model"
 
-    # Disable web search backend for tests
-    settings.RAG_WEB_SEARCH_BACKEND = None
-
     return settings
 
 
