@@ -30,6 +30,9 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
     match configuration.provider.kind:
         case "mistral":
             import pydantic_ai.models.mistral as mistral_models  # noqa: PLC0415
+            from mistralai import TextChunk as MistralTextChunk  # noqa: PLC0415
+            from mistralai import ThinkChunk as MistralThinkChunk  # noqa: PLC0415
+            from mistralai.types.basemodel import Unset as MistralUnset  # noqa: PLC0415
             from pydantic_ai.providers.mistral import MistralProvider  # noqa: PLC0415
 
             # --- Monkey patch for pydantic_ai.models.mistral._map_content ---
@@ -47,12 +50,44 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
             if not getattr(mistral_models, "__safe_map_patched__", False):
                 _original_map_content = mistral_models._map_content  # noqa: SLF001
 
-                def _safe_map_content(*args, **kwargs):
-                    try:
-                        return _original_map_content(*args, **kwargs)
-                    except AssertionError as exc:
-                        logger.debug("Caught exception in _map_content: %s", exc)
+                def _safe_map_content(content):
+                    """
+                    A safe version of _map_content that ignores unsupported data types.
+
+                    WARNING: this is a monkey patch and may break if the original
+                    function changes in future versions of pydantic_ai.
+                    Current version: pydantic_ai v1.0.18
+                    """
+                    text: str | None = None
+                    thinking: list[str] = []
+
+                    if isinstance(content, MistralUnset) or not content:
                         return None, []
+
+                    if isinstance(content, list):
+                        for chunk in content:
+                            if isinstance(chunk, MistralTextChunk):
+                                text = (text or "") + chunk.text
+                            elif isinstance(chunk, MistralThinkChunk):
+                                for thought in chunk.thinking:
+                                    if thought.type == "text":  # pragma: no branch
+                                        thinking.append(thought.text)
+                            else:
+                                logger.info(  # pragma: no cover
+                                    "Other data types like (Image, Reference) are not yet "
+                                    "supported,  got %s",
+                                    type(chunk),
+                                )
+                    elif isinstance(content, str):
+                        text = content
+
+                    # Note: Check len to handle potential mismatch between function calls and
+                    # responses from the API.
+                    # (`msg: not the same number of function class and responses`)
+                    if text == "":  # pragma: no cover
+                        text = None
+
+                    return text, thinking
 
                 # Replace the original module-level function
                 mistral_models._map_content = _safe_map_content  # noqa: SLF001
