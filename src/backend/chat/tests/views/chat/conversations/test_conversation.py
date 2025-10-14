@@ -697,6 +697,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
             "parts": [
                 {
                     "args": '{"location":"Paris", "unit":"celsius"}',
+                    "id": None,
                     "part_kind": "tool-call",
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
                     "tool_name": "get_current_weather",
@@ -905,6 +906,7 @@ def test_post_conversation_tool_call_fails(
             "parts": [
                 {
                     "args": '{"location":"Paris", "unit":"celsius"}',
+                    "id": None,
                     "part_kind": "tool-call",
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
                     "tool_name": "get_current_weather",

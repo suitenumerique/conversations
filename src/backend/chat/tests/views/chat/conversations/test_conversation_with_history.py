@@ -1364,6 +1364,7 @@ def test_post_conversation_with_existing_tool_history(
         "parts": [
             {
                 "args": '{"location":"Paris", "unit":"celsius"}',
+                "id": None,
                 "part_kind": "tool-call",
                 "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
                 "tool_name": "get_current_weather",
