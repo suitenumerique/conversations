@@ -119,6 +119,27 @@ def _query_brave_api(query: str) -> List[dict]:
     return json_response.get("web", {}).get("results", [])
 
 
+def format_tool_return(raw_search_results: List[dict]) -> ToolReturn:
+    """Format the raw search results into a ToolReturn object."""
+    return ToolReturn(
+        # Format return value "mistral-like": https://docs.mistral.ai/capabilities/citations/
+        return_value={
+            str(idx): {
+                "url": result["url"],
+                "title": result["title"],
+                "snippets": result.get("extra_snippets", []),
+            }
+            for idx, result in enumerate(raw_search_results)
+            if result.get("extra_snippets", [])
+        },
+        metadata={
+            "sources": {
+                result["url"] for result in raw_search_results if result.get("extra_snippets", [])
+            }
+        },
+    )
+
+
 def web_search_brave(query: str) -> ToolReturn:
     """
     Search the web for up-to-date information
@@ -154,17 +175,7 @@ def web_search_brave(query: str) -> ToolReturn:
                     idx = future_map[future]
                     raw_search_results[idx]["extra_snippets"] = future.result()
 
-    return ToolReturn(
-        return_value=[
-            {
-                "link": result["url"],
-                "title": result["title"],
-                "extra_snippets": result.get("extra_snippets", []),
-            }
-            for result in raw_search_results
-        ],
-        metadata={"sources": {result["url"] for result in raw_search_results}},
-    )
+    return format_tool_return(raw_search_results)
 
 
 def web_search_brave_with_document_backend(ctx: RunContext, query: str) -> ToolReturn:
@@ -214,19 +225,4 @@ def web_search_brave_with_document_backend(ctx: RunContext, query: str) -> ToolR
                     result.setdefault("extra_snippets", []).append(rag_result.content)
                     break
 
-    return ToolReturn(
-        return_value=[
-            {
-                "link": result["url"],
-                "title": result["title"],
-                "extra_snippets": result.get("extra_snippets", []),
-            }
-            for result in raw_search_results
-            if result.get("extra_snippets", [])
-        ],
-        metadata={
-            "sources": {
-                result["url"] for result in raw_search_results if result.get("extra_snippets", [])
-            }
-        },
-    )
+    return format_tool_return(raw_search_results)

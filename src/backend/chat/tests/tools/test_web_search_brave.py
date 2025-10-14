@@ -69,18 +69,14 @@ def test_agent_web_search_brave_success_with_extra_snippets():
         tool_return = web_search_brave("test query")
 
     assert hasattr(tool_return, "return_value")
-    assert tool_return.return_value == [
-        {
-            "link": "https://example.com/a",
+    assert tool_return.return_value == {
+        "0": {
+            "snippets": ["Snippet A1", "Snippet A2"],
             "title": "Result A",
-            "extra_snippets": ["Snippet A1", "Snippet A2"],
+            "url": "https://example.com/a",
         },
-        {
-            "link": "https://example.com/b",
-            "title": "Result B",
-            "extra_snippets": ["Snippet B1"],
-        },
-    ]
+        "1": {"snippets": ["Snippet B1"], "title": "Result B", "url": "https://example.com/b"},
+    }
     assert tool_return.metadata["sources"] == {"https://example.com/a", "https://example.com/b"}
 
     # Check request parameters
@@ -120,13 +116,13 @@ def test_agent_web_search_brave_success_without_extra_snippets():
         )
         tool_return = web_search_brave("test query")
 
-    assert tool_return.return_value == [
-        {
-            "link": "https://example.com/c",
+    assert tool_return.return_value == {
+        "0": {
+            "snippets": ["Extracted Content C\nlink"],
             "title": "Result C",
-            "extra_snippets": ["Extracted Content C\nlink"],
+            "url": "https://example.com/c",
         }
-    ]
+    }
     assert tool_return.metadata["sources"] == {"https://example.com/c"}
 
 
@@ -159,13 +155,13 @@ def test_agent_web_search_brave_success_without_extra_snippets_summarization(set
 
             mock_llm_summarize.assert_called_with("test query", "Extracted Content C\nlink")
 
-    assert tool_return.return_value == [
-        {
-            "link": "https://example.com/c",
+    assert tool_return.return_value == {
+        "0": {
+            "snippets": ["Summarized extracted Content C\nlink"],
             "title": "Result C",
-            "extra_snippets": ["Summarized extracted Content C\nlink"],
+            "url": "https://example.com/c",
         }
-    ]
+    }
     assert tool_return.metadata["sources"] == {"https://example.com/c"}
 
 
@@ -179,7 +175,7 @@ def test_agent_web_search_brave_empty_results():
         status=200,
     )
     tool_return = web_search_brave("empty query")
-    assert tool_return.return_value == []
+    assert tool_return.return_value == {}
     assert tool_return.metadata["sources"] == set()
 
 
@@ -282,7 +278,7 @@ def test_agent_web_search_brave_single_worker(settings):
         tool_return = web_search_brave("single worker query")
 
     assert len(tool_return.return_value) == 1
-    assert tool_return.return_value[0]["extra_snippets"] == ["Single Content"]
+    assert tool_return.return_value["0"]["snippets"] == ["Single Content"]
 
 
 @responses.activate
@@ -377,10 +373,10 @@ def test_web_search_brave_with_document_backend_success():
             tool_return = web_search_brave_with_document_backend(mock_ctx, "rag query")
 
     assert len(tool_return.return_value) == 2
-    assert tool_return.return_value[0]["link"] == "https://example.com/doc1"
-    assert tool_return.return_value[0]["extra_snippets"] == ["RAG Content 1"]
-    assert tool_return.return_value[1]["link"] == "https://example.com/doc2"
-    assert tool_return.return_value[1]["extra_snippets"] == ["RAG Content 2"]
+    assert tool_return.return_value["0"]["url"] == "https://example.com/doc1"
+    assert tool_return.return_value["0"]["snippets"] == ["RAG Content 1"]
+    assert tool_return.return_value["1"]["url"] == "https://example.com/doc2"
+    assert tool_return.return_value["1"]["snippets"] == ["RAG Content 2"]
     assert tool_return.metadata["sources"] == {
         "https://example.com/doc1",
         "https://example.com/doc2",
@@ -471,7 +467,7 @@ def test_web_search_brave_with_document_backend_fetch_error(settings):
             tool_return = web_search_brave_with_document_backend(mock_ctx, "error query")
 
     # Should complete despite error (error is caught and logged in multi-worker path)
-    assert tool_return.return_value == []
+    assert tool_return.return_value == {}
 
 
 @responses.activate
@@ -517,7 +513,7 @@ def test_web_search_brave_with_document_backend_no_matching_rag_results():
             tool_return = web_search_brave_with_document_backend(mock_ctx, "query")
 
     # No results should be returned since RAG URL doesn't match search results
-    assert tool_return.return_value == []
+    assert tool_return.return_value == {}
     assert tool_return.metadata["sources"] == set()
 
 
