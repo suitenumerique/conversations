@@ -22,6 +22,12 @@
       "allowedVersions": "==0.0.2"
     },
     {
+      "groupName": "ignore recent pylint versions not supported by pylint-django",
+      "matchManagers": ["pep621"],
+      "matchPackageNames": ["pylint"],
+      "allowedVersions": "<4"
+    },
+    {
       "enabled": false,
       "groupName": "ignored js dependencies",
       "matchManagers": ["npm"],
