@@ -4,6 +4,7 @@ import { PropsWithChildren } from 'react';
 import { Box, Loader } from '@/components';
 import { useConfig } from '@/core';
 
+import { useActivationStatus } from '../api/useActivationStatus';
 import { HOME_URL } from '../conf';
 import { useAuth } from '../hooks';
 import { getAuthUrl, gotoLogin } from '../utils';
@@ -13,6 +14,8 @@ export const Auth = ({ children }: PropsWithChildren) => {
     useAuth();
   const { replace, pathname } = useRouter();
   const { data: config } = useConfig();
+  const { data: activationStatus, isLoading: isActivationLoading } =
+    useActivationStatus();
 
   if (isLoading && !isFetchedAfterMount) {
     return (
@@ -64,6 +67,35 @@ export const Auth = ({ children }: PropsWithChildren) => {
         <Loader />
       </Box>
     );
+  }
+
+  /**
+   * Activation check: If user is authenticated, config requires activation, and user is not activated,
+   * redirect to activation page (unless already on activation page).
+   */
+  if (
+    authenticated &&
+    config?.ACTIVATION_REQUIRED &&
+    pathname !== '/activation'
+  ) {
+    // Show loading while checking activation status
+    if (isActivationLoading) {
+      return (
+        <Box $height="100vh" $width="100vw" $align="center" $justify="center">
+          <Loader />
+        </Box>
+      );
+    }
+
+    // If activation is required but user is not activated, redirect to activation page
+    if (activationStatus && !activationStatus.is_activated) {
+      void replace('/activation');
+      return (
+        <Box $height="100vh" $width="100vw" $align="center" $justify="center">
+          <Loader />
+        </Box>
+      );
+    }
   }
 
   return children;

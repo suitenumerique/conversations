@@ -8,12 +8,14 @@ from rest_framework.routers import DefaultRouter
 
 from core.api import viewsets
 
+from activation_codes import viewsets as activation_viewsets
 from chat.views import ChatViewSet, LLMConfigurationView
 
 # - Main endpoints
 router = DefaultRouter()
 router.register("users", viewsets.UserViewSet, basename="users")
 router.register("chats", ChatViewSet, basename="chats")
+router.register("activation", activation_viewsets.ActivationViewSet, basename="activation")
 
 urlpatterns = [
     path(

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 // import IconAssistant from '@/assets/logo/assistant.svg';
-import IconAssistant from '@/assets/logo/logo-alpha.svg';
+import IconAssistant from '@/assets/logo/logo-beta.svg';
 import { Box, Icon, Text } from '@/components';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
@@ -81,7 +81,7 @@ export default function HomeBanner() {
           </Text>*/}
           <Text $variation="500">
             {t(
-              'You are accessing an alpha version, tested internally, with limited scope and likely to contain bugs. Your feedback is essential to improve it. By clicking on "Participate", you agree to the analysis of your usage data to optimize the application; this analysis can be disabled at any time.',
+              'A privacy-first assistant built for French public teams. Natively synced with LaSuite apps to help you draft, search, and decide without leaving your workflow. Beta access is available with a referral code.',
             )}
           </Text>
 
@@ -89,10 +89,10 @@ export default function HomeBanner() {
             {withProConnect ? (
               // <ProConnectButton />
               <Button
+                fullWidth={isMobile ? true : false}
                 onClick={() => gotoLogin()}
-                icon={<Icon iconName="login" $color="white" />}
               >
-                {t('Participate in the alpha')}
+                {t('Login')}
               </Button>
             ) : (
               <Button
@@ -104,12 +104,12 @@ export default function HomeBanner() {
             )}
 
             <Button
+              fullWidth={isMobile ? true : false}
               href="https://docs.numerique.gouv.fr/docs/c03a6267-c500-490c-9ab3-bbf4855d6f0b/"
-              color="secondary"
+              color="tertiary"
               target="_blank"
-              icon={<Icon iconName="info" $color="inherit" />}
             >
-              {t('Learn more')}
+              {t('Know more')}
             </Button>
           </Box>
         </Box>

@@ -40,6 +40,9 @@ const customColors = {
 tokens.themes.default.theme = {
   ...tokens.themes.default.theme,
   ...{
+    modal: {
+      'width-small': '360px',
+    },
     logo: {
       src: '',
       alt: '',
@@ -267,7 +270,24 @@ const dsfrTheme = {
           'border--color-hover': '#C8D3FF',
         },
         tertiary: {
+          'background--color': 'transparent',
+          'background--color-hover': '#f2f5f4',
+          'background--color-active': '#CFD5DE',
+          'background--color-disabled': '#eee',
           color: '#3E5DE7',
+          'color-hover': '#3E5DE7',
+          'border--color': '#CFD5DE',
+          'border--color-hover': '#CFD5DE',
+        },
+        bordered: {
+          'background--color': 'transparent',
+          'background--color-hover': '#f2f5f4',
+          'background--color-active': '#CFD5DE',
+          'background--color-disabled': '#eee',
+          color: '#3E5DE7',
+          'color-hover': '#3E5DE7',
+          'border--color': '#CFD5DE',
+          'border--color-hover': '#CFD5DE',
         },
         info: {
           'background--color': '#cfe5ff',
@@ -433,6 +453,9 @@ const genericTheme = {
             'color-focus': 'var(--c--theme--colors--primary-focus)',
           },
         },
+      },
+      modal: {
+        'width-small': '360px',
       },
       'image-system-filter': 'saturate(0.2)',
     },

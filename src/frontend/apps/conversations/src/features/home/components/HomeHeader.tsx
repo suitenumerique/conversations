@@ -66,7 +66,7 @@ export const HomeHeader = () => {
         >
           <Logo
             aria-label={t('{{productName}} Logo', { productName })}
-            width={188}
+            width={139}
             color={colorsTokens['primary-text']}
           />
         </Box>

@@ -192,6 +192,7 @@
   --c--theme--breakpoints--xxs: 320px;
   --c--theme--breakpoints--mobile: 768px;
   --c--theme--breakpoints--tablet: 1024px;
+  --c--theme--modal--width-small: 360px;
   --c--theme--logo--src: ;
   --c--theme--logo--alt: ;
   --c--theme--logo--widthheader: ;
@@ -661,7 +662,22 @@
   --c--components--button--secondary--disabled: #7c7c7c;
   --c--components--button--secondary--border--color: #dae2ff;
   --c--components--button--secondary--border--color-hover: #c8d3ff;
+  --c--components--button--tertiary--background--color: transparent;
+  --c--components--button--tertiary--background--color-hover: #f2f5f4;
+  --c--components--button--tertiary--background--color-active: #cfd5de;
+  --c--components--button--tertiary--background--color-disabled: #eee;
   --c--components--button--tertiary--color: #3e5de7;
+  --c--components--button--tertiary--color-hover: #3e5de7;
+  --c--components--button--tertiary--border--color: #cfd5de;
+  --c--components--button--tertiary--border--color-hover: #cfd5de;
+  --c--components--button--bordered--background--color: transparent;
+  --c--components--button--bordered--background--color-hover: #f2f5f4;
+  --c--components--button--bordered--background--color-active: #cfd5de;
+  --c--components--button--bordered--background--color-disabled: #eee;
+  --c--components--button--bordered--color: #3e5de7;
+  --c--components--button--bordered--color-hover: #3e5de7;
+  --c--components--button--bordered--border--color: #cfd5de;
+  --c--components--button--bordered--border--color-hover: #cfd5de;
   --c--components--button--info--background--color: #cfe5ff;
   --c--components--button--info--background--color-hover: #b7d7ff;
   --c--components--button--info--color: #265eaa;
@@ -810,6 +826,7 @@
   --c--components--button--primary--background--color-focus: var(
     --c--theme--colors--primary-focus
   );
+  --c--components--modal--width-small: 360px;
   --c--components--image-system-filter: saturate(0.2);
 }
 
