@@ -2,11 +2,11 @@ import { Button } from '@openfun/cunningham-react';
 import { useTranslation } from 'react-i18next';
 
 import LeftPanelIcon from '@/assets/icons/left-panel-bold.svg';
-import { useLeftPanelStore } from '@/features/left-panel';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 
 export const ButtonToggleLeftPanel = () => {
   const { t } = useTranslation();
-  const { isPanelOpen: _isPanelOpen, togglePanel } = useLeftPanelStore();
+  const { togglePanel } = useChatPreferencesStore();
 
   return (
     <Button

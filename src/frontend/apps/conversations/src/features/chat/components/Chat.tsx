@@ -119,7 +119,6 @@ export const Chat = ({
     setChatContainerRef(chatContainerRef);
   }, []);
 
-  // Détecter si l'utilisateur scroll vers le haut
   useEffect(() => {
     const container = chatContainerRef.current;
     if (!container) {
@@ -127,6 +126,11 @@ export const Chat = ({
     }
 
     const handleScroll = () => {
+      // Ignorer les scrolls automatiques
+      if (isAutoScrollingRef.current) {
+        return;
+      }
+
       const { scrollTop, scrollHeight, clientHeight } = container;
       const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
 
@@ -154,6 +158,7 @@ export const Chat = ({
     number | null
   >(null);
   const [userScrolledUp, setUserScrolledUp] = useState(false);
+  const isAutoScrollingRef = useRef(false);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
 
@@ -195,10 +200,14 @@ export const Chat = ({
   // Scroll to bottom when new messages arrive
   const scrollToBottom = useCallback(() => {
     if (chatContainerRef.current) {
+      isAutoScrollingRef.current = true;
       chatContainerRef.current.scrollTo({
         top: chatContainerRef.current.scrollHeight,
         behavior: hasInitialized ? 'smooth' : 'auto',
       });
+      setTimeout(() => {
+        isAutoScrollingRef.current = false;
+      }, 500);
     }
   }, [hasInitialized]);
 
@@ -314,10 +323,14 @@ export const Chat = ({
           if (lastUserMessageElement) {
             const messageTop = (lastUserMessageElement as HTMLElement)
               .offsetTop;
+            isAutoScrollingRef.current = true;
             chatContainerRef.current.scrollTo({
               top: messageTop,
               behavior: 'smooth',
             });
+            setTimeout(() => {
+              isAutoScrollingRef.current = false;
+            }, 500);
           }
         }
       }
@@ -394,10 +407,14 @@ export const Chat = ({
 
             setTimeout(() => {
               if (chatContainerRef.current) {
+                isAutoScrollingRef.current = true;
                 chatContainerRef.current.scrollTo({
                   top: chatContainerRef.current.scrollHeight,
                   behavior: 'auto',
                 });
+                setTimeout(() => {
+                  isAutoScrollingRef.current = false;
+                }, 100);
               }
             }, 100);
           }
@@ -638,7 +655,7 @@ export const Chat = ({
                               ) : null,
                           )}
                       </Box>
-                      {message.role !== 'user' && !isCurrentlyStreaming && (
+                      {message.role !== 'user' && status !== 'streaming' && (
                         <Box
                           $css="color: #222631; font-size: 12px;"
                           $direction="row"
@@ -647,78 +664,80 @@ export const Chat = ({
                           $gap="6px"
                           $margin={{ top: 'base' }}
                         >
-                          <Box
-                            $direction="row"
-                            $align="center"
-                            $gap="4px"
-                            className="c__button--neutral action-chat-button"
-                            onClick={() => copyToClipboard(message.content)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                copyToClipboard(message.content);
-                              }
-                            }}
-                            role="button"
-                            tabIndex={0}
-                          >
-                            <Icon
-                              iconName="content_copy"
-                              $theme="greyscale"
-                              $variation="550"
-                              $size="16px"
-                              className="action-chat-button-icon"
-                            />
-                            {!isMobile && (
-                              <Text $theme="greyscale" $variation="550">
-                                {t('Copy')}
-                              </Text>
-                            )}
-                          </Box>
-                          {message.parts?.some(
-                            (part) => part.type === 'source',
-                          ) &&
-                            (() => {
-                              const sourceCount =
-                                message.parts?.filter(
-                                  (part) => part.type === 'source',
-                                ).length || 0;
-                              return (
-                                <Box
-                                  $direction="row"
-                                  $align="center"
-                                  $gap="4px"
-                                  className={`c__button--neutral action-chat-button ${isSourceOpen ? 'action-chat-button--open' : ''}`}
-                                  onClick={() => openSources(message.id)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      openSources(message.id);
-                                    }
-                                  }}
-                                  role="button"
-                                  tabIndex={0}
-                                >
-                                  <Icon
-                                    iconName="book"
-                                    $theme="greyscale"
-                                    $variation="550"
-                                    $size="16px"
-                                    className="action-chat-button-icon"
-                                  />
-                                  <Text
-                                    $theme="greyscale"
-                                    $variation="550"
-                                    $weight="500"
-                                    $size="12px"
+                          <Box $direction="row" $gap="4px">
+                            <Box
+                              $direction="row"
+                              $align="center"
+                              $gap="4px"
+                              className="c__button--neutral action-chat-button"
+                              onClick={() => copyToClipboard(message.content)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  copyToClipboard(message.content);
+                                }
+                              }}
+                              role="button"
+                              tabIndex={0}
+                            >
+                              <Icon
+                                iconName="content_copy"
+                                $theme="greyscale"
+                                $variation="550"
+                                $size="16px"
+                                className="action-chat-button-icon"
+                              />
+                              {!isMobile && (
+                                <Text $theme="greyscale" $variation="550">
+                                  {t('Copy')}
+                                </Text>
+                              )}
+                            </Box>
+                            {message.parts?.some(
+                              (part) => part.type === 'source',
+                            ) &&
+                              (() => {
+                                const sourceCount =
+                                  message.parts?.filter(
+                                    (part) => part.type === 'source',
+                                  ).length || 0;
+                                return (
+                                  <Box
+                                    $direction="row"
+                                    $align="center"
+                                    $gap="4px"
+                                    className={`c__button--neutral action-chat-button ${isSourceOpen ? 'action-chat-button--open' : ''}`}
+                                    onClick={() => openSources(message.id)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        openSources(message.id);
+                                      }
+                                    }}
+                                    role="button"
+                                    tabIndex={0}
                                   >
-                                    {t('Show') +
-                                      ` ${sourceCount} ` +
-                                      t('sources')}
-                                  </Text>
-                                </Box>
-                              );
-                            })()}
+                                    <Icon
+                                      iconName="book"
+                                      $theme="greyscale"
+                                      $variation="550"
+                                      $size="16px"
+                                      className="action-chat-button-icon"
+                                    />
+                                    <Text
+                                      $theme="greyscale"
+                                      $variation="550"
+                                      $weight="500"
+                                      $size="12px"
+                                    >
+                                      {t('Show') +
+                                        ` ${sourceCount} ` +
+                                        t('sources')}
+                                    </Text>
+                                  </Box>
+                                );
+                              })()}
+                          </Box>
                           <Box $direction="row" $gap="4px">
                             {/* We should display the button, but disabled if no trace linked */}
                             {conversationId &&

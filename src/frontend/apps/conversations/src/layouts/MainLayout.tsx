@@ -3,9 +3,9 @@ import { css } from 'styled-components';
 
 import { Box } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { Header } from '@/features/header';
 import { LeftPanel } from '@/features/left-panel';
-import { useLeftPanelStore } from '@/features/left-panel/stores';
 import { MAIN_LAYOUT_ID } from '@/layouts/conf';
 import { useResponsiveStore } from '@/stores';
 
@@ -19,7 +19,7 @@ export function MainLayout({
 }: PropsWithChildren<MainLayoutProps>) {
   const { isDesktop } = useResponsiveStore();
   const { colorsTokens } = useCunninghamTheme();
-  const { togglePanel: _togglePanel, isPanelOpen } = useLeftPanelStore();
+  const { isPanelOpen } = useChatPreferencesStore();
 
   const HEADER_HEIGHT = `${isDesktop ? '65' : '52'}`;
 

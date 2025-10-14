@@ -1,15 +1,13 @@
-import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { createGlobalStyle, css } from 'styled-components';
 
 import { Box, SeparatedSection } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { ButtonLogin } from '@/features/auth';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { LanguagePicker } from '@/features/language';
 import { SettingsButton } from '@/features/settings';
 import { useResponsiveStore } from '@/stores';
-
-import { useLeftPanelStore } from '../stores';
 
 import { LeftPanelContent } from './LeftPanelContent';
 import { LeftPanelHeader } from './LeftPanelHeader';
@@ -24,13 +22,12 @@ export const LeftPanel = () => {
   const { isDesktop } = useResponsiveStore();
 
   const { colorsTokens, spacingsTokens } = useCunninghamTheme();
-  const { togglePanel, isPanelOpen } = useLeftPanelStore();
-
-  const pathname = usePathname();
+  const { setPanelOpen, isPanelOpen } = useChatPreferencesStore();
 
   useEffect(() => {
-    togglePanel(isDesktop ? true : false);
-  }, [pathname, togglePanel, isDesktop]);
+    setPanelOpen(isDesktop ? true : false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDesktop]);
 
   return (
     <>

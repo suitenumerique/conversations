@@ -11,9 +11,9 @@ import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
 import { ButtonLogin } from '@/features/auth';
 import { useChatScroll } from '@/features/chat/hooks';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { Feedback } from '@/features/feedback/Feedback';
 import { LanguagePicker } from '@/features/language';
-import { useLeftPanelStore } from '@/features/left-panel/stores';
 import { useResponsiveStore } from '@/stores';
 
 import { HEADER_HEIGHT } from '../conf';
@@ -26,7 +26,7 @@ export const Header = () => {
   const { t } = useTranslation();
   const { spacingsTokens, colorsTokens } = useCunninghamTheme();
   const { isDesktop } = useResponsiveStore();
-  const { togglePanel } = useLeftPanelStore();
+  const { setPanelOpen } = useChatPreferencesStore();
   const { isAtTop } = useChatScroll();
   const router = useRouter();
 
@@ -75,7 +75,7 @@ export const Header = () => {
             size="medium"
             onClick={() => {
               router.push('/');
-              togglePanel(false);
+              setPanelOpen(false);
             }}
             className="mobile-no-focus"
             aria-label={t('New chat')}
