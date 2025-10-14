@@ -29,7 +29,6 @@ import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
-import { setChatContainerRef } from '@/features/chat/hooks/useChatScroll';
 import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
 
@@ -115,37 +114,6 @@ export const Chat = ({
   } | null>(null);
   const [isSourceOpen, setIsSourceOpen] = useState<string | null>(null);
 
-  // Définir la ref globale pour le hook useChatScroll
-  useEffect(() => {
-    setChatContainerRef(chatContainerRef);
-  }, []);
-
-  useEffect(() => {
-    const container = chatContainerRef.current;
-    if (!container) {
-      return;
-    }
-
-    const handleScroll = () => {
-      // Ignorer les scrolls automatiques
-      if (isAutoScrollingRef.current) {
-        return;
-      }
-
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
-
-      if (isAtBottom) {
-        setUserScrolledUp(false);
-      } else {
-        setUserScrolledUp(true);
-      }
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
-
   const [initialConversationMessages, setInitialConversationMessages] =
     useState<Message[] | undefined>(undefined);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
@@ -158,8 +126,7 @@ export const Chat = ({
   const [streamingMessageHeight, setStreamingMessageHeight] = useState<
     number | null
   >(null);
-  const [userScrolledUp, setUserScrolledUp] = useState(false);
-  const isAutoScrollingRef = useRef(false);
+  const [userScrolledUp, _setUserScrolledUp] = useState(false);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
 
@@ -170,6 +137,15 @@ export const Chat = ({
     setPendingChat,
     clearPendingChat,
   } = usePendingChatStore();
+
+  const scrollToBottom = useCallback(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: hasInitialized ? 'smooth' : 'auto',
+      });
+    }
+  }, [hasInitialized]);
 
   // Handle errors from the chat API
   const onErrorChat = (error: Error) => {
@@ -197,20 +173,6 @@ export const Chat = ({
     sendExtraMessageFields: true,
     onError: onErrorChat,
   });
-
-  // Scroll to bottom when new messages arrive
-  const scrollToBottom = useCallback(() => {
-    if (chatContainerRef.current) {
-      isAutoScrollingRef.current = true;
-      chatContainerRef.current.scrollTo({
-        top: chatContainerRef.current.scrollHeight,
-        behavior: hasInitialized ? 'smooth' : 'auto',
-      });
-      setTimeout(() => {
-        isAutoScrollingRef.current = false;
-      }, 500);
-    }
-  }, [hasInitialized]);
 
   const stopGeneration = async () => {
     stopChat();
@@ -288,7 +250,7 @@ export const Chat = ({
 
   useEffect(() => {
     if (chatContainerRef.current && messages.length > 0) {
-      const userMessages = messages.filter((msg) => msg.role === 'user');
+      const _userMessages = messages.filter((msg) => msg.role === 'user');
       const assistantMessages = messages.filter(
         (msg) => msg.role === 'assistant',
       );
@@ -307,34 +269,6 @@ export const Chat = ({
         // Calculer la hauteur pendant le streaming
         calculateStreamingHeight();
       }
-
-      if (
-        hasInitialized &&
-        (status === 'streaming' || status === 'submitted') &&
-        !userScrolledUp
-      ) {
-        const lastUserMessage = userMessages[userMessages.length - 1];
-        if (lastUserMessage) {
-          const messageElements =
-            chatContainerRef.current.querySelectorAll('[data-message-id]');
-          const lastUserMessageElement = Array.from(messageElements).find(
-            (el) => el.getAttribute('data-message-id') === lastUserMessage.id,
-          );
-
-          if (lastUserMessageElement) {
-            const messageTop = (lastUserMessageElement as HTMLElement)
-              .offsetTop;
-            isAutoScrollingRef.current = true;
-            chatContainerRef.current.scrollTo({
-              top: messageTop,
-              behavior: 'smooth',
-            });
-            setTimeout(() => {
-              isAutoScrollingRef.current = false;
-            }, 500);
-          }
-        }
-      }
     }
   }, [
     messages,
@@ -343,6 +277,12 @@ export const Chat = ({
     calculateStreamingHeight,
     userScrolledUp,
   ]);
+
+  useEffect(() => {
+    if (status === 'submitted') {
+      scrollToBottom();
+    }
+  }, [status, scrollToBottom]);
 
   // Synchronize conversationId state with prop when it changes (e.g., after navigation)
   useEffect(() => {
@@ -406,18 +346,12 @@ export const Chat = ({
             setInitialConversationMessages(conversation.messages);
             setHasInitialized(true);
 
-            setTimeout(() => {
-              if (chatContainerRef.current) {
-                isAutoScrollingRef.current = true;
-                chatContainerRef.current.scrollTo({
-                  top: chatContainerRef.current.scrollHeight,
-                  behavior: 'auto',
-                });
-                setTimeout(() => {
-                  isAutoScrollingRef.current = false;
-                }, 100);
-              }
-            }, 100);
+            if (chatContainerRef.current) {
+              chatContainerRef.current.scrollTo({
+                top: chatContainerRef.current.scrollHeight,
+                behavior: 'auto',
+              });
+            }
           }
         } catch {
           // Optionally handle error (e.g., setInitialConversationMessages([]) or show error)
@@ -434,6 +368,15 @@ export const Chat = ({
     };
     // Only run when initialConversationId or pendingInput changes
   }, [initialConversationId, pendingInput]);
+
+  useEffect(() => {
+    if (hasInitialized && messages.length > 0) {
+      // Wait longer for all content to be rendered
+      setTimeout(() => {
+        scrollToBottom();
+      }, 200);
+    }
+  }, [hasInitialized, messages.length, scrollToBottom]);
 
   // Custom handleSubmit to include attachments and handle chat creation
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -545,7 +488,7 @@ export const Chat = ({
           position: relative;
           margin-bottom: 0;
           height: ${messages.length > 0 ? 'calc(100vh - 62px)' : '0'}; 
-          max-height: ${messages.length > 0 ? 'calc(100vh - 62px)' : '0'}; 
+          max-height: ${messages.length > 0 ? 'calc(100vh - 62px)' : '0'};
         `}
       >
         {messages.length > 0 && (
@@ -555,7 +498,7 @@ export const Chat = ({
                 message.role === 'assistant' &&
                 index ===
                   messages.findLastIndex((msg) => msg.role === 'assistant');
-              const shouldApplyStreamingHeight =
+              const _shouldApplyStreamingHeight =
                 isLastAssistantMessageInConversation && streamingMessageHeight;
               const isCurrentlyStreaming =
                 isLastAssistantMessageInConversation &&
@@ -575,7 +518,6 @@ export const Chat = ({
                     max-width: 750px;
                     text-align: left;
                     flex-direction: ${message.role === 'user' ? 'row-reverse' : 'row'};
-                    ${shouldApplyStreamingHeight ? `min-height: ${streamingMessageHeight + 70}px;` : ''}
                   `}
                 >
                   <Box
@@ -604,7 +546,10 @@ export const Chat = ({
                     >
                       {/* Message content */}
                       {message.content && (
-                        <Box $padding={{ all: 'xxs' }}>
+                        <Box
+                          className="mainContent-chat"
+                          $padding={{ all: 'xxs' }}
+                        >
                           <MarkdownHooks
                             remarkPlugins={[remarkGfm, remarkMath]}
                             rehypePlugins={[
@@ -642,10 +587,13 @@ export const Chat = ({
                               part.type === 'tool-invocation',
                           )
                           .map(
-                            (part: ReasoningUIPart | ToolInvocationUIPart) =>
+                            (
+                              part: ReasoningUIPart | ToolInvocationUIPart,
+                              partIndex: number,
+                            ) =>
                               part.type === 'reasoning' ? (
                                 <Box
-                                  key={part.reasoning}
+                                  key={`reasoning-${partIndex}`}
                                   $background="var(--c--theme--colors--greyscale-100)"
                                   $color="var(--c--theme--colors--greyscale-500)"
                                   $padding={{ all: 'sm' }}
@@ -658,108 +606,116 @@ export const Chat = ({
                                 isCurrentlyStreaming &&
                                 isLastAssistantMessageInConversation ? (
                                 <ToolInvocationItem
+                                  key={`tool-invocation-${partIndex}`}
                                   toolInvocation={part.toolInvocation}
                                   status={status}
                                 />
                               ) : null,
                           )}
                       </Box>
-                      {message.role !== 'user' && status !== 'streaming' && (
-                        <Box
-                          $css="color: #222631; font-size: 12px;"
-                          $direction="row"
-                          $align="center"
-                          $justify="space-between"
-                          $gap="6px"
-                          $margin={{ top: 'base' }}
-                        >
-                          <Box $direction="row" $gap="4px">
-                            <Box
-                              $direction="row"
-                              $align="center"
-                              $gap="4px"
-                              className="c__button--neutral action-chat-button"
-                              onClick={() => copyToClipboard(message.content)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  copyToClipboard(message.content);
-                                }
-                              }}
-                              role="button"
-                              tabIndex={0}
-                            >
-                              <Icon
-                                iconName="content_copy"
-                                $theme="greyscale"
-                                $variation="550"
-                                $size="16px"
-                                className="action-chat-button-icon"
-                              />
-                              {!isMobile && (
-                                <Text $theme="greyscale" $variation="550">
-                                  {t('Copy')}
-                                </Text>
-                              )}
-                            </Box>
-                            {message.parts?.some(
-                              (part) => part.type === 'source',
-                            ) &&
-                              (() => {
-                                const sourceCount =
-                                  message.parts?.filter(
-                                    (part) => part.type === 'source',
-                                  ).length || 0;
-                                return (
-                                  <Box
-                                    $direction="row"
-                                    $align="center"
-                                    $gap="4px"
-                                    className={`c__button--neutral action-chat-button ${isSourceOpen ? 'action-chat-button--open' : ''}`}
-                                    onClick={() => openSources(message.id)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        openSources(message.id);
-                                      }
-                                    }}
-                                    role="button"
-                                    tabIndex={0}
-                                  >
-                                    <Icon
-                                      iconName="book"
-                                      $theme="greyscale"
-                                      $variation="550"
-                                      $size="16px"
-                                      className="action-chat-button-icon"
-                                    />
-                                    <Text
-                                      $theme="greyscale"
-                                      $variation="550"
-                                      $weight="500"
-                                      $size="12px"
-                                    >
-                                      {t('Show') +
-                                        ` ${sourceCount} ` +
-                                        t('sources')}
-                                    </Text>
-                                  </Box>
-                                );
-                              })()}
-                          </Box>
-                          <Box $direction="row" $gap="4px">
-                            {/* We should display the button, but disabled if no trace linked */}
-                            {conversationId &&
-                              message.id &&
-                              message.id.startsWith('trace-') && (
-                                <FeedbackButtons
-                                  conversationId={conversationId}
-                                  messageId={message.id}
+                      {message.role === 'assistant' &&
+                        !(
+                          isLastAssistantMessageInConversation &&
+                          status === 'streaming'
+                        ) && (
+                          <Box
+                            $css="color: #222631; font-size: 12px;"
+                            $direction="row"
+                            $align="center"
+                            $justify="space-between"
+                            $gap="6px"
+                            $margin={{ top: 'base' }}
+                          >
+                            <Box $direction="row" $gap="4px">
+                              <Box
+                                $direction="row"
+                                $align="center"
+                                $gap="4px"
+                                className="c__button--neutral action-chat-button"
+                                onClick={() => copyToClipboard(message.content)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    copyToClipboard(message.content);
+                                  }
+                                }}
+                                role="button"
+                                tabIndex={0}
+                              >
+                                <Icon
+                                  iconName="content_copy"
+                                  $theme="greyscale"
+                                  $variation="550"
+                                  $size="16px"
+                                  className="action-chat-button-icon"
                                 />
-                              )}
+                                {!isMobile && (
+                                  <Text $theme="greyscale" $variation="550">
+                                    {t('Copy')}
+                                  </Text>
+                                )}
+                              </Box>
+                              {message.parts?.some(
+                                (part) => part.type === 'source',
+                              ) &&
+                                (() => {
+                                  const sourceCount =
+                                    message.parts?.filter(
+                                      (part) => part.type === 'source',
+                                    ).length || 0;
+                                  return (
+                                    <Box
+                                      $direction="row"
+                                      $align="center"
+                                      $gap="4px"
+                                      className={`c__button--neutral action-chat-button ${isSourceOpen ? 'action-chat-button--open' : ''}`}
+                                      onClick={() => openSources(message.id)}
+                                      onKeyDown={(e) => {
+                                        if (
+                                          e.key === 'Enter' ||
+                                          e.key === ' '
+                                        ) {
+                                          e.preventDefault();
+                                          openSources(message.id);
+                                        }
+                                      }}
+                                      role="button"
+                                      tabIndex={0}
+                                    >
+                                      <Icon
+                                        iconName="book"
+                                        $theme="greyscale"
+                                        $variation="550"
+                                        $size="16px"
+                                        className="action-chat-button-icon"
+                                      />
+                                      <Text
+                                        $theme="greyscale"
+                                        $variation="550"
+                                        $weight="500"
+                                        $size="12px"
+                                      >
+                                        {t('Show') +
+                                          ` ${sourceCount} ` +
+                                          t('sources')}
+                                      </Text>
+                                    </Box>
+                                  );
+                                })()}
+                            </Box>
+                            <Box $direction="row" $gap="4px">
+                              {/* We should display the button, but disabled if no trace linked */}
+                              {conversationId &&
+                                message.id &&
+                                message.id.startsWith('trace-') && (
+                                  <FeedbackButtons
+                                    conversationId={conversationId}
+                                    messageId={message.id}
+                                  />
+                                )}
+                            </Box>
                           </Box>
-                        </Box>
-                      )}
+                        )}
                       {message.parts && isSourceOpen === message.id && (
                         <SourceItemList
                           parts={message.parts.filter(
@@ -811,8 +767,8 @@ export const Chat = ({
           handleSubmit={handleSubmitWrapper}
           status={status}
           files={files}
-          setFiles={setFiles}
           onScrollToBottom={scrollToBottom}
+          setFiles={setFiles}
           containerRef={chatContainerRef}
           onStop={handleStop}
           forceWebSearch={forceWebSearch}
