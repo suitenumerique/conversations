@@ -54,7 +54,7 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
 
   return (
     <>
-      {status !== 'ready' && (
+      {status === 'streaming' && (
         <Box
           $direction="row"
           $align="center"
@@ -63,7 +63,6 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
           $width="100%"
           $maxWidth="750px"
           $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
-          $padding={{ left: '13px' }}
         >
           <Loader />
           <Text $variation="600" $size="md">

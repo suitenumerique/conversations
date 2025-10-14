@@ -54,7 +54,6 @@ export const ModelSelector = ({
             display: flex;
             align-items: center;
             justify-content: center;
-            background: var(--c--theme--colors--greyscale-100);
             position: relative;
           `}
         >
