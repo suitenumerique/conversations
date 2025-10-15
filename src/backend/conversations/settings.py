@@ -566,12 +566,6 @@ class Base(BraveSettings, Configuration):
     )
 
     # Web search
-    RAG_WEB_SEARCH_BACKEND = values.Value(
-        # "chat.agent_rag.web_search.albert_api.AlbertWebSearchManager",
-        "chat.agent_rag.web_search.mocked.MockedWebSearchManager",
-        environ_name="RAG_WEB_SEARCH_BACKEND",
-        environ_prefix=None,
-    )
     RAG_WEB_SEARCH_PROMPT_UPDATE = values.Value(
         """
 You are a subject-matter expert assistant. 
@@ -794,12 +788,7 @@ USER QUESTION:
             }
         )
 
-        # Sanity check to ensure that the RAG_WEB_SEARCH_BACKEND and RAG_DOCUMENT_SEARCH_BACKEND
-        if features.web_search and not self.RAG_WEB_SEARCH_BACKEND:
-            raise RuntimeError(
-                "RAG_WEB_SEARCH_BACKEND is not set, but web_search feature flag is enabled."
-            )
-
+        # Sanity check to ensure that if document upload is enabled, a backend is set
         if features.document_upload and not self.RAG_DOCUMENT_SEARCH_BACKEND:
             raise RuntimeError(
                 "RAG_DOCUMENT_SEARCH_BACKEND is not set, "

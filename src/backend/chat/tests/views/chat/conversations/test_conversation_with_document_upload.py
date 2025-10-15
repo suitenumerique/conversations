@@ -397,6 +397,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
         "parts": [
             {
                 "args": '{"query": "What does the document say?"}',
+                "id": None,
                 "part_kind": "tool-call",
                 "tool_call_id": toolcall_id,
                 "tool_name": "document_search_rag",
@@ -715,6 +716,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "parts": [
             {
                 "args": "{}",
+                "id": None,
                 "part_kind": "tool-call",
                 "tool_call_id": toolcall_id,
                 "tool_name": "summarize",
