@@ -370,13 +370,14 @@ export const Chat = ({
   }, [initialConversationId, pendingInput]);
 
   useEffect(() => {
-    if (hasInitialized && messages.length > 0) {
-      // Wait longer for all content to be rendered
+    if (hasInitialized && messages.length > 0 && !conversationId) {
+      // Only scroll on initial load when there's no conversationId yet
       setTimeout(() => {
         scrollToBottom();
       }, 200);
     }
-  }, [hasInitialized, messages.length, scrollToBottom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasInitialized]);
 
   // Custom handleSubmit to include attachments and handle chat creation
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {

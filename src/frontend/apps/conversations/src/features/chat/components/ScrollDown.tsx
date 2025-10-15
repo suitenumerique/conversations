@@ -18,7 +18,7 @@ export const ScrollDown: React.FC<ScrollDownProps> = ({
     const handleScroll = () => {
       if (containerRef.current) {
         const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-        const isAtBottom = scrollTop + clientHeight >= scrollHeight;
+        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 25;
         setIsVisible(!isAtBottom);
       }
     };
