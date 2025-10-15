@@ -131,6 +131,16 @@ nextjs-portal {
   background-color: inherit !important;
 }
 
+.mainContent-chat a {
+  color: var(--c--theme--colors--primary-text) !important;
+}
+
+.mainContent-chat a:hover {
+  color: var(
+    --c--components--button--primary--background--color-hover
+  ) !important;
+}
+
 ul a {
   color: var(--c--theme--colors--greyscale-700) !important;
 }
@@ -221,4 +231,8 @@ figure[data-rehype-pretty-code-figure] > pre {
 
 figure[data-rehype-pretty-code-figure] > pre > code {
   display: block;
+}
+
+code {
+  word-wrap: break-word;
 }

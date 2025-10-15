@@ -1,6 +1,7 @@
 import { css } from 'styled-components';
 
 import { Box, StyledLink } from '@/components';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { ChatConversation } from '@/features/chat/types';
 import { ConversationItemActions } from '@/features/left-panel/components/ConversationItemActions';
 import { SimpleConversationItem } from '@/features/left-panel/components/SimpleConversationItem';
@@ -16,7 +17,13 @@ export const LeftPanelConversationItem = ({
   isCurrentConversation,
 }: LeftPanelConversationItemProps) => {
   const { isDesktop } = useResponsiveStore();
-  // const { togglePanel } = useLeftPanelStore();
+  const { setPanelOpen } = useChatPreferencesStore();
+
+  const handleLinkClick = () => {
+    if (!isDesktop) {
+      setPanelOpen(false);
+    }
+  };
 
   return (
     <Box
@@ -48,6 +55,7 @@ export const LeftPanelConversationItem = ({
       <StyledLink
         href={`/chat/${conversation.id}/`}
         $css="overflow: auto; flex-grow: 1;"
+        onClick={handleLinkClick}
       >
         <SimpleConversationItem showAccesses conversation={conversation} />
       </StyledLink>
