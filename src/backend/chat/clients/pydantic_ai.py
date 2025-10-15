@@ -78,6 +78,8 @@ class ContextDeps:
     conversation: models.ChatConversation
     user: User
     web_search_enabled: bool = False
+    # Allow the model a few attempts to correct invalid tool args/results
+    max_result_retries: int = 3
 
 
 def get_model_configuration(model_hrid: str):
@@ -284,7 +286,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 "User prompt must contain exactly one text part, "
                 f"but got {len(user_prompt)} parts: {user_prompt}"
             )
-
         return user_prompt[0], attachment_images, attachment_documents
 
     async def _run_agent(  # noqa: PLR0912, PLR0915 # pylint: disable=too-many-branches,too-many-statements, too-many-locals, too-many-return-statements
@@ -395,11 +396,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
                 @self.conversation_agent.system_prompt
                 def summarize_instructions() -> str:
-                    """Dynamic system prompt function to add RAG instructions if any."""
+                    """Dynamic system prompt to steer summarization behavior explicitly."""
                     return (
-                        "If the user wants a summary of document(s), invoke summarize tool "
-                        "without asking the user for the document itself. The tool will handle "
-                        "any necessary extraction and summarization based on the internal context."
+                        "When the user asks to summarize attached document(s), you MUST call the"
+                        " summarize tool. Pass user's instructions if provided, otherwise pass an"
+                        " empty instructions string once the user confirms (e.g. says 'ok'). Do NOT"
+                        " call web search or document_search_rag to produce summaries; rely only on"
+                        " the attached documents stored in context."
+                    )
+
+                # Inform the model (system-level) that documents are attached and available
+                @self.conversation_agent.system_prompt
+                def attached_documents_note() -> str:
+                    return (
+                        "[Internal context] User documents are attached to this conversation. "
+                        "Do not request re-upload of documents; consider them already available via the internal store."
                     )
 
             _final_output_from_tool = None
