@@ -35,9 +35,6 @@ def ai_settings(settings):
     settings.AI_API_KEY = "test-api-key"
     settings.AI_MODEL = "test-model"
 
-    # Disable web search backend for tests
-    settings.RAG_WEB_SEARCH_BACKEND = None
-
     return settings
 
 
@@ -697,6 +694,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
             "parts": [
                 {
                     "args": '{"location":"Paris", "unit":"celsius"}',
+                    "id": None,
                     "part_kind": "tool-call",
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
                     "tool_name": "get_current_weather",
@@ -905,6 +903,7 @@ def test_post_conversation_tool_call_fails(
             "parts": [
                 {
                     "args": '{"location":"Paris", "unit":"celsius"}',
+                    "id": None,
                     "part_kind": "tool-call",
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
                     "tool_name": "get_current_weather",
