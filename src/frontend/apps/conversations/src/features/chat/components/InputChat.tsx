@@ -131,6 +131,7 @@ export const InputChat = ({
       $css={`
       display: block;
       position: relative;
+      opacity: ${status === 'error' ? '0.5' : '1'};
       margin: auto;
       width: 100%;
       padding: ${isDesktop ? '0' : '0 10px'};

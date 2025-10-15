@@ -1,7 +1,7 @@
 import { Button } from '@openfun/cunningham-react';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Icon, Text } from '@/components';
+import { Icon, Text } from '@/components';
 
 // Composant SVG pour l'icône stop
 const StopIcon = () => (
@@ -35,50 +35,35 @@ export const SendButton = ({
 
   return (
     <>
-      {status === 'error' ? (
-        <Box
-          $css={`
-            font-size: 0.8rem;
-            font-style: italic;
-          `}
-        >
-          <Text $color="greyscale" $weight="500" $variation="500">
-            {t('An error occurred. Please try again.')}
-          </Text>
-        </Box>
-      ) : (
-        <>
-          {!isStopMode ? (
-            <Button
-              size="small"
-              type="submit"
-              aria-label={t('Send')}
-              disabled={disabled || status === 'error'}
-              color="primary"
-              icon={
-                <Icon
-                  $variation="800"
-                  $theme="primary-text"
-                  iconName="arrow_upward"
-                />
-              }
+      {!isStopMode ? (
+        <Button
+          size="small"
+          type="submit"
+          aria-label={t('Send')}
+          disabled={disabled || status === 'error'}
+          color="primary"
+          icon={
+            <Icon
+              $variation="800"
+              $theme="primary-text"
+              iconName="arrow_upward"
             />
-          ) : (
-            <Button
-              size="small"
-              type="button"
-              aria-label={t('Stop')}
-              disabled={false}
-              onClick={onClick}
-              className="c__button--stop"
-              icon={<StopIcon />}
-            >
-              <Text $theme="greyscale" $variation="000">
-                {t('Stop')}
-              </Text>
-            </Button>
-          )}
-        </>
+          }
+        />
+      ) : (
+        <Button
+          size="small"
+          type="button"
+          aria-label={t('Stop')}
+          disabled={false}
+          onClick={onClick}
+          className="c__button--stop"
+          icon={<StopIcon />}
+        >
+          <Text $theme="greyscale" $variation="000">
+            {t('Stop')}
+          </Text>
+        </Button>
       )}
     </>
   );
