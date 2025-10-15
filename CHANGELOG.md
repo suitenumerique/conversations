@@ -8,12 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+- 💥(front) disable input when error occurred
 - 👷(front) fix scroll
-- 🐛(front) fix left panel status + fix scroll
-- 🐛(llm) add is_active field and persist chat preference
 
 ### Changed
 
+- 🐛(front) fix left panel status + fix scroll
+- 🐛(llm) add is_active field and persist chat preference
 - ✨(frontend) add LLM selection in chat input #53
 - 🎨(front) fix width chat container
 - 🎨(front) fix width chat container #55

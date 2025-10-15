@@ -16,7 +16,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
-import { Box, Icon, Loader, Text } from '@/components';
+import { Box, Icon, Loader, StyledLink, Text } from '@/components';
 import { useChat } from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
 import { useCreateChatConversation } from '@/features/chat/api/useCreateConversation';
@@ -731,7 +731,7 @@ export const Chat = ({
             })}
           </Box>
         )}
-        {status !== 'ready' && status !== 'streaming' && (
+        {status !== 'ready' && status !== 'streaming' && status !== 'error' && (
           <Box
             $direction="row"
             $align="center"
@@ -745,6 +745,29 @@ export const Chat = ({
             <Text $variation="600" $size="md">
               {t('Thinking...')}
             </Text>
+          </Box>
+        )}
+        {status === 'error' && (
+          <Box
+            $direction={isMobile ? 'column' : 'row'}
+            $align="center"
+            $gap="6px"
+            $width="100%"
+            $maxWidth="750px"
+            $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
+            $padding={{ left: '13px' }}
+          >
+            <Text>{t('Sorry, an error occurred. Please try again.')}</Text>
+            <StyledLink
+              href="/"
+              rel="noopener noreferrer"
+              $css={`
+              color: var(--c--theme--colors--greyscale-900);
+              text-decoration: underline;
+            `}
+            >
+              {t('Start a new conversation.')}
+            </StyledLink>
           </Box>
         )}
       </Box>
