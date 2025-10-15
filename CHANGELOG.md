@@ -9,6 +9,7 @@ and this project adheres to
 ## [Unreleased]
 
 - 💥(front) disable input when error occurred
+- 👷(front) fix scroll
 
 ### Changed
 
