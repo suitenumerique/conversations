@@ -44,7 +44,7 @@ export const Header = () => {
         height: ${isDesktop ? HEADER_HEIGHT : '52'}px;
         padding: 0 ${spacingsTokens['base']};
         background-color: ${colorsTokens['greyscale-000']};
-        border-bottom: ${isDesktop && isAtTop
+        border-bottom: ${isAtTop
           ? `1px solid transparent`
           : `1px solid ${colorsTokens['greyscale-100']}`};
         transition: border-bottom 0.2s ease;

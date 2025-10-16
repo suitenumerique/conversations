@@ -50,7 +50,7 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
       const id = Math.random().toString(36).substr(2, 9);
       const newToast: ToastItem = { id, message, type, icon, duration };
 
-      setToasts((prev) => [...prev, newToast]);
+      setToasts((prev) => [newToast, ...prev]);
     },
     [],
   );
@@ -75,13 +75,14 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
-            display: inline-block;
+            display: flex;
             flex-direction: column;
-            gap: 8px;
             width: auto;
             pointer-events: none;
             & > * {
               pointer-events: auto;
+              margin-bottom: 8px;
+              transition: transform 0.3s ease-out, margin 0.3s ease-out;
             }
           `}
           >

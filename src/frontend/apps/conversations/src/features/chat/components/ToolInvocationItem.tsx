@@ -7,11 +7,13 @@ import { Box, Loader, Text } from '@/components';
 interface ToolInvocationItemProps {
   toolInvocation: ToolInvocation;
   status?: string;
+  hideSearchLoader?: boolean;
 }
 
 export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
   toolInvocation,
   status,
+  hideSearchLoader = false,
 }) => {
   const { t } = useTranslation();
 
@@ -54,7 +56,7 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
 
   return (
     <>
-      {status === 'streaming' && (
+      {status === 'streaming' && !hideSearchLoader && (
         <Box
           $direction="row"
           $align="center"

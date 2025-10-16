@@ -162,9 +162,8 @@ export const InputChat = ({
       {messagesLength === 0 && (
         <Box
           $padding={{ all: 'base', bottom: 'md' }}
-          $background="white"
           $align="center"
-          $margin={{ horizontal: 'base', bottom: 'md', top: '0' }}
+          $margin={{ horizontal: 'base', bottom: 'md', top: '-105px' }}
         >
           <Text as="h2" $size="xl" $weight="600" $margin={{ all: '0' }}>
             {t('What is on your mind?')}
@@ -212,24 +211,24 @@ export const InputChat = ({
         }}
         style={{ width: '100%' }}
       >
-        <Box
-          $padding={{ bottom: `${isDesktop ? 'base' : ''}` }}
-          $background="white"
-        >
+        <Box $padding={{ bottom: `${isDesktop ? 'base' : ''}` }}>
           <Box
             $flex={1}
+            $radius="12px"
+            $position="relative"
+            $background="white"
             $css={`
-                box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.08);
-                border-radius: 12px;
-                border: ${
-                  isDragActive
-                    ? '2px dashed var(--c--theme--colors--primary-400)'
-                    : '1px solid var(--c--theme--colors--greyscale-200)'
-                };
-                position: relative;
-                background: white;
-                transition: all 0.2s ease;
-              `}
+               box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.08);
+              border-radius: 12px;
+              border: ${
+                isDragActive
+                  ? '2px dashed var(--c--theme--colors--primary-400)'
+                  : '1px solid var(--c--theme--colors--greyscale-200)'
+              };
+              position: relative;
+              background: white;
+              transition: all 0.2s ease;
+            `}
           >
             <textarea
               ref={textareaRef}
@@ -434,7 +433,10 @@ export const InputChat = ({
                       size="small"
                       type="button"
                       disabled={!webSearchEnabled}
-                      onClick={onToggleWebSearch}
+                      onClick={() => {
+                        onToggleWebSearch();
+                        textareaRef.current?.focus();
+                      }}
                       aria-label={t('Research on the web')}
                       className="c__button--neutral research-web-button"
                       icon={

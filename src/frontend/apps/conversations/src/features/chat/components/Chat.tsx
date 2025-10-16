@@ -32,8 +32,10 @@ import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationIte
 import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
 
+import { useSourceMetadataCache } from '../hooks';
 import { useChatPreferencesStore } from '../stores/useChatPreferencesStore';
 import { usePendingChatStore } from '../stores/usePendingChatStore';
+import { useScrollStore } from '../stores/useScrollStore';
 
 // Define Attachment type locally (mirroring backend structure)
 export interface Attachment {
@@ -112,7 +114,29 @@ export const Chat = ({
     title: string;
     message: string;
   } | null>(null);
+
+  const { setIsAtTop } = useScrollStore();
+
+  // Gérer le scroll pour mettre à jour l'état du header
+  useEffect(() => {
+    const handleScroll = () => {
+      if (chatContainerRef.current) {
+        const scrollTop = chatContainerRef.current.scrollTop;
+        setIsAtTop(scrollTop <= 5);
+      }
+    };
+
+    const container = chatContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll, { passive: true });
+      handleScroll(); // Vérifier la position initiale
+
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [setIsAtTop]);
+
   const [isSourceOpen, setIsSourceOpen] = useState<string | null>(null);
+  const { prefetchMetadata, getMetadata } = useSourceMetadataCache();
 
   const [initialConversationMessages, setInitialConversationMessages] =
     useState<Message[] | undefined>(undefined);
@@ -126,7 +150,7 @@ export const Chat = ({
   const [streamingMessageHeight, setStreamingMessageHeight] = useState<
     number | null
   >(null);
-  const [userScrolledUp, _setUserScrolledUp] = useState(false);
+  const lastUserMessageIdRef = useRef<string | null>(null);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
 
@@ -201,6 +225,20 @@ export const Chat = ({
     void handleSubmit(event);
   };
 
+  // Précharger les métadonnées des sources dès que les messages arrivent
+  useEffect(() => {
+    messages.forEach((message) => {
+      if (message.parts) {
+        const sourceParts = message.parts.filter(
+          (part): part is SourceUIPart => part.type === 'source',
+        );
+        sourceParts.forEach((part) => {
+          void prefetchMetadata(part.source.url);
+        });
+      }
+    });
+  }, [messages, prefetchMetadata]);
+
   const openSources = (messageId: string) => {
     if (isSourceOpen === messageId) {
       setIsSourceOpen(null);
@@ -236,9 +274,7 @@ export const Chat = ({
           const userMessageHeight = (lastUserMessageElement as HTMLElement)
             .offsetHeight;
 
-          const thinkingHeight = 90;
-          const availableHeight =
-            containerHeight - userMessageHeight - thinkingHeight;
+          const availableHeight = containerHeight - userMessageHeight - 38;
 
           if (streamingMessageHeight !== availableHeight) {
             setStreamingMessageHeight(availableHeight);
@@ -248,41 +284,48 @@ export const Chat = ({
     }
   }, [messages, streamingMessageHeight]);
 
+  // Détecter l'arrivée d'un nouveau message user et retirer la hauteur de l'ancien
   useEffect(() => {
-    if (chatContainerRef.current && messages.length > 0) {
-      const _userMessages = messages.filter((msg) => msg.role === 'user');
-      const assistantMessages = messages.filter(
-        (msg) => msg.role === 'assistant',
-      );
-      const lastMessage = messages[messages.length - 1];
+    const userMessages = messages.filter((msg) => msg.role === 'user');
+    const lastUserMessage = userMessages[userMessages.length - 1];
 
-      // Gérer la hauteur de streaming
-      if (
-        lastMessage &&
-        lastMessage.role === 'user' &&
-        assistantMessages.length > 0 &&
-        status === 'ready'
-      ) {
-        // Nouveau message user détecté, réinitialiser la hauteur
+    if (
+      lastUserMessage &&
+      lastUserMessage.id !== lastUserMessageIdRef.current
+    ) {
+      if (lastUserMessageIdRef.current !== null) {
         setStreamingMessageHeight(null);
-      } else if (status === 'streaming' || status === 'submitted') {
-        // Calculer la hauteur pendant le streaming
-        calculateStreamingHeight();
       }
+      lastUserMessageIdRef.current = lastUserMessage.id;
     }
-  }, [
-    messages,
-    status,
-    hasInitialized,
-    calculateStreamingHeight,
-    userScrolledUp,
-  ]);
+  }, [messages]);
 
+  // Calculer la hauteur pendant submitted/streaming
   useEffect(() => {
-    if (status === 'submitted') {
-      scrollToBottom();
+    if (status === 'submitted' || status === 'streaming') {
+      calculateStreamingHeight();
     }
-  }, [status, scrollToBottom]);
+  }, [status, calculateStreamingHeight]);
+
+  // Scroller vers la question au moment du submit
+  useEffect(() => {
+    if (status !== 'submitted' || !chatContainerRef.current) {
+      return;
+    }
+
+    const lastUserMessage = messages.filter((msg) => msg.role === 'user').pop();
+    if (!lastUserMessage) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      const messageElement = chatContainerRef.current?.querySelector(
+        `[data-message-id="${lastUserMessage.id}"]`,
+      );
+
+      messageElement?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  }, [status, messages]);
 
   // Synchronize conversationId state with prop when it changes (e.g., after navigation)
   useEffect(() => {
@@ -482,12 +525,13 @@ export const Chat = ({
         $padding={{ all: 'base', left: '13px', bottom: '0', right: '0' }}
         $width="100%"
         $flex={1}
-        $overflow="scroll"
+        $overflow="auto"
         $css={`
           flex-basis: auto;
           flex-grow: 1;
           position: relative;
           margin-bottom: 0;
+          padding-bottom: 20px;
           height: ${messages.length > 0 ? 'calc(100vh - 62px)' : '0'}; 
           max-height: ${messages.length > 0 ? 'calc(100vh - 62px)' : '0'};
         `}
@@ -495,12 +539,15 @@ export const Chat = ({
         {messages.length > 0 && (
           <Box>
             {messages.map((message, index) => {
+              const isLastMessage = index === messages.length - 1;
               const isLastAssistantMessageInConversation =
                 message.role === 'assistant' &&
                 index ===
                   messages.findLastIndex((msg) => msg.role === 'assistant');
-              const _shouldApplyStreamingHeight =
-                isLastAssistantMessageInConversation && streamingMessageHeight;
+              const shouldApplyStreamingHeight =
+                isLastAssistantMessageInConversation &&
+                isLastMessage &&
+                streamingMessageHeight;
               const isCurrentlyStreaming =
                 isLastAssistantMessageInConversation &&
                 (status === 'streaming' || status === 'submitted');
@@ -543,7 +590,8 @@ export const Chat = ({
                       $background={`${message.role === 'user' ? '#EEF1F4' : 'white'}`}
                       $css={`
                       display: inline-block;
-                      float: right;`}
+                      float: right;
+                      ${shouldApplyStreamingHeight ? `min-height: ${streamingMessageHeight}px;` : ''}`}
                     >
                       {/* Message content */}
                       {message.content && (
@@ -581,6 +629,34 @@ export const Chat = ({
                       )}
 
                       <Box $direction="column" $gap="2">
+                        {isCurrentlyStreaming &&
+                          isLastAssistantMessageInConversation &&
+                          status === 'streaming' &&
+                          message.parts?.some(
+                            (part) =>
+                              part.type === 'tool-invocation' &&
+                              part.toolInvocation.toolName !==
+                                'document_parsing',
+                          ) && (
+                            <Box
+                              $direction="row"
+                              $align="center"
+                              $gap="6px"
+                              $width="100%"
+                              $maxWidth="750px"
+                              $margin={{
+                                all: 'auto',
+                                top: 'base',
+                                bottom: 'md',
+                              }}
+                            >
+                              <Loader />
+                              <Text $variation="600" $size="md">
+                                {t('Search...')}
+                              </Text>
+                            </Box>
+                          )}
+
                         {message.parts
                           ?.filter(
                             (part) =>
@@ -610,6 +686,7 @@ export const Chat = ({
                                   key={`tool-invocation-${partIndex}`}
                                   toolInvocation={part.toolInvocation}
                                   status={status}
+                                  hideSearchLoader={true}
                                 />
                               ) : null,
                           )}
@@ -696,9 +773,10 @@ export const Chat = ({
                                         $weight="500"
                                         $size="12px"
                                       >
-                                        {t('Show') +
-                                          ` ${sourceCount} ` +
-                                          t('sources')}
+                                        {t('Show')} {sourceCount}{' '}
+                                        {sourceCount !== 1
+                                          ? t('sources')
+                                          : t('source')}
                                       </Text>
                                     </Box>
                                   );
@@ -717,14 +795,26 @@ export const Chat = ({
                             </Box>
                           </Box>
                         )}
-                      {message.parts && isSourceOpen === message.id && (
-                        <SourceItemList
-                          parts={message.parts.filter(
+                      {message.parts &&
+                        isSourceOpen === message.id &&
+                        (() => {
+                          const sourceParts = message.parts.filter(
                             (part): part is SourceUIPart =>
                               part.type === 'source',
-                          )}
-                        />
-                      )}
+                          );
+                          return (
+                            <Box
+                              $css={`
+                              animation: fade-in 0.2s ease-out;
+                            `}
+                            >
+                              <SourceItemList
+                                parts={sourceParts}
+                                getMetadata={getMetadata}
+                              />
+                            </Box>
+                          );
+                        })()}
                     </Box>
                   </Box>
                 </Box>
@@ -735,12 +825,15 @@ export const Chat = ({
         {status !== 'ready' && status !== 'streaming' && status !== 'error' && (
           <Box
             $direction="row"
-            $align="center"
+            $align="start"
             $gap="6px"
             $width="100%"
             $maxWidth="750px"
             $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
-            $padding={{ left: '13px' }}
+            $padding={{ left: '13px', bottom: 'md' }}
+            $css={`
+              ${streamingMessageHeight ? `min-height: ${streamingMessageHeight}px;` : ''}
+            `}
           >
             <Loader />
             <Text $variation="600" $size="md">
