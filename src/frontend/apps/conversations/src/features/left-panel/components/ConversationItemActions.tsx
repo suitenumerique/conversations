@@ -53,7 +53,7 @@ export const ConversationItemActions = ({
             &:hover {
               background-color: #e1e3e7 !important;
             }
-            &:focus {
+            &:focus-visible {
               outline: 2px solid #3e5de7;
               outline-offset: 2px;
             }

@@ -1,4 +1,7 @@
-import { Box, BoxButton, Icon, Text } from '@/components';
+import { useTranslation } from 'react-i18next';
+import { css } from 'styled-components';
+
+import { Box, Icon, Text } from '@/components';
 
 // Define Attachment type locally (mirroring backend structure)
 export interface Attachment {
@@ -18,6 +21,8 @@ export const AttachmentList = ({
   onRemove,
   isReadOnly = false,
 }: AttachmentListProps) => {
+  const { t } = useTranslation();
+
   if (!attachments || attachments.length === 0) {
     return null;
   }
@@ -52,9 +57,9 @@ export const AttachmentList = ({
               $background="var(--c--theme--colors--greyscale-050)"
               $minWidth="200px"
               $direction="row"
-              $gap="xs"
+              $gap="8px"
               $align="center"
-              $padding="xs"
+              $padding={{ all: '4px', left: 'xs' }}
               $css={`
                 border-radius: 4px;
               `}
@@ -66,7 +71,6 @@ export const AttachmentList = ({
                 $height="22px"
                 $direction="row"
                 $align="center"
-                $margin={{ right: 'xs' }}
                 $justify="center"
                 $css={`
                   flex-shrink: 0;
@@ -101,12 +105,33 @@ export const AttachmentList = ({
                 {name}
               </Text>
               {!isReadOnly && onRemove && (
-                <BoxButton
-                  aria-label="Remove attachment"
+                <Box
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t('Remove attachment')}
                   onClick={removeAttachment}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      removeAttachment();
+                    }
+                  }}
+                  $css={css`
+                    display: block;
+                    padding: 4px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    &:hover {
+                      background-color: #e1e3e7 !important;
+                    }
+                    &:focus-visible {
+                      outline: 2px solid #3e5de7;
+                      outline-offset: 2px;
+                    }
+                  `}
                 >
                   <Icon iconName="close" $theme="greyscale" $size="18px" />
-                </BoxButton>
+                </Box>
               )}
             </Box>
           </Box>

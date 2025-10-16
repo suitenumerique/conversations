@@ -69,7 +69,7 @@ export const Toast = ({
   const iconToUse = icon || config.icon;
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsVisible(true), 100);
+    setIsVisible(true);
 
     const autoCloseTimer = setTimeout(() => {
       setIsLeaving(true);
@@ -77,7 +77,6 @@ export const Toast = ({
     }, duration);
 
     return () => {
-      clearTimeout(timer);
       clearTimeout(autoCloseTimer);
     };
   }, [id, duration, onClose]);
@@ -89,21 +88,18 @@ export const Toast = ({
         border: 1px solid ${config.borderColor};
         color: ${config.color};
         border-radius: 4px;
-        padding: 8px 12px;
+        padding: ${isVisible && !isLeaving ? '8px 12px' : '0 12px'};
         width: auto;
-        margin-bottom: 8px;
         box-shadow: 0 6px 18px 0 rgba(0, 0, 145, 0.05);
-        transform: translateY(${isVisible ? '0' : '100%'});
-        opacity: ${isVisible ? '1' : '0'};
-        transition: all 0.3s ease-in-out;
+        opacity: ${isVisible && !isLeaving ? '1' : '0'};
+        transform: translateY(${isVisible && !isLeaving ? '0' : '-3px'});
+        max-height: ${isVisible && !isLeaving ? '100px' : '0px'};
+        transition:
+          padding 0.2s ease,
+          opacity 0.2s ease,
+          transform 0.2s ease;
         position: relative;
         overflow: hidden;
-
-        ${isLeaving &&
-        css`
-          transform: translateY(-100%);
-          opacity: 0;
-        `}
       `}
     >
       <Box $direction="row" $align="center" $gap="12px">

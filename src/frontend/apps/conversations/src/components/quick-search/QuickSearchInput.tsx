@@ -80,7 +80,13 @@ export const QuickSearchInput = ({
           border: 1px solid #CFD5DE;
           background-color: #eff1f5;
           padding: 6px 8px;
-          &:focus-within, &:hover {
+          cursor: pointer !important;
+          transition: border-color 0.2s ease;
+          &:hover {
+            border: 2px solid #CFD5DE;
+            padding: 5px 7px;
+          }
+          &:focus-within {
             border: 2px solid #3E5DE7;
             padding: 5px 7px;
           }
@@ -124,9 +130,11 @@ export const QuickSearchInput = ({
               right: 10px;
               border-radius: 4px;
               padding: 7px;
-              background-color: #e4e6ea;
               z-index: 1000;
-              &:focus {
+              &:hover {
+                background-color: #e4e6ea;
+              }
+              &:focus-visible {
                 outline: 2px solid #3E5DE7;
                 outline-offset: 2px;
               }`}

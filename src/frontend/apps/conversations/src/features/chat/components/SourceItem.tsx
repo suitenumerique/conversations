@@ -14,17 +14,39 @@ const styles: Record<string, React.CSSProperties> = {
   },
 };
 
-interface SourceItemProps {
-  url: string;
+interface SourceMetadata {
+  title: string | null;
+  favicon: string | null;
+  loading: boolean;
+  error: boolean;
 }
 
-export const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
-  const [title, setTitle] = useState<string | null>(null);
-  const [favicon, setFavicon] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+interface SourceItemProps {
+  url: string;
+  metadata?: SourceMetadata;
+}
+
+export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
+  const [title, setTitle] = useState<string | null>(metadata?.title || null);
+  const [favicon, setFavicon] = useState<string | null>(
+    metadata?.favicon || null,
+  );
+  const [loading, setLoading] = useState(metadata ? metadata.loading : true);
+  const [error, setError] = useState(metadata ? metadata.error : false);
 
   useEffect(() => {
+    if (metadata) {
+      setTitle(metadata.title);
+      setFavicon(metadata.favicon);
+      setLoading(metadata.loading);
+      setError(metadata.error);
+    }
+  }, [metadata]);
+
+  useEffect(() => {
+    if (metadata && !metadata.loading) {
+      return;
+    }
     const fetchMetadata = async () => {
       try {
         setLoading(true);
@@ -98,10 +120,10 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url }) => {
       }
     };
 
-    if (url) {
+    if (url && (!metadata || metadata.loading)) {
       void fetchMetadata();
     }
-  }, [url]);
+  }, [url, metadata]);
 
   // Fallback for favicon if none is found or if there's an error
   const renderFavicon = () => {
