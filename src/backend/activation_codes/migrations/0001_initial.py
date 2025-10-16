@@ -54,6 +54,12 @@ class Migration(migrations.Migration):
                         help_text="The activation code that users will enter",
                         max_length=50,
                         unique=True,
+                        validators=[
+                            django.core.validators.RegexValidator(
+                                message="Code must be alphanumeric and contain no spaces or special characters",
+                                regex="^[A-Z0-9]+$",
+                            )
+                        ],
                         verbose_name="activation code",
                     ),
                 ),

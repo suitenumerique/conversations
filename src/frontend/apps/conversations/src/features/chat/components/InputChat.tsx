@@ -315,6 +315,7 @@ export const InputChat = ({
             )}
 
             <input
+              accept={conf?.chat_upload_accept}
               type="file"
               multiple
               ref={fileInputRef}

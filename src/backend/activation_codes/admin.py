@@ -33,7 +33,6 @@ class ActivationCodeAdmin(admin.ModelAdmin):
 
     readonly_fields = (
         "id",
-        "code",
         "current_uses",
         "created_at",
         "updated_at",
@@ -78,6 +77,19 @@ class ActivationCodeAdmin(admin.ModelAdmin):
     )
 
     actions = ["recompute_current_uses"]
+
+    def get_readonly_fields(self, request, obj=None):
+        """Make `code` readonly when editing an existing ActivationCode.
+
+        When obj is None (creation form), `code` remains editable. When obj is
+        provided (editing), add `code` to readonly fields so it cannot be
+        changed after creation.
+        """
+        # Start from the configured readonly_fields to preserve other read-only fields
+        ro_fields = list(self.readonly_fields)
+        if obj is not None:
+            ro_fields.append("code")
+        return tuple(ro_fields)
 
     def usage_display(self, obj):
         """Display usage statistics."""
