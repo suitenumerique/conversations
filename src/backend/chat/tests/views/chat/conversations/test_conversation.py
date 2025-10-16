@@ -34,6 +34,7 @@ def ai_settings(settings):
     settings.AI_BASE_URL = "https://www.external-ai-service.com/"
     settings.AI_API_KEY = "test-api-key"
     settings.AI_MODEL = "test-model"
+    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
 
     return settings
 
@@ -164,10 +165,7 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
             "kind": "request",
             "parts": [
                 {
-                    "content": "You are a helpful assistant. Escape formulas or any "
-                    "math notation between `$$`, like `$$x^2 + y^2 = "
-                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
-                    "your answers. ",
+                    "content": "You are a helpful test assistant :)",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -288,10 +286,7 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uu
             "kind": "request",
             "parts": [
                 {
-                    "content": "You are a helpful assistant. Escape formulas or any "
-                    "math notation between `$$`, like `$$x^2 + y^2 = "
-                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
-                    "your answers. ",
+                    "content": "You are a helpful test assistant :)",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -392,9 +387,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
     # Check the exact structure expected by the AI service
     assert body["messages"] == [
         {
-            "content": "You are a helpful assistant. Escape formulas or any math "
-            "notation between `$$`, like `$$x^2 + y^2 = z^2$$` or `$$C_l$$`. "
-            "You can use Markdown to format your answers. ",
+            "content": "You are a helpful test assistant :)",
             "role": "system",
         },
         {"content": "Today is Friday 25/07/2025.", "role": "system"},
@@ -484,10 +477,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
             "kind": "request",
             "parts": [
                 {
-                    "content": "You are a helpful assistant. Escape formulas or any "
-                    "math notation between `$$`, like `$$x^2 + y^2 = "
-                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
-                    "your answers. ",
+                    "content": "You are a helpful test assistant :)",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -595,9 +585,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
 
     assert body["messages"] == [
         {
-            "content": "You are a helpful assistant. Escape formulas or any math "
-            "notation between `$$`, like `$$x^2 + y^2 = z^2$$` or `$$C_l$$`. "
-            "You can use Markdown to format your answers. ",
+            "content": "You are a helpful test assistant :)",
             "role": "system",
         },
         {"content": "Today is Friday 25/07/2025.", "role": "system"},
@@ -660,10 +648,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
             "kind": "request",
             "parts": [
                 {
-                    "content": "You are a helpful assistant. Escape formulas or any "
-                    "math notation between `$$`, like `$$x^2 + y^2 = "
-                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
-                    "your answers. ",
+                    "content": "You are a helpful test assistant :)",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -804,9 +789,7 @@ def test_post_conversation_tool_call_fails(
 
     assert body["messages"] == [
         {
-            "content": "You are a helpful assistant. Escape formulas or any math "
-            "notation between `$$`, like `$$x^2 + y^2 = z^2$$` or `$$C_l$$`. "
-            "You can use Markdown to format your answers. ",
+            "content": "You are a helpful test assistant :)",
             "role": "system",
         },
         {"content": "Today is Friday 25/07/2025.", "role": "system"},
@@ -869,10 +852,7 @@ def test_post_conversation_tool_call_fails(
             "kind": "request",
             "parts": [
                 {
-                    "content": "You are a helpful assistant. Escape formulas or any "
-                    "math notation between `$$`, like `$$x^2 + y^2 = "
-                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
-                    "your answers. ",
+                    "content": "You are a helpful test assistant :)",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
