@@ -7,6 +7,7 @@ import secrets
 import string
 
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -37,6 +38,12 @@ class ActivationCode(BaseModel):
         max_length=50,
         unique=True,
         default=generate_activation_code,
+        validators=[
+            RegexValidator(
+                regex=r"^[A-Z0-9]+$",
+                message=_("Code must be alphanumeric and contain no spaces or special characters"),
+            )
+        ],
     )
 
     max_uses = models.PositiveIntegerField(
