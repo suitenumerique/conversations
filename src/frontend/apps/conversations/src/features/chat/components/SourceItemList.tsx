@@ -4,11 +4,22 @@ import React from 'react';
 import { Box } from '@/components';
 import { SourceItem } from '@/features/chat/components/SourceItem';
 
-interface SourceItemListProps {
-  parts: readonly SourceUIPart[];
+interface SourceMetadata {
+  title: string | null;
+  favicon: string | null;
+  loading: boolean;
+  error: boolean;
 }
 
-export const SourceItemList: React.FC<SourceItemListProps> = ({ parts }) => {
+interface SourceItemListProps {
+  parts: readonly SourceUIPart[];
+  getMetadata: (url: string) => SourceMetadata | undefined;
+}
+
+const SourceItemListComponent: React.FC<SourceItemListProps> = ({
+  parts,
+  getMetadata,
+}) => {
   if (parts.length === 0) {
     return null;
   }
@@ -26,8 +37,16 @@ export const SourceItemList: React.FC<SourceItemListProps> = ({ parts }) => {
      `}
     >
       {parts.map((part) => (
-        <SourceItem key={part.source.url} url={part.source.url} />
+        <SourceItem
+          key={part.source.url}
+          url={part.source.url}
+          metadata={getMetadata(part.source.url)}
+        />
       ))}
     </Box>
   );
 };
+
+SourceItemListComponent.displayName = 'SourceItemList';
+
+export const SourceItemList = React.memo(SourceItemListComponent);

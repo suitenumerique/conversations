@@ -34,6 +34,7 @@ export const LeftPanelConversationItem = ({
       $css={css`
         border-radius: 4px;
         width: 100%;
+        margin-bottom: 1px;
         background-color: ${isCurrentConversation ? '#ebedf1' : ''};
         font-weight: ${isCurrentConversation ? '700' : '500'};
         transition: background-color 0.2s cubic-bezier(1, 0, 0, 1);

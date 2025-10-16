@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 👷(front) fix button scrollDown
+- 🎨(front) retour ui global
 
 ### Changed
 
+- 👷(front) fix button scrollDown
 - 💥(front) disable input when error occurred
 - 👷(front) fix scroll
 - 🐛(front) fix left panel status + fix scroll
