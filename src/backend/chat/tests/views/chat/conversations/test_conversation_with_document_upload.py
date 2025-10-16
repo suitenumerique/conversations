@@ -45,6 +45,7 @@ def ai_settings(settings):
     settings.AI_BASE_URL = "https://www.external-ai-service.com/"
     settings.AI_API_KEY = "test-api-key"
     settings.AI_MODEL = "test-model"
+    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
 
     # Enable Albert API for document search
     settings.RAG_DOCUMENT_SEARCH_BACKEND = (
@@ -343,10 +344,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
         "kind": "request",
         "parts": [
             {
-                "content": "You are a helpful assistant. Escape formulas or any "
-                "math notation between `$$`, like `$$x^2 + y^2 = z^2$$` "
-                "or `$$C_l$$`. You can use Markdown to format your "
-                "answers. ",
+                "content": "You are a helpful test assistant :)",
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
                 "timestamp": "2025-07-25T10:36:35.297675Z",
@@ -662,10 +660,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "kind": "request",
         "parts": [
             {
-                "content": "You are a helpful assistant. Escape formulas or any "
-                "math notation between `$$`, like `$$x^2 + y^2 = z^2$$` "
-                "or `$$C_l$$`. You can use Markdown to format your "
-                "answers. ",
+                "content": "You are a helpful test assistant :)",
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
                 "timestamp": "2025-07-25T10:36:35.297675Z",

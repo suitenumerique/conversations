@@ -502,9 +502,9 @@ class Base(BraveSettings, Configuration):
     AI_AGENT_INSTRUCTIONS = values.Value(
         (
             "You are a helpful assistant. "
-            "Escape formulas or any math notation between `$$`, "
-            "like `$$x^2 + y^2 = z^2$$` or `$$C_l$$`. "
-            "You can use Markdown to format your answers. "
+            "Wrap formulas or any math notation between `\\(...\\)` and `\\[...\\]`, "
+            "like `\\(x^2 + y^2 = z^2\\)` for inline formula or `\\[C_l\\]` for display. "
+            "You must use Markdown to format your answers except when asked otherwise. "
         ),
         environ_name="AI_AGENT_INSTRUCTIONS",
         environ_prefix=None,

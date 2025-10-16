@@ -31,6 +31,7 @@ def ai_settings(settings):
     settings.AI_BASE_URL = "https://www.external-ai-service.com/"
     settings.AI_API_KEY = "test-api-key"
     settings.AI_MODEL = "test-model"
+    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
 
     return settings
 
@@ -121,10 +122,7 @@ def history_conversation_fixture():
             "kind": "request",
             "parts": [
                 {
-                    "content": "You are a helpful assistant. Escape formulas or any "
-                    "math notation between `$$`, like `$$x^2 + y^2 = "
-                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
-                    "your answers. ",
+                    "content": "You are a helpful test assistant :)",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-06-15T10:30:00.000000Z",
@@ -807,10 +805,7 @@ def history_conversation_with_image_fixture():
             "kind": "request",
             "parts": [
                 {
-                    "content": "You are a helpful assistant. Escape formulas or any "
-                    "math notation between `$$`, like `$$x^2 + y^2 = "
-                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
-                    "your answers. ",
+                    "content": "You are a helpful test assistant :)",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-06-15T10:30:00.000000Z",
@@ -988,10 +983,7 @@ def history_conversation_with_tool_fixture():
             "kind": "request",
             "parts": [
                 {
-                    "content": "You are a helpful assistant. Escape formulas or any "
-                    "math notation between `$$`, like `$$x^2 + y^2 = "
-                    "z^2$$` or `$$C_l$$`. You can use Markdown to format "
-                    "your answers. ",
+                    "content": "You are a helpful test assistant :)",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": "2025-06-15T10:30:00.000000Z",

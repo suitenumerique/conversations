@@ -44,6 +44,11 @@ const nextConfig = {
     // Modify the file loader rule to ignore *.svg, since we have it handled now.
     fileLoaderRule.exclude = /\.svg$/i;
 
+    // Formula rendering in markdown, replace dollar-sign with \(...\) and \[...\]
+    // https://github.com/remarkjs/remark-math/issues/39#issuecomment-2636184992
+    config.resolve.alias['micromark-extension-math'] =
+      'micromark-extension-llm-math';
+
     return config;
   },
 };
