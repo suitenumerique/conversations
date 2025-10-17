@@ -12,6 +12,7 @@ import {
   HomeHeader,
   getHeaderHeight,
 } from '@/features/home/components/HomeHeader';
+import { LeftPanel } from '@/features/left-panel';
 import { useResponsiveStore } from '@/stores';
 
 import { useActivationStatus, useRegisterNotification } from '../api';
@@ -152,56 +153,69 @@ export const ActivationPage = () => {
   return (
     <Box as="main">
       <HomeHeader />
+      {isSmallMobile && (
+        <Box $css="& .--docs--left-panel-header{display: none;}">
+          <LeftPanel />
+        </Box>
+      )}
       <Box
-        $direction={isDesktop ? 'row' : 'column'}
         $css={css`
-          height: calc(80vh - ${getHeaderHeight(isSmallMobile)}px);
-          width: auto;
-          margin: 0 auto;
+          height: calc(100vh - ${getHeaderHeight(isSmallMobile)}px);
           overflow-y: auto;
         `}
       >
         <Box
-          $align="center"
-          $justify="center"
-          $margin={{ top: isDesktop ? '0' : '50px' }}
+          $direction={isDesktop ? 'row' : 'column'}
           $css={css`
-            height: ${isDesktop
-              ? `calc(80vh - ${getHeaderHeight(isSmallMobile)}px)`
-              : '120px'};
+            margin: 0 auto;
           `}
         >
           <Box
+            $align="center"
+            $justify="center"
+            $margin={{ top: isDesktop ? '0' : '50px' }}
             $css={css`
-              transform: ${isDesktop ? 'scale(1)' : 'scale(0.50)'};
-              transform-origin: center;
+              height: ${isDesktop
+                ? `calc(80vh - ${getHeaderHeight(isSmallMobile)}px)`
+                : '120px'};
             `}
           >
-            <IllustrationCode />
+            <Box
+              $css={css`
+                transform: ${isDesktop ? 'scale(1)' : 'scale(0.50)'};
+                transform-origin: center;
+              `}
+            >
+              <IllustrationCode />
+            </Box>
           </Box>
-        </Box>
 
-        <Box $padding="large" $align="center" $justify="center">
-          <Box $direction="column" $align="left" $maxWidth="600px">
-            <Text $size="h6" $weight="700" $margin={{ bottom: 'xs' }}>
-              {t('The Assistant is in Beta')}
-            </Text>
-            <Text $size="sm" $weight="400" $theme="greyscale" $variation="600">
-              {t(
-                'Access is limited to people who have an invitation code. If you have one, please enter it below.',
-              )}
-            </Text>
-
-            <form onSubmit={(e) => void handleSubmit(e)}>
-              <Box
-                $direction={isDesktop ? 'row' : 'column'}
-                $gap={isDesktop ? '8px' : '1rem'}
-                $margin={{ vertical: '24px' }}
-                $align={isDesktop ? 'flex-start' : 'stretch'}
+          <Box $padding="large" $align="center" $justify="center">
+            <Box $direction="column" $align="left" $maxWidth="600px">
+              <Text $size="h6" $weight="700" $margin={{ bottom: 'xs' }}>
+                {t('The Assistant is in Beta')}
+              </Text>
+              <Text
+                $size="sm"
+                $weight="400"
+                $theme="greyscale"
+                $variation="600"
               >
-                <Box $direction="column" $width="100%">
-                  <Box
-                    $css={`
+                {t(
+                  'Access is limited to people who have an invitation code. If you have one, please enter it below.',
+                )}
+              </Text>
+
+              <form onSubmit={(e) => void handleSubmit(e)}>
+                <Box
+                  $direction={isDesktop ? 'row' : 'column'}
+                  $gap={isDesktop ? '8px' : '1rem'}
+                  $margin={{ vertical: '24px' }}
+                  $align={isDesktop ? 'flex-start' : 'stretch'}
+                >
+                  <Box $direction="column" $width="100%">
+                    <Box
+                      $css={`
                         input {
                           width: 100%;
                           height: 40px;
@@ -217,205 +231,218 @@ export const ActivationPage = () => {
                           }
                         }
                       `}
-                  >
-                    <input
-                      type="text"
-                      value={code}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        setCode(e.target.value.toUpperCase());
-                        setError(null);
-                      }}
-                      placeholder={t('ABC-1234-XY')}
-                      disabled={isSubmitting}
-                    />
-                  </Box>
-                  {error && (
-                    <Text
-                      $size="xs"
-                      $theme="danger"
-                      $variation="600"
-                      $margin={{ top: '4px' }}
                     >
-                      {error}
-                    </Text>
-                  )}
+                      <input
+                        type="text"
+                        value={code}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                          setCode(e.target.value.toUpperCase());
+                          setError(null);
+                        }}
+                        placeholder={t('ABC-1234-XY')}
+                        disabled={isSubmitting}
+                      />
+                    </Box>
+                    {error && (
+                      <Text
+                        $size="xs"
+                        $theme="danger"
+                        $variation="600"
+                        $margin={{ top: '4px' }}
+                      >
+                        {error}
+                      </Text>
+                    )}
+                  </Box>
+
+                  <Button
+                    type="submit"
+                    fullWidth={isDesktop ? false : true}
+                    color="primary"
+                    icon={<IconKey />}
+                    disabled={isSubmitting || !code.trim()}
+                    style={{
+                      width: isDesktop ? 'auto' : '100%',
+                      whiteSpace: 'nowrap',
+                      padding: '12px 24px',
+                    }}
+                  >
+                    {isSubmitting ? t('Unlocking...') : t('Unlock access')}
+                  </Button>
                 </Box>
+              </form>
 
-                <Button
-                  type="submit"
-                  fullWidth={isDesktop ? false : true}
-                  color="primary"
-                  icon={<IconKey />}
-                  disabled={isSubmitting || !code.trim()}
-                  style={{
-                    width: isDesktop ? 'auto' : '100%',
-                    whiteSpace: 'nowrap',
-                    padding: '12px 24px',
-                  }}
-                >
-                  {isSubmitting ? t('Unlocking...') : t('Unlock access')}
-                </Button>
-              </Box>
-            </form>
-
-            <Box
-              $display="block"
-              $gap="4px"
-              $margin={{ top: 'medium' }}
-              $align="center"
-            >
-              <Text
-                $display="inline-block"
-                $size="sm"
-                $theme="greyscale"
-                $variation="600"
-                as="span"
-                $margin={{ right: '4px' }}
-              >
-                {t('No code? ')}
-              </Text>
               <Box
-                as="button"
-                type="button"
-                onClick={() => setIsNotifyModalOpen(true)}
-                $css={css`
-                  display: inline-block;
-                  cursor: pointer;
-                  text-decoration: underline;
-                  background: none;
-                  border: none;
-                  padding: 0;
-                  font-size: 14px;
-                  font-weight: 400;
-                  color: var(--c--theme--colors--greyscale-600);
-                  font-family: inherit;
-
-                  &:hover {
-                    text-decoration: none;
-                  }
-                `}
+                $display="block"
+                $gap="4px"
+                $margin={{ top: 'medium' }}
+                $align="center"
               >
-                {t('Get notified about the Public Beta.')}
+                <Text
+                  $display="inline-block"
+                  $size="sm"
+                  $theme="greyscale"
+                  $variation="600"
+                  as="span"
+                  $margin={{ right: '4px' }}
+                >
+                  {t('No code? ')}
+                </Text>
+                <Box
+                  as="button"
+                  type="button"
+                  onClick={() => setIsNotifyModalOpen(true)}
+                  $css={css`
+                    display: inline-block;
+                    cursor: pointer;
+                    text-decoration: underline;
+                    background: none;
+                    border: none;
+                    padding: 0;
+                    font-size: 14px;
+                    font-weight: 400;
+                    color: var(--c--theme--colors--greyscale-600);
+                    font-family: inherit;
+
+                    &:hover {
+                      text-decoration: none;
+                    }
+                  `}
+                >
+                  {t('Get notified about the Public Beta.')}
+                </Box>
               </Box>
             </Box>
           </Box>
         </Box>
-      </Box>
-      <Footer />
+        <Footer />
 
-      {/* Notify Modal */}
-      <Modal
-        isOpen={isNotifyModalOpen}
-        onClose={() => setIsNotifyModalOpen(false)}
-        size={ModalSize.SMALL}
-        hideCloseButton={false}
-      >
-        <Box>
-          <Text as="span" $size="h6" $weight="700" $margin={{ bottom: '6px' }}>
-            {t('Get notified for the public beta')}
-          </Text>
-          <Text $margin={{ bottom: 'md' }} $size="sm" $variation="600">
-            {
-              user
-                ? t(
-                    "We'll email you at {{email}} when the public beta opens.",
-                    {
-                      email: user.email,
-                    },
-                  )
-                : t("We'll email you when the public beta opens.") // should not happen
-            }
-          </Text>
-          <Box $direction="column" $gap="1rem" $justify="flex-end">
-            <Button
-              fullWidth
-              color="primary"
-              onClick={handleNotificationRegister}
+        {/* Notify Modal */}
+        <Modal
+          isOpen={isNotifyModalOpen}
+          onClose={() => setIsNotifyModalOpen(false)}
+          size={ModalSize.SMALL}
+          hideCloseButton={false}
+        >
+          <Box>
+            <Text
+              as="span"
+              $size="h6"
+              $weight="700"
+              $margin={{ bottom: '6px' }}
             >
-              {t('Notify me')}
-            </Button>
-            <Button
-              fullWidth
-              color="tertiary"
-              onClick={() => {
-                setIsNotifyModalOpen(false);
-              }}
-            >
-              {t('Cancel')}
-            </Button>
+              {t('Get notified for the public beta')}
+            </Text>
+            <Text $margin={{ bottom: 'md' }} $size="sm" $variation="600">
+              {
+                user
+                  ? t(
+                      "We'll email you at {{email}} when the public beta opens.",
+                      {
+                        email: user.email,
+                      },
+                    )
+                  : t("We'll email you when the public beta opens.") // should not happen
+              }
+            </Text>
+            <Box $direction="column" $gap="1rem" $justify="flex-end">
+              <Button
+                fullWidth
+                color="primary"
+                onClick={handleNotificationRegister}
+              >
+                {t('Notify me')}
+              </Button>
+              <Button
+                fullWidth
+                color="tertiary"
+                onClick={() => {
+                  setIsNotifyModalOpen(false);
+                }}
+              >
+                {t('Cancel')}
+              </Button>
+            </Box>
           </Box>
-        </Box>
-      </Modal>
+        </Modal>
 
-      {/* Others App Modal */}
-      <Modal
-        isOpen={isOthersAppModalOpen}
-        onClose={() => setIsOthersAppModalOpen(false)}
-        size={ModalSize.SMALL}
-        hideCloseButton={false}
-      >
-        <Box>
-          <Text as="span" $size="h6" $weight="700" $margin={{ bottom: '6px' }}>
-            {t('You are on the list')}
-          </Text>
-          <Text $margin={{ bottom: 'md' }} $size="sm" $variation="600">
-            {t('Explore other LaSuite apps')}
-          </Text>
-          <Box $direction="row" $gap="1rem" $justify="center">
-            {laSuiteApps.map((app) => {
-              const AppIcon = app.icon;
-              return (
-                <Box
-                  key={app.name}
-                  as="a"
-                  href={app.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={`${t('Open')} ${app.name}`}
-                  $css={css`
-                    display: flex;
-                    width: 72px;
-                    height: 72px;
-                    flex-direction: column;
-                    justify-content: center;
-                    align-items: center;
-                    gap: 6px;
-                    border-radius: 4px;
-                    transition: background-color 0.2s;
-                    text-decoration: none;
-                    color: inherit;
-
-                    &:hover {
-                      background-color: var(--c--theme--colors--secondary-050);
-                      cursor: pointer !important;
-                    }
-                  `}
-                >
+        {/* Others App Modal */}
+        <Modal
+          isOpen={isOthersAppModalOpen}
+          onClose={() => setIsOthersAppModalOpen(false)}
+          size={ModalSize.SMALL}
+          hideCloseButton={false}
+        >
+          <Box>
+            <Text
+              as="span"
+              $size="h6"
+              $weight="700"
+              $margin={{ bottom: '6px' }}
+            >
+              {t('You are on the list')}
+            </Text>
+            <Text $margin={{ bottom: 'md' }} $size="sm" $variation="600">
+              {t('Explore other LaSuite apps')}
+            </Text>
+            <Box $direction="row" $gap="1rem" $justify="center">
+              {laSuiteApps.map((app) => {
+                const AppIcon = app.icon;
+                return (
                   <Box
+                    key={app.name}
+                    as="a"
+                    href={app.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`${t('Open')} ${app.name}`}
                     $css={css`
-                      width: 56px;
                       display: flex;
-                      align-items: center;
+                      width: 72px;
+                      height: 72px;
+                      flex-direction: column;
                       justify-content: center;
+                      align-items: center;
+                      gap: 6px;
+                      border-radius: 4px;
+                      transition: background-color 0.2s;
+                      text-decoration: none;
+                      color: inherit;
+
+                      &:hover {
+                        background-color: var(
+                          --c--theme--colors--secondary-050
+                        );
+                        cursor: pointer !important;
+                      }
                     `}
                   >
-                    <AppIcon />
+                    <Box
+                      $css={css`
+                        width: 56px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                      `}
+                    >
+                      <AppIcon />
+                    </Box>
+                    <Text
+                      $size="xs"
+                      $weight="700"
+                      $theme="primary"
+                      $variation="650"
+                      $align="center"
+                    >
+                      {app.name}
+                    </Text>
                   </Box>
-                  <Text
-                    $size="xs"
-                    $weight="700"
-                    $theme="primary"
-                    $variation="650"
-                    $align="center"
-                  >
-                    {app.name}
-                  </Text>
-                </Box>
-              );
-            })}
+                );
+              })}
+            </Box>
           </Box>
-        </Box>
-      </Modal>
+        </Modal>
+      </Box>
     </Box>
   );
 };
