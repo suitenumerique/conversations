@@ -579,6 +579,7 @@ export const Chat = ({
                     padding-right: 12px;
                     max-width: 750px;
                     text-align: left;
+                    overflow-wrap: anywhere;
                     flex-direction: ${message.role === 'user' ? 'row-reverse' : 'row'};
                   `}
                 >

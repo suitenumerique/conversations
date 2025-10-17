@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 👷(front) change size small modal
+- 🎨(front) activation page footer
 
 ### Changed
 
+- 👷(front) change size small modal
 - 🎨(front) retour ui global
 - 👷(front) fix button scrollDown
 - 💥(front) disable input when error occurred

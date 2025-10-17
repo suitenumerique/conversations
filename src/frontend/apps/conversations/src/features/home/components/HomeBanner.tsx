@@ -105,7 +105,7 @@ export default function HomeBanner() {
 
             <Button
               fullWidth={isMobile ? true : false}
-              href="https://docs.numerique.gouv.fr/docs/c03a6267-c500-490c-9ab3-bbf4855d6f0b/"
+              href="https://docs.numerique.gouv.fr/docs/7a6e6475-5b8f-4ffb-95ea-198da9ebd6d0/"
               color="tertiary"
               target="_blank"
             >
