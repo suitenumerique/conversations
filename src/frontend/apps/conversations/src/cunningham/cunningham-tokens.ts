@@ -210,11 +210,10 @@ export const tokens = {
           mobile: '768px',
           tablet: '1024px',
         },
-        modal: { 'width-small': '360px' },
         logo: { src: '', alt: '', widthHeader: '', widthFooter: '' },
       },
       components: {
-        modal: { 'width-small': '342px' },
+        modal: { 'width-small': '360px' },
         tooltip: { padding: '4px 8px', 'background-color': '#161616' },
         button: {
           'medium-height': '40px',

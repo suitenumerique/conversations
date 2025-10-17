@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 🎨(front) retour ui global
+- 👷(front) change size small modal
 
 ### Changed
 
+- 🎨(front) retour ui global
 - 👷(front) fix button scrollDown
 - 💥(front) disable input when error occurred
 - 👷(front) fix scroll

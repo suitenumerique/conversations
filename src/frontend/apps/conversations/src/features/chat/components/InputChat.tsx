@@ -141,6 +141,7 @@ export const InputChat = ({
       {/* Bouton de scroll vers le bas */}
       {messagesLength > 1 &&
         status !== 'streaming' &&
+        status !== 'submitted' &&
         containerRef &&
         onScrollToBottom && (
           <Box

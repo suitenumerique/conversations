@@ -40,9 +40,6 @@ const customColors = {
 tokens.themes.default.theme = {
   ...tokens.themes.default.theme,
   ...{
-    modal: {
-      'width-small': '360px',
-    },
     logo: {
       src: '',
       alt: '',
@@ -59,6 +56,9 @@ tokens.themes.default.theme = {
 tokens.themes.default.components = {
   ...tokens.themes.default.components,
   ...{
+    modal: {
+      'width-small': '360px',
+    },
     'la-gaufre': false,
     'home-proconnect': false,
     alpha: false,

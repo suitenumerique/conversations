@@ -151,6 +151,7 @@ export const Chat = ({
     number | null
   >(null);
   const lastUserMessageIdRef = useRef<string | null>(null);
+  const hasScrolledToBottomOnLoadRef = useRef(false);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
 
@@ -257,6 +258,10 @@ export const Chat = ({
 
   // Calculer la hauteur pour le message de streaming
   const calculateStreamingHeight = useCallback(() => {
+    if (messages.length <= 2) {
+      return;
+    }
+
     if (chatContainerRef.current) {
       const container = chatContainerRef.current;
       const containerHeight = container.clientHeight;
@@ -335,6 +340,7 @@ export const Chat = ({
       handleInputChange({
         target: { value: '' },
       } as React.ChangeEvent<HTMLTextAreaElement>);
+      setHasInitialized(false); // Réinitialiser pour permettre le scroll au prochain chargement
     }
   }, [initialConversationId, conversationId, handleInputChange]);
 
@@ -378,6 +384,7 @@ export const Chat = ({
 
   // Fetch initial conversation messages if initialConversationId is provided and no pending input
   useEffect(() => {
+    hasScrolledToBottomOnLoadRef.current = false; // Réinitialiser au début du chargement
     let ignore = false;
     async function fetchInitialMessages() {
       if (initialConversationId && !pendingInput) {
@@ -388,13 +395,6 @@ export const Chat = ({
           if (!ignore) {
             setInitialConversationMessages(conversation.messages);
             setHasInitialized(true);
-
-            if (chatContainerRef.current) {
-              chatContainerRef.current.scrollTo({
-                top: chatContainerRef.current.scrollHeight,
-                behavior: 'auto',
-              });
-            }
           }
         } catch {
           // Optionally handle error (e.g., setInitialConversationMessages([]) or show error)
@@ -413,14 +413,26 @@ export const Chat = ({
   }, [initialConversationId, pendingInput]);
 
   useEffect(() => {
-    if (hasInitialized && messages.length > 0 && !conversationId) {
-      // Only scroll on initial load when there's no conversationId yet
-      setTimeout(() => {
-        scrollToBottom();
-      }, 200);
+    if (
+      hasInitialized &&
+      conversationId &&
+      messages.length > 0 &&
+      !hasScrolledToBottomOnLoadRef.current
+    ) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTo({
+              top: chatContainerRef.current.scrollHeight,
+              behavior: 'auto',
+            });
+          }
+          hasScrolledToBottomOnLoadRef.current = true;
+        });
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasInitialized]);
+  }, [hasInitialized, messages.length]);
 
   // Custom handleSubmit to include attachments and handle chat creation
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -544,10 +556,12 @@ export const Chat = ({
                 message.role === 'assistant' &&
                 index ===
                   messages.findLastIndex((msg) => msg.role === 'assistant');
+              const isFirstConversationMessage = messages.length <= 2;
               const shouldApplyStreamingHeight =
                 isLastAssistantMessageInConversation &&
                 isLastMessage &&
-                streamingMessageHeight;
+                streamingMessageHeight &&
+                !isFirstConversationMessage;
               const isCurrentlyStreaming =
                 isLastAssistantMessageInConversation &&
                 (status === 'streaming' || status === 'submitted');
@@ -656,7 +670,6 @@ export const Chat = ({
                               </Text>
                             </Box>
                           )}
-
                         {message.parts
                           ?.filter(
                             (part) =>
@@ -829,10 +842,10 @@ export const Chat = ({
             $gap="6px"
             $width="100%"
             $maxWidth="750px"
-            $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
+            $margin={{ all: 'auto', top: 'base', bottom: '0' }}
             $padding={{ left: '13px', bottom: 'md' }}
             $css={`
-              ${streamingMessageHeight ? `min-height: ${streamingMessageHeight}px;` : ''}
+              ${streamingMessageHeight ? `min-height: ${streamingMessageHeight}px;` : 'auto'}
             `}
           >
             <Loader />

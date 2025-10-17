@@ -192,12 +192,11 @@
   --c--theme--breakpoints--xxs: 320px;
   --c--theme--breakpoints--mobile: 768px;
   --c--theme--breakpoints--tablet: 1024px;
-  --c--theme--modal--width-small: 360px;
   --c--theme--logo--src: ;
   --c--theme--logo--alt: ;
   --c--theme--logo--widthheader: ;
   --c--theme--logo--widthfooter: ;
-  --c--components--modal--width-small: 342px;
+  --c--components--modal--width-small: 360px;
   --c--components--tooltip--padding: 4px 8px;
   --c--components--tooltip--background-color: var(
     --c--theme--colors--greyscale-1000
