@@ -10,4 +10,5 @@ flowchart TD
     Back -- REST API --> Yserver
     Back --> DB("Database (PostgreSQL)")
     Back <--> Celery --> DB
+    Back ----> S3("Minio (S3)")
 ```

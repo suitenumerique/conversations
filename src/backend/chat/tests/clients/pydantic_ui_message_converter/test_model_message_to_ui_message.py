@@ -9,6 +9,7 @@ from django.utils import timezone
 
 import pytest
 from freezegun import freeze_time
+from pydantic_ai import ImageUrl
 from pydantic_ai.messages import (
     AudioUrl,
     BinaryContent,
@@ -162,9 +163,65 @@ def test_model_message_to_ui_message_binary_content():
     ]
 
 
+def test_model_message_to_ui_message_image_url():
+    """Test converting a ModelRequest with ImageUrl to UIMessage."""
+    model_message = ModelRequest(
+        parts=[
+            UserPromptPart(
+                content=[
+                    "What do you see?",
+                    ImageUrl(identifier="doc1.png", url="/media/documents/doc1.png"),
+                ]
+            ),
+        ],
+        kind="request",
+    )
+
+    result = model_message_to_ui_message(model_message)
+    assert result.role == "user"
+    assert result.parts == [TextUIPart(type="text", text="What do you see?")]
+    assert result.experimental_attachments == [
+        Attachment(
+            name="doc1.png",
+            contentType="image/png",
+            url="/media/documents/doc1.png",
+        ),
+    ]
+
+
+def test_model_message_to_ui_message_document_url():
+    """Test converting a ModelRequest with DocumentUrl to UIMessage."""
+    model_message = ModelRequest(
+        parts=[
+            UserPromptPart(
+                content=[
+                    "Summarize this",
+                    DocumentUrl(
+                        identifier="doc1.pdf",
+                        url="/media/documents/doc1.pdf",
+                        media_type="application/pdf",
+                    ),
+                ]
+            ),
+        ],
+        kind="request",
+    )
+
+    result = model_message_to_ui_message(model_message)
+    assert result.role == "user"
+    assert result.parts == [TextUIPart(type="text", text="Summarize this")]
+    assert result.experimental_attachments == [
+        Attachment(
+            name="doc1.pdf",
+            contentType="application/pdf",
+            url="/media/documents/doc1.pdf",
+        ),
+    ]
+
+
 def test_model_message_to_ui_message_file_parts_full():
     """Test handling unsupported file parts in UserPromptPart content."""
-    for part_type in [AudioUrl, VideoUrl, DocumentUrl]:
+    for part_type in [AudioUrl, VideoUrl]:
         model_message = ModelRequest(
             parts=[
                 UserPromptPart(

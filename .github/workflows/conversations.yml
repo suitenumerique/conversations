@@ -131,6 +131,9 @@ jobs:
       DB_PASSWORD: pass
       DB_PORT: 5432
       STORAGES_STATICFILES_BACKEND: django.contrib.staticfiles.storage.StaticFilesStorage
+      AWS_S3_ENDPOINT_URL: http://localhost:9000
+      AWS_S3_ACCESS_KEY_ID: conversations
+      AWS_S3_SECRET_ACCESS_KEY: password
 
     steps:
       - name: Checkout repository
@@ -149,10 +152,33 @@ jobs:
           key: mail-templates-${{ hashFiles('src/mail/mjml') }}
           fail-on-cache-miss: true
 
+      - name: Start MinIO
+        run: |
+          docker pull minio/minio
+          docker run -d --name minio \
+            -p 9000:9000 \
+            -e "MINIO_ACCESS_KEY=conversations" \
+            -e "MINIO_SECRET_KEY=password" \
+            -v /data/media:/data \
+            minio/minio server --console-address :9001 /data
+
       # Tool to wait for a service to be ready
       - name: Install Dockerize
         run: |
           curl -sSL https://github.com/jwilder/dockerize/releases/download/v0.8.0/dockerize-linux-amd64-v0.8.0.tar.gz | sudo tar -C /usr/local/bin -xzv
+
+      - name: Wait for MinIO to be ready
+        run: |
+          dockerize -wait tcp://localhost:9000 -timeout 10s
+
+      - name: Configure MinIO
+        run: |
+          MINIO=$(docker ps | grep minio/minio | sed -E 's/.*\s+([a-zA-Z0-9_-]+)$/\1/')
+          docker exec ${MINIO} sh -c \
+            "mc alias set conversations http://localhost:9000 conversations password && \
+            mc alias ls && \
+            mc mb conversations/conversations-media-storage && \
+            mc version enable conversations/conversations-media-storage"
 
       - name: Install Python
         uses: actions/setup-python@v5

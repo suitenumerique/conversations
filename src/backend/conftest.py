@@ -21,7 +21,7 @@ def no_http_requests(monkeypatch):
     Credits: https://blog.jerrycodes.com/no-http-requests/
     """
 
-    allowed_hosts = {"localhost"}
+    allowed_hosts = {"localhost", "minio", "minio:9000"}
     original_urlopen = HTTPConnectionPool.urlopen
 
     def urlopen_mock(self, method, url, *args, **kwargs):

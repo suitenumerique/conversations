@@ -1,10 +1,16 @@
 """Serializers for chat application."""
 
+from typing import Optional
+from urllib.parse import quote
+
 from django.conf import settings
 
 from django_pydantic_field.rest_framework import SchemaField  # pylint: disable=no-name-in-module
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
+
+from core.file_upload.enums import AttachmentStatus
+from core.file_upload.utils import generate_upload_policy
 
 from chat import models
 from chat.ai_sdk_types import UIMessage
@@ -142,3 +148,54 @@ class LLMConfigurationSerializer(serializers.Serializer):  # pylint: disable=abs
     """Serializer for LLM configuration."""
 
     models = LLModelSerializer(many=True)
+
+
+class ChatConversationAttachmentSerializer(serializers.ModelSerializer):
+    """Serializer for chat conversation attachments."""
+
+    url = serializers.SerializerMethodField()
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        model = models.ChatConversationAttachment
+        fields = ["id", "key", "content_type", "file_name", "size", "upload_state", "url"]
+        read_only_fields = ["id", "key", "content_type", "file_name", "size", "upload_state"]
+
+    def get_url(self, attachment) -> str | None:
+        """Return the URL of the attachment."""
+        if attachment.upload_state not in (
+            AttachmentStatus.FILE_TOO_LARGE_TO_ANALYZE,
+            AttachmentStatus.SUSPICIOUS,
+            AttachmentStatus.READY,
+        ):
+            return None
+
+        return f"{settings.MEDIA_BASE_URL}{settings.MEDIA_URL}{quote(attachment.key)}"
+
+
+class CreateChatConversationAttachmentSerializer(serializers.ModelSerializer):
+    """Serializer for creating chat conversation attachments."""
+
+    policy = serializers.SerializerMethodField()
+    uploaded_by = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    key = serializers.CharField(read_only=True)  # Key is generated server-side
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        model = models.ChatConversationAttachment
+        fields = ["id", "key", "content_type", "file_name", "size", "policy", "uploaded_by"]
+
+    def get_policy(self, attachment) -> str:
+        """Return the policy to use if the item is a file."""
+        return generate_upload_policy(attachment.key)
+
+    def validate_size(self, size: Optional[int]) -> Optional[int]:
+        """Validate that the size is not greater than the maximum allowed size."""
+        if not size:
+            return size
+
+        if size > settings.ATTACHMENT_MAX_SIZE:
+            max_size = settings.ATTACHMENT_MAX_SIZE // (1024 * 1024)
+            raise serializers.ValidationError(
+                f"File size exceeds the maximum limit of {max_size:d} MB."
+            )
+
+        return size

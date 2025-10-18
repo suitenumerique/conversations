@@ -28,6 +28,7 @@ interface InputChatProps {
   onStop?: () => void;
   selectedModel?: LLMModel | null;
   onModelSelect?: (model: LLMModel) => void;
+  isUploadingFiles?: boolean;
 }
 
 export const InputChat = ({
@@ -45,6 +46,7 @@ export const InputChat = ({
   onStop,
   selectedModel,
   onModelSelect,
+  isUploadingFiles = false,
 }: InputChatProps) => {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -125,6 +127,8 @@ export const InputChat = ({
       textareaRef.current.focus();
     }
   }, [status, input]);
+
+  const isInputDisabled = status !== 'ready' || isUploadingFiles;
 
   return (
     <Box
@@ -243,7 +247,7 @@ export const InputChat = ({
                 textarea.style.height = `${newHeight}px`;
                 textarea.focus();
               }}
-              disabled={status !== 'ready'}
+              disabled={isInputDisabled}
               rows={1}
               style={{
                 padding: '1rem 1.5rem',
@@ -387,7 +391,7 @@ export const InputChat = ({
                 <Button
                   size="small"
                   type="button"
-                  disabled={!fileUploadEnabled}
+                  disabled={!fileUploadEnabled || isUploadingFiles}
                   onClick={() => fileInputRef.current?.click()}
                   aria-label={t('Add attach file')}
                   className="c__button--neutral attach-file-button"
@@ -434,7 +438,7 @@ export const InputChat = ({
                     <Button
                       size="small"
                       type="button"
-                      disabled={!webSearchEnabled}
+                      disabled={!webSearchEnabled || isUploadingFiles}
                       onClick={() => {
                         onToggleWebSearch();
                         textareaRef.current?.focus();
@@ -512,7 +516,7 @@ export const InputChat = ({
 
                 <SendButton
                   status={status}
-                  disabled={!input || !input.trim()}
+                  disabled={!input || !input.trim() || isUploadingFiles}
                   onClick={onStop}
                 />
               </Box>

@@ -9,13 +9,18 @@ from rest_framework.routers import DefaultRouter
 from core.api import viewsets
 
 from activation_codes import viewsets as activation_viewsets
-from chat.views import ChatViewSet, LLMConfigurationView
+from chat.views import ChatConversationAttachmentViewSet, ChatViewSet, LLMConfigurationView
 
 # - Main endpoints
 router = DefaultRouter()
 router.register("users", viewsets.UserViewSet, basename="users")
 router.register("chats", ChatViewSet, basename="chats")
 router.register("activation", activation_viewsets.ActivationViewSet, basename="activation")
+
+conversation_router = DefaultRouter()
+conversation_router.register(
+    "attachments", ChatConversationAttachmentViewSet, basename="conversation-attachments"
+)
 
 urlpatterns = [
     path(
@@ -26,6 +31,10 @@ urlpatterns = [
                 *oidc_urls,
                 path(
                     "llm-configuration/", LLMConfigurationView.as_view(), name="llm-configuration"
+                ),
+                path(
+                    "chats/<uuid:conversation_pk>/",
+                    include(conversation_router.urls),
                 ),
             ]
         ),
