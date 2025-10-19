@@ -357,6 +357,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             langfuse.update_current_trace(
                 session_id=str(self.conversation.pk),
                 user_id=str(self.user.sub),
+                metadata={
+                    "user_fqdn": self.user.email.split("@")[-1],  # no need for security here
+                },
             )
 
         history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
