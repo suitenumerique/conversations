@@ -8,10 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-- 🎨(front) activation page footer
+## [0.0.1] - 2025-10-19
 
 ### Changed
 
+- 🎨(front) activation page footer
 - 👷(front) change size small modal
 - 🎨(front) retour ui global
 - 👷(front) fix button scrollDown
@@ -64,4 +65,5 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/numerique-gouv/conversations/compare/HEAD...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.1...main
+[0.0.1]: https://github.com/suitenumerique/conversations/releases/v0.0.1
