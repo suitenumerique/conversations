@@ -1,6 +1,7 @@
 """Mixin to add attachment upload and access control to a viewset."""
 
 import logging
+import re
 import uuid
 from urllib.parse import quote, urlencode
 
@@ -16,6 +17,7 @@ from rest_framework.reverse import reverse
 from rest_framework.throttling import UserRateThrottle
 
 from . import enums, utils
+from .enums import FILE_EXT_REGEX, UUID_REGEX
 from .exceptions import HolderDoesNotExist
 from .serializers import FileUploadSerializer
 
@@ -47,6 +49,12 @@ class AttachmentMixin:
     - `_check_attachment_present`
     """
 
+    ATTACHMENTS_FOLDER = "attachments"
+    MEDIA_STORAGE_URL_PATTERN = re.compile(
+        f"{settings.MEDIA_URL:s}(?P<pk>{UUID_REGEX:s})/"
+        f"(?P<attachment>{ATTACHMENTS_FOLDER:s}/{UUID_REGEX:s}(?:-unsafe)?{FILE_EXT_REGEX:s})$"
+    )
+
     def malware_detection_kwargs(self, holder) -> dict:
         """
         Extra arguments to pass to the malware detection backend.
@@ -70,7 +78,7 @@ class AttachmentMixin:
         """
         raise NotImplementedError()
 
-    def get_holder_from_key(self, key):
+    def get_holder_from_key(self, url_params, key):
         """
         Get the holder object from the attachment key, to check the user has
         access to the attachment holder (so they have access to the attachment).
@@ -108,14 +116,14 @@ class AttachmentMixin:
             kwargs={"pk": holder.pk},
         )
 
-    def check_attachment_holder_permission(self, user, key):
+    def check_attachment_holder_permission(self, user, url_params, key):
         """
         Check if the user has permission to access the holder of the attachment.
 
         Raises PermissionDenied if the user does not have permission.
         """
         try:
-            holder = self.get_holder_from_key(key)
+            holder = self.get_holder_from_key(url_params, key)
         except HolderDoesNotExist as err:
             logger.debug("Attachment holder not found for key '%s': %s", key, err)
             # We raise PermissionDenied instead of Http404 to avoid leaking information
@@ -126,6 +134,33 @@ class AttachmentMixin:
         # for now, only the owner can access the attachment
         if holder.owner_id != user.pk:
             raise exceptions.PermissionDenied()
+
+    def get_key_from_url_params(self, url_params) -> str:
+        """
+        Get the attachment key from URL parameters.
+
+        The key is composed of the holder's pk and the attachment filename.
+        """
+        return f"{url_params['pk']:s}/{url_params['attachment']:s}"
+
+    def check_attachment_is_ready(self, key) -> bool:
+        """
+        Check if the attachment is ready to be served.
+
+        An attachment is ready if its metadata `status` is `READY`.
+        """
+        s3_client = default_storage.connection.meta.client
+        bucket_name = default_storage.bucket_name
+        try:
+            head_resp = s3_client.head_object(Bucket=bucket_name, Key=key)
+        except ClientError as err:
+            logger.error("Client Error fetching file %s metadata: %s", key, err)
+            return False
+
+        metadata = head_resp.get("Metadata", {})
+        # In order to be compatible with existing upload without `status` metadata,
+        # we consider them as ready.
+        return metadata.get("status", enums.AttachmentStatus.READY) == enums.AttachmentStatus.READY
 
     @decorators.action(detail=True, methods=["post"], url_path="attachment-upload")
     @decorators.throttle_classes([AttachmentUploadThrottle])
@@ -156,7 +191,7 @@ class AttachmentMixin:
             file_unsafe = "-unsafe"
 
         holder_key_base = self.get_object_key_base(holder)
-        key = f"{holder_key_base}/{enums.ATTACHMENTS_FOLDER:s}/{file_id!s}{file_unsafe}.{ext:s}"
+        key = f"{holder_key_base}/{self.ATTACHMENTS_FOLDER:s}/{file_id!s}{file_unsafe}.{ext:s}"
 
         raw_name = serializer.validated_data["file_name"]
         # Strip CR/LF and normalize to a filesystem-safe basename
@@ -209,27 +244,17 @@ class AttachmentMixin:
         respond with the file after checking the signature included in headers.
         """
         parsed_url = utils.auth_get_original_url(request)
-        url_params = utils.auth_get_url_params(enums.MEDIA_STORAGE_URL_PATTERN, parsed_url.path)
+        url_params = utils.auth_get_url_params(self.MEDIA_STORAGE_URL_PATTERN, parsed_url.path)
+        key = self.get_key_from_url_params(url_params)
 
         user = request.user
-        key = f"{url_params['pk']:s}/{url_params['attachment']:s}"
 
         # Look for a holder to which the user has access and that includes this attachment
         # Might raise PermissionDenied
-        self.check_attachment_holder_permission(user, key)
+        self.check_attachment_holder_permission(user, url_params, key)
 
         # Check if the attachment is ready
-        s3_client = default_storage.connection.meta.client
-        bucket_name = default_storage.bucket_name
-        try:
-            head_resp = s3_client.head_object(Bucket=bucket_name, Key=key)
-        except ClientError as err:
-            raise exceptions.PermissionDenied() from err
-
-        metadata = head_resp.get("Metadata", {})
-        # In order to be compatible with existing upload without `status` metadata,
-        # we consider them as ready.
-        if metadata.get("status", enums.AttachmentStatus.READY) != enums.AttachmentStatus.READY:
+        if not self.check_attachment_is_ready(key):
             raise exceptions.PermissionDenied()
 
         # Generate S3 authorization headers using the extracted URL parameters

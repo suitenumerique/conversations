@@ -12,13 +12,14 @@ import magic
 import posthog
 from lasuite.malware_detection import malware_detection
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from core.api.viewsets import Pagination, SerializerPerActionMixin
 from core.file_upload import enums
 from core.file_upload.enums import AttachmentStatus
+from core.file_upload.mixins import AttachmentMixin
 from core.filters import remove_accents
 
 from activation_codes.permissions import IsActivatedUser
@@ -39,13 +40,48 @@ class ChatConversationFilter(filters.BaseFilterBackend):
         return queryset
 
 
-class ChatViewSet(  # pylint: disable=too-many-ancestors
+class ChatAttachmentMixin(AttachmentMixin):  # pylint: disable=abstract-method
+    """Mixin to handle attachment authorization for chat conversations."""
+
+    @decorators.action(detail=True, methods=["post"], url_path="attachment-upload")
+    def attachment_upload(self, request, *args, **kwargs):
+        """Explicitly disable this action."""
+        raise MethodNotAllowed("POST")
+
+    @decorators.action(detail=True, methods=["get"], url_path="media-check")
+    def media_check(self, request, *args, **kwargs):
+        """Explicitly disable this action."""
+        raise MethodNotAllowed("GET")
+
+    def check_attachment_holder_permission(self, user, url_params, key):
+        """
+        Check if the user has permission to access the holder of the attachment.
+
+        Raises PermissionDenied if the user does not have permission.
+        """
+        if not user.is_authenticated:
+            raise PermissionDenied()
+
+        try:
+            models.ChatConversation.objects.get(
+                pk=url_params["pk"],
+                owner=user,
+            )
+            # We don't need to check the ChatConversationAttachment here because
+            # if the storage object exists, it means the attachment is linked
+            # to the conversation, which is already verified by the above query.
+        except models.ChatConversation.DoesNotExist as exc:
+            raise PermissionDenied() from exc
+
+
+class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
     SerializerPerActionMixin,
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
     mixins.DestroyModelMixin,
     mixins.UpdateModelMixin,
+    ChatAttachmentMixin,
     viewsets.GenericViewSet,
 ):
     """ViewSet for managing chat conversations.
@@ -318,7 +354,8 @@ class ChatConversationAttachmentViewSet(
 
         file_id = uuid4()
         holder_key_base = f"{self.kwargs['conversation_pk']!s}"
-        key = f"{holder_key_base}/{enums.ATTACHMENTS_FOLDER:s}/{file_id!s}.{extension:s}"
+        ext_suffix = f".{extension}" if extension else ""
+        key = f"{holder_key_base}/{AttachmentMixin.ATTACHMENTS_FOLDER:s}/{file_id!s}{ext_suffix}"
 
         serializer.save(
             conversation_id=self.kwargs["conversation_pk"],
