@@ -1,5 +1,9 @@
 {
   "en": { "translation": { "Login": "Login", "Logout": "Logout" } },
+  "nl": { "translation": { "Login": "Inloggen", "Logout": "Uitloggen" } },
+  "uk": { "translation": { "Login": "Увійти", "Logout": "Вийти" } },
+  "ru": { "translation": { "Login": "Войти", "Logout": "Выйти" } },
+  "de": { "translation": { "Login": "Anmelden", "Logout": "Abmelden" } },
   "fr": {
     "translation": {
       "30 sec to tell us what you think or report a bug": "Prenez 30 secondes pour partager votre avis ou signaler un bug",

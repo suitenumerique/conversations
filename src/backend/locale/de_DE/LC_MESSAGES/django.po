@@ -1,9 +1,9 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: lasuite-docs\n"
+"Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-05-22 12:09+0000\n"
-"PO-Revision-Date: 2025-05-22 14:16\n"
+"POT-Creation-Date: 2025-10-19 21:49+0000\n"
+"PO-Revision-Date: 2025-10-19 21:25\n"
 "Last-Translator: \n"
 "Language-Team: German\n"
 "Language: de_DE\n"
@@ -11,380 +11,326 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
-"X-Crowdin-Project: lasuite-docs\n"
-"X-Crowdin-Project-ID: 754523\n"
+"X-Crowdin-Project: la-suite-conversations\n"
+"X-Crowdin-Project-ID: 810876\n"
 "X-Crowdin-Language: de\n"
 "X-Crowdin-File: backend-conversations.pot\n"
-"X-Crowdin-File-ID: 18\n"
+"X-Crowdin-File-ID: 26\n"
 
-#: build/lib/core/admin.py:37 core/admin.py:37
-msgid "Personal info"
-msgstr "Persönliche Daten"
+#: activation_codes/admin.py:54
+msgid "Configuration"
+msgstr ""
 
-#: build/lib/core/admin.py:50 build/lib/core/admin.py:138 core/admin.py:50
-#: core/admin.py:138
-msgid "Permissions"
-msgstr "Berechtigungen"
+#: activation_codes/admin.py:65
+msgid "Usage details"
+msgstr ""
 
-#: build/lib/core/admin.py:62 core/admin.py:62
-msgid "Important dates"
-msgstr "Wichtige Daten"
+#: activation_codes/admin.py:69 activation_codes/admin.py:225
+msgid "Timestamps"
+msgstr ""
 
-#: build/lib/core/admin.py:148 core/admin.py:148
-msgid "Tree structure"
-msgstr "Baumstruktur"
+#: activation_codes/admin.py:108
+msgid "Usage"
+msgstr ""
 
-#: build/lib/core/api/filters.py:47 core/api/filters.py:47
-msgid "Title"
-msgstr "Titel"
+#: activation_codes/admin.py:116
+msgid "Description"
+msgstr ""
 
-#: build/lib/core/api/filters.py:61 core/api/filters.py:61
-msgid "Creator is me"
-msgstr "Ersteller bin ich"
+#: activation_codes/admin.py:123
+msgid "No users have used this code yet"
+msgstr ""
 
-#: build/lib/core/api/filters.py:64 core/api/filters.py:64
-msgid "Favorite"
-msgstr "Favorit"
+#: activation_codes/admin.py:134
+msgid "Name"
+msgstr ""
 
-#: build/lib/core/api/serializers.py:446 core/api/serializers.py:446
-msgid "A new document was created on your behalf!"
-msgstr "Ein neues Dokument wurde in Ihrem Namen erstellt!"
+#: activation_codes/admin.py:135 activation_codes/admin.py:245
+msgid "Email"
+msgstr ""
 
-#: build/lib/core/api/serializers.py:450 core/api/serializers.py:450
-msgid "You have been granted ownership of a new document:"
-msgstr "Sie sind Besitzer eines neuen Dokuments:"
+#: activation_codes/admin.py:136
+msgid "Date"
+msgstr ""
 
-#: build/lib/core/api/serializers.py:586 core/api/serializers.py:586
-msgid "Body"
-msgstr "Inhalt"
+#: activation_codes/admin.py:160
+msgid "Users who used this code"
+msgstr ""
 
-#: build/lib/core/api/serializers.py:589 core/api/serializers.py:589
-msgid "Body type"
-msgstr "Typ"
+#: activation_codes/admin.py:162
+msgid "Recompute current uses from related activations"
+msgstr ""
 
-#: build/lib/core/api/serializers.py:595 core/api/serializers.py:595
-msgid "Format"
-msgstr "Format"
+#: activation_codes/admin.py:176
+msgid "All selected activation codes already have correct usage counts."
+msgstr ""
 
-#: build/lib/core/api/viewsets.py:967 core/api/viewsets.py:967
-#, python-brace-format
-msgid "copy of {title}"
-msgstr "Kopie von {title}"
+#: activation_codes/admin.py:181
+#, python-format
+msgid "Successfully recomputed usage counts for %(count)d activation code(s)."
+msgstr ""
 
-#: build/lib/core/enums.py:36 core/enums.py:36
-msgid "First child"
-msgstr "Erstes Unterelement"
+#: activation_codes/admin.py:239 activation_codes/admin.py:281
+msgid "User"
+msgstr ""
 
-#: build/lib/core/enums.py:37 core/enums.py:37
-msgid "Last child"
-msgstr "Letztes Unterelement"
+#: activation_codes/admin.py:288
+msgid "Has used activation code"
+msgstr ""
 
-#: build/lib/core/enums.py:38 core/enums.py:38
-msgid "First sibling"
-msgstr "Erstes Nebenelement"
+#: activation_codes/models.py:36 activation_codes/models.py:83
+#: activation_codes/models.py:164
+msgid "activation code"
+msgstr ""
 
-#: build/lib/core/enums.py:39 core/enums.py:39
-msgid "Last sibling"
-msgstr "Letztes Nebenelement"
+#: activation_codes/models.py:37
+msgid "The activation code that users will enter"
+msgstr ""
 
-#: build/lib/core/enums.py:40 core/enums.py:40
-msgid "Left"
-msgstr "Links"
+#: activation_codes/models.py:44
+msgid "Code must be alphanumeric and contain no spaces or special characters"
+msgstr ""
 
-#: build/lib/core/enums.py:41 core/enums.py:41
-msgid "Right"
-msgstr "Rechts"
+#: activation_codes/models.py:50
+msgid "maximum uses"
+msgstr ""
 
-#: build/lib/core/models.py:56 build/lib/core/models.py:63 core/models.py:56
-#: core/models.py:63
-msgid "Reader"
-msgstr "Lesen"
+#: activation_codes/models.py:51
+msgid "Maximum number of times this code can be used. 0 means unlimited."
+msgstr ""
 
-#: build/lib/core/models.py:57 build/lib/core/models.py:64 core/models.py:57
-#: core/models.py:64
-msgid "Editor"
-msgstr "Bearbeiten"
+#: activation_codes/models.py:56
+msgid "current uses"
+msgstr ""
 
-#: build/lib/core/models.py:65 core/models.py:65
-msgid "Administrator"
-msgstr "Administrator"
+#: activation_codes/models.py:57
+msgid "Number of times this code has been used"
+msgstr ""
 
-#: build/lib/core/models.py:66 core/models.py:66
-msgid "Owner"
-msgstr "Besitzer"
-
-#: build/lib/core/models.py:77 core/models.py:77
-msgid "Restricted"
-msgstr "Beschränkt"
-
-#: build/lib/core/models.py:81 core/models.py:81
-msgid "Authenticated"
-msgstr "Authentifiziert"
-
-#: build/lib/core/models.py:83 core/models.py:83
-msgid "Public"
-msgstr "Öffentlich"
-
-#: build/lib/core/models.py:154 core/models.py:154
-msgid "id"
-msgstr "id"
-
-#: build/lib/core/models.py:155 core/models.py:155
-msgid "primary key for the record as UUID"
-msgstr "primärer Schlüssel für den Datensatz als UUID"
-
-#: build/lib/core/models.py:161 core/models.py:161
-msgid "created on"
-msgstr "Erstellt"
-
-#: build/lib/core/models.py:162 core/models.py:162
-msgid "date and time at which a record was created"
-msgstr "Datum und Uhrzeit, an dem ein Datensatz erstellt wurde"
-
-#: build/lib/core/models.py:167 core/models.py:167
-msgid "updated on"
-msgstr "Aktualisiert"
-
-#: build/lib/core/models.py:168 core/models.py:168
-msgid "date and time at which a record was last updated"
-msgstr "Datum und Uhrzeit, an dem zuletzt aktualisiert wurde"
-
-#: build/lib/core/models.py:204 core/models.py:204
-msgid "We couldn't find a user with this sub but the email is already associated with a registered user."
-msgstr "Wir konnten keinen Benutzer mit diesem Abo finden, aber die E-Mail-Adresse ist bereits einem registrierten Benutzer zugeordnet."
-
-#: build/lib/core/models.py:217 core/models.py:217
-msgid "Enter a valid sub. This value may contain only letters, numbers, and @/./+/-/_/: characters."
-msgstr "Geben Sie eine gültige Unterseite ein. Dieser Wert darf nur Buchstaben, Zahlen und die @/./+/-/_/: Zeichen enthalten."
-
-#: build/lib/core/models.py:223 core/models.py:223
-msgid "sub"
-msgstr "unter"
-
-#: build/lib/core/models.py:225 core/models.py:225
-msgid "Required. 255 characters or fewer. Letters, numbers, and @/./+/-/_/: characters only."
-msgstr "Erforderlich. 255 Zeichen oder weniger. Buchstaben, Zahlen und die Zeichen @/./+/-/_/:"
-
-#: build/lib/core/models.py:234 core/models.py:234
-msgid "full name"
-msgstr "Name"
-
-#: build/lib/core/models.py:235 core/models.py:235
-msgid "short name"
-msgstr "Kurzbezeichnung"
-
-#: build/lib/core/models.py:237 core/models.py:237
-msgid "identity email address"
-msgstr "Identitäts-E-Mail-Adresse"
-
-#: build/lib/core/models.py:242 core/models.py:242
-msgid "admin email address"
-msgstr "Admin E-Mail-Adresse"
-
-#: build/lib/core/models.py:249 core/models.py:249
-msgid "language"
-msgstr "Sprache"
-
-#: build/lib/core/models.py:250 core/models.py:250
-msgid "The language in which the user wants to see the interface."
-msgstr "Die Sprache, in der der Benutzer die Benutzeroberfläche sehen möchte."
-
-#: build/lib/core/models.py:258 core/models.py:258
-msgid "The timezone in which the user wants to see times."
-msgstr "Die Zeitzone, in der der Nutzer Zeiten sehen möchte."
-
-#: build/lib/core/models.py:261 core/models.py:261
-msgid "device"
-msgstr "Gerät"
-
-#: build/lib/core/models.py:263 core/models.py:263
-msgid "Whether the user is a device or a real user."
-msgstr "Ob der Benutzer ein Gerät oder ein echter Benutzer ist."
-
-#: build/lib/core/models.py:266 core/models.py:266
-msgid "staff status"
-msgstr "Status des Teammitgliedes"
-
-#: build/lib/core/models.py:268 core/models.py:268
-msgid "Whether the user can log into this admin site."
-msgstr "Gibt an, ob der Benutzer sich in diese Admin-Seite einloggen kann."
-
-#: build/lib/core/models.py:271 core/models.py:271
+#: activation_codes/models.py:63 core/models.py:151
 msgid "active"
-msgstr "aktiviert"
+msgstr ""
 
-#: build/lib/core/models.py:274 core/models.py:274
-msgid "Whether this user should be treated as active. Unselect this instead of deleting accounts."
-msgstr "Ob dieser Benutzer als aktiviert behandelt werden soll. Deaktivieren Sie diese Option, anstatt Konten zu löschen."
+#: activation_codes/models.py:64
+msgid "Whether this code can still be used"
+msgstr ""
 
-#: build/lib/core/models.py:286 core/models.py:286
-msgid "user"
-msgstr "Benutzer"
+#: activation_codes/models.py:69
+msgid "expires at"
+msgstr ""
 
-#: build/lib/core/models.py:287 core/models.py:287
-msgid "users"
-msgstr "Benutzer"
+#: activation_codes/models.py:70
+msgid "Date and time when this code expires"
+msgstr ""
 
-#: build/lib/core/models.py:470 build/lib/core/models.py:1155
-#: core/models.py:470 core/models.py:1155
-msgid "title"
-msgstr "Titel"
-
-#: build/lib/core/models.py:471 core/models.py:471
-msgid "excerpt"
-msgstr "Auszug"
-
-#: build/lib/core/models.py:519 core/models.py:519
-msgid "Document"
-msgstr "Dokument"
-
-#: build/lib/core/models.py:520 core/models.py:520
-msgid "Documents"
-msgstr "Dokumente"
-
-#: build/lib/core/models.py:532 build/lib/core/models.py:873 core/models.py:532
-#: core/models.py:873
-msgid "Untitled Document"
-msgstr "Unbenanntes Dokument"
-
-#: build/lib/core/models.py:908 core/models.py:908
-#, python-brace-format
-msgid "{name} shared a document with you!"
-msgstr "{name} hat ein Dokument mit Ihnen geteilt!"
-
-#: build/lib/core/models.py:912 core/models.py:912
-#, python-brace-format
-msgid "{name} invited you with the role \"{role}\" on the following document:"
-msgstr "{name} hat Sie mit der Rolle \"{role}\" zu folgendem Dokument eingeladen:"
-
-#: build/lib/core/models.py:918 core/models.py:918
-#, python-brace-format
-msgid "{name} shared a document with you: {title}"
-msgstr "{name} hat ein Dokument mit Ihnen geteilt: {title}"
-
-#: build/lib/core/models.py:1016 core/models.py:1016
-msgid "Document/user link trace"
-msgstr "Dokument/Benutzer Linkverfolgung"
-
-#: build/lib/core/models.py:1017 core/models.py:1017
-msgid "Document/user link traces"
-msgstr "Dokument/Benutzer Linkverfolgung"
-
-#: build/lib/core/models.py:1023 core/models.py:1023
-msgid "A link trace already exists for this document/user."
-msgstr "Für dieses Dokument/ diesen Benutzer ist bereits eine Linkverfolgung vorhanden."
-
-#: build/lib/core/models.py:1046 core/models.py:1046
-msgid "Document favorite"
-msgstr "Dokumentenfavorit"
-
-#: build/lib/core/models.py:1047 core/models.py:1047
-msgid "Document favorites"
-msgstr "Dokumentfavoriten"
-
-#: build/lib/core/models.py:1053 core/models.py:1053
-msgid "This document is already targeted by a favorite relation instance for the same user."
-msgstr "Dieses Dokument ist bereits durch den gleichen Benutzer favorisiert worden."
-
-#: build/lib/core/models.py:1075 core/models.py:1075
-msgid "Document/user relation"
-msgstr "Dokument/Benutzerbeziehung"
-
-#: build/lib/core/models.py:1076 core/models.py:1076
-msgid "Document/user relations"
-msgstr "Dokument/Benutzerbeziehungen"
-
-#: build/lib/core/models.py:1082 core/models.py:1082
-msgid "This user is already in this document."
-msgstr "Dieser Benutzer befindet sich bereits in diesem Dokument."
-
-#: build/lib/core/models.py:1088 core/models.py:1088
-msgid "This team is already in this document."
-msgstr "Dieses Team befindet sich bereits in diesem Dokument."
-
-#: build/lib/core/models.py:1094 build/lib/core/models.py:1242
-#: core/models.py:1094 core/models.py:1242
-msgid "Either user or team must be set, not both."
-msgstr "Benutzer oder Team müssen gesetzt werden, nicht beides."
-
-#: build/lib/core/models.py:1156 core/models.py:1156
+#: activation_codes/models.py:76
 msgid "description"
-msgstr "Beschreibung"
+msgstr ""
 
-#: build/lib/core/models.py:1157 core/models.py:1157
-msgid "code"
-msgstr "Code"
+#: activation_codes/models.py:77
+msgid "Internal description or notes about this code"
+msgstr ""
 
-#: build/lib/core/models.py:1158 core/models.py:1158
-msgid "css"
-msgstr "CSS"
+#: activation_codes/models.py:84
+msgid "activation codes"
+msgstr ""
 
-#: build/lib/core/models.py:1160 core/models.py:1160
-msgid "public"
-msgstr "öffentlich"
+#: activation_codes/models.py:126
+msgid "This activation code is no longer valid"
+msgstr ""
 
-#: build/lib/core/models.py:1162 core/models.py:1162
-msgid "Whether this template is public for anyone to use."
-msgstr "Ob diese Vorlage für jedermann öffentlich ist."
+#: activation_codes/models.py:134
+msgid "You have already activated your account"
+msgstr ""
 
-#: build/lib/core/models.py:1168 core/models.py:1168
-msgid "Template"
-msgstr "Vorlage"
+#: activation_codes/models.py:156 activation_codes/models.py:188
+#: core/models.py:173
+msgid "user"
+msgstr ""
 
-#: build/lib/core/models.py:1169 core/models.py:1169
-msgid "Templates"
-msgstr "Vorlagen"
+#: activation_codes/models.py:157
+msgid "The user who used the activation code"
+msgstr ""
 
-#: build/lib/core/models.py:1223 core/models.py:1223
-msgid "Template/user relation"
-msgstr "Vorlage/Benutzer-Beziehung"
+#: activation_codes/models.py:165
+msgid "The activation code that was used"
+msgstr ""
 
-#: build/lib/core/models.py:1224 core/models.py:1224
-msgid "Template/user relations"
-msgstr "Vorlage/Benutzerbeziehungen"
+#: activation_codes/models.py:172 activation_codes/models.py:196
+msgid "user activation"
+msgstr ""
 
-#: build/lib/core/models.py:1230 core/models.py:1230
-msgid "This user is already in this template."
-msgstr "Dieser Benutzer ist bereits in dieser Vorlage."
+#: activation_codes/models.py:173
+msgid "user activations"
+msgstr ""
 
-#: build/lib/core/models.py:1236 core/models.py:1236
-msgid "This team is already in this template."
-msgstr "Dieses Team ist bereits in diesem Template."
+#: activation_codes/models.py:189
+msgid "The user who made the registration request"
+msgstr ""
 
-#: build/lib/core/models.py:1259 core/models.py:1259
-msgid "email address"
-msgstr "E-Mail-Adresse"
+#: activation_codes/models.py:197
+msgid "Store if the user received an activation code and used it"
+msgstr ""
 
-#: build/lib/core/models.py:1278 core/models.py:1278
-msgid "Document invitation"
-msgstr "Einladung zum Dokument"
+#: activation_codes/models.py:206
+msgid "user registration request"
+msgstr ""
 
-#: build/lib/core/models.py:1279 core/models.py:1279
-msgid "Document invitations"
-msgstr "Dokumenteinladungen"
+#: activation_codes/models.py:207
+msgid "user registration requests"
+msgstr ""
 
-#: build/lib/core/models.py:1299 core/models.py:1299
-msgid "This email is already associated to a registered user."
-msgstr "Diese E-Mail ist bereits einem registrierten Benutzer zugeordnet."
+#: activation_codes/serializers.py:14
+msgid "The activation code to validate"
+msgstr ""
+
+#: activation_codes/viewsets.py:106
+msgid "Your account has been successfully activated"
+msgstr ""
+
+#: chat/apps.py:12
+msgid "chat application"
+msgstr ""
+
+#: core/admin.py:26
+msgid "Personal info"
+msgstr ""
+
+#: core/admin.py:40
+msgid "Permissions"
+msgstr ""
+
+#: core/admin.py:52
+msgid "Important dates"
+msgstr ""
+
+#: core/models.py:39
+msgid "id"
+msgstr ""
+
+#: core/models.py:40
+msgid "primary key for the record as UUID"
+msgstr ""
+
+#: core/models.py:46
+msgid "created on"
+msgstr ""
+
+#: core/models.py:47
+msgid "date and time at which a record was created"
+msgstr ""
+
+#: core/models.py:52
+msgid "updated on"
+msgstr ""
+
+#: core/models.py:53
+msgid "date and time at which a record was last updated"
+msgstr ""
+
+#: core/models.py:86
+msgid ""
+"We couldn't find a user with this sub but the email is already associated "
+"with a registered user."
+msgstr ""
+
+#: core/models.py:99
+msgid ""
+"Enter a valid sub. This value may contain only letters, numbers, and @/./+/-/"
+"_/: characters."
+msgstr ""
+
+#: core/models.py:105
+msgid "sub"
+msgstr ""
+
+#: core/models.py:107
+msgid ""
+"Required. 255 characters or fewer. Letters, numbers, and @/./+/-/_/: "
+"characters only."
+msgstr ""
+
+#: core/models.py:116
+msgid "full name"
+msgstr ""
+
+#: core/models.py:117
+msgid "short name"
+msgstr ""
+
+#: core/models.py:119
+msgid "identity email address"
+msgstr ""
+
+#: core/models.py:123
+msgid "admin email address"
+msgstr ""
+
+#: core/models.py:129
+msgid "language"
+msgstr ""
+
+#: core/models.py:130
+msgid "The language in which the user wants to see the interface."
+msgstr ""
+
+#: core/models.py:138
+msgid "The timezone in which the user wants to see times."
+msgstr ""
+
+#: core/models.py:141
+msgid "device"
+msgstr ""
+
+#: core/models.py:143
+msgid "Whether the user is a device or a real user."
+msgstr ""
+
+#: core/models.py:146
+msgid "staff status"
+msgstr ""
+
+#: core/models.py:148
+msgid "Whether the user can log into this admin site."
+msgstr ""
+
+#: core/models.py:154
+msgid ""
+"Whether this user should be treated as active. Unselect this instead of "
+"deleting accounts."
+msgstr ""
+
+#: core/models.py:161
+msgid "allow conversation analytics"
+msgstr ""
+
+#: core/models.py:163
+msgid "Whether the user allows to use their conversations for analytics."
+msgstr ""
+
+#: core/models.py:174
+msgid "users"
+msgstr ""
 
 #: core/templates/mail/html/invitation.html:162
 #: core/templates/mail/text/invitation.txt:3
 msgid "Logo email"
-msgstr "Logo-E-Mail"
+msgstr ""
 
 #: core/templates/mail/html/invitation.html:209
 #: core/templates/mail/text/invitation.txt:10
 msgid "Open"
-msgstr "Öffnen"
+msgstr ""
 
 #: core/templates/mail/html/invitation.html:226
 #: core/templates/mail/text/invitation.txt:14
-msgid " Docs, your new essential tool for organizing, sharing and collaborating on your documents as a team. "
-msgstr " Docs, Ihr neues unentbehrliches Werkzeug für die Organisation, den Austausch und die Zusammenarbeit in Ihren Dokumenten als Team. "
+msgid ""
+" Docs, your new essential tool for organizing, sharing and collaborating on "
+"your documents as a team. "
+msgstr ""
 
 #: core/templates/mail/html/invitation.html:233
 #: core/templates/mail/text/invitation.txt:16
 #, python-format
 msgid " Brought to you by %(brandname)s "
-msgstr " Erstellt von %(brandname)s "
-
+msgstr ""
