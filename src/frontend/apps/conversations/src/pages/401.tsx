@@ -40,7 +40,7 @@ const Page: NextPageWithLayout = () => {
 
       <Box $align="center" $gap="0.8rem">
         <Text as="p" $textAlign="center" $maxWidth="350px" $theme="primary">
-          {t('Log in to access the document.')}
+          {t('Log in to access this page.')}
         </Text>
 
         <Button onClick={() => gotoLogin(false)} aria-label={t('Login')}>

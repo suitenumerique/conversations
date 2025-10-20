@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- 💬(text) error page wording
+
 ## [0.0.1] - 2025-10-19
 
 ### Changed
