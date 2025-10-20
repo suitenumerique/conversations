@@ -87,6 +87,12 @@ export const ActivationPage = () => {
     e.preventDefault();
     setError(null);
 
+    // Verify user is still authenticated before submitting
+    if (!authenticated) {
+      void router.push('/');
+      return;
+    }
+
     if (!code.trim()) {
       setError(t('Please enter an activation code'));
       return;
@@ -135,6 +141,12 @@ export const ActivationPage = () => {
   };
 
   const handleNotificationRegister = () => {
+    // Verify user is still authenticated before registering
+    if (!authenticated) {
+      void router.push('/');
+      return;
+    }
+
     void registerNotification(undefined, {
       onSuccess: () => {
         showToast('success', t('You will be notified!'));
