@@ -48,7 +48,7 @@ const Page: NextPageWithLayout = () => {
 
         <Box $align="center" $gap="0.8rem">
           <Text as="p" $textAlign="center" $maxWidth="350px" $theme="primary">
-            {t('You do not have permission to view this document.')}
+            {t('You do not have permission to view this page.')}
           </Text>
 
           <StyledLink href="/">

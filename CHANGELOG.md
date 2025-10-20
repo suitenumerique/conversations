@@ -16,6 +16,7 @@ and this project adheres to
 ### Changed
 
 - 🐛(front) code activation fix session end #93
+- 💬(wording) error page wording #102
 
 
 ## [0.0.1] - 2025-10-19
