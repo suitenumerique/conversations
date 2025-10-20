@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(activation-codes) register users also on Brevo #98
+- 📈(posthog) add `sub` field to tracking #95
 
 ### Changed
 

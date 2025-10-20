@@ -39,7 +39,7 @@ jest.mock('next/router', () => ({
   }),
 }));
 
-const dummyUser = { id: '123', email: 'test@example.com' };
+const dummyUser = { id: '123', email: 'test@example.com', sub: 'test-sub' };
 
 describe('useAuth hook - trackEvent effect', () => {
   beforeEach(() => {
@@ -63,6 +63,7 @@ describe('useAuth hook - trackEvent effect', () => {
         eventName: 'user',
         id: dummyUser.id,
         email: dummyUser.email,
+        sub: dummyUser.sub,
       });
     });
   });
