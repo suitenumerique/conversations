@@ -6,12 +6,14 @@ import logging
 import secrets
 import string
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from core.brevo import add_user_to_brevo_list, remove_user_from_brevo_list
 from core.models import BaseModel, User
 
 from activation_codes.exceptions import InvalidCodeError, UserAlreadyActivatedError
@@ -134,11 +136,23 @@ class ActivationCode(BaseModel):
                     _("You have already activated your account")
                 ) from exc
 
-            UserRegistrationRequest.objects.filter(user=user).update(user_activation=activation)
+            existing_registration = bool(
+                UserRegistrationRequest.objects.filter(user=user).update(user_activation=activation)
+            )
+            if existing_registration:
+                transaction.on_commit(
+                    lambda: remove_user_from_brevo_list(
+                        [user.email], settings.BREVO_WAITING_LIST_ID
+                    )
+                )
 
             # Increment usage counter safely under the same lock.
             locked_code.current_uses += 1
             locked_code.save(update_fields=["current_uses", "updated_at"])
+
+            transaction.on_commit(
+                lambda: add_user_to_brevo_list([user.email], settings.BREVO_FOLLOWUP_LIST_ID)
+            )
 
             if locked_code.max_uses > 0 and locked_code.current_uses >= locked_code.max_uses:
                 logger.warning("Activation code %s has reached its maximum uses", locked_code.code)

@@ -602,6 +602,22 @@ class Base(BraveSettings, Configuration):
         default=False, environ_name="ACTIVATION_REQUIRED", environ_prefix=None
     )
 
+    BREVO_API_KEY = values.Value(
+        default=None,
+        environ_name="BREVO_API_KEY",
+        environ_prefix=None,
+    )
+    BREVO_FOLLOWUP_LIST_ID = values.Value(
+        default=None,
+        environ_name="BREVO_FOLLOWUP_LIST_ID",
+        environ_prefix=None,
+    )
+    BREVO_WAITING_LIST_ID = values.Value(
+        default=None,
+        environ_name="BREVO_WAITING_LIST_ID",
+        environ_prefix=None,
+    )
+
     # AI service
     _llm_configuration_file_path = values.Value(
         os.path.join(BASE_DIR, "conversations/configuration/llm/default.json"),

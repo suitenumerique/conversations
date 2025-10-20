@@ -1,11 +1,13 @@
 """Tests for activation_codes viewsets."""
 
+import json
 from datetime import timedelta
 from unittest.mock import patch
 
 from django.utils import timezone
 
 import pytest
+import responses
 from rest_framework import status
 
 from core.factories import UserFactory
@@ -321,3 +323,72 @@ def test_validate_code_registered_user(api_client):
 
     _registration.refresh_from_db()
     assert _registration.user_activation.activation_code == activation_code
+
+
+@responses.activate
+@pytest.mark.django_db
+def test_register_email_success_brevo(api_client, settings):
+    """Test successfully registering an email and notify Brevo."""
+    settings.BREVO_API_KEY = "test_brevo_api_key"
+    settings.BREVO_WAITING_LIST_ID = "test_waiting_list_id"
+
+    brevo_mock = responses.post(
+        "https://api.brevo.com/v3/contacts/lists/test_waiting_list_id/contacts/add",
+        json={"message": "Contacts added successfully"},
+        status=201,
+    )
+
+    user = UserFactory()
+    api_client.force_authenticate(user=user)
+
+    response = api_client.post(
+        "/api/v1.0/activation/register/",
+        {},
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.data["code"] == "registration-successful"
+
+    registration = UserRegistrationRequest.objects.get(user=user)
+    assert registration.user == user
+
+    assert len(brevo_mock.calls) == 1
+    assert brevo_mock.calls[0].request.headers["api-key"] == "test_brevo_api_key"
+    assert json.loads(brevo_mock.calls[0].request.body) == {"emails": [user.email]}
+
+    # Register again to test idempotency
+    response = api_client.post(
+        "/api/v1.0/activation/register/",
+        {},
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["code"] == "registration-successful"
+
+    assert len(brevo_mock.calls) == 1  # No new call made
+
+
+@responses.activate
+@pytest.mark.django_db
+def test_register_email_success_brevo_fails(api_client, settings):
+    """Test successfully registering an email, even if Brevo fails."""
+    settings.BREVO_API_KEY = "test_brevo_api_key"
+    settings.BREVO_WAITING_LIST_ID = "test_waiting_list_id"
+
+    brevo_mock = responses.post(
+        "https://api.brevo.com/v3/contacts/lists/test_waiting_list_id/contacts/add",
+        status=400,
+    )
+
+    user = UserFactory()
+    api_client.force_authenticate(user=user)
+
+    response = api_client.post(
+        "/api/v1.0/activation/register/",
+        {},
+    )
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.data["code"] == "registration-successful"
+
+    registration = UserRegistrationRequest.objects.get(user=user)
+    assert registration.user == user
+
+    assert len(brevo_mock.calls) == 1

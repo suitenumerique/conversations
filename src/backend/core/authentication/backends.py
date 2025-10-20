@@ -10,6 +10,7 @@ from lasuite.oidc_login.backends import (
     OIDCAuthenticationBackend as LaSuiteOIDCAuthenticationBackend,
 )
 
+from core.brevo import add_user_to_brevo_list
 from core.models import DuplicateEmailError
 
 logger = logging.getLogger(__name__)
@@ -70,3 +71,12 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         return super().create_user(
             claims | {"allow_conversation_analytics": settings.DEFAULT_ALLOW_CONVERSATION_ANALYTICS}
         )
+
+    def authenticate(self, request, **kwargs):
+        """Authenticate user and add they to Brevo list if activation not required."""
+        user = super().authenticate(request, **kwargs)
+
+        if user and not settings.ACTIVATION_REQUIRED and settings.BREVO_FOLLOWUP_LIST_ID:
+            add_user_to_brevo_list([user.email], settings.BREVO_FOLLOWUP_LIST_ID)
+
+        return user
