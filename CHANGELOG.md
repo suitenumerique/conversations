@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- 🐛(front) code activation fix session end #93
+
 ## [0.0.1] - 2025-10-19
 
 ### Changed
