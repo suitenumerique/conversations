@@ -8,6 +8,8 @@ import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 import { useAnalytics } from '@/libs';
 import { useResponsiveStore } from '@/stores';
 
+import FilesIcon from '../assets/files.svg';
+
 import { AttachmentList } from './AttachmentList';
 import { ModelSelector } from './ModelSelector';
 import { ScrollDown } from './ScrollDown';
@@ -128,157 +130,243 @@ export const InputChat = ({
     }
   }, [status, input]);
 
+  useEffect(() => {
+    if (!fileUploadEnabled) {
+      return;
+    }
+
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer?.types.includes('Files')) {
+        setIsDragActive(true);
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      // Only hide when leaving the window completely
+      if (!e.relatedTarget) {
+        setIsDragActive(false);
+      }
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      setIsDragActive(false);
+
+      if (!fileUploadEnabled) {
+        return;
+      }
+
+      const droppedFiles = e.dataTransfer?.files;
+      if (droppedFiles && droppedFiles.length > 0) {
+        setFiles((prev) => {
+          const dt = new DataTransfer();
+          if (prev) {
+            Array.from(prev).forEach((f) => dt.items.add(f));
+          }
+          Array.from(droppedFiles).forEach((f) => {
+            if (
+              !Array.from(prev || []).some(
+                (pf) =>
+                  pf.name === f.name &&
+                  pf.size === f.size &&
+                  pf.lastModified === f.lastModified,
+              )
+            ) {
+              dt.items.add(f);
+            }
+          });
+          return dt.files;
+        });
+      }
+    };
+
+    window.addEventListener('dragenter', handleDragEnter);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('drop', handleDrop);
+
+    return () => {
+      window.removeEventListener('dragenter', handleDragEnter);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('drop', handleDrop);
+    };
+  }, [fileUploadEnabled, setFiles]);
+
   const isInputDisabled = status !== 'ready' || isUploadingFiles;
 
   return (
-    <Box
-      $css={`
-      display: block;
-      position: relative;
-      opacity: ${status === 'error' ? '0.5' : '1'};
-      margin: auto;
-      width: 100%;
-      padding: ${isDesktop ? '0' : '0 10px'};
-      max-width: 750px;
-    `}
-    >
-      {/* Bouton de scroll vers le bas */}
-      {messagesLength > 1 &&
-        status !== 'streaming' &&
-        status !== 'submitted' &&
-        containerRef &&
-        onScrollToBottom && (
-          <Box
-            $css={`
+    <>
+      {isDragActive && (
+        <Box
+          $position="fixed"
+          $css={`
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            animation: fadeIn 0.3s;
+            z-index: 999;
+            background-color: rgba(255, 255, 255, 0.5);
+            pointer-events: all;
+          `}
+        />
+      )}
+      <Box
+        $css={`
+        display: block;
+        position: relative;
+        opacity: ${status === 'error' ? '0.5' : '1'};
+        margin: auto;
+        width: 100%;
+        padding: ${isDesktop ? '0' : '0 10px'};
+        max-width: 750px;
+      `}
+      >
+        {/* Bouton de scroll vers le bas */}
+        {messagesLength > 1 &&
+          status !== 'streaming' &&
+          status !== 'submitted' &&
+          containerRef &&
+          onScrollToBottom && (
+            <Box
+              $css={`
             position: relative;
             height: 0;
             width: 100%;
             margin: auto;
             max-width: 750px;
           `}
+            >
+              <ScrollDown
+                onClick={onScrollToBottom}
+                containerRef={containerRef}
+              />
+            </Box>
+          )}
+        {/* Message de bienvenue */}
+        {messagesLength === 0 && (
+          <Box
+            $padding={{ all: 'base', bottom: 'md' }}
+            $align="center"
+            $margin={{ horizontal: 'base', bottom: 'md', top: '-105px' }}
           >
-            <ScrollDown
-              onClick={onScrollToBottom}
-              containerRef={containerRef}
-            />
+            <Text as="h2" $size="xl" $weight="600" $margin={{ all: '0' }}>
+              {t('What is on your mind?')}
+            </Text>
           </Box>
         )}
-      {/* Message de bienvenue */}
-      {messagesLength === 0 && (
-        <Box
-          $padding={{ all: 'base', bottom: 'md' }}
-          $align="center"
-          $margin={{ horizontal: 'base', bottom: 'md', top: '-105px' }}
-        >
-          <Text as="h2" $size="xl" $weight="600" $margin={{ all: '0' }}>
-            {t('What is on your mind?')}
-          </Text>
-        </Box>
-      )}
 
-      <form
-        onSubmit={handleSubmit}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragActive(fileUploadEnabled);
-        }}
-        onDragLeave={(e) => {
-          e.preventDefault();
-          setIsDragActive(false);
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          setIsDragActive(false);
-          if (!fileUploadEnabled) {
-            return;
-          }
-          if (e.dataTransfer.files?.length) {
-            setFiles((prev) => {
-              const dt = new DataTransfer();
-              if (prev) {
-                Array.from(prev).forEach((f) => dt.items.add(f));
-              }
-              Array.from(e.dataTransfer.files).forEach((f) => {
-                if (
-                  !Array.from(prev || []).some(
-                    (pf) =>
-                      pf.name === f.name &&
-                      pf.size === f.size &&
-                      pf.lastModified === f.lastModified,
-                  )
-                ) {
-                  dt.items.add(f);
-                }
-              });
-              return dt.files;
-            });
-          }
-        }}
-        style={{ width: '100%' }}
-      >
-        <Box $padding={{ bottom: `${isDesktop ? 'base' : ''}` }}>
-          <Box
-            $flex={1}
-            $radius="12px"
-            $position="relative"
-            $background="white"
-            $css={`
-               box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.08);
+        <form
+          onSubmit={handleSubmit}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragActive(fileUploadEnabled);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setIsDragActive(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            // File handling is now done by global handler
+          }}
+          style={{ width: '100%' }}
+        >
+          <Box $padding={{ bottom: `${isDesktop ? 'base' : ''}` }}>
+            <Box
+              $flex={1}
+              $radius="12px"
+              $position="relative"
+              $background="white"
+              $css={`
+              box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.08);
               border-radius: 12px;
-              border: ${
-                isDragActive
-                  ? '2px dashed var(--c--theme--colors--primary-400)'
-                  : '1px solid var(--c--theme--colors--greyscale-200)'
-              };
+              border: 1px solid var(--c--theme--colors--greyscale-200);
               position: relative;
               background: white;
               transition: all 0.2s ease;
             `}
-          >
-            <textarea
-              ref={textareaRef}
-              value={input ?? ''}
-              name="inputchat-textarea"
-              onChange={(e) => {
-                handleInputChange(e);
-                const textarea = e.target as HTMLTextAreaElement;
-                textarea.style.height = 'auto';
-                const newHeight = Math.min(textarea.scrollHeight, 200);
-                textarea.style.height = `${newHeight}px`;
-                textarea.focus();
-              }}
-              disabled={isInputDisabled}
-              rows={1}
-              style={{
-                padding: '1rem 1.5rem',
-                background: 'transparent',
-                outline: 'none',
-                fontSize: '1rem',
-                border: 'none',
-                resize: 'none',
-                fontFamily: 'inherit',
-                minHeight: '64px',
-                maxHeight: '200px',
-                overflowY: 'auto',
-                transition: 'all 0.2s ease',
-                borderRadius: '12px',
-                color: 'var(--c--theme--colors--greyscale-800)',
-                lineHeight: '1.5',
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
-                  e.preventDefault();
+            >
+              {isDragActive && (
+                <Box
+                  $position="absolute"
+                  $align="center"
+                  $direction="row"
+                  $justify="center"
+                  $gap="1rem"
+                  $css={`
+                top: -1px; left: -1px;
+                border-radius: 12px;
+                z-index: 1001;
+                background-color: #EDF0FF;
+                width: 100%;
+                height: 100%;
+                outline: 2px solid #90A7FF;
+                box-shadow: 0 0 64px 0 rgba(62, 93, 231, 0.25);
+                `}
+                >
+                  <FilesIcon />
+                  <Box>
+                    <Text $weight="700" $color="#223E9E">
+                      {t('Add file')}
+                    </Text>
+                    <Text $weight="400" $color="#223E9E">
+                      {t('To add a file to the conversation, drop it here.')}
+                    </Text>
+                  </Box>
+                </Box>
+              )}
+              <textarea
+                ref={textareaRef}
+                value={input ?? ''}
+                name="inputchat-textarea"
+                onChange={(e) => {
+                  handleInputChange(e);
                   const textarea = e.target as HTMLTextAreaElement;
-                  textarea.style.height = '0';
-                  e.currentTarget.form?.requestSubmit?.();
+                  textarea.style.height = 'auto';
+                  const newHeight = Math.min(textarea.scrollHeight, 200);
+                  textarea.style.height = `${newHeight}px`;
                   textarea.focus();
-                }
-              }}
-            />
+                }}
+                disabled={isInputDisabled}
+                rows={1}
+                style={{
+                  padding: '1rem 1.5rem',
+                  background: 'transparent',
+                  outline: 'none',
+                  fontSize: '1rem',
+                  border: 'none',
+                  resize: 'none',
+                  fontFamily: 'inherit',
+                  minHeight: '64px',
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  transition: 'all 0.2s ease',
+                  borderRadius: '12px',
+                  color: 'var(--c--theme--colors--greyscale-800)',
+                  lineHeight: '1.5',
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+                    e.preventDefault();
+                    const textarea = e.target as HTMLTextAreaElement;
+                    textarea.style.height = '0';
+                    e.currentTarget.form?.requestSubmit?.();
+                    textarea.focus();
+                  }
+                }}
+              />
 
-            {!input && (
-              <Box
-                $css={`
+              {!input && (
+                <Box
+                  $css={`
                   position: absolute;
                   top: 1rem;
                   left: 1.5rem;
@@ -291,130 +379,132 @@ export const InputChat = ({
                   line-height: 1.5;
                   overflow: hidden;
                 `}
-              >
-                <Box
-                  $css={`
+                >
+                  <Box
+                    $css={`
                     display: flex;
                     flex-direction: column;
                     height: ${(suggestions.length + 1) * 100}%;
                     transform: translateY(-${currentSuggestionIndex * (100 / (suggestions.length + 1))}%);
                     transition: ${isResetting ? 'none' : 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)'};
                   `}
-                >
-                  {[...suggestions, suggestions[0]].map((suggestion, index) => (
-                    <Box
-                      key={index}
-                      $css={`
+                  >
+                    {[...suggestions, suggestions[0]].map(
+                      (suggestion, index) => (
+                        <Box
+                          key={index}
+                          $css={`
                         height: calc(100% / ${suggestions.length + 1});
                         flex-shrink: 0;
                         white-space: nowrap;
                         display: flex;
                         justify-content: flex-start;
                       `}
-                    >
-                      {suggestion}
-                    </Box>
-                  ))}
+                        >
+                          {suggestion}
+                        </Box>
+                      ),
+                    )}
+                  </Box>
                 </Box>
-              </Box>
-            )}
+              )}
 
-            <input
-              accept={conf?.chat_upload_accept}
-              type="file"
-              multiple
-              ref={fileInputRef}
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const fileList = e.target.files;
-                if (!fileList) {
-                  return;
-                }
-                setFiles((prev) => {
-                  const dt = new DataTransfer();
-                  if (prev) {
-                    Array.from(prev).forEach((f: File) => dt.items.add(f));
+              <input
+                accept={conf?.chat_upload_accept}
+                type="file"
+                multiple
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const fileList = e.target.files;
+                  if (!fileList) {
+                    return;
                   }
-                  Array.from(fileList).forEach((f: File) => {
-                    if (
-                      !Array.from(prev || []).some(
-                        (pf) =>
-                          pf.name === f.name &&
-                          pf.size === f.size &&
-                          pf.lastModified === f.lastModified,
-                      )
-                    ) {
-                      dt.items.add(f);
-                    }
-                  });
-                  return dt.files;
-                });
-              }}
-            />
-            {/*Aperçu des fichiers*/}
-            {files && files.length > 0 && (
-              <Box
-                $margin={{ horizontal: '0', bottom: 'xs', top: 'xs' }}
-                $padding={{ horizontal: 'base' }}
-              >
-                <AttachmentList
-                  attachments={Array.from(files).map((file) => ({
-                    name: file.name,
-                    contentType: file.type,
-                    url: URL.createObjectURL(file),
-                  }))}
-                  onRemove={(index) => {
+                  setFiles((prev) => {
                     const dt = new DataTransfer();
-                    Array.from(files).forEach((f, i) => {
-                      if (i !== index) {
+                    if (prev) {
+                      Array.from(prev).forEach((f: File) => dt.items.add(f));
+                    }
+                    Array.from(fileList).forEach((f: File) => {
+                      if (
+                        !Array.from(prev || []).some(
+                          (pf) =>
+                            pf.name === f.name &&
+                            pf.size === f.size &&
+                            pf.lastModified === f.lastModified,
+                        )
+                      ) {
                         dt.items.add(f);
                       }
                     });
-                    setFiles(dt.files.length > 0 ? dt.files : null);
-                  }}
-                  isReadOnly={false}
-                />
-              </Box>
-            )}
-            <Box
-              $direction="row"
-              $gap="sm"
-              $padding={{ bottom: 'base' }}
-              $align="space-between"
-            >
-              <Box
-                $flex="1"
-                $direction="row"
-                $padding={{ horizontal: 'base' }}
-                $gap="xs"
-              >
-                <Button
-                  size="small"
-                  type="button"
-                  disabled={!fileUploadEnabled || isUploadingFiles}
-                  onClick={() => fileInputRef.current?.click()}
-                  aria-label={t('Add attach file')}
-                  className="c__button--neutral attach-file-button"
-                  icon={
-                    <Icon
-                      iconName="attach_file"
-                      $theme="greyscale"
-                      $variation="550"
-                      $size={`${isMobile ? '24px' : '16px'}`}
-                    />
-                  }
+                    return dt.files;
+                  });
+                }}
+              />
+              {/*Aperçu des fichiers*/}
+              {files && files.length > 0 && (
+                <Box
+                  $margin={{ horizontal: '0', bottom: 'xs', top: 'xs' }}
+                  $padding={{ horizontal: 'base' }}
                 >
-                  {!isMobile && (
-                    <Text $theme="greyscale" $variation="550" $weight="500">
-                      {t('Attach file')}
-                    </Text>
-                  )}
-                </Button>
+                  <AttachmentList
+                    attachments={Array.from(files).map((file) => ({
+                      name: file.name,
+                      contentType: file.type,
+                      url: URL.createObjectURL(file),
+                    }))}
+                    onRemove={(index) => {
+                      const dt = new DataTransfer();
+                      Array.from(files).forEach((f, i) => {
+                        if (i !== index) {
+                          dt.items.add(f);
+                        }
+                      });
+                      setFiles(dt.files.length > 0 ? dt.files : null);
+                    }}
+                    isReadOnly={false}
+                  />
+                </Box>
+              )}
+              <Box
+                $direction="row"
+                $gap="sm"
+                $padding={{ bottom: 'base' }}
+                $align="space-between"
+              >
+                <Box
+                  $flex="1"
+                  $direction="row"
+                  $padding={{ horizontal: 'base' }}
+                  $gap="xs"
+                >
+                  <Button
+                    size="small"
+                    type="button"
+                    disabled={!fileUploadEnabled || isUploadingFiles}
+                    onClick={() => fileInputRef.current?.click()}
+                    aria-label={t('Add attach file')}
+                    className="c__button--neutral attach-file-button"
+                    icon={
+                      <Icon
+                        iconName="attach_file"
+                        $theme="greyscale"
+                        $variation="550"
+                        $size={`${isMobile ? '24px' : '16px'}`}
+                      />
+                    }
+                  >
+                    {!isMobile && (
+                      <Text $theme="greyscale" $variation="550" $weight="500">
+                        {t('Attach file')}
+                      </Text>
+                    )}
+                  </Button>
 
-                {onToggleWebSearch && (
-                  <Box
-                    $margin={{ left: '4px' }}
-                    $css={`
+                  {onToggleWebSearch && (
+                    <Box
+                      $margin={{ left: '4px' }}
+                      $css={`
                       ${
                         isMobile
                           ? `
@@ -434,96 +524,101 @@ export const InputChat = ({
                           : ''
                       }
                     `}
-                  >
-                    <Button
-                      size="small"
-                      type="button"
-                      disabled={!webSearchEnabled || isUploadingFiles}
-                      onClick={() => {
-                        onToggleWebSearch();
-                        textareaRef.current?.focus();
-                      }}
-                      aria-label={t('Research on the web')}
-                      className="c__button--neutral research-web-button"
-                      icon={
-                        <Icon
-                          iconName="language"
-                          $theme="greyscale"
-                          $variation="550"
-                          $css={`
+                    >
+                      <Button
+                        size="small"
+                        type="button"
+                        disabled={!webSearchEnabled || isUploadingFiles}
+                        onClick={() => {
+                          onToggleWebSearch();
+                          textareaRef.current?.focus();
+                        }}
+                        aria-label={t('Research on the web')}
+                        className="c__button--neutral research-web-button"
+                        icon={
+                          <Icon
+                            iconName="language"
+                            $theme="greyscale"
+                            $variation="550"
+                            $css={`
                             color: ${forceWebSearch ? 'var(--c--theme--colors--primary-600) !important' : 'var(--c--theme--colors--greyscale-600)'}
                           `}
-                        />
-                      }
-                    >
-                      {!isMobile && (
-                        <Text
-                          $theme={forceWebSearch ? 'primary' : 'greyscale'}
-                          $variation="550"
-                        >
-                          {t('Research on the web')}
-                        </Text>
-                      )}
-                      {isMobile && forceWebSearch && (
-                        <Box
-                          $direction="row"
-                          $align="space-between"
-                          $gap="xs"
-                          $css={`
+                          />
+                        }
+                      >
+                        {!isMobile && (
+                          <Text
+                            $theme={forceWebSearch ? 'primary' : 'greyscale'}
+                            $variation="550"
+                          >
+                            {t('Research on the web')}
+                          </Text>
+                        )}
+                        {isMobile && forceWebSearch && (
+                          <Box
+                            $direction="row"
+                            $align="space-between"
+                            $gap="xs"
+                            $css={`
                             display: flex;
                             align-items: center;
                             line-height: 1;
                           `}
-                        >
-                          <Text
-                            $theme="primary"
-                            $weight="500"
-                            $css={`
+                          >
+                            <Text
+                              $theme="primary"
+                              $weight="500"
+                              $css={`
                               display: flex;
                               align-items: center;
                             `}
-                          >
-                            {t('Web')}
-                          </Text>
-                          <Icon
-                            iconName="close"
-                            $variation="text"
-                            $theme="primary"
-                            $size="md"
-                            $css={`
+                            >
+                              {t('Web')}
+                            </Text>
+                            <Icon
+                              iconName="close"
+                              $variation="text"
+                              $theme="primary"
+                              $size="md"
+                              $css={`
                               display: flex;
                               align-items: center;
                               justify-content: center;
                               line-height: 1;
                               padding-left: 4px;
                             `}
-                          />
-                        </Box>
-                      )}
-                    </Button>
-                  </Box>
-                )}
-              </Box>
-              <Box $direction="row" $padding={{ horizontal: 'base' }} $gap="xs">
-                <Box $padding={{ horizontal: 'xs' }}>
-                  {onModelSelect && (
-                    <ModelSelector
-                      selectedModel={selectedModel || null}
-                      onModelSelect={onModelSelect}
-                    />
+                            />
+                          </Box>
+                        )}
+                      </Button>
+                    </Box>
                   )}
                 </Box>
+                <Box
+                  $direction="row"
+                  $padding={{ horizontal: 'base' }}
+                  $gap="xs"
+                >
+                  <Box $padding={{ horizontal: 'xs' }}>
+                    {onModelSelect && (
+                      <ModelSelector
+                        selectedModel={selectedModel || null}
+                        onModelSelect={onModelSelect}
+                      />
+                    )}
+                  </Box>
 
-                <SendButton
-                  status={status}
-                  disabled={!input || !input.trim() || isUploadingFiles}
-                  onClick={onStop}
-                />
+                  <SendButton
+                    status={status}
+                    disabled={!input || !input.trim() || isUploadingFiles}
+                    onClick={onStop}
+                  />
+                </Box>
               </Box>
             </Box>
           </Box>
-        </Box>
-      </form>
-    </Box>
+        </form>
+      </Box>
+    </>
   );
 };
