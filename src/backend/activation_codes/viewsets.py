@@ -10,6 +10,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from core.brevo import add_user_to_brevo_list
 from core.permissions import IsAuthenticated
 
 from . import models, serializers
@@ -136,6 +137,10 @@ class ActivationViewSet(viewsets.GenericViewSet):
                 {"code": "registration-successful"},
                 status=status.HTTP_200_OK,
             )
+
+        add_user_to_brevo_list(
+            [serializer.validated_data["user"].email], settings.BREVO_WAITING_LIST_ID
+        )
 
         logger.info(
             "Registered email %s for activation notifications",

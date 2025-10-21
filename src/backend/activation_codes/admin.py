@@ -1,5 +1,6 @@
 """Admin classes for activation codes application."""
 
+from django.conf import settings
 from django.contrib import admin
 from django.utils.html import format_html, format_html_join
 from django.utils.translation import gettext_lazy as _
@@ -274,6 +275,8 @@ class UserRegistrationRequestAdmin(admin.ModelAdmin):
 
     list_filter = ("created_at",)
 
+    actions = ["add_to_brevo_waiting_list", "remove_from_brevo_waiting_list"]
+
     def user_display(self, obj):
         """Display user's full name."""
         return obj.user.email or str(obj.user.pk)
@@ -286,3 +289,61 @@ class UserRegistrationRequestAdmin(admin.ModelAdmin):
 
     has_user_activation.boolean = True
     has_user_activation.short_description = _("Has used activation code")
+
+    @admin.action(description=_("Add selected users to Brevo waiting list"))
+    def add_to_brevo_waiting_list(self, request, queryset):
+        """Add selected users to Brevo waiting list."""
+        # pylint: disable=import-outside-toplevel
+        from core.brevo import add_user_to_brevo_list  # noqa: PLC0415
+
+        registration_to_send = queryset.filter(
+            user_activation__isnull=True,
+        )
+
+        _total_emails = 0
+        for i in range(0, registration_to_send.count(), 150):
+            batch = registration_to_send[i : i + 150]
+            emails = [reg.user.email for reg in batch if reg.user.email]
+            if emails:
+                add_user_to_brevo_list(emails, settings.BREVO_WAITING_LIST_ID)
+                _total_emails += len(emails)
+
+        if _total_emails:
+            self.message_user(
+                request,
+                _("Added %(count)d user(s) to Brevo waiting list.") % {"count": _total_emails},
+            )
+        else:
+            self.message_user(
+                request,
+                _("No valid email address found in selected registrations."),
+                level="warning",
+            )
+
+    @admin.action(description=_("Remove selected users from Brevo waiting list"))
+    def remove_from_brevo_waiting_list(self, request, queryset):
+        """Remove selected users from Brevo waiting list."""
+        # pylint: disable=import-outside-toplevel
+        from core.brevo import remove_user_from_brevo_list  # noqa: PLC0415
+
+        registration_to_send = queryset.filter(
+            user_activation__isnull=False,
+        )
+        _total_emails = 0
+        for i in range(0, registration_to_send.count(), 150):
+            batch = registration_to_send[i : i + 150]
+            emails = [reg.user.email for reg in batch if reg.user.email]
+            if emails:
+                remove_user_from_brevo_list(emails, settings.BREVO_WAITING_LIST_ID)
+                _total_emails += len(emails)
+        if _total_emails:
+            self.message_user(
+                request,
+                _("Removed %(count)d user(s) from Brevo waiting list.") % {"count": _total_emails},
+            )
+        else:
+            self.message_user(
+                request,
+                _("No valid email address found in selected registrations."),
+                level="warning",
+            )

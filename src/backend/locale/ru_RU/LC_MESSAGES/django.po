@@ -2,328 +2,319 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-19 21:49+0000\n"
-"PO-Revision-Date: 2025-10-19 21:25\n"
+"POT-Creation-Date: 2025-10-16 19:25+0000\n"
+"PO-Revision-Date: 2025-10-20 11:50\n"
 "Last-Translator: \n"
 "Language-Team: Russian\n"
 "Language: ru_RU\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=4; plural=((n%10==1 && n%100!=11) ? 0 : ((n%10 >= 2 "
-"&& n%10 <=4 && (n%100 < 12 || n%100 > 14)) ? 1 : ((n%10 == 0 || (n%10 >= 5 "
-"&& n%10 <=9)) || (n%100 >= 11 && n%100 <= 14)) ? 2 : 3));\n"
+"Plural-Forms: nplurals=4; plural=((n%10==1 && n%100!=11) ? 0 : ((n%10 >= 2 && n%10 <=4 && (n%100 < 12 || n%100 > 14)) ? 1 : ((n%10 == 0 || (n%10 >= 5 && n%10 <=9)) || (n%100 >= 11 && n%100 <= 14)) ? 2 : 3));\n"
 "X-Crowdin-Project: la-suite-conversations\n"
 "X-Crowdin-Project-ID: 810876\n"
 "X-Crowdin-Language: ru\n"
 "X-Crowdin-File: backend-conversations.pot\n"
 "X-Crowdin-File-ID: 26\n"
 
-#: activation_codes/admin.py:54
+#: activation_codes/admin.py:54 build/lib/activation_codes/admin.py:54
 msgid "Configuration"
 msgstr "Настройки"
 
-#: activation_codes/admin.py:65
+#: activation_codes/admin.py:65 build/lib/activation_codes/admin.py:65
 msgid "Usage details"
 msgstr "Сведения об использовании"
 
 #: activation_codes/admin.py:69 activation_codes/admin.py:225
+#: build/lib/activation_codes/admin.py:69
+#: build/lib/activation_codes/admin.py:225
 msgid "Timestamps"
 msgstr "Временные метки"
 
-#: activation_codes/admin.py:108
+#: activation_codes/admin.py:108 build/lib/activation_codes/admin.py:108
 msgid "Usage"
 msgstr "Использование"
 
-#: activation_codes/admin.py:116
+#: activation_codes/admin.py:116 build/lib/activation_codes/admin.py:116
 msgid "Description"
 msgstr "Описание"
 
-#: activation_codes/admin.py:123
+#: activation_codes/admin.py:123 build/lib/activation_codes/admin.py:123
 msgid "No users have used this code yet"
-msgstr "Пока нет пользователей с этим кодом"
+msgstr "Пока нет пользователей, использовавших этот код"
 
-#: activation_codes/admin.py:134
+#: activation_codes/admin.py:134 build/lib/activation_codes/admin.py:134
 msgid "Name"
 msgstr "Имя"
 
 #: activation_codes/admin.py:135 activation_codes/admin.py:245
+#: build/lib/activation_codes/admin.py:135
+#: build/lib/activation_codes/admin.py:245
 msgid "Email"
 msgstr "Эл. почта"
 
-#: activation_codes/admin.py:136
+#: activation_codes/admin.py:136 build/lib/activation_codes/admin.py:136
 msgid "Date"
 msgstr "Дата"
 
-#: activation_codes/admin.py:160
+#: activation_codes/admin.py:160 build/lib/activation_codes/admin.py:160
 msgid "Users who used this code"
 msgstr "Пользователи, использующие этот код"
 
-#: activation_codes/admin.py:162
+#: activation_codes/admin.py:162 build/lib/activation_codes/admin.py:162
 msgid "Recompute current uses from related activations"
 msgstr "Обновить данные использования связанных активаций"
 
-#: activation_codes/admin.py:176
+#: activation_codes/admin.py:176 build/lib/activation_codes/admin.py:176
 msgid "All selected activation codes already have correct usage counts."
-msgstr ""
-"Все выбранные коды активации уже имеют правильное количество использований."
+msgstr "Все выбранные коды активации уже имеют правильное количество использований."
 
-#: activation_codes/admin.py:181
+#: activation_codes/admin.py:181 build/lib/activation_codes/admin.py:181
 #, python-format
 msgid "Successfully recomputed usage counts for %(count)d activation code(s)."
-msgstr ""
-"Количество использованных кодов активации (%(count)d) успешно пересчитано."
+msgstr "Количество использованных кодов активации (%(count)d) успешно пересчитано."
 
 #: activation_codes/admin.py:239 activation_codes/admin.py:281
+#: build/lib/activation_codes/admin.py:239
+#: build/lib/activation_codes/admin.py:281
 msgid "User"
 msgstr "Пользователь"
 
-#: activation_codes/admin.py:288
+#: activation_codes/admin.py:288 build/lib/activation_codes/admin.py:288
 msgid "Has used activation code"
 msgstr "Использует код активации"
 
 #: activation_codes/models.py:36 activation_codes/models.py:83
-#: activation_codes/models.py:164
+#: activation_codes/models.py:164 build/lib/activation_codes/models.py:36
+#: build/lib/activation_codes/models.py:83
+#: build/lib/activation_codes/models.py:164
 msgid "activation code"
 msgstr "код активации"
 
-#: activation_codes/models.py:37
+#: activation_codes/models.py:37 build/lib/activation_codes/models.py:37
 msgid "The activation code that users will enter"
 msgstr "Код активации, который будут вводить пользователи"
 
-#: activation_codes/models.py:44
+#: activation_codes/models.py:44 build/lib/activation_codes/models.py:44
 msgid "Code must be alphanumeric and contain no spaces or special characters"
-msgstr ""
-"Код должен быть буквенно-цифровым и не содержать пробелов или специальных "
-"символов"
+msgstr "Код должен быть буквенно-цифровым и не содержать пробелов или специальных символов"
 
-#: activation_codes/models.py:50
+#: activation_codes/models.py:50 build/lib/activation_codes/models.py:50
 msgid "maximum uses"
-msgstr "максимум использования"
+msgstr "максимум использований"
 
-#: activation_codes/models.py:51
+#: activation_codes/models.py:51 build/lib/activation_codes/models.py:51
 msgid "Maximum number of times this code can be used. 0 means unlimited."
-msgstr ""
-"Максимальное количество раз, когда этот код может быть использован. 0 "
-"означает неограниченно."
+msgstr "Сколько раз можно использовать этот код. 0 означает неограниченно."
 
-#: activation_codes/models.py:56
+#: activation_codes/models.py:56 build/lib/activation_codes/models.py:56
 msgid "current uses"
-msgstr "текущее использование"
+msgstr "использовано"
 
-#: activation_codes/models.py:57
+#: activation_codes/models.py:57 build/lib/activation_codes/models.py:57
 msgid "Number of times this code has been used"
 msgstr "Сколько раз этот код был использован"
 
-#: activation_codes/models.py:63 core/models.py:151
+#: activation_codes/models.py:63 build/lib/activation_codes/models.py:63
+#: build/lib/core/models.py:151 core/models.py:151
 msgid "active"
 msgstr "активный"
 
-#: activation_codes/models.py:64
+#: activation_codes/models.py:64 build/lib/activation_codes/models.py:64
 msgid "Whether this code can still be used"
-msgstr "Можно ли использовать этот код"
+msgstr "Можно ли ещё использовать этот код"
 
-#: activation_codes/models.py:69
+#: activation_codes/models.py:69 build/lib/activation_codes/models.py:69
 msgid "expires at"
-msgstr "истекает в"
+msgstr "действителен до"
 
-#: activation_codes/models.py:70
+#: activation_codes/models.py:70 build/lib/activation_codes/models.py:70
 msgid "Date and time when this code expires"
 msgstr "Дата и время окончания действия этого кода"
 
-#: activation_codes/models.py:76
+#: activation_codes/models.py:76 build/lib/activation_codes/models.py:76
 msgid "description"
 msgstr "описание"
 
-#: activation_codes/models.py:77
+#: activation_codes/models.py:77 build/lib/activation_codes/models.py:77
 msgid "Internal description or notes about this code"
 msgstr "Внутреннее описание или примечания об этом коде"
 
-#: activation_codes/models.py:84
+#: activation_codes/models.py:84 build/lib/activation_codes/models.py:84
 msgid "activation codes"
 msgstr "коды активации"
 
-#: activation_codes/models.py:126
+#: activation_codes/models.py:126 build/lib/activation_codes/models.py:126
 msgid "This activation code is no longer valid"
 msgstr "Этот код активации больше не действителен"
 
-#: activation_codes/models.py:134
+#: activation_codes/models.py:134 build/lib/activation_codes/models.py:134
 msgid "You have already activated your account"
 msgstr "Вы уже активировали свою учётную запись"
 
 #: activation_codes/models.py:156 activation_codes/models.py:188
+#: build/lib/activation_codes/models.py:156
+#: build/lib/activation_codes/models.py:188 build/lib/core/models.py:173
 #: core/models.py:173
 msgid "user"
 msgstr "пользователь"
 
-#: activation_codes/models.py:157
+#: activation_codes/models.py:157 build/lib/activation_codes/models.py:157
 msgid "The user who used the activation code"
 msgstr "Пользователь, использовавший код активации"
 
-#: activation_codes/models.py:165
+#: activation_codes/models.py:165 build/lib/activation_codes/models.py:165
 msgid "The activation code that was used"
 msgstr "Использованный код активации"
 
 #: activation_codes/models.py:172 activation_codes/models.py:196
+#: build/lib/activation_codes/models.py:172
+#: build/lib/activation_codes/models.py:196
 msgid "user activation"
 msgstr "активация пользователя"
 
-#: activation_codes/models.py:173
+#: activation_codes/models.py:173 build/lib/activation_codes/models.py:173
 msgid "user activations"
 msgstr "активации пользователя"
 
-#: activation_codes/models.py:189
+#: activation_codes/models.py:189 build/lib/activation_codes/models.py:189
 msgid "The user who made the registration request"
 msgstr "Пользователь, который сделал запрос на регистрацию"
 
-#: activation_codes/models.py:197
+#: activation_codes/models.py:197 build/lib/activation_codes/models.py:197
 msgid "Store if the user received an activation code and used it"
 msgstr "Сохранить, если пользователь получил код активации и использовал его"
 
-#: activation_codes/models.py:206
+#: activation_codes/models.py:206 build/lib/activation_codes/models.py:206
 msgid "user registration request"
 msgstr "запрос на регистрацию пользователя"
 
-#: activation_codes/models.py:207
+#: activation_codes/models.py:207 build/lib/activation_codes/models.py:207
 msgid "user registration requests"
 msgstr "запросы на регистрацию пользователя"
 
 #: activation_codes/serializers.py:14
+#: build/lib/activation_codes/serializers.py:14
 msgid "The activation code to validate"
 msgstr "Код активации для проверки"
 
-#: activation_codes/viewsets.py:106
+#: activation_codes/viewsets.py:106 build/lib/activation_codes/viewsets.py:106
 msgid "Your account has been successfully activated"
 msgstr "Ваша учётная запись успешно активирована"
 
-#: chat/apps.py:12
+#: build/lib/chat/apps.py:12 chat/apps.py:12
 msgid "chat application"
 msgstr "приложение чата"
 
-#: core/admin.py:26
+#: build/lib/core/admin.py:26 core/admin.py:26
 msgid "Personal info"
 msgstr "Личные данные"
 
-#: core/admin.py:40
+#: build/lib/core/admin.py:40 core/admin.py:40
 msgid "Permissions"
 msgstr "Разрешения"
 
-#: core/admin.py:52
+#: build/lib/core/admin.py:52 core/admin.py:52
 msgid "Important dates"
 msgstr "Важные даты"
 
-#: core/models.py:39
+#: build/lib/core/models.py:39 core/models.py:39
 msgid "id"
 msgstr "id"
 
-#: core/models.py:40
+#: build/lib/core/models.py:40 core/models.py:40
 msgid "primary key for the record as UUID"
 msgstr "первичный ключ для записи как UUID"
 
-#: core/models.py:46
+#: build/lib/core/models.py:46 core/models.py:46
 msgid "created on"
 msgstr "создано"
 
-#: core/models.py:47
+#: build/lib/core/models.py:47 core/models.py:47
 msgid "date and time at which a record was created"
 msgstr "дата и время создания записи"
 
-#: core/models.py:52
+#: build/lib/core/models.py:52 core/models.py:52
 msgid "updated on"
 msgstr "обновлено"
 
-#: core/models.py:53
+#: build/lib/core/models.py:53 core/models.py:53
 msgid "date and time at which a record was last updated"
 msgstr "дата и время последнего обновления записи"
 
-#: core/models.py:86
-msgid ""
-"We couldn't find a user with this sub but the email is already associated "
-"with a registered user."
-msgstr ""
-"Мы не смогли найти пользователя с этими данными, но этот адрес уже связан с "
-"зарегистрированным пользователем."
+#: build/lib/core/models.py:86 core/models.py:86
+msgid "We couldn't find a user with this sub but the email is already associated with a registered user."
+msgstr "Мы не смогли найти пользователя с этими данными, но этот адрес уже связан с зарегистрированным пользователем."
 
-#: core/models.py:99
-msgid ""
-"Enter a valid sub. This value may contain only letters, numbers, and @/./+/-/"
-"_/: characters."
-msgstr ""
-"Введите правильный префикс. Он может содержать только буквы, цифры и символы "
-"@/./+/-/_/."
+#: build/lib/core/models.py:99 core/models.py:99
+msgid "Enter a valid sub. This value may contain only letters, numbers, and @/./+/-/_/: characters."
+msgstr "Введите правильный префикс. Он может содержать только буквы, цифры и символы @/./+/-/_/."
 
-#: core/models.py:105
+#: build/lib/core/models.py:105 core/models.py:105
 msgid "sub"
 msgstr "префикс"
 
-#: core/models.py:107
-msgid ""
-"Required. 255 characters or fewer. Letters, numbers, and @/./+/-/_/: "
-"characters only."
-msgstr ""
-"Обязательно. 255 символов или меньше. Только буквы, цифры и @/./+/-/_/: /."
+#: build/lib/core/models.py:107 core/models.py:107
+msgid "Required. 255 characters or fewer. Letters, numbers, and @/./+/-/_/: characters only."
+msgstr "Обязательно. 255 символов или меньше. Только буквы, цифры и @/./+/-/_/: /."
 
-#: core/models.py:116
+#: build/lib/core/models.py:116 core/models.py:116
 msgid "full name"
 msgstr "полное имя"
 
-#: core/models.py:117
+#: build/lib/core/models.py:117 core/models.py:117
 msgid "short name"
 msgstr "короткое имя"
 
-#: core/models.py:119
+#: build/lib/core/models.py:119 core/models.py:119
 msgid "identity email address"
 msgstr "личный адрес электронной почты"
 
-#: core/models.py:123
+#: build/lib/core/models.py:123 core/models.py:123
 msgid "admin email address"
 msgstr "e-mail администратора"
 
-#: core/models.py:129
+#: build/lib/core/models.py:129 core/models.py:129
 msgid "language"
 msgstr "язык"
 
-#: core/models.py:130
+#: build/lib/core/models.py:130 core/models.py:130
 msgid "The language in which the user wants to see the interface."
 msgstr "Язык, на котором пользователь хочет видеть интерфейс."
 
-#: core/models.py:138
+#: build/lib/core/models.py:138 core/models.py:138
 msgid "The timezone in which the user wants to see times."
 msgstr "Часовой пояс, в котором пользователь хочет видеть время."
 
-#: core/models.py:141
+#: build/lib/core/models.py:141 core/models.py:141
 msgid "device"
 msgstr "устройство"
 
-#: core/models.py:143
+#: build/lib/core/models.py:143 core/models.py:143
 msgid "Whether the user is a device or a real user."
 msgstr "Пользователь является устройством или человеком."
 
-#: core/models.py:146
+#: build/lib/core/models.py:146 core/models.py:146
 msgid "staff status"
 msgstr "статус сотрудника"
 
-#: core/models.py:148
+#: build/lib/core/models.py:148 core/models.py:148
 msgid "Whether the user can log into this admin site."
 msgstr "Может ли пользователь войти на этот административный сайт."
 
-#: core/models.py:154
-msgid ""
-"Whether this user should be treated as active. Unselect this instead of "
-"deleting accounts."
-msgstr ""
-"Должен ли пользователь рассматриваться как активный. Альтернатива удалению "
-"учётных записей."
+#: build/lib/core/models.py:154 core/models.py:154
+msgid "Whether this user should be treated as active. Unselect this instead of deleting accounts."
+msgstr "Должен ли пользователь рассматриваться как активный. Альтернатива удалению учётных записей."
 
-#: core/models.py:161
+#: build/lib/core/models.py:161 core/models.py:161
 msgid "allow conversation analytics"
 msgstr "разрешить аналитику для беседы"
 
-#: core/models.py:163
+#: build/lib/core/models.py:163 core/models.py:163
 msgid "Whether the user allows to use their conversations for analytics."
 msgstr "Разрешает ли пользователь использовать свои беседы для аналитики."
 
-#: core/models.py:174
+#: build/lib/core/models.py:174 core/models.py:174
 msgid "users"
 msgstr "пользователи"
 
@@ -339,15 +330,12 @@ msgstr "Открыть"
 
 #: core/templates/mail/html/invitation.html:226
 #: core/templates/mail/text/invitation.txt:14
-msgid ""
-" Docs, your new essential tool for organizing, sharing and collaborating on "
-"your documents as a team. "
-msgstr ""
-" Docs, ваш новый инструмент для организации и совместного использования "
-"документов в вашей команде. "
+msgid " Docs, your new essential tool for organizing, sharing and collaborating on your documents as a team. "
+msgstr " Docs, ваш новый инструмент для организации и совместного использования документов в вашей команде. "
 
 #: core/templates/mail/html/invitation.html:233
 #: core/templates/mail/text/invitation.txt:16
 #, python-format
 msgid " Brought to you by %(brandname)s "
 msgstr " Доступ получен от %(brandname)s "
+

@@ -8,8 +8,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(activation-codes) register users also on Brevo #98
+
+### Changed
+
 - 💬(text) error page wording
 - 🐛(front) code activation fix session end #93
+
 
 ## [0.0.1] - 2025-10-19
 
