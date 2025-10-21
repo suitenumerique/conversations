@@ -17,6 +17,7 @@ and this project adheres to
 
 - 🐛(front) code activation fix session end #93
 - 💬(wording) error page wording #102
+- ⚡️(web-search) allow to override returned chunks #107
 
 
 ## [0.0.1] - 2025-10-19

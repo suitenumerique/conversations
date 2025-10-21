@@ -169,11 +169,12 @@ class AlbertRagDocumentSearch:
         self._store_document(name, document_content)
         return document_content
 
-    def search(self, query):
+    def search(self, query, results_count: int = 4) -> RAGWebResults:
         """
         Perform a search using the Albert API based on the provided query.
 
         :param query: The search query string.
+        :param results_count: The number of results to return.
         :return: Search results from the Albert API.
         """
         response = requests.post(
@@ -183,6 +184,7 @@ class AlbertRagDocumentSearch:
                 "collections": [self.collection_id],
                 "prompt": query,
                 "score_threshold": 0.6,
+                "k": results_count,  # Number of chunks to return from the search
             },
             timeout=settings.ALBERT_API_TIMEOUT,
         )
