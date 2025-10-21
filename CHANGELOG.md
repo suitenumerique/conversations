@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(front) add drag'n drop file
 - ✨(activation-codes) register users also on Brevo #98
 
 ### Changed
