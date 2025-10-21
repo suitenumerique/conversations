@@ -293,6 +293,11 @@ def test_activation_code_use_success_notify_brevo(settings):
         status=201,
     )
 
+    brevo_create_contact = responses.post(
+        "https://api.brevo.com/v3/contacts",
+        status=200,
+    )
+
     brevo_add_mock = responses.post(
         "https://api.brevo.com/v3/contacts/lists/test_followup_list_name/contacts/add",
         json={"message": "Contacts added successfully"},
@@ -310,6 +315,13 @@ def test_activation_code_use_success_notify_brevo(settings):
     assert len(brevo_remove_mock.calls) == 1
     assert brevo_remove_mock.calls[0].request.headers["api-key"] == "test_brevo_api_key"
     assert json.loads(brevo_remove_mock.calls[0].request.body) == {"emails": [user.email]}
+
+    assert len(brevo_create_contact.calls) == 1
+    assert brevo_create_contact.calls[0].request.headers["api-key"] == "test_brevo_api_key"
+    assert json.loads(brevo_create_contact.calls[0].request.body) == {
+        "email": user.email,
+        "updateEnabled": True,
+    }
 
     assert len(brevo_add_mock.calls) == 1
     assert brevo_add_mock.calls[0].request.headers["api-key"] == "test_brevo_api_key"
