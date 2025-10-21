@@ -54,7 +54,7 @@ export const Feedback = (_props: { buttonProps?: Partial<ButtonProps> }) => {
             />
 
             <FeedbackButton
-              href="https://www.tchap.gouv.fr/#/room/!eeDqhgOFDpthMyyUjK:agent.dinum.tchap.gouv.fr"
+              href="https://www.tchap.gouv.fr/#/room/!eAHyPLdVHMxNhKAbaC:agent.dinum.tchap.gouv.fr"
               icon={<TchapIcon />}
               title={t('Write on Tchap')}
               description={t('Direct exchange with our team')}

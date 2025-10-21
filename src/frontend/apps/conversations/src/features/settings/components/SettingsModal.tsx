@@ -106,7 +106,7 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
                     display: inline-block;
                   `}
                   target="_blank"
-                  href="https://docs.numerique.gouv.fr/docs/f307df3d-275c-4e0b-b53f-3d20052be8be/"
+                  href="https://docs.numerique.gouv.fr/docs/53d1dfb9-481d-4a68-b75c-7208c03d4dec/"
                 >
                   <Text
                     $css={`
