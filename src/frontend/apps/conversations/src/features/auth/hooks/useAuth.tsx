@@ -31,6 +31,7 @@ export const useAuth = () => {
         eventName: 'user',
         id: user?.id || '',
         email: user?.email || '',
+        sub: user?.sub,
       });
       setHasTracked(true);
     }

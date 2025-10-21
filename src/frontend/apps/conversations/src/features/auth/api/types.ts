@@ -5,6 +5,7 @@
  * @property {string} email - The email of the user.
  * @property {string} name - The name of the user.
  * @property {string} language - The language of the user. e.g. 'en-us', 'fr-fr', 'de-de'.
+ * @property {string} sub - The identity provider sub.
  */
 export interface User {
   id: string;
@@ -13,4 +14,5 @@ export interface User {
   short_name: string;
   language?: string;
   allow_conversation_analytics: boolean;
+  sub?: string;
 }

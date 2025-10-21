@@ -7,6 +7,7 @@ type AnalyticEventUser = {
   eventName: 'user';
   id: string;
   email: string;
+  sub?: string;
 };
 
 export type AnalyticEvent = AnalyticEventClick | AnalyticEventUser;

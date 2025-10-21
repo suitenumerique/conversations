@@ -21,6 +21,9 @@ export class PostHogAnalytic extends AbstractAnalytic {
   public trackEvent(evt: AnalyticEvent): void {
     if (evt.eventName === 'user') {
       posthog.identify(evt.id, { email: evt.email });
+      if (evt.sub) {
+        posthog.alias(evt.sub, evt.id);
+      }
     }
   }
 

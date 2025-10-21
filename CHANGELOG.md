@@ -12,11 +12,15 @@ and this project adheres to
 
 - ✨(front) add drag'n drop file
 - ✨(activation-codes) register users also on Brevo #98
+- 📈(posthog) add `sub` field to tracking #95
 
 ### Changed
 
 - 💬(text) error page wording
 - 🐛(front) code activation fix session end #93
+- 💬(wording) error page wording #102
+- ⚡️(web-search) allow to override returned chunks #107
+- 🐛(activation-codes) create contact in brevo before add to list #108
 
 
 ## [0.0.1] - 2025-10-19

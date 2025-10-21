@@ -23,6 +23,13 @@ class BraveSettings:
         environ_prefix=None,
     )
 
+    # For web_search_brave_with_document_backend: number of chunks to retrieve RAG search
+    BRAVE_RAG_WEB_SEARCH_CHUNK_NUMBER = values.IntegerValue(
+        default=10,
+        environ_name="BRAVE_RAG_WEB_SEARCH_CHUNK_NUMBER",
+        environ_prefix=None,
+    )
+
     # For optimal performance, BRAVE_MAX_WORKERS should be equal to BRAVE_MAX_RESULTS
     # also considering the number of concurrent requests your server can handle.
     BRAVE_MAX_WORKERS = values.IntegerValue(

@@ -507,7 +507,11 @@ def test_authentication_user_added_to_brevo(monkeypatch, rf, settings):
     settings.BREVO_FOLLOWUP_LIST_ID = "follow-up-list-id"
     settings.ACTIVATION_REQUIRED = False
 
-    brevo_mock = responses.post(
+    brevo_create_contact = responses.post(
+        "https://api.brevo.com/v3/contacts",
+        status=200,
+    )
+    brevo_add_to_list = responses.post(
         "https://api.brevo.com/v3/contacts/lists/follow-up-list-id/contacts/add",
         status=400,
     )
@@ -545,9 +549,16 @@ def test_authentication_user_added_to_brevo(monkeypatch, rf, settings):
         code_verifier="test-code-verifier",
     )
 
-    assert len(brevo_mock.calls) == 1
-    assert brevo_mock.calls[0].request.headers["api-key"] == "test-api-key"
-    assert json.loads(brevo_mock.calls[0].request.body) == {"emails": [user.email]}
+    assert len(brevo_create_contact.calls) == 1
+    assert brevo_create_contact.calls[0].request.headers["api-key"] == "test-api-key"
+    assert json.loads(brevo_create_contact.calls[0].request.body) == {
+        "email": user.email,
+        "updateEnabled": True,
+    }
+
+    assert len(brevo_add_to_list.calls) == 1
+    assert brevo_add_to_list.calls[0].request.headers["api-key"] == "test-api-key"
+    assert json.loads(brevo_add_to_list.calls[0].request.body) == {"emails": [user.email]}
 
     # Now test when activation is required: user should not be added to Brevo list
     settings.ACTIVATION_REQUIRED = True
@@ -558,4 +569,5 @@ def test_authentication_user_added_to_brevo(monkeypatch, rf, settings):
         code_verifier="test-code-verifier",
     )
 
-    assert len(brevo_mock.calls) == 1  # No new call made
+    assert len(brevo_create_contact.calls) == 1  # No new call made
+    assert len(brevo_add_to_list.calls) == 1  # No new call made

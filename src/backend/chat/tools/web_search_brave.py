@@ -210,7 +210,10 @@ def web_search_brave_with_document_backend(ctx: RunContext, query: str) -> ToolR
                     except Exception as e:  # pylint: disable=broad-except
                         logger.exception("Error fetching/storing document: %s", e)
 
-        rag_results = document_store.search(query)
+        rag_results = document_store.search(
+            query,
+            results_count=settings.BRAVE_RAG_WEB_SEARCH_CHUNK_NUMBER,
+        )
 
         ctx.usage += RunUsage(
             input_tokens=rag_results.usage.prompt_tokens,

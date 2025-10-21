@@ -332,6 +332,11 @@ def test_register_email_success_brevo(api_client, settings):
     settings.BREVO_API_KEY = "test_brevo_api_key"
     settings.BREVO_WAITING_LIST_ID = "test_waiting_list_id"
 
+    brevo_create_contact = responses.post(
+        "https://api.brevo.com/v3/contacts",
+        status=200,
+    )
+
     brevo_mock = responses.post(
         "https://api.brevo.com/v3/contacts/lists/test_waiting_list_id/contacts/add",
         json={"message": "Contacts added successfully"},
@@ -350,6 +355,13 @@ def test_register_email_success_brevo(api_client, settings):
 
     registration = UserRegistrationRequest.objects.get(user=user)
     assert registration.user == user
+
+    assert len(brevo_create_contact.calls) == 1
+    assert brevo_create_contact.calls[0].request.headers["api-key"] == "test_brevo_api_key"
+    assert json.loads(brevo_create_contact.calls[0].request.body) == {
+        "email": user.email,
+        "updateEnabled": True,
+    }
 
     assert len(brevo_mock.calls) == 1
     assert brevo_mock.calls[0].request.headers["api-key"] == "test_brevo_api_key"
@@ -372,6 +384,11 @@ def test_register_email_success_brevo_fails(api_client, settings):
     """Test successfully registering an email, even if Brevo fails."""
     settings.BREVO_API_KEY = "test_brevo_api_key"
     settings.BREVO_WAITING_LIST_ID = "test_waiting_list_id"
+
+    _brevo_create_contact = responses.post(
+        "https://api.brevo.com/v3/contacts",
+        status=200,
+    )
 
     brevo_mock = responses.post(
         "https://api.brevo.com/v3/contacts/lists/test_waiting_list_id/contacts/add",
