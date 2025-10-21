@@ -37,8 +37,12 @@ def read_document_content(doc):
 
 async def hand_off_to_summarization_agent(ctx: RunContext) -> ToolReturn:
     """
-    Summarize the documents for the user, only when asked for,
-    the documents are in my context.
+    Generate a complete, ready-to-use summary of the documents in context
+    (do not request the documents to the user).
+    Return this summary directly to the user WITHOUT any modification,
+    or additional summarization.
+    The summary is already optimized and MUST be presented as-is in the final response
+    or translated preserving the information.
     """
     summarization_agent = SummarizationAgent()
 

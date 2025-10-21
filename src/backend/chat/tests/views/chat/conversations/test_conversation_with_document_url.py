@@ -1,4 +1,5 @@
 """Unit tests for chat conversation actions with document URL."""
+# pylint: disable=too-many-lines
 
 from io import BytesIO
 
@@ -860,6 +861,19 @@ def test_post_conversation_with_local_not_pdf_document_url(  # noqa: PLR0913 # p
                         ),
                         timestamp=timezone.now(),
                     ),
+                    SystemPromptPart(
+                        content=(
+                            "When you receive a result from the summarization tool, you MUST "
+                            "return it directly to the user without any modification, "
+                            "paraphrasing, or additional summarization."
+                            "The tool already produces optimized summaries that should "
+                            "be presented verbatim."
+                            "You may translate the summary if required, but you MUST preserve "
+                            "all the information from the original summary."
+                            "You may add a follow-up question after the summary if needed."
+                        ),
+                        timestamp=timezone.now(),
+                    ),
                     UserPromptPart(
                         content=[
                             "What is in this document?",
@@ -958,6 +972,20 @@ def test_post_conversation_with_local_not_pdf_document_url(  # noqa: PLR0913 # p
                     "appropriate query string.Do not ask the user for the "
                     "document; rely on the tool to locate and return "
                     "relevant passages.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": timestamp,
+                },
+                {
+                    "content": "When you receive a result from the summarization "
+                    "tool, you MUST return it directly to the user without "
+                    "any modification, paraphrasing, or additional "
+                    "summarization.The tool already produces optimized "
+                    "summaries that should be presented verbatim.You may "
+                    "translate the summary if required, but you MUST "
+                    "preserve all the information from the original "
+                    "summary.You may add a follow-up question after the "
+                    "summary if needed.",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": timestamp,

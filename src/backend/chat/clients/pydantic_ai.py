@@ -480,6 +480,19 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         elif has_not_pdf_docs:
             add_document_rag_search_tool(self.conversation_agent)
 
+            @self.conversation_agent.system_prompt
+            def summarization_system_prompt() -> str:
+                return (
+                    "When you receive a result from the summarization tool, you MUST return it "
+                    "directly to the user without any modification, paraphrasing, or additional "
+                    "summarization."
+                    "The tool already produces optimized summaries that should be presented "
+                    "verbatim."
+                    "You may translate the summary if required, but you MUST preserve all the "
+                    "information from the original summary."
+                    "You may add a follow-up question after the summary if needed."
+                )
+
             @self.conversation_agent.tool
             async def summarize(ctx) -> ToolReturn:
                 """

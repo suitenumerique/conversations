@@ -376,6 +376,20 @@ def test_post_conversation_with_document_upload(  # noqa: PLR0913 # pylint: disa
                 "timestamp": timezone_now,
             },
             {
+                "content": "When you receive a result from the summarization tool, "
+                "you MUST return it directly to the user without any "
+                "modification, paraphrasing, or additional "
+                "summarization.The tool already produces optimized "
+                "summaries that should be presented verbatim.You may "
+                "translate the summary if required, but you MUST "
+                "preserve all the information from the original "
+                "summary.You may add a follow-up question after the "
+                "summary if needed.",
+                "dynamic_ref": None,
+                "part_kind": "system-prompt",
+                "timestamp": timezone_now,
+            },
+            {
                 "content": ["What does the document say?"],
                 "part_kind": "user-prompt",
                 "timestamp": timezone_now,
@@ -684,6 +698,20 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "appropriate query string.Do not ask the user for the "
                 "document; rely on the tool to locate and return "
                 "relevant passages.",
+                "dynamic_ref": None,
+                "part_kind": "system-prompt",
+                "timestamp": timezone_now,
+            },
+            {
+                "content": "When you receive a result from the summarization tool, "
+                "you MUST return it directly to the user without any "
+                "modification, paraphrasing, or additional "
+                "summarization.The tool already produces optimized "
+                "summaries that should be presented verbatim.You may "
+                "translate the summary if required, but you MUST "
+                "preserve all the information from the original "
+                "summary.You may add a follow-up question after the "
+                "summary if needed.",
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
                 "timestamp": timezone_now,
