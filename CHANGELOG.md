@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.2] - 2025-10-21
+
 ### Added
 
 - ✨(front) add drag'n drop file
@@ -80,5 +82,6 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.1...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.2...main
+[0.0.2]: https://github.com/suitenumerique/conversations/releases/v0.0.2
 [0.0.1]: https://github.com/suitenumerique/conversations/releases/v0.0.1
