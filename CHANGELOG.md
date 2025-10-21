@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.3] - 2025-10-21
+
 ### Fixed
 
 - 🚑️(web-search) fix missing argument in RAG backend #116
@@ -87,6 +89,7 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.2...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.3...main
+[0.0.3]: https://github.com/suitenumerique/conversations/releases/v0.0.3
 [0.0.2]: https://github.com/suitenumerique/conversations/releases/v0.0.2
 [0.0.1]: https://github.com/suitenumerique/conversations/releases/v0.0.1
