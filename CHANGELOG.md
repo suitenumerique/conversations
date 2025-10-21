@@ -15,7 +15,7 @@ and this project adheres to
 - 📈(posthog) add `sub` field to tracking #95
 
 ### Changed
-
+- 🔧(front) change links feedback tchap + settings popup
 - 🐛(front) code activation fix session end #93
 - 💬(wording) error page wording #102
 - ⚡️(web-search) allow to override returned chunks #107
