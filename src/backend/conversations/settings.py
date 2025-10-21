@@ -664,7 +664,7 @@ class Base(BraveSettings, Configuration):
 
     # Tools
     AI_AGENT_TOOLS = values.ListValue(
-        default=[],
+        default=["service_public", "web_search_brave_with_document_backend"],
         environ_name="AI_AGENT_TOOLS",
         environ_prefix=None,
     )

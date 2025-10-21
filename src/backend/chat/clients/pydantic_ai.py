@@ -148,13 +148,29 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # Public streaming API (unchanged signatures)
     # --------------------------------------------------------------------- #
 
-    def stream_text(self, messages: List[UIMessage], force_web_search: bool = False):
+    def stream_text(
+        self,
+        messages: List[UIMessage],
+        *,
+        selected_tools: list[str] | None = None,
+        force_web_search: bool = False,
+    ):
         """Return only the assistant text deltas (legacy text mode)."""
-        return convert_async_generator_to_sync(self.stream_text_async(messages, force_web_search))
+        return convert_async_generator_to_sync(
+            self.stream_text_async(messages, selected_tools=selected_tools, force_web_search=force_web_search)
+        )
 
-    def stream_data(self, messages: List[UIMessage], force_web_search: bool = False):
+    def stream_data(
+        self,
+        messages: List[UIMessage],
+        *,
+        selected_tools: list[str] | None = None,
+        force_web_search: bool = False,
+    ):
         """Return Vercel-AI-SDK formatted events."""
-        return convert_async_generator_to_sync(self.stream_data_async(messages, force_web_search))
+        return convert_async_generator_to_sync(
+            self.stream_data_async(messages, selected_tools=selected_tools, force_web_search=force_web_search)
+        )
 
     def stop_streaming(self):
         """
@@ -169,7 +185,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # Async internals
     # --------------------------------------------------------------------- #
 
-    async def stream_text_async(self, messages: List[UIMessage], force_web_search: bool = False):
+    async def stream_text_async(
+        self,
+        messages: List[UIMessage],
+        *,
+        selected_tools: list[str] | None = None,
+        force_web_search: bool = False,
+    ):
         """Return only the assistant text deltas (legacy text mode)."""
         await self._clean()
         with ExitStack() as stack:
@@ -177,18 +199,24 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
                 span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
 
-            async for event in self._run_agent(messages, force_web_search):
+            async for event in self._run_agent(messages, selected_tools=selected_tools, force_web_search=force_web_search):
                 if stream_text := self.event_encoder.encode_text(event):
                     yield stream_text
 
-    async def stream_data_async(self, messages: List[UIMessage], force_web_search: bool = False):
+    async def stream_data_async(
+        self,
+        messages: List[UIMessage],
+        *,
+        selected_tools: list[str] | None = None,
+        force_web_search: bool = False,
+    ):
         """Return Vercel-AI-SDK formatted events."""
         await self._clean()
         with ExitStack() as stack:
             if self._store_analytics:
                 span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
                 span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
-            async for event in self._run_agent(messages, force_web_search):
+            async for event in self._run_agent(messages, selected_tools=selected_tools, force_web_search=force_web_search):
                 if stream_data := self.event_encoder.encode(event):
                     yield stream_data
 
@@ -345,6 +373,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     async def _run_agent(  # noqa: PLR0912, PLR0915 # pylint: disable=too-many-branches,too-many-statements, too-many-locals, too-many-return-statements
         self,
         messages: List[UIMessage],
+        *,
+        selected_tools: list[str] | None = None,
         force_web_search: bool = False,
     ) -> events_v4.Event | events_v5.Event:
         """Run the Pydantic AI agent and stream events."""
@@ -380,6 +410,26 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             langfuse.update_current_trace(input=user_prompt)
 
         usage = {"promptTokens": 0, "completionTokens": 0}
+
+        # Inject selected tools hint regardless of document presence
+        if selected_tools:
+            @self.conversation_agent.system_prompt
+            def selected_tools_hint() -> str:  # type: ignore[misc]
+                return (
+                    "User wants you to use the following tools if relevant: "
+                    + ", ".join(selected_tools)
+                    + ". Prefer them when solving the task."
+                )
+
+            if "service_public" in selected_tools:
+                @self.conversation_agent.system_prompt
+                def enforce_service_public() -> str:  # type: ignore[misc]
+                    return (
+                        "If the user request relates to French public services, laws or"
+                        " administrative topics, you MUST call the 'service_public' tool"
+                        " before answering. Use it to retrieve relevant passages and then"
+                        " answer the user. When using this tool, end your answer with sources urls if present in the tool response."
+                    )
 
         conversation_has_documents = self._is_document_upload_enabled and (
             bool(self.conversation.collection_id)
@@ -528,7 +578,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
             mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
-
             _final_output_from_tool = None
             _ui_sources = []
 

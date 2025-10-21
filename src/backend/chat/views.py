@@ -143,6 +143,9 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         query_params_serializer.is_valid(raise_exception=True)
         protocol = query_params_serializer.validated_data["protocol"]
         force_web_search = query_params_serializer.validated_data["force_web_search"]
+        # New: optional selected_tools query param (comma-separated)
+        raw_selected_tools = request.query_params.get("selected_tools", "")
+        selected_tools = [t.strip() for t in raw_selected_tools.split(",") if t.strip()]
         model_hrid = query_params_serializer.validated_data["model_hrid"]
 
         logger.info("Received messages: %s", request.data.get("messages", []))
@@ -179,9 +182,17 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             ),
         )
         if protocol == "data":
-            streaming_content = ai_service.stream_data(messages, force_web_search=force_web_search)
+            streaming_content = ai_service.stream_data(
+                messages,
+                selected_tools=selected_tools or None,
+                force_web_search=False,  # superseded by selected_tools
+            )
         else:  # Default to 'text' protocol
-            streaming_content = ai_service.stream_text(messages, force_web_search=force_web_search)
+            streaming_content = ai_service.stream_text(
+                messages,
+                selected_tools=selected_tools or None,
+                force_web_search=False,
+            )
 
         response = StreamingHttpResponse(
             streaming_content,
