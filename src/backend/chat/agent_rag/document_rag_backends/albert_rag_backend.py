@@ -150,12 +150,13 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         logger.debug(response.json())
         response.raise_for_status()
 
-    def search(self, query) -> RAGWebResults:
+    def search(self, query, results_count: int = 4) -> RAGWebResults:
         """
         Perform a search using the Albert API based on the provided query.
 
         Args:
             query (str): The search query.
+            results_count (int): The number of results to return.
 
         Returns:
             RAGWebResults: The search results.
@@ -167,6 +168,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
                 "collections": [int(self.collection_id)],
                 "prompt": query,
                 "score_threshold": 0.6,
+                "k": results_count,  # Number of chunks to return from the search
             },
             timeout=settings.ALBERT_API_TIMEOUT,
         )

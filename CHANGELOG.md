@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- 🚑️(web-search) fix missing argument in RAG backend #116
+
+
 ## [0.0.2] - 2025-10-21
 
 ### Added

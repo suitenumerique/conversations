@@ -75,7 +75,7 @@ class BaseRagBackend:
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
-    def search(self, query) -> RAGWebResults:
+    def search(self, query, results_count: int = 4) -> RAGWebResults:
         """
         Search the collection for the given query.
         """
