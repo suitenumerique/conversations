@@ -151,7 +151,7 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
     <Box $direction="row" $gap="4px" $align="center">
       <Box
         $direction="row"
-        $align="center"
+        $align="start"
         $css="font-size: 14px;"
         $width="100%"
       >
@@ -168,6 +168,9 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
                 padding: 4px;
                 width: 100%;
                 text-decoration: none;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
                 background-color: transparent;
                 transition: background-color 0.3s;
                 color: var(--c--theme--colors--greyscale-500);

@@ -789,7 +789,7 @@ export const Chat = ({
                                       $direction="row"
                                       $align="center"
                                       $gap="4px"
-                                      className={`c__button--neutral action-chat-button ${isSourceOpen ? 'action-chat-button--open' : ''}`}
+                                      className={`c__button--neutral action-chat-button ${isSourceOpen === message.id ? 'action-chat-button--open' : ''}`}
                                       onClick={() => openSources(message.id)}
                                       onKeyDown={(e) => {
                                         if (
