@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- 🌐(i18n) add dutch language #117
+
+
 ## [0.0.3] - 2025-10-21
 
 ### Fixed
