@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-10-20 21:48+0000\n"
-"PO-Revision-Date: 2025-10-22 11:30\n"
+"PO-Revision-Date: 2025-10-22 13:45\n"
 "Last-Translator: \n"
 "Language-Team: Dutch\n"
 "Language: nl_NL\n"
@@ -361,5 +361,5 @@ msgstr " Docs, uw nieuwe onmisbare hulpmiddel voor het organiseren, delen en sam
 #: core/templates/mail/text/invitation.txt:16
 #, python-format
 msgid " Brought to you by %(brandname)s "
-msgstr " Aangeboden door %(brandname) "
+msgstr " Aangeboden door %(brandname)s "
 
