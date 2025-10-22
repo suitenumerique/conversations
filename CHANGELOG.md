@@ -12,6 +12,9 @@ and this project adheres to
 
 - 🌐(i18n) add dutch language #117
 
+### Changed
+
+- 🐛(front) fix mobile source
 
 ## [0.0.3] - 2025-10-21
 

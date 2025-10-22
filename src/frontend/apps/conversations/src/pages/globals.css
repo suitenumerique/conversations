@@ -154,13 +154,15 @@ ul a:hover {
 }
 
 .mainContent-chat a {
-  color: var(--c--theme--colors--primary-text) !important;
+  color: inherit !important;
+  text-decoration: none !important;
+  transition: box-shadow 0.2s !important;
+  box-shadow: inset 0 -2px 0 0 #dae2ff !important;
 }
 
 .mainContent-chat a:hover {
-  color: var(
-    --c--components--button--primary--background--color-hover
-  ) !important;
+  color: inherit !important;
+  box-shadow: inset 0 -22px 0 0 #dae2ff !important;
 }
 
 .lasuite-gaufre-btn.lasuite--gaufre-opened {
