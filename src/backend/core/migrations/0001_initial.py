@@ -118,7 +118,7 @@ class Migration(migrations.Migration):
                             ("en-us", "English"),
                             ("fr-fr", "Français"),
                             # ("de-de", "Deutsch"),
-                            # ("nl-nl", "Nederlands"),
+                            ("nl-nl", "Nederlands"),
                             # ("es-es", "Español"),
                         ],
                         default=None,
