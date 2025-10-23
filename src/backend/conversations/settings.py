@@ -891,6 +891,13 @@ USER QUESTION:
         default=False, environ_name="LANGFUSE_MEDIA_UPLOAD_ENABLED", environ_prefix=None
     )
 
+    # WARNING: Testing purpose only. Do not use in production.
+    WARNING_MOCK_CONVERSATION_AGENT = values.BooleanValue(
+        default=False,
+        environ_name="WARNING_MOCK_CONVERSATION_AGENT",
+        environ_prefix=None,
+    )
+
     # pylint: disable=invalid-name
     @property
     def ENVIRONMENT(self):
