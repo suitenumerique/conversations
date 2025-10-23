@@ -153,6 +153,10 @@ ul a:hover {
   overflow-wrap: break-word;
 }
 
+.mainContent-chat p {
+  margin: 0;
+}
+
 .mainContent-chat a {
   color: inherit !important;
   text-decoration: none !important;
@@ -236,4 +240,16 @@ figure[data-rehype-pretty-code-figure] > pre {
 
 figure[data-rehype-pretty-code-figure] > pre > code {
   display: block;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

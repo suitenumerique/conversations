@@ -44,11 +44,14 @@ export const LeftPanelConversationItem = ({
           background-color: transparent
           transition: all 0.3s cubic-bezier(1, 0, 0, 1);
         }
-        &:hover, &:focus {
+        &:hover, &:focus, &:focus-within {
           background-color: #ebedf1;
           .pinned-actions {
             opacity: 1;
           }
+        }
+        .pinned-actions:focus-within {
+          opacity: 1;
         }
       `}
       className="--docs--left-panel-favorite-item"
