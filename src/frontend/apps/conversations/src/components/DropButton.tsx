@@ -28,10 +28,16 @@ const StyledButton = styled(Button)<StyledButtonProps>`
   border: none;
   background: none;
   outline: none;
-  transition: all 0.2s ease-in-out;
+  transition: background 0.2s ease-in-out;
   font-weight: 500;
   font-size: 0.938rem;
   padding: 0;
+
+  &:focus-visible {
+    outline: 2px solid #3e5de7;
+    outline-offset: 2px;
+  }
+
   ${({ $css }) => $css};
 `;
 

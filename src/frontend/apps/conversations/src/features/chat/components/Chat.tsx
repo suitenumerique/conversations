@@ -603,6 +603,7 @@ export const Chat = ({
                     display: flex;
                     width: 100%;
                     margin: auto;
+                    margin-bottom: ${isLastAssistantMessageInConversation ? '30px' : '0px'};
                     color: var(--c--theme--colors--greyscale-850);
                     padding-left: 12px;
                     padding-right: 12px;
@@ -643,6 +644,11 @@ export const Chat = ({
                           className="mainContent-chat"
                           $padding={{ all: 'xxs' }}
                         >
+                          <p className="sr-only">
+                            {message.role === 'user'
+                              ? t('You said: ')
+                              : t('Assistant IA replied: ')}
+                          </p>
                           <MarkdownHooks
                             remarkPlugins={[remarkGfm, remarkMath]}
                             rehypePlugins={[
@@ -659,6 +665,7 @@ export const Chat = ({
                               // eslint-disable-next-line @typescript-eslint/no-unused-vars
                               p: ({ node, ...props }) => (
                                 <Text
+                                  as="p"
                                   $css="display: block"
                                   $theme="greyscale"
                                   $variation="850"
@@ -909,7 +916,6 @@ export const Chat = ({
         {status === 'error' && (
           <Box
             $direction={isMobile ? 'column' : 'row'}
-            $align="center"
             $gap="6px"
             $width="100%"
             $maxWidth="750px"

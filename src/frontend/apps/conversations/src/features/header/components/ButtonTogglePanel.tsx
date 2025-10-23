@@ -12,7 +12,7 @@ export const ButtonTogglePanel = () => {
     <Button
       size="medium"
       onClick={() => togglePanel()}
-      aria-label={t('Open the header menu')}
+      aria-label={isPanelOpen ? t('Close the menu') : t('Open the menu')}
       color="primary-text"
       icon={<Icon $theme="primary" iconName={isPanelOpen ? 'close' : 'menu'} />}
       className="mobile-no-focus"

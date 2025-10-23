@@ -41,6 +41,7 @@ export const LanguagePicker = () => {
     <DropdownMenu
       options={optionsPicker}
       showArrow={isDesktop}
+      label={t('Language')}
       buttonCss={css`
         &:hover {
           background-color: var(
@@ -61,7 +62,6 @@ export const LanguagePicker = () => {
       <Text
         $theme="primary"
         $size="md"
-        aria-label={t('Language')}
         $direction="row"
         $gap="0.5rem"
         className="--docs--language-picker-text"

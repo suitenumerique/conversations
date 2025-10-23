@@ -411,6 +411,7 @@ export const InputChat = ({
               )}
               <textarea
                 ref={textareaRef}
+                aria-label={t('Enter your message or a question')}
                 value={input ?? ''}
                 name="inputchat-textarea"
                 onChange={(e) => {

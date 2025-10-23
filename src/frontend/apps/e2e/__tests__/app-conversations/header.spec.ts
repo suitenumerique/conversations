@@ -97,7 +97,7 @@ test.describe('Header mobile', () => {
 
     const header = page.locator('header').first();
 
-    await expect(header.getByLabel('Open the header menu')).toBeVisible();
+    await expect(header.getByLabel('Open the menu')).toBeVisible();
     await expect(
       header.getByRole('link', { name: 'Assistant Logo' }),
     ).toBeVisible();

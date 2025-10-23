@@ -45,6 +45,7 @@ and this project adheres to
 
 ### Added
 
+- ♿️(a11y) improve accessibility #135
 - 🌐(i18n) add dutch language #117
 
 ### Changed

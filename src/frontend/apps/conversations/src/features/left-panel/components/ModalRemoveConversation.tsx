@@ -3,7 +3,7 @@ import { t } from 'i18next';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/router';
 
-import { Box, Text, TextErrors, useToast } from '@/components';
+import { Box, Text, useToast } from '@/components';
 import { useRemoveConversation } from '@/features/chat/api/useRemoveConversation';
 import { ChatConversation } from '@/features/chat/types';
 
@@ -20,11 +20,7 @@ export const ModalRemoveConversation = ({
   const { push } = useRouter();
   const pathname = usePathname();
 
-  const {
-    mutate: removeDoc,
-    isError,
-    error,
-  } = useRemoveConversation({
+  const { mutate: removeDoc } = useRemoveConversation({
     onSuccess: () => {
       showToast(
         'success',
@@ -45,6 +41,7 @@ export const ModalRemoveConversation = ({
       isOpen
       closeOnClickOutside
       onClose={() => onClose()}
+      aria-label={t('Content modal to delete conversation')}
       rightActions={
         <>
           <Button
@@ -82,17 +79,10 @@ export const ModalRemoveConversation = ({
         </Text>
       }
     >
-      <Box
-        aria-label={t('Content modal to delete conversation')}
-        className="--docs--modal-remove-doc"
-      >
-        {!isError && (
-          <Text $size="sm" $variation="600">
-            {t('Are you sure you want to delete this conversation ?')}
-          </Text>
-        )}
-
-        {isError && <TextErrors causes={error.cause} />}
+      <Box className="--converstions--modal-remove-chat">
+        <Text $size="sm" $variation="600">
+          {t('Are you sure you want to delete this conversation ?')}
+        </Text>
       </Box>
     </Modal>
   );

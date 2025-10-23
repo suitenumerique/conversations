@@ -102,6 +102,7 @@ export const DropdownMenu = ({
               data-testid={option.testId}
               $direction="row"
               disabled={isDisabled}
+              tabIndex={isDisabled ? -1 : 0}
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -134,8 +135,14 @@ export const DropdownMenu = ({
                 cursor: ${isDisabled ? 'not-allowed' : 'pointer'};
                 user-select: none;
 
-                &:hover {
+                &:hover,
+                &:focus {
                   background-color: var(--c--theme--colors--greyscale-050);
+                }
+
+                &:focus-visible {
+                  outline: 2px solid #3e5de7;
+                  outline-offset: -2px;
                 }
               `}
             >

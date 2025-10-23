@@ -6,13 +6,15 @@ import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferenc
 
 export const ButtonToggleLeftPanel = () => {
   const { t } = useTranslation();
-  const { togglePanel } = useChatPreferencesStore();
+  const { isPanelOpen, togglePanel } = useChatPreferencesStore();
 
   return (
     <Button
       size="medium"
       onClick={() => togglePanel()}
-      aria-label={t('Open the header menu')}
+      aria-label={
+        isPanelOpen ? t('Close the left panel') : t('Open the left panel')
+      }
       color="primary-text"
       icon={<LeftPanelIcon />}
       className="--docs--button-toggle-panel"
