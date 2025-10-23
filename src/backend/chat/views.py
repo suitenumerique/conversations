@@ -1,6 +1,7 @@
 """Chat API implementation."""
 
 import logging
+import os
 from uuid import uuid4
 
 from django.conf import settings
@@ -178,10 +179,32 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
                 or self.request.LANGUAGE_CODE  # from the LocaleMiddleware
             ),
         )
-        if protocol == "data":
-            streaming_content = ai_service.stream_data(messages, force_web_search=force_web_search)
-        else:  # Default to 'text' protocol
-            streaming_content = ai_service.stream_text(messages, force_web_search=force_web_search)
+
+        # This environment variable allows switching between sync and async streaming modes
+        # based on the server configuration. Tests run in sync mode (WSGI), while
+        # production uses async mode (Uvicorn ASGI).
+        is_async_mode = os.environ.get("PYTHON_SERVER_MODE", "sync") == "async"
+
+        if is_async_mode:
+            logger.debug("Using ASYNC streaming for chat conversation.")
+            if protocol == "data":
+                streaming_content = ai_service.stream_data_async(
+                    messages, force_web_search=force_web_search
+                )
+            else:  # Default to 'text' protocol
+                streaming_content = ai_service.stream_text_async(
+                    messages, force_web_search=force_web_search
+                )
+        else:
+            logger.debug("Using SYNC streaming for chat conversation.")
+            if protocol == "data":
+                streaming_content = ai_service.stream_data(
+                    messages, force_web_search=force_web_search
+                )
+            else:  # Default to 'text' protocol
+                streaming_content = ai_service.stream_text(
+                    messages, force_web_search=force_web_search
+                )
 
         response = StreamingHttpResponse(
             streaming_content,

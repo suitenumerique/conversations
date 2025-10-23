@@ -2,11 +2,13 @@
 # pylint: disable=too-many-lines
 
 import json
+import logging
 
 from django.utils import timezone
 
 import pytest
 import respx
+from asgiref.sync import sync_to_async
 from freezegun import freeze_time
 from rest_framework import status
 
@@ -1212,6 +1214,147 @@ def test_post_conversation_data_protocol_no_stream(
                 "input_tokens": 0,
                 "output_audio_tokens": 0,
                 "output_tokens": 135,
+            },
+        },
+    ]
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@respx.mock
+@pytest.mark.asyncio
+async def test_post_conversation_async(
+    api_client, mock_openai_stream, mock_uuid4, monkeypatch, caplog
+):
+    """Test posting messages to a conversation using the 'data' protocol."""
+    monkeypatch.setenv("PYTHON_SERVER_MODE", "async")
+
+    chat_conversation = await sync_to_async(ChatConversationFactory)(owner__language="en-us")
+
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
+    data = {
+        "messages": [
+            {
+                "id": "yuPoOuBkKA4FnKvk",
+                "role": "user",
+                "parts": [{"text": "Hello", "type": "text"}],
+                "content": "Hello",
+                "createdAt": "2025-07-03T15:22:17.105Z",
+            }
+        ]
+    }
+    await api_client.aforce_login(chat_conversation.owner)
+
+    caplog.clear()
+    caplog.set_level(level=logging.DEBUG, logger="chat.views")
+
+    response = await sync_to_async(api_client.post)(url, data, format="json")  # client is sync
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.get("Content-Type") == "text/event-stream"
+    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.streaming
+
+    assert "Using ASYNC streaming for chat conversation" in caplog.text
+
+    # Wait for the streaming content to be fully received => async iterator -> list
+    # This fails it the streaming is not an async generator
+    response_content = b"".join([content async for content in response.streaming_content]).decode(
+        "utf-8"
+    )
+    assert response_content == (
+        '0:"Hello"\n'
+        '0:" there"\n'
+        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+    )
+
+    assert mock_openai_stream.called
+
+    await chat_conversation.arefresh_from_db()
+    assert chat_conversation.ui_messages == [
+        {
+            "content": "Hello",
+            "createdAt": "2025-07-03T15:22:17.105Z",
+            "id": "yuPoOuBkKA4FnKvk",
+            "parts": [{"text": "Hello", "type": "text"}],
+            "role": "user",
+        }
+    ]
+
+    assert len(chat_conversation.messages) == 2
+
+    assert chat_conversation.messages[0] == UIMessage(
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
+        content="Hello",
+        reasoning=None,
+        experimental_attachments=None,
+        role="user",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello")],
+    )
+
+    assert chat_conversation.messages[1] == UIMessage(
+        id=str(mock_uuid4),  # Mocked UUID
+        createdAt=timezone.now(),  # Mocked timestamp
+        content="Hello there",
+        reasoning=None,
+        experimental_attachments=None,
+        role="assistant",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello there")],
+    )
+
+    assert chat_conversation.pydantic_messages == [
+        {
+            "instructions": None,
+            "kind": "request",
+            "parts": [
+                {
+                    "content": "You are a helpful test assistant :)",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": "Today is Friday 25/07/2025.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": "Answer in english.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+                {
+                    "content": ["Hello"],
+                    "part_kind": "user-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+            ],
+        },
+        {
+            "finish_reason": "stop",
+            "kind": "response",
+            "model_name": "test-model",
+            "parts": [{"content": "Hello there", "id": None, "part_kind": "text"}],
+            "provider_details": {"finish_reason": "stop"},
+            "provider_name": "openai",
+            "provider_response_id": "chatcmpl-1234567890",
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+            "usage": {
+                "cache_audio_read_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "details": {},
+                "input_audio_tokens": 0,
+                "input_tokens": 0,
+                "output_audio_tokens": 0,
+                "output_tokens": 0,
             },
         },
     ]

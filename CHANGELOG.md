@@ -14,7 +14,12 @@ and this project adheres to
 
 ### Changed
 
+- ⚡️(asgi) use `uvicorn` to serve backend #121
+
+### Fixed
+
 - 🐛(front) fix mobile source
+
 
 ## [0.0.3] - 2025-10-21
 
