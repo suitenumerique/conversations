@@ -15,6 +15,7 @@ export const Icon = ({
   return (
     <Text
       {...textProps}
+      aria-hidden="true"
       className={clsx('--docs--icon-bg', textProps.className, {
         'material-symbols': variant === 'filled',
         'material-symbols-outlined': variant === 'outlined',
@@ -33,6 +34,7 @@ export const IconOptions = ({ isHorizontal, ...props }: IconOptionsProps) => {
   return (
     <Icon
       {...props}
+      aria-hidden="true"
       iconName={isHorizontal ? 'more_horiz' : 'more_vert'}
       $css={css`
         user-select: none;
