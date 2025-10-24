@@ -14,6 +14,7 @@ import { AttachmentList } from './AttachmentList';
 import { ModelSelector } from './ModelSelector';
 import { ScrollDown } from './ScrollDown';
 import { SendButton } from './SendButton';
+import { ToolSelector } from './ToolSelector';
 
 interface InputChatProps {
   messagesLength: number;
@@ -593,6 +594,10 @@ export const InputChat = ({
                       </Button>
                     </Box>
                   )}
+                  
+                  <Box $padding={{ horizontal: 'xs' }}>
+                    <ToolSelector />
+                  </Box>
                 </Box>
                 <Box
                   $direction="row"

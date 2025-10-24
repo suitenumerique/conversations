@@ -36,13 +36,27 @@ const SourceItemListComponent: React.FC<SourceItemListProps> = ({
        overflow: hidden;
      `}
     >
-      {parts.map((part) => (
-        <SourceItem
-          key={part.source.url}
-          url={part.source.url}
-          metadata={getMetadata(part.source.url)}
-        />
-      ))}
+      {parts.map((part) => {
+        const metadata = getMetadata(part.source.url);
+        // Extract title from providerMetadata if available
+        const providerTitle = part.source.providerMetadata?.title;
+        
+        return (
+          <SourceItem
+            key={part.source.url}
+            url={part.source.url}
+            metadata={metadata ? {
+              ...metadata,
+              title: providerTitle || metadata.title
+            } : providerTitle ? {
+              title: providerTitle,
+              favicon: null,
+              loading: false,
+              error: false
+            } : undefined}
+          />
+        );
+      })}
     </Box>
   );
 };

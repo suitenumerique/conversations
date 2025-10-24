@@ -659,7 +659,7 @@ export const Chat = ({
                               // eslint-disable-next-line @typescript-eslint/no-unused-vars
                               p: ({ node, ...props }) => (
                                 <Text
-                                  $css="display: block"
+                                  $css="display: block; white-space: pre-wrap;"
                                   $theme="greyscale"
                                   $variation="850"
                                   {...props}

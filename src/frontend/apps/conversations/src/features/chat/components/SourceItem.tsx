@@ -179,15 +179,26 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
           >
             {renderFavicon()}
 
-            {new URL(url).hostname}
-
-            <Box
-              $padding={{ right: '4px' }}
-              $align="center"
-              style={styles.title}
-            >
-              {title}
-            </Box>
+            {title ? (
+              <Box
+                $padding={{ right: '4px' }}
+                $align="center"
+                style={styles.title}
+              >
+                {title}
+              </Box>
+            ) : (
+              <>
+                {new URL(url).hostname}
+                <Box
+                  $padding={{ right: '4px' }}
+                  $align="center"
+                  style={styles.title}
+                >
+                  {title}
+                </Box>
+              </>
+            )}
           </StyledLink>
         ) : (
           <Box>{url}</Box>

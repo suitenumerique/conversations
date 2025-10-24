@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Default curated collections (Albert IDs)
 DEFAULT_COLLECTION_IDS: List[int] = [784, 785]  # travail-emploi, service-public
-INSTRUCTIONS = "Voilà les informations trouvées, résume les pour répondre à la question de l'utilisateur, à la fin de ta réponse, ajoutes une section sources avec les urls des sources si présentes: \n"
+INSTRUCTIONS = "Voilà les informations trouvées, résume les pour répondre à la question de l'utilisateur si c'est pertinent: \n"
 
 async def service_public(ctx: RunContext, query: str) -> ToolReturn:
     """Search curated Service-Public collections on Albert and return snippets.
@@ -33,20 +33,29 @@ async def service_public(ctx: RunContext, query: str) -> ToolReturn:
         # Search in the curated collections
         rag_results = backend.search(query, collections=DEFAULT_COLLECTION_IDS)
         
-        # Convert to compact format for the model using your logic
+        # Convert to compact format for the model
         compact = []
         sources = []
         for result in rag_results.data:
             # AlbertRagBackend.search() returns RAGWebResult objects with {url, content, score, metadata}
+            document_name = result.metadata.get("document_name", "Document")
+            url = result.metadata.get("url", "")
+            
             compact.append(
                 {
-                    "title": result.metadata["document_name"],
+                    "title": document_name,
                     "snippet": result.content,
-                    "url": result.metadata["url"],
+                    "url": url,
                 }
             )
-            if result.metadata["url"]:
-                sources.append(result.metadata["url"])
+            
+            # Create rich source with title and URL
+            if url:
+                source_info = {
+                    "title": document_name,
+                    "url": url
+                }
+                sources.append(source_info)
 
         # Update run usage
         ctx.usage += RunUsage(
@@ -54,10 +63,18 @@ async def service_public(ctx: RunContext, query: str) -> ToolReturn:
             output_tokens=rag_results.usage.completion_tokens,
         )
 
+        # Remove duplicate sources based on URL
+        unique_sources = []
+        seen_urls = set()
+        for source in sources:
+            if source["url"] not in seen_urls:
+                unique_sources.append(source)
+                seen_urls.add(source["url"])
+
         return ToolReturn(
             return_value=INSTRUCTIONS + str(compact),
             content='',
-            metadata={"sources": list(set(sources))},
+            metadata={"sources": unique_sources},
         )
         
     except Exception as exc:  # pylint: disable=broad-except

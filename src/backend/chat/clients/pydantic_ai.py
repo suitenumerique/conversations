@@ -428,7 +428,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         "If the user request relates to French public services, laws or"
                         " administrative topics, you MUST call the 'service_public' tool"
                         " before answering. Use it to retrieve relevant passages and then"
-                        " answer the user. When using this tool, end your answer with sources urls if present in the tool response."
+                        " answer the user."
                     )
 
         conversation_has_documents = self._is_document_upload_enabled and (
@@ -691,19 +691,29 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                         if event.result.metadata and (
                                             sources := event.result.metadata.get("sources")
                                         ):
-                                            for source_url in sources:
-                                                url_source = LanguageModelV1Source(
-                                                    sourceType="url",
-                                                    id=str(uuid.uuid4()),
-                                                    url=source_url,
-                                                    providerMetadata={},
-                                                )
-                                                _new_source_ui = SourceUIPart(
-                                                    type="source", source=url_source
-                                                )
-                                                _ui_sources.append(_new_source_ui)
-                                                yield events_v4.SourcePart(
-                                                    **_new_source_ui.source.model_dump()
+                                            for source_item in sources:
+                                                # Handle both old format (string) and new format (dict)
+                                                if isinstance(source_item, dict):
+                                                    source_url = source_item.get("url", "")
+                                                    source_title = source_item.get("title", "")
+                                                else:
+                                                    # Fallback for old string format
+                                                    source_url = source_item
+                                                    source_title = ""
+                                                
+                                                if source_url:
+                                                    url_source = LanguageModelV1Source(
+                                                        sourceType="url",
+                                                        id=str(uuid.uuid4()),
+                                                        url=source_url,
+                                                        providerMetadata={"title": source_title} if source_title else {},
+                                                    )
+                                                    _new_source_ui = SourceUIPart(
+                                                        type="source", source=url_source
+                                                    )
+                                                    _ui_sources.append(_new_source_ui)
+                                                    yield events_v4.SourcePart(
+                                                        **_new_source_ui.source.model_dump()
                                                 )
 
                                         yield events_v4.ToolResultPart(
