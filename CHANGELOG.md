@@ -19,6 +19,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(front) fix mobile source
+- 🐛(attachments) reject the whole drag&drop if unsupported formats #123
 
 
 ## [0.0.3] - 2025-10-21

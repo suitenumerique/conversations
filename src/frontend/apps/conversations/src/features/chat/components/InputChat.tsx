@@ -54,6 +54,7 @@ export const InputChat = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [isDragRejected, setIsDragRejected] = useState(false);
   const { isDesktop, isMobile } = useResponsiveStore();
   const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
   const { data: conf } = useConfig();
@@ -135,10 +136,39 @@ export const InputChat = ({
       return;
     }
 
+    const isFileAccepted = (file: File): boolean => {
+      if (!conf?.chat_upload_accept) {
+        return true;
+      }
+
+      const acceptedTypes = conf.chat_upload_accept
+        .split(',')
+        .map((type) => type.trim());
+
+      return acceptedTypes.some((acceptedType) => {
+        // Extension management
+        if (acceptedType.startsWith('.')) {
+          return file.name.toLowerCase().endsWith(acceptedType.toLowerCase());
+        }
+        // Wildcard MIME type management (ex: image/*)
+        if (acceptedType.endsWith('/*')) {
+          const baseType = acceptedType.slice(0, -2);
+          return file.type.startsWith(baseType);
+        }
+        // Exact MIME type management
+        return file.type === acceptedType;
+      });
+    };
+
+    const areAllFilesAccepted = (fileList: FileList): boolean => {
+      return Array.from(fileList).every((file) => isFileAccepted(file));
+    };
+
     const handleDragEnter = (e: DragEvent) => {
       e.preventDefault();
       if (e.dataTransfer?.types.includes('Files')) {
         setIsDragActive(true);
+        setIsDragRejected(false);
       }
     };
 
@@ -147,16 +177,34 @@ export const InputChat = ({
       // Only hide when leaving the window completely
       if (!e.relatedTarget) {
         setIsDragActive(false);
+        setIsDragRejected(false);
       }
     };
 
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
+
+      // Check for rejected files during drag over
+      if (e.dataTransfer?.items) {
+        const items = Array.from(e.dataTransfer.items);
+        const hasInvalidFile = items.some((item) => {
+          if (item.kind === 'file') {
+            // Check file type
+            const type = item.type;
+            const dummyFile = new File([], '', { type });
+            return !isFileAccepted(dummyFile);
+          }
+          return false;
+        });
+
+        setIsDragRejected(hasInvalidFile);
+      }
     };
 
     const handleDrop = (e: DragEvent) => {
       e.preventDefault();
       setIsDragActive(false);
+      setIsDragRejected(false);
 
       if (!fileUploadEnabled) {
         return;
@@ -164,6 +212,12 @@ export const InputChat = ({
 
       const droppedFiles = e.dataTransfer?.files;
       if (droppedFiles && droppedFiles.length > 0) {
+        // Check if all files are accepted
+        if (!areAllFilesAccepted(droppedFiles)) {
+          // Do nothing if there are rejected files
+          return;
+        }
+
         setFiles((prev) => {
           const dt = new DataTransfer();
           if (prev) {
@@ -197,7 +251,7 @@ export const InputChat = ({
       window.removeEventListener('dragover', handleDragOver);
       window.removeEventListener('drop', handleDrop);
     };
-  }, [fileUploadEnabled, setFiles]);
+  }, [fileUploadEnabled, setFiles, conf?.chat_upload_accept]);
 
   const isInputDisabled = status !== 'ready' || isUploadingFiles;
 
@@ -305,22 +359,48 @@ export const InputChat = ({
                 top: -1px; left: -1px;
                 border-radius: 12px;
                 z-index: 1001;
-                background-color: #EDF0FF;
+                background-color: ${isDragRejected ? '#FFE8E8' : '#EDF0FF'};
                 width: 100%;
                 height: 100%;
-                outline: 2px solid #90A7FF;
-                box-shadow: 0 0 64px 0 rgba(62, 93, 231, 0.25);
+                outline: 2px solid ${isDragRejected ? '#FF6B6B' : '#90A7FF'};
+                box-shadow: 0 0 64px 0 ${isDragRejected ? 'rgba(255, 107, 107, 0.25)' : 'rgba(62, 93, 231, 0.25)'};
                 `}
                 >
-                  <FilesIcon />
-                  <Box>
-                    <Text $weight="700" $color="#223E9E">
-                      {t('Add file')}
-                    </Text>
-                    <Text $weight="400" $color="#223E9E">
-                      {t('To add a file to the conversation, drop it here.')}
-                    </Text>
-                  </Box>
+                  {isDragRejected ? (
+                    <>
+                      <Text $css="font-size: 48px;">🚫</Text>
+                      <Box>
+                        <Text $weight="700" $color="#C92A2A">
+                          {t('File type not supported (yet)')}
+                        </Text>
+                        <Text $weight="400" $color="#C92A2A">
+                          {t(
+                            'We currently support only specific file types...',
+                          )}
+                        </Text>
+                        <Text $weight="400" $color="#C92A2A">
+                          {t(
+                            'Use the "{{attach_file_btn}}" button to have a better view.',
+                            { attach_file_btn: t('Add attach file') },
+                          )}
+                        </Text>
+                      </Box>
+                    </>
+                  ) : (
+                    <>
+                      <FilesIcon />
+                      <Box>
+                        <Text $weight="700" $color="#223E9E">
+                          {t('Add file')}
+                        </Text>
+                        <Text $weight="400" $color="#223E9E">
+                          {t(
+                            'To add a file to the conversation, drop it here.',
+                          )}
+                        </Text>
+                      </Box>
+                    </>
+                  )}
                 </Box>
               )}
               <textarea
