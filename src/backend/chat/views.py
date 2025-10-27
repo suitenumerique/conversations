@@ -425,7 +425,7 @@ class ChatConversationAttachmentViewSet(
         if settings.POSTHOG_KEY:
             posthog.capture(
                 "item_uploaded",
-                distinct_id=request.user.email,
+                distinct_id=request.user.id,
                 properties={
                     "id": attachment.pk,
                     "file_name": attachment.file_name,
