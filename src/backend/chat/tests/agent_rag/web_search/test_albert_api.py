@@ -62,7 +62,7 @@ def test_web_search_success(settings):
     results = AlbertWebSearchManager().web_search("test query")
     assert results == RAGWebResults(
         data=[
-            RAGWebResult(url="http://example.com/test", content="This is a test chunk.", score=0.9)
+            RAGWebResult(url="http://example.com/test", content="This is a test chunk.", score=0.9, metadata={})
         ],
         usage=RAGWebUsage(prompt_tokens=10, completion_tokens=20),
     )

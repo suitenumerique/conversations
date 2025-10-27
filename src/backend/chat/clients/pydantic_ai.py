@@ -531,6 +531,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
             _final_output_from_tool = None
             _ui_sources = []
+            _seen_source_urls = set()  # Track seen URLs to avoid duplicates
 
             # Help Mistral to prevent `Unexpected role 'user' after role 'tool'` error.
             if history and history[-1].kind == "request":
@@ -642,19 +643,30 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                         if event.result.metadata and (
                                             sources := event.result.metadata.get("sources")
                                         ):
-                                            for source_url in sources:
-                                                url_source = LanguageModelV1Source(
-                                                    sourceType="url",
-                                                    id=str(uuid.uuid4()),
-                                                    url=source_url,
-                                                    providerMetadata={},
-                                                )
-                                                _new_source_ui = SourceUIPart(
-                                                    type="source", source=url_source
-                                                )
-                                                _ui_sources.append(_new_source_ui)
-                                                yield events_v4.SourcePart(
-                                                    **_new_source_ui.source.model_dump()
+                                            for source_item in sources:
+                                                # Handle both old format (string) and new format (dict)
+                                                if isinstance(source_item, dict):
+                                                    source_url = source_item.get("url", "")
+                                                    source_title = source_item.get("title", "")
+                                                else:
+                                                    # Fallback for old string format
+                                                    source_url = source_item
+                                                    source_title = ""
+                                                
+                                                if source_url and source_url not in _seen_source_urls:
+                                                    _seen_source_urls.add(source_url)
+                                                    url_source = LanguageModelV1Source(
+                                                        sourceType="url",
+                                                        id=str(uuid.uuid4()),
+                                                        url=source_url,
+                                                        providerMetadata={"title": source_title} if source_title else {},
+                                                    )
+                                                    _new_source_ui = SourceUIPart(
+                                                        type="source", source=url_source
+                                                    )
+                                                    _ui_sources.append(_new_source_ui)
+                                                    yield events_v4.SourcePart(
+                                                        **_new_source_ui.source.model_dump()
                                                 )
 
                                         yield events_v4.ToolResultPart(

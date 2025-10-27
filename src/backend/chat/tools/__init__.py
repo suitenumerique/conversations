@@ -6,6 +6,7 @@ from .fake_current_weather import get_current_weather
 from .web_seach_albert_rag import web_search_albert_rag
 from .web_search_brave import web_search_brave, web_search_brave_with_document_backend
 from .web_search_tavily import web_search_tavily
+from .service_public import service_public
 
 
 async def only_if_web_search_enabled(ctx, tool_def: ToolDefinition) -> ToolDefinition | None:
@@ -30,6 +31,9 @@ def get_pydantic_tools_by_name(name: str) -> Tool:
         ),
         "web_search_albert_rag": Tool(
             web_search_albert_rag, takes_ctx=True, prepare=only_if_web_search_enabled
+        ),
+        "service_public": Tool(
+            service_public, takes_ctx=True, prepare=only_if_web_search_enabled
         ),
     }
 
