@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- 🚑️(drag-drop) fix the rejection display on Safari #127
+
+
 ## [0.0.4] - 2025-10-27
 
 ### Added

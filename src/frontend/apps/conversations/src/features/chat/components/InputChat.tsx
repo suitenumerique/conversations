@@ -184,7 +184,7 @@ export const InputChat = ({
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
 
-      // Check for rejected files during drag over
+      // Check for rejected files during drag over (does not work on Safari)
       if (e.dataTransfer?.items) {
         const items = Array.from(e.dataTransfer.items);
         const hasInvalidFile = items.some((item) => {
@@ -214,7 +214,13 @@ export const InputChat = ({
       if (droppedFiles && droppedFiles.length > 0) {
         // Check if all files are accepted
         if (!areAllFilesAccepted(droppedFiles)) {
-          // Do nothing if there are rejected files
+          // Display rejection for 2 seconds (mandatory for Safari)
+          setIsDragActive(true);
+          setIsDragRejected(true);
+          setTimeout(() => {
+            setIsDragActive(false);
+            setIsDragRejected(false);
+          }, 2000);
           return;
         }
 
