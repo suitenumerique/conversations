@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.5] - 2025-10-27
+
 ### Fixed
 
 - 🚑️(drag-drop) fix the rejection display on Safari #127
@@ -110,7 +112,8 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.4...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.5...main
+[0.0.4]: https://github.com/suitenumerique/conversations/releases/v0.0.5
 [0.0.4]: https://github.com/suitenumerique/conversations/releases/v0.0.4
 [0.0.3]: https://github.com/suitenumerique/conversations/releases/v0.0.3
 [0.0.2]: https://github.com/suitenumerique/conversations/releases/v0.0.2
