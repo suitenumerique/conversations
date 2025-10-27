@@ -483,7 +483,11 @@ class Base(BraveSettings, Configuration):
     THUMBNAIL_ALIASES = {}
 
     # Session
-    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    SESSION_ENGINE = values.Value(
+        "django.contrib.sessions.backends.cache",
+        environ_name="SESSION_ENGINE",
+        environ_prefix=None,
+    )
     SESSION_CACHE_ALIAS = "default"
     SESSION_COOKIE_AGE = values.PositiveIntegerValue(
         default=60 * 60 * 12, environ_name="SESSION_COOKIE_AGE", environ_prefix=None
@@ -503,6 +507,7 @@ class Base(BraveSettings, Configuration):
         environ_name="OIDC_RP_CLIENT_SECRET",
         environ_prefix=None,
     )
+    OIDC_OP_URL = values.Value(None, environ_name="OIDC_OP_URL", environ_prefix=None)
     OIDC_OP_JWKS_ENDPOINT = values.Value(environ_name="OIDC_OP_JWKS_ENDPOINT", environ_prefix=None)
     OIDC_OP_AUTHORIZATION_ENDPOINT = values.Value(
         environ_name="OIDC_OP_AUTHORIZATION_ENDPOINT", environ_prefix=None
