@@ -1,8 +1,11 @@
 """Unit tests for chat conversation actions with image URL."""
 
+import uuid
+
 from django.utils import timezone
 
 import pytest
+from dirty_equals import IsUUID
 from freezegun import freeze_time
 from pydantic_ai import ModelRequest, RequestUsage
 from pydantic_ai.messages import (
@@ -22,6 +25,7 @@ from chat.ai_sdk_types import (
     UIMessage,
 )
 from chat.factories import ChatConversationFactory
+from chat.tests.utils import replace_uuids_with_placeholder
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -53,7 +57,6 @@ def fixture_sample_image_content():
 @freeze_time("2025-10-18T20:48:20.286204Z")
 def test_post_conversation_with_local_image_url(
     api_client,
-    mock_uuid4,
     mock_ai_agent_service,
 ):
     """
@@ -131,17 +134,23 @@ def test_post_conversation_with_local_image_url(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"This is an image of a single pixel."\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":9}}\n'
     )
 
     # Check that the conversation was updated
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
+
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[0].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="What is in this image?",
         reasoning=None,
@@ -155,8 +164,10 @@ def test_post_conversation_with_local_image_url(
             TextUIPart(type="text", text="What is in this image?"),
         ],
     )
+
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[1].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="This is an image of a single pixel.",
         reasoning=None,
@@ -238,7 +249,6 @@ def test_post_conversation_with_local_image_url(
 def test_post_conversation_with_local_image_wrong_url(
     api_client,
     today_promt_date,
-    mock_uuid4,
     mock_ai_agent_service,
 ):
     """
@@ -247,7 +257,7 @@ def test_post_conversation_with_local_image_wrong_url(
     chat_conversation = ChatConversationFactory(owner__language="en-us")
     api_client.force_authenticate(user=chat_conversation.owner)
 
-    image_url = f"/media-key/{mock_uuid4}/sample.png"
+    image_url = f"/media-key/{uuid.uuid4()}/sample.png"
 
     message = UIMessage(
         id="1",
@@ -308,9 +318,13 @@ def test_post_conversation_with_local_image_wrong_url(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"cannot read image."\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":4}}\n'
     )
 
@@ -322,7 +336,6 @@ def test_post_conversation_with_local_image_wrong_url(
 def test_post_conversation_with_remote_image_url(
     api_client,
     today_promt_date,
-    mock_uuid4,
     mock_ai_agent_service,
 ):
     """
@@ -392,17 +405,23 @@ def test_post_conversation_with_remote_image_url(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"This is an image of a single pixel."\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":9}}\n'
     )
 
     # Check that the conversation was updated
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
+
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[0].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="What is in this image?",
         reasoning=None,
@@ -416,8 +435,10 @@ def test_post_conversation_with_remote_image_url(
             TextUIPart(type="text", text="What is in this image?"),
         ],
     )
+
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[1].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="This is an image of a single pixel.",
         reasoning=None,
@@ -435,7 +456,6 @@ def test_post_conversation_with_remote_image_url(
 def test_post_conversation_with_local_image_url_in_history(
     api_client,
     today_promt_date,
-    mock_uuid4,
     mock_ai_agent_service,
 ):
     """
@@ -448,7 +468,7 @@ def test_post_conversation_with_local_image_url_in_history(
         owner__language="en-us",
         messages=[
             UIMessage(
-                id=str(mock_uuid4),
+                id=str(uuid.uuid4()),
                 createdAt=timezone.now(),
                 content="What is in this image?",
                 reasoning=None,
@@ -463,7 +483,7 @@ def test_post_conversation_with_local_image_url_in_history(
                 ],
             ),
             UIMessage(
-                id=str(mock_uuid4),
+                id=str(uuid.uuid4()),
                 createdAt=timezone.now(),
                 content="This is an image of a single pixel.",
                 reasoning=None,
@@ -629,17 +649,23 @@ def test_post_conversation_with_local_image_url_in_history(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"This is an image of square, very small and nice."\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":11}}\n'
     )
 
     # Check that the conversation was updated
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2 + 2
+
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[0].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="What is in this image?",
         reasoning=None,
@@ -653,8 +679,10 @@ def test_post_conversation_with_local_image_url_in_history(
             TextUIPart(type="text", text="What is in this image?"),
         ],
     )
+
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[1].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="This is an image of a single pixel.",
         reasoning=None,
@@ -666,8 +694,10 @@ def test_post_conversation_with_local_image_url_in_history(
             TextUIPart(type="text", text="This is an image of a single pixel."),
         ],
     )
+
+    assert chat_conversation.messages[2].id == IsUUID(4)
     assert chat_conversation.messages[2] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[2].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="Give more details about this image.",
         reasoning=None,
@@ -679,8 +709,10 @@ def test_post_conversation_with_local_image_url_in_history(
             TextUIPart(type="text", text="Give more details about this image."),
         ],
     )
+
+    assert chat_conversation.messages[3].id == IsUUID(4)
     assert chat_conversation.messages[3] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[3].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="This is an image of square, very small and nice.",
         reasoning=None,

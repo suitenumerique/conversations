@@ -1,6 +1,8 @@
 """Unit tests for chat conversation actions with document URL."""
-# pylint: disable=too-many-lines
 
+import uuid
+
+# pylint: disable=too-many-lines
 from io import BytesIO
 
 from django.core.files.storage import default_storage
@@ -8,6 +10,7 @@ from django.utils import formats, timezone
 
 import pytest
 import responses
+from dirty_equals import IsUUID
 from freezegun import freeze_time
 from pydantic_ai import ModelRequest, RequestUsage
 from pydantic_ai.messages import (
@@ -27,6 +30,7 @@ from chat.ai_sdk_types import (
     UIMessage,
 )
 from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
+from chat.tests.utils import replace_uuids_with_placeholder
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -61,7 +65,6 @@ def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-m
     api_client,
     sample_document_content,
     today_promt_date,
-    mock_uuid4,
     mock_ai_agent_service,
 ):
     """
@@ -162,20 +165,26 @@ def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-m
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
-        f'9:{{"toolCallId":"{mock_uuid4}","toolName":"document_parsing",'
+        '9:{"toolCallId":"XXX","toolName":"document_parsing",'
         '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
-        f'a:{{"toolCallId":"{mock_uuid4}","result":{{"state":"done"}}}}\n'
+        'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         '0:"This is a document about a single pixel."\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":9}}\n'
     )
 
     # Check that the conversation was updated
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
+
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[0].id,
         createdAt=timezone.now(),
         content="What is in this document?",
         reasoning=None,
@@ -189,8 +198,10 @@ def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-m
             TextUIPart(type="text", text="What is in this document?"),
         ],
     )
+
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[1].id,
         createdAt=timezone.now(),
         content="This is a document about a single pixel.",
         reasoning=None,
@@ -278,7 +289,6 @@ def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-m
 @freeze_time()
 def test_post_conversation_with_local_document_wrong_url(
     api_client,
-    mock_uuid4,
     mock_ai_agent_service,
 ):
     """
@@ -287,7 +297,7 @@ def test_post_conversation_with_local_document_wrong_url(
     chat_conversation = ChatConversationFactory(owner__language="en-us")
     api_client.force_authenticate(user=chat_conversation.owner)
 
-    document_url = f"/media-key/{mock_uuid4}/sample.pdf"
+    document_url = f"/media-key/{uuid.uuid4()}/sample.pdf"
 
     message = UIMessage(
         id="1",
@@ -326,10 +336,14 @@ def test_post_conversation_with_local_document_wrong_url(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
-        f'9:{{"toolCallId":"{mock_uuid4}","toolName":"document_parsing",'
+        '9:{"toolCallId":"XXX","toolName":"document_parsing",'
         '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
-        f'a:{{"toolCallId":"{mock_uuid4}",'
+        'a:{"toolCallId":"XXX",'
         '"result":{"state":"error","error":"Document '
         'URL does not belong to the conversation."}}\n'
         'd:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0}}\n'
@@ -343,7 +357,6 @@ def test_post_conversation_with_local_document_wrong_url(
 @freeze_time()
 def test_post_conversation_with_remote_document_url(
     api_client,
-    mock_uuid4,
     mock_ai_agent_service,
 ):
     """
@@ -391,10 +404,14 @@ def test_post_conversation_with_remote_document_url(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
-        f'9:{{"toolCallId":"{mock_uuid4}","toolName":"document_parsing",'
+        '9:{"toolCallId":"XXX","toolName":"document_parsing",'
         '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
-        f'a:{{"toolCallId":"{mock_uuid4}",'
+        'a:{"toolCallId":"XXX",'
         '"result":{"state":"error","error":"External document '
         'URL are not accepted yet."}}\n'
         'd:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0}}\n'
@@ -409,7 +426,6 @@ def test_post_conversation_with_remote_document_url(
 def test_post_conversation_with_local_document_url_in_history(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
     today_promt_date,
-    mock_uuid4,
     mock_ai_agent_service,
 ):
     """
@@ -422,7 +438,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         owner__language="en-us",
         messages=[
             UIMessage(
-                id=str(mock_uuid4),
+                id=str(uuid.uuid4()),
                 createdAt=timezone.now(),
                 content="What is in this document?",
                 reasoning=None,
@@ -437,7 +453,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                 ],
             ),
             UIMessage(
-                id=str(mock_uuid4),
+                id=str(uuid.uuid4()),
                 createdAt=timezone.now(),
                 content="This is a document about a single pixel.",
                 reasoning=None,
@@ -603,17 +619,23 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"This is a document of square, very small and nice."\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":11}}\n'
     )
 
     # Check that the conversation was updated
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2 + 2
+
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[0].id,
         createdAt=timezone.now(),
         content="What is in this document?",
         reasoning=None,
@@ -627,8 +649,10 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
             TextUIPart(type="text", text="What is in this document?"),
         ],
     )
+
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[1].id,
         createdAt=timezone.now(),
         content="This is a document about a single pixel.",
         reasoning=None,
@@ -640,8 +664,10 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
             TextUIPart(type="text", text="This is a document about a single pixel."),
         ],
     )
+
+    assert chat_conversation.messages[2].id == IsUUID(4)
     assert chat_conversation.messages[2] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[2].id,
         createdAt=timezone.now(),
         content="Give more details about this document.",
         reasoning=None,
@@ -653,8 +679,10 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
             TextUIPart(type="text", text="Give more details about this document."),
         ],
     )
+
+    assert chat_conversation.messages[3].id == IsUUID(4)
     assert chat_conversation.messages[3] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[3].id,
         createdAt=timezone.now(),
         content="This is a document of square, very small and nice.",
         reasoning=None,
@@ -783,10 +811,9 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         ("data.csv", "text/csv"),
     ],
 )
-def test_post_conversation_with_local_not_pdf_document_url(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-positional-arguments
+def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
     today_promt_date,
-    mock_uuid4,
     mock_ai_agent_service,
     file_name,
     content_type,
@@ -901,20 +928,26 @@ def test_post_conversation_with_local_not_pdf_document_url(  # noqa: PLR0913 # p
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
-        f'9:{{"toolCallId":"{mock_uuid4}","toolName":"document_parsing",'
+        '9:{"toolCallId":"XXX","toolName":"document_parsing",'
         f'"args":{{"documents":[{{"identifier":"{file_name}"}}]}}}}\n'
-        f'a:{{"toolCallId":"{mock_uuid4}","result":{{"state":"done"}}}}\n'
+        'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         '0:"This is a document about you."\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":7}}\n'
     )
 
     # Check that the conversation was updated
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
+
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[0].id,
         createdAt=timezone.now(),
         content="What is in this document?",
         reasoning=None,
@@ -926,8 +959,10 @@ def test_post_conversation_with_local_not_pdf_document_url(  # noqa: PLR0913 # p
             TextUIPart(type="text", text="What is in this document?"),
         ],
     )
+
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),
+        id=chat_conversation.messages[1].id,
         createdAt=timezone.now(),
         content="This is a document about you.",
         reasoning=None,

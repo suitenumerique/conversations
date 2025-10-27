@@ -9,6 +9,7 @@ from django.utils import timezone
 import pytest
 import respx
 from asgiref.sync import sync_to_async
+from dirty_equals import IsUUID
 from freezegun import freeze_time
 from rest_framework import status
 
@@ -23,6 +24,7 @@ from chat.ai_sdk_types import (
 )
 from chat.factories import ChatConversationFactory
 from chat.llm_configuration import LLModel, LLMProvider
+from chat.tests.utils import replace_uuids_with_placeholder
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -88,7 +90,7 @@ def test_post_conversation_invalid_protocol(api_client):
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uuid4):
+def test_post_conversation_data_protocol(api_client, mock_openai_stream):
     """Test posting messages to a conversation using the 'data' protocol."""
     chat_conversation = ChatConversationFactory(owner__language="en-us")
 
@@ -115,10 +117,14 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"Hello"\n'
         '0:" there"\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -137,8 +143,9 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
 
     assert len(chat_conversation.messages) == 2
 
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[0].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello",
         reasoning=None,
@@ -149,8 +156,9 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
         parts=[TextUIPart(type="text", text="Hello")],
     )
 
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[1].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello there",
         reasoning=None,
@@ -216,7 +224,7 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, mock_uu
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uuid4):
+def test_post_conversation_text_protocol(api_client, mock_openai_stream):
     """Test posting messages to a conversation using the 'text' protocol."""
     chat_conversation = ChatConversationFactory(owner__language="en-us")
 
@@ -258,8 +266,9 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uu
 
     assert len(chat_conversation.messages) == 2
 
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[0].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello",
         reasoning=None,
@@ -270,8 +279,9 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uu
         parts=[TextUIPart(type="text", text="Hello")],
     )
 
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[1].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello there",
         reasoning=None,
@@ -337,7 +347,7 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream, mock_uu
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock_uuid4):
+def test_post_conversation_with_image(api_client, mock_openai_stream_image):
     """Ensure an image URL is correctly forwarded to the AI service."""
     chat_conversation = ChatConversationFactory(owner__language="en-us")
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
@@ -375,10 +385,14 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"I see a cat"\n'
         '0:" in the picture."\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -439,8 +453,9 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
 
     assert len(chat_conversation.messages) == 2
 
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[0].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello, what do you see on this picture?",
         reasoning=None,
@@ -461,8 +476,9 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
         parts=[TextUIPart(type="text", text="Hello, what do you see on this picture?")],
     )
 
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[1].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="I see a cat in the picture.",
         reasoning=None,
@@ -540,7 +556,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image, mock
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_uuid4, settings):
+def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settings):
     """Ensure tool calls are correctly forwarded and streamed back."""
     settings.AI_AGENT_TOOLS = ["get_current_weather"]
 
@@ -569,6 +585,10 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":'
         '"get_current_weather"}\n'
@@ -577,7 +597,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
         'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":{"location":'
         '"Paris","temperature":22,"unit":"celsius"}}\n'
         '0:"The current weather in Paris is nice"\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -608,8 +628,9 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
 
     assert len(chat_conversation.messages) == 2
 
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[0].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="Weather in Paris?",
         reasoning=None,
@@ -620,8 +641,9 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
         parts=[TextUIPart(type="text", text="Weather in Paris?")],
     )
 
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[1].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="The current weather in Paris is nice",
         reasoning=None,
@@ -743,9 +765,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, mock_u
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_tool_call_fails(
-    api_client, mock_openai_stream_tool, mock_uuid4, settings
-):
+def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, settings):
     """Ensure tool calls are correctly forwarded and streamed back when failing."""
     settings.AI_AGENT_TOOLS = []
 
@@ -774,6 +794,10 @@ def test_post_conversation_tool_call_fails(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":"get_current_weather"}\n'
         'c:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","argsTextDelta":'
@@ -781,7 +805,7 @@ def test_post_conversation_tool_call_fails(
         'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":"Unknown tool '
         "name: 'get_current_weather'. No tools available.\"}\n"
         '0:"I cannot give you an answer to that."\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -812,8 +836,9 @@ def test_post_conversation_tool_call_fails(
 
     assert len(chat_conversation.messages) == 2
 
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[0].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="Weather in Paris?",
         reasoning=None,
@@ -824,8 +849,9 @@ def test_post_conversation_tool_call_fails(
         parts=[TextUIPart(type="text", text="Weather in Paris?")],
     )
 
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[1].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="I cannot give you an answer to that.",
         reasoning=None,
@@ -972,7 +998,6 @@ def test_post_conversation_model_selection_invalid(api_client):
 def test_post_conversation_model_selection_new(
     api_client,
     mock_openai_stream,
-    mock_uuid4,
     settings,
 ):
     """Test the user can select a different model."""
@@ -1017,10 +1042,14 @@ def test_post_conversation_model_selection_new(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"Hello"\n'
         '0:" there"\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -1034,7 +1063,6 @@ def test_post_conversation_model_selection_new(
 def test_post_conversation_data_protocol_no_stream(
     api_client,
     mock_openai_no_stream,
-    mock_uuid4,
     settings,
     stream_delay,
 ):
@@ -1086,6 +1114,9 @@ def test_post_conversation_data_protocol_no_stream(
     # Wait for the content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
 
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     if stream_delay:
         assert response_content == (
             '0:"The "\n'
@@ -1105,13 +1136,13 @@ def test_post_conversation_data_protocol_no_stream(
             '0:" sca"\n'
             '0:"tter"\n'
             '0:"ing."\n'
-            f'f:{{"messageId":"{mock_uuid4}"}}\n'
+            'f:{"messageId":"<mocked_uuid>"}\n'
             'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135}}\n'
         )
     else:
         assert response_content == (
             '0:"The sky appears blue due to a phenomenon called Rayleigh scattering."\n'
-            f'f:{{"messageId":"{mock_uuid4}"}}\n'
+            'f:{"messageId":"<mocked_uuid>"}\n'
             'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135}}\n'
         )
 
@@ -1130,8 +1161,9 @@ def test_post_conversation_data_protocol_no_stream(
 
     assert len(chat_conversation.messages) == 2
 
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[0].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Why the sky is blue?",
         reasoning=None,
@@ -1142,8 +1174,9 @@ def test_post_conversation_data_protocol_no_stream(
         parts=[TextUIPart(type="text", text="Why the sky is blue?")],
     )
 
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[1].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="The sky appears blue due to a phenomenon called Rayleigh scattering.",
         reasoning=None,
@@ -1222,9 +1255,7 @@ def test_post_conversation_data_protocol_no_stream(
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 @pytest.mark.asyncio
-async def test_post_conversation_async(
-    api_client, mock_openai_stream, mock_uuid4, monkeypatch, caplog
-):
+async def test_post_conversation_async(api_client, mock_openai_stream, monkeypatch, caplog):
     """Test posting messages to a conversation using the 'data' protocol."""
     monkeypatch.setenv("PYTHON_SERVER_MODE", "async")
 
@@ -1261,10 +1292,14 @@ async def test_post_conversation_async(
     response_content = b"".join([content async for content in response.streaming_content]).decode(
         "utf-8"
     )
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"Hello"\n'
         '0:" there"\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -1283,8 +1318,9 @@ async def test_post_conversation_async(
 
     assert len(chat_conversation.messages) == 2
 
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[0].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello",
         reasoning=None,
@@ -1295,8 +1331,9 @@ async def test_post_conversation_async(
         parts=[TextUIPart(type="text", text="Hello")],
     )
 
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=chat_conversation.messages[1].id,  # don't test the message ID here
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello there",
         reasoning=None,

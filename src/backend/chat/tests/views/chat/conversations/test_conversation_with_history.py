@@ -7,6 +7,7 @@ from django.utils import timezone
 
 import pytest
 import respx
+from dirty_equals import IsUUID
 from freezegun import freeze_time
 from rest_framework import status
 
@@ -18,6 +19,7 @@ from chat.ai_sdk_types import (
     UIMessage,
 )
 from chat.factories import ChatConversationFactory
+from chat.tests.utils import replace_uuids_with_placeholder
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -200,7 +202,7 @@ def history_conversation_fixture():
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_data_protocol_with_history(
-    api_client, mock_openai_stream, mock_uuid4, history_conversation
+    api_client, mock_openai_stream, history_conversation
 ):
     """Test posting messages to a conversation with history using the 'data' protocol."""
     url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
@@ -226,10 +228,14 @@ def test_post_conversation_data_protocol_with_history(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"Hello"\n'
         '0:" there"\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -259,8 +265,9 @@ def test_post_conversation_data_protocol_with_history(
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent message is the new one
+    assert history_conversation.messages[4].id == IsUUID(4)
     assert history_conversation.messages[4] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello",
         reasoning=None,
@@ -271,8 +278,9 @@ def test_post_conversation_data_protocol_with_history(
         parts=[TextUIPart(type="text", text="Hello")],
     )
 
+    assert history_conversation.messages[5].id == IsUUID(4)
     assert history_conversation.messages[5] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello there",
         reasoning=None,
@@ -290,7 +298,7 @@ def test_post_conversation_data_protocol_with_history(
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_text_protocol_with_history(
-    api_client, mock_openai_stream, mock_uuid4, history_conversation
+    api_client, mock_openai_stream, history_conversation
 ):
     """Test posting messages to a conversation with history using the 'text' protocol."""
     url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=text"
@@ -335,8 +343,9 @@ def test_post_conversation_text_protocol_with_history(
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent messages are the new ones
+    assert history_conversation.messages[4].id == IsUUID(4)
     assert history_conversation.messages[4] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello",
         reasoning=None,
@@ -347,8 +356,9 @@ def test_post_conversation_text_protocol_with_history(
         parts=[TextUIPart(type="text", text="Hello")],
     )
 
+    assert history_conversation.messages[5].id == IsUUID(4)
     assert history_conversation.messages[5] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello there",
         reasoning=None,
@@ -363,7 +373,7 @@ def test_post_conversation_text_protocol_with_history(
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_with_image_with_history(
-    api_client, mock_openai_stream_image, mock_uuid4, history_conversation
+    api_client, mock_openai_stream_image, history_conversation
 ):
     """
     Ensure an image URL is correctly forwarded to the AI service with a conversation with history.
@@ -403,10 +413,14 @@ def test_post_conversation_with_image_with_history(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"I see a cat"\n'
         '0:" in the picture."\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -452,8 +466,9 @@ def test_post_conversation_with_image_with_history(
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent message has the image attachment
+    assert history_conversation.messages[4].id == IsUUID(4)
     assert history_conversation.messages[4] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello, what do you see on this picture?",
         reasoning=None,
@@ -474,8 +489,9 @@ def test_post_conversation_with_image_with_history(
         parts=[TextUIPart(type="text", text="Hello, what do you see on this picture?")],
     )
 
+    assert history_conversation.messages[5].id == IsUUID(4)
     assert history_conversation.messages[5] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="I see a cat in the picture.",
         reasoning=None,
@@ -490,7 +506,7 @@ def test_post_conversation_with_image_with_history(
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_tool_call_with_history(
-    api_client, mock_openai_stream_tool, mock_uuid4, settings, history_conversation
+    api_client, mock_openai_stream_tool, settings, history_conversation
 ):
     """
     Ensure tool calls are correctly forwarded and streamed back with a conversation with history.
@@ -521,6 +537,10 @@ def test_post_conversation_tool_call_with_history(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":'
         '"get_current_weather"}\n'
@@ -529,7 +549,7 @@ def test_post_conversation_tool_call_with_history(
         'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":{"location":'
         '"Paris","temperature":22,"unit":"celsius"}}\n'
         '0:"The current weather in Paris is nice"\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -561,8 +581,9 @@ def test_post_conversation_tool_call_with_history(
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent message is the new one with tool invocation
+    assert history_conversation.messages[4].id == IsUUID(4)
     assert history_conversation.messages[4] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Weather in Paris?",
         reasoning=None,
@@ -573,8 +594,9 @@ def test_post_conversation_tool_call_with_history(
         parts=[TextUIPart(type="text", text="Weather in Paris?")],
     )
 
+    assert history_conversation.messages[5].id == IsUUID(4)
     assert history_conversation.messages[5] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="The current weather in Paris is nice",
         reasoning=None,
@@ -606,7 +628,7 @@ def test_post_conversation_tool_call_with_history(
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_tool_call_fails_with_history(
-    api_client, mock_openai_stream_tool, mock_uuid4, settings, history_conversation
+    api_client, mock_openai_stream_tool, settings, history_conversation
 ):
     """
     Ensure tool calls are correctly forwarded and streamed back when failing with a
@@ -638,6 +660,10 @@ def test_post_conversation_tool_call_fails_with_history(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":'
         '"get_current_weather"}\n'
@@ -646,7 +672,7 @@ def test_post_conversation_tool_call_fails_with_history(
         'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":"Unknown tool '
         "name: 'get_current_weather'. No tools available.\"}\n"
         '0:"I cannot give you an answer to that."\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -678,8 +704,9 @@ def test_post_conversation_tool_call_fails_with_history(
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent message is the new one with tool invocation
+    assert history_conversation.messages[4].id == IsUUID(4)
     assert history_conversation.messages[4] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Weather in Paris?",
         reasoning=None,
@@ -690,8 +717,9 @@ def test_post_conversation_tool_call_fails_with_history(
         parts=[TextUIPart(type="text", text="Weather in Paris?")],
     )
 
+    assert history_conversation.messages[5].id == IsUUID(4)
     assert history_conversation.messages[5] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="I cannot give you an answer to that.",
         reasoning=None,
@@ -1147,7 +1175,7 @@ def history_conversation_with_tool_fixture():
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_with_existing_image_history(
-    api_client, mock_openai_stream, mock_uuid4, history_conversation_with_image
+    api_client, mock_openai_stream, history_conversation_with_image
 ):
     """Test posting a message to a conversation that already has images in its history."""
     url = f"/api/v1.0/chats/{history_conversation_with_image.pk}/conversation/?protocol=data"
@@ -1173,10 +1201,14 @@ def test_post_conversation_with_existing_image_history(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"Hello"\n'
         '0:" there"\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -1207,8 +1239,9 @@ def test_post_conversation_with_existing_image_history(
     assert len(history_conversation_with_image.messages) == 6
 
     # Verify the most recent messages are the new ones
+    assert history_conversation_with_image.messages[4].id == IsUUID(4)
     assert history_conversation_with_image.messages[4] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation_with_image.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="What was in that image again?",
         reasoning=None,
@@ -1219,8 +1252,9 @@ def test_post_conversation_with_existing_image_history(
         parts=[TextUIPart(type="text", text="What was in that image again?")],
     )
 
+    assert history_conversation_with_image.messages[5].id == IsUUID(4)
     assert history_conversation_with_image.messages[5] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation_with_image.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello there",
         reasoning=None,
@@ -1238,7 +1272,7 @@ def test_post_conversation_with_existing_image_history(
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_with_existing_tool_history(
-    api_client, mock_openai_stream_tool, mock_uuid4, settings, history_conversation_with_tool
+    api_client, mock_openai_stream_tool, settings, history_conversation_with_tool
 ):
     """Test posting a message to a conversation that already has tool calls in its history."""
     settings.AI_AGENT_TOOLS = ["get_current_weather"]
@@ -1266,6 +1300,10 @@ def test_post_conversation_with_existing_tool_history(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":'
         '"get_current_weather"}\n'
@@ -1274,7 +1312,7 @@ def test_post_conversation_with_existing_tool_history(
         'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":{"location":'
         '"Paris","temperature":22,"unit":"celsius"}}\n'
         '0:"The current weather in Paris is nice"\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -1294,8 +1332,9 @@ def test_post_conversation_with_existing_tool_history(
     assert len(history_conversation_with_tool.messages) == 6
 
     # Verify the most recent message is the new one with tool invocation
+    assert history_conversation_with_tool.messages[4].id == IsUUID(4)
     assert history_conversation_with_tool.messages[4] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation_with_tool.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="How about Paris weather?",
         reasoning=None,
@@ -1306,8 +1345,9 @@ def test_post_conversation_with_existing_tool_history(
         parts=[TextUIPart(type="text", text="How about Paris weather?")],
     )
 
+    assert history_conversation_with_tool.messages[5].id == IsUUID(4)
     assert history_conversation_with_tool.messages[5] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation_with_tool.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="The current weather in Paris is nice",
         reasoning=None,
@@ -1417,7 +1457,7 @@ def test_post_conversation_with_existing_tool_history(
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_add_image_to_conversation_with_tool_history(
-    api_client, mock_openai_stream_image, mock_uuid4, history_conversation_with_tool
+    api_client, mock_openai_stream_image, history_conversation_with_tool
 ):
     """Test adding an image to a conversation that already has tool calls in its history."""
     url = f"/api/v1.0/chats/{history_conversation_with_tool.pk}/conversation/?protocol=data"
@@ -1455,10 +1495,14 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"I see a cat"\n'
         '0:" in the picture."\n'
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
     )
 
@@ -1484,8 +1528,9 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
     assert len(history_conversation_with_tool.messages) == 6
 
     # Verify the most recent message has the image attachment
+    assert history_conversation_with_tool.messages[4].id == IsUUID(4)
     assert history_conversation_with_tool.messages[4] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation_with_tool.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="How's the weather in this image?",
         reasoning=None,
@@ -1506,8 +1551,9 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
         parts=[TextUIPart(type="text", text="How's the weather in this image?")],
     )
 
+    assert history_conversation_with_tool.messages[5].id == IsUUID(4)
     assert history_conversation_with_tool.messages[5] == UIMessage(
-        id=str(mock_uuid4),  # Mocked UUID
+        id=history_conversation_with_tool.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="I see a cat in the picture.",
         reasoning=None,

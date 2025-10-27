@@ -1,8 +1,6 @@
 """Common test fixtures for chat conversation endpoint tests."""
 
 import json
-import uuid
-from unittest.mock import patch
 
 from django.utils import timezone
 
@@ -10,14 +8,6 @@ import httpx
 import pytest
 import respx
 from freezegun import freeze_time
-
-
-@pytest.fixture(name="mock_uuid4")
-def mock_uuid4_fixture():
-    """Fixture to mock UUID generation for testing."""
-    value = uuid.uuid4()
-    with patch("uuid.uuid4", return_value=value):
-        yield value
 
 
 @pytest.fixture(name="mock_openai_stream")

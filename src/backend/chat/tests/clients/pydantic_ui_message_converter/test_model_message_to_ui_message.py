@@ -3,11 +3,11 @@
 import datetime
 import json
 import uuid
-from unittest.mock import patch
 
 from django.utils import timezone
 
 import pytest
+from dirty_equals import IsUUID
 from freezegun import freeze_time
 from pydantic_ai import ImageUrl
 from pydantic_ai.messages import (
@@ -37,27 +37,22 @@ from chat.ai_sdk_types import (
 from chat.clients.pydantic_ui_message_converter import model_message_to_ui_message
 
 
-@pytest.fixture(autouse=True)
-def mock_uuid4_fixture():
-    """Fixture to mock UUID generation for testing."""
-    with patch("uuid.uuid4", return_value=uuid.UUID("f0cc3bb5-f207-401b-8281-4cba6202991d")):
-        yield
-
-
 def test_model_message_to_ui_message_text_user_full():
     """Test converting a ModelRequest with UserPromptPart containing text to UIMessage."""
     timestamp = datetime.datetime.now()
     model_message = ModelRequest(
         parts=[UserPromptPart(content="Hello!", timestamp=timestamp)], kind="request"
     )
+    result = model_message_to_ui_message(model_message)
+
     expected = UIMessage(
-        id="f0cc3bb5-f207-401b-8281-4cba6202991d",  # Mocked UUID
+        id=result.id,  # Use the generated ID
         role="user",
         content="Hello!",
         parts=[TextUIPart(type="text", text="Hello!")],
         createdAt=timestamp,
     )
-    result = model_message_to_ui_message(model_message)
+
     assert result == expected
 
 
@@ -65,14 +60,15 @@ def test_model_message_to_ui_message_text_user_full():
 def test_model_message_to_ui_message_text_assistant_full():
     """Test converting a ModelResponse with TextPart to UIMessage."""
     model_message = ModelResponse(parts=[TextPart(content="Hi there!")])
+    result = model_message_to_ui_message(model_message)
+
     expected = UIMessage(
-        id="f0cc3bb5-f207-401b-8281-4cba6202991d",  # Mocked UUID
+        id=result.id,  # Use the generated ID
         role="assistant",
         content="Hi there!",
         parts=[TextUIPart(type="text", text="Hi there!")],
         createdAt=timezone.now(),
     )
-    result = model_message_to_ui_message(model_message)
     assert result == expected
 
 
@@ -83,8 +79,10 @@ def test_model_message_to_ui_message_tool_call_full():
     model_message = ModelResponse(
         parts=[ToolCallPart(tool_call_id="id1", tool_name="tool", args=args)]
     )
+    result = model_message_to_ui_message(model_message)
+
     expected = UIMessage(
-        id="f0cc3bb5-f207-401b-8281-4cba6202991d",  # Mocked UUID
+        id=result.id,  # Use the generated ID
         role="assistant",
         content="",
         parts=[
@@ -100,7 +98,7 @@ def test_model_message_to_ui_message_tool_call_full():
         ],
         createdAt=timezone.now(),
     )
-    result = model_message_to_ui_message(model_message)
+
     assert result == expected
 
 
@@ -109,7 +107,7 @@ def test_model_message_to_ui_message_reasoning_full():
     """Test converting a ModelResponse with ThinkingPart to UIMessage."""
     model_message = ModelResponse(parts=[ThinkingPart(content="reason", signature="sig")])
     expected = UIMessage(
-        id="f0cc3bb5-f207-401b-8281-4cba6202991d",  # Mocked UUID
+        id=str(uuid.uuid4()),  # not used in comparison
         role="assistant",
         content="",
         parts=[
@@ -122,7 +120,7 @@ def test_model_message_to_ui_message_reasoning_full():
         createdAt=timezone.now(),
     )
     result = model_message_to_ui_message(model_message)
-    assert result.id == expected.id
+    assert result.id == IsUUID(4)
     assert result.role == expected.role
     assert result.content == expected.content
     assert result.createdAt == expected.createdAt

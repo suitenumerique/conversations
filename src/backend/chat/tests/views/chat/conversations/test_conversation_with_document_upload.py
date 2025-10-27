@@ -14,6 +14,7 @@ import httpx
 import pytest
 import responses
 import respx
+from dirty_equals import IsUUID
 from freezegun import freeze_time
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
@@ -32,6 +33,7 @@ from chat.ai_sdk_types import (
     UIMessage,
 )
 from chat.factories import ChatConversationFactory
+from chat.tests.utils import replace_uuids_with_placeholder
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -214,12 +216,11 @@ def fixture_mock_openai_stream():
 @responses.activate
 @respx.mock
 @freeze_time()
-def test_post_conversation_with_document_upload(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-positional-arguments
+def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
     mock_albert_api,  # pylint: disable=unused-argument
     sample_pdf_content,
     today_promt_date,
-    mock_uuid4,
     mock_ai_agent_service,
 ):
     """
@@ -273,9 +274,11 @@ def test_post_conversation_with_document_upload(  # noqa: PLR0913 # pylint: disa
     assert response.streaming
 
     # Wait for the streaming content to be fully received
-    str_mock_uuid4 = str(mock_uuid4)
-    toolcall_id = f"pyd_ai_{str_mock_uuid4.replace('-', '')}"
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '9:{"toolCallId":"XXX","toolName":"document_parsing",'
         '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
@@ -283,19 +286,22 @@ def test_post_conversation_with_document_upload(  # noqa: PLR0913 # pylint: disa
         'b:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_rag"}\n'
         '9:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_rag",'
         '"args":{"query":"What does the document say?"}}\n'
-        'h:{"sourceType":"url","id":"XXX","url":"sample.pdf","title":null,"providerMetadata":{}}\n'
+        'h:{"sourceType":"url","id":"<mocked_uuid>","url":"sample.pdf","title":null,'
+        '"providerMetadata":{}}\n'
         'a:{"toolCallId":"pyd_ai_YYY","result":[{"url":"sample.pdf","content":"This '
         'is the content of the PDF.","score":0.9}]}\n'
         "0:\"From the document, I can see that it says 'Hello PDF'.\"\n"
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":100,"completionTokens":20}}\n'
-    ).replace("XXX", str_mock_uuid4).replace("pyd_ai_YYY", toolcall_id)
+    )
 
     # Check that the conversation was updated
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
+
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str_mock_uuid4,
+        id=chat_conversation.messages[0].id,
         createdAt=timezone.now(),
         content="What does the document say?",
         reasoning=None,
@@ -305,8 +311,10 @@ def test_post_conversation_with_document_upload(  # noqa: PLR0913 # pylint: disa
         toolInvocations=None,
         parts=[TextUIPart(type="text", text="What does the document say?")],
     )
+
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str_mock_uuid4,
+        id=chat_conversation.messages[1].id,
         createdAt=timezone.now(),
         content="From the document, I can see that it says 'Hello PDF'.",
         reasoning=None,
@@ -318,7 +326,7 @@ def test_post_conversation_with_document_upload(  # noqa: PLR0913 # pylint: disa
             ToolInvocationUIPart(
                 type="tool-invocation",
                 toolInvocation=ToolInvocationCall(
-                    toolCallId=toolcall_id,
+                    toolCallId=chat_conversation.messages[1].parts[0].toolInvocation.toolCallId,
                     toolName="document_search_rag",
                     args={"query": "What does the document say?"},
                     state="call",
@@ -330,7 +338,7 @@ def test_post_conversation_with_document_upload(  # noqa: PLR0913 # pylint: disa
                 type="source",
                 source=LanguageModelV1Source(
                     sourceType="url",
-                    id=str_mock_uuid4,
+                    id=chat_conversation.messages[1].parts[2].source.id,
                     url="sample.pdf",
                     title=None,
                     providerMetadata={},
@@ -405,7 +413,7 @@ def test_post_conversation_with_document_upload(  # noqa: PLR0913 # pylint: disa
                 "args": '{"query": "What does the document say?"}',
                 "id": None,
                 "part_kind": "tool-call",
-                "tool_call_id": toolcall_id,
+                "tool_call_id": chat_conversation.pydantic_messages[1]["parts"][0]["tool_call_id"],
                 "tool_name": "document_search_rag",
             }
         ],
@@ -439,7 +447,7 @@ def test_post_conversation_with_document_upload(  # noqa: PLR0913 # pylint: disa
                 "metadata": {"sources": ["sample.pdf"]},
                 "part_kind": "tool-return",
                 "timestamp": timezone_now,
-                "tool_call_id": toolcall_id,
+                "tool_call_id": chat_conversation.pydantic_messages[2]["parts"][0]["tool_call_id"],
                 "tool_name": "document_search_rag",
             }
         ],
@@ -475,13 +483,12 @@ def test_post_conversation_with_document_upload(  # noqa: PLR0913 # pylint: disa
 @responses.activate
 @respx.mock
 @freeze_time("2025-07-25T10:36:35.297675Z")
-def test_post_conversation_with_document_upload_feature_disabled(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-positional-arguments
+def test_post_conversation_with_document_upload_feature_disabled(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
     caplog,
     mock_openai_stream,  # pylint: disable=unused-argument
     sample_pdf_content,
     feature_flags,
-    mock_uuid4,
 ):
     """
     Test POST to /api/v1/chats/{pk}/conversation/ with a PDF document while feature is disabled.
@@ -526,10 +533,14 @@ def test_post_conversation_with_document_upload_feature_disabled(  # noqa: PLR09
 
     # Wait for the streaming content to be fully received
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '0:"From the document, I can see that "\n'
         "0:\"it says 'Hello PDF'.\"\n"
-        f'f:{{"messageId":"{mock_uuid4}"}}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":150,"completionTokens":25}}\n'
     )
 
@@ -545,7 +556,6 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     mock_albert_api,  # pylint: disable=unused-argument
     sample_pdf_content,
     today_promt_date,
-    mock_uuid4,
     mock_ai_agent_service,
     mock_summarization_agent,  # pylint: disable=unused-argument
 ):
@@ -600,29 +610,33 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     assert response.streaming
 
     # Wait for the streaming content to be fully received
-    str_mock_uuid4 = str(mock_uuid4)
-    toolcall_id = f"pyd_ai_{str_mock_uuid4.replace('-', '')}"
     response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
     assert response_content == (
         '9:{"toolCallId":"XXX","toolName":"document_parsing",'
         '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
         'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         'b:{"toolCallId":"pyd_ai_YYY","toolName":"summarize"}\n'
         '9:{"toolCallId":"pyd_ai_YYY","toolName":"summarize","args":{}}\n'
-        'h:{"sourceType":"url","id":"XXX","url":"sample.pdf.md",'
+        'h:{"sourceType":"url","id":"<mocked_uuid>","url":"sample.pdf.md",'
         '"title":null,"providerMetadata":{}}\n'
         'a:{"toolCallId":"pyd_ai_YYY","result":"The '
         'document discusses various topics."}\n'
         '0:"The document discusses various topics."\n'
-        'f:{"messageId":"XXX"}\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":201,"completionTokens":13}}\n'
-    ).replace("XXX", str_mock_uuid4).replace("pyd_ai_YYY", toolcall_id)
+    )
 
     # Check that the conversation was updated
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
+
+    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=str_mock_uuid4,
+        id=chat_conversation.messages[0].id,
         createdAt=timezone.now(),
         content="Make a summary of this document.",
         reasoning=None,
@@ -632,8 +646,10 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         toolInvocations=None,
         parts=[TextUIPart(type="text", text="Make a summary of this document.")],
     )
+
+    assert chat_conversation.messages[1].id == IsUUID(4)
     assert chat_conversation.messages[1] == UIMessage(
-        id=str_mock_uuid4,
+        id=chat_conversation.messages[1].id,
         createdAt=timezone.now(),
         content="The document discusses various topics.",
         reasoning=None,
@@ -645,7 +661,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             ToolInvocationUIPart(
                 type="tool-invocation",
                 toolInvocation=ToolInvocationCall(
-                    toolCallId=toolcall_id,
+                    toolCallId=chat_conversation.messages[1].parts[0].toolInvocation.toolCallId,
                     toolName="summarize",
                     args={},
                     state="call",
@@ -657,7 +673,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 type="source",
                 source=LanguageModelV1Source(
                     sourceType="url",
-                    id=str_mock_uuid4,
+                    id=chat_conversation.messages[1].parts[2].source.id,
                     url="sample.pdf.md",  # might be fixed in the future
                     title=None,
                     providerMetadata={},
@@ -732,7 +748,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "args": "{}",
                 "id": None,
                 "part_kind": "tool-call",
-                "tool_call_id": toolcall_id,
+                "tool_call_id": chat_conversation.pydantic_messages[1]["parts"][0]["tool_call_id"],
                 "tool_name": "summarize",
             }
         ],
@@ -760,7 +776,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "metadata": {"sources": ["sample.pdf.md"]},
                 "part_kind": "tool-return",
                 "timestamp": timezone_now,
-                "tool_call_id": toolcall_id,
+                "tool_call_id": chat_conversation.pydantic_messages[2]["parts"][0]["tool_call_id"],
                 "tool_name": "summarize",
             }
         ],
