@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.4] - 2025-10-27
+
 ### Added
 
 - 🌐(i18n) add dutch language #117
@@ -103,7 +105,8 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.3...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.4...main
+[0.0.4]: https://github.com/suitenumerique/conversations/releases/v0.0.4
 [0.0.3]: https://github.com/suitenumerique/conversations/releases/v0.0.3
 [0.0.2]: https://github.com/suitenumerique/conversations/releases/v0.0.2
 [0.0.1]: https://github.com/suitenumerique/conversations/releases/v0.0.1
