@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.6] - 2025-10-28
+
 ### Fixed
 
 - 🚑️(stats) fix tracking id in upload event #130
@@ -117,8 +119,9 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.5...main
-[0.0.4]: https://github.com/suitenumerique/conversations/releases/v0.0.5
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.6...main
+[0.0.6]: https://github.com/suitenumerique/conversations/releases/v0.0.6
+[0.0.5]: https://github.com/suitenumerique/conversations/releases/v0.0.5
 [0.0.4]: https://github.com/suitenumerique/conversations/releases/v0.0.4
 [0.0.3]: https://github.com/suitenumerique/conversations/releases/v0.0.3
 [0.0.2]: https://github.com/suitenumerique/conversations/releases/v0.0.2
