@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.7] - 2025-10-28
+
 ### Fixed
 
 - 🚑️(posthog) fix the posthog middleware for async mode #133
@@ -124,7 +126,8 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.6...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.7...main
+[0.0.7]: https://github.com/suitenumerique/conversations/releases/v0.0.7
 [0.0.6]: https://github.com/suitenumerique/conversations/releases/v0.0.6
 [0.0.5]: https://github.com/suitenumerique/conversations/releases/v0.0.5
 [0.0.4]: https://github.com/suitenumerique/conversations/releases/v0.0.4
