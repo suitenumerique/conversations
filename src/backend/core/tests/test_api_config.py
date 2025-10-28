@@ -4,9 +4,10 @@ Test config API endpoints in the Conversations core app.
 
 import json
 
-from django.test import override_settings
+from django.test import AsyncClient, override_settings
 
 import pytest
+from asgiref.sync import sync_to_async
 from rest_framework.status import (
     HTTP_200_OK,
 )
@@ -156,3 +157,52 @@ def test_api_config_with_original_theme_customization(is_authenticated, settings
         theme_customization = json.load(f)
 
     assert content["theme_customization"] == theme_customization
+
+
+@override_settings(
+    CRISP_WEBSITE_ID="123",
+    FRONTEND_CSS_URL="http://testcss/",
+    FRONTEND_THEME="test-theme",
+    MEDIA_BASE_URL="http://testserver/",
+    POSTHOG_KEY={"id": "132456", "host": "https://eu.i.posthog-test.com"},
+    SENTRY_DSN="https://sentry.test/123",
+    THEME_CUSTOMIZATION_FILE_PATH="",
+    RAG_FILES_ACCEPTED_FORMATS=[
+        "application/pdf",
+        "text/plain",
+    ],
+)
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_authenticated", [False, True])
+async def test_api_config_async(is_authenticated):
+    """Anonymous users should be allowed to get the configuration (async client)."""
+    client = AsyncClient()
+
+    if is_authenticated:
+        user = await sync_to_async(factories.UserFactory)()
+        await client.aforce_login(user)
+
+    response = await client.get("/api/v1.0/config/")
+    assert response.status_code == HTTP_200_OK
+    assert response.json() == {
+        "ACTIVATION_REQUIRED": False,
+        "CRISP_WEBSITE_ID": "123",
+        "ENVIRONMENT": "test",
+        "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},
+        "FRONTEND_CSS_URL": "http://testcss/",
+        "FRONTEND_HOMEPAGE_FEATURE_ENABLED": True,
+        "FRONTEND_THEME": "test-theme",
+        "LANGUAGES": [
+            ["en-us", "English"],
+            ["fr-fr", "Français"],
+            # ["de-de", "Deutsch"],
+            ["nl-nl", "Nederlands"],
+            # ["es-es", "Español"],
+        ],
+        "LANGUAGE_CODE": "en-us",
+        "MEDIA_BASE_URL": "http://testserver/",
+        "POSTHOG_KEY": {"id": "132456", "host": "https://eu.i.posthog-test.com"},
+        "SENTRY_DSN": "https://sentry.test/123",
+        "theme_customization": {},
+        "chat_upload_accept": "application/pdf,text/plain",
+    }

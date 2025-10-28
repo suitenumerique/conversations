@@ -312,7 +312,7 @@ class Base(BraveSettings, Configuration):
         "django.middleware.common.CommonMiddleware",
         "django.middleware.csrf.CsrfViewMiddleware",
         "django.contrib.auth.middleware.AuthenticationMiddleware",
-        "posthog.integrations.django.PosthogContextMiddleware",
+        "core.posthog.AsyncPosthogContextMiddleware",
         "django.contrib.messages.middleware.MessageMiddleware",
         "dockerflow.django.middleware.DockerflowMiddleware",
     ]

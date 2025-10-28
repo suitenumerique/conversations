@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- 🚑️(posthog) fix the posthog middleware for async mode #133
+
+
 ## [0.0.6] - 2025-10-28
 
 ### Fixed
