@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- 🚑️(stats) fix tracking id in upload event #130
+
+
 ## [0.0.5] - 2025-10-27
 
 ### Fixed

@@ -52,8 +52,7 @@ def test_is_feature_enabled_dynamic_posthog_true(mock_posthog, feature_flags):
     assert is_feature_enabled(user, "web_search") is True
     mock_posthog.feature_enabled.assert_called_once_with(
         "web-search",
-        user.email,
-        person_properties={"$host": None},
+        user.pk,
     )
 
 
