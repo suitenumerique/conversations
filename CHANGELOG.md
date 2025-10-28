@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- 🚑️(posthog) pass str instead of UUID for user PK #134
+
+
 ## [0.0.7] - 2025-10-28
 
 ### Fixed

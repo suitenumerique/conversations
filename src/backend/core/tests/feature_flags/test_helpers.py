@@ -1,9 +1,12 @@
 """Tests for feature flag helpers."""
 
+import json
 import logging
 from unittest.mock import patch
 
+import posthog
 import pytest
+import responses
 
 from core.factories import UserFactory
 from core.feature_flags.flags import FeatureToggle
@@ -42,18 +45,29 @@ def test_is_feature_enabled_always_disabled(feature_flags):
     assert is_feature_enabled(user, "document_upload") is False
 
 
-@patch("core.feature_flags.helpers.posthog")
-def test_is_feature_enabled_dynamic_posthog_true(mock_posthog, feature_flags):
+@responses.activate
+def test_is_feature_enabled_dynamic_posthog_true(feature_flags, settings):
     """Test that a dynamic feature returns the value from PostHog when PostHog is available."""
+    settings.POSTHOG_KEY = {"id": "132456", "host": "https://eu.i.posthog-test.com"}
+
+    posthog.api_key = settings.POSTHOG_KEY["id"]
+    posthog.host = settings.POSTHOG_KEY["host"]
+
+    responses.post(
+        f"{posthog.host}/flags/?v=2", json={"flags": {"web-search": {"enabled": True}}}, status=200
+    )
+
     feature_flags.web_search = FeatureToggle.DYNAMIC
     user = UserFactory()
 
-    mock_posthog.feature_enabled.return_value = True
     assert is_feature_enabled(user, "web_search") is True
-    mock_posthog.feature_enabled.assert_called_once_with(
-        "web-search",
-        user.pk,
-    )
+
+    request_body = json.loads(responses.calls[0].request.body)
+    assert request_body["distinct_id"] == str(user.pk)
+    assert request_body["flag_keys_to_evaluate"] == ["web-search"]
+
+    posthog.api_key = None
+    posthog.host = None
 
 
 @patch("core.feature_flags.helpers.posthog")

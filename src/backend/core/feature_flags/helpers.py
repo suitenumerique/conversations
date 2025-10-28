@@ -38,7 +38,7 @@ def is_feature_enabled(
     if posthog is not None:
         return posthog.feature_enabled(
             frontend_feature_name(feature_name),
-            user.pk,  # same as set by the frontend
+            str(user.pk),  # same as set by the frontend
         )
 
     # No feature flag manager
