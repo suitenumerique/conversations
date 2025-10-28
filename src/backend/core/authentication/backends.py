@@ -1,7 +1,6 @@
 """Authentication Backends for the Conversations core app."""
 
 import logging
-import os
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation
@@ -14,19 +13,6 @@ from core.brevo import add_user_to_brevo_list
 from core.models import DuplicateEmailError
 
 logger = logging.getLogger(__name__)
-
-# Settings renamed warnings
-if os.environ.get("USER_OIDC_FIELDS_TO_FULLNAME"):
-    logger.warning(
-        "USER_OIDC_FIELDS_TO_FULLNAME has been renamed "
-        "to OIDC_USERINFO_FULLNAME_FIELDS please update your settings."
-    )
-
-if os.environ.get("USER_OIDC_FIELD_TO_SHORTNAME"):
-    logger.warning(
-        "USER_OIDC_FIELD_TO_SHORTNAME has been renamed "
-        "to OIDC_USERINFO_SHORTNAME_FIELD please update your settings."
-    )
 
 
 class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
