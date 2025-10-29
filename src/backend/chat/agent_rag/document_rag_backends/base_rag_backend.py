@@ -1,9 +1,11 @@
 """Implementation of the Albert API for RAG document search."""
 
 import logging
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from io import BytesIO
 from typing import Optional
+
+from asgiref.sync import sync_to_async
 
 from chat.agent_rag.constants import RAGWebResults
 
@@ -25,6 +27,13 @@ class BaseRagBackend:
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
+    async def acreate_collection(self, name: str, description: Optional[str] = None) -> str:
+        """
+        Create a temporary collection for the search operation.
+        This method should handle the logic to create or retrieve an existing collection.
+        """
+        return await sync_to_async(self.create_collection)(name=name, description=description)
+
     def parse_document(self, name: str, content_type: str, content: BytesIO):
         """
         Parse the document and prepare it for the search operation.
@@ -43,14 +52,25 @@ class BaseRagBackend:
 
     def store_document(self, name: str, content: str) -> None:
         """
-        Store the document content in the Albert collection.
-        This method should handle the logic to send the document content to the Albert API.
+        Store the document content in the collection.
+        This method should handle the logic to send the document content to the API.
 
         Args:
             name (str): The name of the document.
             content (str): The content of the document in Markdown format.
         """
         raise NotImplementedError("Must be implemented in subclass.")
+
+    async def astore_document(self, name: str, content: str) -> None:
+        """
+        Store the document content in the collection.
+        This method should handle the logic to send the document content to the API.
+
+        Args:
+            name (str): The name of the document.
+            content (str): The content of the document in Markdown format.
+        """
+        return await sync_to_async(self.store_document)(name=name, content=content)
 
     def parse_and_store_document(self, name: str, content_type: str, content: BytesIO) -> str:
         """
@@ -75,11 +95,24 @@ class BaseRagBackend:
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
+    async def adelete_collection(self) -> None:
+        """
+        Delete the collection.
+        This method should handle the logic to delete the collection from the backend.
+        """
+        return await sync_to_async(self.delete_collection)()
+
     def search(self, query, results_count: int = 4) -> RAGWebResults:
         """
         Search the collection for the given query.
         """
         raise NotImplementedError("Must be implemented in subclass.")
+
+    async def asearch(self, query, results_count: int = 4) -> RAGWebResults:
+        """
+        Search the collection for the given query.
+        """
+        return await sync_to_async(self.search)(query=query, results_count=results_count)
 
     @classmethod
     @contextmanager
@@ -92,3 +125,15 @@ class BaseRagBackend:
             yield backend
         finally:
             backend.delete_collection()
+
+    @classmethod
+    @asynccontextmanager
+    async def temporary_collection_async(cls, name: str, description: Optional[str] = None):
+        """Context manager for RAG backend with temporary collections."""
+        backend = cls()
+
+        await backend.acreate_collection(name=name, description=description)
+        try:
+            yield backend
+        finally:
+            await backend.adelete_collection()

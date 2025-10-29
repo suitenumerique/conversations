@@ -12,6 +12,7 @@ and this project adheres to
 
 - 🐛(front) fix target blank links in chat #103
 - 🚑️(posthog) pass str instead of UUID for user PK #134
+- ⚡️(web-search) keep running when tool call fails #137
 
 
 ## [0.0.7] - 2025-10-28

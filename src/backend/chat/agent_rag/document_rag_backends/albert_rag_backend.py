@@ -8,6 +8,7 @@ from urllib.parse import urljoin
 
 from django.conf import settings
 
+import httpx
 import requests
 
 from chat.agent_rag.albert_api_constants import Searches
@@ -65,6 +66,27 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         self.collection_id = str(response.json()["id"])
         return self.collection_id
 
+    async def acreate_collection(self, name: str, description: Optional[str] = None) -> str:
+        """
+        Create a temporary collection for the search operation.
+        This method should handle the logic to create or retrieve an existing collection.
+        """
+        async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
+            response = await client.post(
+                self._collections_endpoint,
+                headers=self._headers,
+                json={
+                    "name": name,
+                    "description": description or self._default_collection_description,
+                    "visibility": "private",
+                },
+                timeout=settings.ALBERT_API_TIMEOUT,
+            )
+            response.raise_for_status()
+
+        self.collection_id = str(response.json()["id"])
+        return self.collection_id
+
     def delete_collection(self) -> None:
         """
         Delete the current collection
@@ -75,6 +97,18 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             timeout=settings.ALBERT_API_TIMEOUT,
         )
         response.raise_for_status()
+
+    async def adelete_collection(self) -> None:
+        """
+        Asynchronously delete the current collection
+        """
+        async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
+            response = await client.delete(
+                urljoin(f"{self._collections_endpoint}/", self.collection_id),
+                headers=self._headers,
+                timeout=settings.ALBERT_API_TIMEOUT,
+            )
+            response.raise_for_status()
 
     def parse_pdf_document(self, name: str, content_type: str, content: BytesIO) -> str:
         """
@@ -150,6 +184,31 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         logger.debug(response.json())
         response.raise_for_status()
 
+    async def astore_document(self, name: str, content: str) -> None:
+        """
+        Store the document content in the Albert collection.
+        This method should handle the logic to send the document content to the Albert API.
+
+        Args:
+            name (str): The name of the document.
+            content (str): The content of the document in Markdown format.
+        """
+        async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
+            response = await client.post(
+                urljoin(self._base_url, self._documents_endpoint),
+                headers=self._headers,
+                files={
+                    "file": (f"{name}.md", BytesIO(content.encode("utf-8")), "text/markdown"),
+                },
+                data={
+                    "collection": int(self.collection_id),
+                    "metadata": json.dumps({"document_name": name}),  # undocumented API
+                },
+                timeout=settings.ALBERT_API_TIMEOUT,
+            )
+            logger.debug(response.json())
+            response.raise_for_status()
+
     def search(self, query, results_count: int = 4) -> RAGWebResults:
         """
         Perform a search using the Albert API based on the provided query.
@@ -173,6 +232,51 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             timeout=settings.ALBERT_API_TIMEOUT,
         )
         response.raise_for_status()
+
+        searches = Searches(**response.json())
+
+        return RAGWebResults(
+            data=[
+                RAGWebResult(
+                    url=result.chunk.metadata["document_name"],
+                    content=result.chunk.content,
+                    score=result.score,
+                )
+                for result in searches.data
+            ],
+            usage=RAGWebUsage(
+                prompt_tokens=searches.usage.prompt_tokens,
+                completion_tokens=searches.usage.completion_tokens,
+            ),
+        )
+
+    async def asearch(self, query, results_count: int = 4) -> RAGWebResults:
+        """
+        Perform an asynchronous search using the Albert API based on the provided query.
+
+        Args:
+            query (str): The search query.
+            results_count (int): The number of results to return.
+
+        Returns:
+            RAGWebResults: The search results.
+        """
+        async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
+            response = await client.post(
+                urljoin(self._base_url, self._search_endpoint),
+                headers=self._headers,
+                json={
+                    "collections": [int(self.collection_id)],
+                    "prompt": query,
+                    "score_threshold": 0.6,
+                    "k": results_count,  # Number of chunks to return from the search
+                },
+                timeout=settings.ALBERT_API_TIMEOUT,
+            )
+
+            logger.debug("Search response: %s %s", response.text, response.status_code)
+
+            response.raise_for_status()
 
         searches = Searches(**response.json())
 
