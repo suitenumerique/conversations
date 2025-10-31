@@ -36,7 +36,7 @@ def add_document_rag_search_tool(agent: Agent) -> None:
         return ToolReturn(
             return_value=rag_results.data,
             content="",
-            metadata={"sources": {result.url for result in rag_results.data}},
+            metadata={"sources": [result.url for result in rag_results.data]},
         )
 
     @agent.system_prompt

@@ -27,5 +27,5 @@ async def web_search_albert_rag(ctx: RunContext, query: str) -> ToolReturn:
 
     return ToolReturn(
         return_value=rag_results.data,
-        metadata={"sources": {result.url for result in rag_results.data}},
+        metadata={"sources": [result.url for result in rag_results.data]},
     )

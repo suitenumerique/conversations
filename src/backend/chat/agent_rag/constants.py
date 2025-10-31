@@ -22,6 +22,7 @@ class RAGWebResult(BaseModel):
     score: float = Field(
         ..., description="Relevance score of the web result, typically between 0 and 1."
     )
+    metadata: dict = Field(..., description="Metadata of the web result.")
 
 
 class RAGWebResults(BaseModel):

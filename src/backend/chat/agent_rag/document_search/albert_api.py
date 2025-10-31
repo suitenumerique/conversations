@@ -198,6 +198,7 @@ class AlbertRagDocumentSearch:
                     url=result.chunk.metadata["document_name"],
                     content=result.chunk.content,
                     score=result.score,
+                    metadata=result.chunk.metadata,
                 )
                 for result in searches.data
             ],

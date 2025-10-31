@@ -3,7 +3,7 @@
 import json
 import logging
 from io import BytesIO
-from typing import Optional
+from typing import List, Optional
 from urllib.parse import urljoin
 
 from django.conf import settings
@@ -150,22 +150,30 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         logger.debug(response.json())
         response.raise_for_status()
 
-    def search(self, query, results_count: int = 4) -> RAGWebResults:
+    def search(self, query, results_count: int = 4, collections: Optional[List[int]] = None) -> RAGWebResults:
         """
         Perform a search using the Albert API based on the provided query.
 
         Args:
             query (str): The search query.
             results_count (int): The number of results to return.
+            collections (Optional[List[int]]): List of collection IDs to search in.
+                                             If None, uses the current collection_id.
 
         Returns:
             RAGWebResults: The search results.
         """
+        # Use provided collections or fall back to current collection_id
+        if collections is not None:
+            collection_list = collections
+        else:
+            collection_list = [int(self.collection_id)]
+
         response = requests.post(
             urljoin(self._base_url, self._search_endpoint),
             headers=self._headers,
             json={
-                "collections": [int(self.collection_id)],
+                "collections": collection_list,
                 "prompt": query,
                 "score_threshold": 0.6,
                 "k": results_count,  # Number of chunks to return from the search
@@ -182,6 +190,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
                     url=result.chunk.metadata["document_name"],
                     content=result.chunk.content,
                     score=result.score,
+                    metadata=result.chunk.metadata,
                 )
                 for result in searches.data
             ],
