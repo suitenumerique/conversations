@@ -69,6 +69,7 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
       {typeof window !== 'undefined' &&
         createPortal(
           <Box
+            aria-live="polite"
             $css={`
             position: fixed;
             top: 8px;

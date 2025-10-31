@@ -603,6 +603,7 @@ export const Chat = ({
                     display: flex;
                     width: 100%;
                     margin: auto;
+                    margin-bottom: ${isLastAssistantMessageInConversation ? '30px' : '0px'};
                     color: var(--c--theme--colors--greyscale-850);
                     padding-left: 12px;
                     padding-right: 12px;
@@ -643,6 +644,7 @@ export const Chat = ({
                           className="mainContent-chat"
                           $padding={{ all: 'xxs' }}
                         >
+                        <p class="sr-only">{ message.role === 'user' ? t('You said: ') : t('Assistant IA replied: ')  }</p>
                           <MarkdownHooks
                             remarkPlugins={[remarkGfm, remarkMath]}
                             rehypePlugins={[
@@ -659,6 +661,7 @@ export const Chat = ({
                               // eslint-disable-next-line @typescript-eslint/no-unused-vars
                               p: ({ node, ...props }) => (
                                 <Text
+                                  as="p"
                                   $css="display: block"
                                   $theme="greyscale"
                                   $variation="850"
@@ -789,7 +792,7 @@ export const Chat = ({
                                       $direction="row"
                                       $align="center"
                                       $gap="4px"
-                                      className={`c__button--neutral action-chat-button ${isSourceOpen === message.id ? 'action-chat-button--open' : ''}`}
+                                      className={`c__button--neutral action-chat-button ${isSourceOpen ? 'action-chat-button--open' : ''}`}
                                       onClick={() => openSources(message.id)}
                                       onKeyDown={(e) => {
                                         if (
@@ -888,7 +891,6 @@ export const Chat = ({
         {status === 'error' && (
           <Box
             $direction={isMobile ? 'column' : 'row'}
-            $align="center"
             $gap="6px"
             $width="100%"
             $maxWidth="750px"
