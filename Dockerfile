@@ -167,6 +167,7 @@ CMD [\
     "--host=0.0.0.0",\
     "--timeout-graceful-shutdown=300",\
     "--limit-max-requests=20000",\
+    "--lifespan=off",\
     "conversations.asgi:application"\
 ]
 
