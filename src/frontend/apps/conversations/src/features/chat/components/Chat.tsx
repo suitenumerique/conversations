@@ -665,6 +665,9 @@ export const Chat = ({
                                   {...props}
                                 />
                               ),
+                              a: ({ node, ...props }) => (
+                                <a target="_blank" {...props} />
+                              ),
                             }}
                           >
                             {message.content}
