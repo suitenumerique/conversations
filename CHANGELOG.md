@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🦺(front) Fix send prohibited file types
 - 🚑️(posthog) pass str instead of UUID for user PK #134
 
 

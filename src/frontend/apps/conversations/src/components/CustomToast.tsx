@@ -3,6 +3,7 @@ import { css } from 'styled-components';
 
 import { Box, Text } from '@/components';
 import { Icon } from '@/components/Icon';
+import { useResponsiveStore } from '@/stores';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -13,6 +14,8 @@ export interface ToastProps {
   icon?: string;
   duration?: number;
   onClose: (id: string) => void;
+  actionLabel?: string;
+  actionHref?: string;
 }
 
 const getToastConfig = (type: ToastType) => {
@@ -62,11 +65,14 @@ export const Toast = ({
   icon,
   duration = 4000,
   onClose,
+  actionLabel,
+  actionHref,
 }: ToastProps) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const config = getToastConfig(type);
   const iconToUse = icon || config.icon;
+  const { isMobile } = useResponsiveStore();
 
   useEffect(() => {
     setIsVisible(true);
@@ -102,7 +108,12 @@ export const Toast = ({
         overflow: hidden;
       `}
     >
-      <Box $direction="row" $align="center" $gap="12px">
+      <Box
+        $direction="row"
+        $align="center"
+        $gap="12px"
+        $justify="space-between"
+      >
         <Icon
           iconName={iconToUse}
           $variation="600"
@@ -111,16 +122,41 @@ export const Toast = ({
             color: ${config.color} !important;
           `}
         />
-        <Text
-          $weight="500"
-          $size="14px"
-          $css={css`
-            color: ${config.color} !important;
-            padding: 4px;
-          `}
+        <Box
+          $direction="row"
+          $align="center"
+          $gap="12px"
+          $flex={1}
+          $justify="space-between"
         >
-          {message}
-        </Text>
+          <Text
+            $weight="500"
+            $size="14px"
+            $css={css`
+              color: ${config.color} !important;
+              padding: 4px;
+            `}
+          >
+            {message}
+          </Text>
+
+          {actionLabel && actionHref && !isMobile && (
+            <a
+              href={actionHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: config.color,
+                fontWeight: '500',
+                fontSize: '14px',
+                textDecoration: 'underline',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {actionLabel}
+            </a>
+          )}
+        </Box>
       </Box>
     </Box>
   );
