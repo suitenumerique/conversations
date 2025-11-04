@@ -631,9 +631,6 @@ class Base(BraveSettings, Configuration):
     LLM_DEFAULT_MODEL_HRID = values.Value(
         "default-model", environ_name="LLM_DEFAULT_MODEL_HRID", environ_prefix=None
     )
-    LLM_ROUTING_MODEL_HRID = values.Value(
-        "default-routing-model", environ_name="LLM_ROUTING_MODEL_HRID", environ_prefix=None
-    )
     LLM_SUMMARIZATION_MODEL_HRID = values.Value(
         "default-summarization-model",
         environ_name="LLM_SUMMARIZATION_MODEL_HRID",

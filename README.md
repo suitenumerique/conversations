@@ -141,6 +141,16 @@ You first need to create a superuser account:
 $ make superuser
 ```
 
+## Documentation 📚
+
+Additional documentation is available in the `docs/` directory:
+
+- [LLM Configuration](docs/llm-configuration.md) - Configure Large Language Models and providers
+- [Environment Variables](docs/env.md) - All available environment variables
+- [Installation Guide](docs/installation.md) - Deploy on a Kubernetes cluster
+- [Theming](docs/theming.md) - Customize the application appearance
+- [Architecture](docs/architecture.md) - Technical architecture overview
+
 ## Licence 📝
 
 This work is released under the MIT License (see [LICENSE](https://github.com/suitenumerique/conversations/blob/main/LICENSE)).

@@ -14,15 +14,15 @@ Memory is the first bottleneck; CPU matters only when Celery or the Next.js buil
 
 ## 2. Development Environment Memory Requirements
 
-| Service               | Typical use                   | Rationale / source                                                                      |
-|-----------------------|-------------------------------|-----------------------------------------------------------------------------------------|
-| PostgreSQL            | **1 – 2 GB**                  | `shared_buffers` starting point ≈ 25% RAM ([postgresql.org][1])                         |
-| Keycloak              | **≈ 1.3 GB**                  | 70% of limit for heap + ~300 MB non-heap ([keycloak.org][2])                            |
-| Redis                 | **≤ 256 MB**                  | Empty instance ≈ 3 MB; budget 256 MB to allow small datasets ([stackoverflow.com][3])   |
-| MinIO                 | **2 GB (dev) / 32 GB (prod)** | Pre-allocates 1–2 GiB; docs recommend 32 GB per host for ≤ 100 Ti storage ([min.io][4]) |
-| Django API (+ Celery) | **0.8 – 1.5 GB**              | Empirical in-house metrics                                                              |
-| Next.js frontend      | **0.5 – 1 GB**                | Dev build chain                                                                         |
-| Nginx                 | **< 100 MB**                  | Static reverse-proxy footprint                                                          |
+| Service          | Typical use                   | Rationale / source                                                                      |
+|------------------|-------------------------------|-----------------------------------------------------------------------------------------|
+| PostgreSQL       | **1 – 2 GB**                  | `shared_buffers` starting point ≈ 25% RAM ([postgresql.org][1])                         |
+| Keycloak         | **≈ 1.3 GB**                  | 70% of limit for heap + ~300 MB non-heap ([keycloak.org][2])                            |
+| Redis            | **≤ 256 MB**                  | Empty instance ≈ 3 MB; budget 256 MB to allow small datasets ([stackoverflow.com][3])   |
+| MinIO            | **2 GB (dev) / 32 GB (prod)** | Pre-allocates 1–2 GiB; docs recommend 32 GB per host for ≤ 100 Ti storage ([min.io][4]) |
+| Django API       | **0.8 – 1.5 GB**              | Empirical in-house metrics                                                              |
+| Next.js frontend | **0.5 – 1 GB**                | Dev build chain                                                                         |
+| Nginx            | **< 100 MB**                  | Static reverse-proxy footprint                                                          |
 
 [1]: https://www.postgresql.org/docs/9.1/runtime-config-resource.html "PostgreSQL: Documentation: 9.1: Resource Consumption"
 [2]: https://www.keycloak.org/high-availability/concepts-memory-and-cpu-sizing "Concepts for sizing CPU and memory resources - Keycloak"
@@ -58,7 +58,7 @@ Production deployments differ significantly from development environments. The t
 | Service                          | Memory     | Notes                                  |
 |----------------------------------|------------|----------------------------------------|
 | PostgreSQL                       | **2 GB**   | Core database                          |
-| Django API (+ Celery)            | **1.5 GB** | Backend services                       |
+| Django API                       | **1.5 GB** | Backend services                       |
 | Nginx                            | **100 MB** | Static files + reverse proxy           |
 | Redis                            | **256 MB** | Session storage                        |
 | **Total (without auth/storage)** | **≈ 4 GB** | External OIDC + object storage assumed |
@@ -81,16 +81,16 @@ Production deployments differ significantly from development environments. The t
 
 ## 5. Ports (dev defaults)
 
-| Port      | Service               |
-|-----------|-----------------------|
-| 3000      | Next.js               |
-| 8071      | Django                |
-| 8080      | Keycloak              |
-| 8083      | Nginx proxy           |
-| 9000/9001 | MinIO                 |
-| 15432     | PostgreSQL (main)     |
-| 5433      | PostgreSQL (Keycloak) |
-| 1081      | Maildev               |
+| Port      | Service                    |
+|-----------|----------------------------|
+| 3000      | Next.js                    |
+| 8071      | Django                     |
+| 8080      | Keycloak                   |
+| 8083      | Nginx proxy                |
+| 9000/9001 | MinIO                      |
+| 15432     | PostgreSQL (main)          |
+| 5433      | PostgreSQL (Keycloak)      |
+| 1081      | Maildev (currently unused) |
 
 ## 6. Sizing Guidelines
 
