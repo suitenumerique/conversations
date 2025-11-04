@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🦺(front) Fix send prohibited file types
 - 🐛(front) fix target blank links in chat #103
 - 🚑️(posthog) pass str instead of UUID for user PK #134
 - ⚡️(web-search) keep running when tool call fails #137

@@ -1,8 +1,9 @@
 import { Button } from '@openfun/cunningham-react';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Box, Icon, Text } from '@/components';
+import { useToast } from '@/components/ToastProvider';
 import { FeatureFlagState, useConfig } from '@/core';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 import { useAnalytics } from '@/libs';
@@ -51,10 +52,10 @@ export const InputChat = ({
   isUploadingFiles = false,
 }: InputChatProps) => {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isDragActive, setIsDragActive] = useState(false);
-  const [isDragRejected, setIsDragRejected] = useState(false);
   const { isDesktop, isMobile } = useResponsiveStore();
   const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
   const { data: conf } = useConfig();
@@ -63,12 +64,49 @@ export const InputChat = ({
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
 
+  const isFileAccepted = useCallback(
+    (file: File): boolean => {
+      const acceptedConfig = conf?.chat_upload_accept;
+      if (!acceptedConfig) {
+        return true;
+      }
+      const acceptedTypes = acceptedConfig
+        .split(',')
+        .map((type) => type.trim());
+      return acceptedTypes.some((acceptedType) => {
+        if (acceptedType.startsWith('.')) {
+          return file.name.toLowerCase().endsWith(acceptedType.toLowerCase());
+        }
+        if (acceptedType.endsWith('/*')) {
+          const baseType = acceptedType.slice(0, -2);
+          return file.type.startsWith(baseType);
+        }
+        return file.type === acceptedType;
+      });
+    },
+    [conf?.chat_upload_accept],
+  );
+
   const suggestions = [
     t('Ask a question'),
     t('Turn this list into bullet points'),
     t('Write a short product description'),
     t('Find recent news about...'),
   ];
+
+  const showToastError = useCallback(() => {
+    showToast(
+      'error',
+      `${t('File type not supported')}`,
+      undefined,
+      undefined,
+      {
+        actionLabel: t('Know more'),
+        actionHref:
+          'https://docs.numerique.gouv.fr/docs/060b7b70-15aa-4d9a-86f5-2d31c3d693d5/',
+      },
+    );
+  }, [showToast, t]);
 
   useEffect(() => {
     if (!conf?.FEATURE_FLAGS) {
@@ -136,39 +174,10 @@ export const InputChat = ({
       return;
     }
 
-    const isFileAccepted = (file: File): boolean => {
-      if (!conf?.chat_upload_accept) {
-        return true;
-      }
-
-      const acceptedTypes = conf.chat_upload_accept
-        .split(',')
-        .map((type) => type.trim());
-
-      return acceptedTypes.some((acceptedType) => {
-        // Extension management
-        if (acceptedType.startsWith('.')) {
-          return file.name.toLowerCase().endsWith(acceptedType.toLowerCase());
-        }
-        // Wildcard MIME type management (ex: image/*)
-        if (acceptedType.endsWith('/*')) {
-          const baseType = acceptedType.slice(0, -2);
-          return file.type.startsWith(baseType);
-        }
-        // Exact MIME type management
-        return file.type === acceptedType;
-      });
-    };
-
-    const areAllFilesAccepted = (fileList: FileList): boolean => {
-      return Array.from(fileList).every((file) => isFileAccepted(file));
-    };
-
     const handleDragEnter = (e: DragEvent) => {
       e.preventDefault();
       if (e.dataTransfer?.types.includes('Files')) {
         setIsDragActive(true);
-        setIsDragRejected(false);
       }
     };
 
@@ -177,7 +186,6 @@ export const InputChat = ({
       // Only hide when leaving the window completely
       if (!e.relatedTarget) {
         setIsDragActive(false);
-        setIsDragRejected(false);
       }
     };
 
@@ -187,7 +195,7 @@ export const InputChat = ({
       // Check for rejected files during drag over (does not work on Safari)
       if (e.dataTransfer?.items) {
         const items = Array.from(e.dataTransfer.items);
-        const hasInvalidFile = items.some((item) => {
+        items.some((item) => {
           if (item.kind === 'file') {
             // Check file type
             const type = item.type;
@@ -196,15 +204,12 @@ export const InputChat = ({
           }
           return false;
         });
-
-        setIsDragRejected(hasInvalidFile);
       }
     };
 
     const handleDrop = (e: DragEvent) => {
       e.preventDefault();
       setIsDragActive(false);
-      setIsDragRejected(false);
 
       if (!fileUploadEnabled) {
         return;
@@ -212,15 +217,22 @@ export const InputChat = ({
 
       const droppedFiles = e.dataTransfer?.files;
       if (droppedFiles && droppedFiles.length > 0) {
-        // Check if all files are accepted
-        if (!areAllFilesAccepted(droppedFiles)) {
-          // Display rejection for 2 seconds (mandatory for Safari)
-          setIsDragActive(true);
-          setIsDragRejected(true);
-          setTimeout(() => {
-            setIsDragActive(false);
-            setIsDragRejected(false);
-          }, 2000);
+        const acceptedFiles: File[] = [];
+        const rejectedFiles: string[] = [];
+
+        Array.from(droppedFiles).forEach((file) => {
+          if (isFileAccepted(file)) {
+            acceptedFiles.push(file);
+          } else {
+            rejectedFiles.push(file.name);
+          }
+        });
+
+        if (rejectedFiles.length > 0) {
+          showToastError();
+        }
+
+        if (acceptedFiles.length === 0) {
           return;
         }
 
@@ -229,7 +241,7 @@ export const InputChat = ({
           if (prev) {
             Array.from(prev).forEach((f) => dt.items.add(f));
           }
-          Array.from(droppedFiles).forEach((f) => {
+          acceptedFiles.forEach((f) => {
             if (
               !Array.from(prev || []).some(
                 (pf) =>
@@ -257,7 +269,13 @@ export const InputChat = ({
       window.removeEventListener('dragover', handleDragOver);
       window.removeEventListener('drop', handleDrop);
     };
-  }, [fileUploadEnabled, setFiles, conf?.chat_upload_accept]);
+  }, [
+    fileUploadEnabled,
+    setFiles,
+    showToastError,
+    conf?.chat_upload_accept,
+    isFileAccepted,
+  ]);
 
   const isInputDisabled = status !== 'ready' || isUploadingFiles;
 
@@ -365,48 +383,22 @@ export const InputChat = ({
                 top: -1px; left: -1px;
                 border-radius: 12px;
                 z-index: 1001;
-                background-color: ${isDragRejected ? '#FFE8E8' : '#EDF0FF'};
+                background-color: #EDF0FF;
                 width: 100%;
                 height: 100%;
-                outline: 2px solid ${isDragRejected ? '#FF6B6B' : '#90A7FF'};
-                box-shadow: 0 0 64px 0 ${isDragRejected ? 'rgba(255, 107, 107, 0.25)' : 'rgba(62, 93, 231, 0.25)'};
+                outline: 2px solid #90A7FF;
+                box-shadow: 0 0 64px 0 rgba(62, 93, 231, 0.25);
                 `}
                 >
-                  {isDragRejected ? (
-                    <>
-                      <Text $css="font-size: 48px;">🚫</Text>
-                      <Box>
-                        <Text $weight="700" $color="#C92A2A">
-                          {t('File type not supported (yet)')}
-                        </Text>
-                        <Text $weight="400" $color="#C92A2A">
-                          {t(
-                            'We currently support only specific file types...',
-                          )}
-                        </Text>
-                        <Text $weight="400" $color="#C92A2A">
-                          {t(
-                            'Use the "{{attach_file_btn}}" button to have a better view.',
-                            { attach_file_btn: t('Add attach file') },
-                          )}
-                        </Text>
-                      </Box>
-                    </>
-                  ) : (
-                    <>
-                      <FilesIcon />
-                      <Box>
-                        <Text $weight="700" $color="#223E9E">
-                          {t('Add file')}
-                        </Text>
-                        <Text $weight="400" $color="#223E9E">
-                          {t(
-                            'To add a file to the conversation, drop it here.',
-                          )}
-                        </Text>
-                      </Box>
-                    </>
-                  )}
+                  <FilesIcon />
+                  <Box>
+                    <Text $weight="700" $color="#223E9E">
+                      {t('Add file')}
+                    </Text>
+                    <Text $weight="400" $color="#223E9E">
+                      {t('To add a file to the conversation, drop it here.')}
+                    </Text>
+                  </Box>
                 </Box>
               )}
               <textarea
@@ -507,12 +499,33 @@ export const InputChat = ({
                   if (!fileList) {
                     return;
                   }
+
+                  const acceptedFiles: File[] = [];
+                  const rejectedFiles: string[] = [];
+
+                  Array.from(fileList).forEach((file) => {
+                    if (isFileAccepted(file)) {
+                      acceptedFiles.push(file);
+                    } else {
+                      rejectedFiles.push(file.name);
+                    }
+                  });
+
+                  if (rejectedFiles.length > 0) {
+                    showToastError();
+                  }
+
+                  if (acceptedFiles.length === 0) {
+                    e.target.value = '';
+                    return;
+                  }
+
                   setFiles((prev) => {
                     const dt = new DataTransfer();
                     if (prev) {
                       Array.from(prev).forEach((f: File) => dt.items.add(f));
                     }
-                    Array.from(fileList).forEach((f: File) => {
+                    acceptedFiles.forEach((f: File) => {
                       if (
                         !Array.from(prev || []).some(
                           (pf) =>
@@ -526,6 +539,8 @@ export const InputChat = ({
                     });
                     return dt.files;
                   });
+
+                  e.target.value = '';
                 }}
               />
               {/*Aperçu des fichiers*/}
