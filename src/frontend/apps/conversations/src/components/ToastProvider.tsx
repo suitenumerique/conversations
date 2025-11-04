@@ -17,6 +17,8 @@ interface ToastItem {
   type: ToastType;
   icon?: string;
   duration?: number;
+  actionLabel?: string;
+  actionHref?: string;
 }
 
 interface ToastContextType {
@@ -25,6 +27,7 @@ interface ToastContextType {
     message: string,
     icon?: string,
     duration?: number,
+    options?: { actionLabel?: string; actionHref?: string },
   ) => void;
 }
 
@@ -46,9 +49,23 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const showToast = useCallback(
-    (type: ToastType, message: string, icon?: string, duration = 4000) => {
+    (
+      type: ToastType,
+      message: string,
+      icon?: string,
+      duration = 4000,
+      options?: { actionLabel?: string; actionHref?: string },
+    ) => {
       const id = Math.random().toString(36).substr(2, 9);
-      const newToast: ToastItem = { id, message, type, icon, duration };
+      const newToast: ToastItem = {
+        id,
+        message,
+        type,
+        icon,
+        duration,
+        actionLabel: options?.actionLabel,
+        actionHref: options?.actionHref,
+      };
 
       setToasts((prev) => [newToast, ...prev]);
     },
@@ -76,7 +93,7 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
             transform: translateX(-50%);
             z-index: 1000;
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             width: auto;
             pointer-events: none;
             & > * {
@@ -94,6 +111,8 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
                 type={toast.type}
                 icon={toast.icon}
                 duration={toast.duration}
+                actionLabel={toast.actionLabel}
+                actionHref={toast.actionHref}
                 onClose={removeToast}
               />
             ))}
