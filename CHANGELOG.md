@@ -14,6 +14,10 @@ and this project adheres to
 - 🚑️(posthog) pass str instead of UUID for user PK #134
 - ⚡️(web-search) keep running when tool call fails #137
 
+### Removed
+
+- 🔥(posthog) remove posthog middleware for async mode fix #146
+
 
 ## [0.0.7] - 2025-10-28
 
