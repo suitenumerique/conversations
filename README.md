@@ -115,6 +115,31 @@ To start all the services, except the frontend container, you can use the follow
 $ make run-backend
 ```
 
+**Setup a basic LLM call**
+
+To be able to use Conversations, you need to configure at least one Large Language Model (LLM) provider.
+You can do so by setting the appropriate environment variables in the `env.d/development/common` file:
+
+```ini
+AI_BASE_URL=http://host.docker.internal:12434/v1/
+AI_MODEL=gemma3:4b
+AI_API_KEY=XXX
+```
+
+for a local ollama, or by running a local LLM with docker-compose:
+
+```shellscript
+$ make create-compose-with-models
+```
+
+which will create a `compose.override.yml` file to start a local models `ai/smollm2`
+which can be changed later by editing the `compose.override.yml` file.
+
+You will need to call `make run` after changing the `env.d/development/common`
+or `compose.override.yml` file.
+
+You can find more information about configuring LLM providers in the [LLM Configuration](docs/llm-configuration.md) documentation.
+
 **Adding content**
 
 You can create a basic demo site by running this command:
