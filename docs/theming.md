@@ -4,7 +4,7 @@
 
 To use this feature, simply set the `FRONTEND_CSS_URL` environment variable to the URL of your custom CSS file. For example:
 
-```javascript
+```ini
 FRONTEND_CSS_URL=http://anything/custom-style.css
 ```
 
@@ -38,7 +38,7 @@ The footer is configurable from the theme customization file.
 
 ### Settings 🔧
 
-```shellscript
+```ini
 THEME_CUSTOMIZATION_FILE_PATH=<path>
 ```
 
@@ -55,7 +55,7 @@ The translations can be partially overridden from the theme customization file.
 
 ### Settings 🔧
 
-```shellscript
+```ini
 THEME_CUSTOMIZATION_FILE_PATH=<path>
 ```
 

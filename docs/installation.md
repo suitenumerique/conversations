@@ -7,7 +7,7 @@ This document is a step-by-step guide that describes how to install Conversation
 - k8s cluster with an nginx-ingress controller
 - an OIDC provider (if you don't have one, we provide an example)
 - a PostgreSQL server (if you don't have one, we provide an example)
-- a Memcached server (if you don't have one, we provide an example)
+- a Redis server (if you don't have one, we provide an example)
 - a S3 bucket (if you don't have one, we provide an example)
 
 ### Test cluster

@@ -665,6 +665,11 @@ export const Chat = ({
                                   {...props}
                                 />
                               ),
+                              a: ({ children, ...props }) => (
+                                <a target="_blank" {...props}>
+                                  {children}
+                                </a>
+                              ),
                             }}
                           >
                             {message.content}
