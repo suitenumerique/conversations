@@ -47,6 +47,7 @@ jobs:
           docker-image-name: 'docker.io/lasuite/conversations-backend:${{ github.sha }}'
       -
         name: Build and push
+        if: always()
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -86,6 +87,7 @@ jobs:
           docker-image-name: 'docker.io/lasuite/conversations-frontend:${{ github.sha }}'
       -
         name: Build and push
+        if: always()
         uses: docker/build-push-action@v6
         with:
           context: .
