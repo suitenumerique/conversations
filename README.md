@@ -146,6 +146,7 @@ $ make superuser
 Additional documentation is available in the `docs/` directory:
 
 - [LLM Configuration](docs/llm-configuration.md) - Configure Large Language Models and providers
+- [Attachments](docs/attachments.md) - How to use attachments in conversations
 - [Tools for Agents](docs/tools.md) - Available tools and how to add new ones
 - [Environment Variables](docs/env.md) - All available environment variables
 - [Installation Guide](docs/installation.md) - Deploy on a Kubernetes cluster
