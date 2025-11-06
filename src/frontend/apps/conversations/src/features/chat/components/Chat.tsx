@@ -701,7 +701,23 @@ export const Chat = ({
                             >
                               <Loader />
                               <Text $variation="600" $size="md">
-                                {t('Search...')}
+                                {(() => {
+                                  const toolInvocation = message.parts?.find(
+                                    (part) =>
+                                      part.type === 'tool-invocation' &&
+                                      part.toolInvocation.toolName !==
+                                        'document_parsing',
+                                  );
+                                  if (
+                                    toolInvocation?.type ===
+                                      'tool-invocation' &&
+                                    toolInvocation.toolInvocation.toolName ===
+                                      'summarize'
+                                  ) {
+                                    return t('Summarizing...');
+                                  }
+                                  return t('Search...');
+                                })()}
                               </Text>
                             </Box>
                           )}

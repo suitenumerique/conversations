@@ -68,7 +68,7 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
         >
           <Loader />
           <Text $variation="600" $size="md">
-            {toolInvocation.toolName === 'summarize' ? t('Summarizing...') : t('Search...')}
+            {t('Search...')}
           </Text>
         </Box>
       )}
