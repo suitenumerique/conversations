@@ -151,7 +151,7 @@ def fixture_mock_summarization_agent():
             super().__init__(**kwargs)
             self._model = FunctionModel(function=summarization_model)  # pylint: disable=protected-access
 
-    with mock.patch("chat.agents.summarize.SummarizationAgent", new=SummarizationAgentMock):
+    with mock.patch("chat.tools.document_summarize.SummarizationAgent", new=SummarizationAgentMock):
         yield
 
 
