@@ -483,11 +483,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             @self.conversation_agent.system_prompt
             def summarization_system_prompt() -> str:
                 return (
-                    "When the user asks to summarize attached document(s), you MUST call the"
-                    " summarize tool. Pass user's instructions if provided, otherwise pass an"
-                    " empty instructions string once the user confirms (e.g. says 'ok'). Do NOT"
-                    " call web search or document_search_rag to produce summaries; rely only on"
-                    " the attached documents stored in context."
+                    "When you receive a result from the summarization tool, you MUST return it "
+                    "directly to the user without any modification, paraphrasing, or additional "
+                    "summarization."
+                    "The tool already produces optimized summaries that should be presented "
+                    "verbatim."
+                    "You may translate the summary if required, but you MUST preserve all the "
+                    "information from the original summary."
+                    "You may add a follow-up question after the summary if needed."
                 )
 
             # Inform the model (system-level) that documents are attached and available

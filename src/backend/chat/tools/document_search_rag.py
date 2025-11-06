@@ -22,10 +22,6 @@ def add_document_rag_search_tool(agent: Agent) -> None:
             ctx (RunContext): The run context containing the conversation.
             query (str): The query to search the documents for.
         """
-        # Defensive: ctx.deps or ctx.deps.conversation may be unavailable in some flows (start of conversation)
-        if not getattr(ctx, "deps", None) or not getattr(ctx.deps, "conversation", None):
-            return ToolReturn(return_value=[], content="", metadata={"sources": set()})
-
         document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
         document_store = document_store_backend(ctx.deps.conversation.collection_id)
