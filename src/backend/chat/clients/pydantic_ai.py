@@ -503,7 +503,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     "via the internal store."
                 )
 
-            @self.conversation_agent.tool(name="summarize")
+            @self.conversation_agent.tool(name="summarize", retries=2)
             @functools.wraps(document_summarize)
             async def summarize(ctx: RunContext, *args, **kwargs) -> ToolReturn:
                 """Wrap the document_summarize tool to provide context and add the tool."""
