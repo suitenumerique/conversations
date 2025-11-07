@@ -19,7 +19,29 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_BUILD_ID: buildId,
   },
-  webpack(config, { isServer }) {
+  webpack(config, { isServer, dev, webpack }) {
+    // Only configure service worker for client-side builds in production
+    if (!isServer && !dev) {
+      const path = require('path');
+      config.plugins.push(
+        new InjectManifest({
+          swSrc: path.join(__dirname, 'public', 'sw.src.js'),
+          swDest: path.join(__dirname, 'public', 'sw.js'), // Output compiled SW to public, Next.js will copy to out/
+          exclude: [
+            /\.map$/,
+            /manifest$/,
+            /\.htaccess$/,
+            /service-worker\.js$/,
+            /sw\.js$/,
+          ],
+          // Maximum file size to cache in bytes (5MB)
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+          // Compile the service worker with webpack
+          compileSrc: true,
+        })
+      );
+    }
+
     // Grab the existing rule that handles SVG imports
     const fileLoaderRule = config.module.rules.find((rule) =>
       rule.test?.test?.('.svg'),
