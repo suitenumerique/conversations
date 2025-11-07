@@ -4,11 +4,6 @@ import dataclasses
 import logging
 
 from django.conf import settings
-from django.core.files.storage import default_storage
-
-from asgiref.sync import sync_to_async
-from pydantic_ai import RunContext
-from pydantic_ai.messages import ToolReturn
 
 from .base import BaseAgent
 
@@ -26,60 +21,3 @@ class SummarizationAgent(BaseAgent):
             output_type=str,
             **kwargs,
         )
-
-
-@sync_to_async
-def read_document_content(doc):
-    """Read document content asynchronously."""
-    with default_storage.open(doc.key) as f:
-        return doc.file_name, f.read().decode("utf-8")
-
-
-async def hand_off_to_summarization_agent(ctx: RunContext) -> ToolReturn:
-    """
-    Generate a complete, ready-to-use summary of the documents in context
-    (do not request the documents to the user).
-    Return this summary directly to the user WITHOUT any modification,
-    or additional summarization.
-    The summary is already optimized and MUST be presented as-is in the final response
-    or translated preserving the information.
-    """
-    summarization_agent = SummarizationAgent()
-
-    prompt = (
-        "Do not mention the user request in your answer.\n"
-        "User request:\n"
-        "{user_prompt}\n\n"
-        "Document contents:\n"
-        "{documents_prompt}\n"
-    )
-    text_attachment = await sync_to_async(list)(
-        ctx.deps.conversation.attachments.filter(
-            content_type__startswith="text/",
-        )
-    )
-
-    documents = [await read_document_content(doc) for doc in text_attachment]
-
-    documents_prompt = "\n\n".join(
-        [
-            (f"<document>\n<name>\n{name}\n</name>\n<content>\n{content}\n</content>\n</document>")
-            for name, content in documents
-        ]
-    )
-
-    formatted_prompt = prompt.format(
-        user_prompt=ctx.prompt,
-        documents_prompt=documents_prompt,
-    )
-
-    logger.debug("Summarize prompt: %s", formatted_prompt)
-
-    response = await summarization_agent.run(formatted_prompt, usage=ctx.usage)
-
-    logger.debug("Summarize response: %s", response)
-
-    return ToolReturn(
-        return_value=response.output,
-        metadata={"sources": {doc[0] for doc in documents}},
-    )

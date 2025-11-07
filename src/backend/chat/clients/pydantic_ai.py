@@ -7,6 +7,7 @@ changes are needed in views.py or tests.
 """
 
 import dataclasses
+import functools
 import json
 import logging
 import time
@@ -25,7 +26,7 @@ from django.utils.module_loading import import_string
 
 from asgiref.sync import sync_to_async
 from langfuse import get_client
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import (
     BinaryContent,
     DocumentUrl,
@@ -59,7 +60,6 @@ from chat.agents.local_media_url_processors import (
     update_history_local_urls,
     update_local_urls,
 )
-from chat.agents.summarize import hand_off_to_summarization_agent
 from chat.ai_sdk_types import (
     LanguageModelV1Source,
     SourceUIPart,
@@ -73,6 +73,7 @@ from chat.clients.pydantic_ui_message_converter import (
 )
 from chat.mcp_servers import get_mcp_servers
 from chat.tools.document_search_rag import add_document_rag_search_tool
+from chat.tools.document_summarize import document_summarize
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import EventEncoder
 
@@ -493,13 +494,20 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     "You may add a follow-up question after the summary if needed."
                 )
 
-            @self.conversation_agent.tool
-            async def summarize(ctx) -> ToolReturn:
-                """
-                Summarize the documents for the user, only when asked for,
-                the documents are in my context.
-                """
-                return await hand_off_to_summarization_agent(ctx)
+            # Inform the model (system-level) that documents are attached and available
+            @self.conversation_agent.system_prompt
+            def attached_documents_note() -> str:
+                return (
+                    "[Internal context] User documents are attached to this conversation. "
+                    "Do not request re-upload of documents; consider them already available "
+                    "via the internal store."
+                )
+
+            @self.conversation_agent.tool(name="summarize", retries=2)
+            @functools.wraps(document_summarize)
+            async def summarize(ctx: RunContext, *args, **kwargs) -> ToolReturn:
+                """Wrap the document_summarize tool to provide context and add the tool."""
+                return await document_summarize(ctx, *args, **kwargs)
         else:
             conversation_documents = [
                 cd

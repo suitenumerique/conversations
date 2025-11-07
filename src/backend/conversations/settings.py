@@ -312,7 +312,7 @@ class Base(BraveSettings, Configuration):
         "django.middleware.common.CommonMiddleware",
         "django.middleware.csrf.CsrfViewMiddleware",
         "django.contrib.auth.middleware.AuthenticationMiddleware",
-        "core.posthog.AsyncPosthogContextMiddleware",
+        "posthog.integrations.django.PosthogContextMiddleware",
         "django.contrib.messages.middleware.MessageMiddleware",
         "dockerflow.django.middleware.DockerflowMiddleware",
     ]
@@ -784,6 +784,21 @@ USER QUESTION:
             "of documents following user request.\n\n"
         ),
         environ_name="SUMMARIZATION_SYSTEM_PROMPT",
+        environ_prefix=None,
+    )
+    SUMMARIZATION_CHUNK_SIZE = values.PositiveIntegerValue(
+        default=20_000,  # Approx 20k words per chunk
+        environ_name="SUMMARIZATION_CHUNK_SIZE",
+        environ_prefix=None,
+    )
+    SUMMARIZATION_OVERLAP_SIZE = values.FloatValue(
+        default=0.05,  # 5% overlap
+        environ_name="SUMMARIZATION_OVERLAP_SIZE",
+        environ_prefix=None,
+    )
+    SUMMARIZATION_CONCURRENT_REQUESTS = values.PositiveIntegerValue(
+        default=5,
+        environ_name="SUMMARIZATION_CONCURRENT_REQUESTS",
         environ_prefix=None,
     )
 

@@ -8,6 +8,7 @@ from django.utils import formats, timezone
 
 import pytest
 
+from chat.agents.summarize import SummarizationAgent
 from chat.clients.pydantic_ai import AIAgentService
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,40 @@ def mock_ai_agent_service_fixture():
             yield
 
     yield _mock_service
+
+
+@pytest.fixture(name="mock_summarization_agent")
+def mock_summarization_agent_fixture():
+    """Fixture to mock SummarizationAgent with a custom model."""
+
+    @contextmanager
+    def _mock_agent(model):
+        """Context manager to mock SummarizationAgent with a custom model."""
+        with ExitStack() as stack:
+
+            class SummarizationAgentMock(SummarizationAgent):
+                """Mocked SummarizationAgent to override the model."""
+
+                def __init__(self, **kwargs):
+                    super().__init__(**kwargs)
+                    # We cannot use stack.enter_context(agent.override(model=model))
+                    # Because the agent is used outside of this context manager.
+                    # So we directly override the protected member.
+                    logger.info("Overriding SummarizationAgent model with %s", model)
+                    self._model = model  # pylint: disable=protected-access
+
+            # Mock the SummarizationAgent in all relevant modules, because first import wins
+            stack.enter_context(
+                patch("chat.agents.summarize.SummarizationAgent", new=SummarizationAgentMock)
+            )
+            stack.enter_context(
+                patch(
+                    "chat.tools.document_summarize.SummarizationAgent", new=SummarizationAgentMock
+                )
+            )
+            yield
+
+    yield _mock_agent
 
 
 PIXEL_PNG = (

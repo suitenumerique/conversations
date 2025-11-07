@@ -881,10 +881,9 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                     SystemPromptPart(content="Answer in english.", timestamp=timezone.now()),
                     SystemPromptPart(
                         content=(
-                            "If the user wants specific information from a document, "
-                            "invoke web_search_albert_rag with an appropriate query string."
-                            "Do not ask the user for the document; rely on the tool to locate "
-                            "and return relevant passages."
+                            "Use document_search_rag ONLY to retrieve specific passages from "
+                            "attached documents. Do NOT use it to summarize; for summaries, "
+                            "call the summarize tool instead."
                         ),
                         timestamp=timezone.now(),
                     ),
@@ -898,6 +897,14 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                             "You may translate the summary if required, but you MUST preserve "
                             "all the information from the original summary."
                             "You may add a follow-up question after the summary if needed."
+                        ),
+                        timestamp=timezone.now(),
+                    ),
+                    SystemPromptPart(
+                        content=(
+                            "[Internal context] User documents are attached to this conversation. "
+                            "Do not request re-upload of documents; consider them already "
+                            "available via the internal store."
                         ),
                         timestamp=timezone.now(),
                     ),
@@ -1002,11 +1009,10 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                     "timestamp": timestamp,
                 },
                 {
-                    "content": "If the user wants specific information from a "
-                    "document, invoke web_search_albert_rag with an "
-                    "appropriate query string.Do not ask the user for the "
-                    "document; rely on the tool to locate and return "
-                    "relevant passages.",
+                    "content": "Use document_search_rag ONLY to retrieve specific "
+                    "passages from attached documents. Do NOT use it to "
+                    "summarize; for summaries, call the summarize tool "
+                    "instead.",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": timestamp,
@@ -1021,6 +1027,15 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                     "preserve all the information from the original "
                     "summary.You may add a follow-up question after the "
                     "summary if needed.",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": timestamp,
+                },
+                {
+                    "content": "[Internal context] User documents are attached to "
+                    "this conversation. Do not request re-upload of "
+                    "documents; consider them already available via the "
+                    "internal store.",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": timestamp,

@@ -20,7 +20,7 @@ def add_document_rag_search_tool(agent: Agent) -> None:
 
         Args:
             ctx (RunContext): The run context containing the conversation.
-            query (str): The term to search the internet for.
+            query (str): The query to search the documents for.
         """
         document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
@@ -43,8 +43,6 @@ def add_document_rag_search_tool(agent: Agent) -> None:
     def document_rag_instructions() -> str:
         """Dynamic system prompt function to add RAG instructions if any."""
         return (
-            "If the user wants specific information from a document, invoke "
-            "web_search_albert_rag with an appropriate query string."
-            "Do not ask the user for the document; rely on the tool to locate "
-            "and return relevant passages."
+            "Use document_search_rag ONLY to retrieve specific passages from attached documents. "
+            "Do NOT use it to summarize; for summaries, call the summarize tool instead."
         )
