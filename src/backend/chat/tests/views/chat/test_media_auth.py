@@ -25,6 +25,8 @@ def test_api_media_auth_unkown_document(api_client):
     Trying to download a media related to a conversation that does not exist
     should not have the side effect to create it (no regression test).
     """
+    ChatConversation.objects.all().delete()
+
     original_url = f"http://localhost/media/{uuid4()!s}/attachments/{uuid4()!s}.jpg"
 
     response = api_client.get("/api/v1.0/chats/media-auth/", HTTP_X_ORIGINAL_URL=original_url)
