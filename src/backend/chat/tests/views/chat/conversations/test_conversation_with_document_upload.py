@@ -352,7 +352,14 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
 
     assert len(chat_conversation.pydantic_messages) == 4
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": None,
+        "instructions": "When you receive a result from the summarization tool, you "
+        "MUST return it directly to the user without any "
+        "modification, paraphrasing, or additional summarization.The "
+        "tool already produces optimized summaries that should be "
+        "presented verbatim.You may translate the summary if "
+        "required, but you MUST preserve all the information from the "
+        "original summary.You may add a follow-up question after the "
+        "summary if needed.",
         "kind": "request",
         "parts": [
             {
@@ -378,20 +385,6 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
                 "passages from attached documents. Do NOT use it to "
                 "summarize; for summaries, call the summarize tool "
                 "instead.",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
-            {
-                "content": "When you receive a result from the summarization tool, "
-                "you MUST return it directly to the user without any "
-                "modification, paraphrasing, or additional "
-                "summarization.The tool already produces optimized "
-                "summaries that should be presented verbatim.You may "
-                "translate the summary if required, but you MUST "
-                "preserve all the information from the original "
-                "summary.You may add a follow-up question after the "
-                "summary if needed.",
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
                 "timestamp": timezone_now,
@@ -441,7 +434,16 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
         },
     }
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": None,
+        "instructions": (
+            "When you receive a result from the summarization tool, you MUST "
+            "return it directly to the user without any modification, "
+            "paraphrasing, or additional summarization."
+            "The tool already produces optimized summaries that should "
+            "be presented verbatim."
+            "You may translate the summary if required, but you MUST preserve "
+            "all the information from the original summary."
+            "You may add a follow-up question after the summary if needed."
+        ),
         "kind": "request",
         "parts": [
             {
@@ -695,7 +697,14 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
 
     assert len(chat_conversation.pydantic_messages) == 4
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": None,
+        "instructions": "When you receive a result from the summarization tool, you "
+        "MUST return it directly to the user without any "
+        "modification, paraphrasing, or additional summarization.The "
+        "tool already produces optimized summaries that should be "
+        "presented verbatim.You may translate the summary if "
+        "required, but you MUST preserve all the information from the "
+        "original summary.You may add a follow-up question after the "
+        "summary if needed.",
         "kind": "request",
         "parts": [
             {
@@ -721,20 +730,6 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "passages from attached documents. Do NOT use it to "
                 "summarize; for summaries, call the summarize tool "
                 "instead.",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
-            {
-                "content": "When you receive a result from the summarization tool, "
-                "you MUST return it directly to the user without any "
-                "modification, paraphrasing, or additional "
-                "summarization.The tool already produces optimized "
-                "summaries that should be presented verbatim.You may "
-                "translate the summary if required, but you MUST "
-                "preserve all the information from the original "
-                "summary.You may add a follow-up question after the "
-                "summary if needed.",
                 "dynamic_ref": None,
                 "part_kind": "system-prompt",
                 "timestamp": timezone_now,
@@ -784,7 +779,16 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         },
     }
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": None,
+        "instructions": (
+            "When you receive a result from the summarization tool, you MUST "
+            "return it directly to the user without any modification, "
+            "paraphrasing, or additional summarization."
+            "The tool already produces optimized summaries that should "
+            "be presented verbatim."
+            "You may translate the summary if required, but you MUST preserve "
+            "all the information from the original summary."
+            "You may add a follow-up question after the summary if needed."
+        ),
         "kind": "request",
         "parts": [
             {

@@ -889,19 +889,6 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                     ),
                     SystemPromptPart(
                         content=(
-                            "When you receive a result from the summarization tool, you MUST "
-                            "return it directly to the user without any modification, "
-                            "paraphrasing, or additional summarization."
-                            "The tool already produces optimized summaries that should "
-                            "be presented verbatim."
-                            "You may translate the summary if required, but you MUST preserve "
-                            "all the information from the original summary."
-                            "You may add a follow-up question after the summary if needed."
-                        ),
-                        timestamp=timezone.now(),
-                    ),
-                    SystemPromptPart(
-                        content=(
                             "[Internal context] User documents are attached to this conversation. "
                             "Do not request re-upload of documents; consider them already "
                             "available via the internal store."
@@ -915,7 +902,17 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                         ],
                         timestamp=timezone.now(),
                     ),
-                ]
+                ],
+                instructions=(
+                    "When you receive a result from the summarization tool, you MUST "
+                    "return it directly to the user without any modification, "
+                    "paraphrasing, or additional summarization."
+                    "The tool already produces optimized summaries that should "
+                    "be presented verbatim."
+                    "You may translate the summary if required, but you MUST preserve "
+                    "all the information from the original summary."
+                    "You may add a follow-up question after the summary if needed."
+                ),
             )
         ]
         yield "This is a document about you."
@@ -987,7 +984,16 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
 
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": (
+                "When you receive a result from the summarization tool, you MUST "
+                "return it directly to the user without any modification, "
+                "paraphrasing, or additional summarization."
+                "The tool already produces optimized summaries that should "
+                "be presented verbatim."
+                "You may translate the summary if required, but you MUST preserve "
+                "all the information from the original summary."
+                "You may add a follow-up question after the summary if needed."
+            ),
             "kind": "request",
             "parts": [
                 {
@@ -1013,20 +1019,6 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                     "passages from attached documents. Do NOT use it to "
                     "summarize; for summaries, call the summarize tool "
                     "instead.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": timestamp,
-                },
-                {
-                    "content": "When you receive a result from the summarization "
-                    "tool, you MUST return it directly to the user without "
-                    "any modification, paraphrasing, or additional "
-                    "summarization.The tool already produces optimized "
-                    "summaries that should be presented verbatim.You may "
-                    "translate the summary if required, but you MUST "
-                    "preserve all the information from the original "
-                    "summary.You may add a follow-up question after the "
-                    "summary if needed.",
                     "dynamic_ref": None,
                     "part_kind": "system-prompt",
                     "timestamp": timestamp,
