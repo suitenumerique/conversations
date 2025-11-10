@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.8] - 2025-11-10
+
 ### Fixed
 
 - 🦺(front) Fix send prohibited file types
@@ -140,7 +142,8 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.7...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.8...main
+[0.0.8]: https://github.com/suitenumerique/conversations/releases/v0.0.8
 [0.0.7]: https://github.com/suitenumerique/conversations/releases/v0.0.7
 [0.0.6]: https://github.com/suitenumerique/conversations/releases/v0.0.6
 [0.0.5]: https://github.com/suitenumerique/conversations/releases/v0.0.5
