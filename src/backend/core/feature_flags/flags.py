@@ -2,6 +2,7 @@
 
 from enum import StrEnum
 
+from django.conf import settings
 from django.utils.text import slugify
 
 from pydantic import BaseModel, ConfigDict
@@ -43,3 +44,9 @@ class FeatureFlags(BaseModel):
     # features
     web_search: FeatureToggle = FeatureToggle.DISABLED
     document_upload: FeatureToggle = FeatureToggle.DISABLED
+
+    def __getattr__(self, name: str):
+        """Dynamically get specific RAG document search tool feature flags from settings."""
+        if config := settings.SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS.get(name):
+            return FeatureToggle[config.get("feature_flag_value", "DISABLED").upper()]
+        return super().__getattr__(name)
