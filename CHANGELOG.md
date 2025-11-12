@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(RAG) add generic collection RAG tools #159
+
+
 ## [0.0.8] - 2025-11-10
 
 ### Fixed

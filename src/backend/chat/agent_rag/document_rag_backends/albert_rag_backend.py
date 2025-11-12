@@ -3,7 +3,7 @@
 import json
 import logging
 from io import BytesIO
-from typing import Optional
+from typing import List, Optional
 from urllib.parse import urljoin
 
 from django.conf import settings
@@ -33,9 +33,13 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
     - Perform a search operation using the Albert API.
     """
 
-    def __init__(self, collection_id: Optional[str] = None):
+    def __init__(
+        self,
+        collection_id: Optional[str] = None,
+        read_only_collection_id: Optional[List[str]] = None,
+    ):
         # Initialize any necessary parameters or configurations here
-        super().__init__(collection_id)
+        super().__init__(collection_id, read_only_collection_id)
         self._base_url = settings.ALBERT_API_URL
         self._headers = {
             "Authorization": f"Bearer {settings.ALBERT_API_KEY}",
@@ -220,11 +224,13 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         Returns:
             RAGWebResults: The search results.
         """
+        collection_ids = self.get_all_collection_ids()  # might raise RuntimeError
+
         response = requests.post(
             urljoin(self._base_url, self._search_endpoint),
             headers=self._headers,
             json={
-                "collections": [int(self.collection_id)],
+                "collections": collection_ids,
                 "prompt": query,
                 "score_threshold": 0.6,
                 "k": results_count,  # Number of chunks to return from the search
@@ -261,12 +267,14 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         Returns:
             RAGWebResults: The search results.
         """
+        collection_ids = self.get_all_collection_ids()  # might raise RuntimeError
+
         async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
             response = await client.post(
                 urljoin(self._base_url, self._search_endpoint),
                 headers=self._headers,
                 json={
-                    "collections": [int(self.collection_id)],
+                    "collections": collection_ids,
                     "prompt": query,
                     "score_threshold": 0.6,
                     "k": results_count,  # Number of chunks to return from the search

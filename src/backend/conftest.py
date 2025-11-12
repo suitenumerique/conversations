@@ -1,5 +1,6 @@
 """Global fixtures for the backend tests."""
 
+import posthog
 import pytest
 from rest_framework.test import APIClient
 from urllib3.connectionpool import HTTPConnectionPool
@@ -41,3 +42,17 @@ def feature_flags_fixture(settings):
     """
     settings.FEATURE_FLAGS = settings.FEATURE_FLAGS.model_copy(deep=True)
     yield settings.FEATURE_FLAGS
+
+
+@pytest.fixture(name="posthog", scope="function")
+def posthog_fixture(settings):
+    """Mock PostHog in tests to avoid real network calls."""
+    settings.POSTHOG_KEY = {"id": "132456", "host": "https://eu.i.posthog-test.com"}
+
+    posthog.api_key = settings.POSTHOG_KEY["id"]
+    posthog.host = settings.POSTHOG_KEY["host"]
+
+    yield posthog
+
+    posthog.api_key = None
+    posthog.host = None
