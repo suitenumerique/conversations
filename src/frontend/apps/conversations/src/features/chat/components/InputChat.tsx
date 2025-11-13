@@ -366,7 +366,7 @@ export const InputChat = ({
               $css={`
               box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.08);
               border-radius: 12px;
-              border: 1px solid var(--c--theme--colors--greyscale-200);
+              border: 1px solid var(--c--theme--colors--gray-200);
               position: relative;
               background: white;
               transition: all 0.2s ease;
@@ -429,7 +429,7 @@ export const InputChat = ({
                   overflowY: 'auto',
                   transition: 'all 0.2s ease',
                   borderRadius: '12px',
-                  color: 'var(--c--theme--colors--greyscale-800)',
+                  color: 'var(--c--theme--colors--gray-800)',
                   lineHeight: '1.5',
                 }}
                 onKeyDown={(e) => {
@@ -452,7 +452,7 @@ export const InputChat = ({
                   right: 1.5rem;
                   height: 1.5rem;
                   pointer-events: none;
-                  color: var(--c--theme--colors--greyscale-500);
+                  color: var(--c--theme--colors--gray-500);
                   font-size: 1rem;
                   font-family: inherit;
                   line-height: 1.5;
@@ -620,7 +620,7 @@ export const InputChat = ({
                         forceWebSearch
                           ? `
                       .research-web-button {
-                        background-color: var(--c--theme--colors--primary-100) !important;
+                        background-color: var(--c--theme--colors--brand-100) !important;
                       }
                     `
                           : ''
@@ -643,7 +643,7 @@ export const InputChat = ({
                             $theme="greyscale"
                             $variation="550"
                             $css={`
-                            color: ${forceWebSearch ? 'var(--c--theme--colors--primary-600) !important' : 'var(--c--theme--colors--greyscale-600)'}
+                            color: ${forceWebSearch ? 'var(--c--theme--colors--brand-600) !important' : 'var(--c--theme--colors--gray-600)'}
                           `}
                           />
                         }

@@ -67,13 +67,13 @@ nextjs-portal {
 }
 
 .c__button--tertiary {
-  border: 1px solid var(--c--theme--colors--greyscale-150) !important;
+  border: 1px solid var(--c--theme--colors--gray-150) !important;
 }
 
 .c__button--bordered,
 .c__button--bordered:hover,
 .c__button--bordered:focus {
-  border: 1px solid var(--c--theme--colors--greyscale-200) !important;
+  border: 1px solid var(--c--theme--colors--gray-200) !important;
   background-color: #fff !important;
 }
 
@@ -87,7 +87,7 @@ nextjs-portal {
 
 .c__button--neutral {
   transition: background-color 0.4s !important;
-  color: var(--c--theme--colors--greyscale-550) !important;
+  color: var(--c--theme--colors--gray-550) !important;
   font-weight: 500 !important;
   cursor: pointer !important;
   background-color: inherit !important;
@@ -139,11 +139,11 @@ nextjs-portal {
 }
 
 ul a {
-  color: var(--c--theme--colors--greyscale-700) !important;
+  color: var(--c--theme--colors--gray-700) !important;
 }
 
 ul a:hover {
-  color: var(--c--theme--colors--primary-800) !important;
+  color: var(--c--theme--colors--brand-800) !important;
 }
 
 @keyframes fade-in {
@@ -200,15 +200,15 @@ ul a:hover {
 }
 
 .c__button:disabled {
-  background-color: var(--c--theme--colors--greyscale-100) !important;
-  color: var(--c--theme--colors--greyscale-300) !important;
+  background-color: var(--c--theme--colors--gray-100) !important;
+  color: var(--c--theme--colors--gray-300) !important;
 }
 
 .c__button--stop {
   font-size: 0.8rem;
   padding-right: 9px;
-  background-color: var(--c--theme--colors--greyscale-550) !important;
-  color: var(--c--theme--colors--greyscale-050) !important;
+  background-color: var(--c--theme--colors--gray-550) !important;
+  color: var(--c--theme--colors--gray-050) !important;
 }
 
 @media (width <= 768px) {
@@ -240,7 +240,7 @@ figure[data-rehype-pretty-code-figure] {
 figure[data-rehype-pretty-code-figure] > pre {
   margin: 0;
   border-radius: 8px;
-  border: 1px solid var(--c--theme--colors--greyscale-500);
+  border: 1px solid var(--c--theme--colors--gray-500);
   padding: clamp(0.75rem, 2vw, 1rem);
   overflow-x: auto;
 }

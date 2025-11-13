@@ -54,7 +54,7 @@ export const Feedback = (_props: { buttonProps?: Partial<ButtonProps> }) => {
             />
 
             <FeedbackButton
-              href="https://www.tchap.gouv.fr/#/room/!eAHyPLdVHMxNhKAbaC:agent.dinum.tchap.gouv.fr"
+              href="https://tchap.gouv.fr/#/room/!eAHyPLdVHMxNhKAbaC:agent.dinum.tchap.gouv.fr?via=agent.dinum.tchap.gouv.fr&via=agent.culture.tchap.gouv.fr&via=agent.education.tchap.gouv.fr"
               icon={<TchapIcon />}
               title={t('Write on Tchap')}
               description={t('Direct exchange with our team')}
@@ -101,8 +101,8 @@ const FeedbackButton = ({
         align-items: center;
         transition: all 0.2s ease;
         cursor: pointer;
-        border: 1px solid var(--c--theme--colors--greyscale-100);
-        color: var(--c--theme--colors--greyscale-600) !important;
+        border: 1px solid var(--c--theme--colors--gray-100);
+        color: var(--c--theme--colors--gray-600) !important;
         
         &:hover {
           border-color: #b6d7fb;
