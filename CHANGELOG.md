@@ -12,6 +12,10 @@ and this project adheres to
 
 - ✨(RAG) add generic collection RAG tools #159
 
+### Fixed
+
+- 🔊(langfuse) enable tracing with redacted content #162
+
 
 ## [0.0.8] - 2025-11-10
 

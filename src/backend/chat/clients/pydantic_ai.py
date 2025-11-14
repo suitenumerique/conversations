@@ -26,7 +26,7 @@ from django.utils.module_loading import import_string
 
 from asgiref.sync import sync_to_async
 from langfuse import get_client
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, InstrumentationSettings, RunContext
 from pydantic_ai.messages import (
     BinaryContent,
     DocumentUrl,
@@ -117,7 +117,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.language = language  # might be None
         self._last_stop_check = 0
 
-        self._store_analytics = settings.LANGFUSE_ENABLED and user.allow_conversation_analytics
+        self._langfuse_available = settings.LANGFUSE_ENABLED
+        self._store_analytics = self._langfuse_available and user.allow_conversation_analytics
         self.event_encoder = EventEncoder("v4")  # Always use v4 for now
 
         self._support_streaming = True
@@ -138,7 +139,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
             language=self.language,
-            instrument=self._store_analytics,
+            instrument=InstrumentationSettings(
+                include_binary_content=self._store_analytics,
+                include_content=self._store_analytics,
+            )
+            if self._langfuse_available
+            else False,
             deps_type=ContextDeps,
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
@@ -176,7 +182,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """Return only the assistant text deltas (legacy text mode)."""
         await self._clean()
         with ExitStack() as stack:
-            if self._store_analytics:
+            if self._langfuse_available:
                 span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
                 span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
 
@@ -188,7 +194,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """Return Vercel-AI-SDK formatted events."""
         await self._clean()
         with ExitStack() as stack:
-            if self._store_analytics:
+            if self._langfuse_available:
                 span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
                 span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
             async for event in self._run_agent(messages, force_web_search):
@@ -355,7 +361,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             return
 
         # Langfuse settings
-        if self._store_analytics:
+        if self._langfuse_available:
             langfuse = get_client()
             langfuse.update_current_trace(
                 session_id=str(self.conversation.pk),
@@ -379,8 +385,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 self.conversation, input_images, updated_url=image_key_mapping
             )
 
-        if self._store_analytics:
-            langfuse.update_current_trace(input=user_prompt)
+        if self._langfuse_available:
+            langfuse.update_current_trace(
+                input=user_prompt if self._store_analytics else "REDACTED"
+            )
 
         usage = {"promptTokens": 0, "completionTokens": 0}
 
@@ -695,7 +703,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                             logger.error("_model_response_message_id already set")
                         _model_response_message_id = (
                             str(uuid.uuid4())
-                            if not self._store_analytics
+                            if not self._langfuse_available
                             else f"trace-{langfuse.get_current_trace_id()}"
                         )
                         yield events_v4.StartStepPart(
@@ -719,8 +727,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             image_key_mapping=image_key_mapping or None,
         )
 
-        if self._store_analytics:
-            langfuse.update_current_trace(output=run.result.output)
+        if self._langfuse_available:
+            langfuse.update_current_trace(
+                output=run.result.output if self._store_analytics else "REDACTED"
+            )
 
         # Vercel finish message
         yield events_v4.FinishMessagePart(
