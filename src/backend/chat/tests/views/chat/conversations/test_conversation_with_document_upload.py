@@ -351,6 +351,8 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
     _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
 
     assert len(chat_conversation.pydantic_messages) == 4
+
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages[0] == {
         "instructions": "When you receive a result from the summarization tool, you "
         "MUST return it directly to the user without any "
@@ -404,6 +406,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
                 "timestamp": timezone_now,
             },
         ],
+        "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[1] == {
         "finish_reason": None,
@@ -432,6 +435,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
             "output_audio_tokens": 0,
             "output_tokens": 8,
         },
+        "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[2] == {
         "instructions": (
@@ -461,6 +465,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
                 "tool_name": "document_search_rag",
             }
         ],
+        "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[3] == {
         "finish_reason": None,
@@ -487,6 +492,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
             "output_audio_tokens": 0,
             "output_tokens": 12,
         },
+        "run_id": _run_id,
     }
 
 
@@ -696,6 +702,8 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
 
     assert len(chat_conversation.pydantic_messages) == 4
+
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages[0] == {
         "instructions": "When you receive a result from the summarization tool, you "
         "MUST return it directly to the user without any "
@@ -749,6 +757,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "timestamp": timezone_now,
             },
         ],
+        "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[1] == {
         "finish_reason": None,
@@ -777,6 +786,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             "output_audio_tokens": 0,
             "output_tokens": 1,
         },
+        "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[2] == {
         "instructions": (
@@ -800,6 +810,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "tool_name": "summarize",
             }
         ],
+        "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[3] == {
         "finish_reason": None,
@@ -822,4 +833,5 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             "output_audio_tokens": 0,
             "output_tokens": 6,
         },
+        "run_id": _run_id,
     }

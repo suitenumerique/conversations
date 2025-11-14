@@ -1373,6 +1373,8 @@ def test_post_conversation_with_existing_tool_history(
     # The pydantic_messages should include both the original tool calls and the new ones
     assert len(history_conversation_with_tool.pydantic_messages) == 12  # Original 8 + 4 new ones
 
+    _run_id = history_conversation_with_tool.pydantic_messages[8]["run_id"]
+
     # Verify the new tool call request is included
     assert history_conversation_with_tool.pydantic_messages[8] == {
         "instructions": None,
@@ -1384,6 +1386,7 @@ def test_post_conversation_with_existing_tool_history(
                 "timestamp": "2025-07-25T10:36:35.297675Z",
             }
         ],
+        "run_id": _run_id,
     }
 
     assert history_conversation_with_tool.pydantic_messages[9] == {
@@ -1413,6 +1416,7 @@ def test_post_conversation_with_existing_tool_history(
             "output_audio_tokens": 0,
             "output_tokens": 0,
         },
+        "run_id": _run_id,
     }
 
     assert history_conversation_with_tool.pydantic_messages[10] == {
@@ -1428,6 +1432,7 @@ def test_post_conversation_with_existing_tool_history(
                 "tool_name": "get_current_weather",
             }
         ],
+        "run_id": _run_id,
     }
 
     assert history_conversation_with_tool.pydantic_messages[11] == {
@@ -1451,6 +1456,7 @@ def test_post_conversation_with_existing_tool_history(
             "output_audio_tokens": 0,
             "output_tokens": 0,
         },
+        "run_id": _run_id,
     }
 
 

@@ -169,6 +169,7 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
         parts=[TextUIPart(type="text", text="Hello there")],
     )
 
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
@@ -198,6 +199,7 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": "stop",
@@ -218,6 +220,7 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
                 "output_audio_tokens": 0,
                 "output_tokens": 0,
             },
+            "run_id": _run_id,
         },
     ]
 
@@ -292,6 +295,7 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
         parts=[TextUIPart(type="text", text="Hello there")],
     )
 
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
@@ -321,6 +325,7 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": "stop",
@@ -341,6 +346,7 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
                 "output_audio_tokens": 0,
                 "output_tokens": 0,
             },
+            "run_id": _run_id,
         },
     ]
 
@@ -489,6 +495,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
         parts=[TextUIPart(type="text", text="I see a cat in the picture.")],
     )
 
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
@@ -530,6 +537,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": "stop",
@@ -550,6 +558,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
                 "output_audio_tokens": 0,
                 "output_tokens": 0,
             },
+            "run_id": _run_id,
         },
     ]
 
@@ -666,6 +675,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
         ],
     )
 
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
@@ -695,6 +705,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": "tool_call",
@@ -723,6 +734,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                 "output_audio_tokens": 0,
                 "output_tokens": 0,
             },
+            "run_id": _run_id,
         },
         {
             "instructions": None,
@@ -737,6 +749,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                     "tool_name": "get_current_weather",
                 }
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": "stop",
@@ -759,6 +772,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                 "output_audio_tokens": 0,
                 "output_tokens": 0,
             },
+            "run_id": _run_id,
         },
     ]
 
@@ -874,6 +888,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
         ],
     )
 
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
@@ -903,6 +918,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": "tool_call",
@@ -931,6 +947,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
                 "output_audio_tokens": 0,
                 "output_tokens": 0,
             },
+            "run_id": _run_id,
         },
         {
             "instructions": None,
@@ -944,6 +961,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
                     "tool_name": "get_current_weather",
                 }
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": "stop",
@@ -966,6 +984,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
                 "output_audio_tokens": 0,
                 "output_tokens": 0,
             },
+            "run_id": _run_id,
         },
     ]
 
@@ -1192,6 +1211,7 @@ def test_post_conversation_data_protocol_no_stream(
         ],
     )
 
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
@@ -1221,6 +1241,7 @@ def test_post_conversation_data_protocol_no_stream(
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": "stop",
@@ -1248,6 +1269,7 @@ def test_post_conversation_data_protocol_no_stream(
                 "output_audio_tokens": 0,
                 "output_tokens": 135,
             },
+            "run_id": _run_id,
         },
     ]
 
@@ -1344,6 +1366,7 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
         parts=[TextUIPart(type="text", text="Hello there")],
     )
 
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
@@ -1373,6 +1396,7 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                 },
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": "stop",
@@ -1393,5 +1417,6 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
                 "output_audio_tokens": 0,
                 "output_tokens": 0,
             },
+            "run_id": _run_id,
         },
     ]
