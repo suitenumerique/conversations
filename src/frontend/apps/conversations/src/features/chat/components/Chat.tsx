@@ -8,6 +8,7 @@ import { Modal, ModalSize } from '@openfun/cunningham-react';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MarkdownHooks } from 'react-markdown';
 import rehypeKatex from 'rehype-katex';
@@ -26,6 +27,7 @@ import {
   useLLMConfiguration,
 } from '@/features/chat/api/useLLMConfiguration';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
+import { CodeBlock } from '@/features/chat/components/CodeBlock';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
@@ -153,7 +155,7 @@ export const Chat = ({
   const [initialConversationMessages, setInitialConversationMessages] =
     useState<Message[] | undefined>(undefined);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
-    event: React.FormEvent<HTMLFormElement>;
+    event: FormEvent<HTMLFormElement>;
     attachments?: Attachment[];
     forceWebSearch?: boolean;
   } | null>(null);
@@ -244,7 +246,7 @@ export const Chat = ({
     void stopGeneration();
   };
 
-  const handleSubmitWrapper = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmitWrapper = (event: FormEvent<HTMLFormElement>) => {
     void handleSubmit(event);
   };
 
@@ -361,7 +363,7 @@ export const Chat = ({
     if (initialConversationId !== conversationId) {
       handleInputChange({
         target: { value: '' },
-      } as React.ChangeEvent<HTMLTextAreaElement>);
+      } as ChangeEvent<HTMLTextAreaElement>);
       setHasInitialized(false); // Réinitialiser pour permettre le scroll au prochain chargement
     }
   }, [initialConversationId, conversationId, handleInputChange]);
@@ -375,7 +377,7 @@ export const Chat = ({
       if (pendingInput) {
         const syntheticEvent = {
           target: { value: pendingInput },
-        } as React.ChangeEvent<HTMLInputElement>;
+        } as ChangeEvent<HTMLInputElement>;
         handleInputChange(syntheticEvent);
       }
       if (pendingFiles) {
@@ -397,7 +399,7 @@ export const Chat = ({
       const syntheticFormEvent = {
         preventDefault: () => {},
         target: form,
-      } as unknown as React.FormEvent<HTMLFormElement>;
+      } as unknown as FormEvent<HTMLFormElement>;
       void handleSubmit(syntheticFormEvent);
       setShouldAutoSubmit(false);
     }
@@ -457,7 +459,7 @@ export const Chat = ({
   }, [hasInitialized, messages.length]);
 
   // Custom handleSubmit to include attachments and handle chat creation
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     // Upload files to server and get URLs
@@ -676,6 +678,10 @@ export const Chat = ({
                                 <a target="_blank" {...props}>
                                   {children}
                                 </a>
+                              ),
+                              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                              pre: ({ node, children, ...props }) => (
+                                <CodeBlock {...props}>{children}</CodeBlock>
                               ),
                             }}
                           >

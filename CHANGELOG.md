@@ -9,7 +9,7 @@ and this project adheres to
 ## [Unreleased]
 
 ### Added
-
+- ✨(front) add code copy button
 - ✨(RAG) add generic collection RAG tools #159
 
 ### Fixed

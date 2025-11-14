@@ -235,6 +235,7 @@ ul a:hover {
 figure[data-rehype-pretty-code-figure] {
   margin-left: 0;
   margin-right: 0;
+  position: relative;
 }
 
 figure[data-rehype-pretty-code-figure] > pre {
