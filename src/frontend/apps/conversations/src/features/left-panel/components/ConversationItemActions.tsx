@@ -59,7 +59,7 @@ export const ConversationItemActions = ({
           $variation="600"
           $css={css`
             font-size: 1rem;
-            color: var(--c--theme--colors--primary-text-text);
+            color: var(--c--theme--colors--brand-600);
             pointer-events: none;
           `}
         />
