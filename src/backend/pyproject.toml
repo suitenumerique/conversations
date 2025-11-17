@@ -27,7 +27,7 @@ requires-python = ">=3.12"
 dependencies = [
     "deprecated",
     "beautifulsoup4==4.14.2",
-    "boto3==1.40.73",
+    "boto3==1.40.74",
     "Brotli==1.2.0",
     "django-configurations==2.5.1",
     "django-cors-headers==4.9.0",
@@ -53,9 +53,9 @@ dependencies = [
     "markitdown==0.0.2",
     "mozilla-django-oidc==4.0.1",
     "nested-multipart-parser==1.6.0",
-    "posthog==7.0.0",
+    "posthog==7.0.1",
     "pydantic==2.12.4",
-    "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.17.0",
+    "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.18.0",
     "psycopg[binary]==3.2.12",
     "PyJWT==2.10.1",
     "python-magic==0.4.27",
@@ -76,7 +76,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "dirty-equals==0.10.0",
+    "dirty-equals==0.11",
     "django-extensions==4.1",
     "django-test-migrations==1.5.0",
     "drf-spectacular-sidecar==2025.10.1",
