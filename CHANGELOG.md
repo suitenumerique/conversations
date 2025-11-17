@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.9] - 2025-11-17
+
 ### Added
 - ✨(front) add code copy button
 - ✨(RAG) add generic collection RAG tools #159
@@ -151,7 +153,8 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.8...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.9...main
+[0.0.9]: https://github.com/suitenumerique/conversations/releases/v0.0.9
 [0.0.8]: https://github.com/suitenumerique/conversations/releases/v0.0.8
 [0.0.7]: https://github.com/suitenumerique/conversations/releases/v0.0.7
 [0.0.6]: https://github.com/suitenumerique/conversations/releases/v0.0.6
