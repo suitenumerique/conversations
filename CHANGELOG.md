@@ -11,6 +11,7 @@ and this project adheres to
 ## [0.0.9] - 2025-11-17
 
 ### Added
+- ✨(front) add retry button
 - ✨(front) add code copy button
 - ✨(RAG) add generic collection RAG tools #159
 
