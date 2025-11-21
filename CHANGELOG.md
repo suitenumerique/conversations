@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(front) add retry button
+
 ### Fixed
 
 - 🚑️(user) allow longer short names #182
