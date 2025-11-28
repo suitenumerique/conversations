@@ -17,7 +17,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
-import { Box, Icon, Loader, StyledLink, Text } from '@/components';
+import { Box, Icon, Loader, Text } from '@/components';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
 import { useChat } from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
@@ -27,6 +27,7 @@ import {
   useLLMConfiguration,
 } from '@/features/chat/api/useLLMConfiguration';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
+import { ChatError } from '@/features/chat/components/ChatError';
 import { CodeBlock } from '@/features/chat/components/CodeBlock';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import { InputChat } from '@/features/chat/components/InputChat';
@@ -160,12 +161,21 @@ export const Chat = ({
     forceWebSearch?: boolean;
   } | null>(null);
   const [shouldAutoSubmit, setShouldAutoSubmit] = useState(false);
+  const [shouldRetry, setShouldRetry] = useState(false);
+  const retryOriginalInputRef = useRef<string>('');
+  const retryOriginalFilesRef = useRef<FileList | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [streamingMessageHeight, setStreamingMessageHeight] = useState<
     number | null
   >(null);
   const lastUserMessageIdRef = useRef<string | null>(null);
   const hasScrolledToBottomOnLoadRef = useRef(false);
+  const lastSubmissionRef = useRef<{
+    input: string;
+    files: FileList | null;
+    event: FormEvent<HTMLFormElement>;
+    options?: Record<string, unknown>;
+  } | null>(null);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
 
@@ -214,6 +224,7 @@ export const Chat = ({
     handleInputChange,
     status,
     stop: stopChat,
+    setMessages,
   } = useChat({
     id: conversationId,
     initialMessages: initialConversationMessages,
@@ -248,6 +259,29 @@ export const Chat = ({
 
   const handleSubmitWrapper = (event: FormEvent<HTMLFormElement>) => {
     void handleSubmit(event);
+  };
+
+  const handleRetry = () => {
+    if (!lastSubmissionRef.current || !setMessages) {
+      return;
+    }
+
+    const { input: lastInput, files: lastFiles } = lastSubmissionRef.current;
+
+    const lastAssistantIndex = messages.findLastIndex(
+      (msg) => msg.role === 'assistant',
+    );
+    if (lastAssistantIndex !== -1) {
+      setMessages(messages.filter((_, index) => index !== lastAssistantIndex));
+    }
+
+    retryOriginalInputRef.current = input;
+    retryOriginalFilesRef.current = files;
+    handleInputChange({
+      target: { value: lastInput },
+    } as ChangeEvent<HTMLTextAreaElement>);
+    setFiles(lastFiles);
+    setShouldRetry(true);
   };
 
   // Précharger les métadonnées des sources dès que les messages arrivent
@@ -406,6 +440,25 @@ export const Chat = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldAutoSubmit, input, files]);
 
+  useEffect(() => {
+    if (
+      shouldRetry &&
+      lastSubmissionRef.current &&
+      input === lastSubmissionRef.current.input
+    ) {
+      const { event } = lastSubmissionRef.current;
+
+      void handleSubmit(event);
+      handleInputChange({
+        target: { value: retryOriginalInputRef.current },
+      } as ChangeEvent<HTMLTextAreaElement>);
+      setFiles(retryOriginalFilesRef.current);
+
+      setShouldRetry(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldRetry, input, files]);
+
   // Fetch initial conversation messages if initialConversationId is provided and no pending input
   useEffect(() => {
     hasScrolledToBottomOnLoadRef.current = false; // Réinitialiser au début du chargement
@@ -537,6 +590,13 @@ export const Chat = ({
     if (attachments.length > 0) {
       options.experimental_attachments = attachments;
     }
+
+    lastSubmissionRef.current = {
+      input,
+      files,
+      event,
+      options: Object.keys(options).length > 0 ? options : undefined,
+    };
 
     if (Object.keys(options).length > 0) {
       baseHandleSubmit(event, options);
@@ -920,26 +980,10 @@ export const Chat = ({
           </Box>
         ) : null}
         {status === 'error' && (
-          <Box
-            $direction={isMobile ? 'column' : 'row'}
-            $gap="6px"
-            $width="100%"
-            $maxWidth="750px"
-            $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
-            $padding={{ left: '13px' }}
-          >
-            <Text>{t('Sorry, an error occurred. Please try again.')}</Text>
-            <StyledLink
-              href="/"
-              rel="noopener noreferrer"
-              $css={`
-              color: var(--c--theme--colors--greyscale-900);
-              text-decoration: underline;
-            `}
-            >
-              {t('Start a new conversation.')}
-            </StyledLink>
-          </Box>
+          <ChatError
+            hasLastSubmission={!!lastSubmissionRef.current}
+            onRetry={handleRetry}
+          />
         )}
       </Box>
       <Box
