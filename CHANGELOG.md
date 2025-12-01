@@ -14,8 +14,8 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(front) resolve React hydration errors
 - 🚑️(user) allow longer short names #182
-
 
 ## [0.0.9] - 2025-11-17
 

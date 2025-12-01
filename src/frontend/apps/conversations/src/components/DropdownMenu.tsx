@@ -1,4 +1,4 @@
-import { PropsWithChildren, useRef, useState } from 'react';
+import { PropsWithChildren, useEffect, useRef, useState } from 'react';
 import { css } from 'styled-components';
 
 import { Box, BoxButton, BoxProps, DropButton, Icon, Text } from '@/components';
@@ -35,7 +35,15 @@ export const DropdownMenu = ({
 }: PropsWithChildren<DropdownMenuProps>) => {
   const { spacingsTokens, colorsTokens } = useCunninghamTheme();
   const [isOpen, setIsOpen] = useState(false);
+  const [buttonWidth, setButtonWidth] = useState<number | undefined>(undefined);
   const blockButtonRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Mettre à jour la largeur uniquement côté client
+    if (blockButtonRef.current) {
+      setButtonWidth(blockButtonRef.current.clientWidth);
+    }
+  }, [isOpen]);
 
   const onOpenChange = (isOpen: boolean) => {
     setIsOpen(isOpen);
@@ -76,7 +84,7 @@ export const DropdownMenu = ({
     >
       <Box
         $maxWidth="320px"
-        $minWidth={`${blockButtonRef.current?.clientWidth}px`}
+        $minWidth={buttonWidth ? `${buttonWidth}px` : undefined}
         role="menu"
       >
         {topMessage && (

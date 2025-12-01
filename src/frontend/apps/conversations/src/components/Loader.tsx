@@ -1,20 +1,17 @@
-import Lottie from 'react-lottie';
+import dynamic from 'next/dynamic';
 
+const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 import searchingAnimation from '@/assets/lotties/searching';
 
-export const Loader = () => {
-  const LoaderOptions = {
-    loop: true,
-    autoplay: true,
-    animationData: searchingAnimation,
-    rendererSettings: {
-      preserveAspectRatio: 'xMidYMid slice',
-    },
-  } as const;
-
+export function Loader() {
   return (
-    <div>
-      <Lottie options={LoaderOptions} height={24} width={24} />
+    <div role="status">
+      <Lottie
+        animationData={searchingAnimation}
+        loop
+        autoplay
+        style={{ width: 24, height: 24 }}
+      />
     </div>
   );
-};
+}
