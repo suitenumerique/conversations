@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- 🚑️(user) allow longer short names #182
+
+
 ## [0.0.9] - 2025-11-17
 
 ### Added
