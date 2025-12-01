@@ -76,7 +76,7 @@ from chat.mcp_servers import get_mcp_servers
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize
-from chat.tools.fetch_url import detect_url_in_conversation, fetch_url, URL_PATTERN
+from chat.tools.fetch_url import URL_PATTERN, detect_url_in_conversation, fetch_url
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import EventEncoder
 

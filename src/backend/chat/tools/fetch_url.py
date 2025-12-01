@@ -1,9 +1,11 @@
 """Tool to fetch content from a URL detected in the conversation."""
 
 import logging
+import random
 import re
 
 import httpx
+import trafilatura
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
@@ -16,6 +18,37 @@ URL_PATTERN = re.compile(
     r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
 )
 
+def _get_headers() -> dict:
+    """
+    Return a random set of HTTP headers for each request.
+
+    For now this only randomizes the User-Agent, but we can easily extend this
+    list with more header variants (Accept-Language, Referer, etc.) if needed.
+    """
+    headers_pool = [
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            )
+        },
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                "Version/17.1 Safari/605.1.15"
+            )
+        },
+        {
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:121.0) "
+                "Gecko/20100101 Firefox/121.0"
+            )
+        },
+    ]
+
+    return random.choice(headers_pool)
 
 def _extract_text_from_message(message) -> str:
     """
@@ -65,7 +98,7 @@ def detect_url_in_conversation(conversation) -> bool:
         bool: True if at least one URL is found in the conversation, False otherwise.
     """
     if not conversation:
-        return False
+        return []
     
     # Check ui_messages first (most recent, updated before agent call)
     if hasattr(conversation, 'ui_messages') and conversation.ui_messages:
@@ -74,8 +107,8 @@ def detect_url_in_conversation(conversation) -> bool:
                 continue
             text_content = _extract_text_from_message(message)
             if text_content and URL_PATTERN.search(text_content):
-                logger.debug("URL detected in ui_messages: %s", URL_PATTERN.findall(text_content))
-                return True
+                logger.info("URL detected in ui_messages: %s", URL_PATTERN.findall(text_content))
+                return list(set(URL_PATTERN.findall(text_content)))
     
     # Also check stored messages (conversation history)
     if hasattr(conversation, 'messages') and conversation.messages:
@@ -84,35 +117,62 @@ def detect_url_in_conversation(conversation) -> bool:
                 continue
             text_content = _extract_text_from_message(message)
             if text_content and URL_PATTERN.search(text_content):
-                logger.debug("URL detected in messages: %s", URL_PATTERN.findall(text_content))
-                return True
+                logger.info("URL detected in messages: %s", URL_PATTERN.findall(text_content))
+                return list(set(URL_PATTERN.findall(text_content)))
     
-    # Check pydantic_messages (conversation history in pydantic format)
-    if hasattr(conversation, 'pydantic_messages') and conversation.pydantic_messages:
-        for msg_data in conversation.pydantic_messages:
-            if not msg_data:
-                continue
-            # pydantic_messages are stored as dict/JSON
-            if isinstance(msg_data, dict):
-                # Check parts in the message
-                parts = msg_data.get('parts', [])
-                for part in parts:
-                    if isinstance(part, dict):
-                        # Check for text content
-                        content = part.get('content', '')
-                        if content and URL_PATTERN.search(content):
-                            logger.debug("URL detected in pydantic_messages: %s", URL_PATTERN.findall(content))
-                            return True
-    
-    return False
+    return []
+
+
+async def _get_with_retry(
+    client: httpx.AsyncClient,
+    url: str,
+    max_attempts: int = 3,
+) -> httpx.Response:
+    """
+    Perform a GET request with randomized headers and a simple retry strategy.
+
+    We retry once on header-related HTTP status codes (e.g. 403, 429), each time
+    using a new random header set. Other errors are propagated immediately.
+    """
+    last_exception: httpx.HTTPStatusError | None = None
+
+    for attempt in range(max_attempts):
+        headers = _get_headers()
+        try:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            return response
+        except httpx.HTTPStatusError as exc:
+            last_exception = exc
+            status_code = exc.response.status_code
+
+            # Only retry on codes that are likely related to headers / rate limits.
+            should_retry = status_code in (403, 429)
+            is_last_attempt = attempt >= max_attempts - 1
+
+            logger.debug(
+                "HTTP error %s for URL %s on attempt %s with headers %s (retry=%s)",
+                status_code,
+                url,
+                attempt + 1,
+                headers,
+                should_retry and not is_last_attempt,
+            )
+
+            if (not should_retry) or is_last_attempt:
+                raise
+
+    # Should not be reached, but keeps type-checkers happy.
+    if last_exception is not None:
+        raise last_exception
+
+    raise RuntimeError("Unexpected state in _get_with_retry")
 
 
 async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
     """
     Fetch content from a URL.
-    
-    This tool is only available when an URL is detected in the conversation.
-    The model should use this tool to fetch content from URLs mentioned in the conversation.
+    When an URL is detected and you need to fetch content from it, you should use this tool.
     
     Args:
         ctx (RunContext): The run context containing the conversation.
@@ -121,6 +181,16 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
     Returns:
         ToolReturn: The fetched content from the URL.
     """
+    # Access the Django conversation object from the agent dependencies
+    conversation = getattr(getattr(ctx, "deps", None), "conversation", None)
+    urls = detect_url_in_conversation(conversation)
+
+    if url not in urls:
+        return ToolReturn(
+            return_value={"url": url, "error": "URL not detected in conversation"},
+            content=f"URL {url} not detected in conversation",
+        )
+
     try:
         # Special handling for docs.numerique.gouv.fr
         if "docs.numerique.gouv.fr" in url and "/docs/" in url:
@@ -132,8 +202,7 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
                 
                 try:
                     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                        response = await client.get(url_transformed)
-                        response.raise_for_status()
+                        response = await _get_with_retry(client, url_transformed)
                         data = response.json()
                         content = data.get('content', '')
                         
@@ -149,8 +218,7 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
                                 "original_url": url,
                                 "content": content[:20000],  # Limit content
                                 "source": "docs.numerique.gouv.fr"
-                            },
-                            content=f"Contenu récupéré de Docs: {content[:500]}..."
+                            }
                         )
                 except Exception as e:
                     logger.warning("Error fetching Docs content %s: %s", url, e)
@@ -160,9 +228,8 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
                     )
 
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            response = await client.get(url)
-            response.raise_for_status()
-            content = response.text
+            response = await _get_with_retry(client, url)
+            content = trafilatura.extract(response.text)
             
             return ToolReturn(
                 return_value={
@@ -170,8 +237,7 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
                     "status_code": response.status_code,
                     "content": content[:20000],  # Limit content to first 20000 chars
                     "content_type": response.headers.get("content-type", "unknown"),
-                },
-                content=f"Successfully fetched content from {url}",
+                }
             )
     except httpx.HTTPStatusError as e:
         logger.warning("HTTP error fetching %s: %s", url, e)
@@ -179,8 +245,7 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
             return_value={
                 "url": url,
                 "error": f"HTTP {e.response.status_code}: {str(e)}",
-            },
-            content=f"Failed to fetch {url}: HTTP {e.response.status_code}",
+            }
         )
     except httpx.TimeoutException as e:
         logger.warning("Timeout fetching %s: %s", url, e)
@@ -188,8 +253,7 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
             return_value={
                 "url": url,
                 "error": f"Timeout: {str(e)}",
-            },
-            content=f"Timeout while fetching {url}",
+            }
         )
     except Exception as e:
         logger.exception("Error fetching %s: %s", url, e)
@@ -197,7 +261,6 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
             return_value={
                 "url": url,
                 "error": f"Error: {str(e)}",
-            },
-            content=f"Error fetching {url}: {str(e)}",
+            }
         )
 
