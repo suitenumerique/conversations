@@ -300,7 +300,6 @@ export const InputChat = ({
         $css={`
         display: block;
         position: relative;
-        opacity: ${status === 'error' ? '0.5' : '1'};
         margin: auto;
         width: 100%;
         padding: ${isDesktop ? '0' : '0 10px'};
@@ -423,6 +422,7 @@ export const InputChat = ({
                   fontSize: '1rem',
                   border: 'none',
                   resize: 'none',
+                  opacity: status === 'error' ? '0.5' : '1',
                   fontFamily: 'inherit',
                   minHeight: '64px',
                   maxHeight: '200px',
@@ -573,6 +573,9 @@ export const InputChat = ({
                 $gap="sm"
                 $padding={{ bottom: 'base' }}
                 $align="space-between"
+                $css={`
+                opacity: ${status === 'error' ? '0.5' : '1'};
+                `}
               >
                 <Box
                   $flex="1"

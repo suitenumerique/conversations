@@ -14,6 +14,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(front) fix opacity input in error
 - 🐛(front) resolve React hydration errors
 - 🚑️(user) allow longer short names #182
 

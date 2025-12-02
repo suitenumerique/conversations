@@ -991,6 +991,7 @@ export const Chat = ({
           position: relative;
           bottom: ${isMobile ? '8px' : '20px'};
           margin: auto;
+          background-color: white;
           z-index: 1000;
         `}
         $gap="6px"
