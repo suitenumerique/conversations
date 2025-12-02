@@ -55,7 +55,7 @@ export const AttachmentList = ({
           >
             <Box
               $background="var(--c--theme--colors--greyscale-050)"
-              $minWidth="200px"
+              $width="200px"
               $direction="row"
               $gap="8px"
               $align="center"

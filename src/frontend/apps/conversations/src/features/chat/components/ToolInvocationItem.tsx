@@ -40,7 +40,7 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
         $color="var(--c--theme--colors--greyscale-500)"
         $padding={{ all: 'sm' }}
         $radius="8px"
-        $css="font-size: 0.9em;"
+        $css="font-size: 0.9em; width: 100%; white-space: pre-wrap; word-wrap: break-word;"
       >
         {toolInvocation.state === 'result' ? (
           <Text>{`Parsing done: ${documentIdentifiers.join(', ')}`}</Text>

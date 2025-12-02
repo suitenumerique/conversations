@@ -13,7 +13,7 @@ and this project adheres to
 - ✨(front) add retry button
 
 ### Fixed
-
+- 🐛(front) fix parsing documents display
 - 🐛(front) fix opacity input in error
 - 🐛(front) resolve React hydration errors
 - 🚑️(user) allow longer short names #182

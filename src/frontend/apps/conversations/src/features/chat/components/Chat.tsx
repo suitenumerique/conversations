@@ -979,7 +979,7 @@ export const Chat = ({
             </Text>
           </Box>
         ) : null}
-        {status === 'error' && (
+        {status === 'error' && !isUploadingFiles && (
           <ChatError
             hasLastSubmission={!!lastSubmissionRef.current}
             onRetry={handleRetry}
