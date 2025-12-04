@@ -101,8 +101,8 @@ const FeedbackButton = ({
         align-items: center;
         transition: all 0.2s ease;
         cursor: pointer;
-        border: 1px solid var(--c--theme--colors--greyscale-100);
-        color: var(--c--theme--colors--greyscale-600) !important;
+        border: 1px solid var(--c--theme--colors--gray-100);
+        color: var(--c--theme--colors--gray-600) !important;
         
         &:hover {
           border-color: #b6d7fb;
