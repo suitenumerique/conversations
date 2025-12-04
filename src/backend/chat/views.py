@@ -170,6 +170,13 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         if not messages:
             return Response({"error": "No messages provided"}, status=status.HTTP_400_BAD_REQUEST)
 
+        custom_mcp_url = request.META.get("HTTP_X_CUSTOM_MCP_URL")
+        if custom_mcp_url:
+            custom_mcp_url = custom_mcp_url.strip()
+            # Allow MCP-style URLs prefixed with "@"
+            if custom_mcp_url.startswith("@"):
+                custom_mcp_url = custom_mcp_url[1:]
+
         ai_service = AIAgentService(
             conversation=conversation,
             user=self.request.user,
@@ -178,6 +185,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
                 self.request.user.language
                 or self.request.LANGUAGE_CODE  # from the LocaleMiddleware
             ),
+            custom_mcp_url=custom_mcp_url,
         )
 
         # This environment variable allows switching between sync and async streaming modes
@@ -435,3 +443,70 @@ class ChatConversationAttachmentViewSet(
             )
 
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class MCPTestConnectionView(APIView):
+    """View for testing MCP connection."""
+
+    permission_classes = [
+        permissions.IsAuthenticated,
+    ]
+
+    def post(self, request):
+        """Handle POST requests to test MCP connection.
+
+        Args:
+            request: The HTTP request object containing:
+                - url: The URL of the MCP server to test.
+
+        Returns:
+            Response: A response indicating whether the connection was successful.
+        """
+        url = request.data.get("url")
+        if url:
+            url = url.strip()
+            if url.startswith("@"):
+                url = url[1:]
+        if not url:
+            return Response(
+                {"error": "No URL provided"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            # Test connection by initializing the MCP server
+            # We don't need to actually stream, just check if it initializes
+            # But pydantic_ai doesn't expose a simple "ping" method yet easily
+            # so we trust that if the URL is reachable, it's good for now.
+            # Ideally we would list tools.
+            
+            # Note: simple HTTP check might be enough as a first step
+            import requests
+            
+            # Try to hit the URL - if it's an SSE endpoint it might hang, 
+            # but we just want to check if the host exists.
+            # Most MCP servers respond to GET / with 404 or something, but reachable.
+            # If it's /sse, a GET might start a stream.
+            
+            # Let's try a simple requests.get with a short timeout
+            # We need to accept text/event-stream to pass the check of some MCP servers
+            try:
+                requests.get(
+                    url, 
+                    timeout=2,
+                    headers={"Accept": "text/event-stream"}
+                )
+            except requests.exceptions.Timeout:
+                # Timeout is "okay" for SSE endpoint, it means it's listening
+                pass
+            except requests.exceptions.ConnectionError:
+                 return Response(
+                    {"error": "Connection refused"}, status=status.HTTP_400_BAD_REQUEST
+                )
+
+            return Response({"status": "OK"}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to connect: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )

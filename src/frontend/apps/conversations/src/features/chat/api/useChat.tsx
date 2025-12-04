@@ -17,7 +17,7 @@ const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
 
   const searchParams = new URLSearchParams();
 
-  const { forceWebSearch, selectedModelHrid } =
+  const { forceWebSearch, selectedModelHrid, customMcpServerUrl } =
     useChatPreferencesStore.getState();
 
   if (forceWebSearch) {
@@ -33,7 +33,22 @@ const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
     url = `${url}${separator}${searchParams.toString()}`;
   }
 
-  return fetchAPI(url, init);
+  // Construire les headers comme un simple objet pour que `fetchAPI` puisse les merger.
+  const baseHeaders =
+    (init?.headers as Record<string, string> | undefined) ?? {};
+
+  const extraHeaders: Record<string, string> = {};
+  if (customMcpServerUrl) {
+    extraHeaders['X-Custom-Mcp-Url'] = customMcpServerUrl;
+  }
+
+  return fetchAPI(url, {
+    ...init,
+    headers: {
+      ...baseHeaders,
+      ...extraHeaders,
+    },
+  });
 };
 
 export function useChat(options: Omit<UseChatOptions, 'fetch'>) {

@@ -437,6 +437,7 @@ class Base(BraveSettings, Configuration):
         [
             "x-posthog-distinct-id",
             "x-posthog-session-id",
+            "x-custom-mcp-url",
         ],
         environ_name="CORS_ALLOW_HEADERS",
     ) + list(default_headers)

@@ -103,7 +103,7 @@ def get_model_configuration(model_hrid: str):
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
-    def __init__(self, conversation: models.ChatConversation, user, model_hrid=None, language=None):
+    def __init__(self, conversation: models.ChatConversation, user, model_hrid=None, language=None, custom_mcp_url=None):
         """
         Initialize the AI agent service.
 
@@ -115,6 +115,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.user = user  # authenticated user only
         self.model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID  # HRID of the model to use
         self.language = language  # might be None
+        self.custom_mcp_url = custom_mcp_url
         self._last_stop_check = 0
 
         self._langfuse_available = settings.LANGFUSE_ENABLED
@@ -545,7 +546,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
-            mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
+            try:
+                mcp_servers = [
+                    await stack.enter_async_context(mcp)
+                    for mcp in get_mcp_servers(self.custom_mcp_url)
+                ]
+            except Exception as exc:  # pylint: disable=broad-except
+                # If MCP initialization fails, log and continue without MCP instead of crashing.
+                logger.exception("Failed to initialize MCP servers: %s", exc)
+                mcp_servers = []
 
             _final_output_from_tool = None
             _ui_sources = []

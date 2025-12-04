@@ -1,9 +1,12 @@
-import { Modal, ModalSize } from '@openfun/cunningham-react';
+import { Button, Input, Modal, ModalSize } from '@openfun/cunningham-react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { fetchAPI } from '@/api';
 import { Box, Icon, StyledLink, Text, useToast } from '@/components';
 import { useUserUpdate } from '@/core/api/useUserUpdate';
 import { useAuthQuery } from '@/features/auth/api';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -15,6 +18,9 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
   const { data: user } = useAuthQuery();
   const { mutateAsync: updateUser, isPending } = useUserUpdate();
   const { showToast } = useToast();
+  const { customMcpServerUrl, setCustomMcpServerUrl } =
+    useChatPreferencesStore();
+  const [isValidating, setIsValidating] = useState(false);
 
   const handleToggleChange = async () => {
     if (!user) {
@@ -41,6 +47,43 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
 
       // Toast d'erreur
       showToast('error', t('Failed to update settings'), 'error', 3000);
+    }
+  };
+
+  const handleValidateMcp = async () => {
+    if (!customMcpServerUrl) {
+      return;
+    }
+
+    setIsValidating(true);
+    try {
+      // `fetchAPI` already prefixes `/api/v1.0/`, so we only pass the relative path here.
+      const response = await fetchAPI('mcp-test-connection/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url: customMcpServerUrl }),
+      });
+
+      if (response.ok) {
+        showToast('success', t('Connection successful'), 'check_circle', 3000);
+      } else {
+        const data = await response.json();
+        showToast(
+          'error',
+          t('Connection failed: {{error}}', {
+            error: data.error || t('Unknown error'),
+          }),
+          'error',
+          5000,
+        );
+      }
+    } catch (error) {
+      console.error('Error testing MCP connection:', error);
+      showToast('error', t('Connection failed'), 'error', 5000);
+    } finally {
+      setIsValidating(false);
     }
   };
 
@@ -172,6 +215,41 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
                   />
                 </Box>
               </Box>
+            </Box>
+          </Box>
+        </Box>
+
+        <Box $margin={{ top: 'md' }}>
+          <Text
+            $size="md"
+            $weight="500"
+            $theme="greyscale"
+            $variation="850"
+            $padding={{ top: 'xs' }}
+          >
+            {t('Developer Settings')}
+          </Text>
+          <Box $margin={{ top: 'sm' }}>
+            <Box $align="flex-end" $gap="sm">
+              <Input
+                label={t('Custom MCP Server URL')}
+                fullWidth
+                value={customMcpServerUrl || ''}
+                onChange={(e) =>
+                  setCustomMcpServerUrl(e.target.value || null)
+                }
+                text={t(
+                  'Enter the URL of your local MCP server (e.g., http://localhost:8007/mcp)',
+                )}
+              />
+              <Button
+                color="primary"
+                size="small"
+                disabled={!customMcpServerUrl || isValidating}
+                onClick={() => void handleValidateMcp()}
+              >
+                {isValidating ? t('Testing...') : t('Test Connection')}
+              </Button>
             </Box>
           </Box>
         </Box>
