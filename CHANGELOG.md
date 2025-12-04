@@ -13,6 +13,8 @@ and this project adheres to
 - ✨(front) add retry button
 
 ### Fixed
+
+- 🐛(front) fix "Maximum update depth exceeded" error in Chat component
 - 🐛(front) fix parsing documents display
 - 🐛(front) fix opacity input in error
 - 🐛(front) resolve React hydration errors

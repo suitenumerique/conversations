@@ -104,19 +104,14 @@ export const Chat = ({
 
       if (modelToSelect) {
         setSelectedModel(modelToSelect);
+        setSelectedModelHrid(modelToSelect.hrid);
       }
     }
-  }, [llmConfig, selectedModel, selectedModelHrid]);
-
-  // Update store when model selection changes
-  useEffect(() => {
-    if (selectedModel?.hrid !== selectedModelHrid) {
-      setSelectedModelHrid(selectedModel?.hrid || null);
-    }
-  }, [selectedModel, selectedModelHrid, setSelectedModelHrid]);
+  }, [llmConfig, selectedModel, selectedModelHrid, setSelectedModelHrid]);
 
   const handleModelSelect = (model: LLMModel) => {
     setSelectedModel(model);
+    setSelectedModelHrid(model.hrid);
   };
 
   const router = useRouter();
@@ -296,7 +291,8 @@ export const Chat = ({
         });
       }
     });
-  }, [messages, prefetchMetadata]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   const openSources = (messageId: string) => {
     if (isSourceOpen === messageId) {
@@ -339,16 +335,23 @@ export const Chat = ({
 
           const availableHeight = containerHeight - userMessageHeight - 38;
 
-          if (streamingMessageHeight !== availableHeight) {
-            setStreamingMessageHeight(availableHeight);
-          }
+          setStreamingMessageHeight((prev) => {
+            if (prev === null || Math.abs(prev - availableHeight) > 10) {
+              return availableHeight;
+            }
+            return prev;
+          });
         }
       }
     }
-  }, [messages, streamingMessageHeight]);
+  }, [messages]);
 
   // Détecter l'arrivée d'un nouveau message user et retirer la hauteur de l'ancien
   useEffect(() => {
+    if (status === 'streaming') {
+      return;
+    }
+
     const userMessages = messages.filter((msg) => msg.role === 'user');
     const lastUserMessage = userMessages[userMessages.length - 1];
 
@@ -361,14 +364,14 @@ export const Chat = ({
       }
       lastUserMessageIdRef.current = lastUserMessage.id;
     }
-  }, [messages]);
+  }, [messages, status]);
 
-  // Calculer la hauteur pendant submitted/streaming
   useEffect(() => {
     if (status === 'submitted' || status === 'streaming') {
       calculateStreamingHeight();
     }
-  }, [status, calculateStreamingHeight]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   // Scroller vers la question au moment du submit
   useEffect(() => {
@@ -388,7 +391,8 @@ export const Chat = ({
 
       messageElement?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     });
-  }, [status, messages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   // Synchronize conversationId state with prop when it changes (e.g., after navigation)
   useEffect(() => {
@@ -400,7 +404,8 @@ export const Chat = ({
       } as ChangeEvent<HTMLTextAreaElement>);
       setHasInitialized(false); // Réinitialiser pour permettre le scroll au prochain chargement
     }
-  }, [initialConversationId, conversationId, handleInputChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialConversationId, conversationId]);
 
   // On mount, if there is pending input/files, initialize state and set flag
   useEffect(() => {

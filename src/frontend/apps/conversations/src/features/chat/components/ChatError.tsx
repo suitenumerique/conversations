@@ -61,11 +61,15 @@ export const ChatError = ({ hasLastSubmission, onRetry }: ChatErrorProps) => {
         ) : (
           <Button
             size="small"
-            color="primary"
+            color="tertiary"
+            style={{
+              color: 'var(--c--theme--colors--greyscale-550)',
+              borderColor: 'var(--c--theme--colors--greyscale-300)',
+            }}
             onClick={() => {
               void router.push('/');
             }}
-            icon={<Icon iconName="add" $color="white" />}
+            icon={<Icon iconName="add" $color="greyscale" />}
           >
             {t('Start a new conversation')}
           </Button>
