@@ -5,13 +5,21 @@ import random
 import re
 
 import httpx
+from django.conf import settings
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.utils.module_loading import import_string
+from django.utils.text import slugify
 import trafilatura
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 
+from chat import models
 from chat.ai_sdk_types import TextUIPart
 
 logger = logging.getLogger(__name__)
+
+MAX_INLINE_CONTENT_CHARS = 8000
 
 # Regex pattern to detect URLs
 URL_PATTERN = re.compile(
@@ -169,6 +177,63 @@ async def _get_with_retry(
     raise RuntimeError("Unexpected state in _get_with_retry")
 
 
+async def _store_in_rag_and_attachments(
+    conversation,
+    user,
+    url: str,
+    content_bytes: bytes,
+    content_type: str,
+) -> str:
+    """
+    Store the fetched document into the RAG backend and create a markdown attachment.
+
+    Returns the markdown content stored, mainly to allow generating a short preview.
+    """
+    document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+    document_store = document_store_backend(conversation.collection_id)
+
+    if not document_store.collection_id:
+        # Create a new collection for the conversation
+        collection_id = document_store.create_collection(
+            name=f"conversation-{conversation.pk}",
+        )
+        conversation.collection_id = str(collection_id)
+        await conversation.asave(update_fields=["collection_id", "updated_at"])
+
+    # Parse and store in RAG backend (returns markdown)
+    
+    # Force content_type to "application/pdf" if it seems to be a PDF but the header was weird
+    # This ensures AlbertRagBackend uses the PDF parser
+    if "pdf" in content_type or url.lower().endswith(".pdf"):
+        content_type = "application/pdf"
+
+    parsed_content = document_store.parse_and_store_document(
+        name=url,
+        content_type=content_type,
+        content=content_bytes,
+    )
+
+    # Create a markdown attachment so that the rest of the pipeline
+    # (document_search_rag, summarization, etc.) can see documents exist.
+    safe_name = slugify(url)[:100] or "document"
+    file_name = f"{safe_name}.md"
+    key = f"{conversation.pk}/attachments/{file_name}"
+
+    md_attachment = await models.ChatConversationAttachment.objects.acreate(
+        conversation=conversation,
+        uploaded_by=user,
+        key=key,
+        file_name=file_name,
+        content_type="text/markdown",
+        conversion_from=None,
+    )
+    default_storage.save(key, ContentFile(parsed_content.encode("utf8")))
+    md_attachment.upload_state = models.AttachmentStatus.READY
+    await md_attachment.asave(update_fields=["upload_state", "updated_at"])
+
+    return parsed_content
+
+
 async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
     """
     Fetch content from a URL.
@@ -182,7 +247,10 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
         ToolReturn: The fetched content from the URL.
     """
     # Access the Django conversation object from the agent dependencies
-    conversation = getattr(getattr(ctx, "deps", None), "conversation", None)
+    deps = getattr(ctx, "deps", None)
+    conversation = getattr(deps, "conversation", None)
+    user = getattr(deps, "user", None)
+
     urls = detect_url_in_conversation(conversation)
 
     if url not in urls:
@@ -209,15 +277,42 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
                         if not content:
                             return ToolReturn(
                                 return_value={"url": url, "error": "Content empty or private"},
-                                content="Ce document Docs n'est pas public ou est vide."
+                                content="Ce document Docs n'est pas public ou est vide.",
                             )
-                            
+                        # If the Docs content is very large, route it through RAG instead of
+                        # returning everything inline.
+                        if conversation and user and len(content) > MAX_INLINE_CONTENT_CHARS:
+                            parsed = await _store_in_rag_and_attachments(
+                                conversation=conversation,
+                                user=user,
+                                url=url,
+                                content_bytes=content.encode("utf-8"),
+                                content_type="text/markdown",
+                            )
+                            preview = parsed[:MAX_INLINE_CONTENT_CHARS]
+                            return ToolReturn(
+                                return_value={
+                                    "url": url,
+                                    "original_url": url,
+                                    "stored_in_rag": True,
+                                    "content_preview": preview,
+                                    "source": "docs.numerique.gouv.fr",
+                                },
+                                content=(
+                                    "Le contenu de ce document est volumineux et a été indexé dans "
+                                    "la base de documents de la conversation. "
+                                    "Pour l’interroger, tu dois utiliser l’outil `document_search_rag` "
+                                    "avec une requête précise décrivant ce que tu cherches dans ce document."
+                                ),
+                                metadata={"sources": {url}},
+                            )
+
                         return ToolReturn(
                             return_value={
                                 "url": url,
                                 "original_url": url,
-                                "content": content[:20000],  # Limit content
-                                "source": "docs.numerique.gouv.fr"
+                                "content": content[:MAX_INLINE_CONTENT_CHARS],
+                                "source": "docs.numerique.gouv.fr",
                             }
                         )
                 except Exception as e:
@@ -229,15 +324,55 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
 
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             response = await _get_with_retry(client, url)
-            content = trafilatura.extract(response.text)
-            
+            raw_text = response.text
+            extracted = trafilatura.extract(raw_text) or raw_text
+            content_type_header = response.headers.get("content-type", "unknown")
+            content_type = content_type_header.split(";", 1)[0].strip().lower()
+
+            is_binary_like = not content_type.startswith("text/")
+            is_pdf = "pdf" in content_type or url.lower().endswith(".pdf")
+
+            # For large or binary/PDF content, store in RAG instead of returning everything inline.
+            if (
+                conversation
+                and user
+                and (is_binary_like or is_pdf or len(extracted) > MAX_INLINE_CONTENT_CHARS)
+            ):
+                parsed = await _store_in_rag_and_attachments(
+                    conversation=conversation,
+                    user=user,
+                    url=url,
+                    content_bytes=response.content,
+                    content_type=content_type,
+                )
+                preview = parsed[:MAX_INLINE_CONTENT_CHARS]
+                return ToolReturn(
+                    return_value={
+                        "url": url,
+                        "status_code": response.status_code,
+                        "stored_in_rag": True,
+                        "content_preview": preview,
+                        "content_type": content_type_header,
+                    },
+                    content=(
+                        "Le contenu de cette ressource est volumineux ou de type fichier "
+                        "(par exemple PDF). Il a été indexé dans la base de documents de la "
+                        "conversation. Pour l’exploiter, tu dois utiliser l’outil "
+                        "`document_search_rag` avec une requête précise décrivant les "
+                        "informations que tu souhaites retrouver."
+                    ),
+                    metadata={"sources": {url}},
+                )
+
+            # Small textual content: keep the existing behaviour with inline content.
             return ToolReturn(
                 return_value={
                     "url": url,
                     "status_code": response.status_code,
-                    "content": content[:20000],  # Limit content to first 20000 chars
-                    "content_type": response.headers.get("content-type", "unknown"),
-                }
+                    "content": extracted[:MAX_INLINE_CONTENT_CHARS],
+                    "content_type": content_type_header,
+                },
+                metadata={"sources": {url}},
             )
     except httpx.HTTPStatusError as e:
         logger.warning("HTTP error fetching %s: %s", url, e)

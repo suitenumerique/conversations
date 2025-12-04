@@ -507,11 +507,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             .aexists()
         )
 
+        should_enable_rag = has_not_pdf_docs or has_url_in_current_message or has_url_in_conversation
+
         document_urls = []
-        if not conversation_has_documents and not has_not_pdf_docs:
+        if not conversation_has_documents and not should_enable_rag:
             # No documents to process
             pass
-        elif has_not_pdf_docs:
+        elif should_enable_rag:
             add_document_rag_search_tool(self.conversation_agent)
 
             @self.conversation_agent.instructions
@@ -528,13 +530,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 )
 
             # Inform the model (system-level) that documents are attached and available
-            @self.conversation_agent.system_prompt
-            def attached_documents_note() -> str:
-                return (
-                    "[Internal context] User documents are attached to this conversation. "
-                    "Do not request re-upload of documents; consider them already available "
-                    "via the internal store."
-                )
+            # Only if we actually have documents (not just URL), to avoid hallucination
+            if has_not_pdf_docs:
+                @self.conversation_agent.system_prompt
+                def attached_documents_note() -> str:
+                    return (
+                        "[Internal context] User documents are attached to this conversation. "
+                        "Do not request re-upload of documents; consider them already available "
+                        "via the internal store."
+                    )
 
             @self.conversation_agent.tool(name="summarize", retries=2)
             @functools.wraps(document_summarize)
