@@ -14,6 +14,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(front) fix long user messages
 - 🐛(front) fix "Maximum update depth exceeded" error in Chat component
 - 🐛(front) fix parsing documents display
 - 🐛(front) fix opacity input in error

@@ -716,42 +716,53 @@ export const Chat = ({
                               ? t('You said: ')
                               : t('Assistant IA replied: ')}
                           </p>
-                          <MarkdownHooks
-                            remarkPlugins={[remarkGfm, remarkMath]}
-                            rehypePlugins={[
-                              [
-                                rehypePrettyCode,
-                                {
-                                  theme: 'github-dark-dimmed',
-                                },
-                              ],
-                              rehypeKatex,
-                            ]}
-                            components={{
-                              // Custom components for Markdown rendering
-                              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                              p: ({ node, ...props }) => (
-                                <Text
-                                  as="p"
-                                  $css="display: block"
-                                  $theme="greyscale"
-                                  $variation="850"
-                                  {...props}
-                                />
-                              ),
-                              a: ({ children, ...props }) => (
-                                <a target="_blank" {...props}>
-                                  {children}
-                                </a>
-                              ),
-                              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                              pre: ({ node, children, ...props }) => (
-                                <CodeBlock {...props}>{children}</CodeBlock>
-                              ),
-                            }}
-                          >
-                            {message.content}
-                          </MarkdownHooks>
+                          {message.role === 'user' ? (
+                            <Text
+                              as="p"
+                              $css="white-space: pre-wrap; display: block;"
+                              $theme="greyscale"
+                              $variation="850"
+                            >
+                              {message.content}
+                            </Text>
+                          ) : (
+                            <MarkdownHooks
+                              remarkPlugins={[remarkGfm, remarkMath]}
+                              rehypePlugins={[
+                                [
+                                  rehypePrettyCode,
+                                  {
+                                    theme: 'github-dark-dimmed',
+                                  },
+                                ],
+                                rehypeKatex,
+                              ]}
+                              components={{
+                                // Custom components for Markdown rendering
+                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                p: ({ node, ...props }) => (
+                                  <Text
+                                    as="p"
+                                    $css="display: block"
+                                    $theme="greyscale"
+                                    $variation="850"
+                                    {...props}
+                                  />
+                                ),
+                                a: ({ children, ...props }) => (
+                                  <a target="_blank" {...props}>
+                                    {children}
+                                  </a>
+                                ),
+                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                pre: ({ node, children, ...props }) => (
+                                  <CodeBlock {...props}>{children}</CodeBlock>
+                                ),
+                              }}
+                            >
+                              {message.content}
+                            </MarkdownHooks>
+                          )}
                         </Box>
                       )}
 

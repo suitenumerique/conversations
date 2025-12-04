@@ -307,26 +307,22 @@ export const InputChat = ({
       `}
       >
         {/* Bouton de scroll vers le bas */}
-        {messagesLength > 1 &&
-          status !== 'streaming' &&
-          status !== 'submitted' &&
-          containerRef &&
-          onScrollToBottom && (
-            <Box
-              $css={`
+        {messagesLength > 1 && containerRef && onScrollToBottom && (
+          <Box
+            $css={`
             position: relative;
             height: 0;
             width: 100%;
             margin: auto;
             max-width: 750px;
           `}
-            >
-              <ScrollDown
-                onClick={onScrollToBottom}
-                containerRef={containerRef}
-              />
-            </Box>
-          )}
+          >
+            <ScrollDown
+              onClick={onScrollToBottom}
+              containerRef={containerRef}
+            />
+          </Box>
+        )}
         {/* Message de bienvenue */}
         {messagesLength === 0 && (
           <Box
