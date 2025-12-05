@@ -26,8 +26,9 @@ MAX_INLINE_CONTENT_CHARS = 8000
 DOCS_HOST = "docs.numerique.gouv.fr"
 
 # Regex pattern to detect URLs
+# Note: This is a permissive pattern for detection in free text, not strict validation
 URL_PATTERN = re.compile(
-    r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+    r'https?://(?:[a-zA-Z0-9\-._~:/?#\[\]@!$&\'()*+,;=%]|(?:%[0-9a-fA-F]{2}))+'
 )
 
 def _get_headers() -> dict:
