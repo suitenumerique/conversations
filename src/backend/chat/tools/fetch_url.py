@@ -3,6 +3,7 @@
 import logging
 import random
 import re
+from io import BytesIO
 
 import httpx
 from django.conf import settings
@@ -95,40 +96,42 @@ def _extract_text_from_message(message) -> str:
     return ' '.join(text_parts)
 
 
-def detect_url_in_conversation(conversation) -> bool:
+def detect_url_in_conversation(conversation) -> list[str]:
     """
-    Detect if an URL is present in the conversation messages.
-    
+    Detect URLs present in the conversation messages.
+
     Args:
         conversation: The ChatConversation instance.
-    
+
     Returns:
-        bool: True if at least one URL is found in the conversation, False otherwise.
+        list[str]: List of unique URLs found in the conversation.
     """
     if not conversation:
         return []
-    
-    # Check ui_messages first (most recent, updated before agent call)
+
+    found_urls = set()
+
+    def extract_urls_from_messages(messages):
+        if not messages:
+            return
+        for message in messages:
+            if not message:
+                continue
+            text_content = _extract_text_from_message(message)
+            if text_content and URL_PATTERN.search(text_content):
+                matches = URL_PATTERN.findall(text_content)
+                found_urls.update(matches)
+
+    # Get URLs from ui_messages and messages if present
     if hasattr(conversation, 'ui_messages') and conversation.ui_messages:
-        for message in conversation.ui_messages:
-            if not message:
-                continue
-            text_content = _extract_text_from_message(message)
-            if text_content and URL_PATTERN.search(text_content):
-                logger.info("URL detected in ui_messages: %s", URL_PATTERN.findall(text_content))
-                return list(set(URL_PATTERN.findall(text_content)))
-    
-    # Also check stored messages (conversation history)
+        extract_urls_from_messages(conversation.ui_messages)
     if hasattr(conversation, 'messages') and conversation.messages:
-        for message in conversation.messages:
-            if not message:
-                continue
-            text_content = _extract_text_from_message(message)
-            if text_content and URL_PATTERN.search(text_content):
-                logger.info("URL detected in messages: %s", URL_PATTERN.findall(text_content))
-                return list(set(URL_PATTERN.findall(text_content)))
-    
-    return []
+        extract_urls_from_messages(conversation.messages)
+
+    if found_urls:
+        logger.info("URL detected in messages: %s", found_urls)
+
+    return list(found_urls)
 
 
 async def _get_with_retry(
@@ -200,23 +203,36 @@ async def _store_in_rag_and_attachments(
         conversation.collection_id = str(collection_id)
         await conversation.asave(update_fields=["collection_id", "updated_at"])
 
-    # Parse and store in RAG backend (returns markdown)
-    
     # Force content_type to "application/pdf" if it seems to be a PDF but the header was weird
     # This ensures AlbertRagBackend uses the PDF parser
     if "pdf" in content_type or url.lower().endswith(".pdf"):
         content_type = "application/pdf"
 
-    parsed_content = document_store.parse_and_store_document(
-        name=url,
+    # Use a safe filename (slugified) for the RAG backend to avoid API errors with URLs.
+    # This is required because the Albert API (especially PDF parsing) does not handle
+    # filenames with URL characters like "://" or "/" correctly.
+    safe_rag_name = slugify(url)[:100] or "document"
+
+    # We must split parsing and storing to handle the filename vs metadata issue:
+    # 1. Parsing needs a safe filename (no slashes) to avoid 500 errors from the API.
+    # 2. Storing needs the original URL in metadata so citations are correct.
+    # However, AlbertRagBackend.store_document uses the same name for both filename and metadata.
+    # We try to pass the original URL to store_document, hoping the storage endpoint is more
+    # robust than the parser endpoint regarding filenames.
+    parsed_content = document_store.parse_document(
+        name=safe_rag_name,
         content_type=content_type,
-        content=content_bytes,
+        content=BytesIO(content_bytes),
+    )
+    
+    document_store.store_document(
+        name=url,
+        content=parsed_content
     )
 
     # Create a markdown attachment so that the rest of the pipeline
     # (document_search_rag, summarization, etc.) can see documents exist.
-    safe_name = slugify(url)[:100] or "document"
-    file_name = f"{safe_name}.md"
+    file_name = f"{safe_rag_name}.md"
     key = f"{conversation.pk}/attachments/{file_name}"
 
     md_attachment = await models.ChatConversationAttachment.objects.acreate(
@@ -297,13 +313,13 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
                                     "stored_in_rag": True,
                                     "content_preview": preview,
                                     "source": "docs.numerique.gouv.fr",
-                                },
-                                content=(
+                                    "content":(
                                     "Le contenu de ce document est volumineux et a été indexé dans "
                                     "la base de documents de la conversation. "
                                     "Pour l’interroger, tu dois utiliser l’outil `document_search_rag` "
                                     "avec une requête précise décrivant ce que tu cherches dans ce document."
-                                ),
+                                )
+                                },
                                 metadata={"sources": {url}},
                             )
 
@@ -324,8 +340,7 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
 
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             response = await _get_with_retry(client, url)
-            raw_text = response.text
-            extracted = trafilatura.extract(raw_text) or raw_text
+            extracted = trafilatura.extract(response.text) or response.text
             content_type_header = response.headers.get("content-type", "unknown")
             content_type = content_type_header.split(";", 1)[0].strip().lower()
 
@@ -353,14 +368,14 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
                         "stored_in_rag": True,
                         "content_preview": preview,
                         "content_type": content_type_header,
-                    },
-                    content=(
+                        "content":(
                         "Le contenu de cette ressource est volumineux ou de type fichier "
                         "(par exemple PDF). Il a été indexé dans la base de documents de la "
                         "conversation. Pour l’exploiter, tu dois utiliser l’outil "
                         "`document_search_rag` avec une requête précise décrivant les "
                         "informations que tu souhaites retrouver."
-                    ),
+                    )
+                    },
                     metadata={"sources": {url}},
                 )
 

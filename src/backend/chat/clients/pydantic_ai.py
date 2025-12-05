@@ -576,6 +576,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
             _final_output_from_tool = None
             _ui_sources = []
+            _added_source_urls = set()
 
             # Help Mistral to prevent `Unexpected role 'user' after role 'tool'` error.
             if history and history[-1].kind == "request":
@@ -688,6 +689,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                             sources := event.result.metadata.get("sources")
                                         ):
                                             for source_url in sources:
+                                                # Skip if we've already added this URL to avoid duplicates
+                                                if source_url in _added_source_urls:
+                                                    continue
+                                                _added_source_urls.add(source_url)
                                                 url_source = LanguageModelV1Source(
                                                     sourceType="url",
                                                     id=str(uuid.uuid4()),
