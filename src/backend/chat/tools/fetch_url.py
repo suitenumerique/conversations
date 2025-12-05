@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 MAX_INLINE_CONTENT_CHARS = 8000
 
+# Host for Docs.numerique.gouv.fr
+DOCS_HOST = "docs.numerique.gouv.fr"
+
 # Regex pattern to detect URLs
 URL_PATTERN = re.compile(
     r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
@@ -277,12 +280,12 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
 
     try:
         # Special handling for docs.numerique.gouv.fr
-        if "docs.numerique.gouv.fr" in url and "/docs/" in url:
+        if DOCS_HOST in url and "/docs/" in url:
             # Use regex to extract the document ID
             m = re.search(r'docs/([^/]+)', url)
             if m:
                 docs_id = m.group(1)
-                url_transformed = f"https://docs.numerique.gouv.fr/api/v1.0/documents/{docs_id}/content/?content_format=markdown"
+                url_transformed = f"https://{DOCS_HOST}/api/v1.0/documents/{docs_id}/content/?content_format=markdown"
                 
                 try:
                     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
@@ -312,7 +315,7 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
                                     "original_url": url,
                                     "stored_in_rag": True,
                                     "content_preview": preview,
-                                    "source": "docs.numerique.gouv.fr",
+                                    "source": DOCS_HOST,
                                     "content":(
                                     "Le contenu de ce document est volumineux et a été indexé dans "
                                     "la base de documents de la conversation. "
@@ -328,7 +331,7 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
                                 "url": url,
                                 "original_url": url,
                                 "content": content[:MAX_INLINE_CONTENT_CHARS],
-                                "source": "docs.numerique.gouv.fr",
+                                "source": DOCS_HOST,
                             }
                         )
                 except Exception as e:
