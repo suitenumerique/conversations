@@ -63,6 +63,7 @@ from chat.agents.local_media_url_processors import (
 from chat.ai_sdk_types import (
     LanguageModelV1Source,
     SourceUIPart,
+    TextUIPart,
     UIMessage,
 )
 from chat.clients.async_to_sync import convert_async_generator_to_sync
@@ -75,6 +76,7 @@ from chat.mcp_servers import get_mcp_servers
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize
+from chat.tools.fetch_url import URL_PATTERN, detect_url_in_conversation, fetch_url
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import EventEncoder
 
@@ -390,6 +392,27 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 input=user_prompt if self._store_analytics else "REDACTED"
             )
 
+        # Check if URL is present in current message or conversation, and add fetch_url tool dynamically
+        # Check current message first (most recent)
+        has_url_in_current_message = any(
+            URL_PATTERN.search(part.text) if isinstance(part, TextUIPart) else False
+            for part in messages[-1].parts or []
+        ) or (URL_PATTERN.search(messages[-1].content) if messages[-1].content else False)
+        
+        # Also check conversation history
+        has_url_in_conversation = detect_url_in_conversation(self.conversation)
+        
+        # Check if fetch_url tool already exists (might be in configuration)
+        fetch_url_exists = "fetch_url" in self.conversation_agent._function_toolset.tools  # pylint: disable=protected-access
+        
+        if (has_url_in_current_message or has_url_in_conversation) and not fetch_url_exists:
+            # Add fetch_url tool dynamically if URL is detected and tool doesn't exist yet
+            @self.conversation_agent.tool(name="fetch_url", retries=2)
+            @functools.wraps(fetch_url)
+            async def fetch_url_tool(ctx: RunContext, url: str) -> ToolReturn:
+                """Wrap the fetch_url tool to provide context and add the tool."""
+                return await fetch_url(ctx, url)
+
         usage = {"promptTokens": 0, "completionTokens": 0}
 
         conversation_has_documents = self._is_document_upload_enabled and (
@@ -484,11 +507,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             .aexists()
         )
 
+        should_enable_rag = has_not_pdf_docs or has_url_in_current_message or has_url_in_conversation
+
         document_urls = []
-        if not conversation_has_documents and not has_not_pdf_docs:
+        if not conversation_has_documents and not should_enable_rag:
             # No documents to process
             pass
-        elif has_not_pdf_docs:
+        elif should_enable_rag:
             add_document_rag_search_tool(self.conversation_agent)
 
             @self.conversation_agent.instructions
@@ -505,13 +530,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 )
 
             # Inform the model (system-level) that documents are attached and available
-            @self.conversation_agent.system_prompt
-            def attached_documents_note() -> str:
-                return (
-                    "[Internal context] User documents are attached to this conversation. "
-                    "Do not request re-upload of documents; consider them already available "
-                    "via the internal store."
-                )
+            # Only if we actually have documents (not just URL), to avoid hallucination
+            if has_not_pdf_docs:
+                @self.conversation_agent.system_prompt
+                def attached_documents_note() -> str:
+                    return (
+                        "[Internal context] User documents are attached to this conversation. "
+                        "Do not request re-upload of documents; consider them already available "
+                        "via the internal store."
+                    )
 
             @self.conversation_agent.tool(name="summarize", retries=2)
             @functools.wraps(document_summarize)
@@ -549,6 +576,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
             _final_output_from_tool = None
             _ui_sources = []
+            _added_source_urls = set()
 
             # Help Mistral to prevent `Unexpected role 'user' after role 'tool'` error.
             if history and history[-1].kind == "request":
@@ -661,6 +689,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                             sources := event.result.metadata.get("sources")
                                         ):
                                             for source_url in sources:
+                                                # Skip if we've already added this URL to avoid duplicates
+                                                if source_url in _added_source_urls:
+                                                    continue
+                                                _added_source_urls.add(source_url)
                                                 url_source = LanguageModelV1Source(
                                                     sourceType="url",
                                                     id=str(uuid.uuid4()),
