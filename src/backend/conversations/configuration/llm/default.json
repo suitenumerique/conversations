@@ -5,11 +5,7 @@
       "model_name": "settings.AI_MODEL",
       "human_readable_name": "Default Model",
       "provider_name": "default-provider",
-      "profile": {
-        "openai_supports_strict_tool_definition": false,
-        "openai_supports_tool_choice_required": false
-      },
-      "supports_streaming": false,
+      "profile": null,
       "settings": {},
       "is_active": true,
       "icon": [
@@ -28,36 +24,12 @@
       "model_name": "settings.AI_MODEL",
       "human_readable_name": "Default Summarization Model",
       "provider_name": "default-provider",
-      "profile": {
-        "openai_supports_strict_tool_definition": false,
-        "openai_supports_tool_choice_required": false
-      },
-      "supports_streaming": false,
+      "profile": null,
       "settings": {},
       "is_active": true,
       "icon": null,
       "system_prompt": "settings.SUMMARIZATION_SYSTEM_PROMPT",
       "tools": []
-    },
-    {
-      "hrid": "etalab-plateform-mistral-medium-2508",
-      "model_name": "mistral-medium-2508",
-      "human_readable_name": "Mistral Medium 2508 (Plateforme Etalab)",
-      "provider_name": "mistral-plateform-etalab",
-      "profile": null,
-      "supports_streaming": false,
-      "settings": {},
-      "is_active": true,
-      "icon": [
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAn1BMVEUALosAKoovTZjw8vb////+9/jlPUniAAz",
-        "iABUAGIWbpsTwq7HhAAAAI4dle7DrdX4AJohRaaboXWj7+/zn6On5//9NZaT29vfoWmVHYKDoUl/k5OUAIYddc6vpbHYCM47Y3+v53+LiFCUA",
-        "HIWnsckYPJHi6PL77O7jJjW3wdf1w8jre4QgQ5TZ2txwg7Pr3+I8WZ6OnsTuoamClL7tlZ5xz5y8AAAAzUlEQVR4AZ3RRQKDQBBEUSTu7h5c4",
-        "vc/W6Yp3KG2Dz4ynDdeEBvOmq12xx2E1u0B+4NOEocj4DgNJ1PgLAvni8WyBq5Yc71ubFJx23C2q4P7dRYejg1xzvCUgvz5guz11k7gXYKF/1",
-        "8oyiYuvHAYeVkhXCzolVStHcGDjiQzNmMQxsMI5rEJRdQSPZvbpE2E8aY6gC6Z+2Hg4dFA0Yb4YedNL/v4Fk8WJuwiGhrChJNXI210rnib9Fs",
-        "JlXRUC/HwTscPIXf/iklq/tjb/gHAdxkCUjAg2QAAAABJRU5ErkJggg=="
-      ],
-      "system_prompt": "settings.AI_AGENT_INSTRUCTIONS",
-      "tools": "settings.AI_AGENT_TOOLS"
     }
   ],
   "providers": [
@@ -66,12 +38,6 @@
       "base_url": "settings.AI_BASE_URL",
       "api_key": "settings.AI_API_KEY",
       "kind": "openai"
-    },
-    {
-      "hrid": "mistral-plateform-etalab",
-      "base_url": "https://api.mistral.etalab.gouv.fr/",
-      "api_key": "environ.MISTRAL_ETALAB_API_KEY",
-      "kind": "mistral"
     }
   ]
 }
