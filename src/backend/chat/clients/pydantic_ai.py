@@ -157,13 +157,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # Public streaming API (unchanged signatures)
     # --------------------------------------------------------------------- #
 
-    def stream_text(self, messages: List[UIMessage], force_web_search: bool = False):
+    def stream_text(
+        self, messages: List[UIMessage], force_web_search: bool = False, force_plan: bool = False
+    ):
         """Return only the assistant text deltas (legacy text mode)."""
-        return convert_async_generator_to_sync(self.stream_text_async(messages, force_web_search))
+        return convert_async_generator_to_sync(
+            self.stream_text_async(messages, force_web_search, force_plan)
+        )
 
-    def stream_data(self, messages: List[UIMessage], force_web_search: bool = False):
+    def stream_data(
+        self, messages: List[UIMessage], force_web_search: bool = False, force_plan: bool = False
+    ):
         """Return Vercel-AI-SDK formatted events."""
-        return convert_async_generator_to_sync(self.stream_data_async(messages, force_web_search))
+        return convert_async_generator_to_sync(
+            self.stream_data_async(messages, force_web_search, force_plan)
+        )
 
     def stop_streaming(self):
         """
@@ -178,7 +186,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # Async internals
     # --------------------------------------------------------------------- #
 
-    async def stream_text_async(self, messages: List[UIMessage], force_web_search: bool = False):
+    async def stream_text_async(
+        self, messages: List[UIMessage], force_web_search: bool = False, force_plan: bool = False
+    ):
         """Return only the assistant text deltas (legacy text mode)."""
         await self._clean()
         with ExitStack() as stack:
@@ -186,18 +196,20 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
                 span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
 
-            async for event in self._run_agent(messages, force_web_search):
+            async for event in self._run_agent(messages, force_web_search, force_plan):
                 if stream_text := self.event_encoder.encode_text(event):
                     yield stream_text
 
-    async def stream_data_async(self, messages: List[UIMessage], force_web_search: bool = False):
+    async def stream_data_async(
+        self, messages: List[UIMessage], force_web_search: bool = False, force_plan: bool = False
+    ):
         """Return Vercel-AI-SDK formatted events."""
         await self._clean()
         with ExitStack() as stack:
             if self._langfuse_available:
                 span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
                 span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
-            async for event in self._run_agent(messages, force_web_search):
+            async for event in self._run_agent(messages, force_web_search, force_plan):
                 if stream_data := self.event_encoder.encode(event):
                     yield stream_data
 
@@ -355,6 +367,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
+        force_plan: bool = False,
     ) -> events_v4.Event | events_v5.Event:
         """Run the Pydantic AI agent and stream events."""
         if messages[-1].role != "user":
@@ -463,6 +476,19 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 return (
                     f"You must call the {web_search_tool_name} tool "
                     "before answering the user request."
+                )
+
+        if force_plan:
+
+            @self.conversation_agent.system_prompt
+            def force_plan_prompt() -> str:
+                """Dynamic system prompt function to force upfront planning."""
+                return (
+                    "Planning mode is enabled for this request. Start by proposing a concise "
+                    "numbered plan (maximum 8 steps) tailored to the user's goal. If you plan "
+                    "to use tools, tell the user which tools without using explicitly the tools names but tell the user the arguments you plan to use. Ask the user "
+                    "to confirm or adjust the plan, and do not proceed with any execution until "
+                    "the plan is approved. After approval, follow the agreed steps."
                 )
 
         _tool_is_streaming = False

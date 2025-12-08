@@ -28,6 +28,8 @@ interface InputChatProps {
   containerRef?: React.RefObject<HTMLDivElement | null>;
   forceWebSearch?: boolean;
   onToggleWebSearch?: () => void;
+  planModeEnabled?: boolean;
+  onTogglePlanMode?: () => void;
   onStop?: () => void;
   selectedModel?: LLMModel | null;
   onModelSelect?: (model: LLMModel) => void;
@@ -46,6 +48,8 @@ export const InputChat = ({
   containerRef,
   forceWebSearch = false,
   onToggleWebSearch,
+  planModeEnabled = false,
+  onTogglePlanMode,
   onStop,
   selectedModel,
   onModelSelect,
@@ -601,6 +605,90 @@ export const InputChat = ({
                       </Text>
                     )}
                   </Button>
+
+                  {onTogglePlanMode && (
+                    <Box
+                      $margin={{ left: '4px' }}
+                      $css={`
+                      ${
+                        planModeEnabled
+                          ? `
+                        .plan-mode-button {
+                          background-color: var(--c--theme--colors--primary-100) !important;
+                        }
+                      `
+                          : ''
+                      }
+                    `}
+                    >
+                      <Button
+                        size="small"
+                        type="button"
+                        disabled={isUploadingFiles}
+                        onClick={() => {
+                          onTogglePlanMode();
+                          textareaRef.current?.focus();
+                        }}
+                        aria-label={t('Plan tasks first')}
+                        className="c__button--neutral plan-mode-button"
+                        icon={
+                          <Icon
+                            iconName="fact_check"
+                            $theme="greyscale"
+                            $variation="550"
+                            $css={`
+                            color: ${planModeEnabled ? 'var(--c--theme--colors--primary-600) !important' : 'var(--c--theme--colors--greyscale-600)'};
+                          `}
+                          />
+                        }
+                      >
+                        {!isMobile && (
+                          <Text
+                            $theme={planModeEnabled ? 'primary' : 'greyscale'}
+                            $variation="550"
+                          >
+                            {t('Plan first')}
+                          </Text>
+                        )}
+                        {isMobile && planModeEnabled && (
+                          <Box
+                            $direction="row"
+                            $align="space-between"
+                            $gap="xs"
+                            $css={`
+                            display: flex;
+                            align-items: center;
+                            line-height: 1;
+                          `}
+                          >
+                            <Text
+                              $theme="primary"
+                              $weight="500"
+                              $css={`
+                              display: flex;
+                              align-items: center;
+                            `}
+                            >
+                              {t('Plan')}
+                            </Text>
+                            <Icon
+                              iconName="close"
+                              $variation="text"
+                              $theme="primary"
+                              $size="md"
+                              $css={`
+                              display: flex;
+                              align-items: center;
+                              justify-content: center;
+                              line-height: 1;
+                              padding-left: 4px;
+                            `}
+                            />
+                          </Box>
+                        )}
+                      </Button>
+                    </Box>
+                  )}
 
                   {onToggleWebSearch && (
                     <Box

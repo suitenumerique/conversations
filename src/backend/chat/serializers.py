@@ -72,6 +72,11 @@ class ChatConversationRequestSerializer(serializers.Serializer):
         default=False,
         help_text="Force web search.",
     )
+    force_plan = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="Force the model to propose a plan before answering.",
+    )
     model_hrid = serializers.CharField(
         required=False,
         default=None,
