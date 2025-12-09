@@ -10,6 +10,7 @@ from core.api import viewsets
 
 from activation_codes import viewsets as activation_viewsets
 from chat.views import ChatConversationAttachmentViewSet, ChatViewSet, LLMConfigurationView
+from evaluation.views import ChatCompletionsView
 
 # - Main endpoints
 router = DefaultRouter()
@@ -41,3 +42,10 @@ urlpatterns = [
     ),
     path(f"api/{settings.API_VERSION}/config/", viewsets.ConfigView.as_view()),
 ]
+
+if settings.ENVIRONMENT in ["development", "tests"]:
+    urlpatterns += [
+        # Allow access to the OpenAI-like chat completions endpoint only in development and tests
+        # on http://localhost:8071/v1/chat/completions
+        path("v1/chat/completions", ChatCompletionsView.as_view(), name="chat_completions"),
+    ]
