@@ -13,6 +13,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "allow_conversation_analytics",
+            "allow_smart_web_search",
             "email",
             "full_name",
             "short_name",

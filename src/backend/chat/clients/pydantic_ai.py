@@ -128,6 +128,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Feature flags
         self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
         self._is_web_search_enabled = is_feature_enabled(self.user, "web_search")
+        self._is_smart_search_enabled = user.allow_smart_web_search
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
         self._context_deps = ContextDeps(
@@ -456,7 +457,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             force_web_search = False
 
         if force_web_search:
-
+            # Force web search prompt if activated and web search is enabled
             @self.conversation_agent.system_prompt
             def force_web_search_prompt() -> str:
                 """Dynamic system prompt function to force web search."""
@@ -464,6 +465,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     f"You must call the {web_search_tool_name} tool "
                     "before answering the user request."
                 )
+        elif not self._is_smart_search_enabled and self._is_web_search_enabled:
+            # Smart search is disabled and force_web_search is not active:
+            # Remove the web search tool as if it doesn't exist
+            logger.info(
+                "Smart search disabled and force_web_search not active. Disabling web search tool."
+            )
+            self._context_deps.web_search_enabled = False
 
         _tool_is_streaming = False
         _model_response_message_id = None
