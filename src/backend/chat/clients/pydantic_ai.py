@@ -92,6 +92,7 @@ class ContextDeps:
 
     conversation: models.ChatConversation
     user: User
+    session: Optional[Dict] = None
     web_search_enabled: bool = False
 
 
@@ -106,7 +107,7 @@ def get_model_configuration(model_hrid: str):
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
-    def __init__(self, conversation: models.ChatConversation, user, model_hrid=None, language=None):
+    def __init__(self, conversation: models.ChatConversation, user, session=None, model_hrid=None, language=None):
         """
         Initialize the AI agent service.
 
@@ -136,6 +137,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._context_deps = ContextDeps(
             conversation=conversation,
             user=user,
+            session=session,
             web_search_enabled=self._is_web_search_enabled,
         )
 
