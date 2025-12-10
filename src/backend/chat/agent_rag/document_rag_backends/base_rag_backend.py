@@ -1,8 +1,8 @@
 """Implementation of the Albert API for RAG document search."""
 
 import logging
+from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager, contextmanager
-from io import BytesIO
 from typing import List, Optional
 
 from asgiref.sync import sync_to_async
@@ -12,7 +12,7 @@ from chat.agent_rag.constants import RAGWebResults
 logger = logging.getLogger(__name__)
 
 
-class BaseRagBackend:
+class BaseRagBackend(ABC):
     """Base class for RAG backends."""
 
     def __init__(
@@ -60,6 +60,7 @@ class BaseRagBackend:
             )
         return collection_ids
 
+    @abstractmethod
     def create_collection(self, name: str, description: Optional[str] = None) -> str:
         """
         Create a temporary collection for the search operation.
@@ -74,7 +75,7 @@ class BaseRagBackend:
         """
         return await sync_to_async(self.create_collection)(name=name, description=description)
 
-    def parse_document(self, name: str, content_type: str, content: BytesIO):
+    def parse_document(self, name: str, content_type: str, content: bytes):
         """
         Parse the document and prepare it for the search operation.
         This method should handle the logic to convert the document
@@ -142,17 +143,28 @@ class BaseRagBackend:
         """
         return await sync_to_async(self.delete_collection)()
 
-    def search(self, query, results_count: int = 4) -> RAGWebResults:
+    @abstractmethod
+    def search(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
         """
         Search the collection for the given query.
+        
+        Args:
+            query: The search query string.
+            results_count: Number of results to return.
+            **kwargs: Additional arguments. Expected: 'session' for OIDC authentication.
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
-    async def asearch(self, query, results_count: int = 4) -> RAGWebResults:
+    async def asearch(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
         """
-        Search the collection for the given query.
+        Search the collection for the given query asynchronously.
+        
+        Args:
+            query: The search query string.
+            results_count: Number of results to return.
+            **kwargs: Additional arguments. Expected: 'session' for OIDC authentication.
         """
-        return await sync_to_async(self.search)(query=query, results_count=results_count)
+        return await sync_to_async(self.search)(query=query, results_count=results_count, **kwargs)
 
     @classmethod
     @contextmanager
