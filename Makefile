@@ -126,7 +126,7 @@ build-frontend: ## build the frontend container
 build-e2e: cache ?=
 build-e2e: ## build the e2e container
 	@$(MAKE) build-backend cache=$(cache)
-	@$(COMPOSE_E2E) build frontend $(cache)
+	@$(COMPOSE_E2E) build frontend openmockllm-mistral $(cache)
 .PHONY: build-e2e
 
 down: ## stop and remove containers, networks, images, and volumes
@@ -158,7 +158,7 @@ create-compose-with-models: ## override the docker-compose file with models
 run-e2e: ## start the e2e server
 run-e2e:
 	@$(MAKE) run-backend
-	@$(COMPOSE_E2E) up --force-recreate -d frontend
+	@$(COMPOSE_E2E) up --force-recreate -d frontend openmockllm-mistral
 .PHONY: run-e2e
 
 status: ## an alias for "docker compose ps"

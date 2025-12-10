@@ -1,6 +1,6 @@
 {
   "name": "eslint-config-conversations",
-  "version": "0.0.7",
+  "version": "0.0.9",
   "license": "MIT",
   "scripts": {
     "lint": "eslint --ext .js ."

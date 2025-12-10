@@ -300,7 +300,6 @@ export const InputChat = ({
         $css={`
         display: block;
         position: relative;
-        opacity: ${status === 'error' ? '0.5' : '1'};
         margin: auto;
         width: 100%;
         padding: ${isDesktop ? '0' : '0 10px'};
@@ -308,26 +307,22 @@ export const InputChat = ({
       `}
       >
         {/* Bouton de scroll vers le bas */}
-        {messagesLength > 1 &&
-          status !== 'streaming' &&
-          status !== 'submitted' &&
-          containerRef &&
-          onScrollToBottom && (
-            <Box
-              $css={`
+        {messagesLength > 1 && containerRef && onScrollToBottom && (
+          <Box
+            $css={`
             position: relative;
             height: 0;
             width: 100%;
             margin: auto;
             max-width: 750px;
           `}
-            >
-              <ScrollDown
-                onClick={onScrollToBottom}
-                containerRef={containerRef}
-              />
-            </Box>
-          )}
+          >
+            <ScrollDown
+              onClick={onScrollToBottom}
+              containerRef={containerRef}
+            />
+          </Box>
+        )}
         {/* Message de bienvenue */}
         {messagesLength === 0 && (
           <Box
@@ -423,6 +418,7 @@ export const InputChat = ({
                   fontSize: '1rem',
                   border: 'none',
                   resize: 'none',
+                  opacity: status === 'error' ? '0.5' : '1',
                   fontFamily: 'inherit',
                   minHeight: '64px',
                   maxHeight: '200px',
@@ -573,6 +569,9 @@ export const InputChat = ({
                 $gap="sm"
                 $padding={{ bottom: 'base' }}
                 $align="space-between"
+                $css={`
+                opacity: ${status === 'error' ? '0.5' : '1'};
+                `}
               >
                 <Box
                   $flex="1"

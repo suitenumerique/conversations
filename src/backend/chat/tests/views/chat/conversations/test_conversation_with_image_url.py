@@ -114,7 +114,8 @@ def test_post_conversation_with_local_image_url(
                         ],
                         timestamp=timezone.now(),
                     ),
-                ]
+                ],
+                run_id=messages[0].run_id,
             )
         ]
         yield "This is an image of a single pixel."
@@ -180,6 +181,7 @@ def test_post_conversation_with_local_image_url(
         ],
     )
 
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
@@ -219,6 +221,7 @@ def test_post_conversation_with_local_image_url(
                     "timestamp": "2025-10-18T20:48:20.286204Z",
                 },
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": None,
@@ -241,6 +244,7 @@ def test_post_conversation_with_local_image_url(
                 "output_audio_tokens": 0,
                 "output_tokens": 9,
             },
+            "run_id": _run_id,
         },
     ]
 
@@ -298,7 +302,8 @@ def test_post_conversation_with_local_image_wrong_url(
                         ],
                         timestamp=timezone.now(),
                     ),
-                ]
+                ],
+                run_id=messages[0].run_id,
             )
         ]
         yield "cannot read image."  # IRL a 400 error would be raised by the LLM
@@ -385,7 +390,8 @@ def test_post_conversation_with_remote_image_url(
                         ],
                         timestamp=timezone.now(),
                     ),
-                ]
+                ],
+                run_id=messages[0].run_id,
             )
         ]
         yield "This is an image of a single pixel."
@@ -629,7 +635,8 @@ def test_post_conversation_with_local_image_url_in_history(
                         ],
                         timestamp=timezone.now(),
                     )
-                ]
+                ],
+                run_id=messages[2].run_id,
             ),
         ]
         yield "This is an image of square, very small and nice."
@@ -725,6 +732,7 @@ def test_post_conversation_with_local_image_url_in_history(
         ],
     )
 
+    _run_id = chat_conversation.pydantic_messages[2]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
@@ -797,6 +805,7 @@ def test_post_conversation_with_local_image_url_in_history(
                     "timestamp": "2025-10-18T20:48:20.286204Z",
                 }
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": None,
@@ -823,5 +832,6 @@ def test_post_conversation_with_local_image_url_in_history(
                 "output_audio_tokens": 0,
                 "output_tokens": 11,
             },
+            "run_id": _run_id,
         },
     ]

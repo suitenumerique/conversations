@@ -8,6 +8,7 @@ import { Modal, ModalSize } from '@openfun/cunningham-react';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MarkdownHooks } from 'react-markdown';
 import rehypeKatex from 'rehype-katex';
@@ -16,7 +17,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
-import { Box, Icon, Loader, StyledLink, Text } from '@/components';
+import { Box, Icon, Loader, Text } from '@/components';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
 import { useChat } from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
@@ -26,6 +27,8 @@ import {
   useLLMConfiguration,
 } from '@/features/chat/api/useLLMConfiguration';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
+import { ChatError } from '@/features/chat/components/ChatError';
+import { CodeBlock } from '@/features/chat/components/CodeBlock';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
@@ -101,19 +104,14 @@ export const Chat = ({
 
       if (modelToSelect) {
         setSelectedModel(modelToSelect);
+        setSelectedModelHrid(modelToSelect.hrid);
       }
     }
-  }, [llmConfig, selectedModel, selectedModelHrid]);
-
-  // Update store when model selection changes
-  useEffect(() => {
-    if (selectedModel?.hrid !== selectedModelHrid) {
-      setSelectedModelHrid(selectedModel?.hrid || null);
-    }
-  }, [selectedModel, selectedModelHrid, setSelectedModelHrid]);
+  }, [llmConfig, selectedModel, selectedModelHrid, setSelectedModelHrid]);
 
   const handleModelSelect = (model: LLMModel) => {
     setSelectedModel(model);
+    setSelectedModelHrid(model.hrid);
   };
 
   const router = useRouter();
@@ -153,17 +151,26 @@ export const Chat = ({
   const [initialConversationMessages, setInitialConversationMessages] =
     useState<Message[] | undefined>(undefined);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
-    event: React.FormEvent<HTMLFormElement>;
+    event: FormEvent<HTMLFormElement>;
     attachments?: Attachment[];
     forceWebSearch?: boolean;
   } | null>(null);
   const [shouldAutoSubmit, setShouldAutoSubmit] = useState(false);
+  const [shouldRetry, setShouldRetry] = useState(false);
+  const retryOriginalInputRef = useRef<string>('');
+  const retryOriginalFilesRef = useRef<FileList | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [streamingMessageHeight, setStreamingMessageHeight] = useState<
     number | null
   >(null);
   const lastUserMessageIdRef = useRef<string | null>(null);
   const hasScrolledToBottomOnLoadRef = useRef(false);
+  const lastSubmissionRef = useRef<{
+    input: string;
+    files: FileList | null;
+    event: FormEvent<HTMLFormElement>;
+    options?: Record<string, unknown>;
+  } | null>(null);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
 
@@ -212,6 +219,7 @@ export const Chat = ({
     handleInputChange,
     status,
     stop: stopChat,
+    setMessages,
   } = useChat({
     id: conversationId,
     initialMessages: initialConversationMessages,
@@ -244,8 +252,31 @@ export const Chat = ({
     void stopGeneration();
   };
 
-  const handleSubmitWrapper = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmitWrapper = (event: FormEvent<HTMLFormElement>) => {
     void handleSubmit(event);
+  };
+
+  const handleRetry = () => {
+    if (!lastSubmissionRef.current || !setMessages) {
+      return;
+    }
+
+    const { input: lastInput, files: lastFiles } = lastSubmissionRef.current;
+
+    const lastAssistantIndex = messages.findLastIndex(
+      (msg) => msg.role === 'assistant',
+    );
+    if (lastAssistantIndex !== -1) {
+      setMessages(messages.filter((_, index) => index !== lastAssistantIndex));
+    }
+
+    retryOriginalInputRef.current = input;
+    retryOriginalFilesRef.current = files;
+    handleInputChange({
+      target: { value: lastInput },
+    } as ChangeEvent<HTMLTextAreaElement>);
+    setFiles(lastFiles);
+    setShouldRetry(true);
   };
 
   // Précharger les métadonnées des sources dès que les messages arrivent
@@ -260,7 +291,8 @@ export const Chat = ({
         });
       }
     });
-  }, [messages, prefetchMetadata]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
 
   const openSources = (messageId: string) => {
     if (isSourceOpen === messageId) {
@@ -303,16 +335,23 @@ export const Chat = ({
 
           const availableHeight = containerHeight - userMessageHeight - 38;
 
-          if (streamingMessageHeight !== availableHeight) {
-            setStreamingMessageHeight(availableHeight);
-          }
+          setStreamingMessageHeight((prev) => {
+            if (prev === null || Math.abs(prev - availableHeight) > 10) {
+              return availableHeight;
+            }
+            return prev;
+          });
         }
       }
     }
-  }, [messages, streamingMessageHeight]);
+  }, [messages]);
 
   // Détecter l'arrivée d'un nouveau message user et retirer la hauteur de l'ancien
   useEffect(() => {
+    if (status === 'streaming') {
+      return;
+    }
+
     const userMessages = messages.filter((msg) => msg.role === 'user');
     const lastUserMessage = userMessages[userMessages.length - 1];
 
@@ -325,14 +364,14 @@ export const Chat = ({
       }
       lastUserMessageIdRef.current = lastUserMessage.id;
     }
-  }, [messages]);
+  }, [messages, status]);
 
-  // Calculer la hauteur pendant submitted/streaming
   useEffect(() => {
     if (status === 'submitted' || status === 'streaming') {
       calculateStreamingHeight();
     }
-  }, [status, calculateStreamingHeight]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   // Scroller vers la question au moment du submit
   useEffect(() => {
@@ -352,7 +391,8 @@ export const Chat = ({
 
       messageElement?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     });
-  }, [status, messages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   // Synchronize conversationId state with prop when it changes (e.g., after navigation)
   useEffect(() => {
@@ -361,10 +401,11 @@ export const Chat = ({
     if (initialConversationId !== conversationId) {
       handleInputChange({
         target: { value: '' },
-      } as React.ChangeEvent<HTMLTextAreaElement>);
+      } as ChangeEvent<HTMLTextAreaElement>);
       setHasInitialized(false); // Réinitialiser pour permettre le scroll au prochain chargement
     }
-  }, [initialConversationId, conversationId, handleInputChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialConversationId, conversationId]);
 
   // On mount, if there is pending input/files, initialize state and set flag
   useEffect(() => {
@@ -375,7 +416,7 @@ export const Chat = ({
       if (pendingInput) {
         const syntheticEvent = {
           target: { value: pendingInput },
-        } as React.ChangeEvent<HTMLInputElement>;
+        } as ChangeEvent<HTMLInputElement>;
         handleInputChange(syntheticEvent);
       }
       if (pendingFiles) {
@@ -397,12 +438,31 @@ export const Chat = ({
       const syntheticFormEvent = {
         preventDefault: () => {},
         target: form,
-      } as unknown as React.FormEvent<HTMLFormElement>;
+      } as unknown as FormEvent<HTMLFormElement>;
       void handleSubmit(syntheticFormEvent);
       setShouldAutoSubmit(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldAutoSubmit, input, files]);
+
+  useEffect(() => {
+    if (
+      shouldRetry &&
+      lastSubmissionRef.current &&
+      input === lastSubmissionRef.current.input
+    ) {
+      const { event } = lastSubmissionRef.current;
+
+      void handleSubmit(event);
+      handleInputChange({
+        target: { value: retryOriginalInputRef.current },
+      } as ChangeEvent<HTMLTextAreaElement>);
+      setFiles(retryOriginalFilesRef.current);
+
+      setShouldRetry(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldRetry, input, files]);
 
   // Fetch initial conversation messages if initialConversationId is provided and no pending input
   useEffect(() => {
@@ -457,7 +517,7 @@ export const Chat = ({
   }, [hasInitialized, messages.length]);
 
   // Custom handleSubmit to include attachments and handle chat creation
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     // Upload files to server and get URLs
@@ -535,6 +595,13 @@ export const Chat = ({
     if (attachments.length > 0) {
       options.experimental_attachments = attachments;
     }
+
+    lastSubmissionRef.current = {
+      input,
+      files,
+      event,
+      options: Object.keys(options).length > 0 ? options : undefined,
+    };
 
     if (Object.keys(options).length > 0) {
       baseHandleSubmit(event, options);
@@ -649,38 +716,53 @@ export const Chat = ({
                               ? t('You said: ')
                               : t('Assistant IA replied: ')}
                           </p>
-                          <MarkdownHooks
-                            remarkPlugins={[remarkGfm, remarkMath]}
-                            rehypePlugins={[
-                              [
-                                rehypePrettyCode,
-                                {
-                                  theme: 'github-dark-dimmed',
-                                },
-                              ],
-                              rehypeKatex,
-                            ]}
-                            components={{
-                              // Custom components for Markdown rendering
-                              // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                              p: ({ node, ...props }) => (
-                                <Text
-                                  as="p"
-                                  $css="display: block"
-                                  $theme="greyscale"
-                                  $variation="850"
-                                  {...props}
-                                />
-                              ),
-                              a: ({ children, ...props }) => (
-                                <a target="_blank" {...props}>
-                                  {children}
-                                </a>
-                              ),
-                            }}
-                          >
-                            {message.content}
-                          </MarkdownHooks>
+                          {message.role === 'user' ? (
+                            <Text
+                              as="p"
+                              $css="white-space: pre-wrap; display: block;"
+                              $theme="greyscale"
+                              $variation="850"
+                            >
+                              {message.content}
+                            </Text>
+                          ) : (
+                            <MarkdownHooks
+                              remarkPlugins={[remarkGfm, remarkMath]}
+                              rehypePlugins={[
+                                [
+                                  rehypePrettyCode,
+                                  {
+                                    theme: 'github-dark-dimmed',
+                                  },
+                                ],
+                                rehypeKatex,
+                              ]}
+                              components={{
+                                // Custom components for Markdown rendering
+                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                p: ({ node, ...props }) => (
+                                  <Text
+                                    as="p"
+                                    $css="display: block"
+                                    $theme="greyscale"
+                                    $variation="850"
+                                    {...props}
+                                  />
+                                ),
+                                a: ({ children, ...props }) => (
+                                  <a target="_blank" {...props}>
+                                    {children}
+                                  </a>
+                                ),
+                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                pre: ({ node, children, ...props }) => (
+                                  <CodeBlock {...props}>{children}</CodeBlock>
+                                ),
+                              }}
+                            >
+                              {message.content}
+                            </MarkdownHooks>
+                          )}
                         </Box>
                       )}
 
@@ -913,27 +995,11 @@ export const Chat = ({
             </Text>
           </Box>
         ) : null}
-        {status === 'error' && (
-          <Box
-            $direction={isMobile ? 'column' : 'row'}
-            $gap="6px"
-            $width="100%"
-            $maxWidth="750px"
-            $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
-            $padding={{ left: '13px' }}
-          >
-            <Text>{t('Sorry, an error occurred. Please try again.')}</Text>
-            <StyledLink
-              href="/"
-              rel="noopener noreferrer"
-              $css={`
-              color: var(--c--theme--colors--greyscale-900);
-              text-decoration: underline;
-            `}
-            >
-              {t('Start a new conversation.')}
-            </StyledLink>
-          </Box>
+        {status === 'error' && !isUploadingFiles && (
+          <ChatError
+            hasLastSubmission={!!lastSubmissionRef.current}
+            onRetry={handleRetry}
+          />
         )}
       </Box>
       <Box
@@ -941,6 +1007,7 @@ export const Chat = ({
           position: relative;
           bottom: ${isMobile ? '8px' : '20px'};
           margin: auto;
+          background-color: white;
           z-index: 1000;
         `}
         $gap="6px"

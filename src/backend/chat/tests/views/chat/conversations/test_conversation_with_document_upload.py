@@ -351,8 +351,17 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
     _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
 
     assert len(chat_conversation.pydantic_messages) == 4
+
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": None,
+        "instructions": "When you receive a result from the summarization tool, you "
+        "MUST return it directly to the user without any "
+        "modification, paraphrasing, or additional summarization.The "
+        "tool already produces optimized summaries that should be "
+        "presented verbatim.You may translate the summary if "
+        "required, but you MUST preserve all the information from the "
+        "original summary.You may add a follow-up question after the "
+        "summary if needed.",
         "kind": "request",
         "parts": [
             {
@@ -383,20 +392,6 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
                 "timestamp": timezone_now,
             },
             {
-                "content": "When you receive a result from the summarization tool, "
-                "you MUST return it directly to the user without any "
-                "modification, paraphrasing, or additional "
-                "summarization.The tool already produces optimized "
-                "summaries that should be presented verbatim.You may "
-                "translate the summary if required, but you MUST "
-                "preserve all the information from the original "
-                "summary.You may add a follow-up question after the "
-                "summary if needed.",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
-            {
                 "content": "[Internal context] User documents are attached to this "
                 "conversation. Do not request re-upload of documents; "
                 "consider them already available via the internal "
@@ -411,6 +406,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
                 "timestamp": timezone_now,
             },
         ],
+        "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[1] == {
         "finish_reason": None,
@@ -439,9 +435,19 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
             "output_audio_tokens": 0,
             "output_tokens": 8,
         },
+        "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": None,
+        "instructions": (
+            "When you receive a result from the summarization tool, you MUST "
+            "return it directly to the user without any modification, "
+            "paraphrasing, or additional summarization."
+            "The tool already produces optimized summaries that should "
+            "be presented verbatim."
+            "You may translate the summary if required, but you MUST preserve "
+            "all the information from the original summary."
+            "You may add a follow-up question after the summary if needed."
+        ),
         "kind": "request",
         "parts": [
             {
@@ -459,6 +465,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
                 "tool_name": "document_search_rag",
             }
         ],
+        "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[3] == {
         "finish_reason": None,
@@ -485,6 +492,7 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
             "output_audio_tokens": 0,
             "output_tokens": 12,
         },
+        "run_id": _run_id,
     }
 
 
@@ -694,8 +702,17 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
 
     assert len(chat_conversation.pydantic_messages) == 4
+
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": None,
+        "instructions": "When you receive a result from the summarization tool, you "
+        "MUST return it directly to the user without any "
+        "modification, paraphrasing, or additional summarization.The "
+        "tool already produces optimized summaries that should be "
+        "presented verbatim.You may translate the summary if "
+        "required, but you MUST preserve all the information from the "
+        "original summary.You may add a follow-up question after the "
+        "summary if needed.",
         "kind": "request",
         "parts": [
             {
@@ -726,20 +743,6 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "timestamp": timezone_now,
             },
             {
-                "content": "When you receive a result from the summarization tool, "
-                "you MUST return it directly to the user without any "
-                "modification, paraphrasing, or additional "
-                "summarization.The tool already produces optimized "
-                "summaries that should be presented verbatim.You may "
-                "translate the summary if required, but you MUST "
-                "preserve all the information from the original "
-                "summary.You may add a follow-up question after the "
-                "summary if needed.",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
-            {
                 "content": "[Internal context] User documents are attached to this "
                 "conversation. Do not request re-upload of documents; "
                 "consider them already available via the internal "
@@ -754,6 +757,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "timestamp": timezone_now,
             },
         ],
+        "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[1] == {
         "finish_reason": None,
@@ -782,9 +786,19 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             "output_audio_tokens": 0,
             "output_tokens": 1,
         },
+        "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": None,
+        "instructions": (
+            "When you receive a result from the summarization tool, you MUST "
+            "return it directly to the user without any modification, "
+            "paraphrasing, or additional summarization."
+            "The tool already produces optimized summaries that should "
+            "be presented verbatim."
+            "You may translate the summary if required, but you MUST preserve "
+            "all the information from the original summary."
+            "You may add a follow-up question after the summary if needed."
+        ),
         "kind": "request",
         "parts": [
             {
@@ -796,6 +810,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "tool_name": "summarize",
             }
         ],
+        "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[3] == {
         "finish_reason": None,
@@ -818,4 +833,5 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             "output_audio_tokens": 0,
             "output_tokens": 6,
         },
+        "run_id": _run_id,
     }

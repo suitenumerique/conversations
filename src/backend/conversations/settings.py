@@ -717,6 +717,11 @@ class Base(BraveSettings, Configuration):
         environ_name="RAG_DOCUMENT_SEARCH_BACKEND",
         environ_prefix=None,
     )
+    SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS = values.DictValue(
+        default={},
+        environ_name="SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS",
+        environ_prefix=None,
+    )
 
     # Web search
     RAG_WEB_SEARCH_PROMPT_UPDATE = values.Value(

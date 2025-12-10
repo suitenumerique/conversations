@@ -3,7 +3,7 @@
 import logging
 from contextlib import asynccontextmanager, contextmanager
 from io import BytesIO
-from typing import Optional
+from typing import List, Optional
 
 from asgiref.sync import sync_to_async
 
@@ -15,10 +15,50 @@ logger = logging.getLogger(__name__)
 class BaseRagBackend:
     """Base class for RAG backends."""
 
-    def __init__(self, collection_id: Optional[str] = None):
-        """Backend settings."""
+    def __init__(
+        self,
+        collection_id: Optional[str] = None,
+        read_only_collection_id: Optional[List[str]] = None,
+    ):
+        """
+        Backend settings.
+
+        Collection ID is required for RAG operations, where you want to manage the collection
+        lifecycle (create/delete).
+        Read-only collection IDs can be used to access existing collections
+        without managing their lifecycle.
+
+        Collection ID and read-only collection IDs are separated in the implementation to prevent
+        unwanted actions.
+
+        Args:
+            collection_id (Optional[str]): The collection ID for managing the collection lifecycle.
+            read_only_collection_id (Optional[List[str]]): List of read-only collection IDs.
+        """
         self.collection_id = collection_id
+        self.read_only_collection_id = read_only_collection_id or []
         self._default_collection_description = "Temporary collection for RAG document search"
+
+    def get_all_collection_ids(self) -> List[str]:
+        """
+        Get all collection IDs, including the main collection ID and read-only collection IDs.
+
+        Returns:
+            List[str]: List of all collection IDs.
+        Raises:
+            RuntimeError: If neither collection_id nor read_only_collection_id is provided.
+        """
+        if not self.collection_id and not self.read_only_collection_id:
+            raise RuntimeError("The RAG backend requires collection_id or read_only_collection_id")
+
+        collection_ids = []
+        if self.collection_id:
+            collection_ids.append(int(self.collection_id))
+        if self.read_only_collection_id:
+            collection_ids.extend(
+                [int(collection_id) for collection_id in self.read_only_collection_id]
+            )
+        return collection_ids
 
     def create_collection(self, name: str, description: Optional[str] = None) -> str:
         """

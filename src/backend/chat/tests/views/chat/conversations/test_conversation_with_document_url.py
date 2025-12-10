@@ -145,7 +145,8 @@ def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-m
                         ],
                         timestamp=timezone.now(),
                     ),
-                ]
+                ],
+                run_id=messages[0].run_id,
             )
         ]
         yield "This is a document about a single pixel."
@@ -217,6 +218,7 @@ def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-m
     timestamp = timezone.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
 
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
@@ -256,6 +258,7 @@ def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-m
                     "timestamp": timestamp,
                 },
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": None,
@@ -282,6 +285,7 @@ def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-m
                 "output_audio_tokens": 0,
                 "output_tokens": 9,
             },
+            "run_id": _run_id,
         },
     ]
 
@@ -583,13 +587,15 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                         ],
                         timestamp=timezone.now(),
                     ),
-                ]
+                ],
+                run_id=messages[0].run_id,
             ),
             ModelResponse(
                 parts=[TextPart(content="This is a document about a single pixel.")],
                 usage=RequestUsage(input_tokens=50, output_tokens=9),
                 model_name="function::agent_model",
                 timestamp=timezone.now(),
+                run_id=messages[1].run_id,
             ),
             ModelRequest(
                 parts=[
@@ -599,7 +605,8 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                         ],
                         timestamp=timezone.now(),
                     )
-                ]
+                ],
+                run_id=messages[2].run_id,
             ),
         ]
         yield "This is a document of square, very small and nice."
@@ -695,6 +702,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         ],
     )
 
+    _run_id = chat_conversation.pydantic_messages[2]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": None,
@@ -734,6 +742,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                     "timestamp": "2025-10-18T20:48:20.286204Z",
                 },
             ],
+            # no run_id here
         },
         {
             "finish_reason": None,
@@ -760,6 +769,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                 "output_audio_tokens": 0,
                 "output_tokens": 9,
             },
+            # no run_id here
         },
         {
             "instructions": None,
@@ -771,6 +781,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                     "timestamp": "2025-10-18T20:48:20.286204Z",
                 }
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": None,
@@ -797,6 +808,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                 "output_audio_tokens": 0,
                 "output_tokens": 11,
             },
+            "run_id": _run_id,
         },
     ]
 
@@ -889,19 +901,6 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                     ),
                     SystemPromptPart(
                         content=(
-                            "When you receive a result from the summarization tool, you MUST "
-                            "return it directly to the user without any modification, "
-                            "paraphrasing, or additional summarization."
-                            "The tool already produces optimized summaries that should "
-                            "be presented verbatim."
-                            "You may translate the summary if required, but you MUST preserve "
-                            "all the information from the original summary."
-                            "You may add a follow-up question after the summary if needed."
-                        ),
-                        timestamp=timezone.now(),
-                    ),
-                    SystemPromptPart(
-                        content=(
                             "[Internal context] User documents are attached to this conversation. "
                             "Do not request re-upload of documents; consider them already "
                             "available via the internal store."
@@ -915,7 +914,18 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                         ],
                         timestamp=timezone.now(),
                     ),
-                ]
+                ],
+                instructions=(
+                    "When you receive a result from the summarization tool, you MUST "
+                    "return it directly to the user without any modification, "
+                    "paraphrasing, or additional summarization."
+                    "The tool already produces optimized summaries that should "
+                    "be presented verbatim."
+                    "You may translate the summary if required, but you MUST preserve "
+                    "all the information from the original summary."
+                    "You may add a follow-up question after the summary if needed."
+                ),
+                run_id=messages[0].run_id,
             )
         ]
         yield "This is a document about you."
@@ -985,9 +995,19 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
     timestamp = timezone.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
     _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
 
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": (
+                "When you receive a result from the summarization tool, you MUST "
+                "return it directly to the user without any modification, "
+                "paraphrasing, or additional summarization."
+                "The tool already produces optimized summaries that should "
+                "be presented verbatim."
+                "You may translate the summary if required, but you MUST preserve "
+                "all the information from the original summary."
+                "You may add a follow-up question after the summary if needed."
+            ),
             "kind": "request",
             "parts": [
                 {
@@ -1018,20 +1038,6 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                     "timestamp": timestamp,
                 },
                 {
-                    "content": "When you receive a result from the summarization "
-                    "tool, you MUST return it directly to the user without "
-                    "any modification, paraphrasing, or additional "
-                    "summarization.The tool already produces optimized "
-                    "summaries that should be presented verbatim.You may "
-                    "translate the summary if required, but you MUST "
-                    "preserve all the information from the original "
-                    "summary.You may add a follow-up question after the "
-                    "summary if needed.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": timestamp,
-                },
-                {
                     "content": "[Internal context] User documents are attached to "
                     "this conversation. Do not request re-upload of "
                     "documents; consider them already available via the "
@@ -1048,6 +1054,7 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                     "timestamp": timestamp,
                 },
             ],
+            "run_id": _run_id,
         },
         {
             "finish_reason": None,
@@ -1074,5 +1081,6 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                 "output_audio_tokens": 0,
                 "output_tokens": 7,
             },
+            "run_id": _run_id,
         },
     ]

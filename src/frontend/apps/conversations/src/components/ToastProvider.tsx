@@ -3,6 +3,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
@@ -47,6 +48,11 @@ interface ToastProviderProps {
 
 export const ToastProvider = ({ children }: ToastProviderProps) => {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const showToast = useCallback(
     (
@@ -83,7 +89,9 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      {typeof window !== 'undefined' &&
+      {isMounted &&
+        typeof document !== 'undefined' &&
+        document.body &&
         createPortal(
           <Box
             aria-live="polite"

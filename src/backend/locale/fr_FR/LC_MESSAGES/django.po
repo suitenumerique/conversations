@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2025-10-20 21:48+0000\n"
-"PO-Revision-Date: 2025-10-27 08:29\n"
+"PO-Revision-Date: 2025-11-17 16:37\n"
 "Last-Translator: \n"
 "Language-Team: French\n"
 "Language: fr_FR\n"
@@ -86,7 +86,7 @@ msgstr "A utilisé le code d'activation"
 
 #: activation_codes/admin.py:293 build/lib/activation_codes/admin.py:293
 msgid "Add selected users to Brevo waiting list"
-msgstr "Ajouter les utilisateurs sélectionnés à la liste d'attente de Brevo"
+msgstr "Ajouter les utilisateurs sélectionnés à la liste d'attente Brevo"
 
 #: activation_codes/admin.py:314 build/lib/activation_codes/admin.py:314
 #, python-format
@@ -272,7 +272,7 @@ msgstr "Nous n'avons pas pu trouver un utilisateur avec ce sous-groupe mais l'e-
 
 #: build/lib/core/models.py:99 core/models.py:99
 msgid "Enter a valid sub. This value may contain only letters, numbers, and @/./+/-/_/: characters."
-msgstr "Saisissez un sous-groupe valide. Cette valeur ne peut contenir que des lettres, des chiffres et les caractères @/./+/-/_/: uniquement."
+msgstr "Saisissez un 'sub' valide. Cette valeur ne peut contenir que des lettres, des chiffres et les caractères @/./+/-/_/: uniquement."
 
 #: build/lib/core/models.py:105 core/models.py:105
 msgid "sub"

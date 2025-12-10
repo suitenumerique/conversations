@@ -8,6 +8,32 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(front) add retry button
+
+### Fixed
+
+- 🐛(front) fix long user messages
+- 🐛(front) fix "Maximum update depth exceeded" error in Chat component
+- 🐛(front) fix parsing documents display
+- 🐛(front) fix opacity input in error
+- 🐛(front) resolve React hydration errors
+- 🚑️(user) allow longer short names #182
+
+## [0.0.9] - 2025-11-17
+
+### Added
+- ✨(front) add code copy button
+- ✨(RAG) add generic collection RAG tools #159
+
+### Fixed
+
+- 🔊(langfuse) enable tracing with redacted content #162
+
+
+## [0.0.8] - 2025-11-10
+
 ### Fixed
 
 - 🦺(front) Fix send prohibited file types
@@ -140,7 +166,9 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.7...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.9...main
+[0.0.9]: https://github.com/suitenumerique/conversations/releases/v0.0.9
+[0.0.8]: https://github.com/suitenumerique/conversations/releases/v0.0.8
 [0.0.7]: https://github.com/suitenumerique/conversations/releases/v0.0.7
 [0.0.6]: https://github.com/suitenumerique/conversations/releases/v0.0.6
 [0.0.5]: https://github.com/suitenumerique/conversations/releases/v0.0.5

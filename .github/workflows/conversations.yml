@@ -200,3 +200,22 @@ jobs:
 
       - name: Run tests
         run: ~/.local/bin/pytest -n 2
+
+  security-trivy-critical:
+    permissions:
+      contents: read
+      security-events: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Trivy analysis for critical vulnerabilities
+        # We use main branch while we might still iterate on the action
+        uses: numerique-gouv/action-trivy-cache/security-trivy-critical@main
+
+  security-trivy:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Trivy analysis for vulnerabilities
+        # We use main branch while we might still iterate on the action
+        uses: numerique-gouv/action-trivy-cache/security-trivy@main
