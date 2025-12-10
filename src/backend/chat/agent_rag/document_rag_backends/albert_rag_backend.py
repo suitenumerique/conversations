@@ -213,13 +213,14 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             logger.debug(response.json())
             response.raise_for_status()
 
-    def search(self, query, results_count: int = 4) -> RAGWebResults:
+    def search(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
         """
         Perform a search using the Albert API based on the provided query.
 
         Args:
             query (str): The search query.
             results_count (int): The number of results to return.
+            **kwargs: Additional arguments.
 
         Returns:
             RAGWebResults: The search results.
@@ -256,7 +257,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             ),
         )
 
-    async def asearch(self, query, results_count: int = 4) -> RAGWebResults:
+    async def asearch(self, query, results_count: int = 4, **kwargs) -> RAGWebResults:
         """
         Perform an asynchronous search using the Albert API based on the provided query.
 

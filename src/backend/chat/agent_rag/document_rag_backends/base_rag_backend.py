@@ -142,17 +142,27 @@ class BaseRagBackend:
         """
         return await sync_to_async(self.delete_collection)()
 
-    def search(self, query, results_count: int = 4) -> RAGWebResults:
+    def search(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
         """
         Search the collection for the given query.
+        
+        Args:
+            query: The search query string.
+            results_count: Number of results to return.
+            **kwargs: Additional arguments. Expected: 'session' for OIDC authentication.
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
-    async def asearch(self, query, results_count: int = 4) -> RAGWebResults:
+    async def asearch(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
         """
-        Search the collection for the given query.
+        Search the collection for the given query asynchronously.
+        
+        Args:
+            query: The search query string.
+            results_count: Number of results to return.
+            **kwargs: Additional arguments. Expected: 'session' for OIDC authentication.
         """
-        return await sync_to_async(self.search)(query=query, results_count=results_count)
+        return await sync_to_async(self.search)(query=query, results_count=results_count, **kwargs)
 
     @classmethod
     @contextmanager
