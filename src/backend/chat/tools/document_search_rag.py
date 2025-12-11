@@ -39,7 +39,7 @@ def add_document_rag_search_tool(agent: Agent) -> None:
             metadata={"sources": {result.url for result in rag_results.data}},
         )
 
-    @agent.system_prompt
+    @agent.instructions
     def document_rag_instructions() -> str:
         """Dynamic system prompt function to add RAG instructions if any."""
         return (

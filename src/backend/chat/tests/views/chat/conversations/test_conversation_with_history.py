@@ -919,7 +919,7 @@ def history_conversation_with_tool_fixture():
     history_timestamp = timezone.now().replace(year=2025, month=6, day=15, hour=10, minute=30)
 
     # Create a conversation with pre-existing messages including a tool invocation
-    conversation = ChatConversationFactory()
+    conversation = ChatConversationFactory(owner__language="nl-nl")
 
     # Add previous user and assistant messages with tool invocation
     conversation.messages = [
@@ -1377,7 +1377,9 @@ def test_post_conversation_with_existing_tool_history(
 
     # Verify the new tool call request is included
     assert history_conversation_with_tool.pydantic_messages[8] == {
-        "instructions": None,
+        "instructions": "You are a helpful test assistant :)\n\n"
+        "Today is Friday 25/07/2025.\n\n"
+        "Answer in dutch.",
         "kind": "request",
         "parts": [
             {
@@ -1420,7 +1422,9 @@ def test_post_conversation_with_existing_tool_history(
     }
 
     assert history_conversation_with_tool.pydantic_messages[10] == {
-        "instructions": None,
+        "instructions": "You are a helpful test assistant :)\n\n"
+        "Today is Friday 25/07/2025.\n\n"
+        "Answer in dutch.",
         "kind": "request",
         "parts": [
             {
