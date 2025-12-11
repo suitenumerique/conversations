@@ -791,19 +791,38 @@ export const Chat = ({
                               <Loader />
                               <Text $variation="600" $size="md">
                                 {(() => {
-                                  const toolInvocation = message.parts?.find(
+                                  // Find the tool invocation that is currently running (not completed)
+                                  const toolInvocations = message.parts?.filter(
                                     (part) =>
                                       part.type === 'tool-invocation' &&
                                       part.toolInvocation.toolName !==
                                         'document_parsing',
-                                  );
+                                  ) || [];
+                                  
+                                  // Find the last tool invocation that is not yet completed
+                                  const activeToolInvocation = [...toolInvocations]
+                                    .reverse()
+                                    .find(
+                                      (part) =>
+                                        part.type === 'tool-invocation' &&
+                                        part.toolInvocation.state !== 'result',
+                                    );
+                                  
                                   if (
-                                    toolInvocation?.type ===
+                                    activeToolInvocation?.type ===
                                       'tool-invocation' &&
-                                    toolInvocation.toolInvocation.toolName ===
+                                    activeToolInvocation.toolInvocation.toolName ===
                                       'summarize'
                                   ) {
                                     return t('Summarizing...');
+                                  }
+                                  if (
+                                    activeToolInvocation?.type ===
+                                      'tool-invocation' &&
+                                    activeToolInvocation.toolInvocation.toolName ===
+                                      'fetch_url'
+                                  ) {
+                                    return t('Fetching URL...');
                                   }
                                   return t('Search...');
                                 })()}
