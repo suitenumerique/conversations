@@ -16,7 +16,6 @@ from .base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
-
 MOCKED_RESPONSE = """
 # **Ode to the AI Assistant** 🤖✨
 
@@ -102,10 +101,10 @@ class ConversationAgent(BaseAgent):
         if settings.WARNING_MOCK_CONVERSATION_AGENT:
             self._model = FunctionModel(stream_function=mocked_agent_model)
 
-        @self.system_prompt
+        @self.instructions
         def add_the_date() -> str:
             """
-            Dynamic system prompt function to add the current date.
+            Dynamic instruction function to add the current date.
 
             Warning: this will always use the date in the server timezone,
             not the user's timezone...
@@ -113,9 +112,9 @@ class ConversationAgent(BaseAgent):
             _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
             return f"Today is {_formatted_date}."
 
-        @self.system_prompt
+        @self.instructions
         def enforce_response_language() -> str:
-            """Dynamic system prompt function to set the expected language to use."""
+            """Dynamic instruction function to set the expected language to use."""
             return f"Answer in {get_language_name(language).lower()}." if language else ""
 
     def get_web_search_tool_name(self) -> str | None:

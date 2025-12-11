@@ -27,9 +27,14 @@ def test_build_pydantic_agent_success_no_tools():
     """Test successful agent creation without tools."""
     agent = ConversationAgent(model_hrid="default-model")
     assert isinstance(agent, Agent)
+    assert agent._system_prompts == ()
 
-    assert agent._system_prompts == ("You are a helpful assistant",)
-    assert agent._instructions == []
+    instructions = agent._instructions
+    assert len(instructions) == 3
+    assert instructions[0] == "You are a helpful assistant"
+    assert instructions[1].__name__ == "add_the_date"
+    assert instructions[2].__name__ == "enforce_response_language"
+
     assert isinstance(agent.model, OpenAIChatModel)
     assert agent.model.model_name == "model-123"
     assert str(agent.model.client.base_url) == "https://api.llm.com/v1/"
@@ -37,6 +42,7 @@ def test_build_pydantic_agent_success_no_tools():
     assert agent._function_toolset.tools == {}
 
 
+@freeze_time("2025-07-25T10:36:35.297675Z")
 def test_build_pydantic_agent_with_tools(settings):
     """Test successful agent creation with tools."""
     settings.AI_AGENT_TOOLS = ["get_current_weather"]
@@ -44,8 +50,14 @@ def test_build_pydantic_agent_with_tools(settings):
     agent = ConversationAgent(model_hrid="default-model")
     assert isinstance(agent, Agent)
 
-    assert agent._system_prompts == ("You are a helpful assistant",)
-    assert agent._instructions == []
+    instructions = agent._instructions
+    assert len(instructions) == 3
+    assert instructions[0] == "You are a helpful assistant"
+    assert instructions[1].__name__ == "add_the_date"
+    assert instructions[1]() == "Today is Friday 25/07/2025."
+    assert instructions[2].__name__ == "enforce_response_language"
+    assert instructions[2]() == ""
+
     assert isinstance(agent.model, OpenAIChatModel)
     assert agent.model.model_name == "model-123"
     assert str(agent.model.client.base_url) == "https://api.llm.com/v1/"
@@ -56,21 +68,23 @@ def test_build_pydantic_agent_with_tools(settings):
 @freeze_time("2025-07-25T10:36:35.297675Z")
 def test_add_dynamic_system_prompt():
     """
-    Ensure add_the_date and enforce_response_language system prompt are registered
+    Ensure add_the_date and enforce_response_language instructions are registered
     and returns proper values.
     """
     agent = ConversationAgent(model_hrid="default-model")
 
-    assert len(agent._system_prompt_functions) == 2
+    assert len(agent._system_prompt_functions) == 0
 
-    assert agent._system_prompt_functions[0].function.__name__ == "add_the_date"
-    assert agent._system_prompt_functions[0].function() == "Today is Friday 25/07/2025."
-
-    assert agent._system_prompt_functions[1].function.__name__ == "enforce_response_language"
-    assert agent._system_prompt_functions[1].function() == ""
+    instructions = agent._instructions
+    assert len(instructions) == 3
+    assert instructions[0] == "You are a helpful assistant"
+    assert instructions[1].__name__ == "add_the_date"
+    assert instructions[1]() == "Today is Friday 25/07/2025."
+    assert instructions[2].__name__ == "enforce_response_language"
+    assert instructions[2]() == ""
 
     agent = ConversationAgent(model_hrid="default-model", language="fr-fr")
-    assert agent._system_prompt_functions[1].function() == "Answer in french."
+    assert agent._instructions[2]() == "Answer in french."
 
 
 def test_agent_get_web_search_tool_name(settings):

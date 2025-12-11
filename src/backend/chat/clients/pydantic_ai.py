@@ -78,6 +78,9 @@ from chat.tools.document_summarize import document_summarize
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import EventEncoder
 
+# Keep at the top of the file to avoid mocking issues
+document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
@@ -236,6 +239,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         Parse and store input documents in the conversation's document store.
         """
         # Early external document URL rejection
+
         if any(
             not document.url.startswith("/media-key/")
             for document in documents
@@ -248,8 +252,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if isinstance(document, DocumentUrl)
         ):
             raise ValueError("Document URL does not belong to the conversation.")
-
-        document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
         document_store = document_store_backend(self.conversation.collection_id)
         if not document_store.collection_id:
@@ -420,6 +422,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     ],
                 },
             )
+
             try:
                 await self.parse_input_documents(input_documents)
             except Exception as exc:  # pylint: disable=broad-except
@@ -457,7 +460,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         if force_web_search:
 
-            @self.conversation_agent.system_prompt
+            @self.conversation_agent.instructions
             def force_web_search_prompt() -> str:
                 """Dynamic system prompt function to force web search."""
                 return (
@@ -505,7 +508,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 )
 
             # Inform the model (system-level) that documents are attached and available
-            @self.conversation_agent.system_prompt
+            @self.conversation_agent.instructions
             def attached_documents_note() -> str:
                 return (
                     "[Internal context] User documents are attached to this conversation. "
@@ -731,7 +734,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             langfuse.update_current_trace(
                 output=run.result.output if self._store_analytics else "REDACTED"
             )
-
         # Vercel finish message
         yield events_v4.FinishMessagePart(
             finish_reason=events_v4.FinishReason.STOP,
