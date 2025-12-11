@@ -646,6 +646,11 @@ class Base(BraveSettings, Configuration):
         environ_name="DEFAULT_ALLOW_CONVERSATION_ANALYTICS",
         environ_prefix=None,
     )
+    DEFAULT_ALLOW_SMART_WEB_SEARCH = values.BooleanValue(
+        default=False,
+        environ_name="DEFAULT_ALLOW_SMART_WEB_SEARCH",
+        environ_prefix=None,
+    )
 
     # These settings are default values used in the default LLM_CONFIGURATIONS
     # They allow a deployment with only one model without a specific configuration file

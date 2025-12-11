@@ -55,7 +55,11 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         more information about the usage of the application.
         """
         return super().create_user(
-            claims | {"allow_conversation_analytics": settings.DEFAULT_ALLOW_CONVERSATION_ANALYTICS}
+            claims
+            | {
+                "allow_conversation_analytics": settings.DEFAULT_ALLOW_CONVERSATION_ANALYTICS,
+                "allow_smart_web_search": settings.DEFAULT_ALLOW_SMART_WEB_SEARCH,
+            }
         )
 
     def authenticate(self, request, **kwargs):
