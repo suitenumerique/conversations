@@ -135,9 +135,14 @@ async def create_markdown_attachment(
         content_type="text/markdown",
         conversion_from=conversion_from,
     )
-    default_storage.save(key, ContentFile(parsed_content.encode("utf8")))
-    md_attachment.upload_state = models.AttachmentStatus.READY
-    await md_attachment.asave(update_fields=["upload_state", "updated_at"])
+    try:
+        default_storage.save(key, ContentFile(parsed_content.encode("utf8")))
+        md_attachment.upload_state = models.AttachmentStatus.READY
+        await md_attachment.asave(update_fields=["upload_state", "updated_at"])
+    except Exception as exc:
+        logger.error("Failed to save markdown attachment to storage: %s", exc)
+        await md_attachment.adelete()
+        raise
     
     return md_attachment
 
