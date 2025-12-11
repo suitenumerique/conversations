@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- 🐛(back) fix system prompt compatibility with self-hosted models
+
 ### Added
 
 - ✨(front) add retry button

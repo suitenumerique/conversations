@@ -1377,7 +1377,8 @@ def test_post_conversation_with_existing_tool_history(
 
     # Verify the new tool call request is included
     assert history_conversation_with_tool.pydantic_messages[8] == {
-        "instructions": None,
+        "instructions": "You are a helpful test assistant :)\n\nToday is Friday "
+        "25/07/2025.\n\nAnswer in english.",
         "kind": "request",
         "parts": [
             {
@@ -1420,7 +1421,8 @@ def test_post_conversation_with_existing_tool_history(
     }
 
     assert history_conversation_with_tool.pydantic_messages[10] == {
-        "instructions": None,
+        "instructions": "You are a helpful test assistant :)\n\nToday is Friday "
+        "25/07/2025.\n\nAnswer in english.",
         "kind": "request",
         "parts": [
             {
