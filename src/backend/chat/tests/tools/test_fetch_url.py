@@ -57,7 +57,7 @@ def test_detect_url_in_conversation_with_ui_messages(conversation):
             "parts": [{"type": "text", "text": "Check this: https://example.com/page"}],
         }
     ]
-    urls = detect_url_in_conversation(conversation)
+    urls = detect_url_in_conversation(conversation.ui_messages)
     assert "https://example.com/page" in urls
 
 
@@ -74,7 +74,7 @@ def test_detect_url_in_conversation_multiple_urls(conversation):
             ],
         }
     ]
-    urls = detect_url_in_conversation(conversation)
+    urls = detect_url_in_conversation(conversation.ui_messages)
     assert len(urls) == 2
     assert "https://example.com/1" in urls
     assert "https://example.com/2" in urls
@@ -85,7 +85,7 @@ def test_detect_url_in_conversation_no_urls(conversation):
     conversation.ui_messages = [
         {"role": "user", "parts": [{"type": "text", "text": "No URL here"}]}
     ]
-    urls = detect_url_in_conversation(conversation)
+    urls = detect_url_in_conversation(conversation.ui_messages)
     assert urls == []
 
 
@@ -102,6 +102,7 @@ async def test_fetch_url_not_detected_in_conversation(mocked_context):
     mocked_context.deps.conversation.ui_messages = [
         {"role": "user", "parts": [{"type": "text", "text": "Hello"}]}
     ]
+    mocked_context.deps.messages = mocked_context.deps.conversation.ui_messages
 
     result = await fetch_url(mocked_context, "https://example.com")
 
@@ -117,6 +118,7 @@ async def test_fetch_url_docs_numerique_gouv_fr_success(mocked_context):
     mocked_context.deps.conversation.ui_messages = [
         {"role": "user", "parts": [{"type": "text", "text": f"Check {url}"}]}
     ]
+    mocked_context.deps.messages = mocked_context.deps.conversation.ui_messages
 
     # Mock the Docs API response
     docs_api_url = "https://docs.numerique.gouv.fr/api/v1.0/documents/1ef86abf-f7e0-46ce-b6c7-8be8b8af4c3d/content/?content_format=markdown"
@@ -143,6 +145,7 @@ async def test_fetch_url_docs_numerique_gouv_fr_large_content(mocked_context):
     mocked_context.deps.conversation.ui_messages = [
         {"role": "user", "parts": [{"type": "text", "text": f"Check {url}"}]}
     ]
+    mocked_context.deps.messages = mocked_context.deps.conversation.ui_messages
 
     # Create large content (> 8000 chars)
     large_content = "# Large Document\n\n" + "x" * 10000
@@ -199,6 +202,7 @@ async def test_fetch_url_wikipedia_html(mocked_context):
     mocked_context.deps.conversation.ui_messages = [
         {"role": "user", "parts": [{"type": "text", "text": f"Read {url}"}]}
     ]
+    mocked_context.deps.messages = mocked_context.deps.conversation.ui_messages
 
     # Mock Wikipedia HTML response
     html_content = """
@@ -239,6 +243,7 @@ async def test_fetch_url_arxiv_pdf(mocked_context):
     mocked_context.deps.conversation.ui_messages = [
         {"role": "user", "parts": [{"type": "text", "text": f"Read {url}"}]}
     ]
+    mocked_context.deps.messages = mocked_context.deps.conversation.ui_messages
 
     # Mock PDF response
     pdf_content = b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n"
@@ -300,6 +305,7 @@ async def test_fetch_url_http_error(mocked_context):
     mocked_context.deps.conversation.ui_messages = [
         {"role": "user", "parts": [{"type": "text", "text": f"Check {url}"}]}
     ]
+    mocked_context.deps.messages = mocked_context.deps.conversation.ui_messages
 
     respx.get(url).mock(return_value=httpx.Response(status_code=404))
 
@@ -318,6 +324,7 @@ async def test_fetch_url_timeout(mocked_context):
     mocked_context.deps.conversation.ui_messages = [
         {"role": "user", "parts": [{"type": "text", "text": f"Check {url}"}]}
     ]
+    mocked_context.deps.messages = mocked_context.deps.conversation.ui_messages
 
     respx.get(url).mock(side_effect=httpx.TimeoutException("Request timed out"))
 
@@ -336,6 +343,7 @@ async def test_fetch_url_docs_numerique_gouv_fr_empty_content(mocked_context):
     mocked_context.deps.conversation.ui_messages = [
         {"role": "user", "parts": [{"type": "text", "text": f"Check {url}"}]}
     ]
+    mocked_context.deps.messages = mocked_context.deps.conversation.ui_messages
 
     docs_api_url = "https://docs.numerique.gouv.fr/api/v1.0/documents/1ef86abf-f7e0-46ce-b6c7-8be8b8af4c3d/content/?content_format=markdown"
     respx.get(docs_api_url).mock(

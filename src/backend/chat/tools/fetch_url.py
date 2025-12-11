@@ -3,20 +3,21 @@
 import logging
 import random
 import re
-from io import BytesIO
 
 import httpx
 from django.conf import settings
-from django.core.files.base import ContentFile
-from django.core.files.storage import default_storage
-from django.utils.module_loading import import_string
 from django.utils.text import slugify
-import trafilatura
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
+import trafilatura
 
 from chat import models
 from chat.ai_sdk_types import TextUIPart
+from chat.document_storage import (
+    create_markdown_attachment,
+    ensure_collection_exists,
+    store_document_in_rag,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -100,19 +101,16 @@ def _extract_text_from_message(message) -> str:
     return ' '.join(text_parts)
 
 
-def detect_url_in_conversation(conversation) -> list[str]:
+def detect_url_in_conversation(messages=None) -> list[str]:
     """
     Detect URLs present in the conversation messages.
 
     Args:
-        conversation: The ChatConversation instance.
+        messages: Iterable of UIMessage/dict messages (latest payload).
 
     Returns:
         list[str]: List of unique URLs found in the conversation.
     """
-    if not conversation:
-        return []
-
     found_urls = set()
 
     def extract_urls_from_messages(messages):
@@ -126,14 +124,8 @@ def detect_url_in_conversation(conversation) -> list[str]:
                 matches = URL_PATTERN.findall(text_content)
                 found_urls.update(matches)
 
-    # Get URLs from ui_messages and messages if present
-    if hasattr(conversation, 'ui_messages') and conversation.ui_messages:
-        extract_urls_from_messages(conversation.ui_messages)
-    if hasattr(conversation, 'messages') and conversation.messages:
-        extract_urls_from_messages(conversation.messages)
-
-    if found_urls:
-        logger.info("URL detected in messages: %s", found_urls)
+    if messages:
+        extract_urls_from_messages(messages)
 
     return list(found_urls)
 
@@ -196,16 +188,7 @@ async def _store_in_rag_and_attachments(
 
     Returns the markdown content stored, mainly to allow generating a short preview.
     """
-    document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
-    document_store = document_store_backend(conversation.collection_id)
-
-    if not document_store.collection_id:
-        # Create a new collection for the conversation
-        collection_id = document_store.create_collection(
-            name=f"conversation-{conversation.pk}",
-        )
-        conversation.collection_id = str(collection_id)
-        await conversation.asave(update_fields=["collection_id", "updated_at"])
+    await ensure_collection_exists(conversation)
 
     # Force content_type to "application/pdf" if it seems to be a PDF but the header was weird
     # This ensures AlbertRagBackend uses the PDF parser
@@ -223,15 +206,12 @@ async def _store_in_rag_and_attachments(
     # However, AlbertRagBackend.store_document uses the same name for both filename and metadata.
     # We try to pass the original URL to store_document, hoping the storage endpoint is more
     # robust than the parser endpoint regarding filenames.
-    parsed_content = document_store.parse_document(
+    parsed_content = await store_document_in_rag(
+        conversation=conversation,
         name=safe_rag_name,
         content_type=content_type,
-        content=BytesIO(content_bytes),
-    )
-    
-    document_store.store_document(
-        name=url,
-        content=parsed_content
+        content=content_bytes,
+        store_name=url,
     )
 
     # Create a markdown attachment so that the rest of the pipeline
@@ -239,17 +219,16 @@ async def _store_in_rag_and_attachments(
     file_name = f"{safe_rag_name}.md"
     key = f"{conversation.pk}/attachments/{file_name}"
 
-    md_attachment = await models.ChatConversationAttachment.objects.acreate(
+    await create_markdown_attachment(
         conversation=conversation,
-        uploaded_by=user,
-        key=key,
+        user=user,
         file_name=file_name,
-        content_type="text/markdown",
-        conversion_from=None,
+        parsed_content=parsed_content,
+        key=key,
+        # Keep track of the original URL so downstream tools (e.g. summarize)
+        # can surface a clickable source instead of the slugified filename.
+        conversion_from=url,
     )
-    default_storage.save(key, ContentFile(parsed_content.encode("utf8")))
-    md_attachment.upload_state = models.AttachmentStatus.READY
-    await md_attachment.asave(update_fields=["upload_state", "updated_at"])
 
     return parsed_content
 
@@ -271,85 +250,88 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
     conversation = getattr(deps, "conversation", None)
     user = getattr(deps, "user", None)
 
-    urls = detect_url_in_conversation(conversation)
+    messages_for_detection = getattr(deps, "messages", None)
+    urls = detect_url_in_conversation(messages_for_detection)
+    logger.info("URLs authorized (extracted from messages): %s", urls)
 
-    if url not in urls:
+    # If messages are provided, enforce URL presence; otherwise skip the check.
+    if messages_for_detection is not None and url not in urls:
         return ToolReturn(
-            return_value={"url": url, "error": "URL not detected in conversation"},
-            content=f"URL {url} not detected in conversation",
+            return_value={"url": url, "error": "URL not detected in conversation", "content" : f"URL {url} not detected in conversation"},
         )
 
     try:
         # Special handling for docs.numerique.gouv.fr
-        if DOCS_HOST in url and "/docs/" in url:
-            # Use regex to extract the document ID
-            m = re.search(r'docs/([^/]+)', url)
-            if m:
-                docs_id = m.group(1)
-                url_transformed = f"https://{DOCS_HOST}/api/v1.0/documents/{docs_id}/content/?content_format=markdown"
-                
-                try:
-                    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                        response = await _get_with_retry(client, url_transformed)
-                        data = response.json()
-                        content = data.get('content', '')
-                        
-                        if not content:
-                            return ToolReturn(
-                                return_value={"url": url, "error": "Content empty or private"},
-                                content="Ce document Docs n'est pas public ou est vide.",
-                            )
-                        # If the Docs content is very large, route it through RAG instead of
-                        # returning everything inline.
-                        if conversation and user and len(content) > MAX_INLINE_CONTENT_CHARS:
-                            parsed = await _store_in_rag_and_attachments(
-                                conversation=conversation,
-                                user=user,
-                                url=url,
-                                content_bytes=content.encode("utf-8"),
-                                content_type="text/markdown",
-                            )
-                            preview = parsed[:MAX_INLINE_CONTENT_CHARS]
-                            return ToolReturn(
-                                return_value={
-                                    "url": url,
-                                    "original_url": url,
-                                    "stored_in_rag": True,
-                                    "content_preview": preview,
-                                    "source": DOCS_HOST,
-                                    "content":(
-                                    "Le contenu de ce document est volumineux et a été indexé dans "
-                                    "la base de documents de la conversation. "
-                                    "Pour l’interroger, tu dois utiliser l’outil `document_search_rag` "
-                                    "avec une requête précise décrivant ce que tu cherches dans ce document."
-                                )
-                                },
-                                metadata={"sources": {url}},
-                            )
-
+        m = re.search(r"https?://(?:www\.)?docs\.numerique\.gouv\.fr/docs/([^/?#]+)", url)
+        if m:
+            docs_id = m.group(1)
+            url_transformed = f"https://{DOCS_HOST}/api/v1.0/documents/{docs_id}/content/?content_format=markdown"
+            
+            try:
+                async with httpx.AsyncClient(timeout=settings.FETCH_URL_TIMEOUT, follow_redirects=True) as client:
+                    response = await _get_with_retry(client, url_transformed)
+                    data = response.json()
+                    content = data.get('content', '')
+                    
+                    if not content:
+                        return ToolReturn(
+                            return_value={"url": url, "error": "Content empty or private", "content": "Ce document Docs n'est pas public ou est vide."},
+                        )
+                    # If the Docs content is very large, route it through RAG instead of
+                    # returning everything inline.
+                    if conversation and user and len(content) > MAX_INLINE_CONTENT_CHARS:
+                        parsed = await _store_in_rag_and_attachments(
+                            conversation=conversation,
+                            user=user,
+                            url=url,
+                            content_bytes=content.encode("utf-8"),
+                            content_type="text/markdown",
+                        )
+                        preview = parsed[:MAX_INLINE_CONTENT_CHARS]
                         return ToolReturn(
                             return_value={
                                 "url": url,
                                 "original_url": url,
-                                "content": content[:MAX_INLINE_CONTENT_CHARS],
+                                "stored_in_rag": True,
+                                "content_preview": preview,
                                 "source": DOCS_HOST,
-                            }
+                                "content":(
+                                "Le contenu de ce document est volumineux et a été indexé dans "
+                                "la base de documents de la conversation. "
+                                "Pour l’interroger, tu dois utiliser l’outil `document_search_rag` "
+                                "avec une requête précise décrivant ce que tu cherches dans ce document."
+                            )
+                            },
+                            metadata={"sources": {url}},
                         )
-                except Exception as e:
-                    logger.warning("Error fetching Docs content %s: %s", url, e)
-                    return ToolReturn(
-                        return_value={"url": url, "error": str(e)},
-                        content="Ce document Docs n'est pas public ou une erreur est survenue."
-                    )
 
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                    return ToolReturn(
+                        return_value={
+                            "url": url,
+                            "original_url": url,
+                            "content": content[:MAX_INLINE_CONTENT_CHARS],
+                            "source": DOCS_HOST,
+                        }
+                    )
+            except Exception as e:
+                logger.warning("Error fetching Docs content %s: %s", url, e)
+                return ToolReturn(
+                    return_value={"url": url, "error": str(e), "content": "Ce document Docs n'est pas public ou une erreur est survenue."},
+                )
+
+        async with httpx.AsyncClient(timeout=settings.FETCH_URL_TIMEOUT, follow_redirects=True) as client:
             response = await _get_with_retry(client, url)
-            extracted = trafilatura.extract(response.text) or response.text
             content_type_header = response.headers.get("content-type", "unknown")
             content_type = content_type_header.split(";", 1)[0].strip().lower()
 
             is_binary_like = not content_type.startswith("text/")
             is_pdf = "pdf" in content_type or url.lower().endswith(".pdf")
+
+            # Avoid trafilatura on PDFs
+            if is_pdf:
+                extracted = ""
+            else:
+                extracted = trafilatura.extract(response.text) or response.text
 
             # For large or binary/PDF content, store in RAG instead of returning everything inline.
             if (

@@ -76,7 +76,7 @@ from chat.mcp_servers import get_mcp_servers
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize
-from chat.tools.fetch_url import URL_PATTERN, detect_url_in_conversation, fetch_url
+from chat.tools.fetch_url import detect_url_in_conversation, fetch_url
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import EventEncoder
 
@@ -391,26 +391,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             langfuse.update_current_trace(
                 input=user_prompt if self._store_analytics else "REDACTED"
             )
+        
+        # Check conversation history or provided messages
+        urls_in_conversation = detect_url_in_conversation(messages)
+        has_url_in_conversation = bool(urls_in_conversation)
 
-        # Check if URL is present in current message or conversation, and add fetch_url tool dynamically
-        # Check current message first (most recent)
-        has_url_in_current_message = any(
-            URL_PATTERN.search(part.text) if isinstance(part, TextUIPart) else False
-            for part in messages[-1].parts or []
-        ) or (URL_PATTERN.search(messages[-1].content) if messages[-1].content else False)
-        
-        # Also check conversation history
-        has_url_in_conversation = detect_url_in_conversation(self.conversation)
-        
-        # Check if fetch_url tool already exists (might be in configuration)
-        fetch_url_exists = "fetch_url" in self.conversation_agent._function_toolset.tools  # pylint: disable=protected-access
-        
-        if (has_url_in_current_message or has_url_in_conversation) and not fetch_url_exists:
+        if has_url_in_conversation:
             # Add fetch_url tool dynamically if URL is detected and tool doesn't exist yet
             @self.conversation_agent.tool(name="fetch_url", retries=2)
             @functools.wraps(fetch_url)
             async def fetch_url_tool(ctx: RunContext, url: str) -> ToolReturn:
                 """Wrap the fetch_url tool to provide context and add the tool."""
+                ctx.deps.messages = messages
                 return await fetch_url(ctx, url)
 
         usage = {"promptTokens": 0, "completionTokens": 0}
@@ -507,7 +499,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             .aexists()
         )
 
-        should_enable_rag = has_not_pdf_docs or has_url_in_current_message or has_url_in_conversation
+        should_enable_rag = has_not_pdf_docs or has_url_in_conversation
 
         document_urls = []
         if not conversation_has_documents and not should_enable_rag:

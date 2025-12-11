@@ -18,13 +18,6 @@ def get_pydantic_tools_by_name(name: str) -> Tool:
     """Get a tool by its name."""
     tool_dict = {
         "get_current_weather": Tool(get_current_weather, takes_ctx=False),
-        # Note: fetch_url is added dynamically in pydantic_ai.py when URL is detected
-        # It's kept here for reference but won't be used via prepare
-        "fetch_url": Tool(
-            fetch_url,
-            takes_ctx=True,
-            max_retries=2,
-        ),
         "web_search_brave": Tool(
             web_search_brave,
             takes_ctx=True,
