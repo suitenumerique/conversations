@@ -18,7 +18,7 @@ class DocumentConverter:
         *,
         name: str,
         content_type: str,
-        content: bytes,
+        content: bytes | BytesIO,
     ) -> str:
         """
         Convert a document to Markdown format.
@@ -28,9 +28,18 @@ class DocumentConverter:
         Args:
             name (str): The name of the document.
             content_type (str): The MIME type of the document (e.g., "application/pdf").
-            content (bytes): The content of the document as bytes.
+            content (bytes | BytesIO): The content of the document as bytes or BytesIO.
         """
-        return self._convert(BytesIO(content), file_extension=os.path.splitext(name)[1])
+        # Handle both bytes and BytesIO
+        if isinstance(content, BytesIO):
+            # Read the BytesIO to bytes, then create a new BytesIO for the converter
+            content_bytes = content.read()
+            content_io = BytesIO(content_bytes)
+        else:
+            # content is already bytes
+            content_io = BytesIO(content)
+        
+        return self._convert(content_io, file_extension=os.path.splitext(name)[1])
 
     def _convert(self, document: BytesIO, file_extension: str) -> str:
         """

@@ -26,6 +26,9 @@ def add_document_rag_search_tool(agent: Agent) -> None:
 
         document_store = document_store_backend(ctx.deps.conversation.collection_id)
 
+        if not ctx.deps.conversation.collection_id:
+            return ToolReturn(return_value=[], content="No documents to search in yet.")
+
         rag_results = document_store.search(query)
 
         ctx.usage += RunUsage(

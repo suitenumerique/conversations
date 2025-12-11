@@ -23,7 +23,14 @@ logger = logging.getLogger(__name__)
 def read_document_content(doc):
     """Read document content asynchronously."""
     with default_storage.open(doc.key) as f:
-        return doc.file_name, f.read().decode("utf-8")
+        # Prefer original URL when the attachment comes from a fetch_url ingestion,
+        # fallback to the stored filename otherwise.
+        source_name = (
+            doc.conversion_from
+            if doc.conversion_from and doc.conversion_from.startswith(("http://", "https://"))
+            else doc.file_name
+        )
+        return source_name, f.read().decode("utf-8")
 
 
 async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
@@ -173,7 +180,7 @@ async def document_summarize(  # pylint: disable=too-many-locals
         logger.debug("[summarize] MERGE response<= %s", final_summary)
 
         return ToolReturn(
-            return_value=final_summary,
+            return_value=final_summary + "\n Copy paste this summary to the user.",
             metadata={"sources": {doc[0] for doc in documents}},
         )
 
