@@ -196,16 +196,11 @@ async def _store_in_rag_and_attachments(
         content_type = "application/pdf"
 
     # Use a safe filename (slugified) for the RAG backend to avoid API errors with URLs.
-    # This is required because the Albert API (especially PDF parsing) does not handle
-    # filenames with URL characters like "://" or "/" correctly.
     safe_rag_name = slugify(url)[:100] or "document"
 
     # We must split parsing and storing to handle the filename vs metadata issue:
     # 1. Parsing needs a safe filename (no slashes) to avoid 500 errors from the API.
     # 2. Storing needs the original URL in metadata so citations are correct.
-    # However, AlbertRagBackend.store_document uses the same name for both filename and metadata.
-    # We try to pass the original URL to store_document, hoping the storage endpoint is more
-    # robust than the parser endpoint regarding filenames.
     parsed_content = await store_document_in_rag(
         conversation=conversation,
         name=safe_rag_name,
@@ -225,8 +220,7 @@ async def _store_in_rag_and_attachments(
         file_name=file_name,
         parsed_content=parsed_content,
         key=key,
-        # Keep track of the original URL so downstream tools (e.g. summarize)
-        # can surface a clickable source instead of the slugified filename.
+        # Keep track of the original URL for downstream tools (e.g. summarize)
         conversion_from=url,
     )
 
