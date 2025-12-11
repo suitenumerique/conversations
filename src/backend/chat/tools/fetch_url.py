@@ -5,6 +5,7 @@ import random
 import re
 
 import httpx
+from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.utils.text import slugify
 from pydantic_ai import RunContext
@@ -325,7 +326,8 @@ async def fetch_url(ctx: RunContext, url: str) -> ToolReturn:
             if is_pdf:
                 extracted = ""
             else:
-                extracted = trafilatura.extract(response.text) or response.text
+                # Run trafilatura.extract in a thread to avoid blocking the event loop
+                extracted = await sync_to_async(trafilatura.extract)(response.text) or response.text
 
             # For large or binary/PDF content, store in RAG instead of returning everything inline.
             if (
