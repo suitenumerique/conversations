@@ -457,7 +457,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         if force_web_search:
 
-            @self.conversation_agent.system_prompt
+            @self.conversation_agent.instructions
             def force_web_search_prompt() -> str:
                 """Dynamic system prompt function to force web search."""
                 return (
@@ -505,7 +505,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 )
 
             # Inform the model (system-level) that documents are attached and available
-            @self.conversation_agent.system_prompt
+            @self.conversation_agent.instructions
             def attached_documents_note() -> str:
                 return (
                     "[Internal context] User documents are attached to this conversation. "
