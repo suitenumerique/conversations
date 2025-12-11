@@ -130,6 +130,16 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
 
     assert mock_openai_stream.called
 
+    # ensure instructions are merged as a system prompt
+    last_request_payload = json.loads(respx.calls.last.request.content)
+    assert last_request_payload["messages"][0] == {
+        "content": (
+            "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\n"
+            "Answer in english."
+        ),
+        "role": "system",
+    }
+
     chat_conversation.refresh_from_db()
     assert chat_conversation.ui_messages == [
         {
@@ -170,29 +180,15 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
     )
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
+
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": (
+                "You are a helpful test assistant :)\n\n"
+                "Today is Friday 25/07/2025.\n\nAnswer in english."
+            ),
             "kind": "request",
             "parts": [
-                {
-                    "content": "You are a helpful test assistant :)",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Today is Friday 25/07/2025.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Answer in english.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
                 {
                     "content": ["Hello"],
                     "part_kind": "user-prompt",
@@ -255,6 +251,15 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
     assert response_content == "Hello there"
 
     assert mock_openai_stream.called
+    # ensure instructions are merged as a system prompt
+    last_request_payload = json.loads(respx.calls.last.request.content)
+    assert last_request_payload["messages"][0] == {
+        "content": (
+            "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\n"
+            "Answer in english."
+        ),
+        "role": "system",
+    }
 
     chat_conversation.refresh_from_db()
     assert chat_conversation.ui_messages == [
@@ -296,29 +301,15 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
     )
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
+
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": (
+                "You are a helpful test assistant :)\n\n"
+                "Today is Friday 25/07/2025.\n\nAnswer in english."
+            ),
             "kind": "request",
             "parts": [
-                {
-                    "content": "You are a helpful test assistant :)",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Today is Friday 25/07/2025.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Answer in english.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
                 {
                     "content": ["Hello"],
                     "part_kind": "user-prompt",
@@ -409,11 +400,12 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
     # Check the exact structure expected by the AI service
     assert body["messages"] == [
         {
-            "content": "You are a helpful test assistant :)",
+            "content": (
+                "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025."
+                "\n\nAnswer in english."
+            ),
             "role": "system",
         },
-        {"content": "Today is Friday 25/07/2025.", "role": "system"},
-        {"content": "Answer in english.", "role": "system"},
         {
             "content": [
                 {"text": "Hello, what do you see on this picture?", "type": "text"},
@@ -498,27 +490,12 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": (
+                "You are a helpful test assistant :)\n\n"
+                "Today is Friday 25/07/2025.\n\nAnswer in english."
+            ),
             "kind": "request",
             "parts": [
-                {
-                    "content": "You are a helpful test assistant :)",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Today is Friday 25/07/2025.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Answer in english.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
                 {
                     "content": [
                         "Hello, what do you see on this picture?",
@@ -616,11 +593,12 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
 
     assert body["messages"] == [
         {
-            "content": "You are a helpful test assistant :)",
+            "content": (
+                "You are a helpful test assistant :)\n\n"
+                "Today is Friday 25/07/2025.\n\nAnswer in english."
+            ),
             "role": "system",
         },
-        {"content": "Today is Friday 25/07/2025.", "role": "system"},
-        {"content": "Answer in english.", "role": "system"},
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
     ]
 
@@ -678,27 +656,12 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": (
+                "You are a helpful test assistant :)\n\n"
+                "Today is Friday 25/07/2025.\n\nAnswer in english."
+            ),
             "kind": "request",
             "parts": [
-                {
-                    "content": "You are a helpful test assistant :)",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Today is Friday 25/07/2025.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Answer in english.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
                 {
                     "content": ["Weather in Paris?"],
                     "part_kind": "user-prompt",
@@ -737,7 +700,10 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
             "run_id": _run_id,
         },
         {
-            "instructions": None,
+            "instructions": (
+                "You are a helpful test assistant :)\n\n"
+                "Today is Friday 25/07/2025.\n\nAnswer in english."
+            ),
             "kind": "request",
             "parts": [
                 {
@@ -829,11 +795,12 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
 
     assert body["messages"] == [
         {
-            "content": "You are a helpful test assistant :)",
+            "content": (
+                "You are a helpful test assistant :)\n\n"
+                "Today is Friday 25/07/2025.\n\nAnswer in french."
+            ),
             "role": "system",
         },
-        {"content": "Today is Friday 25/07/2025.", "role": "system"},
-        {"content": "Answer in french.", "role": "system"},
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
     ]
 
@@ -891,27 +858,12 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": (
+                "You are a helpful test assistant :)\n\n"
+                "Today is Friday 25/07/2025.\n\nAnswer in french."
+            ),
             "kind": "request",
             "parts": [
-                {
-                    "content": "You are a helpful test assistant :)",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Today is Friday 25/07/2025.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Answer in french.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
                 {
                     "content": ["Weather in Paris?"],
                     "part_kind": "user-prompt",
@@ -950,7 +902,10 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
             "run_id": _run_id,
         },
         {
-            "instructions": None,
+            "instructions": (
+                "You are a helpful test assistant :)\n\n"
+                "Today is Friday 25/07/2025.\n\nAnswer in french."
+            ),
             "kind": "request",
             "parts": [
                 {
@@ -1214,27 +1169,11 @@ def test_post_conversation_data_protocol_no_stream(
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": (
+                "You are an amazing assistant.\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
+            ),
             "kind": "request",
             "parts": [
-                {
-                    "content": "You are an amazing assistant.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Today is Friday 25/07/2025.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Answer in english.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
                 {
                     "content": ["Why the sky is blue?"],
                     "part_kind": "user-prompt",
@@ -1369,27 +1308,12 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": (
+                "You are a helpful test assistant :)\n\n"
+                "Today is Friday 25/07/2025.\n\nAnswer in english."
+            ),
             "kind": "request",
             "parts": [
-                {
-                    "content": "You are a helpful test assistant :)",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Today is Friday 25/07/2025.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-                {
-                    "content": "Answer in english.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
                 {
                     "content": ["Hello"],
                     "part_kind": "user-prompt",

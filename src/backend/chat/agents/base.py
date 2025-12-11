@@ -190,6 +190,4 @@ class BaseAgent(Agent):
 
         _tools = [get_pydantic_tools_by_name(tool_name) for tool_name in self.configuration.tools]
 
-        super().__init__(
-            model=_model_instance, system_prompt=_system_prompt, tools=_tools, **kwargs
-        )
+        super().__init__(model=_model_instance, instructions=_system_prompt, tools=_tools, **kwargs)
