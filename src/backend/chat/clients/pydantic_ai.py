@@ -13,7 +13,6 @@ import logging
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack
-from io import BytesIO
 from typing import Dict, List, Optional, Tuple
 
 from django.conf import settings
@@ -22,7 +21,6 @@ from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
 from django.db.models import Q
-from django.utils.module_loading import import_string
 
 from asgiref.sync import sync_to_async
 from langfuse import get_client
@@ -72,6 +70,7 @@ from chat.clients.pydantic_ui_message_converter import (
     model_message_to_ui_message,
     ui_message_to_user_content,
 )
+from chat.document_storage import store_document_with_attachment
 from chat.mcp_servers import get_mcp_servers
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
 from chat.tools.document_search_rag import add_document_rag_search_tool
@@ -251,19 +250,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         ):
             raise ValueError("Document URL does not belong to the conversation.")
 
-        document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
-
-        document_store = document_store_backend(self.conversation.collection_id)
-        if not document_store.collection_id:
-            # Create a new collection for the conversation
-            collection_id = document_store.create_collection(
-                name=f"conversation-{self.conversation.pk}",
-            )
-            self.conversation.collection_id = str(collection_id)
-            await self.conversation.asave(update_fields=["collection_id", "updated_at"])
-
         for document in documents:
             key = None
+            document_data = None
+            
             if isinstance(document, DocumentUrl):
                 if document.url.startswith("/media-key/"):
                     # Local file, retrieve from object storage
@@ -274,33 +264,31 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     # Retrieve the document data
                     with default_storage.open(key, "rb") as file:
                         document_data = file.read()
-                    parsed_content = document_store.parse_and_store_document(
-                        name=document.identifier,
-                        content_type=document.media_type,
-                        content=document_data,
-                    )
                 else:
                     # Remote URL
                     raise ValueError("External document URL are not accepted yet.")
             else:
-                parsed_content = document_store.parse_and_store_document(
-                    name=document.identifier,
-                    content_type=document.media_type,
-                    content=document.data,
-                )
+                document_data = document.data
+                # Convert BytesIO to bytes if needed
+                if hasattr(document_data, 'read'):
+                    document_data = document_data.read()
 
-            if not document.media_type.startswith("text/"):
-                md_attachment = await models.ChatConversationAttachment.objects.acreate(
-                    conversation=self.conversation,
-                    uploaded_by=self.user,
-                    key=key or f"{self.conversation.pk}/attachments/{document.identifier}.md",
-                    file_name=f"{document.identifier}.md",
-                    content_type="text/markdown",
-                    conversion_from=key,  # might be None
-                )
-                default_storage.save(md_attachment.key, BytesIO(parsed_content.encode("utf8")))
-                md_attachment.upload_state = models.AttachmentStatus.READY
-                await md_attachment.asave(update_fields=["upload_state", "updated_at"])
+            # Use the shared document storage utility
+            create_attachment = not document.media_type.startswith("text/")
+            attachment_key = None
+            if create_attachment:
+                attachment_key = key or f"{self.conversation.pk}/attachments/{document.identifier}.md"
+            
+            await store_document_with_attachment(
+                conversation=self.conversation,
+                user=self.user,
+                name=document.identifier,
+                content_type=document.media_type,
+                content=document_data,
+                create_attachment=create_attachment,
+                conversion_from=key,  # might be None
+                attachment_key=attachment_key,
+            )
 
     def prepare_prompt(  # noqa: PLR0912  # pylint: disable=too-many-branches
         self, message: UIMessage
