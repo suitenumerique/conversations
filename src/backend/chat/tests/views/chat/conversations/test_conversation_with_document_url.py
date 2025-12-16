@@ -17,7 +17,6 @@ from pydantic_ai.messages import (
     DocumentUrl,
     ModelMessage,
     ModelResponse,
-    SystemPromptPart,
     TextPart,
     UserPromptPart,
 )
@@ -61,7 +60,8 @@ def fixture_sample_document_content():
 
 @responses.activate
 @freeze_time()
-def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def test_post_conversation_with_local_pdf_document_url(
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
     sample_document_content,
     today_promt_date,
@@ -120,7 +120,7 @@ def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-m
     )
 
     async def agent_model(messages: list[ModelMessage], _info: AgentInfo):
-        presigned_url = messages[0].parts[3].content[1].url
+        presigned_url = messages[0].parts[0].content[1].url
         assert presigned_url.startswith("http://localhost:9000/conversations-media-storage/")
         assert presigned_url.find("X-Amz-Signature=") != -1
         assert presigned_url.find("X-Amz-Date=") != -1
@@ -129,11 +129,6 @@ def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-m
         assert messages == [
             ModelRequest(
                 parts=[
-                    SystemPromptPart(
-                        content="You are a helpful test assistant :)", timestamp=timezone.now()
-                    ),
-                    SystemPromptPart(content=today_promt_date, timestamp=timezone.now()),
-                    SystemPromptPart(content="Answer in english.", timestamp=timezone.now()),
                     UserPromptPart(
                         content=[
                             "What is in this document?",
@@ -146,6 +141,8 @@ def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-m
                         timestamp=timezone.now(),
                     ),
                 ],
+                instructions=f"You are a helpful test assistant :)\n\n{today_promt_date}"
+                "\n\nAnswer in english.",
                 run_id=messages[0].run_id,
             )
         ]
@@ -221,27 +218,11 @@ def test_post_conversation_with_local_pdf_document_url(  # pylint: disable=too-m
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": "You are a helpful test assistant :)\n\n"
+            f"{today_promt_date}\n\n"
+            "Answer in english.",
             "kind": "request",
             "parts": [
-                {
-                    "content": "You are a helpful test assistant :)",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": timestamp,
-                },
-                {
-                    "content": today_promt_date,
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": timestamp,
-                },
-                {
-                    "content": "Answer in english.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": timestamp,
-                },
                 {
                     "content": [
                         "What is in this document?",
@@ -429,7 +410,6 @@ def test_post_conversation_with_remote_document_url(
 @freeze_time("2025-10-18T20:48:20.286204Z")
 def test_post_conversation_with_local_document_url_in_history(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
-    today_promt_date,
     mock_ai_agent_service,
 ):
     """
@@ -437,6 +417,8 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
     """
     chat_conversation_pk = "0be55da5-8eb7-4dad-aa0f-fea454bd5809"
     document_url = f"/media-key/{chat_conversation_pk}/sample.pdf"
+    formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
+
     chat_conversation = ChatConversationFactory(
         pk=chat_conversation_pk,
         owner__language="en-us",
@@ -472,27 +454,11 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         ],
         pydantic_messages=[
             {
-                "instructions": None,
+                "instructions": "You are a helpful test assistant :)\n\n"
+                f"Today is {formatted_date}.\n\n"
+                "Answer in english.",
                 "kind": "request",
                 "parts": [
-                    {
-                        "content": "You are a helpful test assistant :)",
-                        "dynamic_ref": None,
-                        "part_kind": "system-prompt",
-                        "timestamp": "2025-10-18T20:48:20.286204Z",
-                    },
-                    {
-                        "content": today_promt_date,
-                        "dynamic_ref": None,
-                        "part_kind": "system-prompt",
-                        "timestamp": "2025-10-18T20:48:20.286204Z",
-                    },
-                    {
-                        "content": "Answer in english.",
-                        "dynamic_ref": None,
-                        "part_kind": "system-prompt",
-                        "timestamp": "2025-10-18T20:48:20.286204Z",
-                    },
                     {
                         "content": [
                             "What is in this document?",
@@ -555,7 +521,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
     )
 
     async def agent_model(messages: list[ModelMessage], _info: AgentInfo):
-        presigned_url = messages[0].parts[3].content[1].url
+        presigned_url = messages[0].parts[0].content[1].url
         assert presigned_url.startswith("http://localhost:9000/conversations-media-storage/")
         assert presigned_url.find("X-Amz-Signature=") != -1
         assert presigned_url.find("X-Amz-Date=") != -1
@@ -564,18 +530,6 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         assert messages == [
             ModelRequest(
                 parts=[
-                    SystemPromptPart(
-                        content="You are a helpful test assistant :)",
-                        timestamp=timezone.now(),
-                    ),
-                    SystemPromptPart(
-                        content=today_promt_date,
-                        timestamp=timezone.now(),
-                    ),
-                    SystemPromptPart(
-                        content="Answer in english.",
-                        timestamp=timezone.now(),
-                    ),
                     UserPromptPart(
                         content=[
                             "What is in this document?",
@@ -588,6 +542,9 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                         timestamp=timezone.now(),
                     ),
                 ],
+                instructions="You are a helpful test assistant :)\n\n"
+                "Today is Saturday 18/10/2025.\n\n"
+                "Answer in english.",
                 run_id=messages[0].run_id,
             ),
             ModelResponse(
@@ -606,6 +563,9 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                         timestamp=timezone.now(),
                     )
                 ],
+                instructions="You are a helpful test assistant :)\n\n"
+                "Today is Saturday 18/10/2025.\n\n"
+                "Answer in english.",
                 run_id=messages[2].run_id,
             ),
         ]
@@ -705,27 +665,11 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
     _run_id = chat_conversation.pydantic_messages[2]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": "You are a helpful test assistant :)\n\n"
+            "Today is Saturday 18/10/2025.\n\n"
+            "Answer in english.",
             "kind": "request",
             "parts": [
-                {
-                    "content": "You are a helpful test assistant :)",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-10-18T20:48:20.286204Z",
-                },
-                {
-                    "content": today_promt_date,
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-10-18T20:48:20.286204Z",
-                },
-                {
-                    "content": "Answer in english.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-10-18T20:48:20.286204Z",
-                },
                 {
                     "content": [
                         "What is in this document?",
@@ -772,7 +716,9 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
             # no run_id here
         },
         {
-            "instructions": None,
+            "instructions": "You are a helpful test assistant :)\n\n"
+            "Today is Saturday 18/10/2025.\n\n"
+            "Answer in english.",
             "kind": "request",
             "parts": [
                 {
@@ -823,7 +769,8 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         ("data.csv", "text/csv"),
     ],
 )
-def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def test_post_conversation_with_local_not_pdf_document_url(
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
     today_promt_date,
     mock_ai_agent_service,
@@ -886,27 +833,6 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
         assert messages == [
             ModelRequest(
                 parts=[
-                    SystemPromptPart(
-                        content="You are a helpful test assistant :)", timestamp=timezone.now()
-                    ),
-                    SystemPromptPart(content=today_promt_date, timestamp=timezone.now()),
-                    SystemPromptPart(content="Answer in english.", timestamp=timezone.now()),
-                    SystemPromptPart(
-                        content=(
-                            "Use document_search_rag ONLY to retrieve specific passages from "
-                            "attached documents. Do NOT use it to summarize; for summaries, "
-                            "call the summarize tool instead."
-                        ),
-                        timestamp=timezone.now(),
-                    ),
-                    SystemPromptPart(
-                        content=(
-                            "[Internal context] User documents are attached to this conversation. "
-                            "Do not request re-upload of documents; consider them already "
-                            "available via the internal store."
-                        ),
-                        timestamp=timezone.now(),
-                    ),
                     UserPromptPart(
                         content=[
                             "What is in this document?",
@@ -916,14 +842,22 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
                     ),
                 ],
                 instructions=(
-                    "When you receive a result from the summarization tool, you MUST "
-                    "return it directly to the user without any modification, "
-                    "paraphrasing, or additional summarization."
-                    "The tool already produces optimized summaries that should "
-                    "be presented verbatim."
-                    "You may translate the summary if required, but you MUST preserve "
-                    "all the information from the original summary."
-                    "You may add a follow-up question after the summary if needed."
+                    "You are a helpful test assistant :)\n\n"
+                    f"{today_promt_date}\n\n"
+                    "Answer in english.\n\n"
+                    "Use document_search_rag ONLY to retrieve specific passages from "
+                    "attached documents. Do NOT use it to summarize; for summaries, "
+                    "call the summarize tool instead.\n\nWhen you receive a result "
+                    "from the summarization tool, you MUST return it directly to "
+                    "the user without any modification, paraphrasing, or additional "
+                    "summarization.The tool already produces optimized summaries "
+                    "that should be presented verbatim.You may translate the summary "
+                    "if required, but you MUST preserve all the information from the "
+                    "original summary.You may add a follow-up question after the "
+                    "summary if needed.\n\n"
+                    "[Internal context] User documents are attached to this conversation. "
+                    "Do not request re-upload of documents; "
+                    "consider them already available via the internal store."
                 ),
                 run_id=messages[0].run_id,
             )
@@ -999,53 +933,25 @@ def test_post_conversation_with_local_not_pdf_document_url(  # pylint: disable=t
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": (
-                "When you receive a result from the summarization tool, you MUST "
-                "return it directly to the user without any modification, "
-                "paraphrasing, or additional summarization."
-                "The tool already produces optimized summaries that should "
-                "be presented verbatim."
-                "You may translate the summary if required, but you MUST preserve "
-                "all the information from the original summary."
-                "You may add a follow-up question after the summary if needed."
+                "You are a helpful test assistant :)\n\n"
+                f"{today_promt_date}\n\n"
+                "Answer in english.\n\n"
+                "Use document_search_rag ONLY to retrieve specific passages from "
+                "attached documents. Do NOT use it to summarize; for summaries, "
+                "call the summarize tool instead.\n\nWhen you receive a result "
+                "from the summarization tool, you MUST return it directly to "
+                "the user without any modification, paraphrasing, or additional "
+                "summarization.The tool already produces optimized summaries "
+                "that should be presented verbatim.You may translate the summary "
+                "if required, but you MUST preserve all the information from the "
+                "original summary.You may add a follow-up question after the "
+                "summary if needed.\n\n"
+                "[Internal context] User documents are attached to this conversation. "
+                "Do not request re-upload of documents; "
+                "consider them already available via the internal store."
             ),
             "kind": "request",
             "parts": [
-                {
-                    "content": "You are a helpful test assistant :)",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": timestamp,
-                },
-                {
-                    "content": today_promt_date,
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": timestamp,
-                },
-                {
-                    "content": "Answer in english.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": timestamp,
-                },
-                {
-                    "content": "Use document_search_rag ONLY to retrieve specific "
-                    "passages from attached documents. Do NOT use it to "
-                    "summarize; for summaries, call the summarize tool "
-                    "instead.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": timestamp,
-                },
-                {
-                    "content": "[Internal context] User documents are attached to "
-                    "this conversation. Do not request re-upload of "
-                    "documents; consider them already available via the "
-                    "internal store.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": timestamp,
-                },
                 {
                     "content": [
                         "What is in this document?",
