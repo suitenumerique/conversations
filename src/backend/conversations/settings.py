@@ -841,6 +841,13 @@ USER QUESTION:
         environ_prefix=None,
     )
 
+    # Fetch URL
+    FETCH_URL_TIMEOUT = values.PositiveIntegerValue(
+        default=5,  # seconds
+        environ_name="FETCH_URL_TIMEOUT",
+        environ_prefix=None,
+    )
+
     # Logging
     # We want to make it easy to log to console but by default we log production
     # to Sentry and don't want to log to console.

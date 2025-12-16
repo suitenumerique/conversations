@@ -3,6 +3,7 @@
 from pydantic_ai import Tool, ToolDefinition
 
 from .fake_current_weather import get_current_weather
+from .fetch_url import fetch_url
 from .web_seach_albert_rag import web_search_albert_rag
 from .web_search_brave import web_search_brave, web_search_brave_with_document_backend
 from .web_search_tavily import web_search_tavily
