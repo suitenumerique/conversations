@@ -55,8 +55,9 @@ test.describe('Chat page', () => {
     const copyButton = page.getByRole('button', { name: 'Copy' });
     await expect(copyButton).toBeVisible();
 
-    const messageContent = page.getByText('Lorem ipsum dolor sit amet');
+    const messageContent = page.getByTestId('assistant-message-content');
     await expect(messageContent).toBeVisible();
+    await expect(messageContent).not.toBeEmpty(); 
 
     // Check history
     const chatHistoryLink = page

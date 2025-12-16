@@ -709,6 +709,11 @@ export const Chat = ({
                       {message.content && (
                         <Box
                           className="mainContent-chat"
+                          data-testid={
+                            message.role === 'assistant'
+                              ? 'assistant-message-content'
+                              : undefined
+                          }
                           $padding={{ all: 'xxs' }}
                         >
                           <p className="sr-only">

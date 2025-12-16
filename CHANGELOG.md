@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- 📦️(front) update react
+
 ## [0.0.10] - 2025-12-15
 
 ### Added
