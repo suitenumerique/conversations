@@ -7,13 +7,12 @@ from uuid import uuid4
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.http import Http404, StreamingHttpResponse
+from django.utils.decorators import method_decorator
 
 import langfuse
 import magic
 import posthog
-from django.utils.decorators import method_decorator
 from lasuite.malware_detection import malware_detection
-from lasuite.oidc_login.backends import get_oidc_refresh_token
 from lasuite.oidc_login.decorators import refresh_oidc_access_token
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, ValidationError

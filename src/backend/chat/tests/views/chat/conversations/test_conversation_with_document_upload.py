@@ -7,6 +7,7 @@ import json
 import logging
 from io import BytesIO
 from unittest import mock
+from unittest.mock import Mock
 
 from django.utils import formats, timezone
 
@@ -41,26 +42,57 @@ from chat.tests.utils import replace_uuids_with_placeholder
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-@pytest.fixture(autouse=True)
-def ai_settings(settings):
+@pytest.fixture(
+    autouse=True,
+    params=[
+        "chat.agent_rag.document_rag_backends.find_rag_backend.FindRagBackend",
+        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend",
+    ],
+)
+def ai_settings(request, settings):
     """Fixture to set AI service URLs for testing."""
-    settings.AI_BASE_URL = "https://www.external-ai-service.com/"
-    settings.AI_API_KEY = "test-api-key"
-    settings.AI_MODEL = "test-model"
-    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
 
-    # Enable Albert API for document search
-    settings.RAG_DOCUMENT_SEARCH_BACKEND = (
-        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend"
-    )
-    settings.ALBERT_API_URL = "https://albert.api.etalab.gouv.fr"
-    settings.ALBERT_API_KEY = "albert-api-key"
+    # enable on rag document search tool
+    settings.RAG_DOCUMENT_SEARCH_BACKEND = request.param
     settings.RAG_WEB_SEARCH_PROMPT_UPDATE = (
         "Based on the following document contents:\n\n{search_results}\n\n"
         "Please answer the user's question: {user_prompt}"
     )
 
+    settings.AI_BASE_URL = "https://www.external-ai-service.com/"
+    settings.AI_API_KEY = "test-api-key"
+    settings.AI_MODEL = "test-model"
+    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
+
+    # Albert API settings
+    settings.ALBERT_API_URL = "https://albert.api.etalab.gouv.fr"
+    settings.ALBERT_API_KEY = "albert-api-key"
+
+    # Find API settings
+    settings.FIND_API_URL = "https://find.api.example.com"
+    settings.FIND_API_KEY = "find-api-key"
+
     return settings
+
+
+@pytest.fixture(autouse=True)
+def mock_process_request():
+    """Mock process_request to bypass authentication in tests."""
+    with mock.patch(
+        "lasuite.oidc_login.decorators.RefreshOIDCAccessToken.process_request"
+    ) as mocked_process_request:
+        mocked_process_request.return_value = None
+        yield mocked_process_request
+
+
+@pytest.fixture(autouse=True)
+def mock_refresh_access_token():
+    """Mock refresh_access_token to bypass token refresh in tests."""
+    with mock.patch("utils.oicd.refresh_access_token") as mocked_refresh_access_token:
+        mock_session = Mock(spec=httpx.Client)
+        mock_session.access_token = "mocked-access-token"
+        mocked_refresh_access_token.return_value = mock_session
+        yield mocked_refresh_access_token
 
 
 @pytest.fixture(name="sample_pdf_content")
@@ -130,6 +162,32 @@ def fixture_mock_albert_api():
             ],
             "usage": {"prompt_tokens": 10, "completion_tokens": 20},
         },
+        status=status.HTTP_200_OK,
+    )
+
+
+@pytest.fixture(name="mock_find_api")
+def fixture_mock_find_api():
+    """Fixture to mock the Find API endpoints."""
+    # Mock document indexing (Find API)
+    responses.post(
+        "https://find.api.example.com/api/v1.0/documents/index/",
+        json={"id": "456", "status": "indexed"},
+        status=status.HTTP_200_OK,
+    )
+
+    # Mock document search (Find API)
+    responses.post(
+        "https://find.api.example.com/api/v1.0/documents/search/",
+        json=[
+            {
+                "_source": {
+                    "title.fr": "sample.pdf",
+                    "content.fr": "This is the content of the PDF.",
+                },
+                "_score": 0.9,
+            }
+        ],
         status=status.HTTP_200_OK,
     )
 
@@ -220,6 +278,7 @@ def test_post_conversation_with_document_upload(
     # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
     mock_albert_api,  # pylint: disable=unused-argument
+    mock_find_api,  # pylint: disable=unused-argument
     sample_pdf_content,
     today_promt_date,
     mock_ai_agent_service,
@@ -549,6 +608,7 @@ def test_post_conversation_with_document_upload_feature_disabled(
 def test_post_conversation_with_document_upload_summarize(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
     api_client,
     mock_albert_api,  # pylint: disable=unused-argument
+    mock_find_api,  # pylint: disable=unused-argument
     sample_pdf_content,
     today_promt_date,
     mock_ai_agent_service,
