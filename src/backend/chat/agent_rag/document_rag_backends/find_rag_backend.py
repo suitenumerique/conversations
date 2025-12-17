@@ -56,14 +56,14 @@ class FindRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-attri
         self.collection_id = self.collection_id or 1
         return self.collection_id
 
-    #TODO
+    # TODO
     def delete_collection(self) -> None:
         """
         Deletion not available
         """
-        logger.warning(f"deletion of collections is not yet supported in FindRagBackend")
+        logger.warning("deletion of collections is not yet supported in FindRagBackend")
 
-    #TODO: factor with albert api
+    # TODO: factor with albert api
     def parse_pdf_document(self, name: str, content_type: str, content: BytesIO) -> str:
         """
         Parse the PDF document content and return the text content.
@@ -91,7 +91,7 @@ class FindRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-attri
             document_page["content"] for document_page in response.json().get("data", [])
         )
 
-    #TODO: factor with albert api
+    # TODO: factor with albert api
     def parse_document(self, name: str, content_type: str, content: BytesIO):
         """
         Parse the document and prepare it for the search operation.
@@ -142,7 +142,7 @@ class FindRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-attri
                 "updated_at": timezone.now().isoformat(),
                 "tags": [f"collection-{self.collection_id}"],
                 "size": len(content.encode("utf-8")),
-                "users": [], #TODO
+                "users": [],  # TODO
                 "groups": [],
                 "reach": "public",
                 "is_active": True,
@@ -165,12 +165,11 @@ class FindRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-attri
             RAGWebResults: The search results.
         """
         logger.debug("search documents in Find with query '%s'", query)
-        #TODO: factor session auth in a decorator
-        session = kwargs.get("session")
-        refresh_access_token(session)
-        oidc_access_token = session.get('oidc_access_token')
+        # TODO: factor session auth in a decorator
+        session = refresh_access_token(kwargs.get("session"))
+        oidc_access_token = session.get("oidc_access_token")
         if not oidc_access_token:
-            raise AuthenticationError({'error': 'Not authenticated'})
+            raise AuthenticationError({"error": "Not authenticated"})
         collection_ids = self.get_all_collection_ids()
 
         response = requests.post(
