@@ -104,7 +104,14 @@ def get_model_configuration(model_hrid: str):
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
-    def __init__(self, conversation: models.ChatConversation, user, session=None, model_hrid=None, language=None):
+    def __init__(  # noqa: PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        conversation: models.ChatConversation,
+        user,
+        session=None,
+        model_hrid=None,
+        language=None,
+    ):
         """
         Initialize the AI agent service.
 
