@@ -713,7 +713,7 @@ class Base(BraveSettings, Configuration):
         environ_prefix=None,
     )
     RAG_DOCUMENT_SEARCH_BACKEND = values.Value(
-        "chat.agent_rag.document_rag_backends.find_rag_backend.FindRagBackend",
+        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend",
         environ_name="RAG_DOCUMENT_SEARCH_BACKEND",
         environ_prefix=None,
     )
@@ -843,11 +843,18 @@ USER QUESTION:
 
     # Find
     FIND_API_KEY = values.Value(
+        None,
         environ_name="FIND_API_KEY",
         environ_prefix=None,
     )
     FIND_API_URL = values.Value(
+        "https://app-find/api",
         environ_name="FIND_API_URL",
+        environ_prefix=None,
+    )
+    FIND_API_TIMEOUT = values.PositiveIntegerValue(
+        default=30,  # seconds
+        environ_name="FIND_API_TIMEOUT",
         environ_prefix=None,
     )
 
