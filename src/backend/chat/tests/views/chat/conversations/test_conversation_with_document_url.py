@@ -4,6 +4,7 @@ import uuid
 
 # pylint: disable=too-many-lines
 from io import BytesIO
+from unittest import mock
 
 from django.core.files.storage import default_storage
 from django.utils import formats, timezone
@@ -37,11 +38,19 @@ from chat.tests.utils import replace_uuids_with_placeholder
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-@pytest.fixture(autouse=True)
-def ai_settings(settings):
+@pytest.fixture(
+    autouse=True,
+    params=[
+        "chat.agent_rag.document_rag_backends.find_rag_backend.FindRagBackend",
+        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend",
+    ],
+)
+def ai_settings(request, settings):
     """Fixture to set AI service URLs for testing."""
+    settings.RAG_DOCUMENT_SEARCH_BACKEND = request.param
     settings.AI_BASE_URL = "https://www.external-ai-service.com/"
     settings.AI_API_KEY = "test-api-key"
+    settings.FIND_API_KEY = "find-api-key"
     settings.AI_MODEL = "test-model"
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
     return settings
@@ -56,6 +65,16 @@ def fixture_sample_document_content():
         b"/Count 1/Kids[3 0 R]>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 3 3]>>"
         b"endobj\ntrailer<</Root 1 0 R>>"
     )
+
+
+@pytest.fixture(autouse=True)
+def mock_process_request():
+    """Mock process_request to bypass authentication in tests."""
+    with mock.patch(
+        "lasuite.oidc_login.decorators.RefreshOIDCAccessToken.process_request"
+    ) as mocked_process_request:
+        mocked_process_request.return_value = None
+        yield mocked_process_request
 
 
 @responses.activate
@@ -83,6 +102,10 @@ def test_post_conversation_with_local_pdf_document_url(
     responses.post(
         "https://albert.api.etalab.gouv.fr/v1/documents",
         json={"id": "document_id", "object": "document"},
+        status=200,
+    )
+    responses.post(
+        "https://app-find/api/v1.0/documents/index/",
         status=200,
     )
 
@@ -793,6 +816,10 @@ def test_post_conversation_with_local_not_pdf_document_url(
     responses.post(
         "https://albert.api.etalab.gouv.fr/v1/documents",
         json={"id": "document_id", "object": "document"},
+        status=200,
+    )
+    responses.post(
+        "https://app-find/api/v1.0/documents/index/",
         status=200,
     )
 

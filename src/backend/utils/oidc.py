@@ -1,9 +1,12 @@
 """Utility functions for OIDC token management."""
 
+from functools import wraps
+
 from django.conf import settings
 
 import requests
 from lasuite.oidc_login.backends import get_oidc_refresh_token, store_tokens
+from rest_framework.exceptions import AuthenticationFailed
 
 
 def refresh_access_token(session):
@@ -28,3 +31,18 @@ def refresh_access_token(session):
         refresh_token=token_info.get("refresh_token"),
     )
     return session
+
+
+def with_fresh_access_token(func):
+    """
+    Decorator to handle OIDC token refresh and extraction.
+    Expects 'session' in kwargs and update it with the fresh token.
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        session = kwargs.get("session")
+        if session is None:
+            raise AuthenticationFailed({"error": "Session is required but not provided"})
+        kwargs["session"] = refresh_access_token(session)
+        return func(*args, **kwargs)
+    return wrapper
