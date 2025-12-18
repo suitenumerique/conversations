@@ -227,6 +227,10 @@ export const Chat = ({
   const stopGeneration = async () => {
     stopChat();
 
+    if (!conversationId) {
+      return;
+    }
+
     const response = await fetchAPI(`chats/${conversationId}/stop-streaming/`, {
       method: 'POST',
     });

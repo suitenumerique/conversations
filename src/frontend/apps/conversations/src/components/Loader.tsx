@@ -1,7 +1,8 @@
 import dynamic from 'next/dynamic';
 
-const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 import searchingAnimation from '@/assets/lotties/searching';
+
+const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 
 export function Loader() {
   return (

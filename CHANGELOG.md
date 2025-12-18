@@ -15,7 +15,7 @@ and this project adheres to
 ## [0.0.11] - 2026-01-16
 
 ### Changed
-
+- 🐛(front) optimize chat
 - 📦️(front) update react
 - ✨(chat) Generate and edit conversation title
 
