@@ -26,12 +26,14 @@ def read_document_content(doc):
         return doc.file_name, f.read().decode("utf-8")
 
 
-async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
+async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx, language: str):
     """Summarize a single chunk of text."""
     sum_prompt = (
         "You are an agent specializing in text summarization. "
         "Generate a clear and concise summary of the following passage "
-        f"(part {idx}/{total_chunks}):\n'''\n{chunk}\n'''\n\n"
+        f"(part {idx}/{total_chunks}).\n"
+        f"The summary must be written in {language}.\n"
+        f"Passage:\n'''\n{chunk}\n'''\n\n"
     )
 
     logger.debug(
@@ -52,7 +54,7 @@ async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
 
 @last_model_retry_soft_fail
 async def document_summarize(  # pylint: disable=too-many-locals
-    ctx: RunContext, *, instructions: str | None = None
+    ctx: RunContext, *, instructions: str | None = None, language: str = "french"
 ) -> ToolReturn:
     """
     Generate a complete, ready-to-use summary of the documents in context
@@ -66,16 +68,19 @@ async def document_summarize(  # pylint: disable=too-many-locals
 
     Examples:
     "Summarize this doc in 2 paragraphs" -> instructions = "summary in 2 paragraphs"
-    "Summarize this doc in English" -> instructions = "In English"
-    "Summarize this doc" -> instructions = "" (default)
+    "Summarize this doc in English" -> language = "English"
+    "Summarize this doc with one paragraph on topic1 and one paragraph on topic2" -> instructions = "summary in 2 paragraphs, one paragraph on topic1 and one paragraph on topic2"
+    "Summarize this doc" -> instructions = "" (default) language = "french" (default)
 
     Args:
         instructions (str | None): The instructions the user gave to use for the summarization
+        language (str): The language in which the summary must be generated (default: "french")
     """
     try:
         instructions_hint = (
             instructions.strip() if instructions else "The summary should contain 2 or 3 parts."
         )
+        language_hint = (language or "french").strip()
         summarization_agent = SummarizationAgent()
 
         # Collect documents content
@@ -118,7 +123,9 @@ async def document_summarize(  # pylint: disable=too-many-locals
         async def summarize_chunk_with_semaphore(idx, chunk, total_chunks):
             """Summarize a chunk with semaphore-controlled concurrency."""
             async with semaphore:
-                return await summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx)
+                return await summarize_chunk(
+                    idx, chunk, total_chunks, summarization_agent, ctx, language_hint
+                )
 
         doc_chunk_summaries = []
         try:
@@ -154,7 +161,8 @@ async def document_summarize(  # pylint: disable=too-many-locals
             "- Harmonize style and terminology.\n"
             "- The final summary must be well-structured and formatted in markdown.\n"
             f"- Follow the instructions: {instructions_hint}\n"
-            "Respond directly with the final summary."
+            f"- The final summary must be written in {language_hint}.\n"
+            "Respond directly with the final summary. Begin with a title."
         )
 
         logger.debug("[summarize] MERGE prompt=> %s", merged_prompt)

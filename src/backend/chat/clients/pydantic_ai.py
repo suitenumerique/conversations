@@ -549,6 +549,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
             _final_output_from_tool = None
             _ui_sources = []
+            # Track if a tool (like summarize) should directly provide the final answer
+            _final_response_from_tool_streamed = False
+            _summarize_tool_call_ids: set[str] = set()
+            _stop_after_tool = False
 
             # Help Mistral to prevent `Unexpected role 'user' after role 'tool'` error.
             if history and history[-1].kind == "request":
@@ -574,6 +578,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                             logger.debug("node.run result: %s", result)
                             for part in result.model_response.parts:
                                 if isinstance(part, TextPart):
+                                    # If a tool (like summarize) is the final answer,
+                                    # do not stream additional model text.
+                                    if _final_response_from_tool_streamed:
+                                        continue
                                     if self._fake_streaming_delay:
                                         for i in range(0, len(part.content), 4):
                                             await self._agent_stop_streaming()
@@ -605,7 +613,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                     logger.debug("PartStartEvent: %s", dataclasses.asdict(event))
 
                                     if isinstance(event.part, TextPart):
-                                        yield events_v4.TextPart(text=event.part.content)
+                                        # If a tool (like summarize) is the final answer,
+                                        # do not stream additional model text.
+                                        if not _final_response_from_tool_streamed:
+                                            yield events_v4.TextPart(text=event.part.content)
                                     elif isinstance(event.part, ToolCallPart):
                                         yield events_v4.ToolCallStreamingStartPart(
                                             tool_call_id=event.part.tool_call_id,
@@ -623,7 +634,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                         dataclasses.asdict(event),
                                     )
                                     if isinstance(event.delta, TextPartDelta):
-                                        yield events_v4.TextPart(text=event.delta.content_delta)
+                                        # If a tool (like summarize) is the final answer,
+                                        # do not stream additional model text.
+                                        if not _final_response_from_tool_streamed:
+                                            yield events_v4.TextPart(
+                                                text=event.delta.content_delta
+                                            )
                                     elif isinstance(event.delta, ToolCallPartDelta):
                                         _tool_is_streaming = True
                                         yield events_v4.ToolCallDeltaPart(
@@ -648,6 +664,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                 )
                                 if isinstance(event, FunctionToolCallEvent):
                                     if not _tool_is_streaming:
+                                        # Track summarize tool calls so we can treat their
+                                        # result as the final answer.
+                                        if event.part.tool_name == "summarize":
+                                            _summarize_tool_call_ids.add(event.tool_call_id)
                                         yield events_v4.ToolCallPart(
                                             tool_call_id=event.tool_call_id,
                                             tool_name=event.part.tool_name,
@@ -656,6 +676,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                             else {},
                                         )
                                 elif isinstance(event, FunctionToolResultEvent):
+                                    _is_summarize_result = (
+                                        event.tool_call_id in _summarize_tool_call_ids
+                                    )
                                     if isinstance(event.result, ToolReturnPart):
                                         if event.result.metadata and (
                                             sources := event.result.metadata.get("sources")
@@ -675,21 +698,40 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                                     **_new_source_ui.source.model_dump()
                                                 )
 
-                                        yield events_v4.ToolResultPart(
-                                            tool_call_id=event.tool_call_id,
-                                            result=event.result.content,
-                                        )
+                                        if _is_summarize_result:
+                                            # For summarize, the tool output IS the final answer.
+                                            _final_output_from_tool = event.result.content
+                                            _final_response_from_tool_streamed = True
+                                            _stop_after_tool = True
+                                            if event.result.content:
+                                                yield events_v4.TextPart(
+                                                    text=event.result.content
+                                                )
+                                        else:
+                                            yield events_v4.ToolResultPart(
+                                                tool_call_id=event.tool_call_id,
+                                                result=event.result.content,
+                                            )
                                     elif isinstance(event.result, RetryPromptPart):
-                                        yield events_v4.ToolResultPart(
-                                            tool_call_id=event.tool_call_id,
-                                            result=event.result.content,
-                                        )
+                                        # RetryPrompts are internal hints for the model,
+                                        # they should not replace the final user-visible answer.
+                                        if not _is_summarize_result:
+                                            yield events_v4.ToolResultPart(
+                                                tool_call_id=event.tool_call_id,
+                                                result=event.result.content,
+                                            )
                                     else:
                                         logger.warning(
                                             "Unexpected tool result type: %s %s",
                                             type(event.result),
                                             dataclasses.asdict(event.result),
                                         )
+                            if _stop_after_tool:
+                                # Stop processing further tool events/nodes once summarize
+                                # has produced the final answer.
+                                break
+                    if _stop_after_tool:
+                        break
                     elif Agent.is_end_node(node):
                         # Once an End node is reached, the agent run is complete
                         logger.debug("v: %s", dataclasses.asdict(node))
@@ -710,7 +752,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                             message_id=_model_response_message_id,
                         )
 
-                # Final usage summary
+                # Final usage summary (even if we stopped early after a tool)
                 final_usage = run.usage()
                 usage["promptTokens"] = final_usage.input_tokens
                 usage["completionTokens"] = final_usage.output_tokens
@@ -718,19 +760,34 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         await self._agent_stop_streaming(force_cache_check=True)
 
         # Persist conversation
-        await sync_to_async(self._update_conversation)(
-            final_output=run.result.new_messages(),
-            usage=usage,
-            final_output_from_tool=_final_output_from_tool,
-            ui_sources=_ui_sources,
-            model_response_message_id=_model_response_message_id,
-            image_key_mapping=image_key_mapping or None,
-        )
-
-        if self._langfuse_available:
-            langfuse.update_current_trace(
-                output=run.result.output if self._store_analytics else "REDACTED"
+        if _final_output_from_tool:
+            # When a tool (like summarize) produced the final answer, we don't rely
+            # on the agent's `run.result` (which might be incomplete if we stopped early).
+            await sync_to_async(self._update_conversation)(
+                final_output=[],
+                usage=usage,
+                final_output_from_tool=_final_output_from_tool,
+                ui_sources=_ui_sources,
+                model_response_message_id=_model_response_message_id,
+                image_key_mapping=image_key_mapping or None,
             )
+            if self._langfuse_available:
+                langfuse.update_current_trace(
+                    output=_final_output_from_tool if self._store_analytics else "REDACTED"
+                )
+        else:
+            await sync_to_async(self._update_conversation)(
+                final_output=run.result.new_messages(),
+                usage=usage,
+                final_output_from_tool=None,
+                ui_sources=_ui_sources,
+                model_response_message_id=_model_response_message_id,
+                image_key_mapping=image_key_mapping or None,
+            )
+            if self._langfuse_available:
+                langfuse.update_current_trace(
+                    output=run.result.output if self._store_analytics else "REDACTED"
+                )
 
         # Vercel finish message
         yield events_v4.FinishMessagePart(
@@ -769,13 +826,24 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ],
             kind="request",
         )
-        _merged_final_output_message = ModelResponse(
-            parts=[
-                part for msg in final_output if isinstance(msg, ModelResponse) for part in msg.parts
-            ]
-            + ([TextPart(content=final_output_from_tool)] if final_output_from_tool else []),
-            kind="response",
-        )
+        if final_output_from_tool:
+            # When a tool (like summarize) produced the final answer, we only keep
+            # that content as the assistant message, to avoid the main model
+            # rephrasing or duplicating it.
+            _merged_final_output_message = ModelResponse(
+                parts=[TextPart(content=final_output_from_tool)],
+                kind="response",
+            )
+        else:
+            _merged_final_output_message = ModelResponse(
+                parts=[
+                    part
+                    for msg in final_output
+                    if isinstance(msg, ModelResponse)
+                    for part in msg.parts
+                ],
+                kind="response",
+            )
 
         if image_key_mapping:
             for part in _merged_final_output_request.parts:
@@ -786,18 +854,23 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         ):
                             content.url = unsigned_url
 
+        _request_ui_message = model_message_to_ui_message(_merged_final_output_request)
         _output_ui_message = model_message_to_ui_message(_merged_final_output_message)
-        if ui_sources:
-            _output_ui_message.parts += ui_sources
-        if model_response_message_id:
-            _output_ui_message.id = model_response_message_id
-        else:
-            logger.warning("model_response_message_id is None")
 
-        self.conversation.messages += [
-            model_message_to_ui_message(_merged_final_output_request),
-            _output_ui_message,
+        if ui_sources and _output_ui_message is not None:
+            _output_ui_message.parts += ui_sources
+        if _output_ui_message is not None:
+            if model_response_message_id:
+                _output_ui_message.id = model_response_message_id
+            else:
+                logger.warning("model_response_message_id is None")
+
+        # Only append non-empty UI messages to avoid None values,
+        # which would break Pydantic validation on list[UIMessage].
+        new_messages = [
+            msg for msg in (_request_ui_message, _output_ui_message) if msg is not None
         ]
+        self.conversation.messages += new_messages
         self.conversation.agent_usage = usage
 
         final_output_json = json.loads(
