@@ -127,7 +127,7 @@ async def _extract_and_summarize_snippets_async(query: str, url: str) -> List[st
         return []
 
 
-async def _fetch_and_store_async(url: str, document_store) -> None:
+async def _fetch_and_store_async(url: str, document_store, **kwargs) -> None:
     """Fetch, extract and store text content from the URL in the document store."""
 
     try:
@@ -136,7 +136,7 @@ async def _fetch_and_store_async(url: str, document_store) -> None:
         logger.debug("Fetched document: %s", document)
 
         if document:
-            await document_store.astore_document(url, document)
+            await document_store.astore_document(url, document, **kwargs)
     except DocumentFetchError as e:
         logger.warning("Failed to fetch and store %s: %s", url, e)
         # Continue with other documents

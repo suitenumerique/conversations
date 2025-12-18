@@ -166,7 +166,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
 
         return markdown_content
 
-    def store_document(self, name: str, content: str) -> None:
+    def store_document(self, name: str, content: str, **kwargs) -> None:
         """
         Store the document content in the Albert collection.
         This method should handle the logic to send the document content to the Albert API.
@@ -174,6 +174,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         Args:
             name (str): The name of the document.
             content (str): The content of the document in Markdown format.
+            **kwargs: Additional arguments.
         """
         response = requests.post(
             urljoin(self._base_url, self._documents_endpoint),
@@ -188,7 +189,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         logger.debug(response.json())
         response.raise_for_status()
 
-    async def astore_document(self, name: str, content: str) -> None:
+    async def astore_document(self, name: str, content: str, **kwargs) -> None:
         """
         Store the document content in the Albert collection.
         This method should handle the logic to send the document content to the Albert API.
@@ -196,6 +197,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         Args:
             name (str): The name of the document.
             content (str): The content of the document in Markdown format.
+            **kwargs: Additional arguments.
         """
         async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
             response = await client.post(

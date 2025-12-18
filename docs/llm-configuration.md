@@ -246,7 +246,7 @@ For Mistral AI models using the Etalab platform:
     {
       "hrid": "mistral-medium",
       "model_name": "mistral-medium-2508",
-      "human_readable_name": "Mistral Large (Etalab)",
+      "human_readable_name": "Mistral Medium (Etalab)",
       "provider_name": "mistral-etalab",
       "profile": null,
       "settings": {
