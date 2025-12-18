@@ -106,7 +106,7 @@ def get_model_configuration(model_hrid: str):
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
-    def __init__(  # noqa: PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         conversation: models.ChatConversation,
         user,
@@ -242,7 +242,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # --------------------------------------------------------------------- #
     # Core agent runner
     # --------------------------------------------------------------------- #
-    async def parse_input_documents(self, documents: List[BinaryContent | DocumentUrl]):
+    async def parse_input_documents(
+        self, documents: List[BinaryContent | DocumentUrl], user_sub: str
+    ):
         """
         Parse and store input documents in the conversation's document store.
         """
@@ -286,6 +288,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         name=document.identifier,
                         content_type=document.media_type,
                         content=document_data,
+                        user_sub=user_sub,
                     )
                 else:
                     # Remote URL
@@ -295,6 +298,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     name=document.identifier,
                     content_type=document.media_type,
                     content=document.data,
+                    user_sub=self.user.sub,
                 )
 
             if not document.media_type.startswith("text/"):
@@ -432,7 +436,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             )
 
             try:
-                await self.parse_input_documents(input_documents)
+                await self.parse_input_documents(input_documents, user_sub=self.user.sub)
             except Exception as exc:  # pylint: disable=broad-except
                 logger.exception("Error parsing input documents: %s", exc)
                 yield events_v4.ToolResultPart(
