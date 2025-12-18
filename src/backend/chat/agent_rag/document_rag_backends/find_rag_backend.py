@@ -2,7 +2,6 @@
 
 import logging
 import uuid
-from io import BytesIO
 from typing import List, Optional
 from urllib.parse import urljoin
 from uuid import uuid4
@@ -14,7 +13,7 @@ from django.utils import timezone
 import requests
 
 from chat.agent_rag.constants import RAGWebResult, RAGWebResults, RAGWebUsage
-from chat.agent_rag.document_converter.markitdown import DocumentConverter
+from chat.agent_rag.document_rag_backends.albert_rag_backend import AlbertParser
 from chat.agent_rag.document_rag_backends.base_rag_backend import BaseRagBackend
 from utils.oidc import with_fresh_access_token
 
@@ -41,10 +40,10 @@ class FindRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-attri
     ):
         # Initialize any necessary parameters or configurations here
         super().__init__(collection_id, read_only_collection_id)
-        self._pdf_parser_endpoint = urljoin(settings.ALBERT_API_URL, "/v1/parse-beta")
         self.api_key = settings.FIND_API_KEY
         self.search_endpoint = "api/v1.0/documents/search/"
         self.indexing_endpoint = "api/v1.0/documents/index/"
+        self.parser = AlbertParser()
 
         if not self.api_key:
             raise ImproperlyConfigured("FIND_API_KEY must be set in Django settings.")
@@ -61,62 +60,6 @@ class FindRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-attri
         Deletion not available
         """
         logger.warning("deletion of collections is not yet supported in FindRagBackend")
-
-    # TODO: factor with albert api
-    def parse_pdf_document(self, name: str, content_type: str, content: BytesIO) -> str:
-        """
-        Parse the PDF document content and return the text content.
-        This method should handle the logic to convert the PDF into
-        a format suitable for the Albert API.
-        """
-        response = requests.post(
-            self._pdf_parser_endpoint,
-            headers={
-                "Authorization": f"Bearer {settings.ALBERT_API_KEY}",
-            },
-            files={
-                "file": (
-                    name,
-                    content,
-                    content_type,
-                ),  # Use the name as the filename in the request
-                "output_format": (None, "markdown"),  # Specify the output format as Markdown,
-            },
-            timeout=settings.ALBERT_API_PARSE_TIMEOUT,
-        )
-        response.raise_for_status()
-
-        return "\n\n".join(
-            document_page["content"] for document_page in response.json().get("data", [])
-        )
-
-    # TODO: factor with albert api
-    def parse_document(self, name: str, content_type: str, content: BytesIO):
-        """
-        Parse the document and prepare it for the search operation.
-        This method should handle the logic to convert the document
-        into a format suitable for the Find API.
-
-        Args:
-            name (str): The name of the document.
-            content_type (str): The MIME type of the document (e.g., "application/pdf").
-            content (BytesIO): The content of the document as a BytesIO stream.
-
-        Returns:
-            str: The document content in Markdown format.
-        """
-        # Implement the parsing logic here
-        if content_type == "application/pdf":
-            # Handle PDF parsing
-            markdown_content = self.parse_pdf_document(
-                name=name, content_type=content_type, content=content
-            )
-        else:
-            markdown_content = DocumentConverter().convert_raw(
-                name=name, content_type=content_type, content=content
-            )
-
-        return markdown_content
 
     def store_document(self, name: str, content: str, **kwargs) -> None:
         """
@@ -169,10 +112,12 @@ class FindRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-attri
 
         response = requests.post(
             urljoin(settings.FIND_API_URL, self.search_endpoint),
-            headers={"Authorization": f"Bearer {kwargs["session"].get("oidc_access_token")}"},
+            headers={"Authorization": f"Bearer {kwargs['session'].get('oidc_access_token')}"},
             json={
                 "q": query,
-                "tags": [f"collection-{collection_id}" for collection_id in self.get_all_collection_ids()],
+                "tags": [
+                    f"collection-{collection_id}" for collection_id in self.get_all_collection_ids()
+                ],
                 "k": results_count,
             },
             timeout=settings.FIND_API_TIMEOUT,

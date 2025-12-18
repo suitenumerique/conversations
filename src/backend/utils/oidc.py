@@ -38,6 +38,7 @@ def with_fresh_access_token(func):
     Decorator to handle OIDC token refresh and extraction.
     Expects 'session' in kwargs and update it with the fresh token.
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         session = kwargs.get("session")
@@ -45,4 +46,5 @@ def with_fresh_access_token(func):
             raise AuthenticationFailed({"error": "Session is required but not provided"})
         kwargs["session"] = refresh_access_token(session)
         return func(*args, **kwargs)
+
     return wrapper
