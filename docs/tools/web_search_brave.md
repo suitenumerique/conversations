@@ -357,7 +357,7 @@ The RAG backend performs semantic search to find the most relevant content:
 rag_results = document_store.search(
     query,
     results_count=settings.BRAVE_RAG_WEB_SEARCH_CHUNK_NUMBER,
-    **kwargs,
+    **kwargs, # Additional search parameters like session with access_token
 )
 ```
 
