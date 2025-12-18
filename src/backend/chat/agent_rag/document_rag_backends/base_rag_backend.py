@@ -8,6 +8,7 @@ from typing import List, Optional
 from asgiref.sync import sync_to_async
 
 from chat.agent_rag.constants import RAGWebResults
+from chat.agent_rag.document_converter.parser import BaseParser
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class BaseRagBackend:
         self.collection_id = collection_id
         self.read_only_collection_id = read_only_collection_id or []
         self._default_collection_description = "Temporary collection for RAG document search"
+        self.parser: BaseParser = BaseParser()
 
     def get_all_collection_ids(self) -> List[str]:
         """
@@ -88,7 +90,7 @@ class BaseRagBackend:
         Returns:
             str: The document content in Markdown format.
         """
-        raise NotImplementedError("Must be implemented in subclass.")
+        return self.parser.parse_document(name, content_type, content)
 
     def store_document(self, name: str, content: str, **kwargs) -> None:
         """
