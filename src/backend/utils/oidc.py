@@ -11,13 +11,17 @@ from rest_framework.exceptions import AuthenticationFailed
 
 def refresh_access_token(session):
     """Refresh the OIDC access token using the refresh token."""
+    refresh_token = get_oidc_refresh_token(session)
+    if not refresh_token:
+        raise AuthenticationFailed({"error": "Refresh token is missing from session"})
+
     response = requests.post(
         settings.OIDC_OP_TOKEN_ENDPOINT,
         data={
             "grant_type": "refresh_token",
             "client_id": settings.OIDC_RP_CLIENT_ID,
             "client_secret": settings.OIDC_RP_CLIENT_SECRET,
-            "refresh_token": get_oidc_refresh_token(session),
+            "refresh_token": refresh_token,
         },
         timeout=5,
     )
