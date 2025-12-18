@@ -7,8 +7,8 @@ import json
 import logging
 from io import BytesIO
 from unittest import mock
-from unittest.mock import Mock
 
+from django.contrib.sessions.backends.cache import SessionStore
 from django.utils import formats, timezone
 
 import httpx
@@ -89,7 +89,9 @@ def mock_process_request():
 def mock_refresh_access_token():
     """Mock refresh_access_token to bypass token refresh in tests."""
     with mock.patch("utils.oidc.refresh_access_token") as mocked_refresh_access_token:
-        mocked_refresh_access_token.return_value = Mock(spec=httpx.Client)
+        session = SessionStore()
+        session["oidc_access_token"] = "mocked-access-token"
+        mocked_refresh_access_token.return_value = session
         yield mocked_refresh_access_token
 
 
