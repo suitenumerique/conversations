@@ -26,9 +26,6 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
 
     It provides methods to:
     - Create a collection for the search operation.
-    - Parse documents and convert them to Markdown format:
-       + Handle PDF parsing using the Albert API.
-       + Use the DocumentConverter (markitdown) for other formats.
     - Store parsed documents in the Albert collection.
     - Perform a search operation using the Albert API.
     """
@@ -213,6 +210,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         Args:
             query (str): The search query.
             results_count (int): The number of results to return.
+            **kwargs: Additional arguments.
 
         Returns:
             RAGWebResults: The search results.

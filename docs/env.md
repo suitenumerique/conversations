@@ -95,6 +95,9 @@ These are the environment variables you can set for the `conversations-backend` 
 | CACHES_KEY_PREFIX                               | The prefix used to every cache keys.                                                                                              | conversations                                           |
 | THEME_CUSTOMIZATION_FILE_PATH                   | full path to the file customizing the theme. An example is provided in src/backend/conversations/configuration/theme/default.json | BASE_DIR/conversations/configuration/theme/default.json |
 | THEME_CUSTOMIZATION_CACHE_TIMEOUT               | Cache duration for the customization settings                                                                                     | 86400                                                   |
+| FIND_API_KEY                                    | API key of Find                                                                                                                   |                                                         |
+| FIND_API_URL                                    | URL of Find                                                                                                                       | https://app-find/api                                    |
+| FIND_API_TIMEOUT                                | Find API timeout                                                                                                                  | 30                                                      |
 
 
 ## conversations-frontend image

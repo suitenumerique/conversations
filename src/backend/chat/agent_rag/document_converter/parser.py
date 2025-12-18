@@ -38,7 +38,7 @@ class AlbertParser(BaseParser):
 
     endpoint = urljoin(settings.ALBERT_API_URL, "/v1/parse-beta")
 
-    def parse_pdf_document(self, name: str, content_type: str, content: BytesIO) -> str:
+    def parse_pdf_document(self, name: str, content_type: str, content: bytes) -> str:
         """Parse PDF document using Albert API."""
         response = requests.post(
             self.endpoint,
@@ -57,7 +57,7 @@ class AlbertParser(BaseParser):
             document_page["content"] for document_page in response.json().get("data", [])
         )
 
-    def parse_document(self, name: str, content_type: str, content: BytesIO) -> str:
+    def parse_document(self, name: str, content_type: str, content: bytes) -> str:
         """Parse document based on content type."""
         if content_type == "application/pdf":
             return self.parse_pdf_document(name=name, content_type=content_type, content=content)
