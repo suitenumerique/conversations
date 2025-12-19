@@ -12,6 +12,10 @@ and this project adheres to
 
 - 📦️(front) update react
 
+### Fixed
+
+- 🐛(e2e) fix test-e2e-chronium
+
 ## [0.0.10] - 2025-12-15
 
 ### Added

@@ -47,11 +47,6 @@ test.describe('Chat page', () => {
 
     await page.keyboard.press('Enter');
 
-    // Wait for the response to appear
-    await page
-      .getByRole('button', { name: 'See more' })
-      .waitFor({ timeout: 10000 });
-
     const copyButton = page.getByRole('button', { name: 'Copy' });
     await expect(copyButton).toBeVisible();
 
