@@ -22,6 +22,7 @@ class UserFactory(factory.django.DjangoModelFactory):
         skip_postgeneration_save = True
 
     allow_conversation_analytics = factory.Faker("boolean", chance_of_getting_true=50)
+    allow_smart_web_search = factory.Faker("boolean", chance_of_getting_true=50)
     sub = factory.Sequence(lambda n: f"user{n!s}")
     email = factory.Faker("email")
     full_name = factory.Faker("name")
