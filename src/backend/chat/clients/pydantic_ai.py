@@ -89,6 +89,7 @@ class ContextDeps:
 
     conversation: models.ChatConversation
     user: User
+    session: Optional[Dict] = None
     web_search_enabled: bool = False
 
 
@@ -103,7 +104,14 @@ def get_model_configuration(model_hrid: str):
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
-    def __init__(self, conversation: models.ChatConversation, user, model_hrid=None, language=None):
+    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        conversation: models.ChatConversation,
+        user,
+        session=None,
+        model_hrid=None,
+        language=None,
+    ):
         """
         Initialize the AI agent service.
 
@@ -133,6 +141,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._context_deps = ContextDeps(
             conversation=conversation,
             user=user,
+            session=session,
             web_search_enabled=self._is_web_search_enabled,
         )
 
@@ -231,7 +240,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # --------------------------------------------------------------------- #
     # Core agent runner
     # --------------------------------------------------------------------- #
-    async def parse_input_documents(self, documents: List[BinaryContent | DocumentUrl]):
+    async def parse_input_documents(
+        self, documents: List[BinaryContent | DocumentUrl], user_sub: str
+    ):
         """
         Parse and store input documents in the conversation's document store.
         """
@@ -276,6 +287,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         name=document.identifier,
                         content_type=document.media_type,
                         content=document_data,
+                        user_sub=user_sub,
                     )
                 else:
                     # Remote URL
@@ -285,6 +297,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     name=document.identifier,
                     content_type=document.media_type,
                     content=document.data,
+                    user_sub=self.user.sub,
                 )
 
             if not document.media_type.startswith("text/"):
@@ -421,7 +434,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 },
             )
             try:
-                await self.parse_input_documents(input_documents)
+                await self.parse_input_documents(input_documents, user_sub=self.user.sub)
             except Exception as exc:  # pylint: disable=broad-except
                 logger.exception("Error parsing input documents: %s", exc)
                 yield events_v4.ToolResultPart(

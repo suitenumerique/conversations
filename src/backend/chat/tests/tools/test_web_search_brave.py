@@ -38,9 +38,6 @@ def brave_settings(settings):
     settings.BRAVE_SEARCH_EXTRA_SNIPPETS = True
     settings.BRAVE_SUMMARIZATION_ENABLED = False
     settings.BRAVE_CACHE_TTL = 3600
-    settings.RAG_DOCUMENT_SEARCH_BACKEND = (
-        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend"
-    )
     settings.BRAVE_RAG_WEB_SEARCH_CHUNK_NUMBER = 5
 
 
