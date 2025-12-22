@@ -26,6 +26,7 @@ from core.filters import remove_accents
 from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
+from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.serializers import ChatConversationRequestSerializer
 
 logger = logging.getLogger(__name__)
@@ -188,29 +189,28 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         if is_async_mode:
             logger.debug("Using ASYNC streaming for chat conversation.")
             if protocol == "data":
-                streaming_content = ai_service.stream_data_async(
+                base_stream = ai_service.stream_data_async(
                     messages, force_web_search=force_web_search
                 )
             else:  # Default to 'text' protocol
-                streaming_content = ai_service.stream_text_async(
+                base_stream = ai_service.stream_text_async(
                     messages, force_web_search=force_web_search
                 )
+            streaming_content = stream_with_keepalive_async(base_stream)
         else:
             logger.debug("Using SYNC streaming for chat conversation.")
             if protocol == "data":
-                streaming_content = ai_service.stream_data(
-                    messages, force_web_search=force_web_search
-                )
+                base_stream = ai_service.stream_data(messages, force_web_search=force_web_search)
             else:  # Default to 'text' protocol
-                streaming_content = ai_service.stream_text(
-                    messages, force_web_search=force_web_search
-                )
+                base_stream = ai_service.stream_text(messages, force_web_search=force_web_search)
 
+            streaming_content = stream_with_keepalive_sync(base_stream)
         response = StreamingHttpResponse(
             streaming_content,
             content_type="text/event-stream",
             headers={
                 "x-vercel-ai-data-stream": "v1",  # This header is used for Vercel AI streaming,
+                "X-Accel-Buffering": "no",  # Prevent nginx buffering
             },
         )
         return response
@@ -371,7 +371,6 @@ class ChatConversationAttachmentViewSet(
             owner=self.request.user,
         ).exists():
             raise Http404
-
         file_name = serializer.validated_data["file_name"]
         extension = file_name.rpartition(".")[-1] if "." in file_name else None
 

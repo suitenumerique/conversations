@@ -76,7 +76,7 @@ from chat.tools.document_generic_search_rag import add_document_rag_search_tool_
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize
 from chat.vercel_ai_sdk.core import events_v4, events_v5
-from chat.vercel_ai_sdk.encoder import EventEncoder
+from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
 
 # Keep at the top of the file to avoid mocking issues
 document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
@@ -122,7 +122,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self._langfuse_available = settings.LANGFUSE_ENABLED
         self._store_analytics = self._langfuse_available and user.allow_conversation_analytics
-        self.event_encoder = EventEncoder("v4")  # Always use v4 for now
+        self.event_encoder = EventEncoder(CURRENT_EVENT_ENCODER_VERSION)  # We use v4 for now
 
         self._support_streaming = True
         if (streaming := get_model_configuration(self.model_hrid).supports_streaming) is not None:

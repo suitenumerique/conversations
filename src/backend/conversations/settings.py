@@ -919,6 +919,12 @@ USER QUESTION:
         environ_prefix=None,
     )
 
+    # Default keepalive interval: 55s (safely below typical 60s proxy timeouts)
+    # Prevents connection drops during long stream pauses while providing 5s safety margin.
+    KEEPALIVE_INTERVAL = values.PositiveIntegerValue(
+        default=55, environ_name="KEEPALIVE_INTERVAL", environ_prefix=None
+    )
+
     # pylint: disable=invalid-name
     @property
     def ENVIRONMENT(self):
