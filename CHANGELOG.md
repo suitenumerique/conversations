@@ -11,6 +11,7 @@ and this project adheres to
 ### Changed
 - 🐛(front) optimize chat
 - 📦️(front) update react
+- 🐛(back) prevent tool call timeouts
 
 ### Fixed
 
