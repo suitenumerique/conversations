@@ -15,6 +15,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(e2e) fix test-e2e-chronium
+- ⚰️(back) remove dead code and unused files
 
 ## [0.0.10] - 2025-12-15
 
