@@ -1,4 +1,4 @@
-"""Test the post_stop_steaming view."""
+"""Test the post_stop_streaming view."""
 
 from unittest.mock import patch
 
