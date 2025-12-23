@@ -221,7 +221,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         url_path="stop-streaming",
         url_name="stop-streaming",
     )
-    def post_stop_steaming(self, request, pk):  # pylint: disable=unused-argument
+    def post_stop_streaming(self, request, pk):  # pylint: disable=unused-argument
         """Handle POST requests to stop streaming the chat conversation.
 
         This action will put a poison pill in the redis cache to stop any ongoing streaming.
