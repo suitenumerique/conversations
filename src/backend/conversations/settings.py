@@ -911,7 +911,9 @@ USER QUESTION:
     LANGFUSE_MEDIA_UPLOAD_ENABLED = values.BooleanValue(
         default=False, environ_name="LANGFUSE_MEDIA_UPLOAD_ENABLED", environ_prefix=None
     )
-
+    AUTO_TITLE_AFTER_USER_MESSAGES = values.PositiveIntegerValue(
+        default=None, environ_name="AUTO_TITLE_AFTER_USER_MESSAGES", environ_prefix=None
+    )
     # WARNING: Testing purpose only. Do not use in production.
     WARNING_MOCK_CONVERSATION_AGENT = values.BooleanValue(
         default=False,
@@ -1136,6 +1138,8 @@ class Test(Base):
     AI_MODEL = None
 
     POSTHOG_KEY = None
+
+    AUTO_TITLE_AFTER_USER_MESSAGES = None
 
     def __init__(self):
         # pylint: disable=invalid-name

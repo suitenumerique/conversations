@@ -28,6 +28,7 @@ def test_create_conversation(api_client):
     conversation = ChatConversation.objects.get(id=response.data["id"])
     assert conversation.owner == user
     assert conversation.title == "New Conversation"
+    assert not conversation.title_set_by_user_at
 
 
 def test_create_conversation_other_owner(api_client):

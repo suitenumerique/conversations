@@ -13,6 +13,7 @@ and this project adheres to
 ### Changed
 
 - 📦️(front) update react
+- ✨(chat) Generate and edit conversation title
 
 ### Fixed
 

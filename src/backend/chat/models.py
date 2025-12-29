@@ -44,7 +44,12 @@ class ChatConversation(BaseModel):
         null=True,
         help_text="Title of the chat conversation",
     )
-
+    title_set_by_user_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Timestamp when the user manually set the title. If set, prevent automatic "
+        "title generation.",
+    )
     ui_messages = models.JSONField(
         default=list,
         blank=True,
