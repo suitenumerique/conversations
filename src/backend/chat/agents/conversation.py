@@ -131,3 +131,25 @@ class ConversationAgent(BaseAgent):
                 if tool.name.startswith("web_search_"):
                     return tool.name
         return None
+
+
+@dataclasses.dataclass(init=False)
+class TitleGenerationAgent(BaseAgent):
+    """Agent that generates concise, descriptive titles for conversations."""
+
+    def __init__(self, **kwargs):
+        super().__init__(
+            model_hrid=settings.LLM_DEFAULT_MODEL_HRID,
+            output_type=str,
+            **kwargs,
+        )
+
+    def get_tools(self):
+        return []
+
+    def get_system_prompt(self):
+        return (
+            "You are a title generator. Your task is to create concise, descriptive titles "
+            "that accurately summarize conversation content and help the user quickly identify the "
+            "conversation.\n\n"
+        )

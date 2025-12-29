@@ -46,7 +46,7 @@ export const ModalRemoveConversation = ({
         <>
           <Button
             aria-label={t('Close the modal')}
-            color="secondary"
+            color="tertiary"
             fullWidth
             onClick={() => onClose()}
           >
@@ -79,7 +79,10 @@ export const ModalRemoveConversation = ({
         </Text>
       }
     >
-      <Box className="--converstions--modal-remove-chat">
+      <Box
+        className="--conversations--modal-remove-chat"
+        data-testid="delete-chat-confirm"
+      >
         <Text $size="sm" $variation="600">
           {t('Are you sure you want to delete this conversation ?')}
         </Text>
