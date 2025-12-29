@@ -1,6 +1,9 @@
 import { UseChatOptions, useChat as useAiSdkChat } from '@ai-sdk/react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 
 import { fetchAPI } from '@/api';
+import { KEY_LIST_CONVERSATION } from '@/features/chat/api/useConversations';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 
 const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
@@ -36,10 +39,42 @@ const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
   return fetchAPI(url, init);
 };
 
+interface ConversationMetadataEvent {
+  type: 'conversation_metadata';
+  conversationId: string;
+  title: string;
+}
+// Type guard to check if an item is a ConversationMetadataEvent
+function isConversationMetadataEvent(
+  item: unknown,
+): item is ConversationMetadataEvent {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    'type' in item &&
+    item.type === 'conversation_metadata'
+  );
+}
+
 export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
-  return useAiSdkChat({
+  const queryClient = useQueryClient();
+
+  const result = useAiSdkChat({
     ...options,
     maxSteps: 3,
     fetch: fetchAPIAdapter,
   });
+
+  useEffect(() => {
+    if (result.data && Array.isArray(result.data)) {
+      for (const item of result.data) {
+        if (isConversationMetadataEvent(item)) {
+          void queryClient.invalidateQueries({
+            queryKey: [KEY_LIST_CONVERSATION],
+          });
+        }
+      }
+    }
+  }, [result.data, queryClient]);
+  return result;
 }
