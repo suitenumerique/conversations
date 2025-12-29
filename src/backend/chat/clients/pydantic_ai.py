@@ -60,6 +60,7 @@ from chat.agents.local_media_url_processors import (
     update_history_local_urls,
     update_local_urls,
 )
+from chat.agents.summarize import SummarizationAgent
 from chat.ai_sdk_types import (
     LanguageModelV1Source,
     SourceUIPart,
@@ -446,6 +447,28 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         await self._agent_stop_streaming(force_cache_check=True)
 
+        generated_title = None
+
+        # +1 because we're about to add a new user message
+        current_user_count = sum(1 for msg in self.conversation.messages if msg.role == "user") + 1
+        if (
+            current_user_count == settings.AUTO_TITLE_AFTER_USER_MESSAGES
+            and not self.conversation.title_set_by_user_at
+        ):
+            generated_title = await self._generate_title()
+
+        # Notify frontend about the title update
+        if generated_title:
+            yield events_v4.DataPart(
+                data=[
+                    {
+                        "type": "conversation_metadata",
+                        "conversationId": str(self.conversation.pk),
+                        "title": generated_title,
+                    }
+                ]
+            )
+
         if force_web_search and not self._is_web_search_enabled:
             logger.warning("Web search is forced but the feature is disabled, ignoring.")
             force_web_search = False
@@ -725,6 +748,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ui_sources=_ui_sources,
             model_response_message_id=_model_response_message_id,
             image_key_mapping=image_key_mapping or None,
+            generated_title=generated_title,
         )
 
         if self._langfuse_available:
@@ -750,6 +774,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         ui_sources: List[SourceUIPart] = None,
         model_response_message_id: str | None = None,
         image_key_mapping: Dict[str, str] = None,
+        generated_title: str | None = None,
     ):  # pylint: disable=too-many-arguments
         """
         Save everything related to the conversation.
@@ -807,5 +832,36 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.conversation.pydantic_messages += json.loads(
             ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")
         )
-
+        if generated_title:
+            self.conversation.title = generated_title
         self.conversation.save()
+
+    async def _generate_title(self) -> str | None:
+        """Generate a title for the conversation using LLM based on first messages."""
+
+        # Build context from the first messages
+        context = "\n".join(
+            f"{msg.role}: {msg.content[:300]}"  # Limit content length per message
+            for msg in self.conversation.messages[:6]  # First few messages (3 user + 3 assistant)
+        )
+
+        prompt = (
+            "Generate a short, concise title (maximum 60 characters) for this conversation. "
+            "The title should capture the main topic or intent. "
+            "Return ONLY the title text, nothing else. No quotes, no explanations.\n\n"
+            "Return the title text in the same language the user messages are written."
+            f"If in doubt, use {self.language or 'French'}."
+            f"Conversation:\n{context}"
+        )
+
+        try:
+            agent = SummarizationAgent()
+            result = await agent.run(prompt)
+            title = (result.output or "").strip()[:100]  # Enforce max length
+            logger.info("Generated title for conversation %s: %s", self.conversation.pk, title)
+            return title if title else None
+        except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
+            logger.warning(
+                "Failed to generate title for conversation %s: %s", self.conversation.pk, exc
+            )
+            return None

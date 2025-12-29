@@ -10,15 +10,9 @@ import respx
 from freezegun import freeze_time
 
 
-@pytest.fixture(name="mock_openai_stream")
-@freeze_time("2025-07-25T10:36:35.297675Z")
-def fixture_mock_openai_stream():
-    """
-    Fixture to mock the OpenAI stream response.
-
-    See https://platform.openai.com/docs/api-reference/chat-streaming/streaming
-    """
-    openai_stream = (
+def build_openai_stream():
+    """Build open ai stream"""
+    return (
         "data: "
         + json.dumps(
             {
@@ -59,12 +53,79 @@ def fixture_mock_openai_stream():
         "data: [DONE]\n\n"
     )
 
+
+@pytest.fixture(name="mock_openai_stream")
+@freeze_time("2025-07-25T10:36:35.297675Z")
+def fixture_mock_openai_stream():
+    """
+    Fixture to mock the OpenAI stream response.
+
+    See https://platform.openai.com/docs/api-reference/chat-streaming/streaming
+    """
+    openai_stream = build_openai_stream()
+
     async def mock_stream():
         for line in openai_stream.splitlines(keepends=True):
             yield line.encode()
 
     route = respx.post("https://www.external-ai-service.com/chat/completions").mock(
         return_value=httpx.Response(200, stream=mock_stream())
+    )
+
+    return route
+
+
+@pytest.fixture(name="mock_openai_stream_with_title_generation")
+@freeze_time("2025-07-25T10:36:35.297675Z")
+def fixture_mock_openai_stream_with_title_generation():
+    """
+    Fixture to mock the OpenAI stream response.
+
+    See https://platform.openai.com/docs/api-reference/chat-streaming/streaming
+    """
+
+    def create_stream_response():
+        """Create a fresh streaming response for each call."""
+        openai_stream = build_openai_stream()
+
+        async def mock_stream():
+            for line in openai_stream.splitlines(keepends=True):
+                yield line.encode()
+
+        return httpx.Response(200, stream=mock_stream())
+
+    def create_non_stream_response():
+        """Create a non-streaming response for title generation."""
+        return httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl-title",
+                "object": "chat.completion",
+                "created": int(timezone.make_naive(timezone.now()).timestamp()),
+                "model": "test-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "GENERATED TITLE",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {"prompt_tokens": 50, "completion_tokens": 5, "total_tokens": 55},
+            },
+        )
+
+    def handle_request(request):
+        """Route to streaming or non-streaming response based on request."""
+        body = json.loads(request.content)
+        if body.get("stream", False):
+            return create_stream_response()
+        return create_non_stream_response()
+
+    route = respx.post("https://www.external-ai-service.com/chat/completions").mock(
+        side_effect=handle_request
     )
 
     return route

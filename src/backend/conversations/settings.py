@@ -911,7 +911,9 @@ USER QUESTION:
     LANGFUSE_MEDIA_UPLOAD_ENABLED = values.BooleanValue(
         default=False, environ_name="LANGFUSE_MEDIA_UPLOAD_ENABLED", environ_prefix=None
     )
-
+    AUTO_TITLE_AFTER_USER_MESSAGES = values.PositiveIntegerValue(
+        3, environ_name="AUTO_TITLE_AFTER_USER_MESSAGES", environ_prefix=None
+    )
     # WARNING: Testing purpose only. Do not use in production.
     WARNING_MOCK_CONVERSATION_AGENT = values.BooleanValue(
         default=False,

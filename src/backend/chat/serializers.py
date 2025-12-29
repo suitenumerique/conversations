@@ -4,6 +4,7 @@ from typing import Optional
 from urllib.parse import quote
 
 from django.conf import settings
+from django.utils import timezone
 
 from django_pydantic_field.rest_framework import SchemaField  # pylint: disable=no-name-in-module
 from drf_spectacular.utils import extend_schema_field
@@ -26,6 +27,12 @@ class ChatConversationSerializer(serializers.ModelSerializer):
         model = models.ChatConversation
         fields = ["id", "title", "created_at", "updated_at", "messages", "owner"]
         read_only_fields = ["id", "created_at", "updated_at", "messages"]
+
+    def update(self, instance, validated_data):
+        # If title is being changed, mark it as user-set
+        if "title" in validated_data and validated_data["title"] != instance.title:
+            instance.title_set_by_user_at = timezone.now()
+        return super().update(instance, validated_data)
 
 
 class ChatConversationInputSerializer(serializers.Serializer):

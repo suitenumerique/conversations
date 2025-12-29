@@ -79,7 +79,7 @@ export const ModalRemoveConversation = ({
         </Text>
       }
     >
-      <Box className="--converstions--modal-remove-chat">
+      <Box className="--conversations--modal-remove-chat">
         <Text $size="sm" $variation="600">
           {t('Are you sure you want to delete this conversation ?')}
         </Text>
