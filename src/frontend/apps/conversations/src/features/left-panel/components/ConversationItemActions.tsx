@@ -1,4 +1,4 @@
-import { Button as _Button, useModal } from '@openfun/cunningham-react';
+import { useModal } from '@openfun/cunningham-react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuOption, Icon } from '@/components';
 import { ChatConversation } from '@/features/chat/types';
 
 import { ModalRemoveConversation } from './ModalRemoveConversation';
+import { ModalRenameConversation } from './ModalRenameConversation';
 
 interface ConversationItemActionsProps {
   conversation: ChatConversation;
@@ -17,6 +18,7 @@ export const ConversationItemActions = ({
   const { t } = useTranslation();
 
   const deleteModal = useModal();
+  const renameModal = useModal();
 
   const options: DropdownMenuOption[] = [
     {
@@ -25,6 +27,13 @@ export const ConversationItemActions = ({
       callback: () => deleteModal.open(),
       disabled: false,
       testId: `conversation-item-actions-remove-${conversation.id}`,
+    },
+    {
+      label: t('Rename chat'),
+      icon: 'tune',
+      callback: () => renameModal.open(),
+      disabled: false,
+      testId: `conversation-item-actions-rename-${conversation.id}`,
     },
   ];
 
@@ -68,6 +77,12 @@ export const ConversationItemActions = ({
       {deleteModal.isOpen && (
         <ModalRemoveConversation
           onClose={deleteModal.onClose}
+          conversation={conversation}
+        />
+      )}
+      {renameModal.isOpen && (
+        <ModalRenameConversation
+          onClose={renameModal.onClose}
           conversation={conversation}
         />
       )}
