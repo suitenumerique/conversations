@@ -9,7 +9,7 @@ and this project adheres to
 ## [Unreleased]
 
 ### Changed
-- 🐛(front) optimize chat
+
 - 📦️(front) update react
 
 ### Fixed
