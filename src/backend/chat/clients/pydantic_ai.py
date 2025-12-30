@@ -357,7 +357,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         messages: List[UIMessage],
         force_web_search: bool = False,
     ) -> events_v4.Event | events_v5.Event:
-        """Run the Pydantic AI agent and stream events."""
+        """
+        Drive the agent for the provided user message, stream Vercel-AI-SDK event parts representing model and tool activity, and persist the final conversation state.
+        
+        Parameters:
+            messages (List[UIMessage]): UI messages for the conversation; the last message must be from the user.
+            force_web_search (bool): If true, require the agent to invoke the configured web search tool before answering (ignored if the feature or tool is unavailable).
+        
+        Returns:
+            events_v4.Event | events_v5.Event: Streamed event parts such as `TextPart`, `ToolCallPart`/`ToolCallStreamingStartPart`/`ToolCallDeltaPart`, `ToolResultPart`, `ReasoningPart`, `SourcePart`, `DataPart`, `StartStepPart`, and `FinishMessagePart` that drive frontend updates.
+        """
         if messages[-1].role != "user":
             return
 
@@ -777,16 +786,22 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         generated_title: str | None = None,
     ):  # pylint: disable=too-many-arguments
         """
-        Save everything related to the conversation.
-
-        Things to improve here:
-         - The way we need to add the UI sources to the final output message.
-
-        Args:
-            final_output (List[ModelRequest | ModelMessage]): The final output from the agent.
-            usage (Dict[str, int]): The token usage statistics.
-            user_initial_prompt_str (str | None): The initial user prompt string, if any.
-            ui_sources (List[SourceUIPart]): Optional UI sources to include in the conversation.
+        Merge the agent's final outputs into the conversation and persist updated conversation state.
+        
+        Parameters:
+            final_output (List[ModelRequest | ModelMessage]): Sequence of model requests and responses produced by the agent run; these will be merged into a single request and a single response before saving.
+            usage (Dict[str, int]): Token usage statistics to store on the conversation (e.g., promptTokens, completionTokens).
+            final_output_from_tool (str | None): Optional text produced by a tool that should be appended to the final model response.
+            ui_sources (List[SourceUIPart], optional): Optional UI-visible source parts to attach to the final response message.
+            model_response_message_id (str | None, optional): If provided, assign this id to the saved model response UI message; if omitted, a warning will be logged.
+            image_key_mapping (Dict[str, str], optional): Mapping from original (unsigned) media URLs to presigned/rewritten URLs; applied to image/document references in the merged request parts.
+            generated_title (str | None, optional): Optional auto-generated conversation title to apply to the conversation.
+        
+        Behavior:
+            - Merges multiple model request/response objects into a single ModelRequest and ModelResponse.
+            - Rewrites image/document URLs in user prompt parts when an image_key_mapping is provided.
+            - Converts merged model messages to UI messages, appends ui_sources if present, and sets the response message id when supplied.
+            - Appends the merged request and response messages to the conversation, updates agent usage and pydantic messages, applies a generated title if given, and saves the conversation.
         """
         _merged_final_output_request = ModelRequest(
             parts=[
@@ -837,7 +852,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.conversation.save()
 
     async def _generate_title(self) -> str | None:
-        """Generate a title for the conversation using LLM based on first messages."""
+        """
+        Create a concise conversation title based on the conversation's first messages.
+        
+        Uses the summarization agent to produce a short title in the same language as the user's messages. Returns the generated title text trimmed to at most 100 characters, or `None` if generation fails or produces no text.
+        
+        Returns:
+            str | None: The generated title (trimmed to 100 characters), or `None` when no title is available.
+        """
 
         # Build context from the first messages
         context = "\n".join(

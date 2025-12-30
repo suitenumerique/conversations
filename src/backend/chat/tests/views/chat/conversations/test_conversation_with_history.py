@@ -29,7 +29,18 @@ pytestmark = pytest.mark.django_db(transaction=True)
 
 @pytest.fixture(autouse=True)
 def ai_settings(settings):
-    """Fixture to set AI service URLs for testing."""
+    """
+    Configure AI-related settings for tests on the provided settings object.
+    
+    Sets test values for AI service base URL, API key, model, agent instructions, and sets
+    AUTO_TITLE_AFTER_USER_MESSAGES to 999 to disable automatic title generation during tests.
+    
+    Parameters:
+        settings (object): Django settings-like object to be mutated for test configuration.
+    
+    Returns:
+        object: The same settings object with AI-related test configuration applied.
+    """
     settings.AI_BASE_URL = "https://www.external-ai-service.com/"
     settings.AI_API_KEY = "test-api-key"
     settings.AI_MODEL = "test-model"

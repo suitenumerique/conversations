@@ -11,7 +11,17 @@ from freezegun import freeze_time
 
 
 def build_openai_stream():
-    """Build open ai stream"""
+    """
+    Constructs a string that simulates an OpenAI streaming response payload.
+    
+    The returned string contains three OpenAI-style `data:` blocks: a first chunk with content "Hello",
+    a second chunk with content " there" and a `finish_reason` of "stop" (including a `usage` object),
+    and a final `data: [DONE]` marker. Timestamp fields are generated from timezone.now() converted to
+    naive timestamps.
+    
+    Returns:
+        A string containing concatenated `data:` lines representing streaming chunks and a final `[DONE]` marker.
+    """
     return (
         "data: "
         + json.dumps(
@@ -65,6 +75,12 @@ def fixture_mock_openai_stream():
     openai_stream = build_openai_stream()
 
     async def mock_stream():
+        """
+        Yield each line of the prepared OpenAI-style streaming payload as encoded bytes.
+        
+        Yields:
+            AsyncGenerator[bytes, None]: Sequential byte chunks for each line in the constructed stream, preserving original line endings.
+        """
         for line in openai_stream.splitlines(keepends=True):
             yield line.encode()
 
@@ -79,23 +95,42 @@ def fixture_mock_openai_stream():
 @freeze_time("2025-07-25T10:36:35.297675Z")
 def fixture_mock_openai_stream_with_title_generation():
     """
-    Fixture to mock the OpenAI stream response.
-
-    See https://platform.openai.com/docs/api-reference/chat-streaming/streaming
+    Mock pytest fixture that intercepts POST requests to the external chat completions endpoint and returns either a streaming chat response or a non-streaming title-generation response depending on the incoming request.
+    
+    When the request JSON has "stream" set to True, the fixture returns an HTTP streaming response that imitates OpenAI's chat streaming payload; otherwise it returns a non-streaming JSON response containing a generated title and usage metadata.
+    
+    Returns:
+        respx.Route: A configured respx route that intercepts POST requests to
+        "https://www.external-ai-service.com/chat/completions" and replies based on the request body.
     """
 
     def create_stream_response():
-        """Create a fresh streaming response for each call."""
+        """
+        Create an HTTP response whose body streams encoded lines of an OpenAI-style streaming payload.
+        
+        Returns:
+            httpx.Response: HTTP 200 response with a streaming body that yields encoded bytes for each line of the streaming payload.
+        """
         openai_stream = build_openai_stream()
 
         async def mock_stream():
+            """
+            Yield encoded byte chunks for each line of the OpenAI stream.
+            
+            Each yielded value is a bytes object containing one line (including its line ending) from the prebuilt OpenAI streaming payload, suitable for use as an HTTP streaming response body.
+            """
             for line in openai_stream.splitlines(keepends=True):
                 yield line.encode()
 
         return httpx.Response(200, stream=mock_stream())
 
     def create_non_stream_response():
-        """Create a non-streaming response for title generation."""
+        """
+        Create a non-streaming OpenAI-like chat completion response containing a generated title.
+        
+        Returns:
+            httpx.Response: HTTP 200 response whose JSON payload represents a chat completion with a single assistant message containing the generated title and accompanying metadata (id, model, timestamps, choices, and usage).
+        """
         return httpx.Response(
             200,
             json={
@@ -118,7 +153,15 @@ def fixture_mock_openai_stream_with_title_generation():
         )
 
     def handle_request(request):
-        """Route to streaming or non-streaming response based on request."""
+        """
+        Selects a streaming or non-streaming HTTP response based on the request JSON `stream` flag.
+        
+        Parameters:
+            request (httpx.Request): Incoming request whose JSON body is inspected for the `stream` boolean flag.
+        
+        Returns:
+            httpx.Response: A response that streams the OpenAI-style event lines if `stream` is True, otherwise a non-streaming JSON response.
+        """
         body = json.loads(request.content)
         if body.get("stream", False):
             return create_stream_response()
@@ -134,7 +177,14 @@ def fixture_mock_openai_stream_with_title_generation():
 @pytest.fixture(name="mock_openai_no_stream")
 @freeze_time("2025-07-25T10:36:35.297675Z")
 def fixture_mock_openai_no_stream():
-    """Fixture to mock the OpenAI response."""
+    """
+    Create a respx route that returns a fixed, non-streaming OpenAI chat completion response.
+    
+    The mocked response is an HTTP 200 JSON payload representing a completed assistant message (explaining Rayleigh scattering) with associated metadata and usage details.
+    
+    Returns:
+        respx.Route: The configured respx route intercepting POST requests to https://www.external-ai-service.com/chat/completions.
+    """
 
     route = respx.post("https://www.external-ai-service.com/chat/completions").mock(
         return_value=httpx.Response(

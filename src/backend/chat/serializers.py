@@ -30,6 +30,14 @@ class ChatConversationSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # If title is being changed, mark it as user-set
+        """
+        Update the ChatConversation instance and record when the title is changed by the user.
+        
+        If `validated_data` contains a `title` different from the instance's current title, sets `title_set_by_user_at` to the current time.
+        
+        Returns:
+            The updated ChatConversation instance.
+        """
         if "title" in validated_data and validated_data["title"] != instance.title:
             instance.title_set_by_user_at = timezone.now()
         return super().update(instance, validated_data)

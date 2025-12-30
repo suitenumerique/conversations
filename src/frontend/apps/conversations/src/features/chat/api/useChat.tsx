@@ -44,7 +44,12 @@ interface ConversationMetadataEvent {
   conversationId: string;
   title: string;
 }
-// Type guard to check if an item is a ConversationMetadataEvent
+/**
+ * Type guard that determines whether a value is a ConversationMetadataEvent.
+ *
+ * @param item - Value to test
+ * @returns `true` if `item` is a ConversationMetadataEvent, `false` otherwise.
+ */
 function isConversationMetadataEvent(
   item: unknown,
 ): item is ConversationMetadataEvent {
@@ -56,6 +61,14 @@ function isConversationMetadataEvent(
   );
 }
 
+/**
+ * Hook that provides chat functionality with a custom fetch adapter and automatic conversation-list cache invalidation.
+ *
+ * The hook invokes the underlying AI chat implementation with `maxSteps` set to 3 and a fetch wrapper that appends UI-driven query parameters; when the chat stream emits a `conversation_metadata` event the hook invalidates the conversation list cache (KEY_LIST_CONVERSATION).
+ *
+ * @param options - Chat configuration options (note: `maxSteps` is overridden to 3 and the `fetch` implementation is replaced)
+ * @returns The chat hook result object containing `data`, status flags, and control methods for interacting with the chat stream.
+ */
 export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
   const queryClient = useQueryClient();
 
