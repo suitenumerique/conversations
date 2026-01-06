@@ -76,16 +76,6 @@ def ai_settings(request, settings):
 
 
 @pytest.fixture(autouse=True)
-def mock_process_request():
-    """Mock process_request to bypass authentication in tests."""
-    with mock.patch(
-        "lasuite.oidc_login.decorators.RefreshOIDCAccessToken.process_request"
-    ) as mocked_process_request:
-        mocked_process_request.return_value = None
-        yield mocked_process_request
-
-
-@pytest.fixture(autouse=True)
 def mock_refresh_access_token():
     """Mock refresh_access_token to bypass token refresh in tests."""
     with mock.patch("utils.oidc.refresh_access_token") as mocked_refresh_access_token:
@@ -168,7 +158,7 @@ def fixture_mock_document_api():
                     "score": search_score,
                 }
             ],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 20},
+            "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
         },
         status=status.HTTP_200_OK,
     )

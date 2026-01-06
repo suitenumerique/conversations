@@ -1,7 +1,6 @@
 """Unit tests for chat conversation actions with image URL."""
 
 import uuid
-from unittest import mock
 
 from django.utils import formats, timezone
 
@@ -52,16 +51,6 @@ def fixture_sample_image_content():
         b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\x0cIDATx\x9c\x63\x00"
         b"\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
     )
-
-
-@pytest.fixture(autouse=True)
-def mock_process_request():
-    """Mock process_request to bypass authentication in tests."""
-    with mock.patch(
-        "lasuite.oidc_login.decorators.RefreshOIDCAccessToken.process_request"
-    ) as mocked_process_request:
-        mocked_process_request.return_value = None
-        yield mocked_process_request
 
 
 @freeze_time("2025-10-18T20:48:20.286204Z")

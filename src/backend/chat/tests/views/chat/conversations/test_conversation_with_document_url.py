@@ -4,7 +4,6 @@ import uuid
 
 # pylint: disable=too-many-lines
 from io import BytesIO
-from unittest import mock
 
 from django.core.files.storage import default_storage
 from django.utils import formats, timezone
@@ -65,16 +64,6 @@ def fixture_sample_document_content():
         b"/Count 1/Kids[3 0 R]>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 3 3]>>"
         b"endobj\ntrailer<</Root 1 0 R>>"
     )
-
-
-@pytest.fixture(autouse=True)
-def mock_process_request():
-    """Mock process_request to bypass authentication in tests."""
-    with mock.patch(
-        "lasuite.oidc_login.decorators.RefreshOIDCAccessToken.process_request"
-    ) as mocked_process_request:
-        mocked_process_request.return_value = None
-        yield mocked_process_request
 
 
 @responses.activate
