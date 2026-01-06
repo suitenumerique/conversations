@@ -243,9 +243,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # --------------------------------------------------------------------- #
     # Core agent runner
     # --------------------------------------------------------------------- #
-    async def parse_input_documents(
-        self, documents: List[BinaryContent | DocumentUrl], user_sub: str
-    ):
+    async def parse_input_documents(self, documents: List[BinaryContent | DocumentUrl]):
         """
         Parse and store input documents in the conversation's document store.
         """
@@ -289,7 +287,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         name=document.identifier,
                         content_type=document.media_type,
                         content=document_data,
-                        user_sub=user_sub,
+                        user_sub=self.user.sub,
                     )
                 else:
                     # Remote URL
@@ -437,7 +435,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             )
 
             try:
-                await self.parse_input_documents(input_documents, user_sub=self.user.sub)
+                await self.parse_input_documents(input_documents)
             except Exception as exc:  # pylint: disable=broad-except
                 logger.exception("Error parsing input documents: %s", exc)
                 yield events_v4.ToolResultPart(

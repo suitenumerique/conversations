@@ -48,7 +48,7 @@ class FindRagBackend(BaseRagBackend):
         """
         init collection_id
         """
-        self.collection_id = self.collection_id or uuid.uuid4()
+        self.collection_id = self.collection_id or str(uuid.uuid4())
         return self.collection_id
 
     def delete_collection(self) -> None:

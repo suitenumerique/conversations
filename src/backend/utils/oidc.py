@@ -45,10 +45,10 @@ def with_fresh_access_token(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        session = kwargs.get("session")
+        session = kwargs.pop("session", None)
         if session is None:
             raise AuthenticationFailed({"error": "Session is required but not provided"})
-        kwargs["session"] = refresh_access_token(session)
-        return func(*args, **kwargs)
+        refreshed_session = refresh_access_token(session)
+        return func(*args, session=refreshed_session, **kwargs)
 
     return wrapper
