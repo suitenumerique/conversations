@@ -44,6 +44,9 @@ env.d/development/*
 !env.d/development/*.dist
 env.d/terraform
 
+# Configuration
+**/conversations/configuration/llm/dev.json
+
 # npm
 node_modules
 
