@@ -121,7 +121,7 @@ def fixture_mock_document_api():
         status=status.HTTP_200_OK,
     )
 
-    # Mock PDF parsing
+    # Mock Albert PDF parsing -> deprecated
     responses.post(
         "https://albert.api.etalab.gouv.fr/v1/parse-beta",
         json={
@@ -675,7 +675,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         'document discusses various topics."}\n'
         '0:"The document discusses various topics."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":287,"completionTokens":19}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":283,"completionTokens":19}}\n'
     )
 
     # Check that the conversation was updated

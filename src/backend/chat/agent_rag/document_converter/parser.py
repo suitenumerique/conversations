@@ -7,8 +7,16 @@ from urllib.parse import urljoin
 from django.conf import settings
 
 import requests
+from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions, TableStructureOptions
+from docling.document_converter import DocumentConverter as DoclingDocumentConverter
+from docling.document_converter import PdfFormatOption
+from docling_core.types.io import DocumentStream
 
-from chat.agent_rag.document_converter.markitdown import DocumentConverter
+from chat.agent_rag.document_converter.markitdown import (
+    DocumentConverter as MarkitdownDocumentConverter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +69,32 @@ class AlbertParser(BaseParser):
         """Parse document based on content type."""
         if content_type == "application/pdf":
             return self.parse_pdf_document(name=name, content_type=content_type, content=content)
-        return DocumentConverter().convert_raw(
+        return MarkitdownDocumentConverter().convert_raw(
             name=name, content_type=content_type, content=content
         )
+
+
+class DoclingParser(BaseParser):
+    """Document parser using Docling's DocumentConverter."""
+
+    artifacts_path = "src/backend/docling-models"
+
+    def __init__(self):
+        pipeline_options = PdfPipelineOptions(artifacts_path=self.artifacts_path)
+        pipeline_options.do_ocr = True
+        pipeline_options.do_table_structure = True
+        pipeline_options.table_structure_options = TableStructureOptions(do_cell_matching=False)
+
+        self.converter = DoclingDocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(
+                    pipeline_options=pipeline_options,
+                    backend=PyPdfiumDocumentBackend
+                )}
+        )
+
+    def parse_document(self, name: str, content_type: str, content: bytes) -> str:
+        """Parse document using Docling's DocumentConverter."""
+        return self.converter.convert(
+            DocumentStream(name=name, stream=BytesIO(content))
+        ).document.export_to_markdown()

@@ -101,7 +101,7 @@ async def document_summarize(  # pylint: disable=too-many-locals
         )
         documents_chunks = chunker(
             [doc[1] for doc in documents],
-            overlap=settings.SUMMARIZATION_OVERLAP_SIZE,
+            # overlap=settings.SUMMARIZATION_OVERLAP_SIZE,
         )
 
         logger.info(

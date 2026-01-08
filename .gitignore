@@ -82,3 +82,6 @@ db.sqlite3
 
 # Docker compose override
 compose.override.yml
+
+# Docling
+docling-models
