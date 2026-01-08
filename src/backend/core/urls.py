@@ -9,7 +9,12 @@ from rest_framework.routers import DefaultRouter
 from core.api import viewsets
 
 from activation_codes import viewsets as activation_viewsets
-from chat.views import ChatConversationAttachmentViewSet, ChatViewSet, LLMConfigurationView
+from chat.views import (
+    ChatConversationAttachmentViewSet,
+    ChatViewSet,
+    LLMConfigurationView,
+    github_prompt_webhook,
+)
 
 # - Main endpoints
 router = DefaultRouter()
@@ -40,4 +45,9 @@ urlpatterns = [
         ),
     ),
     path(f"api/{settings.API_VERSION}/config/", viewsets.ConfigView.as_view()),
+    path(
+        "webhooks/github/prompts",
+        github_prompt_webhook,
+        name="github-prompts-webhook",
+    ),
 ]

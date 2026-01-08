@@ -153,9 +153,16 @@ class BaseAgent(Agent):
     This class initializes the agent with model from configuration.
     """
 
-    def __init__(self, *, model_hrid, **kwargs):
-        """Initialize the agent with model configuration from settings."""
-        _ignored_kwargs = {"model", "system_prompt", "tools", "toolsets"}
+    def __init__(self, *, model_hrid, use_configuration_system_prompt: bool = True, **kwargs):
+        """Initialize the agent with model configuration from settings.
+
+        Args:
+            model_hrid: HRID of the model to use, as defined in LLM_CONFIGURATIONS.
+            use_configuration_system_prompt: If False, the system prompt defined in the
+                LLM configuration will be ignored, allowing subclasses to define all
+                instructions dynamically.
+        """
+        _ignored_kwargs = {"model", "system_prompt", "tools", "toolsets", "instructions"}
         if set(kwargs).intersection(_ignored_kwargs):
             raise ValueError(f"{_ignored_kwargs} arguments must not be provided.")
 
@@ -174,7 +181,7 @@ class BaseAgent(Agent):
             # and pydantic_ai.models.infer_model()
             _model_instance = self.configuration.model_name
 
-        _system_prompt = self.configuration.system_prompt
+        _system_prompt = self.configuration.system_prompt if use_configuration_system_prompt else None
         _base_toolset = (
             [
                 FunctionToolset(
@@ -190,4 +197,11 @@ class BaseAgent(Agent):
 
         _tools = [get_pydantic_tools_by_name(tool_name) for tool_name in self.configuration.tools]
 
-        super().__init__(model=_model_instance, instructions=_system_prompt, tools=_tools, **kwargs)
+        agent_kwargs = {
+            "model": _model_instance,
+            "tools": _tools,
+        }
+        if _system_prompt is not None:
+            agent_kwargs["instructions"] = _system_prompt
+
+        super().__init__(**agent_kwargs, **kwargs)

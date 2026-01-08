@@ -11,6 +11,7 @@ from pydantic_ai import ModelMessage
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from core.enums import get_language_name
+from chat.prompts import get_prompt
 
 from .base import BaseAgent
 
@@ -95,11 +96,24 @@ class ConversationAgent(BaseAgent):
 
     def __init__(self, *, language=None, **kwargs):
         """Initialize the conversation agent."""
-        super().__init__(**kwargs)
+        # Ignore the static system_prompt from configuration; rely entirely on
+        # dynamically registered instructions, including the external prompt.
+        super().__init__(use_configuration_system_prompt=False, **kwargs)
 
         # Do not call the real model on deployed instances if the setting is enabled
         if settings.WARNING_MOCK_CONVERSATION_AGENT:
             self._model = FunctionModel(stream_function=mocked_agent_model)
+
+        @self.instructions
+        def assistant_system_prompt() -> str:
+            """
+            Main system prompt for the assistant, loaded from the synced Prompt store.
+
+            This uses the `assistant_system` prompt from the external repository if
+            available, with a fallback to settings.AI_AGENT_INSTRUCTIONS.
+            """
+
+            return get_prompt("assistant_system")
 
         @self.instructions
         def add_the_date() -> str:

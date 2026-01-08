@@ -6,7 +6,8 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.core.files.storage import default_storage
-from django.http import Http404, StreamingHttpResponse
+from django.http import Http404, HttpResponse, StreamingHttpResponse
+from django.views.decorators.csrf import csrf_exempt
 
 import langfuse
 import magic
@@ -26,6 +27,7 @@ from core.filters import remove_accents
 from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
+from chat.prompt_sync import handle_prompt_sync
 from chat.serializers import ChatConversationRequestSerializer
 
 logger = logging.getLogger(__name__)
@@ -435,3 +437,40 @@ class ChatConversationAttachmentViewSet(
             )
 
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@csrf_exempt
+def github_prompt_webhook(request):
+    """
+    GitHub webhook endpoint to synchronize assistant prompts.
+
+    This endpoint expects a GitHub push payload and validates the request
+    using the X-Hub-Signature-256 header and a shared secret.
+    """
+
+    signature = request.headers.get("X-Hub-Signature-256")
+    secret = getattr(settings, "PROMPT_WEBHOOK_SECRET", None)
+
+    if not secret or not signature:
+        return HttpResponse(status=403)
+
+    import hashlib
+    import hmac
+    import json as _json
+
+    mac = hmac.new(
+        secret.encode(),
+        msg=request.body,
+        digestmod=hashlib.sha256,
+    )
+    expected = "sha256=" + mac.hexdigest()
+    if not hmac.compare_digest(expected, signature):
+        return HttpResponse(status=403)
+
+    try:
+        payload = _json.loads(request.body)
+    except _json.JSONDecodeError:
+        return HttpResponse(status=400)
+
+    handle_prompt_sync(payload)
+    return HttpResponse(status=200)

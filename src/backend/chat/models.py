@@ -131,3 +131,27 @@ class ChatConversationAttachment(BaseModel):
         null=True,
         help_text="Original file key if the Markdown from another file",
     )
+
+
+class Prompt(BaseModel):
+    """
+    Model storing LLM prompts synced from an external repository.
+
+    Each prompt is identified by a unique `name` (e.g. "assistant_system") and
+    optionally linked to metadata coming from a sidecar JSON file.
+    """
+
+    name = models.CharField(max_length=100, unique=True)
+    version = models.CharField(
+        max_length=40,
+        help_text="Git commit SHA from which this prompt was synced.",
+    )
+    content = models.TextField(help_text="Jinja template content of the prompt.")
+    metadata = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Optional JSON metadata loaded from the sidecar .meta.json file.",
+    )
+
+    def __str__(self) -> str:
+        return f"{self.name}@{self.version}"

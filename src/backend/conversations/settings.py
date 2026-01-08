@@ -663,6 +663,38 @@ class Base(BraveSettings, Configuration):
         environ_prefix=None,
     )
 
+    # External prompt repository (for agent system prompts, etc.)
+    PROMPT_REPO_OWNER = values.Value(
+        None,
+        environ_name="PROMPT_REPO_OWNER",
+        environ_prefix=None,
+    )
+    PROMPT_REPO_NAME = values.Value(
+        None,
+        environ_name="PROMPT_REPO_NAME",
+        environ_prefix=None,
+    )
+    PROMPT_REPO_BRANCH = values.Value(
+        "main",
+        environ_name="PROMPT_REPO_BRANCH",
+        environ_prefix=None,
+    )
+    PROMPT_WEBHOOK_SECRET = values.Value(
+        None,
+        environ_name="PROMPT_WEBHOOK_SECRET",
+        environ_prefix=None,
+    )
+    PROMPT_BASE_URL = values.Value(
+        "https://raw.githubusercontent.com",
+        environ_name="PROMPT_BASE_URL",
+        environ_prefix=None,
+    )
+    PROMPT_NAMES = values.ListValue(
+        default=["assistant_system"],
+        environ_name="PROMPT_NAMES",
+        environ_prefix=None,
+    )
+
     # Tools
     AI_AGENT_TOOLS = values.ListValue(
         default=[],
