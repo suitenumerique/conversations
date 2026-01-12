@@ -26,7 +26,7 @@ def add_document_rag_search_tool(agent: Agent) -> None:
 
         document_store = document_store_backend(ctx.deps.conversation.collection_id)
 
-        rag_results = document_store.search(query)
+        rag_results = document_store.search(query, session=ctx.deps.session)
 
         ctx.usage += RunUsage(
             input_tokens=rag_results.usage.prompt_tokens,

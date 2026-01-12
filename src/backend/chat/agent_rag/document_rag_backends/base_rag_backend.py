@@ -8,6 +8,7 @@ from typing import List, Optional
 from asgiref.sync import sync_to_async
 
 from chat.agent_rag.constants import RAGWebResults
+from chat.agent_rag.document_converter.parser import BaseParser
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class BaseRagBackend:
         self.collection_id = collection_id
         self.read_only_collection_id = read_only_collection_id or []
         self._default_collection_description = "Temporary collection for RAG document search"
+        self.parser: BaseParser = BaseParser()
 
     def get_all_collection_ids(self) -> List[str]:
         """
@@ -53,7 +55,7 @@ class BaseRagBackend:
 
         collection_ids = []
         if self.collection_id:
-            collection_ids.append(int(self.collection_id))
+            collection_ids.append(self.collection_id)
         if self.read_only_collection_id:
             collection_ids.extend(
                 [int(collection_id) for collection_id in self.read_only_collection_id]
@@ -88,9 +90,9 @@ class BaseRagBackend:
         Returns:
             str: The document content in Markdown format.
         """
-        raise NotImplementedError("Must be implemented in subclass.")
+        return self.parser.parse_document(name, content_type, content)
 
-    def store_document(self, name: str, content: str) -> None:
+    def store_document(self, name: str, content: str, **kwargs) -> None:
         """
         Store the document content in the collection.
         This method should handle the logic to send the document content to the API.
@@ -98,10 +100,11 @@ class BaseRagBackend:
         Args:
             name (str): The name of the document.
             content (str): The content of the document in Markdown format.
+            **kwargs: Additional arguments. ex: "user_sub" for access control.
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
-    async def astore_document(self, name: str, content: str) -> None:
+    async def astore_document(self, name: str, content: str, **kwargs) -> None:
         """
         Store the document content in the collection.
         This method should handle the logic to send the document content to the API.
@@ -109,10 +112,13 @@ class BaseRagBackend:
         Args:
             name (str): The name of the document.
             content (str): The content of the document in Markdown format.
+            **kwargs: Additional arguments. ex: "user_sub" for access control.
         """
-        return await sync_to_async(self.store_document)(name=name, content=content)
+        return await sync_to_async(self.store_document)(name=name, content=content, **kwargs)
 
-    def parse_and_store_document(self, name: str, content_type: str, content: BytesIO) -> str:
+    def parse_and_store_document(
+        self, name: str, content_type: str, content: BytesIO, **kwargs
+    ) -> str:
         """
         Parse the document and store it in the Albert collection.
 
@@ -120,12 +126,13 @@ class BaseRagBackend:
             name (str): The name of the document.
             content_type (str): The MIME type of the document (e.g., "application/pdf").
             content (BytesIO): The content of the document as a BytesIO stream.
+            **kwargs: Additional arguments. ex: "user_sub" for access control.
         """
         if not self.collection_id:
             raise RuntimeError("The RAG backend requires collection_id")
 
         document_content = self.parse_document(name, content_type, content)
-        self.store_document(name, document_content)
+        self.store_document(name, document_content, **kwargs)
         return document_content
 
     def delete_collection(self) -> None:
@@ -142,17 +149,27 @@ class BaseRagBackend:
         """
         return await sync_to_async(self.delete_collection)()
 
-    def search(self, query, results_count: int = 4) -> RAGWebResults:
+    def search(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
         """
         Search the collection for the given query.
+
+        Args:
+            query: The search query string.
+            results_count: Number of results to return.
+            **kwargs: Additional arguments. ex: 'session' for OIDC authentication.
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
-    async def asearch(self, query, results_count: int = 4) -> RAGWebResults:
+    async def asearch(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
         """
-        Search the collection for the given query.
+        Search the collection for the given query asynchronously.
+
+        Args:
+            query: The search query string.
+            results_count: Number of results to return.
+            **kwargs: Additional arguments. ex: 'session' for OIDC authentication.
         """
-        return await sync_to_async(self.search)(query=query, results_count=results_count)
+        return await sync_to_async(self.search)(query=query, results_count=results_count, **kwargs)
 
     @classmethod
     @contextmanager
