@@ -106,7 +106,8 @@ export default function HomeBanner() {
             <Button
               fullWidth={isMobile ? true : false}
               href="https://docs.numerique.gouv.fr/docs/7a6e6475-5b8f-4ffb-95ea-198da9ebd6d0/"
-              color="tertiary"
+              color="brand"
+              variant="bordered"
               target="_blank"
             >
               {t('Know more')}
@@ -115,22 +116,6 @@ export default function HomeBanner() {
         </Box>
         {!isMobile && <Banner />}
       </Box>
-      {/*      <Box $css="bottom: 3rem" $position="absolute">
-        <Button
-          color="secondary"
-          icon={
-            <Icon $theme="primary" $variation="800" iconName="expand_more" />
-          }
-          onClick={(e) => {
-            e.preventDefault();
-            document
-              .querySelector('#docs-app-info')
-              ?.scrollIntoView({ behavior: 'smooth' });
-          }}
-        >
-          {t('Show more')}
-        </Button>
-      </Box>*/}
     </Box>
   );
 }

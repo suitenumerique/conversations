@@ -19,8 +19,9 @@ export const Feedback = (_props: { buttonProps?: Partial<ButtonProps> }) => {
       <Button
         icon={<InfoIcon />}
         fullWidth
+        color="info"
+        variant="secondary"
         onClick={() => modal.open()}
-        className="c__button--info"
       >
         {t('Give feedback')}
       </Button>
@@ -101,25 +102,25 @@ const FeedbackButton = ({
         align-items: center;
         transition: all 0.2s ease;
         cursor: pointer;
-        border: 1px solid var(--c--theme--colors--greyscale-100);
-        color: var(--c--theme--colors--greyscale-600) !important;
+        border: 1px solid var(--c--contextuals--border--semantic--neutral--tertiary);
+        color: var(--c--contextuals--content--semantic--neutral--secondary) !important;
         
         &:hover {
           border-color: #b6d7fb;
-          background-color: #e7f2fd;
-          color: var(--c--theme--colors--info-600) !important;
+          background-color: var(--c--contextuals--background--semantic--info--tertiary) !important;
+          color: var(--c--contextuals--content--semantic--info--secondary) !important;
           span {
-            color: var(--c--theme--colors--info-600) !important;
+            color: var(--c--contextuals--content--semantic--info--secondary) !important;
           }
         }
       `}
     >
       <div style={{ flexShrink: 0 }}>{icon}</div>
       <Box $direction="column" $gap="xs">
-        <Text $weight="700" $size="sm" $color="greyscale-900">
+        <Text $weight="700" $size="sm">
           {title}
         </Text>
-        <Text $size="sm" $color="greyscale-600" style={{ lineHeight: '1.4' }}>
+        <Text $size="sm" style={{ lineHeight: '1.4' }}>
           {description}
         </Text>
       </Box>

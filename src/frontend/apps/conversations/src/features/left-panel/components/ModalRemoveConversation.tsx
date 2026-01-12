@@ -46,7 +46,8 @@ export const ModalRemoveConversation = ({
         <>
           <Button
             aria-label={t('Close the modal')}
-            color="tertiary"
+            color="brand"
+            variant="bordered"
             fullWidth
             onClick={() => onClose()}
           >
@@ -54,7 +55,8 @@ export const ModalRemoveConversation = ({
           </Button>
           <Button
             aria-label={t('Confirm deletion')}
-            color="danger"
+            color="brand"
+            variant="primary"
             fullWidth
             onClick={() =>
               removeDoc({
