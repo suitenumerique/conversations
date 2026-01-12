@@ -13,29 +13,6 @@ interface ConversationItemActionsProps {
   conversation: ChatConversation;
 }
 
-const dropdownStyles = css`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 4px;
-  border-radius: 4px;
-  &:hover {
-    background-color: #e1e3e7 !important;
-  }
-  &:focus-visible {
-    outline: 2px solid #3e5de7;
-    outline-offset: 2px;
-  }
-`;
-
-const iconStyles = css`
-  font-size: 1rem;
-  color: var(--c--theme--colors--primary-text-text);
-  pointer-events: none;
-`;
-
 export const ConversationItemActions = ({
   conversation,
 }: ConversationItemActionsProps) => {
@@ -73,14 +50,31 @@ export const ConversationItemActions = ({
       <DropdownMenu
         options={options}
         label={dropdownLabel}
-        buttonCss={dropdownStyles}
+        buttonCss={css`
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 24px;
+          height: 24px;
+          padding: 4px;
+          border-radius: 4px;
+          &:hover {
+            background-color: var(
+              --c--contextuals--background--semantic--overlay--primary
+            ) !important;
+          }
+          &:focus-visible {
+            outline: 2px solid
+              var(--c--contextuals--content--semantic--brand--tertiary);
+            outline-offset: 2px;
+          }
+        `}
       >
         <Icon
           data-testid={`conversation-item-actions-button-${conversation.id}`}
           iconName="more_horiz"
-          $theme="primary"
-          $variation="600"
-          $css={iconStyles}
+          $theme="brand"
+          $variation="tertiary"
         />
       </DropdownMenu>
 

@@ -1,16 +1,20 @@
 import { useCunninghamTheme } from '../useCunninghamTheme';
 
 describe('<useCunninghamTheme />', () => {
-  it('has the logo correctly set', () => {
-    expect(useCunninghamTheme.getState().themeTokens.logo?.src).toBe('');
+  it('has the favicon correctly set', () => {
+    const favicon1 = (
+      useCunninghamTheme.getState().componentTokens as Record<string, unknown>
+    ).favicon as { 'png-light': string; 'png-dark': string } | undefined;
+    expect(favicon1?.['png-light']).toBe('/assets/favicon-light.png');
 
     // Change theme
     useCunninghamTheme.getState().setTheme('dsfr');
 
-    const { themeTokens } = useCunninghamTheme.getState();
-    const logo = themeTokens.logo;
-    expect(logo?.src).toBe('/assets/logo-gouv.svg');
-    expect(logo?.widthHeader).toBe('110px');
-    expect(logo?.widthFooter).toBe('220px');
+    const { componentTokens } = useCunninghamTheme.getState();
+    const favicon = (componentTokens as Record<string, unknown>).favicon as
+      | { 'png-light': string; 'png-dark': string }
+      | undefined;
+    expect(favicon?.['png-light']).toBe('/assets/favicon-light.png');
+    expect(favicon?.['png-dark']).toBe('/assets/favicon-dark.png');
   });
 });

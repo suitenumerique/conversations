@@ -43,7 +43,7 @@ test.describe('Header', () => {
 
     await expect(
       header.getByRole('button', {
-        name: 'Les services de La Suite numérique',
+        name: 'Les services de LaSuite',
       }),
     ).toBeVisible();
   });
@@ -60,7 +60,7 @@ test.describe('Header', () => {
 
     await expect(
       header.getByRole('button', {
-        name: 'Les services de La Suite numérique',
+        name: 'Les services de LaSuite',
       }),
     ).toBeVisible();
 
@@ -73,15 +73,11 @@ test.describe('Header', () => {
 
     await header
       .getByRole('button', {
-        name: 'Les services de La Suite numérique',
+        name: 'Les services de LaSuite',
       })
       .click();
 
-    await expect(
-      page.getByRole('link', { name: 'France Transfert' }),
-    ).toBeVisible();
-
-    await expect(page.getByRole('link', { name: 'Grist' })).toBeVisible();
+    await expect(page.getByText('Grist')).toBeVisible();
   });
 });
 

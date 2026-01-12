@@ -21,7 +21,7 @@ const MobileLeftPanelStyle = createGlobalStyle`
 export const LeftPanel = () => {
   const { isDesktop } = useResponsiveStore();
 
-  const { colorsTokens, spacingsTokens } = useCunninghamTheme();
+  const { spacingsTokens } = useCunninghamTheme();
   const { setPanelOpen, isPanelOpen } = useChatPreferencesStore();
 
   useEffect(() => {
@@ -39,8 +39,8 @@ export const LeftPanel = () => {
             width: 300px;
             min-width: 300px;
             overflow: hidden;
-            border-right: 1px solid ${colorsTokens['greyscale-100']};
-            background-color: #F7F8FA;
+            border-right: 1px solid var(--c--contextuals--border--surface--primary);
+            background-color: var(--c--contextuals--background--surface--tertiary);
           `}
           className="--docs--left-panel-desktop"
         >
@@ -61,15 +61,18 @@ export const LeftPanel = () => {
           <Box
             $hasTransition
             $css={css`
-              z-index: 999;
+              z-index: 1000;
               overflow: hidden;
               width: ${isPanelOpen ? '100%' : '200px'};
               height: calc(100dvh - 52px);
-              border-right: 1px solid var(--c--theme--colors--greyscale-200);
+              border-right: 1px solid
+                var(--c--contextuals--border--surface-primary);
               position: fixed;
               top: 52px;
               left: ${isPanelOpen ? '0' : '-300px'};
-              background-color: #fff;
+              background-color: var(
+                --c--contextuals--background--surface--secondary
+              );
             `}
             className="--docs--left-panel-mobile"
           >
@@ -92,7 +95,8 @@ export const LeftPanel = () => {
                     height: 52px;
                     width: 100%;
                     gap: ${spacingsTokens['base']};
-                    border-top: 1px solid #dfe2ea;
+                    border-top: 1px solid
+                      var(--c--contextuals--border--surface--primary);
                   `}
                   $justify="space-between"
                   $align="center"

@@ -64,9 +64,8 @@ export const QuickSearch = ({
                 bottom: -20px;
                 background: linear-gradient(
                   to bottom,
-                  #F7F8FA 0%,
-                  rgba(247, 248, 250, 0.7) 40%,
-                  rgba(255, 255, 255, 0) 100%
+                  rgba(var(--c--contextuals--background--surface--tertiary), 1),
+                  rgba(var(--c--contextuals--background--surface--tertiary), 0)
                 );
               }
               ${
@@ -74,17 +73,16 @@ export const QuickSearch = ({
                   ? `
                 &:before {
                   content: "";
-                  background-color: #F7F8FA;
+                  background-color: var(--c--contextuals--background--surface--tertiary);
                   position: absolute;
                   width: 100%;
                   height: 20px;
                   top: -8px;
                 }
-                background-color: #F7F8FA;
               `
-                  : 'background-color: #FFF;'
+                  : ''
               }
-              }`}
+            `}
           >
             <QuickSearchInput
               withSeparator={hasChildrens(children)}
