@@ -39,7 +39,8 @@ export const LeftPanelHeader = ({ children }: PropsWithChildren) => {
               <Box $direction="row" $gap="2px">
                 <Button
                   aria-label={t('New chat')}
-                  color="primary"
+                  color="brand"
+                  variant="primary"
                   icon={<NewChatIcon />}
                   onClick={goToHome}
                 >

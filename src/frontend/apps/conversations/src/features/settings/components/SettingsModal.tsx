@@ -1,9 +1,11 @@
 import { Modal, ModalSize } from '@openfun/cunningham-react';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Icon, StyledLink, Text, useToast } from '@/components';
+import { Box, StyledLink, Text, ToggleSwitch, useToast } from '@/components';
+import { useCunninghamTheme } from '@/cunningham';
 import { useUserUpdate } from '@/core/api/useUserUpdate';
 import { useAuthQuery } from '@/features/auth/api';
+import { HorizontalSeparator } from '@/components/separators/HorizontalSeparator';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -15,6 +17,7 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
   const { data: user } = useAuthQuery();
   const { mutateAsync: updateUser, isPending } = useUserUpdate();
   const { showToast } = useToast();
+  const { isDarkMode, toggleDarkMode } = useCunninghamTheme();
 
   const handleToggleChange = async () => {
     if (!user) {
@@ -50,18 +53,7 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
       closeOnClickOutside
       onClose={onClose}
       size={ModalSize.MEDIUM}
-      title={
-        <Text
-          $size="h6"
-          as="h6"
-          $margin={{ all: '0' }}
-          $align="flex-start"
-          $theme="greyscale"
-          $variation="850"
-        >
-          {t('Assistant settings')}
-        </Text>
-      }
+      title={t('Assistant settings')}
     >
       <Box aria-label={t('Assistant settings')}>
         <Box $align="center" $justify="space-between">
@@ -77,6 +69,46 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
                 'The Assistant is a sovereign conversational AI designed for public servants. It helps you save time on daily tasks like rephrasing, summarising, translating, or searching information. Your data never leaves France and is stored on secure, state-compliant infrastructures. It is never used for commercial purposes.',
               )}
             </Text>
+
+            <Box $gap="2xs" $padding={{ top: 'md' }}>
+              <Text
+                $size="md"
+                $weight="500"
+                $theme="greyscale"
+                $variation="850"
+              >
+                {t('Dark mode')}
+              </Text>
+              <Box
+                $direction="row"
+                $justify="space-between"
+                $align="flex-start"
+              >
+                <Box $css="max-width: 70%;">
+                  <Text
+                    $css={`
+                    display: inline-block;
+                  `}
+                    $size="xs"
+                    $theme="greyscale"
+                    $variation="600"
+                    $weight="400"
+                  >
+                    {t(
+                      'Enable dark mode to reduce eye strain in low-light environments.',
+                    )}
+                  </Text>
+                </Box>
+                <ToggleSwitch
+                  checked={isDarkMode}
+                  onChange={() => toggleDarkMode()}
+                  aria-label={t('Dark mode')}
+                />
+              </Box>
+            </Box>
+
+            <HorizontalSeparator />
+
             <Text
               $size="md"
               $weight="500"
@@ -122,57 +154,12 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
                 </StyledLink>
               </Text>
             </Box>
-            <Box $css="padding-top: 2px;">
-              <Box
-                $css={`
-                    position: relative;
-                    width: 44px;
-                    height: 24px;
-                    background-color: ${user?.allow_conversation_analytics ? 'var(--c--theme--colors--primary-500)' : 'var(--c--theme--colors--greyscale-300)'};
-                    border-radius: 12px;
-                    cursor: ${isPending ? 'not-allowed' : 'pointer'};
-                    transition: all 0.2s ease;
-                    opacity: ${isPending ? 0.6 : 1};
-                  `}
-                onClick={
-                  isPending ? undefined : () => void handleToggleChange()
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    if (!isPending) {
-                      void handleToggleChange();
-                    }
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-              >
-                <Box
-                  $css={`
-                    position: absolute;
-                    top: 2px;
-                    left: ${user?.allow_conversation_analytics ? '22px' : '2px'};
-                    width: 20px;
-                    height: 20px;
-                    background-color: white;
-                    border-radius: 50%;
-                    transition: left 0.2s ease;
-                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                  `}
-                >
-                  <Icon
-                    iconName={user?.allow_conversation_analytics ? 'check' : ''}
-                    $size="12px"
-                    $theme="primary"
-                    $variation="600"
-                  />
-                </Box>
-              </Box>
-            </Box>
+            <ToggleSwitch
+              checked={user?.allow_conversation_analytics ?? false}
+              onChange={() => void handleToggleChange()}
+              disabled={isPending}
+              aria-label={t('Allow conversation analysis')}
+            />
           </Box>
         </Box>
       </Box>

@@ -46,12 +46,12 @@ export const ScrollDown: React.FC<ScrollDownProps> = ({
       `}
     >
       <Button
-        className="c__button--bordered"
+        className="c__button--background"
         aria-label="See more"
+        color="brand"
+        variant="bordered"
         onClick={onClick}
-        icon={
-          <Icon $variation="text" $theme="primary" iconName="arrow_downward" />
-        }
+        icon={<Icon $theme="inherit" iconName="arrow_downward" />}
       />
     </Box>
   );

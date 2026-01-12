@@ -152,8 +152,8 @@ export const ModelSelector = ({
               bottom: 100%;
               right: -30px;
               width: 300px;
-              background: white;
-              border: 1px solid var(--c--theme--colors--greyscale-100);
+              background: var(--c--contextuals--background--surface--tertiary);
+              border: 1px solid var(--c--contextuals--background--surface--secondary);
               border-radius: 4px;
               box-shadow: 0 0 6px 0 rgba(0, 0, 145, 0.10);
               z-index: 1000;
@@ -162,7 +162,7 @@ export const ModelSelector = ({
               overflow-y: auto;
               overflow-x: hidden;
               justify-content: space-between;
-              
+    
               /* Custom scrollbar */
               &::-webkit-scrollbar {
                 width: 6px;
@@ -171,11 +171,11 @@ export const ModelSelector = ({
                 background: transparent;
               }
               &::-webkit-scrollbar-thumb {
-                background: var(--c--theme--colors--greyscale-300);
+                background: var(--c--contextuals--background--surface--secondary);
                 border-radius: 3px;
               }
               &::-webkit-scrollbar-thumb:hover {
-                background: var(--c--theme--colors--greyscale-400);
+                background: var(--c--contextuals--background--surface--secondary);
               }
             `}
           >
@@ -192,13 +192,13 @@ export const ModelSelector = ({
                   position: relative;
                   
                     &:hover {
-                      background-color: #f2f5f4;
+                      background-color: var(--c--contextuals--background--surface--secondary);
                     }
                   
                   ${
                     currentModel?.hrid === model.hrid
                       ? `
-                    background-color: #f2f5f4;
+                    background-color: var(--c--contextuals--background--surface--secondary);
                   `
                       : ''
                   }
@@ -227,8 +227,8 @@ export const ModelSelector = ({
                       $css="display: flex; align-items: center; justify-content: space-between; gap: 16px;"
                     >
                       <Text
-                        $theme="greyscale"
-                        $variation="850"
+                        $theme="neutral"
+                        $variation="primary"
                         $weight="500"
                         $size="s"
                       >
@@ -237,8 +237,8 @@ export const ModelSelector = ({
                       {model.is_default && (
                         <Box>
                           <Text
-                            $theme="greyscale"
-                            $variation="550"
+                            $theme="neutral"
+                            $variation="tertiary"
                             $size="xs"
                             $weight="400"
                           >

@@ -1,4 +1,3 @@
-// A SUPPRIMER ?
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
@@ -48,10 +47,7 @@ export const SimpleConversationItem = ({
         `}
         $padding={`${spacingsTokens['3xs']} 0`}
       >
-        <BubbleIcon
-          aria-label={t('Simple chat icon')}
-          color={colorsTokens['primary-500']}
-        />
+        <BubbleIcon aria-label={t('Simple chat icon')} color="brand" />
       </Box>
       <Box $justify="center" $overflow="auto">
         <Text

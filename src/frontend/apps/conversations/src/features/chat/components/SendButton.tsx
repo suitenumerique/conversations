@@ -41,14 +41,8 @@ export const SendButton = ({
           type="submit"
           aria-label={t('Send')}
           disabled={disabled || status === 'error'}
-          color="primary"
-          icon={
-            <Icon
-              $variation="800"
-              $theme="primary-text"
-              iconName="arrow_upward"
-            />
-          }
+          variant="primary"
+          icon={<Icon $theme="primary-text" iconName="arrow_upward" />}
         />
       ) : (
         <Button
@@ -60,7 +54,7 @@ export const SendButton = ({
           className="c__button--stop"
           icon={<StopIcon />}
         >
-          <Text $theme="greyscale" $variation="000">
+          <Text $theme="gray" $variation="000">
             {t('Stop')}
           </Text>
         </Button>

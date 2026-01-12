@@ -44,10 +44,13 @@ export const ConversationItemActions = ({
           padding: 4px;
           border-radius: 4px;
           &:hover {
-            background-color: #e1e3e7 !important;
+            background-color: var(
+              --c--contextuals--background--semantic--overlay--primary
+            ) !important;
           }
           &:focus-visible {
-            outline: 2px solid #3e5de7;
+            outline: 2px solid
+              var(--c--contextuals--content--semantic--brand--tertiary);
             outline-offset: 2px;
           }
         `}
@@ -55,13 +58,8 @@ export const ConversationItemActions = ({
         <Icon
           data-testid={`conversation-item-actions-button-${conversation.id}`}
           iconName="more_horiz"
-          $theme="primary"
-          $variation="600"
-          $css={css`
-            font-size: 1rem;
-            color: var(--c--theme--colors--primary-text-text);
-            pointer-events: none;
-          `}
+          $theme="brand"
+          $variation="tertiary"
         />
       </DropdownMenu>
 

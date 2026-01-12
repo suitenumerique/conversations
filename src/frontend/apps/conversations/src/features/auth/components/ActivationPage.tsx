@@ -270,7 +270,7 @@ export const ActivationPage = () => {
                   <Button
                     type="submit"
                     fullWidth={isDesktop ? false : true}
-                    color="primary"
+                    color="brand"
                     icon={<IconKey />}
                     disabled={isSubmitting || !code.trim()}
                     style={{
@@ -360,14 +360,15 @@ export const ActivationPage = () => {
             <Box $direction="column" $gap="1rem" $justify="flex-end">
               <Button
                 fullWidth
-                color="primary"
+                color="brand"
                 onClick={handleNotificationRegister}
               >
                 {t('Notify me')}
               </Button>
               <Button
                 fullWidth
-                color="tertiary"
+                color="neutral"
+                variant="bordered"
                 onClick={() => {
                   setIsNotifyModalOpen(false);
                 }}
@@ -442,8 +443,8 @@ export const ActivationPage = () => {
                     <Text
                       $size="xs"
                       $weight="700"
-                      $theme="primary"
-                      $variation="650"
+                      $theme="brand"
+                      $variation="primary"
                       $align="center"
                     >
                       {app.name}
