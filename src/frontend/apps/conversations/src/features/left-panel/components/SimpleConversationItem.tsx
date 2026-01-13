@@ -1,11 +1,10 @@
-// A SUPPRIMER ?
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import { Box, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { ChatConversation } from '@/features/chat/types';
-import { useResponsiveStore } from '@/stores';
 
 import BubbleIcon from '../assets/bubble-bold.svg';
 
@@ -18,19 +17,22 @@ const ItemTextCss = css`
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
 `;
-
+const bubbleContainerStyles = css`
+  background-color: transparent;
+  filter: drop-shadow(0px 2px 2px rgba(0, 0, 0, 0.05));
+`;
 type SimpleConversationItemProps = {
   conversation: ChatConversation;
   showAccesses?: boolean;
 };
 
-export const SimpleConversationItem = ({
+export const SimpleConversationItem = memo(function SimpleConversationItem({
   conversation,
   showAccesses: _showAccesses = false,
-}: SimpleConversationItemProps) => {
+}: SimpleConversationItemProps) {
   const { t } = useTranslation();
   const { spacingsTokens, colorsTokens } = useCunninghamTheme();
-  const { isDesktop: _isDesktop } = useResponsiveStore();
+  const title = conversation.title || t('Untitled conversation');
 
   return (
     <Box
@@ -42,10 +44,7 @@ export const SimpleConversationItem = ({
       <Box
         $direction="row"
         $align="center"
-        $css={css`
-          background-color: transparent;
-          filter: drop-shadow(0px 2px 2px rgba(0, 0, 0, 0.05));
-        `}
+        $css={bubbleContainerStyles}
         $padding={`${spacingsTokens['3xs']} 0`}
       >
         <BubbleIcon
@@ -56,14 +55,14 @@ export const SimpleConversationItem = ({
       <Box $justify="center" $overflow="auto">
         <Text
           aria-describedby="doc-title"
-          aria-label={conversation.title || t('Untitled conversation')}
+          aria-label={title}
           $size="sm"
           $variation="850"
           $css={ItemTextCss}
         >
-          {conversation.title || t('Untitled conversation')}
+          {title}
         </Text>
       </Box>
     </Box>
   );
-};
+});
