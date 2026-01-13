@@ -4,7 +4,7 @@ import React from 'react';
 import { Box } from '@/components';
 import { SourceItem } from '@/features/chat/components/SourceItem';
 
-interface SourceMetadata {
+export interface SourceMetadata {
   title: string | null;
   favicon: string | null;
   loading: boolean;

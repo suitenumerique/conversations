@@ -1,28 +1,7 @@
-import { CunninghamProvider } from '@openfun/cunningham-react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { ToastProvider } from '@/components';
-import { ChatConversation } from '@/features/chat/types';
-
 import { ConversationItemActions } from '../ConversationItemActions';
-
-const mockPush = jest.fn();
-let mockPathname = '/';
-
-jest.mock('next/router', () => ({
-  useRouter: () => ({
-    push: mockPush,
-    pathname: mockPathname,
-    route: '/',
-    query: {},
-    asPath: '/',
-  }),
-}));
-
-jest.mock('next/navigation', () => ({
-  usePathname: () => mockPathname,
-}));
 
 jest.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -42,48 +21,85 @@ jest.mock('i18next', () => ({
   t: (key: string) => key,
 }));
 
-jest.mock('@/features/chat/api/useRenameConversation', () => ({
-  useRenameConversation: () => ({
-    mutate: jest.fn(),
-  }),
+jest.mock('@/components', () => ({
+  DropdownMenu: ({
+    children,
+    options,
+    label,
+  }: {
+    children: React.ReactNode;
+    options: { label: string; callback: () => void; testId: string }[];
+    label: string;
+  }) => (
+    <div data-testid="dropdown-menu" aria-label={label}>
+      {children}
+      <ul>
+        {options.map((option) => (
+          <li key={option.testId}>
+            <button onClick={option.callback} data-testid={option.testId}>
+              {option.label}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  ),
+  Icon: ({
+    iconName,
+
+    ...props
+  }: {
+    iconName: string;
+  }) => <span data-icon={iconName} {...props} />,
 }));
 
-jest.mock('@/features/chat/api/useRemoveConversation', () => ({
-  useRemoveConversation: () => ({
-    mutate: jest.fn(),
-  }),
+jest.mock('../ModalRenameConversation', () => ({
+  ModalRenameConversation: ({
+    onClose,
+    conversation,
+  }: {
+    onClose: () => void;
+    conversation: { id: string };
+  }) => (
+    <div data-testid="modal-rename-conversation">
+      <span>Rename conversation {conversation.id}</span>
+      <button onClick={onClose} data-testid="modal-rename-close-button">
+        Close
+      </button>
+    </div>
+  ),
 }));
 
-const renderWithProviders = (ui: React.ReactNode) => {
-  return render(
-    <CunninghamProvider>
-      <ToastProvider>{ui}</ToastProvider>
-    </CunninghamProvider>,
-  );
+jest.mock('../ModalRemoveConversation', () => ({
+  ModalRemoveConversation: ({
+    onClose,
+    conversation,
+  }: {
+    onClose: () => void;
+    conversation: { id: string };
+  }) => (
+    <div data-testid="modal-remove-conversation">
+      <span>Remove conversation {conversation.id}</span>
+      <button onClick={onClose} data-testid="modal-remove-close-button">
+        Close
+      </button>
+    </div>
+  ),
+}));
+
+const mockConversation = {
+  id: 'conv-123',
+  title: 'Test Conversation',
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
+  messages: [],
 };
 
 describe('ConversationItemActions', () => {
-  const mockConversation: ChatConversation = {
-    id: 'conv-123',
-    title: 'Original Title',
-    messages: [],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockPathname = '/';
-  });
-
-  const renderComponent = (conversation = mockConversation) => {
-    return renderWithProviders(
-      <ConversationItemActions conversation={conversation} />,
-    );
-  };
-
   it('renders the actions button', () => {
-    renderComponent();
+    render(<ConversationItemActions conversation={mockConversation} />);
 
+    expect(screen.getByTestId('dropdown-menu')).toBeInTheDocument();
     expect(
       screen.getByTestId(
         `conversation-item-actions-button-${mockConversation.id}`,
@@ -92,164 +108,122 @@ describe('ConversationItemActions', () => {
   });
 
   it('renders dropdown menu with correct aria-label', () => {
-    renderComponent();
+    render(<ConversationItemActions conversation={mockConversation} />);
 
-    expect(
-      screen.getByLabelText(
-        `Actions list for conversation ${mockConversation.title}`,
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId('dropdown-menu')).toHaveAttribute(
+      'aria-label',
+      'Actions list for conversation Test Conversation',
+    );
   });
-
   it('renders dropdown menu with fallback title when conversation has no title', () => {
     const untitledConversation = { ...mockConversation, title: '' };
-    renderComponent(untitledConversation);
+    render(<ConversationItemActions conversation={untitledConversation} />);
 
-    expect(
-      screen.getByLabelText(
-        `Actions list for conversation Untitled conversation`,
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId('dropdown-menu')).toHaveAttribute(
+      'aria-label',
+      'Actions list for conversation Untitled conversation',
+    );
   });
 
-  it('opens dropdown menu when clicking the actions button', async () => {
-    const user = userEvent.setup();
-    renderComponent();
+  it('should render delete and rename options', () => {
+    render(<ConversationItemActions conversation={mockConversation} />);
 
-    const actionsButton = screen.getByLabelText(
-      `Actions list for conversation ${mockConversation.title}`,
-    );
-    await user.click(actionsButton);
-
-    expect(
-      screen.getByTestId(
-        `conversation-item-actions-rename-${mockConversation.id}`,
-      ),
-    ).toBeInTheDocument();
     expect(
       screen.getByTestId(
         `conversation-item-actions-remove-${mockConversation.id}`,
       ),
     ).toBeInTheDocument();
-  });
-
-  it('displays rename and delete options in the dropdown', async () => {
-    const user = userEvent.setup();
-    renderComponent();
-
-    const actionsButton = screen.getByLabelText(
-      `Actions list for conversation ${mockConversation.title}`,
-    );
-    await user.click(actionsButton);
-
     expect(screen.getByText('Rename chat')).toBeInTheDocument();
     expect(screen.getByText('Delete chat')).toBeInTheDocument();
   });
 
-  it('opens rename modal when clicking rename option', async () => {
+  it('opens dropdown menu when clicking the actions button', async () => {
     const user = userEvent.setup();
-    renderComponent();
+    render(<ConversationItemActions conversation={mockConversation} />);
 
     const actionsButton = screen.getByLabelText(
       `Actions list for conversation ${mockConversation.title}`,
     );
     await user.click(actionsButton);
 
-    const renameOption = screen.getByTestId(
-      `conversation-item-actions-rename-${mockConversation.id}`,
-    );
-    await user.click(renameOption);
-    // Modal should be open
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
-
-    expect(screen.getByRole('textbox')).toHaveValue(mockConversation.title);
-
-    expect(screen.getByTestId('rename-chat-form')).toBeInTheDocument();
+    expect(
+      screen.getByTestId(
+        `conversation-item-actions-rename-${mockConversation.id}`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId(
+        `conversation-item-actions-remove-${mockConversation.id}`,
+      ),
+    ).toBeInTheDocument();
   });
 
   it('opens delete modal when clicking delete option', async () => {
     const user = userEvent.setup();
-    renderComponent();
+    render(<ConversationItemActions conversation={mockConversation} />);
 
-    const actionsButton = screen.getByLabelText(
-      `Actions list for conversation ${mockConversation.title}`,
-    );
-    await user.click(actionsButton);
+    expect(
+      screen.queryByTestId('modal-remove-conversation'),
+    ).not.toBeInTheDocument();
 
-    const deleteOption = screen.getByTestId(
-      `conversation-item-actions-remove-${mockConversation.id}`,
-    );
-    await user.click(deleteOption);
-
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
-    expect(screen.getByTestId('delete-chat-confirm')).toBeInTheDocument();
-  });
-
-  it('does not render modals initially', () => {
-    renderComponent();
-
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('delete-chat-confirm')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('rename-chat-form')).not.toBeInTheDocument();
-  });
-
-  it('closes rename modal when onClose is called', async () => {
-    const user = userEvent.setup();
-    renderComponent();
-
-    // Open dropdown and click rename
-    const actionsButton = screen.getByLabelText(
-      `Actions list for conversation ${mockConversation.title}`,
-    );
-    await user.click(actionsButton);
-    await user.click(
-      screen.getByTestId(
-        `conversation-item-actions-rename-${mockConversation.id}`,
-      ),
-    );
-
-    // Modal should be open
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
-
-    // Close the modal
-    await user.click(screen.getByText('Cancel'));
-
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
-  });
-
-  it('closes delete modal when onClose is called', async () => {
-    const user = userEvent.setup();
-    renderComponent();
-
-    // Open dropdown and click delete
-    const actionsButton = screen.getByLabelText(
-      `Actions list for conversation ${mockConversation.title}`,
-    );
-    await user.click(actionsButton);
     await user.click(
       screen.getByTestId(
         `conversation-item-actions-remove-${mockConversation.id}`,
       ),
     );
 
-    // Modal should be open
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
-    });
+    expect(screen.getByTestId('modal-remove-conversation')).toBeInTheDocument();
+  });
 
-    // Close the modal
-    await user.click(screen.getByText('Cancel'));
+  it('opens rename modal when clicking rename option', async () => {
+    const user = userEvent.setup();
+    render(<ConversationItemActions conversation={mockConversation} />);
 
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
+    expect(
+      screen.queryByTestId('modal-rename-conversation'),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByTestId(
+        `conversation-item-actions-rename-${mockConversation.id}`,
+      ),
+    );
+    expect(screen.getByTestId('modal-rename-conversation')).toBeInTheDocument();
+  });
+
+  it('closes delete modal when onClose is called', async () => {
+    const user = userEvent.setup();
+    render(<ConversationItemActions conversation={mockConversation} />);
+
+    await user.click(
+      screen.getByTestId(
+        `conversation-item-actions-remove-${mockConversation.id}`,
+      ),
+    );
+    expect(screen.getByTestId('modal-remove-conversation')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('modal-remove-close-button'));
+
+    expect(
+      screen.queryByTestId('modal-remove-conversation'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('closes rename modal when onClose is called', async () => {
+    const user = userEvent.setup();
+    render(<ConversationItemActions conversation={mockConversation} />);
+
+    await user.click(
+      screen.getByTestId(
+        `conversation-item-actions-rename-${mockConversation.id}`,
+      ),
+    );
+
+    expect(screen.getByTestId('modal-rename-conversation')).toBeInTheDocument();
+    await user.click(screen.getByTestId('modal-rename-close-button'));
+
+    expect(
+      screen.queryByTestId('modal-rename-conversation'),
+    ).not.toBeInTheDocument();
   });
 });

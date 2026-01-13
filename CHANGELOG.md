@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- ⚡️(front) performance improvements on chat input
+
 ### Removed
 
 - 🔥(chat) consider PDF documents as other kind of documents #234
