@@ -13,7 +13,7 @@ import requests
 
 from chat.agent_rag.albert_api_constants import Searches
 from chat.agent_rag.constants import RAGWebResult, RAGWebResults, RAGWebUsage
-from chat.agent_rag.document_converter.parser import AlbertParser
+from chat.agent_rag.document_converter.parser import DoclingServeParser
 from chat.agent_rag.document_rag_backends.base_rag_backend import BaseRagBackend
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         self._documents_endpoint = urljoin(self._base_url, "/v1/documents")
         self._search_endpoint = urljoin(self._base_url, "/v1/search")
         self._default_collection_description = "Temporary collection for RAG document search"
-        self.parser = AlbertParser()
+        self.parser = DoclingServeParser()
 
     def create_collection(self, name: str, description: Optional[str] = None) -> str:
         """

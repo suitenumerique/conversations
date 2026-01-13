@@ -858,6 +858,18 @@ USER QUESTION:
         environ_prefix=None,
     )
 
+    # Docling
+    DOCLING_SERVE_URL = values.Value(
+        "http://docling-serve:5001",
+        environ_name="DOCLING_SERVE_URL",
+        environ_prefix = None,
+    )
+    DOCLING_SERVE_TIMEOUT = values.PositiveIntegerValue(
+        default=60,  # seconds
+        environ_name="DOCLING_SERVE_TIMEOUT",
+        environ_prefix=None,
+    )
+
     # Logging
     # We want to make it easy to log to console but by default we log production
     # to Sentry and don't want to log to console.

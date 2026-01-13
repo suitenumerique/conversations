@@ -33,6 +33,33 @@ class BaseParser:
         raise NotImplementedError("Must be implemented in subclass.")
 
 
+class DoclingServeParser(BaseParser):
+    """Document parser using Docling Serve API."""
+
+    def __init__(self):
+        self.endpoint = urljoin(settings.DOCLING_SERVE_URL, "/v1/convert/file")
+
+    def parse_document(self, name: str, content_type: str, content: bytes) -> str:
+        """Parse document using Docling Serve API."""
+        timeout = settings.DOCLING_SERVE_TIMEOUT
+        response = requests.post(
+            self.endpoint,
+            files={
+                "files": content,
+            },
+            data={
+                "image_export_mode": "placeholder",
+                "md_page_break_placeholder": "\n\n",
+                "do_picture_description": "true",
+                "document_timeout": timeout,
+            },
+            timeout=timeout,
+        )
+        response.raise_for_status()
+
+        return response.json()["document"]["md_content"]
+
+
 class AlbertParser(BaseParser):
     """Document parser using Albert API for PDFs and DocumentConverter for other formats."""
 

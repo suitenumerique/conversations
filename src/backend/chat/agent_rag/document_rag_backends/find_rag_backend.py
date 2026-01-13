@@ -12,7 +12,7 @@ from django.utils import timezone
 import requests
 
 from chat.agent_rag.constants import RAGWebResult, RAGWebResults, RAGWebUsage
-from chat.agent_rag.document_converter.parser import AlbertParser
+from chat.agent_rag.document_converter.parser import DoclingServeParser
 from chat.agent_rag.document_rag_backends.base_rag_backend import BaseRagBackend
 from utils.oidc import with_fresh_access_token
 
@@ -42,7 +42,7 @@ class FindRagBackend(BaseRagBackend):
         self.api_key = settings.FIND_API_KEY
         self.search_endpoint = "api/v1.0/documents/search/"
         self.indexing_endpoint = "api/v1.0/documents/index/"
-        self.parser = AlbertParser()  # Find Rag relies on Albert parser
+        self.parser = DoclingServeParser()
 
     def create_collection(self, name: str, description: Optional[str] = None) -> str:
         """

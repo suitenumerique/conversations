@@ -16,6 +16,13 @@ services:
   redis:
     image: redis:5
 
+  docling-serve:
+    image: quay.io/docling-project/docling-serve:latest
+    ports:
+      - "5001:5001"
+    environment:
+      - DOCLING_SERVE_ARTIFACTS_PATH=""
+
   maildev:
     image: maildev/maildev:latest
     ports:
@@ -86,6 +93,8 @@ services:
         redis:
           condition: service_started
         createbuckets:
+          condition: service_started
+        docling-serve:
           condition: service_started
 
   nginx:
