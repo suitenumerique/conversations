@@ -187,6 +187,7 @@ from chat.llm_configuration import get_model_configuration
 from chat.mcp_servers import get_mcp_servers
 from chat.rate_limiting import record_and_compute_cooldown
 from chat.tasks import parse_and_store_conversation_document_task, summarize_conversation_history
+from chat.tools.data_analysis import add_data_analysis_tool
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
@@ -354,6 +355,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             deps_type=ContextDeps,
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
+        add_data_analysis_tool(self.conversation_agent)
         self._conversation_message_token_budget = resolve_conversation_budget(
             self.model_configuration
         )
@@ -1081,7 +1083,20 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     conversation_id=self.conversation.pk, key=key
                 ).aupdate(rag_document_id=rag_document_id, is_indexed=True)
 
-            if not document.media_type.startswith(TEXT_MIME_PREFIX):
+            # Don't convert tabular files (CSV, Excel) to Markdown - keep originals
+            # for the data_analysis tool.
+            is_tabular_file = document.media_type in [
+                "text/csv",
+                "application/csv",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "application/vnd.ms-excel",
+                "application/excel",
+            ] or any(
+                document.identifier.lower().endswith(ext)
+                for ext in [".csv", ".xlsx", ".xls", ".xlsm", ".xlsb"]
+            )
+
+            if not document.media_type.startswith(TEXT_MIME_PREFIX) and not is_tabular_file:
                 md_attachment = await models.ChatConversationAttachment.objects.acreate(
                     conversation=self.conversation,
                     uploaded_by=self.user,
