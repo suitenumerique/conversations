@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(backend) add FindRagBackend
+
 ### Changed
 
 - 📦️(front) update react

@@ -7,11 +7,13 @@ from uuid import uuid4
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.http import Http404, StreamingHttpResponse
+from django.utils.decorators import method_decorator
 
 import langfuse
 import magic
 import posthog
 from lasuite.malware_detection import malware_detection
+from lasuite.oidc_login.decorators import refresh_oidc_access_token
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, ValidationError
 from rest_framework.response import Response
@@ -122,6 +124,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             self.permission_classes = []
         return super().get_permissions()
 
+    @method_decorator(refresh_oidc_access_token)
     @decorators.action(
         methods=["post"],
         detail=True,
@@ -173,6 +176,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         ai_service = AIAgentService(
             conversation=conversation,
             user=self.request.user,
+            session=request.session,
             model_hrid=model_hrid,
             language=(
                 self.request.user.language

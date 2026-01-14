@@ -841,6 +841,35 @@ USER QUESTION:
         environ_prefix=None,
     )
 
+    # Find
+    FIND_API_KEY = values.Value(
+        None,
+        environ_name="FIND_API_KEY",
+        environ_prefix=None,
+    )
+    FIND_API_URL = values.Value(
+        "https://app-find/api",
+        environ_name="FIND_API_URL",
+        environ_prefix=None,
+    )
+    FIND_API_TIMEOUT = values.PositiveIntegerValue(
+        default=30,  # seconds
+        environ_name="FIND_API_TIMEOUT",
+        environ_prefix=None,
+    )
+
+    # Docling
+    DOCLING_SERVE_URL = values.Value(
+        "http://docling-serve:5001",
+        environ_name="DOCLING_SERVE_URL",
+        environ_prefix = None,
+    )
+    DOCLING_SERVE_TIMEOUT = values.PositiveIntegerValue(
+        default=60,  # seconds
+        environ_name="DOCLING_SERVE_TIMEOUT",
+        environ_prefix=None,
+    )
+
     # Logging
     # We want to make it easy to log to console but by default we log production
     # to Sentry and don't want to log to console.

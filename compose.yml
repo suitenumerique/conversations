@@ -16,6 +16,13 @@ services:
   redis:
     image: redis:5
 
+  docling-serve:
+    image: quay.io/docling-project/docling-serve:latest
+    ports:
+      - "5001:5001"
+    environment:
+      - DOCLING_SERVE_ARTIFACTS_PATH=""
+
   maildev:
     image: maildev/maildev:latest
     ports:
@@ -71,6 +78,9 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "8071:8000"
+    networks:
+      - default
+      - lasuite
     volumes:
       - ./src/backend:/app
       - ./data/static:/data/static
@@ -84,11 +94,16 @@ services:
           condition: service_started
         createbuckets:
           condition: service_started
+        docling-serve:
+          condition: service_started
 
   nginx:
     image: nginx:1.25
     ports:
       - "8083:8083"
+    networks:
+      - default
+      - lasuite
     volumes:
       - ./docker/files/etc/nginx/conf.d:/etc/nginx/conf.d:ro
     depends_on:
@@ -177,3 +192,8 @@ services:
       kc_postgresql:
         condition: service_healthy
         restart: true
+
+networks:
+  lasuite:
+    name: lasuite-network
+    driver: bridge
