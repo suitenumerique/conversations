@@ -18,6 +18,10 @@ and this project adheres to
 - 🐛(back) fix system prompt compatibility with self-hosted models #200
 - ⚰️(back) remove dead code and unused files
 
+### Removed
+
+- 🔥(chat) remove thinking part from frontend #227
+
 ## [0.0.10] - 2025-12-15
 
 ### Added
