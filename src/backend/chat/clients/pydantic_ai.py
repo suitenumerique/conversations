@@ -55,7 +55,7 @@ from core.feature_flags.helpers import is_feature_enabled
 from core.file_upload.utils import generate_retrieve_policy
 
 from chat import models
-from chat.agents.conversation import ConversationAgent
+from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
 from chat.agents.local_media_url_processors import (
     update_history_local_urls,
     update_local_urls,
@@ -720,8 +720,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         await self._agent_stop_streaming(force_cache_check=True)
 
-        # Persist conversation
-        await sync_to_async(self._update_conversation)(
+        # Prepare conversation update (save deferred until after potential title generation)
+        await sync_to_async(self._prepare_update_conversation)(
             final_output=run.result.new_messages(),
             usage=usage,
             final_output_from_tool=_final_output_from_tool,
@@ -729,6 +729,35 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             model_response_message_id=_model_response_message_id,
             image_key_mapping=image_key_mapping or None,
         )
+
+        generated_title = None
+
+        # Auto-generate title after N user messages if not manually set
+        user_messages_count = sum(1 for msg in self.conversation.messages if msg.role == "user")
+
+        should_generate_title = (
+            user_messages_count == settings.AUTO_TITLE_AFTER_USER_MESSAGES
+            and not self.conversation.title_set_by_user_at
+        )
+
+        if should_generate_title:
+            if generated_title := await self._generate_title():
+                self.conversation.title = generated_title
+
+        # Persist conversation (including any generated title)
+        await sync_to_async(self.conversation.save)()
+
+        # Notify frontend about the title update
+        if generated_title:
+            yield events_v4.DataPart(
+                data=[
+                    {
+                        "type": "conversation_metadata",
+                        "conversationId": str(self.conversation.pk),
+                        "title": generated_title,
+                    }
+                ]
+            )
 
         if self._langfuse_available:
             langfuse.update_current_trace(
@@ -743,7 +772,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    def _update_conversation(  # noqa: PLR0913
+    def _prepare_update_conversation(  # noqa: PLR0913
         self,
         *,
         final_output: List[ModelRequest | ModelMessage],
@@ -810,4 +839,39 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")
         )
 
-        self.conversation.save()
+    async def _generate_title(self) -> str | None:
+        """Generate a title for the conversation using LLM based on first messages."""
+
+        # Build context from messages
+        # Note: We intentionally use only msg.content for title generation.
+        # Parts containing tool invocations or reasoning are excluded as they
+        # don't contribute to a meaningful context here
+        context = "\n".join(
+            f"{msg.role}: {(msg.content or '')[:300]}"  # Limit content length per message
+            for msg in self.conversation.messages
+            if msg.content
+        )
+
+        language = self.language or settings.LANGUAGE_CODE
+        prompt = (
+            "Generate a concise title (3-5 words, max 100 characters) for this conversation.\n\n"
+            "Requirements:\n"
+            "- Capture the main topic or user intent\n"
+            "- The title must be a simple string, no markdown\n"
+            "- Help the user quickly identify the conversation\n"
+            f"- Match the language of the user messages (default: {language})\n"
+            "- Avoid the word 'summary' unless explicitly requested\n\n"
+            "Output: Title text only, no quotes, labels, or explanation.\n\n"
+            f"Conversation:\n{context}"
+        )
+        try:
+            agent = TitleGenerationAgent()
+            result = await agent.run(prompt)
+            title = (result.output or "").strip()[:100]  # Enforce max length (conversation.title)
+            logger.info("Generated title for conversation %s: %s", self.conversation.pk, title)
+            return title if title else None
+        except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
+            logger.warning(
+                "Failed to generate title for conversation %s: %s", self.conversation.pk, exc
+            )
+            return None
