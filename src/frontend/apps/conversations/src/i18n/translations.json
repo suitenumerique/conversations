@@ -1,6 +1,12 @@
 {
   "de": { "translation": { "ABC-1234-XY": "ABC-1234-XY" } },
-  "en": { "translation": { "Login": "Login", "Logout": "Logout" } },
+  "en": {
+    "translation": {
+      "Login": "Login",
+      "Logout": "Logout",
+      "Extracting documents {{documents}} ...": "Extracting documents {{documents}} ..."
+    }
+  },
   "fr": {
     "translation": {
       "30 sec to tell us what you think or report a bug": "Prenez 30 secondes pour partager votre avis ou signaler un bug",
@@ -43,6 +49,7 @@
       "Direct exchange with our team": "Échange direct avec notre équipe",
       "Enter your message or a question": "Entrez votre message ou une question",
       "Explore other LaSuite apps": "Explorer les autres applications de LaSuite",
+      "Extracting documents: {{documents}} ...": "Extraction des documents: {{documents}} ...",
       "Failed to activate account. Please try again.": "Échec de l'activation du compte. Veuillez réessayer.",
       "Failed to copy": "Échec de la copie",
       "Failed to register for notifications. Please try again.": "Échec de l'inscription aux notifications. Veuillez réessayer.",
@@ -176,6 +183,7 @@
       "Direct exchange with our team": "Directe uitwisseling met ons team",
       "Enter your message or a question": "Voer uw bericht of een vraag in",
       "Explore other LaSuite apps": "Ontdek andere LaSuite-apps",
+      "Extracting documents: {{documents}} ...": "Documenten extraheren: {{documents}} ...",
       "Failed to activate account. Please try again.": "Account activeren mislukt. Probeer het opnieuw.",
       "Failed to copy": "Kopiëren mislukt",
       "Failed to register for notifications. Please try again.": "Registratie voor meldingen mislukt. Probeer het opnieuw.",
@@ -309,6 +317,7 @@
       "Direct exchange with our team": "Прямое общение с нашей командой",
       "Enter your message or a question": "Введите сообщение или вопрос",
       "Explore other LaSuite apps": "Посмотреть другие приложения LaSuite",
+      "Extracting documents: {{documents}} ...": "Извлечение документов: {{documents}} ...",
       "Failed to activate account. Please try again.": "Не удалось активировать учётную запись. Пожалуйста, попробуйте снова.",
       "Failed to copy": "Не удалось скопировать",
       "Failed to register for notifications. Please try again.": "Не удалось зарегистрироваться для получения уведомлений. Пожалуйста, попробуйте ещё раз.",
@@ -442,6 +451,7 @@
       "Direct exchange with our team": "Пряме спілкування з нашою командою",
       "Enter your message or a question": "Введіть ваше повідомлення або питання",
       "Explore other LaSuite apps": "Ознайомтесь з іншими застосунками LaSuite",
+      "Extracting documents: {{documents}} ...": "Вилучення документів: {{documents}} ...",
       "Failed to activate account. Please try again.": "Не вдалося активувати обліковий запис. Спробуйте ще раз.",
       "Failed to copy": "Не вдалось скопіювати",
       "Failed to register for notifications. Please try again.": "Не вдалося виконати реєстрацію для повідомлень. Будь ласка, спробуйте ще раз.",

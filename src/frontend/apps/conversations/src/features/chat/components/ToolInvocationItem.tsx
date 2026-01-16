@@ -18,7 +18,10 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
   const { t } = useTranslation();
 
   if (toolInvocation.toolName === 'document_parsing') {
-    if (toolInvocation.state === 'partial-call') {
+    if (
+      toolInvocation.state === 'partial-call' ||
+      toolInvocation.state === 'result'
+    ) {
       return null;
     }
 
@@ -32,24 +35,23 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
       )
         ? documents.map((doc) => doc.identifier)
         : [];
+
     return (
       <Box
-        as="pre"
+        $direction="row"
+        $align="center"
+        $gap="6px"
         key={toolInvocation.toolCallId}
-        $background="var(--c--theme--colors--greyscale-100)"
-        $color="var(--c--theme--colors--greyscale-500)"
-        $padding={{ all: 'sm' }}
-        $radius="8px"
-        $css="font-size: 0.9em; width: 100%; white-space: pre-wrap; word-wrap: break-word;"
+        $width="100%"
+        $maxWidth="750px"
+        $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
       >
-        {toolInvocation.state === 'result' ? (
-          <Text>{`Parsing done: ${documentIdentifiers.join(', ')}`}</Text>
-        ) : (
-          <Box $direction="row" $gap="1rem" $align="center">
-            <Loader />
-            <Text>{`Parsing documents: ${documentIdentifiers.join(', ')} ...`}</Text>
-          </Box>
-        )}
+        <Loader />
+        <Text $variation="600" $size="md">
+          {t('Extracting documents: {{documents}} ...', {
+            documents: documentIdentifiers.join(', '),
+          })}
+        </Text>
       </Box>
     );
   }

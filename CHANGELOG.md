@@ -11,6 +11,7 @@ and this project adheres to
 ### Fixed
 
 - ⚡️(front) performance improvements on chat input
+- 💄(front) i18n and standardize pdf parsing display
 
 ### Removed
 
