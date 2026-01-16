@@ -22,6 +22,17 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
       return null;
     }
 
+    const documents: unknown = (toolInvocation.args as { documents: unknown })
+      ?.documents;
+    const documentIdentifiers: string[] =
+      Array.isArray(documents) &&
+        documents.every(
+          (doc): doc is { identifier: string } =>
+            typeof doc === 'object' && doc !== null && 'identifier' in doc,
+        )
+        ? documents.map((doc) => doc.identifier)
+        : [];
+
     return (
       <Box
         $direction="row"
@@ -34,7 +45,9 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
       >
         <Loader />
         <Text $variation="600" $size="md">
-          {t('Extracting documents...')}
+          {t('Extracting documents: {{documents}} ...', {
+            documents: documentIdentifiers.join(', '),
+          })}
         </Text>
       </Box>
     );
