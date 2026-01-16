@@ -53,6 +53,9 @@ MAIL_YARN           = $(COMPOSE_RUN) -w /app/src/mail node yarn
 # -- Frontend
 PATH_FRONT          = ./src/frontend
 PATH_FRONT_CONVERSATIONS  = $(PATH_FRONT)/apps/conversations
+FRONTEND_YARN       = $(COMPOSE_RUN) -w /app/src/frontend node yarn
+FRONTEND_CONVERSATIONS_YARN = $(COMPOSE_RUN) -w /app/src/frontend/apps/conversations node yarn
+FRONTEND_CONVERSATIONS_YARN_3000 = $(COMPOSE_RUN) -p 3000:3000 -w /app/src/frontend/apps/conversations node yarn
 
 # ==============================================================================
 # RULES
@@ -337,20 +340,19 @@ help:
 
 # Front
 frontend-development-install: ## install the frontend locally
-	cd $(PATH_FRONT_CONVERSATIONS) && yarn
+	@$(FRONTEND_CONVERSATIONS_YARN) install
 .PHONY: frontend-development-install
 
 frontend-lint: ## run the frontend linter
-	cd $(PATH_FRONT) && yarn lint
+	@$(FRONTEND_YARN) lint
 .PHONY: frontend-lint
 
 run-frontend-development: ## Run the frontend in development mode
-	#@$(COMPOSE) stop frontend frontend-development
-	cd $(PATH_FRONT_CONVERSATIONS) && yarn dev
+	@$(FRONTEND_CONVERSATIONS_YARN_3000) dev
 .PHONY: run-frontend-development
 
 frontend-i18n-extract: ## Extract the frontend translation inside a json to be used for crowdin
-	cd $(PATH_FRONT) && yarn i18n:extract
+	@$(FRONTEND_YARN) i18n:extract
 .PHONY: frontend-i18n-extract
 
 frontend-i18n-generate: ## Generate the frontend json files used for crowdin
@@ -360,7 +362,7 @@ frontend-i18n-generate: \
 .PHONY: frontend-i18n-generate
 
 frontend-i18n-compile: ## Format the crowin json files used deploy to the apps
-	cd $(PATH_FRONT) && yarn i18n:deploy
+	@$(FRONTEND_YARN) i18n:deploy
 .PHONY: frontend-i18n-compile
 
 # -- K8S
@@ -374,10 +376,10 @@ start-tilt: ## start the kubernetes cluster using kind
 
 bump-packages-version: VERSION_TYPE ?= minor
 bump-packages-version: ## bump the version of the project - VERSION_TYPE can be "major", "minor", "patch"
-	cd ./src/mail && yarn version --no-git-tag-version --$(VERSION_TYPE)
-	cd ./src/frontend/ && yarn version --no-git-tag-version --$(VERSION_TYPE)
-	cd ./src/frontend/apps/e2e/ && yarn version --no-git-tag-version --$(VERSION_TYPE)
-	cd ./src/frontend/apps/conversations/ && yarn version --no-git-tag-version --$(VERSION_TYPE)
-	cd ./src/frontend/packages/eslint-config-conversations/ && yarn version --no-git-tag-version --$(VERSION_TYPE)
-	cd ./src/frontend/packages/i18n/ && yarn version --no-git-tag-version --$(VERSION_TYPE)
+	@$(COMPOSE_RUN) -w /app/src/mail node yarn version --no-git-tag-version --$(VERSION_TYPE)
+	@$(COMPOSE_RUN) -w /app/src/frontend node yarn version --no-git-tag-version --$(VERSION_TYPE)
+	@$(COMPOSE_RUN) -w /app/src/frontend/apps/e2e node yarn version --no-git-tag-version --$(VERSION_TYPE)
+	@$(COMPOSE_RUN) -w /app/src/frontend/apps/conversations node yarn version --no-git-tag-version --$(VERSION_TYPE)
+	@$(COMPOSE_RUN) -w /app/src/frontend/packages/eslint-config-conversations node yarn version --no-git-tag-version --$(VERSION_TYPE)
+	@$(COMPOSE_RUN) -w /app/src/frontend/packages/i18n node yarn version --no-git-tag-version --$(VERSION_TYPE)
 .PHONY: bump-packages-version
