@@ -19,6 +19,7 @@ and this project adheres to
 - 🐛(e2e) fix test-e2e-chromium
 - 🐛(back) fix system prompt compatibility with self-hosted models #200
 - ⚰️(back) remove dead code and unused files
+- ⚡️(front) performance improvements on chat input
 
 ### Removed
 
