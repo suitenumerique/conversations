@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.11] - 2026-01-16
+
 ### Changed
 
 - 📦️(front) update react
@@ -176,7 +178,8 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.10...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.11...main
+[0.0.11]: https://github.com/suitenumerique/conversations/releases/v0.0.11
 [0.0.10]: https://github.com/suitenumerique/conversations/releases/v0.0.10
 [0.0.9]: https://github.com/suitenumerique/conversations/releases/v0.0.9
 [0.0.8]: https://github.com/suitenumerique/conversations/releases/v0.0.8
