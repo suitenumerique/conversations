@@ -15,7 +15,8 @@ export const ButtonToggleLeftPanel = () => {
       aria-label={
         isPanelOpen ? t('Close the left panel') : t('Open the left panel')
       }
-      color="primary-text"
+      color="brand"
+      variant="tertiary"
       icon={<LeftPanelIcon />}
       className="--docs--button-toggle-panel"
     />

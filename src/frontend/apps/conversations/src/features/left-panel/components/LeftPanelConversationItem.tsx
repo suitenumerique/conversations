@@ -35,7 +35,7 @@ export const LeftPanelConversationItem = ({
         border-radius: 4px;
         width: 100%;
         margin-bottom: 1px;
-        background-color: ${isCurrentConversation ? '#ebedf1' : ''};
+        background-color: ${isCurrentConversation ? 'var(--c--contextuals--background--semantic--overlay--primary)' : ''};
         font-weight: ${isCurrentConversation ? '700' : '500'};
         transition: background-color 0.2s cubic-bezier(1, 0, 0, 1);
         .pinned-actions {
@@ -45,7 +45,7 @@ export const LeftPanelConversationItem = ({
           transition: all 0.3s cubic-bezier(1, 0, 0, 1);
         }
         &:hover, &:focus, &:focus-within {
-          background-color: #ebedf1;
+          background-color: var(--c--contextuals--background--semantic--overlay--primary);
           .pinned-actions {
             opacity: 1;
           }

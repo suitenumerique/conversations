@@ -41,12 +41,14 @@ export const ModalRemoveConversation = ({
       isOpen
       closeOnClickOutside
       onClose={() => onClose()}
+      close={() => onClose()}
       aria-label={t('Content modal to delete conversation')}
       rightActions={
         <>
           <Button
             aria-label={t('Close the modal')}
-            color="secondary"
+            theme="brand"
+            variant="bordered"
             fullWidth
             onClick={() => onClose()}
           >
@@ -54,7 +56,8 @@ export const ModalRemoveConversation = ({
           </Button>
           <Button
             aria-label={t('Confirm deletion')}
-            color="danger"
+            theme="brand"
+            variant="primary"
             fullWidth
             onClick={() =>
               removeDoc({

@@ -5,7 +5,7 @@ import { tokens } from '@/cunningham';
 
 import { Box, BoxProps } from './Box';
 
-const { sizes } = tokens.themes.default.theme.font;
+const { sizes } = tokens.themes.default.globals.font;
 type TextSizes = keyof typeof sizes;
 
 export interface TextProps extends BoxProps {
@@ -13,65 +13,28 @@ export interface TextProps extends BoxProps {
   $ellipsis?: boolean;
   $weight?: CSSProperties['fontWeight'];
   $textAlign?: CSSProperties['textAlign'];
+  $textTransform?: CSSProperties['textTransform'];
   $size?: TextSizes | (string & {});
-  $theme?:
-    | 'primary'
-    | 'primary-text'
-    | 'secondary'
-    | 'secondary-text'
-    | 'info'
-    | 'success'
-    | 'warning'
-    | 'danger'
-    | 'greyscale';
-  $variation?:
-    | 'text'
-    | '000'
-    | '050'
-    | '100'
-    | '200'
-    | '300'
-    | '400'
-    | '500'
-    | '550'
-    | '600'
-    | '650'
-    | '700'
-    | '750'
-    | '800'
-    | '850'
-    | '900'
-    | '1000';
 }
 
 export type TextType = ComponentPropsWithRef<typeof Text>;
 
 export const TextStyled = styled(Box)<TextProps>`
   ${({ $textAlign }) => $textAlign && `text-align: ${$textAlign};`}
+  ${({ $textTransform }) =>
+    $textTransform && `text-transform: ${$textTransform};`}
   ${({ $weight }) => $weight && `font-weight: ${$weight};`}
   ${({ $size }) =>
     $size &&
     `font-size: ${$size in sizes ? sizes[$size as TextSizes] : $size};`}
-  ${({ $theme, $variation }) =>
-    `color: var(--c--theme--colors--${$theme}-${$variation});`}
-  ${({ $color }) => $color && `color: ${$color};`}
   ${({ $ellipsis }) =>
     $ellipsis &&
     `white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`}
 `;
 
 const Text = forwardRef<HTMLElement, ComponentPropsWithRef<typeof TextStyled>>(
-  ({ className, ...props }, ref) => {
-    return (
-      <TextStyled
-        ref={ref}
-        as="span"
-        $theme="greyscale"
-        $variation="text"
-        className={className}
-        {...props}
-      />
-    );
+  (props, ref) => {
+    return <TextStyled ref={ref} as="span" {...props} />;
   },
 );
 

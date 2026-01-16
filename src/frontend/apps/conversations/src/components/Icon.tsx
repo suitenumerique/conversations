@@ -10,12 +10,14 @@ type IconProps = TextType & {
 export const Icon = ({
   iconName,
   variant = 'outlined',
+  $theme = 'neutral',
   ...textProps
 }: IconProps) => {
   return (
     <Text
       {...textProps}
       aria-hidden="true"
+      $theme={$theme}
       className={clsx('--docs--icon-bg', textProps.className, {
         'material-symbols': variant === 'filled',
         'material-symbols-outlined': variant === 'outlined',

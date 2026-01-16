@@ -17,10 +17,6 @@ export const Card = ({
       className={`--docs--card ${props.className || ''}`}
       $background="white"
       $radius="4px"
-      $css={css`
-        border: 1px solid ${colorsTokens['greyscale-200']};
-        ${$css}
-      `}
       {...props}
     >
       {children}

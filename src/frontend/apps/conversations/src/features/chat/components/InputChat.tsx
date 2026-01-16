@@ -361,9 +361,9 @@ export const InputChat = ({
               $css={`
               box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.08);
               border-radius: 12px;
-              border: 1px solid var(--c--theme--colors--greyscale-200);
+              border: 1px solid var(--c--contextuals--border--surface--primary);
               position: relative;
-              background: white;
+              background: var(--c--contextuals--background--surface--primary,);
               transition: all 0.2s ease;
             `}
             >
@@ -378,19 +378,25 @@ export const InputChat = ({
                 top: -1px; left: -1px;
                 border-radius: 12px;
                 z-index: 1001;
-                background-color: #EDF0FF;
+                background-color: var(--c--contextuals--background--semantic--brand--tertiary);
                 width: 100%;
                 height: 100%;
-                outline: 2px solid #90A7FF;
+                outline: 2px solid var(--c--contextuals--border--semantic--brand--secondary);
                 box-shadow: 0 0 64px 0 rgba(62, 93, 231, 0.25);
                 `}
                 >
                   <FilesIcon />
                   <Box>
-                    <Text $weight="700" $color="#223E9E">
+                    <Text
+                      $weight="700"
+                      $color="var(--c--contextuals--border--semantic--brand--primary)"
+                    >
                       {t('Add file')}
                     </Text>
-                    <Text $weight="400" $color="#223E9E">
+                    <Text
+                      $weight="400"
+                      $color="var(--c--contextuals--border--semantic--brand--primary)"
+                    >
                       {t('To add a file to the conversation, drop it here.')}
                     </Text>
                   </Box>
@@ -448,7 +454,7 @@ export const InputChat = ({
                   right: 1.5rem;
                   height: 1.5rem;
                   pointer-events: none;
-                  color: var(--c--theme--colors--greyscale-500);
+                  color: var(--c--globals--colors--gray-500);
                   font-size: 1rem;
                   font-family: inherit;
                   line-height: 1.5;
@@ -580,23 +586,23 @@ export const InputChat = ({
                   $gap="xs"
                 >
                   <Button
-                    size="small"
+                    size="nano"
                     type="button"
+                    variant="tertiary"
                     disabled={!fileUploadEnabled || isUploadingFiles}
                     onClick={() => fileInputRef.current?.click()}
                     aria-label={t('Add attach file')}
-                    className="c__button--neutral attach-file-button"
                     icon={
                       <Icon
                         iconName="attach_file"
-                        $theme="greyscale"
-                        $variation="550"
+                        $theme="neutral"
+                        $variation="tertiary"
                         $size={`${isMobile ? '24px' : '16px'}`}
                       />
                     }
                   >
                     {!isMobile && (
-                      <Text $theme="greyscale" $variation="550" $weight="500">
+                      <Text $variation="secondary" $theme="neutral">
                         {t('Attach file')}
                       </Text>
                     )}
@@ -619,7 +625,7 @@ export const InputChat = ({
                         forceWebSearch
                           ? `
                       .research-web-button {
-                        background-color: var(--c--theme--colors--primary-100) !important;
+                        background-color: var(--c--contextuals--background--semantic--brand--secondary) !important;
                       }
                     `
                           : ''
@@ -627,30 +633,28 @@ export const InputChat = ({
                     `}
                     >
                       <Button
-                        size="small"
+                        size="nano"
                         type="button"
+                        className="research-web-button"
+                        variant="tertiary"
                         disabled={!webSearchEnabled || isUploadingFiles}
                         onClick={() => {
                           onToggleWebSearch();
                           textareaRef.current?.focus();
                         }}
                         aria-label={t('Research on the web')}
-                        className="c__button--neutral research-web-button"
                         icon={
                           <Icon
+                            $theme={forceWebSearch ? 'brand' : 'neutral'}
+                            $variation="tertiary"
                             iconName="language"
-                            $theme="greyscale"
-                            $variation="550"
-                            $css={`
-                            color: ${forceWebSearch ? 'var(--c--theme--colors--primary-600) !important' : 'var(--c--theme--colors--greyscale-600)'}
-                          `}
                           />
                         }
                       >
                         {!isMobile && (
                           <Text
-                            $theme={forceWebSearch ? 'primary' : 'greyscale'}
-                            $variation="550"
+                            $theme={forceWebSearch ? 'brand' : 'neutral'}
+                            $variation="tertiary"
                           >
                             {t('Research on the web')}
                           </Text>
@@ -661,25 +665,26 @@ export const InputChat = ({
                             $align="space-between"
                             $gap="xs"
                             $css={`
-                            display: flex;
-                            align-items: center;
-                            line-height: 1;
+                              display: flex;
+                              align-items: center;
+                              line-height: 1;
                           `}
                           >
                             <Text
-                              $theme="primary"
+                              $theme={forceWebSearch ? 'brand' : 'gray'}
+                              $variation="secondary"
                               $weight="500"
                               $css={`
-                              display: flex;
-                              align-items: center;
+                                display: flex;
+                                align-items: center;
                             `}
                             >
                               {t('Web')}
                             </Text>
                             <Icon
                               iconName="close"
-                              $variation="text"
-                              $theme="primary"
+                              $variation="secondary"
+                              $theme="brand"
                               $size="md"
                               $css={`
                               display: flex;

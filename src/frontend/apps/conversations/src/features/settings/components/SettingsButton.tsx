@@ -14,7 +14,8 @@ export const SettingsButton = () => {
     <>
       <Button
         size="medium"
-        color="primary-text"
+        color="brand"
+        variant="tertiary"
         onClick={() => setIsSettingsOpen(true)}
         aria-label={t('Settings')}
         icon={<Icon iconName="settings" $theme="primary" $size="24px" />}

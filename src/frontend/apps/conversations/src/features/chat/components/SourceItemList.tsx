@@ -30,7 +30,7 @@ const SourceItemListComponent: React.FC<SourceItemListProps> = ({
       $padding={{ all: 'sm' }}
       $gap="4px"
       $css={`
-       border: 1px solid var(--c--theme--colors--greyscale-100);
+       border: 1px solid var(--c--contextuals--border--surface--primary);
        border-radius: 8px;
        margin-top: 0.5rem;
        overflow: hidden;

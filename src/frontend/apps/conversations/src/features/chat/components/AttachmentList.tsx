@@ -78,7 +78,7 @@ export const AttachmentList = ({
                 `}
               >
                 <Text
-                  $color="var(--c--theme--colors--greyscale-700)"
+                  $color="var(--c--globals--colors--gray-700)"
                   $weight="500"
                   $css={`
                     font-size: 7px;
@@ -90,7 +90,7 @@ export const AttachmentList = ({
               <Text
                 $size="xs"
                 $variation="500"
-                $color="var(--c--theme--colors--greyscale-850)"
+                $color="var(--c--globals--colors--gray-850)"
                 $css={`
                   overflow: hidden;
                   text-overflow: ellipsis;
@@ -125,7 +125,7 @@ export const AttachmentList = ({
                       background-color: #e1e3e7 !important;
                     }
                     &:focus-visible {
-                      outline: 2px solid #3e5de7;
+                      outline: 2px solid var(--c--globals--colors--brand-550);
                       outline-offset: 2px;
                     }
                   `}

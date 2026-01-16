@@ -13,6 +13,9 @@ and this project adheres to
 ### Changed
 
 - 📦️(front) update react
+- ✨(front) add ui-kit
+- ✨(front) add dark-mode
+
 
 ### Fixed
 
