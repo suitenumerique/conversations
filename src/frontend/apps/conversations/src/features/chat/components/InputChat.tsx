@@ -108,6 +108,54 @@ export const InputChat = ({
     );
   }, [showToast, t]);
 
+  const handleFiles = useCallback(
+    (newFiles: File[]) => {
+      if (!fileUploadEnabled) {
+        return;
+      }
+
+      const acceptedFiles: File[] = [];
+      const rejectedFiles: string[] = [];
+
+      newFiles.forEach((file) => {
+        if (isFileAccepted(file)) {
+          acceptedFiles.push(file);
+        } else {
+          rejectedFiles.push(file.name);
+        }
+      });
+
+      if (rejectedFiles.length > 0) {
+        showToastError();
+      }
+
+      if (acceptedFiles.length === 0) {
+        return;
+      }
+
+      setFiles((prev: FileList | null) => {
+        const dt = new DataTransfer();
+        if (prev) {
+          Array.from(prev).forEach((f: File) => dt.items.add(f));
+        }
+        acceptedFiles.forEach((f) => {
+          if (
+            !Array.from(prev || []).some(
+              (pf: File) =>
+                pf.name === f.name &&
+                pf.size === f.size &&
+                pf.lastModified === f.lastModified,
+            )
+          ) {
+            dt.items.add(f);
+          }
+        });
+        return dt.files;
+      });
+    },
+    [fileUploadEnabled, isFileAccepted, setFiles, showToastError],
+  );
+
   useEffect(() => {
     if (!conf?.FEATURE_FLAGS) {
       setWebSearchEnabled(false);
@@ -211,50 +259,9 @@ export const InputChat = ({
       e.preventDefault();
       setIsDragActive(false);
 
-      if (!fileUploadEnabled) {
-        return;
-      }
-
       const droppedFiles = e.dataTransfer?.files;
       if (droppedFiles && droppedFiles.length > 0) {
-        const acceptedFiles: File[] = [];
-        const rejectedFiles: string[] = [];
-
-        Array.from(droppedFiles).forEach((file) => {
-          if (isFileAccepted(file)) {
-            acceptedFiles.push(file);
-          } else {
-            rejectedFiles.push(file.name);
-          }
-        });
-
-        if (rejectedFiles.length > 0) {
-          showToastError();
-        }
-
-        if (acceptedFiles.length === 0) {
-          return;
-        }
-
-        setFiles((prev) => {
-          const dt = new DataTransfer();
-          if (prev) {
-            Array.from(prev).forEach((f) => dt.items.add(f));
-          }
-          acceptedFiles.forEach((f) => {
-            if (
-              !Array.from(prev || []).some(
-                (pf) =>
-                  pf.name === f.name &&
-                  pf.size === f.size &&
-                  pf.lastModified === f.lastModified,
-              )
-            ) {
-              dt.items.add(f);
-            }
-          });
-          return dt.files;
-        });
+        handleFiles(Array.from(droppedFiles));
       }
     };
 
@@ -269,13 +276,7 @@ export const InputChat = ({
       window.removeEventListener('dragover', handleDragOver);
       window.removeEventListener('drop', handleDrop);
     };
-  }, [
-    fileUploadEnabled,
-    setFiles,
-    showToastError,
-    conf?.chat_upload_accept,
-    isFileAccepted,
-  ]);
+  }, [fileUploadEnabled, isFileAccepted, handleFiles]);
 
   const isInputDisabled = status !== 'ready' || isUploadingFiles;
 
@@ -437,6 +438,28 @@ export const InputChat = ({
                     textarea.focus();
                   }
                 }}
+                onPaste={(e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+                  const items = e.clipboardData?.items;
+                  if (!items) {
+                    return;
+                  }
+
+                  const pastedFiles: File[] = [];
+                  for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    if (item.kind === 'file') {
+                      const file = item.getAsFile();
+                      if (file) {
+                        pastedFiles.push(file);
+                      }
+                    }
+                  }
+
+                  if (pastedFiles.length > 0) {
+                    e.preventDefault();
+                    handleFiles(pastedFiles);
+                  }
+                }}
               />
 
               {!input && (
@@ -492,50 +515,9 @@ export const InputChat = ({
                 style={{ display: 'none' }}
                 onChange={(e) => {
                   const fileList = e.target.files;
-                  if (!fileList) {
-                    return;
+                  if (fileList) {
+                    handleFiles(Array.from(fileList));
                   }
-
-                  const acceptedFiles: File[] = [];
-                  const rejectedFiles: string[] = [];
-
-                  Array.from(fileList).forEach((file) => {
-                    if (isFileAccepted(file)) {
-                      acceptedFiles.push(file);
-                    } else {
-                      rejectedFiles.push(file.name);
-                    }
-                  });
-
-                  if (rejectedFiles.length > 0) {
-                    showToastError();
-                  }
-
-                  if (acceptedFiles.length === 0) {
-                    e.target.value = '';
-                    return;
-                  }
-
-                  setFiles((prev) => {
-                    const dt = new DataTransfer();
-                    if (prev) {
-                      Array.from(prev).forEach((f: File) => dt.items.add(f));
-                    }
-                    acceptedFiles.forEach((f: File) => {
-                      if (
-                        !Array.from(prev || []).some(
-                          (pf) =>
-                            pf.name === f.name &&
-                            pf.size === f.size &&
-                            pf.lastModified === f.lastModified,
-                        )
-                      ) {
-                        dt.items.add(f);
-                      }
-                    });
-                    return dt.files;
-                  });
-
                   e.target.value = '';
                 }}
               />
