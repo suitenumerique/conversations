@@ -58,7 +58,7 @@ export const LeftPanelConversationItem = ({
     >
       <StyledLink
         href={`/chat/${conversation.id}/`}
-        $css="overflow: auto; flex-grow: 1;"
+        $css="overflow: auto; flex-grow: 1; color: var(--c--theme--colors--greyscale-900);"
         onClick={handleLinkClick}
       >
         <SimpleConversationItem showAccesses conversation={conversation} />

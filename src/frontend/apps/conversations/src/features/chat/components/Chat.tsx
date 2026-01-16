@@ -813,30 +813,12 @@ export const Chat = ({
                             </Box>
                           )}
                         {message.parts
-                          ?.filter(
-                            (part) =>
-                              part.type === 'reasoning' ||
-                              part.type === 'tool-invocation',
-                          )
+                          ?.filter((part) => part.type === 'tool-invocation')
                           .map(
-                            (
-                              part: ReasoningUIPart | ToolInvocationUIPart,
-                              partIndex: number,
-                            ) =>
-                              part.type === 'reasoning' ? (
-                                <Box
-                                  key={`reasoning-${partIndex}`}
-                                  $background="var(--c--theme--colors--greyscale-100)"
-                                  $color="var(--c--theme--colors--greyscale-500)"
-                                  $padding={{ all: 'sm' }}
-                                  $radius="md"
-                                  $css="font-size: 0.9em;"
-                                >
-                                  {part.reasoning}
-                                </Box>
-                              ) : part.type === 'tool-invocation' &&
-                                isCurrentlyStreaming &&
-                                isLastAssistantMessageInConversation ? (
+                            (part: ToolInvocationUIPart, partIndex: number) =>
+                              part.type === 'tool-invocation' &&
+                              isCurrentlyStreaming &&
+                              isLastAssistantMessageInConversation ? (
                                 <ToolInvocationItem
                                   key={`tool-invocation-${partIndex}`}
                                   toolInvocation={part.toolInvocation}

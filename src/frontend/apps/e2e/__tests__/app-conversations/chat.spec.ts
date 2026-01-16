@@ -52,7 +52,7 @@ test.describe('Chat page', () => {
 
     const messageContent = page.getByTestId('assistant-message-content');
     await expect(messageContent).toBeVisible();
-    await expect(messageContent).not.toBeEmpty(); 
+    await expect(messageContent).not.toBeEmpty();
 
     // Check history
     const chatHistoryLink = page
