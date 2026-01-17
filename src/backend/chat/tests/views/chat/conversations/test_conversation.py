@@ -3,6 +3,7 @@
 
 import json
 import logging
+from unittest.mock import ANY, patch
 
 from django.utils import timezone
 
@@ -186,6 +187,133 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
             "instructions": (
                 "You are a helpful test assistant :)\n\n"
                 "Today is Friday 25/07/2025.\n\nAnswer in english."
+            ),
+            "kind": "request",
+            "parts": [
+                {
+                    "content": ["Hello"],
+                    "part_kind": "user-prompt",
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                },
+            ],
+            "run_id": _run_id,
+        },
+        {
+            "finish_reason": "stop",
+            "kind": "response",
+            "model_name": "test-model",
+            "parts": [{"content": "Hello there", "id": None, "part_kind": "text"}],
+            "provider_details": {"finish_reason": "stop"},
+            "provider_name": "openai",
+            "provider_response_id": "chatcmpl-1234567890",
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+            "usage": {
+                "cache_audio_read_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "details": {},
+                "input_audio_tokens": 0,
+                "input_tokens": 0,
+                "output_audio_tokens": 0,
+                "output_tokens": 0,
+            },
+            "run_id": _run_id,
+        },
+    ]
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@respx.mock
+@patch("chat.keepalive.get_current_time")
+def test_post_conversation_data_protocol_triggers_keepalives(
+    mock_time, api_client, mock_openai_stream
+):
+    """Test streaming response contains keepalive messages"""
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
+    mock_time.side_effect = [float(i * 60) for i in range(10)]
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
+    data = {
+        "messages": [
+            {
+                "id": "yuPoOuBkKA4FnKvk",
+                "role": "user",
+                "parts": [{"text": "Hello", "type": "text"}],
+                "content": "Hello",
+                "createdAt": "2025-07-03T15:22:17.105Z",
+            }
+        ]
+    }
+    api_client.force_login(chat_conversation.owner)
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.get("Content-Type") == "text/event-stream"
+    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.streaming
+
+    # Wait for the streaming content to be fully received
+    response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
+    assert response_content == (
+        '0:"Hello"\n'
+        '0:" there"\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+        '2:[{"status": "WAITING"}]\n'
+    )
+
+    assert mock_openai_stream.called
+
+    chat_conversation.refresh_from_db()
+    assert chat_conversation.ui_messages == [
+        {
+            "content": "Hello",
+            "createdAt": "2025-07-03T15:22:17.105Z",
+            "id": "yuPoOuBkKA4FnKvk",
+            "parts": [{"text": "Hello", "type": "text"}],
+            "role": "user",
+        }
+    ]
+
+    assert len(chat_conversation.messages) == 2
+
+    assert chat_conversation.messages[0].id == IsUUID(4)
+    assert chat_conversation.messages[0] == UIMessage(
+        id=chat_conversation.messages[0].id,  # don't test the message ID here
+        createdAt=timezone.now(),  # Mocked timestamp
+        content="Hello",
+        reasoning=None,
+        experimental_attachments=None,
+        role="user",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello")],
+    )
+
+    assert chat_conversation.messages[1].id == IsUUID(4)
+    assert chat_conversation.messages[1] == UIMessage(
+        id=chat_conversation.messages[1].id,  # don't test the message ID here
+        createdAt=timezone.now(),  # Mocked timestamp
+        content="Hello there",
+        reasoning=None,
+        experimental_attachments=None,
+        role="assistant",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello there")],
+    )
+
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
+    assert chat_conversation.pydantic_messages == [
+        {
+            "instructions": (
+                "You are a helpful test assistant :)\n\n"
+                "Today is Friday 25/07/2025.\n\n"
+                "Answer in english."
             ),
             "kind": "request",
             "parts": [
@@ -1331,6 +1459,146 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-1234567890",
             "timestamp": "2025-07-25T10:36:35.297675Z",
+            "usage": {
+                "cache_audio_read_tokens": 0,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 0,
+                "details": {},
+                "input_audio_tokens": 0,
+                "input_tokens": 0,
+                "output_audio_tokens": 0,
+                "output_tokens": 0,
+            },
+            "run_id": _run_id,
+        },
+    ]
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z", tick=True)
+@respx.mock
+@pytest.mark.asyncio
+async def test_post_conversation_async_triggers_keepalive(
+    api_client, mock_openai_stream_slow, monkeypatch, caplog, settings
+):
+    """Test posting messages to a conversation using the 'data' protocol."""
+    monkeypatch.setenv("PYTHON_SERVER_MODE", "async")
+
+    settings.KEEPALIVE_INTERVAL = 1  # s
+
+    chat_conversation = await sync_to_async(ChatConversationFactory)(owner__language="en-us")
+
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
+    data = {
+        "messages": [
+            {
+                "id": "yuPoOuBkKA4FnKvk",
+                "role": "user",
+                "parts": [{"text": "Hello", "type": "text"}],
+                "content": "Hello",
+                "createdAt": "2025-07-03T15:22:17.105Z",
+            }
+        ]
+    }
+    await api_client.aforce_login(chat_conversation.owner)
+
+    caplog.clear()
+    caplog.set_level(level=logging.DEBUG, logger="chat.views")
+
+    response = await sync_to_async(api_client.post)(url, data, format="json")  # client is sync
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.get("Content-Type") == "text/event-stream"
+    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.streaming
+
+    assert "Using ASYNC streaming for chat conversation" in caplog.text
+
+    # Wait for the streaming content to be fully received => async iterator -> list
+    # This fails it the streaming is not an async generator
+    response_content = b"".join([content async for content in response.streaming_content]).decode(
+        "utf-8"
+    )
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
+    assert response_content == (
+        '0:"Hello"\n'
+        '2:[{"status": "WAITING"}]\n'
+        '0:" there"\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+    )
+
+    assert mock_openai_stream_slow.called
+
+    await chat_conversation.arefresh_from_db()
+    assert chat_conversation.ui_messages == [
+        {
+            "content": "Hello",
+            "createdAt": "2025-07-03T15:22:17.105Z",
+            "id": "yuPoOuBkKA4FnKvk",
+            "parts": [{"text": "Hello", "type": "text"}],
+            "role": "user",
+        }
+    ]
+
+    assert len(chat_conversation.messages) == 2
+
+    assert chat_conversation.messages[0].id == IsUUID(4)
+    assert chat_conversation.messages[0] == UIMessage(
+        id=chat_conversation.messages[0].id,  # don't test the message ID here
+        createdAt=chat_conversation.messages[0].createdAt,  # Mocked timestamp
+        content="Hello",
+        reasoning=None,
+        experimental_attachments=None,
+        role="user",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello")],
+    )
+
+    assert chat_conversation.messages[1].id == IsUUID(4)
+    assert chat_conversation.messages[1] == UIMessage(
+        id=chat_conversation.messages[1].id,  # don't test the message ID here
+        createdAt=chat_conversation.messages[1].createdAt,  # Mocked timestamp
+        content="Hello there",
+        reasoning=None,
+        experimental_attachments=None,
+        role="assistant",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello there")],
+    )
+
+    _run_id = chat_conversation.pydantic_messages[0]["run_id"]
+
+    # using ANY because time is not frozen in this api mock
+    assert chat_conversation.pydantic_messages == [
+        {
+            "instructions": (
+                "You are a helpful test assistant :)\n\n"
+                "Today is Friday 25/07/2025.\n\nAnswer in english."
+            ),
+            "kind": "request",
+            "parts": [
+                {
+                    "content": ["Hello"],
+                    "part_kind": "user-prompt",
+                    "timestamp": ANY,
+                },
+            ],
+            "run_id": _run_id,
+        },
+        {
+            "finish_reason": "stop",
+            "kind": "response",
+            "model_name": "test-model",
+            "parts": [{"content": "Hello there", "id": None, "part_kind": "text"}],
+            "provider_details": {"finish_reason": "stop"},
+            "provider_name": "openai",
+            "provider_response_id": "chatcmpl-1234567890",
+            "timestamp": ANY,
             "usage": {
                 "cache_audio_read_tokens": 0,
                 "cache_read_tokens": 0,

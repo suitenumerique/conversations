@@ -1,5 +1,6 @@
 """Common test fixtures for chat conversation endpoint tests."""
 
+import asyncio
 import json
 
 from django.utils import timezone
@@ -10,15 +11,9 @@ import respx
 from freezegun import freeze_time
 
 
-@pytest.fixture(name="mock_openai_stream")
-@freeze_time("2025-07-25T10:36:35.297675Z")
-def fixture_mock_openai_stream():
-    """
-    Fixture to mock the OpenAI stream response.
-
-    See https://platform.openai.com/docs/api-reference/chat-streaming/streaming
-    """
-    openai_stream = (
+def _create_openai_stream_data():
+    """Helper to create OpenAI stream data."""
+    return (
         "data: "
         + json.dumps(
             {
@@ -59,15 +54,43 @@ def fixture_mock_openai_stream():
         "data: [DONE]\n\n"
     )
 
-    async def mock_stream():
-        for line in openai_stream.splitlines(keepends=True):
-            yield line.encode()
 
-    route = respx.post("https://www.external-ai-service.com/chat/completions").mock(
+def _create_mock_openai_route(with_delays: bool = False, delay_seconds: float = 1.0):
+    """Create a mock OpenAI stream route with optional delays."""
+    openai_stream = _create_openai_stream_data()
+
+    async def mock_stream():
+        lines = openai_stream.splitlines(keepends=True)
+        for i, line in enumerate(lines):
+            yield line.encode()
+            if with_delays and i == 1:
+                # Delay after second line to trigger keepalive during streaming
+                await asyncio.sleep(delay_seconds)
+
+    return respx.post("https://www.external-ai-service.com/chat/completions").mock(
         return_value=httpx.Response(200, stream=mock_stream())
     )
 
-    return route
+
+@pytest.fixture(name="mock_openai_stream")
+@freeze_time("2025-07-25T10:36:35.297675Z")
+def fixture_mock_openai_stream():
+    """
+    Fixture to mock the OpenAI stream response (no delays).
+
+    See https://platform.openai.com/docs/api-reference/chat-streaming/streaming
+    """
+    return _create_mock_openai_route(with_delays=False)
+
+
+@pytest.fixture(name="mock_openai_stream_slow")
+def fixture_mock_openai_stream_slow():
+    """
+    Fixture to mock the OpenAI stream response with delays to trigger keepalives.
+
+    No @freeze_time decorator because asyncio.sleep() needs real time to work properly.
+    """
+    return _create_mock_openai_route(with_delays=True, delay_seconds=1.0)
 
 
 @pytest.fixture(name="mock_openai_no_stream")
