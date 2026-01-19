@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Removed
+
+- 🔥(chat) consider PDF documents as other kind of documents #234
+
 ## [0.0.11] - 2026-01-16
 
 ### Changed

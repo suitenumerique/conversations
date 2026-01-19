@@ -52,7 +52,6 @@ from pydantic_ai.messages import (
 )
 
 from core.feature_flags.helpers import is_feature_enabled
-from core.file_upload.utils import generate_retrieve_policy
 
 from chat import models
 from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
@@ -471,27 +470,19 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         _tool_is_streaming = False
         _model_response_message_id = None
 
-        # Check for existing non-PDF documents in the conversation:
-        # - if no document at all: do nothing
-        # - if only PDFs: prepare document URLs for the agent
-        # - if other document types: add the RAG search tool
-        #   to allow searching in all kinds of documents
-        has_not_pdf_docs = await (
+        # Check for existing documents (any non-image attachment for this conversation)
+        has_documents = await (
             models.ChatConversationAttachment.objects.filter(
                 Q(conversion_from__isnull=True) | Q(conversion_from=""),
                 conversation=self.conversation,
             )
-            .exclude(
-                Q(content_type__startswith="image/") | Q(content_type="application/pdf"),
-            )
+            .exclude(content_type__startswith="image/")
             .aexists()
         )
 
-        document_urls = []
-        if not conversation_has_documents and not has_not_pdf_docs:
-            # No documents to process
-            pass
-        elif has_not_pdf_docs:
+        should_enable_rag = conversation_has_documents or has_documents
+
+        if should_enable_rag:
             add_document_rag_search_tool(self.conversation_agent)
 
             @self.conversation_agent.instructions
@@ -521,30 +512,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             async def summarize(ctx: RunContext, *args, **kwargs) -> ToolReturn:
                 """Wrap the document_summarize tool to provide context and add the tool."""
                 return await document_summarize(ctx, *args, **kwargs)
-        else:
-            conversation_documents = [
-                cd
-                async for cd in models.ChatConversationAttachment.objects.filter(
-                    Q(conversion_from__isnull=True) | Q(conversion_from=""),
-                    conversation=self.conversation,
-                )
-                .exclude(
-                    content_type__startswith="image/",
-                )
-                .values_list("key", "content_type")
-            ]
-
-            for doc_key, doc_content_type in conversation_documents:
-                if doc_content_type == "application/pdf":
-                    _presigned_url = generate_retrieve_policy(doc_key)
-                    document_urls.append(
-                        DocumentUrl(
-                            url=_presigned_url,
-                            identifier=doc_key.split("/")[-1],
-                            media_type="application/pdf",
-                        )
-                    )
-                    image_key_mapping[_presigned_url] = f"/media-key/{doc_key}"
 
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
@@ -559,7 +526,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
 
             async with self.conversation_agent.iter(
-                [user_prompt] + input_images + document_urls,
+                [user_prompt] + input_images,
                 message_history=history,  # history will pass through agent's history_processors
                 deps=self._context_deps,
                 toolsets=mcp_servers,
