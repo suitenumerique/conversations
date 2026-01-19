@@ -46,6 +46,7 @@ dependencies = [
     "easy_thumbnails==2.10.1",
     "factory_boy==3.3.3",
     "gunicorn==23.0.0",
+    "jaraco.context>=6.1.0",
     "jsonschema==4.25.1",
     "langfuse==3.10.0",
     "lxml==5.4.0",
