@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed 
+
+- ♻️(front) optimize syntax highlighting bundle size
+- 
 ### Removed
 
 - 🔥(chat) consider PDF documents as other kind of documents #234
@@ -25,6 +29,7 @@ and this project adheres to
 - 🐛(back) fix system prompt compatibility with self-hosted models #200
 - ⚰️(back) remove dead code and unused files
 - 🐛(back) prevent tool call timeouts
+
 
 ### Removed
 
