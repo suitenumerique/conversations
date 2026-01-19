@@ -18,6 +18,7 @@ and this project adheres to
 ### Changed
 
 - 🏗️(back) migrate to uv
+- ♻️(front) optimize syntax highlighting bundle size
 
 ## [0.0.12] - 2026-01-27
 
@@ -44,6 +45,7 @@ and this project adheres to
 - 🐛(back) fix system prompt compatibility with self-hosted models #200
 - ⚰️(back) remove dead code and unused files
 - 🐛(back) prevent tool call timeouts
+
 
 ### Removed
 

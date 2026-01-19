@@ -1,13 +1,13 @@
 import { Message, SourceUIPart, ToolInvocationUIPart } from '@ai-sdk/ui-utils';
 import { Modal, ModalSize } from '@openfun/cunningham-react';
+import rehypeShikiFromHighlighter from '@shikijs/rehype/core';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import { useRouter } from 'next/router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MarkdownHooks } from 'react-markdown';
 import rehypeKatex from 'rehype-katex';
-import rehypePrettyCode from 'rehype-pretty-code';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
@@ -35,6 +35,9 @@ import { useSourceMetadataCache } from '../hooks';
 import { useChatPreferencesStore } from '../stores/useChatPreferencesStore';
 import { usePendingChatStore } from '../stores/usePendingChatStore';
 import { useScrollStore } from '../stores/useScrollStore';
+import { getHighlighter } from '../utils/shiki';
+
+const highlighterPromise = getHighlighter();
 
 // Define Attachment type locally (mirroring backend structure)
 export interface Attachment {
@@ -51,7 +54,7 @@ export const Chat = ({
   const { t } = useTranslation();
   const copyToClipboard = useClipboard();
   const { isMobile } = useResponsiveStore();
-
+  const highlighter = use(highlighterPromise);
   const streamProtocol = 'data'; // or 'text'
 
   const {
@@ -727,9 +730,11 @@ export const Chat = ({
                               remarkPlugins={[remarkGfm, remarkMath]}
                               rehypePlugins={[
                                 [
-                                  rehypePrettyCode,
+                                  rehypeShikiFromHighlighter,
+                                  highlighter,
                                   {
                                     theme: 'github-dark-dimmed',
+                                    fallbackLanguage: 'plaintext',
                                   },
                                 ],
                                 rehypeKatex,
