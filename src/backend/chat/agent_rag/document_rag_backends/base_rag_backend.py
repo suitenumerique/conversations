@@ -1,6 +1,7 @@
 """Implementation of the Albert API for RAG document search."""
 
 import logging
+from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager, contextmanager
 from io import BytesIO
 from typing import List, Optional
@@ -13,7 +14,7 @@ from chat.agent_rag.document_converter.parser import BaseParser
 logger = logging.getLogger(__name__)
 
 
-class BaseRagBackend:
+class BaseRagBackend(ABC):
     """Base class for RAG backends."""
 
     def __init__(
@@ -62,6 +63,7 @@ class BaseRagBackend:
             )
         return collection_ids
 
+    @abstractmethod
     def create_collection(self, name: str, description: Optional[str] = None) -> str:
         """
         Create a temporary collection for the search operation.
@@ -92,6 +94,7 @@ class BaseRagBackend:
         """
         return self.parser.parse_document(name, content_type, content)
 
+    @abstractmethod
     def store_document(self, name: str, content: str, **kwargs) -> None:
         """
         Store the document content in the collection.
@@ -135,7 +138,8 @@ class BaseRagBackend:
         self.store_document(name, document_content, **kwargs)
         return document_content
 
-    def delete_collection(self,  **kwargs) -> None:
+    @abstractmethod
+    def delete_collection(self, **kwargs) -> None:
         """
         Delete the collection.
         This method should handle the logic to delete the collection from the backend.
@@ -149,6 +153,7 @@ class BaseRagBackend:
         """
         return await sync_to_async(self.delete_collection)(**kwargs)
 
+    @abstractmethod
     def search(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
         """
         Search the collection for the given query.
@@ -185,7 +190,9 @@ class BaseRagBackend:
 
     @classmethod
     @asynccontextmanager
-    async def temporary_collection_async(cls, name: str, description: Optional[str] = None, **kwargs):
+    async def temporary_collection_async(
+        cls, name: str, description: Optional[str] = None, **kwargs
+    ):
         """Context manager for RAG backend with temporary collections."""
         backend = cls()
 

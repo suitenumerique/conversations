@@ -61,9 +61,7 @@ class FindRagBackend(BaseRagBackend):
             urljoin(settings.FIND_API_URL, self.deleting_endpoint),
             headers={"Authorization": f"Bearer {kwargs['session'].get('oidc_access_token')}"},
             json={
-                "tags": [
-                    f"collection-{self.collection_id}"
-                ],
+                "tags": [f"collection-{self.collection_id}"],
                 # "service": "conversations"
             },
             timeout=settings.FIND_API_TIMEOUT,
@@ -123,7 +121,6 @@ class FindRagBackend(BaseRagBackend):
             RAGWebResults: The search results.
         """
         logger.debug("search documents in Find with query '%s'", query)
-        print("q----", query)
         response = requests.post(
             urljoin(settings.FIND_API_URL, self.search_endpoint),
             headers={"Authorization": f"Bearer {kwargs['session'].get('oidc_access_token')}"},

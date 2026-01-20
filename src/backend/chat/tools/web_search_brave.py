@@ -326,7 +326,7 @@ async def web_search_brave_with_document_backend(ctx: RunContext, query: str) ->
                     query=query,
                     results_count=settings.BRAVE_RAG_WEB_SEARCH_CHUNK_NUMBER,
                     session=ctx.deps.session,
-                    user_sub = ctx.deps.user.sub,
+                    user_sub=ctx.deps.user.sub,
                 )
                 logger.info("RAG search returned:  %s", rag_results)
 
