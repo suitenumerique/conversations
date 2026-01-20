@@ -49,6 +49,7 @@ def ai_settings(request, settings):
     settings.RAG_DOCUMENT_SEARCH_BACKEND = request.param
     settings.AI_BASE_URL = "https://www.external-ai-service.com/"
     settings.AI_API_KEY = "test-api-key"
+    settings.FIND_API_URL = "https://app-find"
     settings.FIND_API_KEY = "find-api-key"
     settings.AI_MODEL = "test-model"
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"

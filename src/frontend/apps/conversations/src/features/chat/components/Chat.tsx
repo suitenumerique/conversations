@@ -1,4 +1,4 @@
-import { Message, SourceUIPart } from '@ai-sdk/ui-utils';
+import { Message, SourceUIPart, ToolInvocationUIPart } from '@ai-sdk/ui-utils';
 import { Modal, ModalSize } from '@openfun/cunningham-react';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import { useRouter } from 'next/router';
@@ -226,10 +226,6 @@ export const Chat = ({
 
   const stopGeneration = async () => {
     stopChat();
-
-    if (!conversationId) {
-      return;
-    }
 
     const response = await fetchAPI(`chats/${conversationId}/stop-streaming/`, {
       method: 'POST',
@@ -664,19 +660,299 @@ export const Chat = ({
               return (
                 <Box
                   key={message.id}
-                  message={message}
-                  isLastAssistantMessageInConversation={
-                    isLastAssistantMessageInConversation
-                  }
-                  shouldApplyStreamingHeight={shouldApplyStreamingHeight}
-                  streamingMessageHeight={streamingMessageHeight}
-                  isCurrentlyStreaming={isCurrentlyStreaming}
-                  status={isCurrentlyStreaming ? status : 'ready'} // Ne passer le vrai status que si nécessaire
-                  isSourceOpen={isSourceOpen}
-                  conversationId={conversationId}
-                  onOpenSources={openSources}
-                  getMetadata={getMetadata}
-                />
+                  data-message-id={message.id}
+                  $css={`
+                    display: flex;
+                    width: 100%;
+                    margin: auto;
+                    margin-bottom: ${isLastAssistantMessageInConversation ? '30px' : '0px'};
+                    color: var(--c--theme--colors--greyscale-850);
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    max-width: 750px;
+                    text-align: left;
+                    overflow-wrap: anywhere;
+                    flex-direction: ${message.role === 'user' ? 'row-reverse' : 'row'};
+                  `}
+                >
+                  <Box
+                    $display="block"
+                    $width={`${message.role === 'user' ? 'auto' : '100%'}`}
+                  >
+                    {message.experimental_attachments &&
+                      message.experimental_attachments.length > 0 && (
+                        <Box>
+                          <AttachmentList
+                            attachments={message.experimental_attachments}
+                            isReadOnly={true}
+                          />
+                        </Box>
+                      )}
+                    <Box
+                      $radius="8px"
+                      $width={`${message.role === 'user' ? 'auto' : '100%'}`}
+                      $maxWidth="100%"
+                      $padding={`${message.role === 'user' ? '12px' : '0'}`}
+                      $margin={{ vertical: 'base' }}
+                      $background={`${message.role === 'user' ? '#EEF1F4' : 'white'}`}
+                      $css={`
+                      display: inline-block;
+                      float: right;
+                      ${shouldApplyStreamingHeight ? `min-height: ${streamingMessageHeight}px;` : ''}`}
+                    >
+                      {/* Message content */}
+                      {message.content && (
+                        <Box
+                          className="mainContent-chat"
+                          data-testid={
+                            message.role === 'assistant'
+                              ? 'assistant-message-content'
+                              : undefined
+                          }
+                          $padding={{ all: 'xxs' }}
+                        >
+                          <p className="sr-only">
+                            {message.role === 'user'
+                              ? t('You said: ')
+                              : t('Assistant IA replied: ')}
+                          </p>
+                          {message.role === 'user' ? (
+                            <Text
+                              as="p"
+                              $css="white-space: pre-wrap; display: block;"
+                              $theme="greyscale"
+                              $variation="850"
+                            >
+                              {message.content}
+                            </Text>
+                          ) : (
+                            <MarkdownHooks
+                              remarkPlugins={[remarkGfm, remarkMath]}
+                              rehypePlugins={[
+                                [
+                                  rehypePrettyCode,
+                                  {
+                                    theme: 'github-dark-dimmed',
+                                  },
+                                ],
+                                rehypeKatex,
+                              ]}
+                              components={{
+                                // Custom components for Markdown rendering
+                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                p: ({ node, ...props }) => (
+                                  <Text
+                                    as="p"
+                                    $css="display: block"
+                                    $theme="greyscale"
+                                    $variation="850"
+                                    {...props}
+                                  />
+                                ),
+                                a: ({ children, ...props }) => (
+                                  <a target="_blank" {...props}>
+                                    {children}
+                                  </a>
+                                ),
+                                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                                pre: ({ node, children, ...props }) => (
+                                  <CodeBlock {...props}>{children}</CodeBlock>
+                                ),
+                              }}
+                            >
+                              {message.content}
+                            </MarkdownHooks>
+                          )}
+                        </Box>
+                      )}
+
+                      <Box $direction="column" $gap="2">
+                        {isCurrentlyStreaming &&
+                          isLastAssistantMessageInConversation &&
+                          status === 'streaming' &&
+                          message.parts?.some(
+                            (part) =>
+                              part.type === 'tool-invocation' &&
+                              part.toolInvocation.toolName !==
+                                'document_parsing',
+                          ) && (
+                            <Box
+                              $direction="row"
+                              $align="center"
+                              $gap="6px"
+                              $width="100%"
+                              $maxWidth="750px"
+                              $margin={{
+                                all: 'auto',
+                                top: 'base',
+                                bottom: 'md',
+                              }}
+                            >
+                              <Loader />
+                              <Text $variation="600" $size="md">
+                                {(() => {
+                                  const toolInvocation = message.parts?.find(
+                                    (part) =>
+                                      part.type === 'tool-invocation' &&
+                                      part.toolInvocation.toolName !==
+                                        'document_parsing',
+                                  );
+                                  if (
+                                    toolInvocation?.type ===
+                                      'tool-invocation' &&
+                                    toolInvocation.toolInvocation.toolName ===
+                                      'summarize'
+                                  ) {
+                                    return t('Summarizing...');
+                                  }
+                                  return t('Search...');
+                                })()}
+                              </Text>
+                            </Box>
+                          )}
+                        {message.parts
+                          ?.filter((part) => part.type === 'tool-invocation')
+                          .map(
+                            (part: ToolInvocationUIPart, partIndex: number) =>
+                              part.type === 'tool-invocation' &&
+                              isCurrentlyStreaming &&
+                              isLastAssistantMessageInConversation ? (
+                                <ToolInvocationItem
+                                  key={`tool-invocation-${partIndex}`}
+                                  toolInvocation={part.toolInvocation}
+                                  status={status}
+                                  hideSearchLoader={true}
+                                />
+                              ) : null,
+                          )}
+                      </Box>
+                      {message.role === 'assistant' &&
+                        !(
+                          isLastAssistantMessageInConversation &&
+                          status === 'streaming'
+                        ) && (
+                          <Box
+                            $css="color: #222631; font-size: 12px;"
+                            $direction="row"
+                            $align="center"
+                            $justify="space-between"
+                            $gap="6px"
+                            $margin={{ top: 'base' }}
+                          >
+                            <Box $direction="row" $gap="4px">
+                              <Box
+                                $direction="row"
+                                $align="center"
+                                $gap="4px"
+                                className="c__button--neutral action-chat-button"
+                                onClick={() => copyToClipboard(message.content)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    copyToClipboard(message.content);
+                                  }
+                                }}
+                                role="button"
+                                tabIndex={0}
+                              >
+                                <Icon
+                                  iconName="content_copy"
+                                  $theme="greyscale"
+                                  $variation="550"
+                                  $size="16px"
+                                  className="action-chat-button-icon"
+                                />
+                                {!isMobile && (
+                                  <Text $theme="greyscale" $variation="550">
+                                    {t('Copy')}
+                                  </Text>
+                                )}
+                              </Box>
+                              {message.parts?.some(
+                                (part) => part.type === 'source',
+                              ) &&
+                                (() => {
+                                  const sourceCount =
+                                    message.parts?.filter(
+                                      (part) => part.type === 'source',
+                                    ).length || 0;
+                                  return (
+                                    <Box
+                                      $direction="row"
+                                      $align="center"
+                                      $gap="4px"
+                                      className={`c__button--neutral action-chat-button ${isSourceOpen === message.id ? 'action-chat-button--open' : ''}`}
+                                      onClick={() => openSources(message.id)}
+                                      onKeyDown={(e) => {
+                                        if (
+                                          e.key === 'Enter' ||
+                                          e.key === ' '
+                                        ) {
+                                          e.preventDefault();
+                                          openSources(message.id);
+                                        }
+                                      }}
+                                      role="button"
+                                      tabIndex={0}
+                                    >
+                                      <Icon
+                                        iconName="book"
+                                        $theme="greyscale"
+                                        $variation="550"
+                                        $size="16px"
+                                        className="action-chat-button-icon"
+                                      />
+                                      <Text
+                                        $theme="greyscale"
+                                        $variation="550"
+                                        $weight="500"
+                                        $size="12px"
+                                      >
+                                        {t('Show')} {sourceCount}{' '}
+                                        {sourceCount !== 1
+                                          ? t('sources')
+                                          : t('source')}
+                                      </Text>
+                                    </Box>
+                                  );
+                                })()}
+                            </Box>
+                            <Box $direction="row" $gap="4px">
+                              {/* We should display the button, but disabled if no trace linked */}
+                              {conversationId &&
+                                message.id &&
+                                message.id.startsWith('trace-') && (
+                                  <FeedbackButtons
+                                    conversationId={conversationId}
+                                    messageId={message.id}
+                                  />
+                                )}
+                            </Box>
+                          </Box>
+                        )}
+                      {message.parts &&
+                        isSourceOpen === message.id &&
+                        (() => {
+                          const sourceParts = message.parts.filter(
+                            (part): part is SourceUIPart =>
+                              part.type === 'source',
+                          );
+                          return (
+                            <Box
+                              $css={`
+                              animation: fade-in 0.2s ease-out;
+                            `}
+                            >
+                              <SourceItemList
+                                parts={sourceParts}
+                                getMetadata={getMetadata}
+                              />
+                            </Box>
+                          );
+                        })()}
+                    </Box>
+                  </Box>
+                </Box>
               );
             })}
           </Box>

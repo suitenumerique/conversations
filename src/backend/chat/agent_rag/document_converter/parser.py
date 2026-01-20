@@ -1,7 +1,6 @@
 """Document parsers for RAG backends."""
 
 import logging
-from io import BytesIO
 from urllib.parse import urljoin
 
 from django.conf import settings
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 class BaseParser:
     """Base class for document parsers."""
 
-    def parse_document(self, name: str, content_type: str, content: BytesIO) -> str:
+    def parse_document(self, name: str, content_type: str, content: bytes) -> str:
         """
         Parse the document and prepare it for the search operation.
         This method should handle the logic to convert the document
@@ -25,7 +24,7 @@ class BaseParser:
         Args:
             name (str): The name of the document.
             content_type (str): The MIME type of the document (e.g., "application/pdf").
-            content (BytesIO): The content of the document as a BytesIO stream.
+            content (bytes): The content of the document as a bytes stream.
 
         Returns:
             str: The document content in Markdown format.

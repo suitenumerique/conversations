@@ -1,14 +1,19 @@
 """Tests for the Brave web search tool."""
 
-# pylint: disable=too-many-lines
+from typing import Sequence
 
+# pylint: disable=too-many-lines
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from urllib.parse import parse_qs
+
+from django.contrib.auth.base_user import AbstractBaseUser
+from django.contrib.sessions.backends.cache import SessionStore
 
 import httpx
 import pytest
 import respx
 from pydantic_ai import ModelRetry, RunContext, RunUsage
+from pydantic_ai._run_context import RunContextAgentDepsT
 
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.web_search_brave import (
@@ -45,6 +50,13 @@ def brave_settings(settings):
 def fixture_mocked_context():
     """Fixture for a mocked RunContext."""
     mock_ctx = Mock(spec=RunContext)
+    mock_ctx.deps = Mock(spec=RunContextAgentDepsT)
+    user = Mock(spec=AbstractBaseUser)
+    user.sub = Mock(spec=Sequence)
+    mock_ctx.deps.user = user
+    session = SessionStore()
+    session["oidc_access_token"] = "mocked-access-token"
+    mock_ctx.deps.session = session
     mock_ctx.usage = RunUsage(input_tokens=0, output_tokens=0)
     mock_ctx.max_retries = 2
     mock_ctx.retries = {}
@@ -1008,7 +1020,12 @@ async def test_web_search_brave_with_document_backend_rag_search_params(mocked_c
             await web_search_brave_with_document_backend(mocked_context, "test query")
 
     # Verify RAG search was called with correct parameters
-    mock_document_store.asearch.assert_called_once_with("test query", results_count=5)
+    mock_document_store.asearch.assert_called_once_with(
+        query="test query",
+        results_count=5,
+        session=mocked_context.deps.session,
+        user_sub=mocked_context.deps.user.sub,
+    )
 
 
 @pytest.mark.asyncio
