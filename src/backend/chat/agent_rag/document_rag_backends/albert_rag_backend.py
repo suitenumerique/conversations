@@ -87,7 +87,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         self.collection_id = str(response.json()["id"])
         return self.collection_id
 
-    def delete_collection(self) -> None:
+    def delete_collection(self, **kwargs) -> None:
         """
         Delete the current collection
         """
@@ -98,7 +98,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         )
         response.raise_for_status()
 
-    async def adelete_collection(self) -> None:
+    async def adelete_collection(self, **kwargs) -> None:
         """
         Asynchronously delete the current collection
         """

@@ -42,6 +42,7 @@ class FindRagBackend(BaseRagBackend):
         self.api_key = settings.FIND_API_KEY
         self.search_endpoint = "api/v1.0/documents/search/"
         self.indexing_endpoint = "api/v1.0/documents/index/"
+        self.deleting_endpoint = "api/v1.0/documents/delete/"
         self.parser = AlbertParser()  # Find Rag relies on Albert parser
 
     def create_collection(self, name: str, description: Optional[str] = None) -> str:
@@ -51,11 +52,18 @@ class FindRagBackend(BaseRagBackend):
         self.collection_id = self.collection_id or str(uuid.uuid4())
         return self.collection_id
 
-    def delete_collection(self) -> None:
+    @with_fresh_access_token
+    def delete_collection(self, **kwargs) -> None:
         """
-        Deletion not available
+        Delete the current collection
         """
-        logger.warning("deletion of collections is not yet supported in FindRagBackend")
+        response = requests.post(
+            urljoin(settings.FIND_API_URL, self.deleting_endpoint),
+            headers={"Authorization": f"Bearer {kwargs['session'].get('oidc_access_token')}"},
+            json={"tags": [f"collection-{self.collection_id}"], "service": "conversations"},
+            timeout=settings.FIND_API_TIMEOUT,
+        )
+        response.raise_for_status()
 
     def store_document(self, name: str, content: str, **kwargs) -> None:
         """
@@ -110,12 +118,11 @@ class FindRagBackend(BaseRagBackend):
             RAGWebResults: The search results.
         """
         logger.debug("search documents in Find with query '%s'", query)
-
         response = requests.post(
             urljoin(settings.FIND_API_URL, self.search_endpoint),
             headers={"Authorization": f"Bearer {kwargs['session'].get('oidc_access_token')}"},
             json={
-                "q": query,
+                "q": query or "*",
                 "tags": [
                     f"collection-{collection_id}" for collection_id in self.get_all_collection_ids()
                 ],

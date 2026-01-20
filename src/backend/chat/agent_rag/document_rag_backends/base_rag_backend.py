@@ -137,19 +137,20 @@ class BaseRagBackend(ABC):
         self.store_document(name, document_content, **kwargs)
         return document_content
 
-    def delete_collection(self) -> None:
+    @abstractmethod
+    def delete_collection(self, **kwargs) -> None:
         """
         Delete the collection.
         This method should handle the logic to delete the collection from the backend.
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
-    async def adelete_collection(self) -> None:
+    async def adelete_collection(self, **kwargs) -> None:
         """
         Delete the collection.
         This method should handle the logic to delete the collection from the backend.
         """
-        return await sync_to_async(self.delete_collection)()
+        return await sync_to_async(self.delete_collection)(**kwargs)
 
     @abstractmethod
     def search(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
@@ -188,7 +189,9 @@ class BaseRagBackend(ABC):
 
     @classmethod
     @asynccontextmanager
-    async def temporary_collection_async(cls, name: str, description: Optional[str] = None):
+    async def temporary_collection_async(
+        cls, name: str, description: Optional[str] = None, **kwargs
+    ):
         """Context manager for RAG backend with temporary collections."""
         backend = cls()
 
@@ -196,4 +199,4 @@ class BaseRagBackend(ABC):
         try:
             yield backend
         finally:
-            await backend.adelete_collection()
+            await backend.adelete_collection(**kwargs)

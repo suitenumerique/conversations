@@ -307,19 +307,26 @@ async def web_search_brave_with_document_backend(ctx: RunContext, query: str) ->
         temp_collection_name = f"tmp-{uuid.uuid4()}"
         try:
             async with document_store_backend.temporary_collection_async(
-                temp_collection_name
+                temp_collection_name, session=ctx.deps.session
             ) as document_store:
                 # Fetch and store all documents concurrently
                 tasks = [
-                    _fetch_and_store_async(result["url"], document_store)
+                    _fetch_and_store_async(
+                        result["url"],
+                        document_store,
+                        user_sub=ctx.deps.user.sub,
+                        session=ctx.deps.session,
+                    )
                     for result in raw_search_results
                 ]
                 await asyncio.gather(*tasks, return_exceptions=True)
 
                 # Perform RAG search
                 rag_results = await document_store.asearch(
-                    query,
+                    query=query,
                     results_count=settings.BRAVE_RAG_WEB_SEARCH_CHUNK_NUMBER,
+                    session=ctx.deps.session,
+                    user_sub=ctx.deps.user.sub,
                 )
                 logger.info("RAG search returned:  %s", rag_results)
 
