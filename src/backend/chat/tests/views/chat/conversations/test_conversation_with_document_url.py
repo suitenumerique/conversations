@@ -139,7 +139,7 @@ def test_post_conversation_with_local_pdf_document_url(
                 ],
                 instructions=(
                     "You are a helpful test assistant :)\n\n"
-                    "Today is Monday 19/01/2026.\n\n"
+                    f"{today_promt_date}\n\n"
                     "Answer in english.\n\n"
                     "Use document_search_rag ONLY to retrieve specific passages from attached "
                     "documents. Do NOT use it to summarize; for summaries, call the summarize "
