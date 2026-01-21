@@ -151,6 +151,10 @@ class Base(BraveSettings, Configuration):
         environ_name="AWS_S3_DOMAIN_REPLACE",
         environ_prefix=None,
     )
+    AWS_S3_MCP_URL = values.Value(
+        environ_name="AWS_S3_MCP_URL",
+        environ_prefix=None,
+    )
 
     ATTACHMENT_CHECK_UNSAFE_MIME_TYPES_ENABLED = values.BooleanValue(
         True,

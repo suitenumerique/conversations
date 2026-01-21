@@ -93,6 +93,7 @@ class ContextDeps:
     conversation: models.ChatConversation
     user: User
     web_search_enabled: bool = False
+    data_analysis_enabled: bool = False
 
 
 def get_model_configuration(model_hrid: str):
@@ -131,12 +132,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Feature flags
         self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
         self._is_web_search_enabled = is_feature_enabled(self.user, "web_search")
+        self._is_data_analysis_enabled = is_feature_enabled(self.user, "data_analysis")
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
         self._context_deps = ContextDeps(
             conversation=conversation,
             user=user,
             web_search_enabled=self._is_web_search_enabled,
+            data_analysis_enabled=self._is_data_analysis_enabled,
         )
 
         self.conversation_agent = ConversationAgent(
@@ -290,15 +293,25 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 )
 
             if not document.media_type.startswith("text/"):
+                # For non-text documents (PDF, Excel, images, etc.), we create a separate
+                # markdown attachment that contains the parsed text content.
+                # IMPORTANT: we must **not** overwrite the original binary file.
+                # If `key` is set, it points to the existing original object in storage;
+                # we derive a distinct markdown key from it so the original stays intact.
+                if key:
+                    md_key = f"{key}.md"
+                else:
+                    md_key = f"{self.conversation.pk}/attachments/{document.identifier}.md"
+
                 md_attachment = await models.ChatConversationAttachment.objects.acreate(
                     conversation=self.conversation,
                     uploaded_by=self.user,
-                    key=key or f"{self.conversation.pk}/attachments/{document.identifier}.md",
+                    key=md_key,
                     file_name=f"{document.identifier}.md",
                     content_type="text/markdown",
-                    conversion_from=key,  # might be None
+                    conversion_from=key,  # original storage key, might be None
                 )
-                default_storage.save(md_attachment.key, BytesIO(parsed_content.encode("utf8")))
+                default_storage.save(md_key, BytesIO(parsed_content.encode("utf8")))
                 md_attachment.upload_state = models.AttachmentStatus.READY
                 await md_attachment.asave(update_fields=["upload_state", "updated_at"])
 
@@ -552,6 +565,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
             _final_output_from_tool = None
             _ui_sources = []
+            _tool_names = {}  # Map tool_call_id to tool_name
 
             # Help Mistral to prevent `Unexpected role 'user' after role 'tool'` error.
             if history and history[-1].kind == "request":
@@ -650,6 +664,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                     dataclasses.asdict(event),
                                 )
                                 if isinstance(event, FunctionToolCallEvent):
+                                    # Store tool name for later use
+                                    _tool_names[event.tool_call_id] = event.part.tool_name
                                     if not _tool_is_streaming:
                                         yield events_v4.ToolCallPart(
                                             tool_call_id=event.tool_call_id,
@@ -678,10 +694,39 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                                     **_new_source_ui.source.model_dump()
                                                 )
 
+                                        # Check if data_analysis tool was used and extract plot_url
+                                        tool_name = _tool_names.get(event.tool_call_id)
+                                        result_content = event.result.content
+                                        plot_url = None
+
+                                        if tool_name == "data_analysis":
+                                            logger.info(
+                                                f"Data analysis tool was used: {event.result}"
+                                            )
+
+                                            # Extract plot_url from metadata (not return_value - le modèle ne doit pas le voir)
+                                            if event.result.metadata:
+                                                plot_url = event.result.metadata.get("plot_url")
+                                                logger.info(
+                                                    f"Extracted plot_url from metadata: {plot_url}"
+                                                )
+
+                                            # Le plot_url n'est PAS dans return_value ni dans content
+                                            # donc le modèle ne le verra jamais - c'est parfait !
+
                                         yield events_v4.ToolResultPart(
                                             tool_call_id=event.tool_call_id,
-                                            result=event.result.content,
+                                            result=result_content,
                                         )
+
+                                        # If we have a plot_url, insert it directly into the stream as markdown image
+                                        if tool_name == "data_analysis" and plot_url:
+                                            logger.info(
+                                                f"Inserting plot_url directly into stream: {plot_url}"
+                                            )
+                                            yield events_v4.TextPart(
+                                                text=f"\n\n![Graphique de l'analyse]({plot_url})"
+                                            )
                                     elif isinstance(event.result, RetryPromptPart):
                                         yield events_v4.ToolResultPart(
                                             tool_call_id=event.tool_call_id,
