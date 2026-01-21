@@ -12,6 +12,10 @@ and this project adheres to
 
 - ✨(front) allow pasting an attachment from clipboard
 
+### Changed
+
+- ⚡️(front) optimize streaming markdown rendering performance
+
 ### Fixed
 
 - 💚(docker) vendor mime.types file instead of fetching from Apache SVN
