@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- ⚡️(front) optimize streaming markdown rendering performance
+
 ### Fixed
 
 - 💚(docker) vendor mime.types file instead of fetching from Apache SVN
