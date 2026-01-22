@@ -725,7 +725,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                                 f"Inserting plot_url directly into stream: {plot_url}"
                                             )
                                             yield events_v4.TextPart(
-                                                text=f"\n\n![Graphique de l'analyse]({plot_url})"
+                                                text=f"\n\n![Graphique de l'analyse]({plot_url})\n\n"
                                             )
                                     elif isinstance(event.result, RetryPromptPart):
                                         yield events_v4.ToolResultPart(
