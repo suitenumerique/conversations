@@ -26,7 +26,9 @@ const getBoxStyles = (
   border-radius: 4px;
   width: 100%;
   margin-bottom: 1px;
-  background-color: ${isCurrentConversation ? 'var(--c--contextuals--background--semantic--overlay--primary)' : ''};
+  background-color: ${isCurrentConversation
+    ? 'var(--c--contextuals--background--semantic--overlay--primary)'
+    : ''};
   font-weight: ${isCurrentConversation ? '700' : '500'};
   transition: background-color 0.2s cubic-bezier(1, 0, 0, 1);
   .pinned-actions {
@@ -35,8 +37,12 @@ const getBoxStyles = (
     background-color: transparent;
     transition: all 0.3s cubic-bezier(1, 0, 0, 1);
   }
-  &:hover, &:focus, &:focus-within {
-    background-color: var(--c--contextuals--background--semantic--overlay--primary);
+  &:hover,
+  &:focus,
+  &:focus-within {
+    background-color: var(
+      --c--contextuals--background--semantic--overlay--primary
+    );
     .pinned-actions {
       opacity: 1;
     }

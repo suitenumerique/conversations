@@ -820,7 +820,6 @@ const dsfrThemes = getThemesFromGlobals(dsfrGlobals, {
   overrides: commonTokenOverrides,
 });
 
-// Apply logo colors only to dsfr-dark theme
 if (dsfrThemes.dark?.globals?.colors) {
   dsfrThemes.dark.globals.colors['logo-1'] = '#95ABFF';
   dsfrThemes.dark.globals.colors['logo-2'] = '#E78087';
