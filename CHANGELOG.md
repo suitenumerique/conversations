@@ -8,9 +8,17 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(backend) add FindRagBackend
+
 ### Removed
 
 - 🔥(chat) consider PDF documents as other kind of documents #234
+
+### Fixed
+
+- 🚨(backend) fix tests
 
 ## [0.0.11] - 2026-01-16
 
