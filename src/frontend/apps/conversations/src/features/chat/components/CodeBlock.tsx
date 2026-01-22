@@ -71,10 +71,12 @@ export const CodeBlock = ({ children, ...props }: CodeBlockProps) => {
 
   return (
     <>
-      <CopyCodeButton onCopy={handleCopy} />
-      <Box ref={preRef} $position="relative" as="pre" {...props}>
-        {children}
-      </Box>
+      <figure data-rehype-pretty-code-figure="">
+        <CopyCodeButton onCopy={handleCopy} />
+        <Box ref={preRef} $position="relative" as="pre" {...props}>
+          {children}
+        </Box>
+      </figure>
     </>
   );
 };
