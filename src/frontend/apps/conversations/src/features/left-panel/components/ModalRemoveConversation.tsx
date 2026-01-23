@@ -55,7 +55,7 @@ export const ModalRemoveConversation = ({
           </Button>
           <Button
             aria-label={t('Confirm deletion')}
-            color="brand"
+            color="error"
             variant="primary"
             fullWidth
             onClick={() =>

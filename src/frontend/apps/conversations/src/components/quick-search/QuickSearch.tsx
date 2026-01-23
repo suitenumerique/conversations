@@ -64,8 +64,8 @@ export const QuickSearch = ({
                 bottom: -20px;
                 background: linear-gradient(
                   to bottom,
-                  var(--c--contextuals--background--surface--tertiary) 0%,
-                  transparent 100%
+                  rgba(var(--c--contextuals--background--surface--tertiary), 1),
+                  rgba(var(--c--contextuals--background--surface--tertiary), 0)
                 );
               }
               ${

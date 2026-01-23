@@ -2,10 +2,10 @@ import { Modal, ModalSize } from '@openfun/cunningham-react';
 import { useTranslation } from 'react-i18next';
 
 import { Box, StyledLink, Text, ToggleSwitch, useToast } from '@/components';
-import { useCunninghamTheme } from '@/cunningham';
-import { useUserUpdate } from '@/core/api/useUserUpdate';
-import { useAuthQuery } from '@/features/auth/api';
 import { HorizontalSeparator } from '@/components/separators/HorizontalSeparator';
+import { useUserUpdate } from '@/core/api/useUserUpdate';
+import { useCunninghamTheme } from '@/cunningham';
+import { useAuthQuery } from '@/features/auth/api';
 
 interface SettingsModalProps {
   onClose: () => void;

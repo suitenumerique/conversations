@@ -18,10 +18,12 @@ import { getHeaderHeight } from './HomeHeader';
 
 export default function HomeBanner() {
   const { t } = useTranslation();
-  const { componentTokens, spacingsTokens, colorsTokens } =
+  const { spacingsTokens, colorsTokens, componentTokens } =
     useCunninghamTheme();
   const { isMobile, isSmallMobile } = useResponsiveStore();
-  const withProConnect = componentTokens['home-proconnect'];
+  const withProConnect = Boolean(
+    (componentTokens as Record<string, unknown>)['home-proconnect'],
+  );
 
   return (
     <Box
@@ -54,12 +56,13 @@ export default function HomeBanner() {
           <IconAssistant
             aria-label={t('{{productName}} Logo', { productName })}
             width={64}
-            color={colorsTokens['primary-text']}
+            color={colorsTokens['logo-1-light']}
           />
           <Text
             as="h2"
             $size="xs-alt"
-            $variation="800"
+            $theme="neutral"
+            $variation="primary"
             $weight="bold"
             $textAlign="left"
             $margin="none"
@@ -69,17 +72,7 @@ export default function HomeBanner() {
           >
             {t('Your sovereign AI assistant')}
           </Text>
-          {/*          <Text
-            // $padding={{ horizontal: 'base' }}
-            $size="lg"
-            $variation="700"
-            $textAlign="left"
-          >
-            {t(
-              'Ask questions, get help with writing, or find reliable information online — Assistant simplifies your work while keeping your data secure.',
-            )}
-          </Text>*/}
-          <Text $variation="500">
+          <Text $theme="neutral" $variation="tertiary">
             {t(
               'A privacy-first assistant built for French public teams. Natively synced with LaSuite apps to help you draft, search, and decide without leaving your workflow. Beta access is available with a referral code.',
             )}

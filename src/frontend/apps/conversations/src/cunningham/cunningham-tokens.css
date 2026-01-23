@@ -405,6 +405,12 @@
   --c--globals--breakpoints--xxs: 320px;
   --c--globals--breakpoints--mobile: 768px;
   --c--globals--breakpoints--tablet: 1024px;
+  --c--globals--components--la-gaufre: false;
+  --c--globals--components--home-proconnect: false;
+  --c--globals--components--logo--src: ;
+  --c--globals--components--logo--alt: ;
+  --c--globals--components--logo--widthheader: ;
+  --c--globals--components--logo--widthfooter: ;
   --c--contextuals--background--surface--primary: var(
     --c--globals--colors--gray-000
   );
@@ -1293,6 +1299,12 @@
   --c--globals--breakpoints--xxs: 320px;
   --c--globals--breakpoints--mobile: 768px;
   --c--globals--breakpoints--tablet: 1024px;
+  --c--globals--components--la-gaufre: false;
+  --c--globals--components--home-proconnect: false;
+  --c--globals--components--logo--src: ;
+  --c--globals--components--logo--alt: ;
+  --c--globals--components--logo--widthHeader: ;
+  --c--globals--components--logo--widthFooter: ;
   --c--contextuals--background--surface--primary: var(
     --c--globals--colors--gray-800
   );
@@ -1775,6 +1787,64 @@
 }
 
 .cunningham-theme--dsfr {
+  --c--globals--components--la-gaufre: true;
+  --c--globals--components--home-proconnect: true;
+  --c--globals--components--logo--src: /assets/logo-gouv.svg;
+  --c--globals--components--logo--widthHeader: 110px;
+  --c--globals--components--logo--widthFooter: 220px;
+  --c--globals--components--logo--alt: gouvernement logo;
+  --c--globals--font--sizes--xs: 0.75rem;
+  --c--globals--font--sizes--sm: 0.875rem;
+  --c--globals--font--sizes--md: 1rem;
+  --c--globals--font--sizes--lg: 1.125rem;
+  --c--globals--font--sizes--ml: 0.938rem;
+  --c--globals--font--sizes--xl: 1.25rem;
+  --c--globals--font--sizes--t: 0.6875rem;
+  --c--globals--font--sizes--s: 0.75rem;
+  --c--globals--font--sizes--h1: 2rem;
+  --c--globals--font--sizes--h2: 1.75rem;
+  --c--globals--font--sizes--h3: 1.5rem;
+  --c--globals--font--sizes--h4: 1.375rem;
+  --c--globals--font--sizes--h5: 1.25rem;
+  --c--globals--font--sizes--h6: 1.125rem;
+  --c--globals--font--sizes--xl-alt: 5rem;
+  --c--globals--font--sizes--lg-alt: 4.5rem;
+  --c--globals--font--sizes--md-alt: 4rem;
+  --c--globals--font--sizes--sm-alt: 3.5rem;
+  --c--globals--font--sizes--xs-alt: 3rem;
+  --c--globals--font--weights--thin: 100;
+  --c--globals--font--weights--extrabold: 800;
+  --c--globals--font--weights--black: 900;
+  --c--globals--font--families--accent:
+    marianne, inter, roboto flex variable, sans-serif;
+  --c--globals--font--families--base:
+    marianne, inter, roboto flex variable, sans-serif;
+  --c--globals--spacings--0: 0;
+  --c--globals--spacings--none: 0;
+  --c--globals--spacings--auto: auto;
+  --c--globals--spacings--bx: 2.2rem;
+  --c--globals--spacings--full: 100%;
+  --c--globals--spacings--4xs: 0.125rem;
+  --c--globals--spacings--3xs: 0.25rem;
+  --c--globals--spacings--2xs: 0.375rem;
+  --c--globals--spacings--xs: 0.5rem;
+  --c--globals--spacings--sm: 0.75rem;
+  --c--globals--spacings--base: 1rem;
+  --c--globals--spacings--md: 1.5rem;
+  --c--globals--spacings--lg: 2rem;
+  --c--globals--spacings--xl: 2.5rem;
+  --c--globals--spacings--xxl: 3rem;
+  --c--globals--spacings--2xl: 3rem;
+  --c--globals--spacings--xxxl: 3.5rem;
+  --c--globals--spacings--3xl: 3.5rem;
+  --c--globals--spacings--4xl: 4rem;
+  --c--globals--spacings--5xl: 4.5rem;
+  --c--globals--spacings--6xl: 6rem;
+  --c--globals--spacings--7xl: 7.5rem;
+  --c--globals--breakpoints--xxs: 320px;
+  --c--globals--breakpoints--xs: 480px;
+  --c--globals--breakpoints--mobile: 768px;
+  --c--globals--breakpoints--tablet: 1024px;
   --c--globals--colors--logo-1: #2845c1;
   --c--globals--colors--logo-2: #c83f49;
   --c--globals--colors--brand-050: #edf0ff;
@@ -2103,58 +2173,6 @@
   --c--globals--colors--white-900: #f6f8f9e5;
   --c--globals--colors--white-950: #f6f8f9f2;
   --c--globals--colors--white-975: #f6f8f9f9;
-  --c--globals--font--sizes--xs: 0.75rem;
-  --c--globals--font--sizes--sm: 0.875rem;
-  --c--globals--font--sizes--md: 1rem;
-  --c--globals--font--sizes--lg: 1.125rem;
-  --c--globals--font--sizes--ml: 0.938rem;
-  --c--globals--font--sizes--xl: 1.25rem;
-  --c--globals--font--sizes--t: 0.6875rem;
-  --c--globals--font--sizes--s: 0.75rem;
-  --c--globals--font--sizes--h1: 2rem;
-  --c--globals--font--sizes--h2: 1.75rem;
-  --c--globals--font--sizes--h3: 1.5rem;
-  --c--globals--font--sizes--h4: 1.375rem;
-  --c--globals--font--sizes--h5: 1.25rem;
-  --c--globals--font--sizes--h6: 1.125rem;
-  --c--globals--font--sizes--xl-alt: 5rem;
-  --c--globals--font--sizes--lg-alt: 4.5rem;
-  --c--globals--font--sizes--md-alt: 4rem;
-  --c--globals--font--sizes--sm-alt: 3.5rem;
-  --c--globals--font--sizes--xs-alt: 3rem;
-  --c--globals--font--weights--thin: 100;
-  --c--globals--font--weights--extrabold: 800;
-  --c--globals--font--weights--black: 900;
-  --c--globals--font--families--accent:
-    marianne, inter, roboto flex variable, sans-serif;
-  --c--globals--font--families--base:
-    marianne, inter, roboto flex variable, sans-serif;
-  --c--globals--spacings--0: 0;
-  --c--globals--spacings--none: 0;
-  --c--globals--spacings--auto: auto;
-  --c--globals--spacings--bx: 2.2rem;
-  --c--globals--spacings--full: 100%;
-  --c--globals--spacings--4xs: 0.125rem;
-  --c--globals--spacings--3xs: 0.25rem;
-  --c--globals--spacings--2xs: 0.375rem;
-  --c--globals--spacings--xs: 0.5rem;
-  --c--globals--spacings--sm: 0.75rem;
-  --c--globals--spacings--base: 1rem;
-  --c--globals--spacings--md: 1.5rem;
-  --c--globals--spacings--lg: 2rem;
-  --c--globals--spacings--xl: 2.5rem;
-  --c--globals--spacings--xxl: 3rem;
-  --c--globals--spacings--2xl: 3rem;
-  --c--globals--spacings--xxxl: 3.5rem;
-  --c--globals--spacings--3xl: 3.5rem;
-  --c--globals--spacings--4xl: 4rem;
-  --c--globals--spacings--5xl: 4.5rem;
-  --c--globals--spacings--6xl: 6rem;
-  --c--globals--spacings--7xl: 7.5rem;
-  --c--globals--breakpoints--xxs: 320px;
-  --c--globals--breakpoints--xs: 480px;
-  --c--globals--breakpoints--mobile: 768px;
-  --c--globals--breakpoints--tablet: 1024px;
   --c--contextuals--background--surface--primary: var(
     --c--globals--colors--gray-000
   );
@@ -2637,6 +2655,64 @@
 }
 
 .cunningham-theme--dsfr-dark {
+  --c--globals--components--la-gaufre: true;
+  --c--globals--components--home-proconnect: true;
+  --c--globals--components--logo--src: /assets/logo-gouv.svg;
+  --c--globals--components--logo--widthHeader: 110px;
+  --c--globals--components--logo--widthFooter: 220px;
+  --c--globals--components--logo--alt: gouvernement logo;
+  --c--globals--font--sizes--xs: 0.75rem;
+  --c--globals--font--sizes--sm: 0.875rem;
+  --c--globals--font--sizes--md: 1rem;
+  --c--globals--font--sizes--lg: 1.125rem;
+  --c--globals--font--sizes--ml: 0.938rem;
+  --c--globals--font--sizes--xl: 1.25rem;
+  --c--globals--font--sizes--t: 0.6875rem;
+  --c--globals--font--sizes--s: 0.75rem;
+  --c--globals--font--sizes--h1: 2rem;
+  --c--globals--font--sizes--h2: 1.75rem;
+  --c--globals--font--sizes--h3: 1.5rem;
+  --c--globals--font--sizes--h4: 1.375rem;
+  --c--globals--font--sizes--h5: 1.25rem;
+  --c--globals--font--sizes--h6: 1.125rem;
+  --c--globals--font--sizes--xl-alt: 5rem;
+  --c--globals--font--sizes--lg-alt: 4.5rem;
+  --c--globals--font--sizes--md-alt: 4rem;
+  --c--globals--font--sizes--sm-alt: 3.5rem;
+  --c--globals--font--sizes--xs-alt: 3rem;
+  --c--globals--font--weights--thin: 100;
+  --c--globals--font--weights--extrabold: 800;
+  --c--globals--font--weights--black: 900;
+  --c--globals--font--families--accent:
+    marianne, inter, roboto flex variable, sans-serif;
+  --c--globals--font--families--base:
+    marianne, inter, roboto flex variable, sans-serif;
+  --c--globals--spacings--0: 0;
+  --c--globals--spacings--none: 0;
+  --c--globals--spacings--auto: auto;
+  --c--globals--spacings--bx: 2.2rem;
+  --c--globals--spacings--full: 100%;
+  --c--globals--spacings--4xs: 0.125rem;
+  --c--globals--spacings--3xs: 0.25rem;
+  --c--globals--spacings--2xs: 0.375rem;
+  --c--globals--spacings--xs: 0.5rem;
+  --c--globals--spacings--sm: 0.75rem;
+  --c--globals--spacings--base: 1rem;
+  --c--globals--spacings--md: 1.5rem;
+  --c--globals--spacings--lg: 2rem;
+  --c--globals--spacings--xl: 2.5rem;
+  --c--globals--spacings--xxl: 3rem;
+  --c--globals--spacings--2xl: 3rem;
+  --c--globals--spacings--xxxl: 3.5rem;
+  --c--globals--spacings--3xl: 3.5rem;
+  --c--globals--spacings--4xl: 4rem;
+  --c--globals--spacings--5xl: 4.5rem;
+  --c--globals--spacings--6xl: 6rem;
+  --c--globals--spacings--7xl: 7.5rem;
+  --c--globals--breakpoints--xxs: 320px;
+  --c--globals--breakpoints--xs: 480px;
+  --c--globals--breakpoints--mobile: 768px;
+  --c--globals--breakpoints--tablet: 1024px;
   --c--globals--colors--logo-1: #95abff;
   --c--globals--colors--logo-2: #e78087;
   --c--globals--colors--brand-050: #edf0ff;
@@ -2965,58 +3041,6 @@
   --c--globals--colors--white-900: #f6f8f9e5;
   --c--globals--colors--white-950: #f6f8f9f2;
   --c--globals--colors--white-975: #f6f8f9f9;
-  --c--globals--font--sizes--xs: 0.75rem;
-  --c--globals--font--sizes--sm: 0.875rem;
-  --c--globals--font--sizes--md: 1rem;
-  --c--globals--font--sizes--lg: 1.125rem;
-  --c--globals--font--sizes--ml: 0.938rem;
-  --c--globals--font--sizes--xl: 1.25rem;
-  --c--globals--font--sizes--t: 0.6875rem;
-  --c--globals--font--sizes--s: 0.75rem;
-  --c--globals--font--sizes--h1: 2rem;
-  --c--globals--font--sizes--h2: 1.75rem;
-  --c--globals--font--sizes--h3: 1.5rem;
-  --c--globals--font--sizes--h4: 1.375rem;
-  --c--globals--font--sizes--h5: 1.25rem;
-  --c--globals--font--sizes--h6: 1.125rem;
-  --c--globals--font--sizes--xl-alt: 5rem;
-  --c--globals--font--sizes--lg-alt: 4.5rem;
-  --c--globals--font--sizes--md-alt: 4rem;
-  --c--globals--font--sizes--sm-alt: 3.5rem;
-  --c--globals--font--sizes--xs-alt: 3rem;
-  --c--globals--font--weights--thin: 100;
-  --c--globals--font--weights--extrabold: 800;
-  --c--globals--font--weights--black: 900;
-  --c--globals--font--families--accent:
-    marianne, inter, roboto flex variable, sans-serif;
-  --c--globals--font--families--base:
-    marianne, inter, roboto flex variable, sans-serif;
-  --c--globals--spacings--0: 0;
-  --c--globals--spacings--none: 0;
-  --c--globals--spacings--auto: auto;
-  --c--globals--spacings--bx: 2.2rem;
-  --c--globals--spacings--full: 100%;
-  --c--globals--spacings--4xs: 0.125rem;
-  --c--globals--spacings--3xs: 0.25rem;
-  --c--globals--spacings--2xs: 0.375rem;
-  --c--globals--spacings--xs: 0.5rem;
-  --c--globals--spacings--sm: 0.75rem;
-  --c--globals--spacings--base: 1rem;
-  --c--globals--spacings--md: 1.5rem;
-  --c--globals--spacings--lg: 2rem;
-  --c--globals--spacings--xl: 2.5rem;
-  --c--globals--spacings--xxl: 3rem;
-  --c--globals--spacings--2xl: 3rem;
-  --c--globals--spacings--xxxl: 3.5rem;
-  --c--globals--spacings--3xl: 3.5rem;
-  --c--globals--spacings--4xl: 4rem;
-  --c--globals--spacings--5xl: 4.5rem;
-  --c--globals--spacings--6xl: 6rem;
-  --c--globals--spacings--7xl: 7.5rem;
-  --c--globals--breakpoints--xxs: 320px;
-  --c--globals--breakpoints--xs: 480px;
-  --c--globals--breakpoints--mobile: 768px;
-  --c--globals--breakpoints--tablet: 1024px;
   --c--contextuals--background--surface--primary: var(
     --c--globals--colors--gray-800
   );

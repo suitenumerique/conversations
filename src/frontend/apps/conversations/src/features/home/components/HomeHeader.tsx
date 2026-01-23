@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import { useTranslation } from 'react-i18next';
 
 import Logo from '@/assets/logo/logo-assistant.svg';
@@ -20,8 +19,7 @@ export const getHeaderHeight = (isSmallMobile: boolean) =>
 
 export const HomeHeader = () => {
   const { t } = useTranslation();
-  const { themeTokens, spacingsTokens, colorsTokens } = useCunninghamTheme();
-  const logo = themeTokens.logo;
+  const { spacingsTokens, colorsTokens } = useCunninghamTheme();
   const { isSmallMobile, isDesktop } = useResponsiveStore();
 
   return (
@@ -47,16 +45,6 @@ export const HomeHeader = () => {
             <ButtonTogglePanel />
           </Box>
         )}
-        {!isSmallMobile && logo?.src && (
-          <Image
-            priority
-            src={logo.src}
-            alt={logo.alt}
-            width={0}
-            height={0}
-            style={{ width: logo.widthHeader, height: 'auto' }}
-          />
-        )}
         <Box
           $align="center"
           $gap={spacingsTokens['3xs']}
@@ -67,7 +55,7 @@ export const HomeHeader = () => {
           <Logo
             aria-label={t('{{productName}} Logo', { productName })}
             width={139}
-            color={colorsTokens['primary-text']}
+            color={colorsTokens['logo-1-light']}
           />
         </Box>
         {isDesktop && <Feedback />}

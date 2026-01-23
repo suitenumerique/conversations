@@ -64,7 +64,7 @@ export const Header = () => {
           <Logo
             aria-label={t('{{productName}} Logo', { productName })}
             width={139}
-            color={colorsTokens['primary-text']}
+            color={colorsTokens['logo-1-light']}
           />
         </StyledLink>
         <Box className="c__button--feedback">{isDesktop && <Feedback />}</Box>
