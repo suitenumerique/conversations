@@ -9,14 +9,12 @@ import {
   getMatchingLocales,
   useSynchronizedLanguage,
 } from '@/features/language';
-import { useResponsiveStore } from '@/stores';
 
 export const LanguagePicker = () => {
   const { t, i18n } = useTranslation();
   const { data: conf } = useConfig();
   const { data: user } = useAuthQuery();
   const { changeLanguageSynchronized } = useSynchronizedLanguage();
-  const { isDesktop } = useResponsiveStore();
   const language = i18n.language;
 
   // Compute options for dropdown

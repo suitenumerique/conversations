@@ -36,8 +36,8 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
       <Box
         as="pre"
         key={toolInvocation.toolCallId}
-        $background="var(--c--theme--colors--greyscale-100)"
-        $color="var(--c--theme--colors--greyscale-500)"
+        $background="var(--c--contextuals--background--surface--tertiary)"
+        $color="var(--c--contextuals--content--semantic--neutral--secondary)"
         $padding={{ all: 'sm' }}
         $radius="8px"
         $css="font-size: 0.9em; width: 100%; white-space: pre-wrap; word-wrap: break-word;"

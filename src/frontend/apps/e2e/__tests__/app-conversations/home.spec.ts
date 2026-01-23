@@ -58,7 +58,7 @@ test.describe('Home page', () => {
       header.getByRole('button', { name: /Language/ }),
     ).toBeVisible();
     await expect(
-      header.getByRole('button', { name: 'Les services de La Suite numé' }),
+      header.getByRole('button', { name: 'Les services de LaSuite' }),
     ).toBeVisible();
     await expect(
       header.getByRole('img', { name: 'Gouvernement Logo' }),

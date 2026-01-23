@@ -1,10 +1,5 @@
-import {
-  Message,
-  ReasoningUIPart,
-  SourceUIPart,
-  ToolInvocationUIPart,
-} from '@ai-sdk/ui-utils';
-import { Button, Modal, ModalSize } from '@openfun/cunningham-react';
+import { Message, SourceUIPart, ToolInvocationUIPart } from '@ai-sdk/ui-utils';
+import { Modal, ModalSize } from '@openfun/cunningham-react';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -884,7 +879,7 @@ export const Chat = ({
                                       $direction="row"
                                       $align="center"
                                       $gap="4px"
-                                      className={`c__button c__button--brand c__button--brand--tertiary c__button--nano t ${isSourceOpen === message.id ? 'action-chat-button--open' : ''}`}
+                                      className={`c__button c__button--brand c__button--brand--tertiary c__button--nano ${isSourceOpen === message.id ? 'action-chat-button--open' : ''}`}
                                       onClick={() => openSources(message.id)}
                                       onKeyDown={(e) => {
                                         if (

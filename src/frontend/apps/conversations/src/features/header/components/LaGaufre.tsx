@@ -1,30 +1,14 @@
 // import { Gaufre } from '@gouvfr-lasuite/integration';
 import '@gouvfr-lasuite/integration/dist/css/gaufre.css';
-import Script from 'next/script';
-import React from 'react';
-import { Gaufre } from 'styled-components';
 import { Button } from '@openfun/cunningham-react';
+import Script from 'next/script';
 import { useEffect } from 'react';
 
-import { createGlobalStyle } from 'styled-components';
-
-import { useCunninghamTheme } from '@/cunningham';
-
-const GaufreStyle = createGlobalStyle`
-  .lasuite-gaufre-btn{
-    box-shadow: inset 0 0 0 0 !important;
-    border-radius: 4px !important;
-    &:focus {
-      box-shadow: box-shadow: inset 0 0 0 0 !important;
-    }
-    .lasuite-gaufre-btn.lasuite--gaufre-opened {
-      box-shadow: box-shadow: inset 0 0 0 0 !important;
-    }
-    &:before {
-      background-color: #304DDF !important;
-    }
+declare global {
+  interface Window {
+    _lasuite_widget?: unknown[];
   }
-`;
+}
 
 export const LaGaufre = () => {
   useEffect(() => {
@@ -42,7 +26,9 @@ export const LaGaufre = () => {
       const wrapper = shadowHost?.shadowRoot?.querySelector(
         '#wrapper',
       ) as HTMLElement;
-      if (wrapper) wrapper.style.zIndex = '1000000000';
+      if (wrapper) {
+        wrapper.style.zIndex = '1000000000';
+      }
     };
 
     setTimeout(applyZIndex, 500);
@@ -113,7 +99,7 @@ export const LaGaufre = () => {
                   return {
                     backgroundColor: '#fff',
                     position: 'fixed',
-                    top: 55,
+                    top: 65,
                     right: 20,
                   };
                 },

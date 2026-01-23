@@ -33,7 +33,7 @@ export const DropdownMenu = ({
   label,
   topMessage,
 }: PropsWithChildren<DropdownMenuProps>) => {
-  const { spacingsTokens, colorsTokens } = useCunninghamTheme();
+  const { spacingsTokens } = useCunninghamTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [buttonWidth, setButtonWidth] = useState<number | undefined>(undefined);
   const blockButtonRef = useRef<HTMLDivElement>(null);

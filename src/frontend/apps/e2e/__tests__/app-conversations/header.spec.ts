@@ -43,7 +43,7 @@ test.describe('Header', () => {
 
     await expect(
       header.getByRole('button', {
-        name: 'Les services de La Suite numérique',
+        name: 'Les services de LaSuite',
       }),
     ).toBeVisible();
   });
@@ -60,7 +60,7 @@ test.describe('Header', () => {
 
     await expect(
       header.getByRole('button', {
-        name: 'Les services de La Suite numérique',
+        name: 'Les services de LaSuite',
       }),
     ).toBeVisible();
 
@@ -73,7 +73,7 @@ test.describe('Header', () => {
 
     await header
       .getByRole('button', {
-        name: 'Les services de La Suite numérique',
+        name: 'Les services de LaSuite',
       })
       .click();
 

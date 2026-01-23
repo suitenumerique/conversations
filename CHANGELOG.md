@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- ✨(front) add ui kit
+
 ### Fixed
 
 - ⚡️(front) performance improvements on chat input

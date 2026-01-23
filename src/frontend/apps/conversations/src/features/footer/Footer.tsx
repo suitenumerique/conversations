@@ -151,8 +151,9 @@ export const Footer = () => {
                 `}
               >
                 <Text
-                  $variation="600"
+                  $variation="secondary"
                   $size="m"
+                  $theme="neutral"
                   $transition="box-shadow 0.3s"
                   $css={css`
                     &:hover {
@@ -171,7 +172,8 @@ export const Footer = () => {
             as="p"
             $size="m"
             $margin={{ top: 'big' }}
-            $variation="600"
+            $variation="secondary"
+            $theme="neutral"
             $display="inline"
             className="--docs--footer-licence"
           >
@@ -187,7 +189,9 @@ export const Footer = () => {
                   gap: 0.2rem;
                 `}
               >
-                <Text $variation="600">{bottomInformation.link.label}</Text>
+                <Text $variation="tertiary" $theme="neutral">
+                  {bottomInformation.link.label}
+                </Text>
                 <IconLink width={14} />
               </StyledLink>
             )}

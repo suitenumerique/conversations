@@ -46,15 +46,15 @@ export const SendButton = ({
         />
       ) : (
         <Button
-          size="small"
+          size="nano"
           type="button"
           aria-label={t('Stop')}
           disabled={false}
           onClick={onClick}
-          className="c__button--stop"
+          className="c__button--stop bg-semantic-neutral-primary"
           icon={<StopIcon />}
         >
-          <Text $theme="gray" $variation="000">
+          <Text $theme="neutral" $variation="on-neutral">
             {t('Stop')}
           </Text>
         </Button>

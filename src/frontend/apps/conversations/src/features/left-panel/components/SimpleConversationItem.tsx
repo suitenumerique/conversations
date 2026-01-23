@@ -31,7 +31,7 @@ export const SimpleConversationItem = memo(function SimpleConversationItem({
   showAccesses: _showAccesses = false,
 }: SimpleConversationItemProps) {
   const { t } = useTranslation();
-  const { spacingsTokens, colorsTokens } = useCunninghamTheme();
+  const { spacingsTokens } = useCunninghamTheme();
   const title = conversation.title || t('Untitled conversation');
 
   return (

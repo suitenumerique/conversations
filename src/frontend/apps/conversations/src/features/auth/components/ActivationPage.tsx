@@ -232,13 +232,21 @@ export const ActivationPage = () => {
                           width: 100%;
                           height: 40px;
                           padding: 6px 8px;
-                          border: 1px solid ${error ? 'var(--c--theme--colors--danger-600)' : 'var(--c--theme--colors--greyscale-150)'};
+                          border: 1px solid ${
+                            error
+                              ? 'var(--c--contextuals--border--semantic--error--primary)'
+                              : 'var(--c--contextuals--border--semantic--neutral--tertiary)'
+                          };
                           border-radius: 4px;
-                          fontSize: 14px;
+                          font-size: 14px;
                           outline: none;
-                          
+
                           &:focus {
-                            border: 1px solid ${error ? 'var(--c--theme--colors--danger-600)' : 'var(--c--theme--colors--greyscale-150)'};
+                            border: 1px solid ${
+                              error
+                                ? 'var(--c--contextuals--border--semantic--error--primary)'
+                                : 'var(--c--contextuals--border--semantic--neutral--tertiary)'
+                            };
                             box-shadow: none;
                           }
                         }
@@ -258,8 +266,8 @@ export const ActivationPage = () => {
                     {error && (
                       <Text
                         $size="xs"
-                        $theme="danger"
-                        $variation="600"
+                        $theme="error"
+                        $variation="tertiary"
                         $margin={{ top: '4px' }}
                       >
                         {error}

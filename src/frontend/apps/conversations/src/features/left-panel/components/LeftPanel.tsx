@@ -21,7 +21,7 @@ const MobileLeftPanelStyle = createGlobalStyle`
 export const LeftPanel = () => {
   const { isDesktop } = useResponsiveStore();
 
-  const { colorsTokens, spacingsTokens } = useCunninghamTheme();
+  const { spacingsTokens } = useCunninghamTheme();
   const { setPanelOpen, isPanelOpen } = useChatPreferencesStore();
 
   useEffect(() => {

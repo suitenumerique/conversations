@@ -10,7 +10,9 @@ import { useResponsiveStore } from '@/stores';
 
 export function HomeBottom() {
   const { componentTokens } = useCunninghamTheme();
-  const withProConnect = componentTokens['home-proconnect'];
+  const withProConnect = Boolean(
+    (componentTokens as Record<string, unknown>)['home-proconnect'],
+  );
 
   if (!withProConnect) {
     return null;
@@ -21,7 +23,7 @@ export function HomeBottom() {
 
 function HomeProConnect() {
   const { t } = useTranslation();
-  const { spacingsTokens, colorsTokens } = useCunninghamTheme();
+  const { spacingsTokens } = useCunninghamTheme();
   const { isMobile } = useResponsiveStore();
   const parentGap = '230px';
 
@@ -48,7 +50,6 @@ function HomeProConnect() {
           <IconAssistant
             aria-label={t('{{productName}} Logo', { productName })}
             width={34}
-            color={colorsTokens['primary-text']}
           />
           <Title />
         </Box>

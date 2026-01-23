@@ -154,13 +154,13 @@ nextjs-portal {
   ) !important;
 }
 
-.feedbackButton &:hover {
+.feedbackButton:hover {
   border-color: #b6d7fb;
   background-color: #e7f2fd;
   color: var(--c--contextuals--semantic--info-600) !important;
 }
 
-.feedbackButton &:hover span {
+.feedbackButton:hover span {
   color: var(--c--contextuals--content--semantic--info--secondary) !important;
 }
 
@@ -186,7 +186,7 @@ ul a:hover {
   border-radius: 8px;
   max-width: 100%;
   color: var(--c--contextuals--content--semantic--neutral--primary);
-  margin: var(--spacing-base) 0;
+  margin: var(--c--globals--spacings-b) 0;
   display: inline-block;
 }
 
@@ -250,13 +250,21 @@ ul a:hover {
 
 .c__button--stop {
   font-size: 0.8rem;
-  padding-right: 9px;
+  padding: 12px 9px !important;
+}
+
+.c__button--without-padding {
+  padding: 0 !important;
 }
 
 @media (width <= 768px) {
   .mobile-no-focus:hover {
     background-color: transparent !important;
   }
+}
+
+.c__button--small {
+  padding: 0.2rem !important;
 }
 
 .c__button--feedback {

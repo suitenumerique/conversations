@@ -69,6 +69,16 @@ export const commonTokenOverrides = {
 };
 
 export const commonGlobals = {
+  components: {
+    'la-gaufre': false,
+    'home-proconnect': false,
+    logo: {
+      src: '',
+      alt: '',
+      widthHeader: '',
+      widthFooter: '',
+    },
+  },
   font: {
     sizes: {
       xs: '0.75rem',
@@ -480,6 +490,18 @@ export const whiteLabelGlobals = {
 };
 
 export const dsfrGlobals = {
+  ...commonGlobals,
+  components: {
+    ...commonGlobals.components,
+    'la-gaufre': true,
+    'home-proconnect': true,
+    logo: {
+      src: '/assets/logo-gouv.svg',
+      widthHeader: '110px',
+      widthFooter: '220px',
+      alt: 'Gouvernement Logo',
+    },
+  },
   colors: {
     'logo-1': '#2845C1',
     'logo-2': '#C83F49',
@@ -810,7 +832,6 @@ export const dsfrGlobals = {
     'white-950': '#F6F8F9F2',
     'white-975': '#F6F8F9F9',
   },
-  ...commonGlobals,
 };
 
 const whiteLabelThemes = getThemesFromGlobals(whiteLabelGlobals, {
