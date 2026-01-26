@@ -8,6 +8,7 @@ skip =
     **/node_modules/**,
     **/e2e/report/**,
     *.tsbuildinfo,
+    **/uv.lock,
 check-filenames = true
 ignore-words-list =
     afterAll,

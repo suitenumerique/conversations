@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- 🏗️(back) migrate to uv
+
 ## [0.0.12] - 2026-01-27
 
 ### Fixed
@@ -25,6 +29,7 @@ and this project adheres to
 
 - 📦️(front) update react
 - ✨(chat) Generate and edit conversation title
+
 
 ### Fixed
 

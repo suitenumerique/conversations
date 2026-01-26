@@ -23,7 +23,7 @@ description = "An application to chat with your own AI."
 keywords = ["Django", "AI", "Chatbot", "OpenAI", "Pydantic AI", "Conversations"]
 license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = "~=3.13.0"
 dependencies = [
     "deprecated",
     "beautifulsoup4==4.14.2",
@@ -106,6 +106,14 @@ zip-safe = true
 
 [tool.distutils.bdist_wheel]
 universal = true
+
+[tool.uv.build-backend]
+module-root = ""
+source-exclude = [
+    "**/tests/**",
+    "**/test_*.py",
+    "**/tests.py",
+]
 
 [tool.ruff]
 exclude = [
