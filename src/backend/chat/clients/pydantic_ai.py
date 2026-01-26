@@ -6,6 +6,7 @@ implementation while keeping the *exact* same public API so that no
 changes are needed in views.py or tests.
 """
 
+import asyncio
 import dataclasses
 import functools
 import json
@@ -273,7 +274,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     # Retrieve the document data
                     with default_storage.open(key, "rb") as file:
                         document_data = file.read()
-                    parsed_content = document_store.parse_and_store_document(
+                    # Run in thread to avoid blocking the event loop during parsing
+                    parsed_content = await asyncio.to_thread(
+                        document_store.parse_and_store_document,
                         name=document.identifier,
                         content_type=document.media_type,
                         content=document_data,
@@ -282,7 +285,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     # Remote URL
                     raise ValueError("External document URL are not accepted yet.")
             else:
-                parsed_content = document_store.parse_and_store_document(
+                # Run in thread to avoid blocking the event loop during parsing
+                parsed_content = await asyncio.to_thread(
+                    document_store.parse_and_store_document,
                     name=document.identifier,
                     content_type=document.media_type,
                     content=document.data,
