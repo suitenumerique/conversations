@@ -18,7 +18,8 @@ export const ButtonLogin = () => {
     return (
       <Button
         onClick={() => gotoLogin()}
-        color="primary-text"
+        color="brand"
+        variant="tertiary"
         aria-label={t('Login')}
         className="--docs--button-login"
       >
@@ -30,7 +31,8 @@ export const ButtonLogin = () => {
   return (
     <Button
       onClick={gotoLogout}
-      color="primary-text"
+      color="brand"
+      variant="tertiary"
       icon={!isDesktop ? <Icon iconName="logout" $theme="primary" /> : ''}
       aria-label={t('Logout')}
       className="--docs--button-logout"

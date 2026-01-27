@@ -30,8 +30,12 @@ export default function App({ Component, pageProps }: AppPropsWithLayout) {
             `${productName}: ${t('Your new companion to use AI efficiently, intuitively, and securely.')}`,
           )}
         />
-        <link rel="icon" href={favicon['ico']} sizes="any" />
-        <link rel="icon" href={favicon['png-light']} type="image/png" />
+        <link
+          rel="icon"
+          href={favicon['png-light']}
+          type="image/png"
+          sizes="any"
+        />
         <link
           rel="icon"
           href={favicon['png-light']}

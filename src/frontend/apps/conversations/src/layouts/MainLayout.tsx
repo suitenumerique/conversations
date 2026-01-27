@@ -2,7 +2,6 @@ import { PropsWithChildren } from 'react';
 import { css } from 'styled-components';
 
 import { Box } from '@/components';
-import { useCunninghamTheme } from '@/cunningham';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { Header } from '@/features/header';
 import { LeftPanel } from '@/features/left-panel';
@@ -18,7 +17,6 @@ export function MainLayout({
   backgroundColor: _backgroundColor = 'white',
 }: PropsWithChildren<MainLayoutProps>) {
   const { isDesktop } = useResponsiveStore();
-  const { colorsTokens } = useCunninghamTheme();
   const { isPanelOpen } = useChatPreferencesStore();
 
   const HEADER_HEIGHT = `${isDesktop ? '65' : '52'}`;
@@ -55,7 +53,6 @@ export function MainLayout({
             $padding={{
               all: isDesktop ? '0' : '0',
             }}
-            $background={colorsTokens['greyscale-000']}
             $css={css`
               overflow-y: auto;
               overflow-x: clip;

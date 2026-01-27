@@ -39,7 +39,7 @@ export const InfiniteScroll = ({
         {!isLoading && hasMore && (
           <Button
             onClick={() => void next()}
-            color="primary-text"
+            color="neutral"
             icon={<Icon iconName="arrow_downward" />}
           >
             {buttonLabel ?? t('Load more')}

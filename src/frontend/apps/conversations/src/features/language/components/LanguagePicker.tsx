@@ -2,21 +2,19 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import { DropdownMenu, Icon, Text } from '@/components/';
+import { Box, DropdownMenu, Icon } from '@/components/';
 import { useConfig } from '@/core';
 import { useAuthQuery } from '@/features/auth';
 import {
   getMatchingLocales,
   useSynchronizedLanguage,
 } from '@/features/language';
-import { useResponsiveStore } from '@/stores';
 
 export const LanguagePicker = () => {
   const { t, i18n } = useTranslation();
   const { data: conf } = useConfig();
   const { data: user } = useAuthQuery();
   const { changeLanguageSynchronized } = useSynchronizedLanguage();
-  const { isDesktop } = useResponsiveStore();
   const language = i18n.language;
 
   // Compute options for dropdown
@@ -40,35 +38,36 @@ export const LanguagePicker = () => {
   return (
     <DropdownMenu
       options={optionsPicker}
-      showArrow={isDesktop}
-      label={t('Language')}
+      showArrow
+      label={t('Select language')}
       buttonCss={css`
-        &:hover {
-          background-color: var(
-            --c--components--button--primary-text--background--color-hover
-          );
-        }
-        border-radius: 4px;
+        transition: all var(--c--globals--transitions--duration)
+          var(--c--globals--transitions--ease-out) !important;
+        border-radius: var(--c--globals--spacings--st);
         padding: 0.5rem 0.6rem;
+        font-weight: 500;
         & > div {
           gap: 0.2rem;
           display: flex;
         }
         & .material-icons {
-          color: var(--c--components--button--primary-text--color) !important;
+          color: var(
+            --c--contextuals--content--palette--brand--primary
+          ) !important;
         }
       `}
     >
-      <Text
-        $theme="primary"
-        $size="md"
+      <Box
+        className="--docs--language-picker-text"
         $direction="row"
         $gap="0.5rem"
-        className="--docs--language-picker-text"
+        $align="center"
+        $theme="brand"
+        $variation="tertiary"
       >
         <Icon iconName="translate" $color="inherit" $size="xl" />
-        {isDesktop ? currentLanguageLabel : ''}
-      </Text>
+        {currentLanguageLabel}
+      </Box>
     </DropdownMenu>
   );
 };

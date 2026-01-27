@@ -1,5 +1,5 @@
+import { Button } from '@openfun/cunningham-react';
 import { useTranslation } from 'react-i18next';
-import { css } from 'styled-components';
 
 import { Box, Icon, Text } from '@/components';
 
@@ -54,7 +54,7 @@ export const AttachmentList = ({
             $align={isReadOnly ? 'left' : 'center'}
           >
             <Box
-              $background="var(--c--theme--colors--greyscale-050)"
+              $background="var(--c--contextuals--background--semantic--neutral--tertiary)"
               $width="200px"
               $direction="row"
               $gap="8px"
@@ -66,7 +66,7 @@ export const AttachmentList = ({
             >
               {/* Extension du fichier */}
               <Box
-                $background="var(--c--theme--colors--greyscale-200)"
+                $background="var(--c--contextuals--background--palette--gray--primary)"
                 $width="22px"
                 $height="22px"
                 $direction="row"
@@ -74,11 +74,11 @@ export const AttachmentList = ({
                 $justify="center"
                 $css={`
                   flex-shrink: 0;
-                  border-radius: 4px;
+                  border-radius: 8px;
                 `}
               >
                 <Text
-                  $color="var(--c--theme--colors--greyscale-700)"
+                  $color="var(--c--contextuals--content--semantic--overlay--primary)"
                   $weight="500"
                   $css={`
                     font-size: 7px;
@@ -90,7 +90,7 @@ export const AttachmentList = ({
               <Text
                 $size="xs"
                 $variation="500"
-                $color="var(--c--theme--colors--greyscale-850)"
+                $color="var(--c--contextuals--content--semantic--neutral--primary)"
                 $css={`
                   overflow: hidden;
                   text-overflow: ellipsis;
@@ -105,8 +105,11 @@ export const AttachmentList = ({
                 {name}
               </Text>
               {!isReadOnly && onRemove && (
-                <Box
-                  role="button"
+                <Button
+                  color="neutral"
+                  variant="tertiary"
+                  size="small"
+                  className="c__button--without-padding"
                   tabIndex={0}
                   aria-label={t('Remove attachment')}
                   onClick={removeAttachment}
@@ -116,22 +119,9 @@ export const AttachmentList = ({
                       removeAttachment();
                     }
                   }}
-                  $css={css`
-                    display: block;
-                    padding: 4px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    &:hover {
-                      background-color: #e1e3e7 !important;
-                    }
-                    &:focus-visible {
-                      outline: 2px solid #3e5de7;
-                      outline-offset: 2px;
-                    }
-                  `}
                 >
-                  <Icon iconName="close" $theme="greyscale" $size="18px" />
-                </Box>
+                  <Icon iconName="close" $size="18px" />
+                </Button>
               )}
             </Box>
           </Box>

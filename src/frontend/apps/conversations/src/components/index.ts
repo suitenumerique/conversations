@@ -12,5 +12,6 @@ export * from './SideModal';
 export * from './separators';
 export * from './Text';
 export * from './TextErrors';
+export * from './ToggleSwitch';
 export * from './CustomToast';
 export * from './ToastProvider';

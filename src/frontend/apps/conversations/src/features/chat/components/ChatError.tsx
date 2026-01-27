@@ -33,14 +33,10 @@ export const ChatError = ({ hasLastSubmission, onRetry }: ChatErrorProps) => {
       >
         {hasLastSubmission ? (
           <Button
-            size="small"
-            color="tertiary"
+            size="nano"
+            color="neutral"
+            variant="bordered"
             onClick={onRetry}
-            className="retry-button"
-            style={{
-              color: 'var(--c--theme--colors--greyscale-550)',
-              borderColor: 'var(--c--theme--colors--greyscale-300)',
-            }}
             icon={
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -60,12 +56,9 @@ export const ChatError = ({ hasLastSubmission, onRetry }: ChatErrorProps) => {
           </Button>
         ) : (
           <Button
-            size="small"
-            color="tertiary"
-            style={{
-              color: 'var(--c--theme--colors--greyscale-550)',
-              borderColor: 'var(--c--theme--colors--greyscale-300)',
-            }}
+            size="nano"
+            color="brand"
+            variant="bordered"
             onClick={() => {
               void router.push('/');
             }}

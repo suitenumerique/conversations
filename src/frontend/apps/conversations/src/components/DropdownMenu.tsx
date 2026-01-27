@@ -33,7 +33,7 @@ export const DropdownMenu = ({
   label,
   topMessage,
 }: PropsWithChildren<DropdownMenuProps>) => {
-  const { spacingsTokens, colorsTokens } = useCunninghamTheme();
+  const { spacingsTokens } = useCunninghamTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [buttonWidth, setButtonWidth] = useState<number | undefined>(undefined);
   const blockButtonRef = useRef<HTMLDivElement>(null);
@@ -64,14 +64,20 @@ export const DropdownMenu = ({
           <Box
             ref={blockButtonRef}
             $direction="row"
+            $theme="brand"
+            $scope="semantic"
+            $variation="neutral"
             $align="center"
             $position="relative"
             aria-controls="menu"
           >
             <Box>{children}</Box>
             <Icon
-              $variation="text"
-              $theme="primary"
+              $css={css`
+                color: var(
+                  --c--contextuals--content--semantic--brand--tertiary
+                );
+              `}
               iconName={isOpen ? 'arrow_drop_up' : 'arrow_drop_down'}
             />
           </Box>
@@ -89,7 +95,8 @@ export const DropdownMenu = ({
       >
         {topMessage && (
           <Text
-            $variation="700"
+            $theme="brand"
+            $variation="tertiary"
             $wrap="wrap"
             $size="xs"
             $weight="bold"
@@ -120,8 +127,6 @@ export const DropdownMenu = ({
               key={option.label}
               $align="center"
               $justify="space-between"
-              $background={colorsTokens['greyscale-000']}
-              $color={colorsTokens['primary-600']}
               $padding={{ vertical: 'xs', horizontal: 'base' }}
               $width="100%"
               $gap={spacingsTokens['base']}
@@ -134,23 +139,29 @@ export const DropdownMenu = ({
                 `}
                 ${index === options.length - 1 &&
                 css`
-                  border-bottom-left-radius: 4px;
-                  border-bottom-right-radius: 4px;
+                  border-bottom-left-radius: var(--c--globals--spacings--st);
+                  border-bottom-right-radius: var(--c--globals--spacings--st);
                 `}
-                font-size: var(--c--theme--font--sizes--sm);
-                color: var(--c--theme--colors--greyscale-1000);
-                font-weight: 500;
+                font-size: var(--c--globals--font--sizes--sm);
+                color: var(
+                  --c--contextuals--content--semantic--brand--tertiary
+                );
+                font-weight: var(--c--globals--font--weights--medium);
                 cursor: ${isDisabled ? 'not-allowed' : 'pointer'};
                 user-select: none;
 
-                &:hover,
-                &:focus {
-                  background-color: var(--c--theme--colors--greyscale-050);
+                &:hover {
+                  background-color: var(
+                    --c--contextuals--background--semantic--contextual--primary
+                  );
                 }
 
                 &:focus-visible {
-                  outline: 2px solid #3e5de7;
+                  outline: 2px solid var(--c--globals--colors--brand-400);
                   outline-offset: -2px;
+                  background-color: var(
+                    --c--contextuals--background--semantic--contextual--primary
+                  );
                 }
               `}
             >
@@ -162,9 +173,10 @@ export const DropdownMenu = ({
                 {option.icon && (
                   <Icon
                     $size="20px"
-                    $theme="greyscale"
-                    $variation={isDisabled ? '400' : '1000'}
+                    $theme="neutral"
+                    $variation={isDisabled ? 'tertiary' : 'primary'}
                     iconName={option.icon}
+                    aria-hidden="true"
                   />
                 )}
                 <Text $variation={isDisabled ? '400' : '1000'}>
@@ -172,7 +184,7 @@ export const DropdownMenu = ({
                 </Text>
               </Box>
               {option.isSelected && (
-                <Icon iconName="check" $size="20px" $theme="greyscale" />
+                <Icon iconName="check" $size="20px" aria-hidden="true" />
               )}
             </BoxButton>
           );
