@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.12] - 2026-01-27
+
 ### Fixed
 
 - ⚡️(front) performance improvements on chat input
@@ -189,7 +191,8 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.11...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.12...main
+[0.0.12]: https://github.com/suitenumerique/conversations/releases/v0.0.12
 [0.0.11]: https://github.com/suitenumerique/conversations/releases/v0.0.11
 [0.0.10]: https://github.com/suitenumerique/conversations/releases/v0.0.10
 [0.0.9]: https://github.com/suitenumerique/conversations/releases/v0.0.9
