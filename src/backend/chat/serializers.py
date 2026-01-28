@@ -10,7 +10,7 @@ from django_pydantic_field.rest_framework import SchemaField  # pylint: disable=
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from core.file_upload.enums import AttachmentStatus
+from core.file_upload.enums import AttachmentStatus, FileUploadMode
 from core.file_upload.utils import generate_upload_policy
 
 from chat import models
@@ -180,7 +180,11 @@ class ChatConversationAttachmentSerializer(serializers.ModelSerializer):
 
 
 class CreateChatConversationAttachmentSerializer(serializers.ModelSerializer):
-    """Serializer for creating chat conversation attachments."""
+    """Serializer for creating chat conversation attachments.
+
+    For presigned_url mode: returns 'policy' field with presigned URL for direct S3 upload
+    For backend modes: does not return 'policy' field (upload handled via backend endpoint)
+    """
 
     policy = serializers.SerializerMethodField()
     uploaded_by = serializers.HiddenField(default=serializers.CurrentUserDefault())
@@ -190,9 +194,15 @@ class CreateChatConversationAttachmentSerializer(serializers.ModelSerializer):
         model = models.ChatConversationAttachment
         fields = ["id", "key", "content_type", "file_name", "size", "policy", "uploaded_by"]
 
-    def get_policy(self, attachment) -> str:
-        """Return the policy to use if the item is a file."""
-        return generate_upload_policy(attachment.key)
+    def get_policy(self, attachment) -> str | None:
+        """Return the policy (presigned URL) only for presigned_url mode."""
+        upload_mode = getattr(settings, "FILE_UPLOAD_MODE", FileUploadMode.PRESIGNED_URL)
+
+        # Only return presigned URL in presigned_url mode
+        if upload_mode == FileUploadMode.PRESIGNED_URL:
+            return generate_upload_policy(attachment.key)
+
+        return None
 
     def validate_size(self, size: Optional[int]) -> Optional[int]:
         """Validate that the size is not greater than the maximum allowed size."""
@@ -206,3 +216,34 @@ class CreateChatConversationAttachmentSerializer(serializers.ModelSerializer):
             )
 
         return size
+
+
+class BackendUploadChatConversationAttachmentSerializer(serializers.Serializer):
+    """Serializer for backend uploads of chat conversation attachments.
+
+    This serializer is used when FILE_UPLOAD_MODE is set to backend_base64
+    or backend_temporary_url. The frontend sends the file to the backend,
+    which stores it on S3 and initiates the malware detection process.
+    """
+
+    file = serializers.FileField()
+    file_name = serializers.CharField()
+    size = serializers.IntegerField(required=False)
+    content_type = serializers.CharField(required=False)
+
+    def validate_file(self, file):
+        """Validate file size."""
+        if file.size > settings.ATTACHMENT_MAX_SIZE:
+            max_size = settings.ATTACHMENT_MAX_SIZE // (1024 * 1024)
+            raise serializers.ValidationError(
+                f"File size exceeds the maximum limit of {max_size:d} MB."
+            )
+        return file
+
+    def create(self, validated_data):
+        """Create method is not used in this context."""
+        raise NotImplementedError("`create()` should not be used in this context.")
+
+    def update(self, instance, validated_data):
+        """Update method is not used in this context."""
+        raise NotImplementedError("`update()` should not be used in this context.")

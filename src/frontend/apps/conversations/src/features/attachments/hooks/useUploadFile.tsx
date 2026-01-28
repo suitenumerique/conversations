@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
 
+import { baseApiUrl, getCSRFToken } from '@/api';
 import { fetchAPI } from '@/api';
+import { useConfig } from '@/core';
 
 import { useCreateConversationAttachment } from '../api';
 
@@ -47,6 +49,69 @@ export const uploadFileToServer = (
     xhr.send(file);
   });
 
+/**
+ * Upload a file to the backend (for backend_base64 and backend_temporary_url modes).
+ * Uses XHR to track upload progress while respecting the project's API patterns.
+ * @param conversationId The ID of the conversation.
+ * @param file The file to upload.
+ * @param progressHandler A handler that receives progress updates.
+ */
+export const uploadFileToBackend = (
+  conversationId: string,
+  file: File,
+  progressHandler: (progress: number) => void,
+) =>
+  new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('file_name', file.name);
+
+    const xhr = new XMLHttpRequest();
+    const csrfToken = getCSRFToken();
+
+    xhr.addEventListener('error', reject);
+    xhr.addEventListener('abort', reject);
+
+    xhr.addEventListener('readystatechange', () => {
+      if (xhr.readyState === 4) {
+        if (xhr.status === 201) {
+          progressHandler(100);
+          try {
+            const response = JSON.parse(xhr.responseText);
+            return resolve(response);
+          } catch (e) {
+            return reject(new Error('Failed to parse server response'));
+          }
+        }
+        reject(
+          new Error(
+            `Failed to upload file to backend: ${xhr.status} ${xhr.statusText}`,
+          ),
+        );
+      }
+    });
+
+    xhr.upload.addEventListener('progress', (progressEvent) => {
+      if (progressEvent.lengthComputable) {
+        progressHandler(
+          Math.floor((progressEvent.loaded / progressEvent.total) * 100),
+        );
+      }
+    });
+
+    // Use the project's baseApiUrl to construct the endpoint consistently
+    const apiUrl = `${baseApiUrl('1.0')}chats/${conversationId}/attachments/backend-upload/`;
+    xhr.open('POST', apiUrl);
+
+    // Add authentication headers following the project's pattern
+    xhr.withCredentials = true;
+    if (csrfToken) {
+      xhr.setRequestHeader('X-CSRFToken', csrfToken);
+    }
+
+    xhr.send(formData);
+  });
+
 export const useUploadFile = (conversationId: string) => {
   const {
     mutateAsync: createConversationAttachment,
@@ -54,8 +119,28 @@ export const useUploadFile = (conversationId: string) => {
     error: errorAttachment,
   } = useCreateConversationAttachment();
 
+  const { data: conf } = useConfig();
+
   const uploadFile = useCallback(
     async (file: File, progressHandler?: (progress: number) => void) => {
+      // Backend modes: backend_base64 and backend_temporary_url
+      if (
+        conf?.FILE_UPLOAD_MODE === 'backend_base64' ||
+        conf?.FILE_UPLOAD_MODE === 'backend_temporary_url'
+      ) {
+        // Upload file to backend (backend handles S3 storage, MIME detection, and malware scanning)
+        const finalAttachment = await uploadFileToBackend(
+          conversationId,
+          file,
+          (progress) => {
+            progressHandler?.(progress);
+          },
+        );
+
+        return `/media-key/${finalAttachment.key}`;
+      }
+
+      // Presigned URL mode (default): frontend uploads directly to S3
       const attachment = await createConversationAttachment({
         conversationId,
         content_type: file.type,
@@ -83,7 +168,7 @@ export const useUploadFile = (conversationId: string) => {
 
       return `/media-key/${attachment.key}`;
     },
-    [createConversationAttachment, conversationId],
+    [createConversationAttachment, conversationId, conf],
   );
 
   return {

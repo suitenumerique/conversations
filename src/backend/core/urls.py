@@ -1,7 +1,7 @@
 """URL configuration for the core app."""
 
 from django.conf import settings
-from django.urls import include, path
+from django.urls import include, path, re_path
 
 from lasuite.oidc_login.urls import urlpatterns as oidc_urls
 from rest_framework.routers import DefaultRouter
@@ -9,7 +9,12 @@ from rest_framework.routers import DefaultRouter
 from core.api import viewsets
 
 from activation_codes import viewsets as activation_viewsets
-from chat.views import ChatConversationAttachmentViewSet, ChatViewSet, LLMConfigurationView
+from chat.views import (
+    ChatConversationAttachmentViewSet,
+    ChatViewSet,
+    FileStreamView,
+    LLMConfigurationView,
+)
 
 # - Main endpoints
 router = DefaultRouter()
@@ -35,6 +40,11 @@ urlpatterns = [
                 path(
                     "chats/<uuid:conversation_pk>/",
                     include(conversation_router.urls),
+                ),
+                re_path(
+                    r"^file-stream/(?P<temporary_key>[a-zA-Z0-9_-]+)/$",
+                    FileStreamView.as_view(),
+                    name="file-stream",
                 ),
             ]
         ),

@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- 🧱(files) allow to use S3 storage without external access #849
+
 ## [0.0.12] - 2026-01-27
 
 ### Fixed
