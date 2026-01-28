@@ -230,6 +230,27 @@ class Base(BraveSettings, Configuration):
         environ_name="ATTACHMENT_MAX_SIZE",
         environ_prefix=None,
     )
+    FILE_UPLOAD_MODE = values.Value(
+        "presigned_url",
+        environ_name="FILE_UPLOAD_MODE",
+        environ_prefix=None,
+    )
+    FILE_TO_LLM_MODE = values.Value(
+        "presigned_url",
+        environ_name="FILE_TO_LLM_MODE",
+        environ_prefix=None,
+    )
+    FILE_BACKEND_URL = values.Value(
+        "",
+        environ_name="FILE_BACKEND_URL",
+        environ_prefix=None,
+    )
+    FILE_BACKEND_TEMPORARY_URL_EXPIRATION = values.IntegerValue(
+        180,
+        environ_name="FILE_BACKEND_TEMPORARY_URL_EXPIRATION",
+        environ_prefix=None,
+    )
+
     MALWARE_DETECTION = {
         "BACKEND": values.Value(
             "lasuite.malware_detection.backends.dummy.DummyBackend",
@@ -393,6 +414,11 @@ class Base(BraveSettings, Configuration):
             "user_list_burst": values.Value(
                 default="30/minute",
                 environ_name="API_USERS_LIST_THROTTLE_RATE_BURST",
+                environ_prefix=None,
+            ),
+            "file-stream": values.Value(
+                default="60/minute",
+                environ_name="API_FILE_STREAM_THROTTLE_RATE",
                 environ_prefix=None,
             ),
         },
@@ -1044,6 +1070,13 @@ USER QUESTION:
             raise ValueError(
                 "Both OIDC_FALLBACK_TO_EMAIL_FOR_IDENTIFICATION and "
                 "OIDC_ALLOW_DUPLICATE_EMAILS cannot be set to True simultaneously. "
+            )
+
+        # File access configuration validation
+        if cls.FILE_TO_LLM_MODE == "backend_temporary_url" and not cls.FILE_BACKEND_URL:
+            raise ValueError(
+                "FILE_TO_LLM_MODE is set to 'backend_temporary_url' but FILE_BACKEND_URL is empty. "
+                "Please set FILE_BACKEND_URL to a valid URL for backend temporary file access."
             )
 
         # Langfuse initialization

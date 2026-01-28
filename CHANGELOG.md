@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- 🧱(files) allow to use S3 storage without external access #849
+
 ### Changed
 
 - 🏗️(back) migrate to uv

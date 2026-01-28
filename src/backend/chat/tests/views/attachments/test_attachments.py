@@ -9,7 +9,7 @@ from django.test import override_settings
 
 import pytest
 
-from core.file_upload.enums import AttachmentStatus
+from core.file_upload.enums import AttachmentStatus, FileUploadMode
 
 from chat import factories, models
 from chat.tests.conftest import PIXEL_PNG
@@ -266,3 +266,40 @@ def test_upload_ended_fix_extension(api_client, name, content, _extension, conte
     assert attachment.content_type == content_type  # updated
     assert attachment.file_name == name  # updated
     assert attachment.size == len(content)  # updated
+
+
+def test_attachment_create_presigned_url_mode_returns_policy(api_client, settings):
+    """Test that presigned_url mode returns policy field."""
+    settings.FILE_UPLOAD_MODE = FileUploadMode.PRESIGNED_URL
+
+    conversation = factories.ChatConversationFactory()
+    api_client.force_login(conversation.owner)
+
+    url = f"/api/v1.0/chats/{conversation.pk!s}/attachments/"
+    response = api_client.post(
+        url,
+        {"file_name": "test.pdf", "size": 1000, "content_type": "application/pdf"},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["policy"] is not None
+    assert "s3" in data["policy"].lower() or "minio" in data["policy"].lower()
+
+
+def test_attachment_create_backend_to_s3_mode_no_policy(api_client, settings):
+    """Test that backend_to_s3 mode does not return policy."""
+    settings.FILE_UPLOAD_MODE = FileUploadMode.BACKEND_TO_S3
+
+    conversation = factories.ChatConversationFactory()
+    api_client.force_login(conversation.owner)
+
+    url = f"/api/v1.0/chats/{conversation.pk!s}/attachments/"
+    response = api_client.post(
+        url, {"file_name": "test.pdf", "content_type": "application/pdf"}, format="json"
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["policy"] is None

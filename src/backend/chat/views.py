@@ -5,6 +5,7 @@ import os
 from uuid import uuid4
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.http import Http404, StreamingHttpResponse
 
@@ -15,12 +16,14 @@ from lasuite.malware_detection import malware_detection
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, ValidationError
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from core.api.viewsets import Pagination, SerializerPerActionMixin
 from core.file_upload import enums
 from core.file_upload.enums import AttachmentStatus
 from core.file_upload.mixins import AttachmentMixin
+from core.file_upload.serializers import FileUploadSerializer
 from core.filters import remove_accents
 
 from activation_codes.permissions import IsActivatedUser
@@ -434,3 +437,173 @@ class ChatConversationAttachmentViewSet(
             )
 
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @decorators.action(
+        detail=False,
+        methods=["post"],
+        url_path="backend-upload",
+        url_name="backend-upload",
+    )
+    def backend_upload_attachment(self, request, *args, **kwargs):
+        """
+        Handle backend file upload for backend_to_s3 mode.
+
+        This endpoint is used when FILE_UPLOAD_MODE is set to backend_to_s3.
+        The frontend sends the file directly to this endpoint,
+        and the backend stores it on S3 and initiates malware detection.
+
+        The attachment lifecycle:
+        1. Frontend sends file via this endpoint
+        2. Backend stores file on S3
+        3. Backend detects MIME type and file size
+        4. Backend initiates malware detection
+        5. After detection, attachment status becomes READY or SUSPICIOUS
+        """
+        # pylint: disable=too-many-locals
+        # Verify the user owns the conversation
+        conversation_id = self.kwargs["conversation_pk"]
+        if not models.ChatConversation.objects.filter(
+            pk=conversation_id,
+            owner=request.user,
+        ).exists():
+            raise Http404
+
+        serializer = FileUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        file_obj = serializer.validated_data["file"]
+        file_name = serializer.validated_data["file_name"]
+
+        # Generate unique file ID and storage key
+        file_id = uuid4()
+        extension = file_name.rpartition(".")[-1] if "." in file_name else None
+        ext_suffix = f".{extension}" if extension else ""
+        key = f"{conversation_id}/{AttachmentMixin.ATTACHMENTS_FOLDER}/{file_id}{ext_suffix}"
+
+        # Store file on S3
+        try:
+            stored_path = default_storage.save(key, file_obj)
+            logger.info("File uploaded to S3: %s", stored_path)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Failed to upload file to S3 for conversation %s", conversation_id)
+            return Response(
+                {"detail": "Failed to upload file to storage"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # Detect MIME type
+        mime_detector = magic.Magic(mime=True)
+        with default_storage.open(key, "rb") as file:
+            mimetype = mime_detector.from_buffer(file.read(2048))
+            file_size = file.size
+
+        # Create attachment record with ANALYZING status
+        attachment = models.ChatConversationAttachment.objects.create(
+            conversation_id=conversation_id,
+            uploaded_by=request.user,
+            upload_state=AttachmentStatus.ANALYZING,
+            key=key,
+            file_name=file_name,
+            content_type=mimetype,
+            size=file_size,
+        )
+
+        logger.info(
+            "Created attachment %s for conversation %s, starting malware detection",
+            attachment.pk,
+            conversation_id,
+        )
+
+        # Start malware detection (will update status to READY or SUSPICIOUS via callbacks)
+        malware_detection.analyse_file(
+            key,
+            safe_callback="chat.malware_detection.conversation_safe_attachment_callback",
+            unknown_callback="chat.malware_detection.unknown_attachment_callback",
+            unsafe_callback="chat.malware_detection.conversation_unsafe_attachment_callback",
+            conversation_id=conversation_id,
+        )
+
+        # Track upload event
+        if settings.POSTHOG_KEY:
+            posthog.capture(
+                "item_uploaded_backend",
+                distinct_id=str(request.user.pk),
+                properties={
+                    "id": attachment.pk,
+                    "file_name": attachment.file_name,
+                    "size": attachment.size,
+                    "mimetype": attachment.content_type,
+                    "mode": settings.FILE_UPLOAD_MODE,
+                },
+            )
+
+        serializer = self.get_serializer(attachment)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class FileStreamView(APIView):
+    """
+    Stream file content for temporary access URLs.
+
+    This view is used by LLMs to access file content when they cannot directly
+    access S3. A temporary key is stored in cache and validated before serving
+    the file.
+
+    Security:
+    - Temporary key expires after FILE_BACKEND_TEMPORARY_URL_EXPIRATION seconds
+      (default: 180 seconds / 3 minutes)
+    - No authentication required (key is single-use temporary token)
+    - Key is generated using secure random tokens
+    """
+
+    permission_classes = []  # No authentication needed for temporary keys
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "file-stream"
+
+    def get(self, request, temporary_key):
+        """
+        Stream file content using a temporary access key.
+
+        Args:
+            temporary_key: The temporary key generated by generate_temporary_url()
+
+        Returns:
+            StreamingHttpResponse with file content
+        """
+        # Retrieve the S3 key from cache using the temporary key
+        cache_key = f"file_access:{temporary_key}"
+        s3_key = cache.get(cache_key)
+
+        if not s3_key:
+            logger.warning("Temporary file access key not found or expired: %s", temporary_key)
+            raise Http404("File access key expired or invalid")
+
+        # Delete the key from cache to prevent reuse
+        cache.delete(cache_key)
+
+        logger.info("Serving file via temporary key: %s", s3_key)
+
+        try:
+            # Open the file from S3
+            file_obj = default_storage.open(s3_key, "rb")
+
+            # Detect MIME type for proper content-type header
+            mime_detector = magic.Magic(mime=True)
+            file_content = file_obj.read(2048)
+            file_obj.seek(0)
+            content_type = mime_detector.from_buffer(file_content)
+
+            # Extract filename from S3 key (last part after /)
+            filename = s3_key.split("/")[-1]
+
+            # Stream the file content
+            response = StreamingHttpResponse(
+                file_obj,
+                content_type=content_type,
+            )
+            response["Content-Disposition"] = f'inline; filename="{filename}"'
+            return response
+
+        except Exception as exc:
+            logger.exception("Failed to serve file via temporary key: %s", temporary_key)
+            raise Http404("Failed to retrieve file") from exc
