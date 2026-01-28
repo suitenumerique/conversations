@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- ♻️(chat) refactor AIAgentService for readability and maintainability
+
 ## [0.0.12] - 2026-01-27
 
 ### Fixed
