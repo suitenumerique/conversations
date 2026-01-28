@@ -18,6 +18,7 @@ and this project adheres to
 
 - ⚡️(front) optimize streaming markdown rendering performance
 - ⬆️(back) update pydantic-ai
+- ♻️(chat) refactor AIAgentService for readability and maintainability
 
 ### Fixed
 

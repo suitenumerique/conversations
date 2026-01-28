@@ -1,9 +1,75 @@
+# pylint: disable=too-many-lines
 """
 Pydantic-AI based AIAgentService.
 
 This file replaces the previous OpenAI-specific client with a Pydantic-AI
 implementation while keeping the *exact* same public API so that no
 changes are needed in views.py or tests.
+
+## High-Level Flow
+
+1. **Initialization**: `AIAgentService` is created with a conversation and user.
+   Feature flags, model config, and the conversation agent are set up.
+
+2. **Streaming Entry Points**: `stream_text()` or `stream_data()` are called
+   with user messages. These wrap async generators for sync consumption.
+
+3. **Agent Execution** (`_run_agent`):
+   a. Validate last message is from user
+   b. Setup Langfuse tracing (if enabled)
+   c. Prepare agent run (load history, process URLs, extract prompt/attachments)
+   d. Handle input documents (parse, store in RAG, emit progress events)
+   e. Configure tools (web search, RAG search, summarization)
+   f. Run the Pydantic-AI agent iteration loop
+   g. Process each node type (user prompt, model request, tool calls, end)
+   h. Finalize (save conversation, generate title, emit finish events)
+
+## Document Handling Flow
+
+Documents attached to messages go through several stages:
+
+1. **Upload** : Files are uploaded to object storage with keys
+   like `{conversation_pk}/attachments/{filename}`. URLs use `/media-key/` prefix.
+
+2. **Extraction** (`_prepare_prompt`): Documents are extracted from the UIMessage
+   and separated from images. Audio/video attachments are rejected.
+
+3. **Parsing** (`_handle_input_documents` → `_parse_input_documents`):
+   - Validates document URLs belong to the conversation (security check)
+   - Creates a vector store collection if none exists
+   - For each document:
+     - Retrieves content from object storage
+     - Parses and stores in the vector store (chunked, embedded)
+     - Creates a markdown attachment for non-text files
+   - Emits tool call events so the UI shows parsing progress
+
+4. **RAG Search** (`_setup_rag_tools`): When documents exist, the agent gets:
+   - `document_rag_search` tool: Semantic search over document chunks
+   - `summarize` tool: Full document summarization
+   - Instructions informing the model that documents are available
+
+## Streaming Architecture
+
+Events flow through several layers:
+
+    _run_agent (yields events)
+        ↓
+    _stream_content (applies encoder)
+        ↓
+    stream_text_async / stream_data_async
+        ↓
+    stream_text / stream_data (sync wrapper)
+
+The `StreamingState` dataclass tracks mutable state across the streaming process:
+- `tool_is_streaming`: Prevents duplicate tool call events when streaming deltas
+- `ui_sources`: Collects source citations from tool results
+- `model_response_message_id`: Links the response to Langfuse traces
+
+## Stop Mechanism
+
+Users can cancel streaming via `stop_streaming()`, which sets a cache key.
+The `_agent_stop_streaming()` method checks this key periodically (every 2s)
+and raises `StreamCancelException` to abort the generator.
 """
 
 import asyncio
@@ -11,11 +77,12 @@ import dataclasses
 import functools
 import json
 import logging
+import os
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack
 from io import BytesIO
-from typing import Dict, List, Optional, Tuple
+from typing import AsyncGenerator, Callable, Dict, List, Optional, Tuple
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -84,6 +151,40 @@ document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
+DOCUMENT_URL_PREFIX = "/media-key/"
+
+
+@dataclasses.dataclass
+class DocumentParsingResult:
+    """Result marker for document parsing completion."""
+
+    success: bool
+    has_documents: bool
+
+
+@dataclasses.dataclass
+class StreamingState:
+    """
+    Mutable state shared across stream processing handlers.
+
+    This dataclass is passed through the node handlers to track state that
+    needs to persist across multiple yield points in the streaming process.
+
+    Attributes:
+        tool_is_streaming: Set to True when we receive ToolCallPartDelta events.
+            When True, we skip emitting ToolCallPart in _handle_call_tools_node
+            since the tool call was already streamed incrementally.
+        ui_sources: Accumulates source citations from tool results (e.g., URLs
+            from web search or RAG). These are appended to the final UI message.
+        model_response_message_id: Set when the agent reaches the end node.
+            Used to link the UI message to the Langfuse trace for scoring.
+    """
+
+    tool_is_streaming: bool = False
+    ui_sources: List[SourceUIPart] = dataclasses.field(default_factory=list)
+    model_response_message_id: Optional[str] = None
 
 
 @dataclasses.dataclass
@@ -184,14 +285,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         This method is a placeholder for stopping the streaming operation.
         """
         logger.info("Stopping streaming for conversation %s", self.conversation.id)
-        cache.set(self._stop_cache_key, "1", timeout=30 * 60)  # 30 minutes timeout
+        cache.set(self._stop_cache_key, "1", timeout=CACHE_TIMEOUT)
 
     # --------------------------------------------------------------------- #
     # Async internals
     # --------------------------------------------------------------------- #
 
-    async def stream_text_async(self, messages: List[UIMessage], force_web_search: bool = False):
-        """Return only the assistant text deltas (legacy text mode)."""
+    async def _stream_content(
+        self, messages: List[UIMessage], force_web_search: bool = False, encoder_fn: Callable = None
+    ):
+        """Common streaming logic with configurable encoder."""
         await self._clean()
         with ExitStack() as stack:
             if self._langfuse_available:
@@ -199,19 +302,23 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
 
             async for event in self._run_agent(messages, force_web_search):
-                if stream_text := self.event_encoder.encode_text(event):
+                if stream_text := encoder_fn(event):
                     yield stream_text
+
+    async def stream_text_async(self, messages: List[UIMessage], force_web_search: bool = False):
+        """Return only the assistant text deltas (legacy text mode)."""
+        async for chunk in self._stream_content(
+            messages, force_web_search, encoder_fn=self.event_encoder.encode_text
+        ):
+            yield chunk
 
     async def stream_data_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return Vercel-AI-SDK formatted events."""
-        await self._clean()
-        with ExitStack() as stack:
-            if self._langfuse_available:
-                span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
-                span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
-            async for event in self._run_agent(messages, force_web_search):
-                if stream_data := self.event_encoder.encode(event):
-                    yield stream_data
+
+        async for chunk in self._stream_content(
+            messages, force_web_search, encoder_fn=self.event_encoder.encode
+        ):
+            yield chunk
 
     async def _agent_stop_streaming(self, force_cache_check: Optional[bool] = False) -> None:
         """Check if the agent should stop streaming."""
@@ -243,20 +350,195 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # --------------------------------------------------------------------- #
     # Core agent runner
     # --------------------------------------------------------------------- #
-    async def parse_input_documents(self, documents: List[BinaryContent | DocumentUrl]):
+
+    async def _prepare_agent_run(
+        self, messages: List[UIMessage]
+    ) -> Tuple[str, List, List, Dict[str, str], Dict[str, int], List, bool]:
+        """
+        Prepare all inputs needed before running the agent.
+
+        This method handles the setup phase before the agent iteration loop:
+        1. Loads and validates conversation history from pydantic_messages
+        2. Pre-signs URLs for any local images in history (S3 signed URLs)
+        3. Extracts user prompt, images, and documents from the last message
+        4. Pre-signs URLs for input images
+        5. Updates Langfuse trace with input (if analytics enabled)
+        6. Checks if conversation already has documents in the vector store
+
+        Returns:
+            Tuple containing:
+            - user_prompt: The text content of the user's message
+            - input_images: List of images to send to the model
+            - input_documents: List of documents to parse and store
+            - image_key_mapping: Maps signed URLs back to storage keys (for saving)
+            - usage: Token usage dict (initialized to zero)
+            - history: Validated message history for the agent
+            - conversation_has_documents: Whether RAG should be enabled
+        """
+        history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
+        history = update_history_local_urls(
+            self.conversation, history
+        )  # presign URLs for local images
+
+        user_prompt, input_images, input_documents = self._prepare_prompt(messages[-1])
+
+        image_key_mapping = {}
+        if input_images:
+            # presign URLs for local images
+            input_images = update_local_urls(
+                self.conversation, input_images, updated_url=image_key_mapping
+            )
+
+        if self._langfuse_available:
+            langfuse = get_client()
+            langfuse.update_current_trace(
+                input=user_prompt if self._store_analytics else "REDACTED"
+            )
+
+        usage = {"promptTokens": 0, "completionTokens": 0}
+
+        conversation_has_documents = self._is_document_upload_enabled and (
+            bool(self.conversation.collection_id)
+            or bool(
+                await models.ChatConversationAttachment.objects.filter(
+                    conversation=self.conversation,
+                    content_type__startswith="text/",
+                ).aexists()
+            )
+        )
+        return (
+            user_prompt,
+            input_images,
+            input_documents,
+            image_key_mapping,
+            usage,
+            history,
+            conversation_has_documents,
+        )
+
+    def _setup_web_search(self, force_web_search: bool) -> bool:
+        """Configure web search if forced. Returns whether web search is actually
+        forced."""
+        if not force_web_search:
+            return False
+        if not self._is_web_search_enabled:
+            logger.warning("Web search is forced but the feature is disabled, ignoring.")
+            return False
+
+        web_search_tool_name = self.conversation_agent.get_web_search_tool_name()
+        if not web_search_tool_name:
+            logger.warning("Web search is forced but no web search tool is available, ignoring.")
+            return False
+
+        @self.conversation_agent.instructions
+        def force_web_search_prompt() -> str:
+            """Dynamic system prompt function to force web search."""
+            return (
+                f"You must call the {web_search_tool_name} tool before answering the user request."
+            )
+
+        return True
+
+    async def _check_should_enable_rag(self, conversation_has_documents: bool) -> bool:
+        """Check if RAG should be enabled based on existing documents."""
+
+        if not self._is_document_upload_enabled:
+            return False
+
+        # Check for existing documents (any non-image attachment for this conversation)
+        has_documents = await (
+            models.ChatConversationAttachment.objects.filter(
+                Q(conversion_from__isnull=True) | Q(conversion_from=""),
+                conversation=self.conversation,
+            )
+            .exclude(content_type__startswith="image/")
+            .aexists()
+        )
+        return conversation_has_documents or has_documents
+
+    async def _process_agent_nodes(
+        self, run, state: StreamingState, langfuse
+    ) -> AsyncGenerator[events_v4.Event, None]:
+        """
+        Process nodes from the Pydantic-AI agent iteration loop.
+
+        The agent produces a stream of nodes representing different stages:
+
+        - **UserPromptNode**: The user's input was received (no-op, just logged)
+        - **ModelRequestNode**: The model is generating a response
+          - Streaming: Yields text/tool deltas as they arrive
+          - Non-streaming: Waits for full response, then yields parts
+        - **CallToolsNode**: The model requested tool calls
+          - Executes tools and yields results
+          - Collects source citations into state.ui_sources
+        - **EndNode**: The agent run is complete
+          - Sets state.model_response_message_id for Langfuse linking
+          - Yields StartStepPart with the message ID
+
+        This method delegates to specialized handlers for each node type,
+        passing the shared StreamingState to track cross-node state.
+
+        The stop check (_agent_stop_streaming) is called for each node to
+        allow cancel between processing steps.
+        """
+        async for node in run:
+            await self._agent_stop_streaming()
+            if Agent.is_user_prompt_node(node):
+                # A user prompt node => The user has provided input
+                pass
+
+            elif Agent.is_model_request_node(node):
+                # A model request node => agent is asking the model to generate a response
+                async for event in self._handle_model_request_node(node, run.ctx, state):
+                    yield event
+
+            elif Agent.is_call_tools_node(node):
+                # A handle-response node => The model returned some data,
+                # potentially calls a tool
+                async for event in self._handle_call_tools_node(node, run.ctx, state):
+                    yield event
+
+            elif Agent.is_end_node(node):
+                # Once an End node is reached, the agent run is complete
+                logger.debug("v: %s", dataclasses.asdict(node))
+                yield self._handle_end_node(node, langfuse, state)
+
+    async def _parse_input_documents(self, documents: List[BinaryContent | DocumentUrl]):
         """
         Parse and store input documents in the conversation's document store.
-        """
-        # Early external document URL rejection
 
+        This is the core document processing method that:
+        1. Validates all document URLs belong to this conversation (security)
+        2. Creates a vector store collection if one doesn't exist
+        3. For each document:
+             - Retrieves content from object storage (for DocumentUrl)
+             - Parses the document (extracts text, chunks it)
+             - Stores chunks with embeddings in the vector store
+             - Creates a markdown attachment for non-text files (PDF → MD)
+
+        Security: Documents are validated to ensure their URLs match the pattern
+         `/media-key/{conversation_pk}/...` to prevent cross-conversation access.
+
+        The actual parsing runs in a thread pool (asyncio.to_thread) to avoid
+        blocking the event loop during potentially slow document processing.
+
+        Args:
+            documents: List of BinaryContent (inline data) or DocumentUrl (storage reference)
+
+        Raises:
+            ValueError: If document URL doesn't belong to this conversation
+            ValueError: If external URLs are provided (not yet supported)
+        """
+
+        # Early external document URL rejection
         if any(
-            not document.url.startswith("/media-key/")
+            not document.url.startswith(DOCUMENT_URL_PREFIX)
             for document in documents
             if isinstance(document, DocumentUrl)
         ):
             raise ValueError("External document URL are not accepted yet.")
         if any(
-            not document.url.startswith(f"/media-key/{self.conversation.pk}/")
+            not document.url.startswith(f"{DOCUMENT_URL_PREFIX}{self.conversation.pk}/")
             for document in documents
             if isinstance(document, DocumentUrl)
         ):
@@ -274,9 +556,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         for document in documents:
             key = None
             if isinstance(document, DocumentUrl):
-                if document.url.startswith("/media-key/"):
+                if document.url.startswith(DOCUMENT_URL_PREFIX):
                     # Local file, retrieve from object storage
-                    key = document.url[len("/media-key/") :]
+                    key = document.url[len(DOCUMENT_URL_PREFIX) :]
                     # Security check: ensure the document belongs to the conversation
                     if not key.startswith(f"{self.conversation.pk}/"):
                         raise ValueError("Document URL does not belong to the conversation.")
@@ -317,7 +599,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 md_attachment.upload_state = models.AttachmentStatus.READY
                 await md_attachment.asave(update_fields=["upload_state", "updated_at"])
 
-    def prepare_prompt(  # noqa: PLR0912  # pylint: disable=too-many-branches
+    def _prepare_prompt(  # noqa: PLR0912  # pylint: disable=too-many-branches
         self, message: UIMessage
     ) -> Tuple[str, List[BinaryContent | ImageUrl], List[BinaryContent]]:
         """
@@ -353,10 +635,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # Should never happen, but just in case
                 raise ValueError(f"Unsupported UserContent type: {type(content)}")
 
-        if any(attachment_audio):
+        if attachment_audio:
             # Should be handled by the frontend, but just in case
             raise ValueError("Audio attachments are not supported in the current implementation.")
-        if any(attachment_video):
+        if attachment_video:
             # Should be handled by the frontend, but just in case
             raise ValueError("Video attachments are not supported in the current implementation.")
 
@@ -368,351 +650,266 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         return user_prompt[0], attachment_images, attachment_documents
 
-    async def _run_agent(  # noqa: PLR0912, PLR0915 # pylint: disable=too-many-branches,too-many-statements, too-many-locals, too-many-return-statements
+    def _setup_rag_tools(self) -> None:
+        """Register RAG-related tools and instructions on the conversation agent."""
+        add_document_rag_search_tool(self.conversation_agent)
+
+        @self.conversation_agent.instructions
+        def summarization_system_prompt() -> str:
+            return (
+                "When you receive a result from the summarization tool, you MUST return it "
+                "directly to the user without any modification, paraphrasing, or additional "
+                "summarization."
+                "The tool already produces optimized summaries that should be presented "
+                "verbatim."
+                "You may translate the summary if required, but you MUST preserve all the "
+                "information from the original summary."
+                "You may add a follow-up question after the summary if needed."
+            )
+
+        # Inform the model (system-level) that documents are attached and available
+        @self.conversation_agent.instructions
+        def attached_documents_note() -> str:
+            return (
+                "[Internal context] User documents are attached to this conversation. "
+                "Do not request re-upload of documents; consider them already available "
+                "via the internal store."
+            )
+
+        @self.conversation_agent.tool(name="summarize", retries=2)
+        @functools.wraps(document_summarize)
+        async def summarize(ctx: RunContext, *args, **kwargs) -> ToolReturn:
+            """Wrap the document_summarize tool to provide context and add the tool."""
+            return await document_summarize(ctx, *args, **kwargs)
+
+    async def _handle_input_documents(
         self,
-        messages: List[UIMessage],
-        force_web_search: bool = False,
-    ) -> events_v4.Event | events_v5.Event:
-        """Run the Pydantic AI agent and stream events."""
-        if messages[-1].role != "user":
-            return
+        input_documents: List[BinaryContent | DocumentUrl],
+        conversation_has_documents: bool,
+        usage: Dict[str, int],
+    ) -> AsyncGenerator[events_v4.Event | DocumentParsingResult, None]:
+        """
+        Handle document parsing with streaming progress events.
 
-        # Langfuse settings
-        if self._langfuse_available:
-            langfuse = get_client()
-            langfuse.update_current_trace(
-                session_id=str(self.conversation.pk),
-                user_id=str(self.user.sub),
-                metadata={
-                    "user_fqdn": self.user.email.split("@")[-1],  # no need for security here
-                },
-            )
+        This method processes documents attached to the user's message:
+        1. Emits a ToolCallPart event to show "document_parsing" in the UI
+        2. Calls _parse_input_documents() to store documents in the vector store
+        3. Emits ToolResultPart with success/error status
+        4. Yields a DocumentParsingResult marker as the final item
 
-        history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
-        history = update_history_local_urls(
-            self.conversation, history
-        )  # presign URLs for local images
+        The DocumentParsingResult pattern allows the caller to:
+        - Yield all events to the stream in real-time
+        - Check the final result to decide whether to continue or abort
 
-        user_prompt, input_images, input_documents = self.prepare_prompt(messages[-1])
+        If document upload is disabled but documents are provided, they are
+        silently ignored with a warning log.
 
-        image_key_mapping = {}
-        if input_images:
-            # presign URLs for local images
-            input_images = update_local_urls(
-                self.conversation, input_images, updated_url=image_key_mapping
-            )
-
-        if self._langfuse_available:
-            langfuse.update_current_trace(
-                input=user_prompt if self._store_analytics else "REDACTED"
-            )
-
-        usage = {"promptTokens": 0, "completionTokens": 0}
-
-        conversation_has_documents = self._is_document_upload_enabled and (
-            bool(self.conversation.collection_id)
-            or bool(
-                await models.ChatConversationAttachment.objects.filter(
-                    conversation=self.conversation,
-                    content_type__startswith="text/",
-                ).aexists()
-            )
-        )
-
+        Yields:
+            events_v4.Event: Tool call/result events for UI feedback
+            DocumentParsingResult: Final marker with success status (must be last)
+        """
         if not self._is_document_upload_enabled and input_documents:
             logger.warning("Document upload feature is disabled, ignoring input documents.")
             input_documents = []
 
-        if input_documents:
-            _tool_call_id = str(uuid.uuid4())
-            yield events_v4.ToolCallPart(
-                tool_call_id=_tool_call_id,
-                tool_name="document_parsing",
-                args={
-                    "documents": [
-                        {
-                            "identifier": doc.identifier,
-                        }
-                        for doc in input_documents
-                    ],
-                },
-            )
+        if not input_documents:
+            yield DocumentParsingResult(success=True, has_documents=conversation_has_documents)
+            return
 
-            try:
-                await self.parse_input_documents(input_documents)
-            except Exception as exc:  # pylint: disable=broad-except
-                logger.exception("Error parsing input documents: %s", exc)
-                yield events_v4.ToolResultPart(
+        _tool_call_id = str(uuid.uuid4())
+        yield events_v4.ToolCallPart(
+            tool_call_id=_tool_call_id,
+            tool_name="document_parsing",
+            args={"documents": [{"identifier": doc.identifier} for doc in input_documents]},
+        )
+
+        try:
+            await self._parse_input_documents(input_documents)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.exception("Error parsing input documents: %s", exc)
+            yield (
+                events_v4.ToolResultPart(
                     tool_call_id=_tool_call_id,
                     result={"state": "error", "error": str(exc)},
                 )
-                yield events_v4.FinishMessagePart(
+            )
+            yield (
+                events_v4.FinishMessagePart(
                     finish_reason=events_v4.FinishReason.ERROR,
                     usage=events_v4.Usage(
                         prompt_tokens=usage["promptTokens"],
                         completion_tokens=usage["completionTokens"],
                     ),
                 )
-                return
-            if not conversation_has_documents:
-                conversation_has_documents = True
-
-            yield events_v4.ToolResultPart(
-                tool_call_id=_tool_call_id,
-                result={"state": "done"},
             )
+            yield DocumentParsingResult(success=False, has_documents=conversation_has_documents)
+            return
+        yield events_v4.ToolResultPart(tool_call_id=_tool_call_id, result={"state": "done"})
+        yield DocumentParsingResult(success=True, has_documents=True)
 
-        await self._agent_stop_streaming(force_cache_check=True)
-
-        if force_web_search and not self._is_web_search_enabled:
-            logger.warning("Web search is forced but the feature is disabled, ignoring.")
-            force_web_search = False
-
-        web_search_tool_name = self.conversation_agent.get_web_search_tool_name()
-        if force_web_search and not web_search_tool_name:
-            logger.warning("Web search is forced but no web search tool is available, ignoring.")
-            force_web_search = False
-
-        if force_web_search:
-
-            @self.conversation_agent.instructions
-            def force_web_search_prompt() -> str:
-                """Dynamic system prompt function to force web search."""
-                return (
-                    f"You must call the {web_search_tool_name} tool "
-                    "before answering the user request."
+    async def _handle_non_streaming_response(self, node, run_ctx):
+        result = await node.run(run_ctx)
+        logger.debug("node.run result: %s", result)
+        for part in result.model_response.parts:
+            if isinstance(part, TextPart):
+                if self._fake_streaming_delay:
+                    for i in range(0, len(part.content), 4):
+                        await self._agent_stop_streaming()
+                        yield events_v4.TextPart(text=part.content[i : i + 4])
+                        if os.environ.get("PYTHON_SERVER_MODE") == "async":
+                            await asyncio.sleep(self._fake_streaming_delay)
+                        else:
+                            # sync mode needed for tests time manipulation
+                            time.sleep(self._fake_streaming_delay)
+                else:
+                    yield events_v4.TextPart(text=part.content)
+            elif isinstance(part, ToolCallPart):
+                yield events_v4.ToolCallPart(
+                    tool_call_id=part.tool_call_id,
+                    tool_name=part.tool_name,
+                    args=json.loads(part.args) if part.args else {},
                 )
+            elif isinstance(part, ThinkingPart):
+                yield events_v4.ReasoningPart(reasoning=part.content)
+            else:
+                logger.warning("Unknown part type: %s %s", type(part), dataclasses.asdict(part))
 
-        _tool_is_streaming = False
-        _model_response_message_id = None
+    async def _handle_streaming_response(self, node, run_ctx, state: StreamingState):
+        async with node.stream(run_ctx) as request_stream:
+            async for event in request_stream:
+                await self._agent_stop_streaming()
+                if isinstance(event, PartStartEvent):
+                    if isinstance(event.part, TextPart):
+                        yield events_v4.TextPart(text=event.part.content)
+                    elif isinstance(event.part, ToolCallPart):
+                        yield events_v4.ToolCallStreamingStartPart(
+                            tool_call_id=event.part.tool_call_id,
+                            tool_name=event.part.tool_name,
+                        )
+                    elif isinstance(event.part, ThinkingPart):
+                        yield events_v4.ReasoningPart(reasoning=event.part.content)
+                elif isinstance(event, PartDeltaEvent):
+                    if isinstance(event.delta, TextPartDelta):
+                        yield events_v4.TextPart(text=event.delta.content_delta)
+                    elif isinstance(event.delta, ToolCallPartDelta):
+                        state.tool_is_streaming = True
+                        yield events_v4.ToolCallDeltaPart(
+                            tool_call_id=event.delta.tool_call_id,
+                            args_text_delta=event.delta.args_delta,
+                        )
+                    elif isinstance(event.delta, ThinkingPartDelta):
+                        yield events_v4.ReasoningPart(reasoning=event.delta.content_delta)
 
-        # Check for existing documents (any non-image attachment for this conversation)
-        has_documents = await (
-            models.ChatConversationAttachment.objects.filter(
-                Q(conversion_from__isnull=True) | Q(conversion_from=""),
-                conversation=self.conversation,
-            )
-            .exclude(content_type__startswith="image/")
-            .aexists()
-        )
+    async def _handle_model_request_node(
+        self, node, run_ctx, state: StreamingState
+    ) -> AsyncGenerator[events_v4.Event, None]:
+        """Handle model request node - streaming or non-streaming."""
+        state.tool_is_streaming = False
+        if not self._support_streaming:
+            async for event in self._handle_non_streaming_response(node, run_ctx):
+                yield event
+        else:
+            async for event in self._handle_streaming_response(node, run_ctx, state):
+                yield event
 
-        should_enable_rag = conversation_has_documents or has_documents
-
-        if should_enable_rag:
-            add_document_rag_search_tool(self.conversation_agent)
-
-            @self.conversation_agent.instructions
-            def summarization_system_prompt() -> str:
-                return (
-                    "When you receive a result from the summarization tool, you MUST return it "
-                    "directly to the user without any modification, paraphrasing, or additional "
-                    "summarization."
-                    "The tool already produces optimized summaries that should be presented "
-                    "verbatim."
-                    "You may translate the summary if required, but you MUST preserve all the "
-                    "information from the original summary."
-                    "You may add a follow-up question after the summary if needed."
+    async def _handle_call_tools_node(
+        self, node, run_ctx, state: StreamingState
+    ) -> AsyncGenerator[events_v4.Event, None]:
+        async with node.stream(run_ctx) as handle_stream:
+            async for event in handle_stream:
+                await self._agent_stop_streaming()
+                logger.debug(
+                    "Received request_stream event: %s, %s",
+                    type(event),
+                    dataclasses.asdict(event),
                 )
-
-            # Inform the model (system-level) that documents are attached and available
-            @self.conversation_agent.instructions
-            def attached_documents_note() -> str:
-                return (
-                    "[Internal context] User documents are attached to this conversation. "
-                    "Do not request re-upload of documents; consider them already available "
-                    "via the internal store."
-                )
-
-            @self.conversation_agent.tool(name="summarize", retries=2)
-            @functools.wraps(document_summarize)
-            async def summarize(ctx: RunContext, *args, **kwargs) -> ToolReturn:
-                """Wrap the document_summarize tool to provide context and add the tool."""
-                return await document_summarize(ctx, *args, **kwargs)
-
-        async with AsyncExitStack() as stack:
-            # MCP servers (if any) can be initialized here
-            mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
-
-            _final_output_from_tool = None
-            _ui_sources = []
-
-            # Help Mistral to prevent `Unexpected role 'user' after role 'tool'` error.
-            if history and history[-1].kind == "request":
-                if history[-1].parts[-1].part_kind == "tool-return":
-                    history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
-
-            async with self.conversation_agent.iter(
-                [user_prompt] + input_images,
-                message_history=history,  # history will pass through agent's history_processors
-                deps=self._context_deps,
-                toolsets=mcp_servers,
-            ) as run:
-                async for node in run:
-                    await self._agent_stop_streaming()
-                    if Agent.is_user_prompt_node(node):
-                        # A user prompt node => The user has provided input
-                        pass
-
-                    elif Agent.is_model_request_node(node):  # pylint: disable=too-many-nested-blocks
-                        # A model request node => agent is asking the model to generate a response
-                        if not self._support_streaming:
-                            result = await node.run(run.ctx)
-                            logger.debug("node.run result: %s", result)
-                            for part in result.model_response.parts:
-                                if isinstance(part, TextPart):
-                                    if self._fake_streaming_delay:
-                                        for i in range(0, len(part.content), 4):
-                                            await self._agent_stop_streaming()
-                                            yield events_v4.TextPart(text=part.content[i : i + 4])
-                                            time.sleep(self._fake_streaming_delay)
-                                    else:
-                                        yield events_v4.TextPart(text=part.content)
-                                elif isinstance(part, ToolCallPart):
-                                    yield events_v4.ToolCallPart(
-                                        tool_call_id=part.tool_call_id,
-                                        tool_name=part.tool_name,
-                                        args=json.loads(part.args) if part.args else {},
-                                    )
-                                elif isinstance(part, ThinkingPart):
-                                    yield events_v4.ReasoningPart(reasoning=part.content)
-                                else:
-                                    logger.warning(
-                                        "Unknown part type in model response: %s %s",
-                                        type(part),
-                                        dataclasses.asdict(part),
-                                    )
-                            continue
-
-                        async with node.stream(run.ctx) as request_stream:
-                            async for event in request_stream:
-                                await self._agent_stop_streaming()
-                                logger.debug("Received request_stream event: %s", type(event))
-                                if isinstance(event, PartStartEvent):
-                                    logger.debug("PartStartEvent: %s", dataclasses.asdict(event))
-
-                                    if isinstance(event.part, TextPart):
-                                        yield events_v4.TextPart(text=event.part.content)
-                                    elif isinstance(event.part, ToolCallPart):
-                                        yield events_v4.ToolCallStreamingStartPart(
-                                            tool_call_id=event.part.tool_call_id,
-                                            tool_name=event.part.tool_name,
-                                        )
-                                    elif isinstance(event.part, ThinkingPart):
-                                        yield events_v4.ReasoningPart(
-                                            reasoning=event.part.content,
-                                        )
-
-                                elif isinstance(event, PartDeltaEvent):
-                                    logger.debug(
-                                        "PartDeltaEvent: %s %s",
-                                        type(event),
-                                        dataclasses.asdict(event),
-                                    )
-                                    if isinstance(event.delta, TextPartDelta):
-                                        yield events_v4.TextPart(text=event.delta.content_delta)
-                                    elif isinstance(event.delta, ToolCallPartDelta):
-                                        _tool_is_streaming = True
-                                        yield events_v4.ToolCallDeltaPart(
-                                            tool_call_id=event.delta.tool_call_id,
-                                            args_text_delta=event.delta.args_delta,
-                                        )
-                                    elif isinstance(event.delta, ThinkingPartDelta):
-                                        yield events_v4.ReasoningPart(
-                                            reasoning=event.delta.content_delta,
-                                        )
-
-                    elif Agent.is_call_tools_node(node):
-                        # A handle-response node => The model returned some data,
-                        # potentially calls a tool
-                        async with node.stream(run.ctx) as handle_stream:
-                            async for event in handle_stream:
-                                await self._agent_stop_streaming()
-                                logger.debug(
-                                    "Received request_stream event: %s, %s",
-                                    type(event),
-                                    dataclasses.asdict(event),
+                if isinstance(event, FunctionToolCallEvent):
+                    if not state.tool_is_streaming:
+                        yield events_v4.ToolCallPart(
+                            tool_call_id=event.tool_call_id,
+                            tool_name=event.part.tool_name,
+                            args=json.loads(event.part.args) if event.part.args else {},
+                        )
+                elif isinstance(event, FunctionToolResultEvent):
+                    if isinstance(event.result, ToolReturnPart):
+                        if event.result.metadata and (
+                            sources := event.result.metadata.get("sources")
+                        ):
+                            for source_url in sources:
+                                url_source = LanguageModelV1Source(
+                                    sourceType="url",
+                                    id=str(uuid.uuid4()),
+                                    url=source_url,
+                                    providerMetadata={},
                                 )
-                                if isinstance(event, FunctionToolCallEvent):
-                                    if not _tool_is_streaming:
-                                        yield events_v4.ToolCallPart(
-                                            tool_call_id=event.tool_call_id,
-                                            tool_name=event.part.tool_name,
-                                            args=json.loads(event.part.args)
-                                            if event.part.args
-                                            else {},
-                                        )
-                                elif isinstance(event, FunctionToolResultEvent):
-                                    if isinstance(event.result, ToolReturnPart):
-                                        if event.result.metadata and (
-                                            sources := event.result.metadata.get("sources")
-                                        ):
-                                            for source_url in sources:
-                                                url_source = LanguageModelV1Source(
-                                                    sourceType="url",
-                                                    id=str(uuid.uuid4()),
-                                                    url=source_url,
-                                                    providerMetadata={},
-                                                )
-                                                _new_source_ui = SourceUIPart(
-                                                    type="source", source=url_source
-                                                )
-                                                _ui_sources.append(_new_source_ui)
-                                                yield events_v4.SourcePart(
-                                                    **_new_source_ui.source.model_dump()
-                                                )
-
-                                        yield events_v4.ToolResultPart(
-                                            tool_call_id=event.tool_call_id,
-                                            result=event.result.content,
-                                        )
-                                    elif isinstance(event.result, RetryPromptPart):
-                                        yield events_v4.ToolResultPart(
-                                            tool_call_id=event.tool_call_id,
-                                            result=event.result.content,
-                                        )
-                                    else:
-                                        logger.warning(
-                                            "Unexpected tool result type: %s %s",
-                                            type(event.result),
-                                            dataclasses.asdict(event.result),
-                                        )
-                    elif Agent.is_end_node(node):
-                        # Once an End node is reached, the agent run is complete
-                        logger.debug("v: %s", dataclasses.asdict(node))
-
-                        # Enforce the message ID to store the trace ID and allow scoring later
-                        # We use the start step part (to set the message ID) even if it's
-                        # not the purpose of this event, but Vercel AI SDK does not
-                        # have a better place to set the message ID and we only want to enforce
-                        # The last message to store the trace ID...
-                        if _model_response_message_id:
-                            logger.error("_model_response_message_id already set")
-                        _model_response_message_id = (
-                            str(uuid.uuid4())
-                            if not self._langfuse_available
-                            else f"trace-{langfuse.get_current_trace_id()}"
-                        )
-                        yield events_v4.StartStepPart(
-                            message_id=_model_response_message_id,
+                                _new_source_ui = SourceUIPart(type="source", source=url_source)
+                                state.ui_sources.append(_new_source_ui)
+                                yield events_v4.SourcePart(**_new_source_ui.source.model_dump())
+                        yield events_v4.ToolResultPart(
+                            tool_call_id=event.tool_call_id, result=event.result.content
                         )
 
-                # Final usage summary
-                final_usage = run.usage()
-                usage["promptTokens"] = final_usage.input_tokens
-                usage["completionTokens"] = final_usage.output_tokens
+                    elif isinstance(event.result, RetryPromptPart):
+                        yield events_v4.ToolResultPart(
+                            tool_call_id=event.tool_call_id, result=event.result.content
+                        )
+                    else:
+                        logger.warning(
+                            "Unexpected tool result type: %s %s",
+                            type(event.result),
+                            dataclasses.asdict(event.result),
+                        )
 
+    def _handle_end_node(self, node, langfuse, state: StreamingState) -> events_v4.StartStepPart:
+        """Handle end node - set message ID."""
+        logger.debug("End node: %s", dataclasses.asdict(node))
+        if state.model_response_message_id:
+            logger.error("_model_response_message_id already set")
+        state.model_response_message_id = (
+            str(uuid.uuid4())
+            if not self._langfuse_available
+            else f"trace-{langfuse.get_current_trace_id()}"
+        )
+        return events_v4.StartStepPart(message_id=state.model_response_message_id)
+
+    async def _finalize_conversation(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+        self,
+        new_messages: list,
+        run_output,
+        usage: Dict[str, int],
+        state: StreamingState,
+        image_key_mapping: Dict[str, str],
+    ) -> AsyncGenerator[events_v4.Event, None]:
+        """
+        Finalize the conversation after the agent run completes.
+
+        This method handles all post-processing:
+        1. Final stop check (allows late cancellation)
+        2. Saves the conversation with:
+           - New messages (user request + assistant response)
+           - UI sources (citations from tools)
+           - Token usage statistics
+           - Image URL mappings (signed → unsigned for storage)
+        3. Auto-generates a title after N user messages (if not manually set)
+        4. Persists the conversation to the database
+        5. Emits title update event (if generated)
+        6. Updates Langfuse trace with final output
+        7. Emits FinishMessagePart to signal stream completion
+
+        Yields:
+            DataPart: Title update notification (if title was generated)
+            FinishMessagePart: Always emitted last to signal completion
+        """
         await self._agent_stop_streaming(force_cache_check=True)
 
         # Prepare conversation update (save deferred until after potential title generation)
         await sync_to_async(self._prepare_update_conversation)(
-            final_output=run.result.new_messages(),
+            final_output=new_messages,
             usage=usage,
-            final_output_from_tool=_final_output_from_tool,
-            ui_sources=_ui_sources,
-            model_response_message_id=_model_response_message_id,
+            ui_sources=state.ui_sources,
+            model_response_message_id=state.model_response_message_id,
             image_key_mapping=image_key_mapping or None,
         )
-
         generated_title = None
 
         # Auto-generate title after N user messages if not manually set
@@ -741,12 +938,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     }
                 ]
             )
-
         if self._langfuse_available:
+            langfuse = get_client()
             langfuse.update_current_trace(
-                output=run.result.output if self._store_analytics else "REDACTED"
+                output=run_output if self._store_analytics else "REDACTED"
             )
-        # Vercel finish message
+            # Vercel finish message
         yield events_v4.FinishMessagePart(
             finish_reason=events_v4.FinishReason.STOP,
             usage=events_v4.Usage(
@@ -755,15 +952,97 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    def _prepare_update_conversation(  # noqa: PLR0913
+    async def _run_agent(  # pylint: disable=too-many-locals
+        self,
+        messages: List[UIMessage],
+        force_web_search: bool = False,
+    ) -> AsyncGenerator[events_v4.Event | events_v5.Event, None]:
+        """Run the Pydantic AI agent and stream events."""
+        if not messages or messages[-1].role != "user":
+            return
+
+        # Langfuse settings
+        if self._langfuse_available:
+            langfuse = get_client()
+            langfuse.update_current_trace(
+                session_id=str(self.conversation.pk),
+                user_id=str(self.user.sub),
+                metadata={
+                    "user_fqdn": self.user.email.split("@")[-1],  # no need for security here
+                },
+            )
+        else:
+            langfuse = None
+
+        (
+            user_prompt,
+            input_images,
+            input_documents,
+            image_key_mapping,
+            usage,
+            history,
+            conversation_has_documents,
+        ) = await self._prepare_agent_run(messages)
+
+        doc_result = None
+        async for item in self._handle_input_documents(
+            input_documents, conversation_has_documents, usage
+        ):
+            if isinstance(item, DocumentParsingResult):
+                doc_result = item
+            else:
+                yield item
+
+        if doc_result is None or not doc_result.success:
+            return
+
+        conversation_has_documents = doc_result.has_documents
+
+        await self._agent_stop_streaming(force_cache_check=True)
+        self._setup_web_search(force_web_search)
+
+        if await self._check_should_enable_rag(conversation_has_documents):
+            self._setup_rag_tools()
+
+        async with AsyncExitStack() as stack:
+            # MCP servers (if any) can be initialized here
+            mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
+
+            # Help Mistral to prevent `Unexpected role 'user' after role 'tool'` error.
+            if history and history[-1].kind == "request":
+                if history[-1].parts and history[-1].parts[-1].part_kind == "tool-return":
+                    history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
+
+            async with self.conversation_agent.iter(
+                [user_prompt] + input_images,
+                message_history=history,  # history will pass through agent's history_processors
+                deps=self._context_deps,
+                toolsets=mcp_servers,
+            ) as run:
+                state = StreamingState()
+                async for event in self._process_agent_nodes(run, state, langfuse):
+                    yield event
+
+                # Extract values from run before exiting the context manager
+                new_messages = run.result.new_messages()
+                run_output = run.result.output
+                final_usage = run.usage()
+                usage["promptTokens"] = final_usage.input_tokens
+                usage["completionTokens"] = final_usage.output_tokens
+
+        async for event in self._finalize_conversation(
+            new_messages, run_output, usage, state, image_key_mapping
+        ):
+            yield event
+
+    def _prepare_update_conversation(
         self,
         *,
         final_output: List[ModelRequest | ModelMessage],
         usage: Dict[str, int],
-        final_output_from_tool: str | None,
-        ui_sources: List[SourceUIPart] = None,
+        ui_sources: Optional[List[SourceUIPart]] = None,
         model_response_message_id: str | None = None,
-        image_key_mapping: Dict[str, str] = None,
+        image_key_mapping: Optional[Dict[str, str]] = None,
     ):  # pylint: disable=too-many-arguments
         """
         Save everything related to the conversation.
@@ -774,7 +1053,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         Args:
             final_output (List[ModelRequest | ModelMessage]): The final output from the agent.
             usage (Dict[str, int]): The token usage statistics.
-            user_initial_prompt_str (str | None): The initial user prompt string, if any.
+            model_response_message_id (str | None): Message ID
+            image_key_mapping (Dict[str, str] | None): Mapping of image id and S3 urls
             ui_sources (List[SourceUIPart]): Optional UI sources to include in the conversation.
         """
         _merged_final_output_request = ModelRequest(
@@ -786,8 +1066,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         _merged_final_output_message = ModelResponse(
             parts=[
                 part for msg in final_output if isinstance(msg, ModelResponse) for part in msg.parts
-            ]
-            + ([TextPart(content=final_output_from_tool)] if final_output_from_tool else []),
+            ],
             kind="response",
         )
 
@@ -818,9 +1097,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")
         )
         logger.debug("final_output_json: %s", final_output_json)
-        self.conversation.pydantic_messages += json.loads(
-            ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")
-        )
+        self.conversation.pydantic_messages += final_output_json
 
     async def _generate_title(self) -> str | None:
         """Generate a title for the conversation using LLM based on first messages."""
