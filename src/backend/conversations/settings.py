@@ -353,6 +353,7 @@ class Base(BraveSettings, Configuration):
         # Third party apps
         "corsheaders",
         "django_filters",
+        "solo.apps.SoloAppConfig",
         "dockerflow.django",
         "rest_framework",
         "parler",

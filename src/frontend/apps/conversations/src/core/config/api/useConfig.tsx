@@ -41,7 +41,7 @@ export interface ConfigResponse {
 
 const LOCAL_STORAGE_KEY = 'conversations_config';
 
-function getCachedTranslation() {
+function getCachedConfig() {
   try {
     const jsonString = localStorage.getItem(LOCAL_STORAGE_KEY);
     return jsonString ? (JSON.parse(jsonString) as ConfigResponse) : undefined;
@@ -50,7 +50,7 @@ function getCachedTranslation() {
   }
 }
 
-function setCachedTranslation(translations: ConfigResponse) {
+function setCachedConfig(translations: ConfigResponse) {
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(translations));
 }
 
@@ -62,7 +62,8 @@ export const getConfig = async (): Promise<ConfigResponse> => {
   }
 
   const config = response.json() as Promise<ConfigResponse>;
-  setCachedTranslation(await config);
+
+  setCachedConfig(await config);
 
   return config;
 };
@@ -70,7 +71,7 @@ export const getConfig = async (): Promise<ConfigResponse> => {
 export const KEY_CONFIG = 'config';
 
 export function useConfig() {
-  const cachedData = getCachedTranslation();
+  const cachedData = getCachedConfig();
   const oneHour = 1000 * 60 * 60;
 
   return useQuery<ConfigResponse, APIError, ConfigResponse>({

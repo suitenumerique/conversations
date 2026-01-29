@@ -52,6 +52,7 @@ export const overrideConfig = async (
 ) =>
   await page.route('**/api/v1.0/config/', async (route) => {
     const request = route.request();
+    console.log("CONFIG")
     if (request.method().includes('GET')) {
       await route.fulfill({
         json: {

@@ -225,6 +225,8 @@ class ConfigView(drf.views.APIView):
 
         dict_settings["chat_upload_accept"] = ",".join(settings.RAG_FILES_ACCEPTED_FORMATS)
 
+        dict_settings["banners"] = self._get_banners()
+
         return drf.response.Response(dict_settings)
 
     def _load_theme_customization(self):
@@ -257,3 +259,30 @@ class ConfigView(drf.views.APIView):
             )
 
         return theme_customization
+
+    def _get_banners(self):
+        """Return active banners from SiteConfiguration."""
+
+
+        config = models.SiteConfiguration.get_solo()
+        banners = {}
+
+        if config.environment_banner_enabled :
+            banners["environment"] = {
+                "type": "environment",
+                "level": config.environment_banner_level,
+                "title": config.environment_banner_title,
+                "content": config.environment_banner_content,
+                "dismissible": False,
+            }
+
+        if config.status_banner_enabled :
+            banners["status"] = {
+                "type": "status",
+                "level": config.status_banner_level,
+                "title": config.status_banner_title,
+                "content": config.status_banner_content,
+                "dismissible": config.status_banner_dismissible,
+            }
+
+        return banners

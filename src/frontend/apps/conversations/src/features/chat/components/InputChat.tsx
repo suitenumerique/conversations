@@ -137,6 +137,7 @@ export const InputChat = ({
   const { isDesktop, isMobile } = useResponsiveStore();
 
   const { data: conf } = useConfig();
+
   const { isFeatureFlagActivated } = useAnalytics();
   const [fileUploadEnabled, setFileUploadEnabled] = useState(false);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);

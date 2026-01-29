@@ -3,7 +3,7 @@
 from django.contrib import admin
 from django.contrib.auth import admin as auth_admin
 from django.utils.translation import gettext_lazy as _
-
+from solo.admin import SingletonModelAdmin
 from . import models
 
 
@@ -107,3 +107,26 @@ class UserAdmin(auth_admin.UserAdmin):
         "allow_conversation_analytics",
     )
     list_editable = ("allow_conversation_analytics",)
+
+
+@admin.register(models.SiteConfiguration)
+class SiteConfigurationAdmin(SingletonModelAdmin):
+  fieldsets = (
+      (_("Environment Banner"), {
+          "description": _("Inform users about the current environment (staging, demo...)"),
+          "fields": (
+              "environment_banner_level",
+              "environment_banner_title",
+              "environment_banner_content",
+          ),
+      }),
+      (_("Status / Incident Banner"), {
+          "description": _("Communicate maintenance windows or ongoing incidents"),
+          "fields": (
+              "status_banner_level",
+              "status_banner_title",
+                   "status_banner_content",
+              "status_banner_dismissible",
+          ),
+      }),
+  )
