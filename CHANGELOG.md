@@ -29,6 +29,7 @@ and this project adheres to
 
 - 📦️(front) update react
 - ✨(chat) Generate and edit conversation title
+- ⚡️(front) optimize streaming markdown rendering performance
 
 
 ### Fixed
