@@ -230,6 +230,22 @@ class Base(BraveSettings, Configuration):
         environ_name="ATTACHMENT_MAX_SIZE",
         environ_prefix=None,
     )
+    FILE_UPLOAD_MODE = values.Value(
+        "presigned_url",
+        environ_name="FILE_UPLOAD_MODE",
+        environ_prefix=None,
+    )
+    FILE_BACKEND_URL = values.Value(
+        "",
+        environ_name="FILE_BACKEND_URL",
+        environ_prefix=None,
+    )
+    FILE_BACKEND_TEMPORARY_URL_EXPIRATION = values.IntegerValue(
+        180,
+        environ_name="FILE_BACKEND_TEMPORARY_URL_EXPIRATION",
+        environ_prefix=None,
+    )
+
     MALWARE_DETECTION = {
         "BACKEND": values.Value(
             "lasuite.malware_detection.backends.dummy.DummyBackend",
@@ -393,6 +409,11 @@ class Base(BraveSettings, Configuration):
             "user_list_burst": values.Value(
                 default="30/minute",
                 environ_name="API_USERS_LIST_THROTTLE_RATE_BURST",
+                environ_prefix=None,
+            ),
+            "file-stream": values.Value(
+                default="60/minute",
+                environ_name="API_FILE_STREAM_THROTTLE_RATE",
                 environ_prefix=None,
             ),
         },

@@ -34,6 +34,7 @@ export interface ConfigResponse {
   MEDIA_BASE_URL?: string;
   POSTHOG_KEY?: PostHogConf;
   SENTRY_DSN?: string;
+  FILE_UPLOAD_MODE?: string;
   theme_customization?: ThemeCustomization;
   chat_upload_accept?: string;
 }
