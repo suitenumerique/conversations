@@ -40,7 +40,7 @@
     "lottie-react": "^2.4.1",
     "luxon": "3.6.1",
     "micromark-extension-llm-math": "3.1.1-20250610",
-    "next": "15.3.8",
+    "next": "15.3.9",
     "posthog-js": "1.249.3",
     "react": "19.2.1",
     "react-aria-components": "1.9.0",
