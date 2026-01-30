@@ -9,7 +9,15 @@ import { createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst } from 'workbox-strategies';
 
-const FILE_EXTENSION_REGEXP = new RegExp('/[^/?]+\\.[^/]+$');
+/**
+ * Returns true if pathname looks like a file path (last segment contains a dot).
+ * Uses string operations only to avoid ReDoS from regex backtracking.
+ */
+function pathnameLooksLikeFile(pathname) {
+  const segments = pathname.split('/');
+  const lastSegment = segments[segments.length - 1] ?? '';
+  return lastSegment.includes('.');
+}
 
 const cacheableOk = new CacheableResponsePlugin({ statuses: [0, 200] });
 
@@ -20,7 +28,7 @@ function shouldServeAppShell({ request, url }) {
   if (url.pathname.startsWith('/_')) {
     return false;
   }
-  if (url.pathname.match(FILE_EXTENSION_REGEXP)) {
+  if (pathnameLooksLikeFile(url.pathname)) {
     return false;
   }
   return true;
