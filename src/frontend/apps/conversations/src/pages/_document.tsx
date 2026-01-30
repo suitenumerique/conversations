@@ -14,7 +14,8 @@ export default function RootLayout() {
         <meta name="msapplication-tap-highlight" content="no" />
         <link
           rel="apple-touch-icon"
-          href="/assets/icon-assistant.svg"
+          sizes="180x180"
+          href="/assets/apple-touch-icon.png"
         />
       </Head>
       <body suppressHydrationWarning={process.env.NODE_ENV === 'development'}>

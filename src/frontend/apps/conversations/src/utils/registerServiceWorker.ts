@@ -11,6 +11,7 @@ export function registerServiceWorker() {
   ) {
     window.addEventListener('load', () => {
       const swUrl = '/sw.js';
+      let refreshing = false;
 
       navigator.serviceWorker
         .register(swUrl)
@@ -42,6 +43,7 @@ export function registerServiceWorker() {
                     )
                   ) {
                     newWorker.postMessage({ type: 'SKIP_WAITING' });
+                    refreshing = true;
                     window.location.reload();
                   }
                 }
@@ -53,8 +55,7 @@ export function registerServiceWorker() {
           console.error('ServiceWorker registration failed: ', error);
         });
 
-      // Handle service worker updates
-      let refreshing = false;
+      // Handle service worker updates (skip reload if we already triggered one)
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!refreshing) {
           refreshing = true;
