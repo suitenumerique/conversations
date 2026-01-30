@@ -22,7 +22,7 @@ const nextConfig = {
   webpack(config, { isServer, dev, webpack }) {
     // Only configure service worker for client-side builds in production
     if (!isServer && !dev) {
-      const path = require('path');
+      const path = require('node:path');
       config.plugins.push(
         new InjectManifest({
           swSrc: path.join(__dirname, 'public', 'sw.src.js'),
