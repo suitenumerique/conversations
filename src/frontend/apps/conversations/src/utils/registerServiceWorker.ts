@@ -16,12 +16,6 @@ export function registerServiceWorker() {
       navigator.serviceWorker
         .register(swUrl)
         .then((registration) => {
-          // Registration was successful
-          console.log(
-            'ServiceWorker registration successful with scope: ',
-            registration.scope
-          );
-
           // Check for updates every hour
           setInterval(() => {
             registration.update();
@@ -51,8 +45,8 @@ export function registerServiceWorker() {
             }
           });
         })
-        .catch((error) => {
-          console.error('ServiceWorker registration failed: ', error);
+        .catch(() => {
+          // Service worker registration failed; app continues to work without PWA features
         });
 
       // Handle service worker updates (skip reload if we already triggered one)
