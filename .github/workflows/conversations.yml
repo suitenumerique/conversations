@@ -217,6 +217,8 @@ jobs:
       - name: Run Trivy analysis for critical vulnerabilities
         # We use main branch while we might still iterate on the action
         uses: numerique-gouv/action-trivy-cache/security-trivy-critical@main
+        with:
+          skip-files: src/mail/yarn.lock
 
   security-trivy:
     permissions:
@@ -226,3 +228,5 @@ jobs:
       - name: Run Trivy analysis for vulnerabilities
         # We use main branch while we might still iterate on the action
         uses: numerique-gouv/action-trivy-cache/security-trivy@main
+        with:
+          skip-files: src/mail/yarn.lock
