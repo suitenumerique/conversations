@@ -230,6 +230,27 @@ class Base(BraveSettings, Configuration):
         environ_name="ATTACHMENT_MAX_SIZE",
         environ_prefix=None,
     )
+    FILE_UPLOAD_MODE = values.Value(
+        "presigned_url",
+        environ_name="FILE_UPLOAD_MODE",
+        environ_prefix=None,
+    )
+    FILE_TO_LLM_MODE = values.Value(
+        "presigned_url",
+        environ_name="FILE_TO_LLM_MODE",
+        environ_prefix=None,
+    )
+    FILE_BACKEND_URL = values.Value(
+        "",
+        environ_name="FILE_BACKEND_URL",
+        environ_prefix=None,
+    )
+    FILE_BACKEND_TEMPORARY_URL_EXPIRATION = values.IntegerValue(
+        180,
+        environ_name="FILE_BACKEND_TEMPORARY_URL_EXPIRATION",
+        environ_prefix=None,
+    )
+
     MALWARE_DETECTION = {
         "BACKEND": values.Value(
             "lasuite.malware_detection.backends.dummy.DummyBackend",
@@ -393,6 +414,11 @@ class Base(BraveSettings, Configuration):
             "user_list_burst": values.Value(
                 default="30/minute",
                 environ_name="API_USERS_LIST_THROTTLE_RATE_BURST",
+                environ_prefix=None,
+            ),
+            "file-stream": values.Value(
+                default="60/minute",
+                environ_name="API_FILE_STREAM_THROTTLE_RATE",
                 environ_prefix=None,
             ),
         },
@@ -911,12 +937,20 @@ USER QUESTION:
     LANGFUSE_MEDIA_UPLOAD_ENABLED = values.BooleanValue(
         default=False, environ_name="LANGFUSE_MEDIA_UPLOAD_ENABLED", environ_prefix=None
     )
-
+    AUTO_TITLE_AFTER_USER_MESSAGES = values.PositiveIntegerValue(
+        default=None, environ_name="AUTO_TITLE_AFTER_USER_MESSAGES", environ_prefix=None
+    )
     # WARNING: Testing purpose only. Do not use in production.
     WARNING_MOCK_CONVERSATION_AGENT = values.BooleanValue(
         default=False,
         environ_name="WARNING_MOCK_CONVERSATION_AGENT",
         environ_prefix=None,
+    )
+
+    # Default keepalive interval: 55s (safely below typical 60s proxy timeouts)
+    # Prevents connection drops during long stream pauses while providing 5s safety margin.
+    KEEPALIVE_INTERVAL = values.PositiveIntegerValue(
+        default=55, environ_name="KEEPALIVE_INTERVAL", environ_prefix=None
     )
 
     # pylint: disable=invalid-name
@@ -1038,6 +1072,13 @@ USER QUESTION:
                 "OIDC_ALLOW_DUPLICATE_EMAILS cannot be set to True simultaneously. "
             )
 
+        # File access configuration validation
+        if cls.FILE_TO_LLM_MODE == "backend_temporary_url" and not cls.FILE_BACKEND_URL:
+            raise ValueError(
+                "FILE_TO_LLM_MODE is set to 'backend_temporary_url' but FILE_BACKEND_URL is empty. "
+                "Please set FILE_BACKEND_URL to a valid URL for backend temporary file access."
+            )
+
         # Langfuse initialization
         if cls.LANGFUSE_ENABLED:
             if not cls.LANGFUSE_MEDIA_UPLOAD_ENABLED:
@@ -1130,6 +1171,8 @@ class Test(Base):
     AI_MODEL = None
 
     POSTHOG_KEY = None
+
+    AUTO_TITLE_AFTER_USER_MESSAGES = None
 
     def __init__(self):
         # pylint: disable=invalid-name

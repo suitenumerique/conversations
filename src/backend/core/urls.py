@@ -1,15 +1,21 @@
 """URL configuration for the core app."""
 
 from django.conf import settings
-from django.urls import include, path
+from django.urls import include, path, re_path
 
 from lasuite.oidc_login.urls import urlpatterns as oidc_urls
 from rest_framework.routers import DefaultRouter
 
 from core.api import viewsets
+from core.file_upload.enums import FileToLLMMode
 
 from activation_codes import viewsets as activation_viewsets
-from chat.views import ChatConversationAttachmentViewSet, ChatViewSet, LLMConfigurationView
+from chat.views import (
+    ChatConversationAttachmentViewSet,
+    ChatViewSet,
+    FileStreamView,
+    LLMConfigurationView,
+)
 
 # - Main endpoints
 router = DefaultRouter()
@@ -37,6 +43,21 @@ urlpatterns = [
                     include(conversation_router.urls),
                 ),
             ]
+            + (
+                # Only allow file stream URL when configured for backend temporary URL mode
+                [
+                    re_path(
+                        r"^file-stream/(?P<temporary_key>[a-zA-Z0-9_-]+)/$",
+                        FileStreamView.as_view(),
+                        name="file-stream",
+                    ),
+                ]
+                if (
+                    settings.FILE_TO_LLM_MODE == FileToLLMMode.BACKEND_TEMPORARY_URL
+                    or settings.ENVIRONMENT == "test"
+                )
+                else []
+            )
         ),
     ),
     path(f"api/{settings.API_VERSION}/config/", viewsets.ConfigView.as_view()),

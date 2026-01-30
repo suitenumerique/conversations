@@ -8,6 +8,7 @@ export const CONFIG = {
     'document-upload': 'enabled',
     'web-search': 'enabled',
   },
+  FILE_UPLOAD_MODE: 'presigned_url',
   FRONTEND_CSS_URL: null,
   FRONTEND_HOMEPAGE_FEATURE_ENABLED: true,
   FRONTEND_THEME: null,

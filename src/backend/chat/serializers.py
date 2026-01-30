@@ -4,12 +4,13 @@ from typing import Optional
 from urllib.parse import quote
 
 from django.conf import settings
+from django.utils import timezone
 
 from django_pydantic_field.rest_framework import SchemaField  # pylint: disable=no-name-in-module
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from core.file_upload.enums import AttachmentStatus
+from core.file_upload.enums import AttachmentStatus, FileUploadMode
 from core.file_upload.utils import generate_upload_policy
 
 from chat import models
@@ -26,6 +27,12 @@ class ChatConversationSerializer(serializers.ModelSerializer):
         model = models.ChatConversation
         fields = ["id", "title", "created_at", "updated_at", "messages", "owner"]
         read_only_fields = ["id", "created_at", "updated_at", "messages"]
+
+    def update(self, instance, validated_data):
+        # If title is being changed, mark it as user-set
+        if "title" in validated_data and validated_data["title"] != instance.title:
+            instance.title_set_by_user_at = timezone.now()
+        return super().update(instance, validated_data)
 
 
 class ChatConversationInputSerializer(serializers.Serializer):
@@ -173,7 +180,11 @@ class ChatConversationAttachmentSerializer(serializers.ModelSerializer):
 
 
 class CreateChatConversationAttachmentSerializer(serializers.ModelSerializer):
-    """Serializer for creating chat conversation attachments."""
+    """Serializer for creating chat conversation attachments.
+
+    For presigned_url mode: returns 'policy' field with presigned URL for direct S3 upload
+    For backend modes: does not return 'policy' field (upload handled via backend endpoint)
+    """
 
     policy = serializers.SerializerMethodField()
     uploaded_by = serializers.HiddenField(default=serializers.CurrentUserDefault())
@@ -183,9 +194,15 @@ class CreateChatConversationAttachmentSerializer(serializers.ModelSerializer):
         model = models.ChatConversationAttachment
         fields = ["id", "key", "content_type", "file_name", "size", "policy", "uploaded_by"]
 
-    def get_policy(self, attachment) -> str:
-        """Return the policy to use if the item is a file."""
-        return generate_upload_policy(attachment.key)
+    def get_policy(self, attachment) -> str | None:
+        """Return the policy (presigned URL) only for presigned_url mode."""
+        upload_mode = settings.FILE_UPLOAD_MODE
+
+        # Only return presigned URL in presigned_url mode
+        if upload_mode == FileUploadMode.PRESIGNED_URL:
+            return generate_upload_policy(attachment.key)
+
+        return None
 
     def validate_size(self, size: Optional[int]) -> Optional[int]:
         """Validate that the size is not greater than the maximum allowed size."""

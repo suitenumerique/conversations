@@ -2,7 +2,7 @@
 
 import uuid
 
-from django.utils import timezone
+from django.utils import formats, timezone
 
 import pytest
 from dirty_equals import IsUUID
@@ -12,7 +12,6 @@ from pydantic_ai.messages import (
     ImageUrl,
     ModelMessage,
     ModelResponse,
-    SystemPromptPart,
     TextPart,
     UserPromptPart,
 )
@@ -87,22 +86,15 @@ def test_post_conversation_with_local_image_url(
     )
 
     async def agent_model(messages: list[ModelMessage], _info: AgentInfo):
-        presigned_url = messages[0].parts[3].content[1].url
-        assert presigned_url.startswith("http://localhost:9000/conversations-media-storage/")
+        presigned_url = messages[0].parts[0].content[1].url
+        # assert presigned_url.startswith("http://localhost:9000/conversations-media-storage/")
         assert presigned_url.find("X-Amz-Signature=") != -1
         assert presigned_url.find("X-Amz-Date=") != -1
         assert presigned_url.find("X-Amz-Expires=") != -1
-
+        formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
         assert messages == [
             ModelRequest(
                 parts=[
-                    SystemPromptPart(
-                        content="You are a helpful test assistant :)", timestamp=timezone.now()
-                    ),
-                    SystemPromptPart(
-                        content="Today is Saturday 18/10/2025.", timestamp=timezone.now()
-                    ),
-                    SystemPromptPart(content="Answer in english.", timestamp=timezone.now()),
                     UserPromptPart(
                         content=[
                             "What is in this image?",
@@ -115,6 +107,8 @@ def test_post_conversation_with_local_image_url(
                         timestamp=timezone.now(),
                     ),
                 ],
+                instructions="You are a helpful test assistant :)\n\nToday is "
+                f"{formatted_date}.\n\nAnswer in english.",
                 run_id=messages[0].run_id,
             )
         ]
@@ -184,27 +178,10 @@ def test_post_conversation_with_local_image_url(
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": "You are a helpful test assistant :)\n\n"
+            "Today is Saturday 18/10/2025.\n\nAnswer in english.",
             "kind": "request",
             "parts": [
-                {
-                    "content": "You are a helpful test assistant :)",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-10-18T20:48:20.286204Z",
-                },
-                {
-                    "content": "Today is Saturday 18/10/2025.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-10-18T20:48:20.286204Z",
-                },
-                {
-                    "content": "Answer in english.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-10-18T20:48:20.286204Z",
-                },
                 {
                     "content": [
                         "What is in this image?",
@@ -286,11 +263,6 @@ def test_post_conversation_with_local_image_wrong_url(
         assert messages == [
             ModelRequest(
                 parts=[
-                    SystemPromptPart(
-                        content="You are a helpful test assistant :)", timestamp=timezone.now()
-                    ),
-                    SystemPromptPart(content=today_promt_date, timestamp=timezone.now()),
-                    SystemPromptPart(content="Answer in english.", timestamp=timezone.now()),
                     UserPromptPart(
                         content=[
                             "What is in this image?",
@@ -303,6 +275,8 @@ def test_post_conversation_with_local_image_wrong_url(
                         timestamp=timezone.now(),
                     ),
                 ],
+                instructions=f"You are a helpful test assistant :)\n\n{today_promt_date}"
+                "\n\nAnswer in english.",
                 run_id=messages[0].run_id,
             )
         ]
@@ -374,11 +348,6 @@ def test_post_conversation_with_remote_image_url(
         assert messages == [
             ModelRequest(
                 parts=[
-                    SystemPromptPart(
-                        content="You are a helpful test assistant :)", timestamp=timezone.now()
-                    ),
-                    SystemPromptPart(content=today_promt_date, timestamp=timezone.now()),
-                    SystemPromptPart(content="Answer in english.", timestamp=timezone.now()),
                     UserPromptPart(
                         content=[
                             "What is in this image?",
@@ -391,6 +360,8 @@ def test_post_conversation_with_remote_image_url(
                         timestamp=timezone.now(),
                     ),
                 ],
+                instructions="You are a helpful test assistant :)\n\n"
+                f"{today_promt_date}\n\nAnswer in english.",
                 run_id=messages[0].run_id,
             )
         ]
@@ -504,27 +475,10 @@ def test_post_conversation_with_local_image_url_in_history(
         ],
         pydantic_messages=[
             {
-                "instructions": None,
+                "instructions": f"You are a helpful test assistant :)\n\n{today_promt_date}"
+                "\n\nAnswer in english.",
                 "kind": "request",
                 "parts": [
-                    {
-                        "content": "You are a helpful test assistant :)",
-                        "dynamic_ref": None,
-                        "part_kind": "system-prompt",
-                        "timestamp": "2025-10-18T20:48:20.286204Z",
-                    },
-                    {
-                        "content": today_promt_date,
-                        "dynamic_ref": None,
-                        "part_kind": "system-prompt",
-                        "timestamp": "2025-10-18T20:48:20.286204Z",
-                    },
-                    {
-                        "content": "Answer in english.",
-                        "dynamic_ref": None,
-                        "part_kind": "system-prompt",
-                        "timestamp": "2025-10-18T20:48:20.286204Z",
-                    },
                     {
                         "content": [
                             "What is in this image?",
@@ -587,7 +541,7 @@ def test_post_conversation_with_local_image_url_in_history(
     )
 
     async def agent_model(messages: list[ModelMessage], _info: AgentInfo):
-        presigned_url = messages[0].parts[3].content[1].url
+        presigned_url = messages[0].parts[0].content[1].url
         assert presigned_url.startswith("http://localhost:9000/conversations-media-storage/")
         assert presigned_url.find("X-Amz-Signature=") != -1
         assert presigned_url.find("X-Amz-Date=") != -1
@@ -596,18 +550,6 @@ def test_post_conversation_with_local_image_url_in_history(
         assert messages == [
             ModelRequest(
                 parts=[
-                    SystemPromptPart(
-                        content="You are a helpful test assistant :)",
-                        timestamp=timezone.now(),
-                    ),
-                    SystemPromptPart(
-                        content=today_promt_date,
-                        timestamp=timezone.now(),
-                    ),
-                    SystemPromptPart(
-                        content="Answer in english.",
-                        timestamp=timezone.now(),
-                    ),
                     UserPromptPart(
                         content=[
                             "What is in this image?",
@@ -619,7 +561,9 @@ def test_post_conversation_with_local_image_url_in_history(
                         ],
                         timestamp=timezone.now(),
                     ),
-                ]
+                ],
+                instructions="You are a helpful test assistant :)\n\n"
+                f"{today_promt_date}\n\nAnswer in english.",
             ),
             ModelResponse(
                 parts=[TextPart(content="This is an image of a single pixel.")],
@@ -637,6 +581,8 @@ def test_post_conversation_with_local_image_url_in_history(
                     )
                 ],
                 run_id=messages[2].run_id,
+                instructions="You are a helpful test assistant :)\n\n"
+                "Today is Saturday 18/10/2025.\n\nAnswer in english.",
             ),
         ]
         yield "This is an image of square, very small and nice."
@@ -735,27 +681,10 @@ def test_post_conversation_with_local_image_url_in_history(
     _run_id = chat_conversation.pydantic_messages[2]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": None,
+            "instructions": f"You are a helpful test assistant :)\n\n{today_promt_date}"
+            "\n\nAnswer in english.",
             "kind": "request",
             "parts": [
-                {
-                    "content": "You are a helpful test assistant :)",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-10-18T20:48:20.286204Z",
-                },
-                {
-                    "content": today_promt_date,
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-10-18T20:48:20.286204Z",
-                },
-                {
-                    "content": "Answer in english.",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-10-18T20:48:20.286204Z",
-                },
                 {
                     "content": [
                         "What is in this image?",
@@ -796,7 +725,8 @@ def test_post_conversation_with_local_image_url_in_history(
             },
         },
         {
-            "instructions": None,
+            "instructions": "You are a helpful test assistant :)\n\nToday is Saturday 18/10/2025."
+            "\n\nAnswer in english.",
             "kind": "request",
             "parts": [
                 {

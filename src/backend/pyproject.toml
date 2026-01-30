@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "conversations"
-version = "0.0.9"
+version = "0.0.12"
 authors = [{ "name" = "DINUM", "email" = "dev@mail.numerique.gouv.fr" }]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -23,7 +23,7 @@ description = "An application to chat with your own AI."
 keywords = ["Django", "AI", "Chatbot", "OpenAI", "Pydantic AI", "Conversations"]
 license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = "~=3.13.0"
 dependencies = [
     "deprecated",
     "beautifulsoup4==4.14.2",
@@ -46,6 +46,7 @@ dependencies = [
     "easy_thumbnails==2.10.1",
     "factory_boy==3.3.3",
     "gunicorn==23.0.0",
+    "jaraco.context>=6.1.0",
     "jsonschema==4.25.1",
     "langfuse==3.10.0",
     "lxml==5.4.0",
@@ -105,6 +106,14 @@ zip-safe = true
 
 [tool.distutils.bdist_wheel]
 universal = true
+
+[tool.uv.build-backend]
+module-root = ""
+source-exclude = [
+    "**/tests/**",
+    "**/test_*.py",
+    "**/tests.py",
+]
 
 [tool.ruff]
 exclude = [

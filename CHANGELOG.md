@@ -10,6 +10,46 @@ and this project adheres to
 
 ### Added
 
+- 🧱(files) allow to use S3 storage without external access #849
+
+### Changed
+
+- 🏗️(back) migrate to uv
+
+## [0.0.12] - 2026-01-27
+
+### Fixed
+
+- ⚡️(front) performance improvements on chat input
+- 💄(front) i18n and standardize pdf parsing display
+
+### Removed
+
+- 🔥(chat) consider PDF documents as other kind of documents #234
+
+## [0.0.11] - 2026-01-16
+
+### Changed
+
+- 📦️(front) update react
+- ✨(chat) Generate and edit conversation title
+
+
+### Fixed
+
+- 🐛(e2e) fix test-e2e-chromium
+- 🐛(back) fix system prompt compatibility with self-hosted models #200
+- ⚰️(back) remove dead code and unused files
+- 🐛(back) prevent tool call timeouts
+
+### Removed
+
+- 🔥(chat) remove thinking part from frontend #227
+
+## [0.0.10] - 2025-12-15
+
+### Added
+
 - ✨(front) add retry button
 
 ### Fixed
@@ -24,13 +64,13 @@ and this project adheres to
 ## [0.0.9] - 2025-11-17
 
 ### Added
+
 - ✨(front) add code copy button
 - ✨(RAG) add generic collection RAG tools #159
 
 ### Fixed
 
 - 🔊(langfuse) enable tracing with redacted content #162
-
 
 ## [0.0.8] - 2025-11-10
 
@@ -46,13 +86,11 @@ and this project adheres to
 
 - 🔥(posthog) remove posthog middleware for async mode fix #146
 
-
 ## [0.0.7] - 2025-10-28
 
 ### Fixed
 
 - 🚑️(posthog) fix the posthog middleware for async mode #133
-
 
 ## [0.0.6] - 2025-10-28
 
@@ -60,13 +98,11 @@ and this project adheres to
 
 - 🚑️(stats) fix tracking id in upload event #130
 
-
 ## [0.0.5] - 2025-10-27
 
 ### Fixed
 
 - 🚑️(drag-drop) fix the rejection display on Safari #127
-
 
 ## [0.0.4] - 2025-10-27
 
@@ -84,13 +120,11 @@ and this project adheres to
 - 🐛(front) fix mobile source
 - 🐛(attachments) reject the whole drag&drop if unsupported formats #123
 
-
 ## [0.0.3] - 2025-10-21
 
 ### Fixed
 
 - 🚑️(web-search) fix missing argument in RAG backend #116
-
 
 ## [0.0.2] - 2025-10-21
 
@@ -101,13 +135,13 @@ and this project adheres to
 - 📈(posthog) add `sub` field to tracking #95
 
 ### Changed
+
 - 🔧(front) change links feedback tchap + settings popup
 - 🐛(front) code activation fix session end #93
 - 💬(wording) error page wording #102
 - ⚡️(web-search) allow to override returned chunks #107
 - 🐛(activation-codes) create contact in brevo before add to list #108
 - ⚗️(summarization) add system prompt to handle tool #112
-
 
 ## [0.0.1] - 2025-10-19
 
@@ -131,7 +165,7 @@ and this project adheres to
 - 🎨(front) change list attachment in chat
 - 🎨(front) move emplacement for attachment
 - 🎨(ui) retour ui sources files
-- ✨(ui) fix retour global ui 
+- ✨(ui) fix retour global ui
 - 🐛(fix) broken staging css
 - 🎨(alpha) adjustment for alpha version
 - ✨(ui) delete flex message
@@ -166,7 +200,10 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.9...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.12...main
+[0.0.12]: https://github.com/suitenumerique/conversations/releases/v0.0.12
+[0.0.11]: https://github.com/suitenumerique/conversations/releases/v0.0.11
+[0.0.10]: https://github.com/suitenumerique/conversations/releases/v0.0.10
 [0.0.9]: https://github.com/suitenumerique/conversations/releases/v0.0.9
 [0.0.8]: https://github.com/suitenumerique/conversations/releases/v0.0.8
 [0.0.7]: https://github.com/suitenumerique/conversations/releases/v0.0.7

@@ -2,6 +2,7 @@
 # pylint: disable=too-many-lines
 
 import json
+from unittest.mock import patch
 
 from django.utils import timezone
 
@@ -11,6 +12,7 @@ from dirty_equals import IsUUID
 from freezegun import freeze_time
 from rest_framework import status
 
+from chat.agents.conversation import TitleGenerationAgent
 from chat.ai_sdk_types import (
     Attachment,
     TextUIPart,
@@ -35,6 +37,7 @@ def ai_settings(settings):
     settings.AI_MODEL = "test-model"
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
 
+    settings.AUTO_TITLE_AFTER_USER_MESSAGES = None  # disable auto title generation
     return settings
 
 
@@ -919,7 +922,7 @@ def history_conversation_with_tool_fixture():
     history_timestamp = timezone.now().replace(year=2025, month=6, day=15, hour=10, minute=30)
 
     # Create a conversation with pre-existing messages including a tool invocation
-    conversation = ChatConversationFactory()
+    conversation = ChatConversationFactory(owner__language="nl-nl")
 
     # Add previous user and assistant messages with tool invocation
     conversation.messages = [
@@ -1377,7 +1380,9 @@ def test_post_conversation_with_existing_tool_history(
 
     # Verify the new tool call request is included
     assert history_conversation_with_tool.pydantic_messages[8] == {
-        "instructions": None,
+        "instructions": "You are a helpful test assistant :)\n\n"
+        "Today is Friday 25/07/2025.\n\n"
+        "Answer in dutch.",
         "kind": "request",
         "parts": [
             {
@@ -1420,7 +1425,9 @@ def test_post_conversation_with_existing_tool_history(
     }
 
     assert history_conversation_with_tool.pydantic_messages[10] == {
-        "instructions": None,
+        "instructions": "You are a helpful test assistant :)\n\n"
+        "Today is Friday 25/07/2025.\n\n"
+        "Answer in dutch.",
         "kind": "request",
         "parts": [
             {
@@ -1569,3 +1576,307 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
         toolInvocations=None,
         parts=[TextUIPart(type="text", text="I see a cat in the picture.")],
     )
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@respx.mock
+@patch("chat.clients.pydantic_ai.TitleGenerationAgent", wraps=TitleGenerationAgent)
+def test_post_conversation_triggers_automatic_title_generation_after_first_message(
+    mock_title_agent, api_client, mock_openai_stream_with_title_generation, settings
+):
+    """
+    Test that posting the first user message triggers automatic title generation.
+
+    AUTO_TITLE_AFTER_USER_MESSAGES = 1
+
+    The conversation is a new one. Posting the first message
+    should trigger title generation via the TitleGenerationAgent.
+    """
+    # Configure the title generation threshold
+    settings.AUTO_TITLE_AFTER_USER_MESSAGES = 1
+    conversation = ChatConversationFactory()
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
+    data = {
+        "messages": [
+            {
+                "id": "third-user-msg",
+                "role": "user",
+                "parts": [{"text": "Can you explain backpropagation?", "type": "text"}],
+                "content": "Can you explain backpropagation?",
+                "createdAt": "2025-07-25T10:36:00.000Z",
+            }
+        ]
+    }
+    api_client.force_login(conversation.owner)
+
+    conversation.title = "initial title"
+    conversation.save()
+
+    assert not conversation.title_set_by_user_at
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.get("Content-Type") == "text/event-stream"
+    assert response.streaming
+
+    # Wait for the streaming content to be fully received
+    response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Verify the conversation_metadata event is in the stream
+
+    assert '"type": "conversation_metadata"' in response_content
+
+    # Refresh and verify title was updated
+    conversation.refresh_from_db()
+
+    assert conversation.title == "GENERATED TITLE"
+    # title_set_by_user_at should remain None since it was auto-generated
+    assert not conversation.title_set_by_user_at
+
+    assert mock_openai_stream_with_title_generation.called
+    assert mock_openai_stream_with_title_generation.call_count == 2
+
+    # Verify TitleGenerationAgent was called
+    mock_title_agent.assert_called_once()
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@respx.mock
+def test_post_conversation_triggers_automatic_title_generation_at_threshold(
+    api_client, mock_openai_stream_with_title_generation, settings, history_conversation
+):
+    """
+    Test that posting the 3rd user message triggers automatic title generation.
+
+    AUTO_TITLE_AFTER_USER_MESSAGES = 3
+
+
+    The history_conversation fixture has 2 user messages. Posting a 3rd message
+    should trigger title generation via the TitleGenerationAgent.
+    """
+    # Configure the title generation threshold
+    settings.AUTO_TITLE_AFTER_USER_MESSAGES = 3
+
+    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
+    data = {
+        "messages": [
+            {
+                "id": "third-user-msg",
+                "role": "user",
+                "parts": [{"text": "Can you explain backpropagation?", "type": "text"}],
+                "content": "Can you explain backpropagation?",
+                "createdAt": "2025-07-25T10:36:00.000Z",
+            }
+        ]
+    }
+    api_client.force_login(history_conversation.owner)
+
+    history_conversation.title = "initial title"
+    history_conversation.save()
+
+    assert not history_conversation.title_set_by_user_at
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.get("Content-Type") == "text/event-stream"
+    assert response.streaming
+
+    # Wait for the streaming content to be fully received
+    response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Verify the conversation_metadata event is in the stream
+
+    assert '"type": "conversation_metadata"' in response_content
+
+    # Refresh and verify title was updated
+    history_conversation.refresh_from_db()
+
+    assert history_conversation.title == "GENERATED TITLE"
+    # title_set_by_user_at should remain None since it was auto-generated
+    assert not history_conversation.title_set_by_user_at
+
+    assert mock_openai_stream_with_title_generation.called
+    assert mock_openai_stream_with_title_generation.call_count == 2
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@respx.mock
+def test_post_conversation_does_not_regenerate_title_when_user_set(
+    api_client, mock_openai_stream_with_title_generation, settings, history_conversation
+):
+    """
+    Test that title is NOT regenerated if the user has manually set a title.
+    """
+    settings.AUTO_TITLE_AFTER_USER_MESSAGES = 3
+
+    # Simulate user having set a custom title
+    history_conversation.title = "My Custom Title"
+    history_conversation.title_set_by_user_at = timezone.now()
+    history_conversation.save()
+
+    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
+    data = {
+        "messages": [
+            {
+                "id": "third-user-msg",
+                "role": "user",
+                "parts": [{"text": "Can you explain backpropagation?", "type": "text"}],
+                "content": "Can you explain backpropagation?",
+                "createdAt": "2025-07-25T10:36:00.000Z",
+            }
+        ]
+    }
+    api_client.force_login(history_conversation.owner)
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+
+    # Consume the stream
+    response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # conversation_metadata should NOT be in the stream since title wasn't generated
+    assert "conversation_metadata" not in response_content
+
+    # Refresh and verify title was NOT changed
+    history_conversation.refresh_from_db()
+
+    assert history_conversation.title == "My Custom Title"
+    assert history_conversation.title_set_by_user_at
+
+    assert mock_openai_stream_with_title_generation.called
+    assert mock_openai_stream_with_title_generation.call_count == 1
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@respx.mock
+def test_post_conversation_does_not_generate_title_before_threshold(
+    api_client, mock_openai_stream_with_title_generation, settings
+):
+    """
+    Test that title is NOT generated before reaching the message threshold.
+    """
+    settings.AUTO_TITLE_AFTER_USER_MESSAGES = 3
+
+    # Create a conversation with only 1 user message
+    history_timestamp = timezone.now().replace(year=2025, month=6, day=15, hour=10, minute=30)
+    conversation = ChatConversationFactory(title="initial title")
+
+    conversation.messages = [
+        UIMessage(
+            id="prev-user-msg-1",
+            createdAt=history_timestamp,
+            content="Hello!",
+            reasoning=None,
+            experimental_attachments=None,
+            role="user",
+            annotations=None,
+            toolInvocations=None,
+            parts=[TextUIPart(type="text", text="Hello!")],
+        ),
+        UIMessage(
+            id="prev-assistant-msg-1",
+            createdAt=history_timestamp.replace(minute=31),
+            content="Hi there! How can I help you?",
+            reasoning=None,
+            experimental_attachments=None,
+            role="assistant",
+            annotations=None,
+            toolInvocations=None,
+            parts=[TextUIPart(type="text", text="Hi there! How can I help you?")],
+        ),
+    ]
+    conversation.save()
+
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
+    data = {
+        "messages": [
+            {
+                "id": "second-user-msg",
+                "role": "user",
+                "parts": [{"text": "What's machine learning?", "type": "text"}],
+                "content": "What's machine learning?",
+                "createdAt": "2025-07-25T10:36:00.000Z",
+            }
+        ]
+    }
+    api_client.force_login(conversation.owner)
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+
+    # Consume the stream
+    response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # conversation_metadata should NOT be in the stream (only 2 user messages)
+    assert "conversation_metadata" not in response_content
+
+    # Refresh and verify title was not updated
+    conversation.refresh_from_db()
+
+    assert conversation.title == "initial title"
+    assert not conversation.title_set_by_user_at
+
+    assert mock_openai_stream_with_title_generation.call_count == 1
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@respx.mock
+def test_post_conversation_does_not_generate_title_after_threshold(
+    api_client, mock_openai_stream_with_title_generation, settings, history_conversation
+):
+    """
+    Test that posting the 3rd user message does not trigger automatic title generation.
+
+    AUTO_TITLE_AFTER_USER_MESSAGES = 2
+
+    The history_conversation fixture has 2 user messages. Posting a 3rd message
+    should not trigger title generation.
+    """
+    # Configure the title generation threshold
+    settings.AUTO_TITLE_AFTER_USER_MESSAGES = 2
+
+    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
+    data = {
+        "messages": [
+            {
+                "id": "third-user-msg",
+                "role": "user",
+                "parts": [{"text": "Can you explain backpropagation?", "type": "text"}],
+                "content": "Can you explain backpropagation?",
+                "createdAt": "2025-07-25T10:36:00.000Z",
+            }
+        ]
+    }
+    api_client.force_login(history_conversation.owner)
+
+    history_conversation.title = "initial title"
+    history_conversation.save()
+
+    assert not history_conversation.title_set_by_user_at
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.get("Content-Type") == "text/event-stream"
+    assert response.streaming
+
+    # Wait for the streaming content to be fully received
+    response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Verify the conversation_metadata event is not in the stream
+
+    assert "conversation_metadata" not in response_content
+
+    # Refresh and verify title was NOT updated (past threshold)
+    history_conversation.refresh_from_db()
+
+    # title not updated
+    assert history_conversation.title == "initial title"
+    # title_set_by_user_at should remain None since it was auto-generated
+    assert not history_conversation.title_set_by_user_at
+
+    assert mock_openai_stream_with_title_generation.call_count == 1

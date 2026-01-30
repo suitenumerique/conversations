@@ -216,7 +216,8 @@ def fixture_mock_openai_stream():
 @responses.activate
 @respx.mock
 @freeze_time()
-def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def test_post_conversation_with_document_upload(
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
     mock_albert_api,  # pylint: disable=unused-argument
     sample_pdf_content,
@@ -353,53 +354,25 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
     assert len(chat_conversation.pydantic_messages) == 4
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
+
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": "When you receive a result from the summarization tool, you "
-        "MUST return it directly to the user without any "
-        "modification, paraphrasing, or additional summarization.The "
-        "tool already produces optimized summaries that should be "
-        "presented verbatim.You may translate the summary if "
-        "required, but you MUST preserve all the information from the "
-        "original summary.You may add a follow-up question after the "
-        "summary if needed.",
+        "instructions": "You are a helpful test assistant :)\n\n"
+        f"{today_promt_date}\n\n"
+        "Answer in english.\n\n"
+        "Use document_search_rag ONLY to retrieve specific passages from "
+        "attached documents. Do NOT use it to summarize; for summaries, "
+        "call the summarize tool instead.\n\nWhen you receive a result from the "
+        "summarization tool, you MUST return it directly to the user without "
+        "any modification, paraphrasing, or additional summarization."
+        "The tool already produces optimized summaries that should be "
+        "presented verbatim.You may translate the summary if required, "
+        "but you MUST preserve all the information from the original summary."
+        "You may add a follow-up question after the summary if needed.\n\n"
+        "[Internal context] User documents are attached to this conversation. "
+        "Do not request re-upload of documents; consider them already "
+        "available via the internal store.",
         "kind": "request",
         "parts": [
-            {
-                "content": "You are a helpful test assistant :)",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
-            {
-                "content": today_promt_date,
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
-            {
-                "content": "Answer in english.",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
-            {
-                "content": "Use document_search_rag ONLY to retrieve specific "
-                "passages from attached documents. Do NOT use it to "
-                "summarize; for summaries, call the summarize tool "
-                "instead.",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
-            {
-                "content": "[Internal context] User documents are attached to this "
-                "conversation. Do not request re-upload of documents; "
-                "consider them already available via the internal "
-                "store.",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
             {
                 "content": ["What does the document say?"],
                 "part_kind": "user-prompt",
@@ -439,14 +412,21 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
     }
     assert chat_conversation.pydantic_messages[2] == {
         "instructions": (
-            "When you receive a result from the summarization tool, you MUST "
-            "return it directly to the user without any modification, "
-            "paraphrasing, or additional summarization."
-            "The tool already produces optimized summaries that should "
-            "be presented verbatim."
-            "You may translate the summary if required, but you MUST preserve "
-            "all the information from the original summary."
-            "You may add a follow-up question after the summary if needed."
+            "You are a helpful test assistant :)\n\n"
+            f"{today_promt_date}\n\n"
+            "Answer in english.\n\n"
+            "Use document_search_rag ONLY to retrieve specific passages from "
+            "attached documents. Do NOT use it to summarize; for summaries, "
+            "call the summarize tool instead.\n\nWhen you receive a result from the "
+            "summarization tool, you MUST return it directly to the user without "
+            "any modification, paraphrasing, or additional summarization."
+            "The tool already produces optimized summaries that should be "
+            "presented verbatim.You may translate the summary if required, "
+            "but you MUST preserve all the information from the original summary."
+            "You may add a follow-up question after the summary if needed.\n\n"
+            "[Internal context] User documents are attached to this conversation. "
+            "Do not request re-upload of documents; consider them already "
+            "available via the internal store."
         ),
         "kind": "request",
         "parts": [
@@ -499,7 +479,8 @@ def test_post_conversation_with_document_upload(  # pylint: disable=too-many-arg
 @responses.activate
 @respx.mock
 @freeze_time("2025-07-25T10:36:35.297675Z")
-def test_post_conversation_with_document_upload_feature_disabled(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def test_post_conversation_with_document_upload_feature_disabled(
+    # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
     caplog,
     mock_openai_stream,  # pylint: disable=unused-argument
@@ -552,14 +533,12 @@ def test_post_conversation_with_document_upload_feature_disabled(  # pylint: dis
 
     # Replace UUIDs with placeholders for assertion
     response_content = replace_uuids_with_placeholder(response_content)
-
     assert response_content == (
         '0:"From the document, I can see that "\n'
         "0:\"it says 'Hello PDF'.\"\n"
         'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":150,"completionTokens":25}}\n'
     )
-
     # This behavior must be improved in the future to inform the user properly
     assert "Document upload feature is disabled, ignoring input documents." in caplog.text
 
@@ -582,6 +561,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     api_client.force_authenticate(user=chat_conversation.owner)
 
     pdf_base64 = base64.b64encode(sample_pdf_content.read()).decode("utf-8")
+
     message = UIMessage(
         id="1",
         role="user",
@@ -643,7 +623,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         'document discusses various topics."}\n'
         '0:"The document discusses various topics."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":317,"completionTokens":19}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":287,"completionTokens":19}}\n'
     )
 
     # Check that the conversation was updated
@@ -705,52 +685,25 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": "When you receive a result from the summarization tool, you "
-        "MUST return it directly to the user without any "
-        "modification, paraphrasing, or additional summarization.The "
-        "tool already produces optimized summaries that should be "
-        "presented verbatim.You may translate the summary if "
-        "required, but you MUST preserve all the information from the "
-        "original summary.You may add a follow-up question after the "
-        "summary if needed.",
+        "instructions": (
+            "You are a helpful test assistant :)\n\n"
+            f"{today_promt_date}\n\n"
+            "Answer in english.\n\n"
+            "Use document_search_rag ONLY to retrieve specific passages from "
+            "attached documents. Do NOT use it to summarize; for summaries, "
+            "call the summarize tool instead.\n\nWhen you receive a result from the "
+            "summarization tool, you MUST return it directly to the user without "
+            "any modification, paraphrasing, or additional summarization."
+            "The tool already produces optimized summaries that should be "
+            "presented verbatim.You may translate the summary if required, "
+            "but you MUST preserve all the information from the original summary."
+            "You may add a follow-up question after the summary if needed.\n\n"
+            "[Internal context] User documents are attached to this conversation. "
+            "Do not request re-upload of documents; consider them already "
+            "available via the internal store."
+        ),
         "kind": "request",
         "parts": [
-            {
-                "content": "You are a helpful test assistant :)",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
-            {
-                "content": today_promt_date,
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
-            {
-                "content": "Answer in english.",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
-            {
-                "content": "Use document_search_rag ONLY to retrieve specific "
-                "passages from attached documents. Do NOT use it to "
-                "summarize; for summaries, call the summarize tool "
-                "instead.",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
-            {
-                "content": "[Internal context] User documents are attached to this "
-                "conversation. Do not request re-upload of documents; "
-                "consider them already available via the internal "
-                "store.",
-                "dynamic_ref": None,
-                "part_kind": "system-prompt",
-                "timestamp": timezone_now,
-            },
             {
                 "content": ["Make a summary of this document."],
                 "part_kind": "user-prompt",
@@ -790,14 +743,21 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     }
     assert chat_conversation.pydantic_messages[2] == {
         "instructions": (
-            "When you receive a result from the summarization tool, you MUST "
-            "return it directly to the user without any modification, "
-            "paraphrasing, or additional summarization."
-            "The tool already produces optimized summaries that should "
-            "be presented verbatim."
-            "You may translate the summary if required, but you MUST preserve "
-            "all the information from the original summary."
-            "You may add a follow-up question after the summary if needed."
+            "You are a helpful test assistant :)\n\n"
+            f"{today_promt_date}\n\n"
+            "Answer in english.\n\n"
+            "Use document_search_rag ONLY to retrieve specific passages from "
+            "attached documents. Do NOT use it to summarize; for summaries, "
+            "call the summarize tool instead.\n\nWhen you receive a result from the "
+            "summarization tool, you MUST return it directly to the user without "
+            "any modification, paraphrasing, or additional summarization."
+            "The tool already produces optimized summaries that should be "
+            "presented verbatim.You may translate the summary if required, "
+            "but you MUST preserve all the information from the original summary."
+            "You may add a follow-up question after the summary if needed.\n\n"
+            "[Internal context] User documents are attached to this conversation. "
+            "Do not request re-upload of documents; consider them already "
+            "available via the internal store."
         ),
         "kind": "request",
         "parts": [

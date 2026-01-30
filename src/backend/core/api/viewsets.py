@@ -211,6 +211,7 @@ class ConfigView(drf.views.APIView):
             "LANGUAGE_CODE",
             "SENTRY_DSN",
             "FEATURE_FLAGS",
+            "FILE_UPLOAD_MODE",
         ]
         dict_settings = {}
         for setting in array_settings:

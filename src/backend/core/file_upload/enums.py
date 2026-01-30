@@ -20,3 +20,28 @@ class AttachmentStatus(StrEnum):
     def choices(cls):
         """Return a list of tuples for each enum member."""
         return [(member.value, member.name) for member in cls]
+
+
+class FileUploadMode(StrEnum):
+    """Defines the possible modes for file upload (from frontend) handling."""
+
+    PRESIGNED_URL = "presigned_url"
+    BACKEND_TO_S3 = "backend_to_s3"
+
+    @classmethod
+    def choices(cls):
+        """Return a list of tuples for each enum member."""
+        return [(member.value, member.name) for member in cls]
+
+
+class FileToLLMMode(StrEnum):
+    """Defines the possible modes to send file to the LLM."""
+
+    PRESIGNED_URL = "presigned_url"
+    BACKEND_BASE64 = "backend_base64"
+    BACKEND_TEMPORARY_URL = "backend_temporary_url"
+
+    @classmethod
+    def choices(cls):
+        """Return a list of tuples for each enum member."""
+        return [(member.value, member.name) for member in cls]

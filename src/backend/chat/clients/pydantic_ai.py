@@ -6,6 +6,7 @@ implementation while keeping the *exact* same public API so that no
 changes are needed in views.py or tests.
 """
 
+import asyncio
 import dataclasses
 import functools
 import json
@@ -52,10 +53,9 @@ from pydantic_ai.messages import (
 )
 
 from core.feature_flags.helpers import is_feature_enabled
-from core.file_upload.utils import generate_retrieve_policy
 
 from chat import models
-from chat.agents.conversation import ConversationAgent
+from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
 from chat.agents.local_media_url_processors import (
     update_history_local_urls,
     update_local_urls,
@@ -76,7 +76,10 @@ from chat.tools.document_generic_search_rag import add_document_rag_search_tool_
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize
 from chat.vercel_ai_sdk.core import events_v4, events_v5
-from chat.vercel_ai_sdk.encoder import EventEncoder
+from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
+
+# Keep at the top of the file to avoid mocking issues
+document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +122,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self._langfuse_available = settings.LANGFUSE_ENABLED
         self._store_analytics = self._langfuse_available and user.allow_conversation_analytics
-        self.event_encoder = EventEncoder("v4")  # Always use v4 for now
+        self.event_encoder = EventEncoder(CURRENT_EVENT_ENCODER_VERSION)  # We use v4 for now
 
         self._support_streaming = True
         if (streaming := get_model_configuration(self.model_hrid).supports_streaming) is not None:
@@ -236,6 +239,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         Parse and store input documents in the conversation's document store.
         """
         # Early external document URL rejection
+
         if any(
             not document.url.startswith("/media-key/")
             for document in documents
@@ -248,8 +252,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if isinstance(document, DocumentUrl)
         ):
             raise ValueError("Document URL does not belong to the conversation.")
-
-        document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
         document_store = document_store_backend(self.conversation.collection_id)
         if not document_store.collection_id:
@@ -272,7 +274,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     # Retrieve the document data
                     with default_storage.open(key, "rb") as file:
                         document_data = file.read()
-                    parsed_content = document_store.parse_and_store_document(
+                    # Run in thread to avoid blocking the event loop during parsing
+                    parsed_content = await asyncio.to_thread(
+                        document_store.parse_and_store_document,
                         name=document.identifier,
                         content_type=document.media_type,
                         content=document_data,
@@ -281,7 +285,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     # Remote URL
                     raise ValueError("External document URL are not accepted yet.")
             else:
-                parsed_content = document_store.parse_and_store_document(
+                # Run in thread to avoid blocking the event loop during parsing
+                parsed_content = await asyncio.to_thread(
+                    document_store.parse_and_store_document,
                     name=document.identifier,
                     content_type=document.media_type,
                     content=document.data,
@@ -420,6 +426,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     ],
                 },
             )
+
             try:
                 await self.parse_input_documents(input_documents)
             except Exception as exc:  # pylint: disable=broad-except
@@ -457,7 +464,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         if force_web_search:
 
-            @self.conversation_agent.system_prompt
+            @self.conversation_agent.instructions
             def force_web_search_prompt() -> str:
                 """Dynamic system prompt function to force web search."""
                 return (
@@ -468,27 +475,19 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         _tool_is_streaming = False
         _model_response_message_id = None
 
-        # Check for existing non-PDF documents in the conversation:
-        # - if no document at all: do nothing
-        # - if only PDFs: prepare document URLs for the agent
-        # - if other document types: add the RAG search tool
-        #   to allow searching in all kinds of documents
-        has_not_pdf_docs = await (
+        # Check for existing documents (any non-image attachment for this conversation)
+        has_documents = await (
             models.ChatConversationAttachment.objects.filter(
                 Q(conversion_from__isnull=True) | Q(conversion_from=""),
                 conversation=self.conversation,
             )
-            .exclude(
-                Q(content_type__startswith="image/") | Q(content_type="application/pdf"),
-            )
+            .exclude(content_type__startswith="image/")
             .aexists()
         )
 
-        document_urls = []
-        if not conversation_has_documents and not has_not_pdf_docs:
-            # No documents to process
-            pass
-        elif has_not_pdf_docs:
+        should_enable_rag = conversation_has_documents or has_documents
+
+        if should_enable_rag:
             add_document_rag_search_tool(self.conversation_agent)
 
             @self.conversation_agent.instructions
@@ -505,7 +504,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 )
 
             # Inform the model (system-level) that documents are attached and available
-            @self.conversation_agent.system_prompt
+            @self.conversation_agent.instructions
             def attached_documents_note() -> str:
                 return (
                     "[Internal context] User documents are attached to this conversation. "
@@ -518,30 +517,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             async def summarize(ctx: RunContext, *args, **kwargs) -> ToolReturn:
                 """Wrap the document_summarize tool to provide context and add the tool."""
                 return await document_summarize(ctx, *args, **kwargs)
-        else:
-            conversation_documents = [
-                cd
-                async for cd in models.ChatConversationAttachment.objects.filter(
-                    Q(conversion_from__isnull=True) | Q(conversion_from=""),
-                    conversation=self.conversation,
-                )
-                .exclude(
-                    content_type__startswith="image/",
-                )
-                .values_list("key", "content_type")
-            ]
-
-            for doc_key, doc_content_type in conversation_documents:
-                if doc_content_type == "application/pdf":
-                    _presigned_url = generate_retrieve_policy(doc_key)
-                    document_urls.append(
-                        DocumentUrl(
-                            url=_presigned_url,
-                            identifier=doc_key.split("/")[-1],
-                            media_type="application/pdf",
-                        )
-                    )
-                    image_key_mapping[_presigned_url] = f"/media-key/{doc_key}"
 
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
@@ -556,7 +531,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
 
             async with self.conversation_agent.iter(
-                [user_prompt] + input_images + document_urls,
+                [user_prompt] + input_images,
                 message_history=history,  # history will pass through agent's history_processors
                 deps=self._context_deps,
                 toolsets=mcp_servers,
@@ -717,8 +692,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         await self._agent_stop_streaming(force_cache_check=True)
 
-        # Persist conversation
-        await sync_to_async(self._update_conversation)(
+        # Prepare conversation update (save deferred until after potential title generation)
+        await sync_to_async(self._prepare_update_conversation)(
             final_output=run.result.new_messages(),
             usage=usage,
             final_output_from_tool=_final_output_from_tool,
@@ -727,11 +702,39 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             image_key_mapping=image_key_mapping or None,
         )
 
+        generated_title = None
+
+        # Auto-generate title after N user messages if not manually set
+        user_messages_count = sum(1 for msg in self.conversation.messages if msg.role == "user")
+
+        should_generate_title = (
+            user_messages_count == settings.AUTO_TITLE_AFTER_USER_MESSAGES
+            and not self.conversation.title_set_by_user_at
+        )
+
+        if should_generate_title:
+            if generated_title := await self._generate_title():
+                self.conversation.title = generated_title
+
+        # Persist conversation (including any generated title)
+        await sync_to_async(self.conversation.save)()
+
+        # Notify frontend about the title update
+        if generated_title:
+            yield events_v4.DataPart(
+                data=[
+                    {
+                        "type": "conversation_metadata",
+                        "conversationId": str(self.conversation.pk),
+                        "title": generated_title,
+                    }
+                ]
+            )
+
         if self._langfuse_available:
             langfuse.update_current_trace(
                 output=run.result.output if self._store_analytics else "REDACTED"
             )
-
         # Vercel finish message
         yield events_v4.FinishMessagePart(
             finish_reason=events_v4.FinishReason.STOP,
@@ -741,7 +744,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    def _update_conversation(  # noqa: PLR0913
+    def _prepare_update_conversation(  # noqa: PLR0913
         self,
         *,
         final_output: List[ModelRequest | ModelMessage],
@@ -808,4 +811,39 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")
         )
 
-        self.conversation.save()
+    async def _generate_title(self) -> str | None:
+        """Generate a title for the conversation using LLM based on first messages."""
+
+        # Build context from messages
+        # Note: We intentionally use only msg.content for title generation.
+        # Parts containing tool invocations or reasoning are excluded as they
+        # don't contribute to a meaningful context here
+        context = "\n".join(
+            f"{msg.role}: {(msg.content or '')[:300]}"  # Limit content length per message
+            for msg in self.conversation.messages
+            if msg.content
+        )
+
+        language = self.language or settings.LANGUAGE_CODE
+        prompt = (
+            "Generate a concise title (3-5 words, max 100 characters) for this conversation.\n\n"
+            "Requirements:\n"
+            "- Capture the main topic or user intent\n"
+            "- The title must be a simple string, no markdown\n"
+            "- Help the user quickly identify the conversation\n"
+            f"- Match the language of the user messages (default: {language})\n"
+            "- Avoid the word 'summary' unless explicitly requested\n\n"
+            "Output: Title text only, no quotes, labels, or explanation.\n\n"
+            f"Conversation:\n{context}"
+        )
+        try:
+            agent = TitleGenerationAgent()
+            result = await agent.run(prompt)
+            title = (result.output or "").strip()[:100]  # Enforce max length (conversation.title)
+            logger.info("Generated title for conversation %s: %s", self.conversation.pk, title)
+            return title if title else None
+        except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
+            logger.warning(
+                "Failed to generate title for conversation %s: %s", self.conversation.pk, exc
+            )
+            return None

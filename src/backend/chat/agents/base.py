@@ -10,7 +10,6 @@ import httpx
 from pydantic_ai import Agent
 from pydantic_ai.models import get_user_agent
 from pydantic_ai.profiles import ModelProfile
-from pydantic_ai.toolsets import FunctionToolset
 
 from chat.tools import get_pydantic_tools_by_name
 
@@ -174,22 +173,18 @@ class BaseAgent(Agent):
             # and pydantic_ai.models.infer_model()
             _model_instance = self.configuration.model_name
 
-        _system_prompt = self.configuration.system_prompt
-        _base_toolset = (
-            [
-                FunctionToolset(
-                    tools=[
-                        get_pydantic_tools_by_name(tool_name)
-                        for tool_name in self.configuration.tools
-                    ]
-                )
-            ]
-            if self.configuration.tools
-            else None
-        )
+        _system_prompt = self.get_system_prompt()
 
-        _tools = [get_pydantic_tools_by_name(tool_name) for tool_name in self.configuration.tools]
+        _tools = self.get_tools()
 
-        super().__init__(
-            model=_model_instance, system_prompt=_system_prompt, tools=_tools, **kwargs
-        )
+        super().__init__(model=_model_instance, instructions=_system_prompt, tools=_tools, **kwargs)
+
+    def get_system_prompt(self) -> str | None:
+        """Override this method to customize the system prompt."""
+        return self.configuration.system_prompt
+
+    def get_tools(self) -> list | None:
+        """Override this method to customize tools."""
+        if not self.configuration.tools:
+            return []
+        return [get_pydantic_tools_by_name(tool_name) for tool_name in self.configuration.tools]
