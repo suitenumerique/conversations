@@ -133,6 +133,7 @@ export const InputChatActions = memo(
         <Box
           $flex="1"
           $direction="row"
+          $align="end"
           $padding={STYLES.horizontalPadding}
           $gap="xs"
         >

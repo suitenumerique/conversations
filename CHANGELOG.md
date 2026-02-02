@@ -10,7 +10,7 @@ and this project adheres to
 
 ### Added
 
-- ✨(front) add ui kit
+- ✨(front) add ui kit #240
 - 🧱(files) allow to use S3 storage without external access #849
 
 ### Changed

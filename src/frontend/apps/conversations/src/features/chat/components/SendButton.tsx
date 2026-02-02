@@ -39,6 +39,7 @@ export const SendButton = ({
         <Button
           size="small"
           type="submit"
+          className="c__button--send"
           aria-label={t('Send')}
           disabled={disabled || status === 'error'}
           variant="primary"

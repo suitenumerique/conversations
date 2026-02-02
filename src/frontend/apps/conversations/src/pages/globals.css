@@ -138,6 +138,11 @@ nextjs-portal {
   background-color: inherit !important;
 }
 
+.c__button--send {
+  height: 24px !important;
+  width: 24px !important;
+}
+
 .feedbackButton {
   display: flex;
   text-decoration: none;
@@ -277,7 +282,9 @@ ul a:hover {
 
 .c__button--background,
 .c__button--background:hover {
-  background-color: var(--c--contextuals--background--surface--primary);
+  background-color: var(
+    --c--contextuals--background--surface--primary
+  ) !important;
 }
 
 @media screen and (width <= 420px) {

@@ -101,6 +101,9 @@ export const QuickSearchInput = ({
               border: none;
               outline: none;
             }
+            &::placeholder {
+              color: var(--c--contextuals--content--semantic--neutral--tertiary);
+            }
           }
         `}
       >
