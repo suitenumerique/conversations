@@ -39,12 +39,12 @@ const BoxButton = forwardRef<HTMLDivElement, BoxButtonType>(
           font-family: inherit;
 
           color: ${props.disabled
-            ? 'var(--c--theme--colors--greyscale-400) !important'
+            ? 'var(--c--theme--colors--gray-400) !important'
             : 'inherit'};
           ${$css || ''}
         `}
         {...props}
-        className={`--docs--box-button ${props.className || ''}`}
+        className={`--conversations--box-button ${props.className || ''}`}
         onClick={(event: React.MouseEvent<HTMLDivElement>) => {
           if (props.disabled) {
             return;

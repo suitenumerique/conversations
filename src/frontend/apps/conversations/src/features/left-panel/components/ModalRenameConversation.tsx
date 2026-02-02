@@ -57,14 +57,16 @@ export const ModalRenameConversation = ({
         <>
           <Button
             aria-label={t('Close the modal')}
-            color="tertiary"
+            color="brand"
+            variant="bordered"
             onClick={() => onClose()}
           >
             {t('Cancel')}
           </Button>
           <Button
             aria-label={t('Rename chat')}
-            color="primary"
+            color="brand"
+            variant="primary"
             type="submit"
             form="rename-chat-form"
           >

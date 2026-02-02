@@ -19,39 +19,36 @@ const linkStyles = css`
   color: var(--c--theme--colors--greyscale-900);
 `;
 
-const baseBoxStyles = css`
+const getBoxStyles = (
+  isCurrentConversation: boolean,
+  isDesktop: boolean,
+) => css`
   border-radius: 4px;
   width: 100%;
   margin-bottom: 1px;
-
+  background-color: ${isCurrentConversation
+    ? 'var(--c--contextuals--background--semantic--overlay--primary)'
+    : ''};
+  font-weight: ${isCurrentConversation ? '700' : '500'};
   transition: background-color 0.2s cubic-bezier(1, 0, 0, 1);
-
+  .pinned-actions {
+    padding: 2px 0;
+    opacity: ${isDesktop ? 0 : 1};
+    background-color: transparent;
+    transition: all 0.3s cubic-bezier(1, 0, 0, 1);
+  }
   &:hover,
   &:focus,
   &:focus-within {
-    background-color: #ebedf1;
+    background-color: var(
+      --c--contextuals--background--semantic--overlay--primary
+    );
     .pinned-actions {
       opacity: 1;
     }
   }
   .pinned-actions:focus-within {
     opacity: 1;
-  }
-`;
-
-const getBoxStyles = (
-  isCurrentConversation: boolean,
-  isDesktop: boolean,
-) => css`
-  ${baseBoxStyles}
-  background-color: ${isCurrentConversation ? '#ebedf1' : 'transparent'};
-  font-weight: ${isCurrentConversation ? '700' : '500'};
-
-  .pinned-actions {
-    padding: 2px 0;
-    opacity: ${isDesktop ? 0 : 1};
-    background-color: transparent;
-    transition: all 0.3s cubic-bezier(1, 0, 0, 1);
   }
 `;
 

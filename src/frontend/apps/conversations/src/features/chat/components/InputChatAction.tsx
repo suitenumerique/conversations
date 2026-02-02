@@ -49,7 +49,8 @@ const MOBILE_WEB_BUTTON_CSS = `
 
 const ACTIVE_WEB_BUTTON_CSS = `
   .research-web-button {
-    background-color: var(--c--theme--colors--primary-100) !important;
+    background-color: var(--c--contextuals--background--semantic--brand--secondary) !important;
+    color: var(--c--contextuals--content--semantic--brand--secondary) !important;
   }
 `;
 
@@ -132,51 +133,36 @@ export const InputChatActions = memo(
         <Box
           $flex="1"
           $direction="row"
+          $align="end"
           $padding={STYLES.horizontalPadding}
           $gap="xs"
         >
           {/* Attach file button */}
           <Button
-            size="small"
+            size="nano"
             type="button"
+            color="neutral"
+            className="c__button--neutral"
+            variant="tertiary"
             disabled={!fileUploadEnabled || isUploadingFiles}
             onClick={onAttachClick}
             aria-label={t('Add attach file')}
-            className="c__button--neutral attach-file-button"
-            icon={
-              <Icon
-                iconName="attach_file"
-                $theme="greyscale"
-                $variation="550"
-                $size={attachIconSize}
-              />
-            }
+            icon={<Icon iconName="attach_file" $size={attachIconSize} />}
           >
-            {!isMobile && (
-              <Text $theme="greyscale" $variation="550" $weight="500">
-                {t('Attach file')}
-              </Text>
-            )}
+            {!isMobile && <Text $weight="500">{t('Attach file')}</Text>}
           </Button>
 
           {/* Web search toggle button */}
           {onWebSearchToggle && (
             <Box $margin={STYLES.webSearchMargin} $css={webSearchWrapperCss}>
               <Button
-                size="small"
+                size="nano"
                 type="button"
                 disabled={!webSearchEnabled || isUploadingFiles}
                 onClick={onWebSearchToggle}
                 aria-label={t('Research on the web')}
                 className="c__button--neutral research-web-button"
-                icon={
-                  <Icon
-                    iconName="language"
-                    $theme="greyscale"
-                    $variation="550"
-                    $css={webSearchIconCss}
-                  />
-                }
+                icon={<Icon iconName="language" $css={webSearchIconCss} />}
               >
                 {!isMobile && (
                   <Text
@@ -193,13 +179,18 @@ export const InputChatActions = memo(
                     $gap="xs"
                     $css={MOBILE_TEXT_WRAPPER_CSS}
                   >
-                    <Text $theme="primary" $weight="500" $css={MOBILE_TEXT_CSS}>
+                    <Text
+                      $theme="brand"
+                      $variation="secondary"
+                      $weight="500"
+                      $css={MOBILE_TEXT_CSS}
+                    >
                       {t('Web')}
                     </Text>
                     <Icon
                       iconName="close"
-                      $variation="text"
-                      $theme="primary"
+                      $theme="brand"
+                      $variation="secondary"
                       $size="md"
                       $css={CLOSE_ICON_CSS}
                     />
@@ -211,7 +202,12 @@ export const InputChatActions = memo(
         </Box>
 
         {/* Right side: Model selector + Send */}
-        <Box $direction="row" $padding={STYLES.horizontalPadding} $gap="xs">
+        <Box
+          $direction="row"
+          $align="center"
+          $padding={STYLES.horizontalPadding}
+          $gap="xs"
+        >
           {onModelSelect && (
             <Box $padding={STYLES.horizontalPaddingXs}>
               <ModelSelector

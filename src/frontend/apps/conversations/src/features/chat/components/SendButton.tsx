@@ -39,28 +39,23 @@ export const SendButton = ({
         <Button
           size="small"
           type="submit"
+          className="c__button--send"
           aria-label={t('Send')}
           disabled={disabled || status === 'error'}
-          color="primary"
-          icon={
-            <Icon
-              $variation="800"
-              $theme="primary-text"
-              iconName="arrow_upward"
-            />
-          }
+          variant="primary"
+          icon={<Icon $theme="primary-text" iconName="arrow_upward" />}
         />
       ) : (
         <Button
-          size="small"
+          size="nano"
           type="button"
           aria-label={t('Stop')}
           disabled={false}
           onClick={onClick}
-          className="c__button--stop"
+          className="c__button--stop bg-semantic-neutral-primary"
           icon={<StopIcon />}
         >
-          <Text $theme="greyscale" $variation="000">
+          <Text $theme="neutral" $variation="on-neutral">
             {t('Stop')}
           </Text>
         </Button>

@@ -15,10 +15,9 @@ export const QuickSearchStyle = createGlobalStyle`
 
   [cmdk-input] {
     border: none;
-
-    &::placeholder {
+    input::placeholder {
       font-size: 14px;
-      color: #626A80;
+      color: var(--c--contextuals--content--semantic--neutral--tertiary) !important;
     }
   }
 
@@ -41,14 +40,14 @@ export const QuickSearchStyle = createGlobalStyle`
 
     &:hover,
     &[data-selected='true'] {
-      background: var(--c--theme--colors--greyscale-100);
+      background: var(--c--theme--colors--gray-100);
       .show-right-on-focus {
         opacity: 1;
       }
     }
 
     &[data-disabled='true'] {
-      color: var(--c--theme--colors--greyscale-500);
+      color: var(--c--theme--colors--gray-500);
       cursor: not-allowed;
     }
 
@@ -79,7 +78,7 @@ export const QuickSearchStyle = createGlobalStyle`
       height: 20px;
       border-radius: 4px;
       color: white;
-      background: var(--c--theme--colors--greyscale-500);
+      background: var(--c--contextuals--content--semantic--neutral--tertiary);
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -102,7 +101,7 @@ export const QuickSearchStyle = createGlobalStyle`
     padding: 0 var(--c--theme--spacings--xs);
     user-select: none;
     font-size: 12px;
-    color: var(--c--theme--colors--greyscale-700);
+    color: var(--c--theme--colors--gray-700);
     font-weight: 700;;
     margin-bottom: var(--c--theme--spacings--xs);
   }

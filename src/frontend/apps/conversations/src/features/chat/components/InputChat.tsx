@@ -62,9 +62,9 @@ const CONTAINER_CSS = `
 const INPUT_BOX_CSS = `
   box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.08);
   border-radius: 12px;
-  border: 1px solid var(--c--theme--colors--greyscale-200);
+  border: 1px solid var(--c--contextuals--border--surface--primary);
   position: relative;
-  background: white;
+  background: var(--c--contextuals--background--surface--primary);
   transition: all 0.2s ease;
   `;
 
@@ -72,10 +72,10 @@ const FILE_DROP_CSS = `
                 top: -1px; left: -1px;
                 border-radius: 12px;
                 z-index: 1001;
-                background-color: #EDF0FF;
+                background-color: var(--c--contextuals--background--semantic--brand--tertiary);
                 width: 100%;
                 height: 100%;
-                outline: 2px solid #90A7FF;
+                outline: 2px solid var(--c--contextuals--border--semantic--brand--secondary);
                 box-shadow: 0 0 64px 0 rgba(62, 93, 231, 0.25);
                 `;
 const DRAG_FADE_CSS = `
@@ -90,7 +90,7 @@ const DRAG_FADE_CSS = `
           `;
 
 const TEXTAREA_STYLE: React.CSSProperties = {
-  padding: '1rem 1.5rem',
+  padding: '1rem 1.5rem 0.5rem 1.5rem',
   background: 'transparent',
   outline: 'none',
   fontSize: '1rem',
@@ -421,10 +421,16 @@ export const InputChat = ({
                 >
                   <FilesIcon />
                   <Box>
-                    <Text $weight="700" $color="#223E9E">
+                    <Text
+                      $weight="700"
+                      $color="var(--c--contextuals--border--semantic--brand--primary)"
+                    >
                       {t('Add file')}
                     </Text>
-                    <Text $weight="400" $color="#223E9E">
+                    <Text
+                      $weight="400"
+                      $color="var(--c--contextuals--border--semantic--brand--primary)"
+                    >
                       {t('To add a file to the conversation, drop it here.')}
                     </Text>
                   </Box>

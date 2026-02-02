@@ -43,10 +43,10 @@ export const Header = () => {
         justify-content: space-between;
         height: ${isDesktop ? HEADER_HEIGHT : '52'}px;
         padding: 0 ${spacingsTokens['base']};
-        background-color: ${colorsTokens['greyscale-000']};
+        background-color: var(--c--contextuals--background--surface--secondary);
         border-bottom: ${isAtTop
           ? `1px solid transparent`
-          : `1px solid ${colorsTokens['greyscale-100']}`};
+          : `1px solid var(--c--contextuals--border--surface--primary)`};
         transition: border-bottom 0.2s ease;
       `}
       className="--docs--header"
@@ -64,7 +64,7 @@ export const Header = () => {
           <Logo
             aria-label={t('{{productName}} Logo', { productName })}
             width={139}
-            color={colorsTokens['primary-text']}
+            color={colorsTokens['logo-1-light']}
           />
         </StyledLink>
         <Box className="c__button--feedback">{isDesktop && <Feedback />}</Box>
@@ -79,7 +79,8 @@ export const Header = () => {
             }}
             className="mobile-no-focus"
             aria-label={t('New chat')}
-            color="primary-text"
+            color="brand"
+            variant="tertiary"
             icon={<NewChatIcon />}
           />
         </Box>

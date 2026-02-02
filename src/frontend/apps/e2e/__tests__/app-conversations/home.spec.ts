@@ -16,7 +16,7 @@ test.describe('Home page', () => {
     const footer = page.locator('footer').first();
     await expect(header).toBeVisible();
     await expect(
-      header.getByRole('button', { name: /Language/ }),
+      header.getByRole('button', { name: 'Select language' }),
     ).toBeVisible();
     await expect(
       header.getByRole('img', { name: 'Assistant logo' }),
@@ -55,10 +55,10 @@ test.describe('Home page', () => {
     const footer = page.locator('footer').first();
     await expect(header).toBeVisible();
     await expect(
-      header.getByRole('button', { name: /Language/ }),
+      header.getByRole('button', { name: 'Select language' }),
     ).toBeVisible();
     await expect(
-      header.getByRole('button', { name: 'Les services de La Suite numé' }),
+      header.getByRole('button', { name: 'Les services de LaSuite' }),
     ).toBeVisible();
     await expect(
       header.getByRole('img', { name: 'Gouvernement Logo' }),

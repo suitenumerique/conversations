@@ -5,6 +5,7 @@ import styled, { css } from 'styled-components';
 
 import { Box, StyledLink, Text } from '@/components/';
 import { useConfig } from '@/core/config';
+import { useCunninghamTheme } from '@/cunningham';
 
 import { Title } from '../header';
 
@@ -24,7 +25,12 @@ export const Footer = () => {
   const footerJson = config?.theme_customization?.footer;
   const { i18n, t } = useTranslation();
   const resolvedLanguage = i18n.resolvedLanguage;
+  const { componentTokens } = useCunninghamTheme();
   const [content, setContent] = useState<ContentType>();
+
+  const themeLogo = (componentTokens as Record<string, unknown>).logo as
+    | { src: string; alt: string; widthHeader: string; widthFooter: string }
+    | undefined;
 
   useEffect(() => {
     if (!footerJson) {
@@ -34,7 +40,15 @@ export const Footer = () => {
     const langData = footerJson[resolvedLanguage as keyof typeof footerJson];
     const innerContent: ContentType = {};
 
-    innerContent.logo = langData?.logo || footerJson?.default?.logo;
+    // Use theme logo if available (for DSFR theme), otherwise use config logo
+    innerContent.logo = themeLogo?.src
+      ? {
+          src: themeLogo.src,
+          alt: themeLogo.alt,
+          width: themeLogo.widthFooter,
+          withTitle: false,
+        }
+      : langData?.logo || footerJson?.default?.logo;
     innerContent.legalLinks =
       langData?.legalLinks || footerJson?.default?.legalLinks;
     innerContent.externalLinks =
@@ -47,7 +61,7 @@ export const Footer = () => {
         : footerJson?.default?.bottomInformation;
 
     setContent(innerContent);
-  }, [footerJson, resolvedLanguage]);
+  }, [footerJson, resolvedLanguage, themeLogo]);
 
   const { logo, legalLinks, externalLinks, bottomInformation } = content || {};
 
@@ -151,8 +165,9 @@ export const Footer = () => {
                 `}
               >
                 <Text
-                  $variation="600"
+                  $variation="secondary"
                   $size="m"
+                  $theme="neutral"
                   $transition="box-shadow 0.3s"
                   $css={css`
                     &:hover {
@@ -171,7 +186,8 @@ export const Footer = () => {
             as="p"
             $size="m"
             $margin={{ top: 'big' }}
-            $variation="600"
+            $variation="secondary"
+            $theme="neutral"
             $display="inline"
             className="--docs--footer-licence"
           >
@@ -187,7 +203,9 @@ export const Footer = () => {
                   gap: 0.2rem;
                 `}
               >
-                <Text $variation="600">{bottomInformation.link.label}</Text>
+                <Text $variation="tertiary" $theme="neutral">
+                  {bottomInformation.link.label}
+                </Text>
                 <IconLink width={14} />
               </StyledLink>
             )}

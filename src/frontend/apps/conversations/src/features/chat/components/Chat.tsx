@@ -620,6 +620,7 @@ export const Chat = ({
           flex-basis: auto;
           height: 100%;
           flex-grow: 1;
+          z-index: 1;
         `}
     >
       <Box
@@ -689,16 +690,12 @@ export const Chat = ({
                         </Box>
                       )}
                     <Box
-                      $radius="8px"
-                      $width={`${message.role === 'user' ? 'auto' : '100%'}`}
-                      $maxWidth="100%"
-                      $padding={`${message.role === 'user' ? '12px' : '0'}`}
-                      $margin={{ vertical: 'base' }}
-                      $background={`${message.role === 'user' ? '#EEF1F4' : 'white'}`}
-                      $css={`
-                      display: inline-block;
-                      float: right;
-                      ${shouldApplyStreamingHeight ? `min-height: ${streamingMessageHeight}px;` : ''}`}
+                      className={`chatMessage ${message.role === 'user' ? 'chatMessage--user' : 'chatMessage--assistant'}`}
+                      style={
+                        shouldApplyStreamingHeight
+                          ? { minHeight: `${streamingMessageHeight}px` }
+                          : undefined
+                      }
                     >
                       {/* Message content */}
                       {message.content && (
@@ -832,19 +829,22 @@ export const Chat = ({
                           status === 'streaming'
                         ) && (
                           <Box
-                            $css="color: #222631; font-size: 12px;"
+                            $css="font-size: 12px;"
                             $direction="row"
                             $align="center"
+                            className="clr-content-semantic-neutral-secondary"
                             $justify="space-between"
                             $gap="6px"
                             $margin={{ top: 'base' }}
                           >
                             <Box $direction="row" $gap="4px">
                               <Box
+                                $theme="neutral"
+                                $variation="secondary"
                                 $direction="row"
                                 $align="center"
                                 $gap="4px"
-                                className="c__button--neutral action-chat-button"
+                                className="c__button c__button--brand c__button--brand--tertiary c__button--nano clr-content-semantic-neutral-secondary"
                                 onClick={() => copyToClipboard(message.content)}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' || e.key === ' ') {
@@ -857,13 +857,11 @@ export const Chat = ({
                               >
                                 <Icon
                                   iconName="content_copy"
-                                  $theme="greyscale"
                                   $variation="550"
                                   $size="16px"
-                                  className="action-chat-button-icon"
                                 />
                                 {!isMobile && (
-                                  <Text $theme="greyscale" $variation="550">
+                                  <Text $theme="neutral" $variation="secondary">
                                     {t('Copy')}
                                   </Text>
                                 )}
@@ -881,7 +879,7 @@ export const Chat = ({
                                       $direction="row"
                                       $align="center"
                                       $gap="4px"
-                                      className={`c__button--neutral action-chat-button ${isSourceOpen === message.id ? 'action-chat-button--open' : ''}`}
+                                      className={`c__button c__button--brand c__button--brand--tertiary c__button--nano ${isSourceOpen === message.id ? 'action-chat-button--open' : ''}`}
                                       onClick={() => openSources(message.id)}
                                       onKeyDown={(e) => {
                                         if (
@@ -989,7 +987,7 @@ export const Chat = ({
           position: relative;
           bottom: ${isMobile ? '8px' : '20px'};
           margin: auto;
-          background-color: white;
+          background-color: var(--c--contextuals--background--surface--secondary);
           z-index: 1000;
         `}
         $gap="6px"

@@ -232,13 +232,21 @@ export const ActivationPage = () => {
                           width: 100%;
                           height: 40px;
                           padding: 6px 8px;
-                          border: 1px solid ${error ? 'var(--c--theme--colors--danger-600)' : 'var(--c--theme--colors--greyscale-150)'};
+                          border: 1px solid ${
+                            error
+                              ? 'var(--c--contextuals--border--semantic--error--primary)'
+                              : 'var(--c--contextuals--border--semantic--neutral--tertiary)'
+                          };
                           border-radius: 4px;
-                          fontSize: 14px;
+                          font-size: 14px;
                           outline: none;
-                          
+
                           &:focus {
-                            border: 1px solid ${error ? 'var(--c--theme--colors--danger-600)' : 'var(--c--theme--colors--greyscale-150)'};
+                            border: 1px solid ${
+                              error
+                                ? 'var(--c--contextuals--border--semantic--error--primary)'
+                                : 'var(--c--contextuals--border--semantic--neutral--tertiary)'
+                            };
                             box-shadow: none;
                           }
                         }
@@ -258,8 +266,8 @@ export const ActivationPage = () => {
                     {error && (
                       <Text
                         $size="xs"
-                        $theme="danger"
-                        $variation="600"
+                        $theme="error"
+                        $variation="tertiary"
                         $margin={{ top: '4px' }}
                       >
                         {error}
@@ -270,7 +278,7 @@ export const ActivationPage = () => {
                   <Button
                     type="submit"
                     fullWidth={isDesktop ? false : true}
-                    color="primary"
+                    color="brand"
                     icon={<IconKey />}
                     disabled={isSubmitting || !code.trim()}
                     style={{
@@ -360,14 +368,15 @@ export const ActivationPage = () => {
             <Box $direction="column" $gap="1rem" $justify="flex-end">
               <Button
                 fullWidth
-                color="primary"
+                color="brand"
                 onClick={handleNotificationRegister}
               >
                 {t('Notify me')}
               </Button>
               <Button
                 fullWidth
-                color="tertiary"
+                color="neutral"
+                variant="bordered"
                 onClick={() => {
                   setIsNotifyModalOpen(false);
                 }}
@@ -442,8 +451,8 @@ export const ActivationPage = () => {
                     <Text
                       $size="xs"
                       $weight="700"
-                      $theme="primary"
-                      $variation="650"
+                      $theme="brand"
+                      $variation="primary"
                       $align="center"
                     >
                       {app.name}

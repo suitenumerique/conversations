@@ -31,7 +31,7 @@ export const SimpleConversationItem = memo(function SimpleConversationItem({
   showAccesses: _showAccesses = false,
 }: SimpleConversationItemProps) {
   const { t } = useTranslation();
-  const { spacingsTokens, colorsTokens } = useCunninghamTheme();
+  const { spacingsTokens } = useCunninghamTheme();
   const title = conversation.title || t('Untitled conversation');
 
   return (
@@ -47,10 +47,7 @@ export const SimpleConversationItem = memo(function SimpleConversationItem({
         $css={bubbleContainerStyles}
         $padding={`${spacingsTokens['3xs']} 0`}
       >
-        <BubbleIcon
-          aria-label={t('Simple chat icon')}
-          color={colorsTokens['primary-500']}
-        />
+        <BubbleIcon aria-label={t('Simple chat icon')} color="brand" />
       </Box>
       <Box $justify="center" $overflow="auto">
         <Text

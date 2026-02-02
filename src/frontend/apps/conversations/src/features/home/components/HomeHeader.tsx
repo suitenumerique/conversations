@@ -20,9 +20,12 @@ export const getHeaderHeight = (isSmallMobile: boolean) =>
 
 export const HomeHeader = () => {
   const { t } = useTranslation();
-  const { themeTokens, spacingsTokens, colorsTokens } = useCunninghamTheme();
-  const logo = themeTokens.logo;
+  const { spacingsTokens, colorsTokens, componentTokens } =
+    useCunninghamTheme();
   const { isSmallMobile, isDesktop } = useResponsiveStore();
+  const logo = (componentTokens as Record<string, unknown>).logo as
+    | { src: string; alt: string; widthHeader: string; widthFooter: string }
+    | undefined;
 
   return (
     <Box
@@ -67,7 +70,7 @@ export const HomeHeader = () => {
           <Logo
             aria-label={t('{{productName}} Logo', { productName })}
             width={139}
-            color={colorsTokens['primary-text']}
+            color={colorsTokens['logo-1-light']}
           />
         </Box>
         {isDesktop && <Feedback />}

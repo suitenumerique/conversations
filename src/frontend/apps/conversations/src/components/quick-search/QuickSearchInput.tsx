@@ -77,34 +77,38 @@ export const QuickSearchInput = ({
           justify-content: space-between;
           border-radius: 4px;
           margin: 12px 12px 0 12px;
-          border: 1px solid #CFD5DE;
-          background-color: #eff1f5;
+          border: 1px solid var(--c--contextuals--border--semantic--neutral--tertiary);
+          background-color: var(--c--contextuals--background--semantic--neutral--tertiary);
           padding: 6px 8px;
           cursor: pointer !important;
           transition: border-color 0.2s ease;
           &:hover {
-            border: 2px solid #CFD5DE;
+            border: 2px solid var(--c--contextuals--border--semantic--neutral--tertiary);
             padding: 5px 7px;
           }
           &:focus-within {
-            border: 2px solid #3E5DE7;
+            border: 2px solid var(--c--contextuals--border--semantic--brand--primary);
             padding: 5px 7px;
           }
           & input {
             font-family: 'Marianne' !important;
             border: none;
             font-size: 0.9rem;
+            color: var(--c--contextuals--content--semantic--neutral--primary);
             font-weight: 400;
             background-color: transparent;
             &:focus {
               border: none;
               outline: none;
             }
+            &::placeholder {
+              color: var(--c--contextuals--content--semantic--neutral--tertiary);
+            }
           }
         `}
       >
         <Box $direction="row" $gap="6px">
-          <Icon iconName="search" $variation="600" />
+          <Icon iconName="search" $theme="neutral" $variation="tertiary" />
           <Command.Input
             aria-label={t('Quick search input')}
             value={localValue}
@@ -132,10 +136,10 @@ export const QuickSearchInput = ({
               padding: 7px;
               z-index: 1000;
               &:hover {
-                background-color: #e4e6ea;
+                background-color: var(--c--contextuals--background--semantic--neutral--secondary);
               }
               &:focus-visible {
-                outline: 2px solid #3E5DE7;
+                outline: 2px solid var(--c--contextuals--border--semantic--brand--primary);
                 outline-offset: 2px;
               }`}
         >

@@ -5,7 +5,7 @@ import { Box, StyledLink } from '@/components';
 
 const styles: Record<string, React.CSSProperties> = {
   title: {
-    color: '#222631',
+    color: 'var(--c--contextuals--content--semantic--neutral--primary)',
     fontWeight: '500',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
@@ -173,10 +173,10 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
                 text-overflow: ellipsis;
                 background-color: transparent;
                 transition: background-color 0.3s;
-                color: var(--c--theme--colors--greyscale-500);
+                color: var(--c--contextuals--content--semantic--neutral--tertiary);
                 &:hover {
-                  color: var(--c--theme--colors--greyscale-700);
-                  background-color: #EEF1F4;
+                  color: var(--c--contextuals--content--semantic--neutral--tertiary);
+                  background-color: var(--c--contextuals--background--semantic--neutral--tertiary);
                 }
             `}
           >
