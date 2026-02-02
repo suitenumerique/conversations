@@ -67,6 +67,7 @@ dependencies = [
     "trafilatura==2.0.0",
     "uvicorn==0.38.0",
     "whitenoise==6.11.0",
+    "pypdf>=6.6.2",
 ]
 
 [project.urls]

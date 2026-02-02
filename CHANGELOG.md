@@ -16,6 +16,7 @@ and this project adheres to
 - 🧱(files) allow to use S3 storage without external access #849
 - ✨(backend) add FindRagBackend #209
 - ⬆️(back) update dependencies
+- ✨(back) Use adaptive parsing for pdf documents
 
 ### Changed
 
