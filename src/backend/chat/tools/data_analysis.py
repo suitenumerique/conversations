@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 
 async def data_analysis(ctx: RunContext, query: str) -> ToolReturn:
     """
-    Call this tool to perform a data analysis.
+    Call this tool to perform a data analysis or draw a plot from a file and data.
+    When asking for a plot and if the user made no specific instructions, add to the query that the plot should be elegant and easy to read, with harmonious colors.
 
     Args:
         query: The query to perform the data analysis/To plot stuff or compute stuff from files and data.
