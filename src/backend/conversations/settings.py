@@ -1096,6 +1096,24 @@ USER QUESTION:
                 "Please set FILE_BACKEND_URL to a valid URL for backend temporary file access."
             )
 
+        # Find configuration
+        if (
+            cls.RAG_DOCUMENT_SEARCH_BACKEND
+            == "chat.agent_rag.document_rag_backends.find_rag_backend.FindRagBackend"
+            and not all(
+                (
+                    cls.FIND_API_KEY,
+                    cls.FIND_API_URL,
+                    cls.OIDC_STORE_ACCESS_TOKEN,
+                    cls.OIDC_STORE_REFRESH_TOKEN,
+                )
+            )
+        ):
+            raise ValueError(
+                f"{cls.RAG_DOCUMENT_SEARCH_BACKEND} requires FIND_API_KEY, FIND_API_URL, "
+                "OIDC_STORE_ACCESS_TOKEN and OIDC_STORE_REFRESH_TOKEN to be set."
+            )
+
         # Langfuse initialization
         if cls.LANGFUSE_ENABLED:
             if not cls.LANGFUSE_MEDIA_UPLOAD_ENABLED:

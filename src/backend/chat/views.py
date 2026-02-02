@@ -37,6 +37,19 @@ from chat.serializers import ChatConversationRequestSerializer
 logger = logging.getLogger(__name__)
 
 
+def conditional_refresh_oidc_token(func):
+    """
+    Conditionally apply refresh_oidc_access_token decorator.
+
+    The decorator is only applied if OIDC_STORE_REFRESH_TOKEN is True, meaning
+    we can actually refresh something. Broader settings checks are done in settings.py.
+    """
+    if settings.OIDC_STORE_REFRESH_TOKEN:
+        return method_decorator(refresh_oidc_access_token)(func)
+
+    return func
+
+
 class ChatConversationFilter(filters.BaseFilterBackend):
     """Filter conversation."""
 
@@ -128,7 +141,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             self.permission_classes = []
         return super().get_permissions()
 
-    @method_decorator(refresh_oidc_access_token)
+    @conditional_refresh_oidc_token
     @decorators.action(
         methods=["post"],
         detail=True,

@@ -2,12 +2,18 @@
 
 import logging
 from contextlib import ExitStack, contextmanager
+from importlib import reload
 from unittest.mock import patch
 
+from django.urls import clear_url_caches, set_urlconf
 from django.utils import formats, timezone
 
 import pytest
 
+import core.urls
+
+import chat.views
+import conversations.urls
 from chat.agents.summarize import SummarizationAgent
 from chat.clients.pydantic_ai import AIAgentService
 
@@ -90,3 +96,35 @@ PIXEL_PNG = (
     b"\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe"
     b"\xa7V\xbd\xfa\x00\x00\x00\x00IEND\xaeB`\x82"
 )
+
+
+@pytest.fixture(name="oidc_refresh_token_enabled")
+def fixture_oidc_refresh_token_enabled(settings):
+    """
+    Fixture to enable OIDC refresh token storage during the test.
+
+    This is not a nice fixture, as it forces reloading views and URL configurations.
+    Maybe there is a better way to do this, because even the conditional_refresh_oidc_token
+    function is not nice, but I don't want it to be lazy either.
+    """
+    __initial_value = bool(settings.OIDC_STORE_REFRESH_TOKEN)
+
+    settings.OIDC_STORE_REFRESH_TOKEN = True
+
+    # force view reload
+    reload(chat.views)
+    reload(core.urls)
+    reload(conversations.urls)
+    clear_url_caches()
+    set_urlconf(None)
+
+    yield settings
+
+    settings.OIDC_STORE_REFRESH_TOKEN = __initial_value
+
+    # force view reload
+    reload(chat.views)
+    reload(core.urls)
+    reload(conversations.urls)
+    clear_url_caches()
+    set_urlconf(None)
