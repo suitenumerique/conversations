@@ -78,10 +78,10 @@ def ai_settings(request, settings):
 @pytest.fixture(autouse=True)
 def mock_refresh_access_token():
     """Mock refresh_access_token to bypass token refresh in tests."""
-    with mock.patch("utils.oicd.refresh_access_token") as mocked_refresh_access_token:
-        mock_session = Mock(spec=httpx.Client)
-        mock_session.access_token = "mocked-access-token"
-        mocked_refresh_access_token.return_value = mock_session
+    with mock.patch("utils.oidc.refresh_access_token") as mocked_refresh_access_token:
+        session = SessionStore()
+        session["oidc_access_token"] = "mocked-access-token"
+        mocked_refresh_access_token.return_value = session
         yield mocked_refresh_access_token
 
 
@@ -103,10 +103,18 @@ def fixture_sample_pdf_content():
     return BytesIO(pdf_data)
 
 
-@pytest.fixture(name="mock_albert_api")
-def fixture_mock_albert_api():
+@pytest.fixture(name="mock_document_api")
+def fixture_mock_document_api():
     """Fixture to mock the Albert API endpoints."""
     # Mock collection creation
+
+    document_name = "sample.pdf"
+    document_content = "This is the content of the PDF."
+    prompt_tokens = 10
+    completion_tokens = 20
+    search_method = "semantic"
+    search_score = 0.9
+
     responses.post(
         "https://albert.api.etalab.gouv.fr/v1/collections",
         json={"id": "123", "name": "test-collection"},
@@ -123,7 +131,7 @@ def fixture_mock_albert_api():
                     "metadata": {"document_name": "sample.pdf"},
                 }
             ],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 20},
+            "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
         },
         status=status.HTTP_200_OK,
     )
@@ -141,24 +149,20 @@ def fixture_mock_albert_api():
         json={
             "data": [
                 {
-                    "method": "semantic",
+                    "method": search_method,
                     "chunk": {
                         "id": 123,
-                        "content": "This is the content of the PDF.",
-                        "metadata": {"document_name": "sample.pdf"},
+                        "content": document_content,
+                        "metadata": {"document_name": document_name},
                     },
-                    "score": 0.9,
+                    "score": search_score,
                 }
             ],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 20},
+            "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
         },
         status=status.HTTP_200_OK,
     )
 
-
-@pytest.fixture(name="mock_find_api")
-def fixture_mock_find_api():
-    """Fixture to mock the Find API endpoints."""
     # Mock document indexing (Find API)
     responses.post(
         "https://find.api.example.com/api/v1.0/documents/index/",
@@ -172,10 +176,10 @@ def fixture_mock_find_api():
         json=[
             {
                 "_source": {
-                    "title.fr": "sample.pdf",
-                    "content.fr": "This is the content of the PDF.",
+                    "title.fr": document_name,
+                    "content.fr": document_content,
                 },
-                "_score": 0.9,
+                "_score": search_score,
             }
         ],
         status=status.HTTP_200_OK,
@@ -267,8 +271,7 @@ def fixture_mock_openai_stream():
 def test_post_conversation_with_document_upload(
     # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
-    mock_albert_api,  # pylint: disable=unused-argument
-    mock_find_api,  # pylint: disable=unused-argument
+    mock_document_api,  # pylint: disable=unused-argument
     sample_pdf_content,
     today_promt_date,
     mock_ai_agent_service,
@@ -597,8 +600,7 @@ def test_post_conversation_with_document_upload_feature_disabled(
 @freeze_time()
 def test_post_conversation_with_document_upload_summarize(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
     api_client,
-    mock_albert_api,  # pylint: disable=unused-argument
-    mock_find_api,  # pylint: disable=unused-argument
+    mock_document_api,  # pylint: disable=unused-argument
     sample_pdf_content,
     today_promt_date,
     mock_ai_agent_service,

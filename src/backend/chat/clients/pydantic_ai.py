@@ -107,7 +107,7 @@ def get_model_configuration(model_hrid: str):
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
-    def __init__(  # noqa: PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         conversation: models.ChatConversation,
         user,
@@ -289,6 +289,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         name=document.identifier,
                         content_type=document.media_type,
                         content=document_data,
+                        user_sub=self.user.sub,
                     )
                 else:
                     # Remote URL
@@ -300,6 +301,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     name=document.identifier,
                     content_type=document.media_type,
                     content=document.data,
+                    user_sub=self.user.sub,
                 )
 
             if not document.media_type.startswith("text/"):
