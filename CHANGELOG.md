@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(front) allow pasting an attachment from clipboard
+
 ### Fixed
 
 - 💚(docker) vendor mime.types file instead of fetching from Apache SVN
