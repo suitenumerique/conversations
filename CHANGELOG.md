@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- 💄(front) ui fix : update ui-kit
 - ✨(front) add persistent darkmode
 - ✨(front) add ui kit #240
 - 🧱(files) allow to use S3 storage without external access #849

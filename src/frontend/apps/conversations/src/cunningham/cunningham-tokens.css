@@ -2657,7 +2657,7 @@
 .cunningham-theme--dsfr-dark {
   --c--globals--components--la-gaufre: true;
   --c--globals--components--home-proconnect: true;
-  --c--globals--components--logo--src: /assets/logo-gouv.svg;
+  --c--globals--components--logo--src: /assets/logo-gouv-darkmode.svg;
   --c--globals--components--logo--widthHeader: 110px;
   --c--globals--components--logo--widthFooter: 220px;
   --c--globals--components--logo--alt: gouvernement logo;

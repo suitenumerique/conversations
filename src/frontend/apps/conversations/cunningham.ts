@@ -841,7 +841,9 @@ const dsfrThemes = getThemesFromGlobals(dsfrGlobals, {
   overrides: commonTokenOverrides,
 });
 
-if (dsfrThemes.dark?.globals?.colors) {
+if (dsfrThemes.dark) {
+  dsfrThemes.dark.globals.components.logo.src =
+    '/assets/logo-gouv-darkmode.svg';
   dsfrThemes.dark.globals.colors['logo-1'] = '#95ABFF';
   dsfrThemes.dark.globals.colors['logo-2'] = '#E78087';
 }
