@@ -2,7 +2,6 @@ import { Modal, ModalSize } from '@openfun/cunningham-react';
 import { useTranslation } from 'react-i18next';
 
 import { Box, StyledLink, Text, ToggleSwitch, useToast } from '@/components';
-import { HorizontalSeparator } from '@/components/separators/HorizontalSeparator';
 import { useUserUpdate } from '@/core/api/useUserUpdate';
 import { useCunninghamTheme } from '@/cunningham';
 import { useAuthQuery } from '@/features/auth/api';
@@ -56,7 +55,7 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
       title={t('Assistant settings')}
     >
       <Box aria-label={t('Assistant settings')}>
-        <Box $align="center" $justify="space-between">
+        <Box $justify="space-between">
           <Box $gap="2xs">
             <Text
               $size="xs"
@@ -66,48 +65,9 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
               $padding={{ top: 'sm', bottom: 'sm' }}
             >
               {t(
-                'The Assistant is a sovereign conversational AI designed for public servants. It helps you save time on daily tasks like rephrasing, summarising, translating, or searching information. Your data never leaves France and is stored on secure, state-compliant infrastructures. It is never used for commercial purposes.',
+                'The Assistant is a sovereign AI for public servants. It helps with daily tasks (rephrasing, summarising, translating, information search). Your data stays in France on secure, state-compliant infrastructure and is never used for commercial purposes.',
               )}
             </Text>
-
-            <Box $gap="2xs" $padding={{ top: 'md' }}>
-              <Text
-                $size="md"
-                $weight="500"
-                $theme="greyscale"
-                $variation="850"
-              >
-                {t('Dark mode')}
-              </Text>
-              <Box
-                $direction="row"
-                $justify="space-between"
-                $align="flex-start"
-              >
-                <Box $css="max-width: 70%;">
-                  <Text
-                    $css={`
-                    display: inline-block;
-                  `}
-                    $size="xs"
-                    $theme="greyscale"
-                    $variation="600"
-                    $weight="400"
-                  >
-                    {t(
-                      'Enable dark mode to reduce eye strain in low-light environments.',
-                    )}
-                  </Text>
-                </Box>
-                <ToggleSwitch
-                  checked={isDarkMode}
-                  onChange={() => toggleDarkMode()}
-                  aria-label={t('Dark mode')}
-                />
-              </Box>
-            </Box>
-
-            <HorizontalSeparator />
 
             <Text
               $size="md"
@@ -160,6 +120,36 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
               disabled={isPending}
               aria-label={t('Allow conversation analysis')}
             />
+          </Box>
+          <Box
+            $display="block"
+            $justify="space-between"
+            $align="flex-end"
+            $gap="2xs"
+            $padding={{ top: 'md' }}
+            $css="min-width: 100%;"
+          >
+            <Box
+              $direction="row"
+              $justify="space-between"
+              $css="min-width: 70%;"
+            >
+              <Box $css="min-width: 70%;">
+                <Text
+                  $size="md"
+                  $weight="500"
+                  $theme="greyscale"
+                  $variation="850"
+                >
+                  {t('Dark mode')}
+                </Text>
+              </Box>
+              <ToggleSwitch
+                checked={isDarkMode}
+                onChange={() => toggleDarkMode()}
+                aria-label={t('Dark mode')}
+              />
+            </Box>
           </Box>
         </Box>
       </Box>
