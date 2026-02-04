@@ -1169,10 +1169,13 @@ USER QUESTION:
         # @property returning a lazy object, which cannot be accessed via cls in a classmethod.
         if cls.RAG_DOCUMENT_PARSER == "chat.agent_rag.document_converter.parser.AdaptivePdfParser":
             llm_configs = load_llm_configuration(cls._llm_configuration_file_path)
+
             if cls.OCR_HRID not in llm_configs:
+                available_hrids = ", ".join([f"'{hrid}'" for hrid in llm_configs])
                 raise ValueError(
                     f"OCR_HRID '{cls.OCR_HRID}' not found in LLM_CONFIGURATIONS. "
                     "Please add a matching provider entry or set OCR_HRID to an existing key."
+                    f"Available models id: {available_hrids}"
                 )
 
         # Langfuse initialization
