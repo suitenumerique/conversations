@@ -1,11 +1,13 @@
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { AppProvider, productName } from '@/core/';
 import { useCunninghamTheme } from '@/cunningham';
 import '@/i18n/initI18n';
 import { NextPageWithLayout } from '@/types/next';
+import { registerServiceWorker } from '@/utils/registerServiceWorker';
 
 import './globals.css';
 
@@ -20,6 +22,10 @@ export default function App({ Component, pageProps }: AppPropsWithLayout) {
   const favicon = (componentTokens as Record<string, unknown>).favicon as
     | { 'png-light': string; 'png-dark': string }
     | undefined;
+
+  useEffect(() => {
+    registerServiceWorker();
+  }, []);
 
   return (
     <>
