@@ -20,6 +20,7 @@ and this project adheres to
 
 ### Changed
 
+- 💄(darkmode) change color feedback butto
 - 🏗️(back) migrate to uv
 - ♻️(front) optimize syntax highlighting bundle size
 
