@@ -24,6 +24,10 @@ and this project adheres to
 - 🏗️(back) migrate to uv
 - ♻️(front) optimize syntax highlighting bundle size
 
+### Fixed
+
+-  🐛(back) Cast collection Ids to API expected types
+
 ## [0.0.12] - 2026-01-27
 
 ### Fixed

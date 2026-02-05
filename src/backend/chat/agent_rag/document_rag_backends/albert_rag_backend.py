@@ -48,6 +48,11 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         parser_class = import_string(settings.RAG_DOCUMENT_PARSER)
         self.parser = parser_class()
 
+    @staticmethod
+    def cast_collection_id(collection_id):
+        """Albert API expects int Ids."""
+        return int(collection_id)
+
     def create_collection(self, name: str, description: Optional[str] = None) -> str:
         """
         Create a temporary collection for the search operation.

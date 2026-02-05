@@ -41,6 +41,11 @@ class BaseRagBackend(ABC):
         self._default_collection_description = "Temporary collection for RAG document search"
         self.parser: BaseParser = BaseParser()
 
+    @staticmethod
+    def cast_collection_id(collection_id):
+        """Dummy method to be overridden when needed."""
+        return collection_id
+
     def get_all_collection_ids(self) -> List[str]:
         """
         Get all collection IDs, including the main collection ID and read-only collection IDs.
@@ -55,10 +60,13 @@ class BaseRagBackend(ABC):
 
         collection_ids = []
         if self.collection_id:
-            collection_ids.append(self.collection_id)
+            collection_ids.append(self.cast_collection_id(self.collection_id))
         if self.read_only_collection_id:
             collection_ids.extend(
-                [int(collection_id) for collection_id in self.read_only_collection_id]
+                [
+                    self.cast_collection_id(collection_id)
+                    for collection_id in self.read_only_collection_id
+                ]
             )
         return collection_ids
 
