@@ -72,6 +72,11 @@ spec:
               subPath: {{ .subPath | default "" }}
               readOnly: {{ .readOnly }}
             {{- end }}
+            {{- if .Values.backend.llmConfiguration.enabled }}
+            - name: llm-configuration
+              mountPath: {{ .Values.backend.llmConfiguration.mount_path }}
+              readOnly: true
+            {{- end }}
       {{- with .Values.backend.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -120,5 +125,10 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- end }}
+        {{- if .Values.backend.llmConfiguration.enabled }}
+        - name: llm-configuration
+          configMap:
+            name: conversations-llm-configuration
         {{- end }}
 {{- end }}

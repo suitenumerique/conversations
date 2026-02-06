@@ -23,7 +23,7 @@
     "@fontsource/material-icons": "5.2.5",
     "@gouvfr-lasuite/cunningham-tokens": "^3.1.0",
     "@gouvfr-lasuite/integration": "1.0.3",
-    "@gouvfr-lasuite/ui-kit": "0.18.4",
+    "@gouvfr-lasuite/ui-kit": "0.18.7",
     "@openfun/cunningham-react": "4.0.0",
     "@sentry/nextjs": "9.26.0",
     "@shikijs/rehype": "^3.21.0",

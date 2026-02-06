@@ -12,13 +12,14 @@ import { gotoLogin } from '@/features/auth';
 // import { ProConnectButton } from '@/features/auth';
 import { useResponsiveStore } from '@/stores';
 
+import BannerDarkMode from '../assets/banner-dark.svg';
 import Banner from '../assets/banner.svg';
 
 import { getHeaderHeight } from './HomeHeader';
 
 export default function HomeBanner() {
   const { t } = useTranslation();
-  const { spacingsTokens, colorsTokens, componentTokens } =
+  const { spacingsTokens, colorsTokens, componentTokens, isDarkMode } =
     useCunninghamTheme();
   const { isMobile, isSmallMobile } = useResponsiveStore();
   const withProConnect = Boolean(
@@ -107,7 +108,7 @@ export default function HomeBanner() {
             </Button>
           </Box>
         </Box>
-        {!isMobile && <Banner />}
+        {!isMobile && (isDarkMode ? <BannerDarkMode /> : <Banner />)}
       </Box>
     </Box>
   );

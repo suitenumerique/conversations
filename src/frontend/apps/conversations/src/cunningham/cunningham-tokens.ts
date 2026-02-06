@@ -2013,7 +2013,7 @@ export const tokens = {
           'la-gaufre': true,
           'home-proconnect': true,
           logo: {
-            src: '/assets/logo-gouv.svg',
+            src: '/assets/logo-gouv-darkmode.svg',
             widthHeader: '110px',
             widthFooter: '220px',
             alt: 'Gouvernement Logo',
