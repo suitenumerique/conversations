@@ -45,11 +45,6 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
         $width="100%"
         $maxWidth="750px"
         $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
-        $background="var(--c--contextuals--background--surface--tertiary)"
-        $color="var(--c--contextuals--content--semantic--neutral--secondary)"
-        $padding={{ all: 'sm' }}
-        $radius="8px"
-        $css="font-size: 0.9em; width: 100%; white-space: pre-wrap; word-wrap: break-word;"
       >
         <Loader />
         <Text $variation="600" $size="md">
