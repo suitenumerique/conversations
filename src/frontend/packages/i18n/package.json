@@ -1,6 +1,6 @@
 {
   "name": "packages-i18n",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "private": true,
   "scripts": {
     "extract-translation": "yarn extract-translation:conversations",
