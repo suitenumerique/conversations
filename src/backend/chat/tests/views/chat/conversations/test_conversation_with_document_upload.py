@@ -273,7 +273,7 @@ def test_post_conversation_with_document_upload(
     api_client,
     mock_document_api,  # pylint: disable=unused-argument
     sample_pdf_content,
-    today_promt_date,
+    today_prompt_date,
     mock_ai_agent_service,
 ):
     """
@@ -409,7 +409,7 @@ def test_post_conversation_with_document_upload(
 
     assert chat_conversation.pydantic_messages[0] == {
         "instructions": "You are a helpful test assistant :)\n\n"
-        f"{today_promt_date}\n\n"
+        f"{today_prompt_date}\n\n"
         "Answer in english.\n\n"
         "Use document_search_rag ONLY to retrieve specific passages from "
         "attached documents. Do NOT use it to summarize; for summaries, "
@@ -424,6 +424,7 @@ def test_post_conversation_with_document_upload(
         "Do not request re-upload of documents; consider them already "
         "available via the internal store.",
         "kind": "request",
+        "metadata": None,
         "parts": [
             {
                 "content": ["What does the document say?"],
@@ -432,10 +433,12 @@ def test_post_conversation_with_document_upload(
             },
         ],
         "run_id": _run_id,
+        "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[1] == {
         "finish_reason": None,
         "kind": "response",
+        "metadata": None,
         "model_name": "function::agent_model",
         "parts": [
             {
@@ -444,11 +447,14 @@ def test_post_conversation_with_document_upload(
                 "part_kind": "tool-call",
                 "tool_call_id": chat_conversation.pydantic_messages[1]["parts"][0]["tool_call_id"],
                 "tool_name": "document_search_rag",
+                "provider_details": None,
+                "provider_name": None,
             }
         ],
         "provider_details": None,
         "provider_name": None,
         "provider_response_id": None,
+        "provider_url": None,
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -465,7 +471,7 @@ def test_post_conversation_with_document_upload(
     assert chat_conversation.pydantic_messages[2] == {
         "instructions": (
             "You are a helpful test assistant :)\n\n"
-            f"{today_promt_date}\n\n"
+            f"{today_prompt_date}\n\n"
             "Answer in english.\n\n"
             "Use document_search_rag ONLY to retrieve specific passages from "
             "attached documents. Do NOT use it to summarize; for summaries, "
@@ -481,6 +487,7 @@ def test_post_conversation_with_document_upload(
             "available via the internal store."
         ),
         "kind": "request",
+        "metadata": None,
         "parts": [
             {
                 "content": [
@@ -498,21 +505,26 @@ def test_post_conversation_with_document_upload(
             }
         ],
         "run_id": _run_id,
+        "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[3] == {
         "finish_reason": None,
         "kind": "response",
+        "metadata": None,
         "model_name": "function::agent_model",
         "parts": [
             {
                 "content": "From the document, I can see that it says 'Hello PDF'.",
                 "id": None,
                 "part_kind": "text",
+                "provider_details": None,
+                "provider_name": None,
             }
         ],
         "provider_details": None,
         "provider_name": None,
         "provider_response_id": None,
+        "provider_url": None,
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -602,7 +614,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     api_client,
     mock_document_api,  # pylint: disable=unused-argument
     sample_pdf_content,
-    today_promt_date,
+    today_prompt_date,
     mock_ai_agent_service,
     mock_summarization_agent,  # pylint: disable=unused-argument
 ):
@@ -739,7 +751,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     assert chat_conversation.pydantic_messages[0] == {
         "instructions": (
             "You are a helpful test assistant :)\n\n"
-            f"{today_promt_date}\n\n"
+            f"{today_prompt_date}\n\n"
             "Answer in english.\n\n"
             "Use document_search_rag ONLY to retrieve specific passages from "
             "attached documents. Do NOT use it to summarize; for summaries, "
@@ -755,6 +767,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             "available via the internal store."
         ),
         "kind": "request",
+        "metadata": None,
         "parts": [
             {
                 "content": ["Make a summary of this document."],
@@ -763,10 +776,12 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             },
         ],
         "run_id": _run_id,
+        "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[1] == {
         "finish_reason": None,
         "kind": "response",
+        "metadata": None,
         "model_name": "function::agent_model",
         "parts": [
             {
@@ -775,11 +790,14 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "part_kind": "tool-call",
                 "tool_call_id": chat_conversation.pydantic_messages[1]["parts"][0]["tool_call_id"],
                 "tool_name": "summarize",
+                "provider_details": None,
+                "provider_name": None,
             }
         ],
         "provider_details": None,
         "provider_name": None,
         "provider_response_id": None,
+        "provider_url": None,
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -796,7 +814,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     assert chat_conversation.pydantic_messages[2] == {
         "instructions": (
             "You are a helpful test assistant :)\n\n"
-            f"{today_promt_date}\n\n"
+            f"{today_prompt_date}\n\n"
             "Answer in english.\n\n"
             "Use document_search_rag ONLY to retrieve specific passages from "
             "attached documents. Do NOT use it to summarize; for summaries, "
@@ -812,6 +830,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             "available via the internal store."
         ),
         "kind": "request",
+        "metadata": None,
         "parts": [
             {
                 "content": "The document discusses various topics.",
@@ -823,17 +842,26 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             }
         ],
         "run_id": _run_id,
+        "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[3] == {
         "finish_reason": None,
         "kind": "response",
+        "metadata": None,
         "model_name": "function::agent_model",
         "parts": [
-            {"content": "The document discusses various topics.", "id": None, "part_kind": "text"}
+            {
+                "content": "The document discusses various topics.",
+                "id": None,
+                "part_kind": "text",
+                "provider_details": None,
+                "provider_name": None,
+            }
         ],
         "provider_details": None,
         "provider_name": None,
         "provider_response_id": None,
+        "provider_url": None,
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,

@@ -56,7 +56,7 @@ dependencies = [
     "nested-multipart-parser==1.6.0",
     "posthog==7.0.0",
     "pydantic==2.12.4",
-    "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.17.0",
+    "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.56.0",
     "psycopg[binary]==3.2.12",
     "PyJWT==2.10.1",
     "python-magic==0.4.27",
@@ -108,6 +108,11 @@ zip-safe = true
 [tool.distutils.bdist_wheel]
 universal = true
 
+[tool.uv]
+override-dependencies = [
+    "cryptography>=46.0.5", # CVE-2026-26007
+]
+
 [tool.uv.build-backend]
 module-root = ""
 source-exclude = [
@@ -147,8 +152,8 @@ select = [
 ]
 
 [tool.ruff.lint.isort]
-section-order = ["future","standard-library","django","third-party","conversations","first-party","local-folder"]
-sections = { conversations=["core"], django=["django"] }
+section-order = ["future", "standard-library", "django", "third-party", "conversations", "first-party", "local-folder"]
+sections = { conversations = ["core"], django = ["django"] }
 extra-standard-library = ["tomllib"]
 
 [tool.ruff.lint.per-file-ignores]
