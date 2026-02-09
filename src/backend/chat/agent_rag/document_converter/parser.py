@@ -7,13 +7,37 @@ from io import BytesIO
 from urllib.parse import urljoin
 
 from django.conf import settings
-
+from pathlib import Path
 import requests
 from pypdf import PdfReader, PdfWriter
-
+import subprocess
 from chat.agent_rag.document_converter.markitdown import DocumentConverter
+import tempfile
+
+from .odt import OtdToMd
 
 logger = logging.getLogger(__name__)
+
+
+def odt_bytes_to_markdown(content: bytes) -> str:
+    """Home implementation"""
+    converter =  OtdToMd()
+    return converter.extract(content)
+
+def odt_bytes_to_markdown__(content: bytes) -> str:
+    """Pandoc"""
+    with tempfile.NamedTemporaryFile(suffix=".odt", delete=False) as tmp:
+        tmp.write(content)
+        tmp_path = tmp.name
+    try:
+        result = subprocess.run(
+            ["pandoc", tmp_path, "-t", "markdown", "--wrap=none"],
+            capture_output=True,
+            check=True,
+        )
+        return result.stdout.decode("utf-8")
+    finally:
+        Path(tmp_path).unlink()
 
 
 class BaseParser:
@@ -104,8 +128,8 @@ def analyze_pdf(pdf_data: bytes) -> dict:
 
     # Decision logic
     if (
-        avg_chars > settings.MIN_AVG_CHARS_FOR_TEXT_EXTRACTION
-        and text_coverage > settings.MIN_TEXT_COVERAGE_FOR_TEXT_EXTRACTION
+            avg_chars > settings.MIN_AVG_CHARS_FOR_TEXT_EXTRACTION
+            and text_coverage > settings.MIN_TEXT_COVERAGE_FOR_TEXT_EXTRACTION
     ):
         method = METHOD_TEXT_EXTRACTION
 
@@ -191,11 +215,11 @@ class AdaptivePdfParser(AdaptiveParserMixin, BaseParser):
         return output.getvalue()
 
     def ocr_page_batch(
-        self,
-        name: str,
-        page_content: bytes,
-        start_index: int,
-        end_index: int,
+            self,
+            name: str,
+            page_content: bytes,
+            start_index: int,
+            end_index: int,
     ) -> list[str]:
         """Send page batch to Mistral OCR API with static delay retry."""
         file_data = base64.standard_b64encode(page_content).decode("utf-8")
@@ -270,10 +294,20 @@ class AdaptivePdfParser(AdaptiveParserMixin, BaseParser):
 
         return "\n\n".join(results)
 
+    def parse_odt_document(self, name: str, content: bytes) -> str:
+
+        output = odt_bytes_to_markdown(content)
+        print("🚀️ ---------- parser.py l:298", output)
+        return output
+
     def parse_document(self, name: str, content_type: str, content: bytes) -> str:
         """Route to PDF parser or DocumentConverter based on content type."""
+
+        print("🚀️ ---------- parser.py l:282", content_type)
         if content_type == "application/pdf":
             return self.parse_pdf_document(name=name, content_type=content_type, content=content)
+        if content_type == "application/vnd.oasis.opendocument.text":
+            return self.parse_odt_document(name=name, content=content)
 
         return DocumentConverter().convert_raw(
             name=name, content_type=content_type, content=content

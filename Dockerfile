@@ -90,6 +90,7 @@ RUN apk add \
   libffi-dev \
   libxml2 \
   libxslt \
+  pandoc \
   pango \
   shared-mime-info
 

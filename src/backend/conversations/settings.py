@@ -727,6 +727,7 @@ class Base(BraveSettings, Configuration):
             "image/png",
             "image/gif",
             "image/webp",
+            "application/vnd.oasis.opendocument.text"
         ],
         environ_name="RAG_FILES_ACCEPTED_FORMATS",
         environ_prefix=None,
