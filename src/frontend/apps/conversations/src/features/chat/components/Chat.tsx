@@ -729,6 +729,7 @@ export const Chat = ({
                             <MarkdownHooks
                               remarkPlugins={[remarkGfm, remarkMath]}
                               rehypePlugins={[
+                                rehypeKatex,
                                 [
                                   rehypeShikiFromHighlighter,
                                   highlighter,
@@ -737,7 +738,6 @@ export const Chat = ({
                                     fallbackLanguage: 'plaintext',
                                   },
                                 ],
-                                rehypeKatex,
                               ]}
                               components={{
                                 // Custom components for Markdown rendering

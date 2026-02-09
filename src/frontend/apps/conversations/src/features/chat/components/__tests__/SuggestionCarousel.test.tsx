@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import i18next from 'i18next';
 
 import '@/i18n/initI18n';
 
@@ -9,8 +10,26 @@ describe('SuggestionCarousel', () => {
     jest.useFakeTimers();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     jest.useRealTimers();
+    await i18next.changeLanguage('en');
+  });
+
+  it('should render all suggestions in french', async () => {
+    await i18next.changeLanguage('fr');
+
+    render(<SuggestionCarousel messagesLength={0} />);
+
+    expect(screen.getAllByText('Poser une question')).toHaveLength(2);
+    expect(
+      screen.getByText('Transformer cette liste en liste à puces...'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Écrire une description courte du produit...'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Trouver les dernières actualités concernant...'),
+    ).toBeInTheDocument();
   });
 
   it('should render all suggestions', () => {
