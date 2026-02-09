@@ -92,6 +92,7 @@ def test_post_conversation_with_local_image_url(
         assert presigned_url.find("X-Amz-Date=") != -1
         assert presigned_url.find("X-Amz-Expires=") != -1
         formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
+
         assert messages == [
             ModelRequest(
                 parts=[
@@ -110,6 +111,7 @@ def test_post_conversation_with_local_image_url(
                 instructions="You are a helpful test assistant :)\n\nToday is "
                 f"{formatted_date}.\n\nAnswer in english.",
                 run_id=messages[0].run_id,
+                timestamp=timezone.now(),
             )
         ]
         yield "This is an image of a single pixel."
@@ -181,6 +183,7 @@ def test_post_conversation_with_local_image_url(
             "instructions": "You are a helpful test assistant :)\n\n"
             "Today is Saturday 18/10/2025.\n\nAnswer in english.",
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": [
@@ -199,17 +202,26 @@ def test_post_conversation_with_local_image_url(
                 },
             ],
             "run_id": _run_id,
+            "timestamp": "2025-10-18T20:48:20.286204Z",
         },
         {
             "finish_reason": None,
             "kind": "response",
+            "metadata": None,
             "model_name": "function::agent_model",
             "parts": [
-                {"content": "This is an image of a single pixel.", "id": None, "part_kind": "text"}
+                {
+                    "content": "This is an image of a single pixel.",
+                    "id": None,
+                    "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
+                }
             ],
             "provider_details": None,
             "provider_name": None,
             "provider_response_id": None,
+            "provider_url": None,
             "timestamp": "2025-10-18T20:48:20.286204Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -229,7 +241,7 @@ def test_post_conversation_with_local_image_url(
 @freeze_time()
 def test_post_conversation_with_local_image_wrong_url(
     api_client,
-    today_promt_date,
+    today_prompt_date,
     mock_ai_agent_service,
 ):
     """
@@ -275,7 +287,8 @@ def test_post_conversation_with_local_image_wrong_url(
                         timestamp=timezone.now(),
                     ),
                 ],
-                instructions=f"You are a helpful test assistant :)\n\n{today_promt_date}"
+                timestamp=timezone.now(),
+                instructions=f"You are a helpful test assistant :)\n\n{today_prompt_date}"
                 "\n\nAnswer in english.",
                 run_id=messages[0].run_id,
             )
@@ -314,7 +327,7 @@ def test_post_conversation_with_local_image_wrong_url(
 @freeze_time()
 def test_post_conversation_with_remote_image_url(
     api_client,
-    today_promt_date,
+    today_prompt_date,
     mock_ai_agent_service,
 ):
     """
@@ -361,8 +374,9 @@ def test_post_conversation_with_remote_image_url(
                     ),
                 ],
                 instructions="You are a helpful test assistant :)\n\n"
-                f"{today_promt_date}\n\nAnswer in english.",
+                f"{today_prompt_date}\n\nAnswer in english.",
                 run_id=messages[0].run_id,
+                timestamp=timezone.now(),
             )
         ]
         yield "This is an image of a single pixel."
@@ -432,7 +446,7 @@ def test_post_conversation_with_remote_image_url(
 @freeze_time("2025-10-18T20:48:20.286204Z")
 def test_post_conversation_with_local_image_url_in_history(
     api_client,
-    today_promt_date,
+    today_prompt_date,
     mock_ai_agent_service,
 ):
     """
@@ -475,7 +489,7 @@ def test_post_conversation_with_local_image_url_in_history(
         ],
         pydantic_messages=[
             {
-                "instructions": f"You are a helpful test assistant :)\n\n{today_promt_date}"
+                "instructions": f"You are a helpful test assistant :)\n\n{today_prompt_date}"
                 "\n\nAnswer in english.",
                 "kind": "request",
                 "parts": [
@@ -547,6 +561,8 @@ def test_post_conversation_with_local_image_url_in_history(
         assert presigned_url.find("X-Amz-Date=") != -1
         assert presigned_url.find("X-Amz-Expires=") != -1
 
+        timestamp_now = timezone.now()
+
         assert messages == [
             ModelRequest(
                 parts=[
@@ -559,11 +575,11 @@ def test_post_conversation_with_local_image_url_in_history(
                                 identifier="sample.png",
                             ),
                         ],
-                        timestamp=timezone.now(),
+                        timestamp=timestamp_now,
                     ),
                 ],
                 instructions="You are a helpful test assistant :)\n\n"
-                f"{today_promt_date}\n\nAnswer in english.",
+                f"{today_prompt_date}\n\nAnswer in english.",
             ),
             ModelResponse(
                 parts=[TextPart(content="This is an image of a single pixel.")],
@@ -577,12 +593,13 @@ def test_post_conversation_with_local_image_url_in_history(
                         content=[
                             "Give more details about this image.",
                         ],
-                        timestamp=timezone.now(),
+                        timestamp=timestamp_now,
                     )
                 ],
                 run_id=messages[2].run_id,
                 instructions="You are a helpful test assistant :)\n\n"
                 "Today is Saturday 18/10/2025.\n\nAnswer in english.",
+                timestamp=timestamp_now,
             ),
         ]
         yield "This is an image of square, very small and nice."
@@ -681,7 +698,7 @@ def test_post_conversation_with_local_image_url_in_history(
     _run_id = chat_conversation.pydantic_messages[2]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": f"You are a helpful test assistant :)\n\n{today_promt_date}"
+            "instructions": f"You are a helpful test assistant :)\n\n{today_prompt_date}"
             "\n\nAnswer in english.",
             "kind": "request",
             "parts": [
@@ -728,6 +745,7 @@ def test_post_conversation_with_local_image_url_in_history(
             "instructions": "You are a helpful test assistant :)\n\nToday is Saturday 18/10/2025."
             "\n\nAnswer in english.",
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": ["Give more details about this image."],
@@ -736,21 +754,26 @@ def test_post_conversation_with_local_image_url_in_history(
                 }
             ],
             "run_id": _run_id,
+            "timestamp": "2025-10-18T20:48:20.286204Z",
         },
         {
             "finish_reason": None,
             "kind": "response",
+            "metadata": None,
             "model_name": "function::agent_model",
             "parts": [
                 {
                     "content": "This is an image of square, very small and nice.",
                     "id": None,
                     "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
                 }
             ],
             "provider_details": None,
             "provider_name": None,
             "provider_response_id": None,
+            "provider_url": None,
             "timestamp": "2025-10-18T20:48:20.286204Z",
             "usage": {
                 "cache_audio_read_tokens": 0,

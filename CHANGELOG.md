@@ -13,6 +13,10 @@ and this project adheres to
 - 💚(docker) vendor mime.types file instead of fetching from Apache SVN
 - 🐛(front) fix math formulas and carousel translations
 
+### Changed
+
+- ⬆️(back) update pydantic-ai
+
 ## [0.0.13] - 2026-02-09
 
 ### Added
@@ -23,17 +27,17 @@ and this project adheres to
 - 🧱(files) allow to use S3 storage without external access #849
 - ✨(backend) add FindRagBackend #209
 - ⬆️(back) update dependencies
-- ✨(back) Use adaptive parsing for pdf documents
+- ✨(back) use adaptive parsing for pdf documents
 
 ### Changed
 
-- 💄(darkmode) change color feedback butto
+- 💄(darkmode) change color feedback button
 - 🏗️(back) migrate to uv
 - ♻️(front) optimize syntax highlighting bundle size
 
 ### Fixed
 
--  🐛(back) Cast collection Ids to API expected types
+-  🐛(back) cast collection Ids to API expected types
 
 ## [0.0.12] - 2026-01-27
 
@@ -51,7 +55,7 @@ and this project adheres to
 ### Changed
 
 - 📦️(front) update react
-- ✨(chat) Generate and edit conversation title
+- ✨(chat) generate and edit conversation title
 
 
 ### Fixed
