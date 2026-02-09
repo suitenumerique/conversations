@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- 💚(docker) vendor mime.types file instead of fetching from Apache SVN
+
 ## [0.0.13] - 2026-02-09
 
 ### Added

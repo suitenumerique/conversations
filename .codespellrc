@@ -9,9 +9,11 @@ skip =
     **/e2e/report/**,
     *.tsbuildinfo,
     **/uv.lock,
+    ./docker/files/etc/mime.types,
 check-filenames = true
 ignore-words-list =
     afterAll,
     statics,
 exclude-file =
     ./src/backend/chat/agent_rag/web_search/mocked.py,
+
