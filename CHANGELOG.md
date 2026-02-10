@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- 🚸(oidc) ignore case when fallback on email #281
+
 ### Fixed
 
 - 💚(docker) vendor mime.types file instead of fetching from Apache SVN
