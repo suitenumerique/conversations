@@ -13,6 +13,7 @@ export interface User {
   full_name: string;
   short_name: string;
   language?: string;
+  allow_smart_web_search: boolean;
   allow_conversation_analytics: boolean;
   sub?: string;
 }
