@@ -8,7 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(user) allow disabling automatic internet search
+
 ### Fixed
+
 
 - 💚(docker) vendor mime.types file instead of fetching from Apache SVN
 - 🐛(front) fix math formulas and carousel translations
