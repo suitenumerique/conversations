@@ -240,13 +240,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Feature flags
         self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
         self._is_web_search_enabled = is_feature_enabled(self.user, "web_search")
+        self._is_smart_search_enabled = user.allow_smart_web_search
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
         self._context_deps = ContextDeps(
             conversation=conversation,
             user=user,
             session=session,
-            web_search_enabled=self._is_web_search_enabled,
+            web_search_enabled=self._is_web_search_enabled and self._is_smart_search_enabled,
         )
 
         self.conversation_agent = ConversationAgent(
@@ -429,6 +430,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if not web_search_tool_name:
             logger.warning("Web search is forced but no web search tool is available, ignoring.")
             return False
+
+        self._context_deps.web_search_enabled = True
 
         @self.conversation_agent.instructions
         def force_web_search_prompt() -> str:

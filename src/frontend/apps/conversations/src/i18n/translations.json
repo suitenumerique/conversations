@@ -144,6 +144,10 @@
       "You will be notified!": "Vous serez notifié !",
       "Your account is already activated.": "Votre compte est déjà activé.",
       "Your sovereign AI assistant": "Votre assistant IA souverain",
+      "Automatic web search": "Recherche internet automatique",
+      "The Assistant automatically decides when to perform a web search to enrich responses. If disabled, the Assistant will not use the web unless you click the 'Search the web' button.": "L'Assistant décide automatiquement quand effectuer une recherche internet pour enrichir ses réponses. Si désactivé, l'Assistant n'utilisera pas internet sauf si vous cliquez sur le bouton 'Rechercher sur le web'.",
+      "Automatic web search enabled": "Recherche internet automatique activée",
+      "Automatic web search disabled": "Recherche internet automatique désactivée",
       "source": "source",
       "sources": "sources",
       "{{productName}} Logo": "Logo {{productName}}"
@@ -283,6 +287,10 @@
       "You will be notified!": "U wordt op de hoogte gebracht!",
       "Your account is already activated.": "Uw account is al geactiveerd.",
       "Your sovereign AI assistant": "Uw soevereine AI-assistent",
+      "Automatic web search": "Automatisch internetzoeken",
+      "The Assistant automatically decides when to perform a web search to enrich responses. If disabled, the Assistant will not use the web unless you click the 'Search the web' button.": "De assistent beslist automatisch wanneer een zoekopdracht op internet moet worden uitgevoerd om reacties aan te vullen. Indien uitgeschakeld, gebruikt de assistent het web niet, tenzij u op de knop 'Op het web zoeken' klikt.",
+      "Automatic web search enabled": "Automatisch internetzoeken ingeschakeld",
+      "Automatic web search disabled": "Automatisch internetzoeken uitgeschakeld",
       "source": "bron",
       "sources": "bronnen",
       "{{productName}} Logo": "{{productName}} Logo"
@@ -422,6 +430,10 @@
       "You will be notified!": "Вы получите уведомление!",
       "Your account is already activated.": "Ваша учётная запись уже активирована.",
       "Your sovereign AI assistant": "Ваш надёжный ИИ-помощник",
+      "Automatic web search": "Автоматический веб-поиск",
+      "The Assistant automatically decides when to perform a web search to enrich responses. If disabled, the Assistant will not use the web unless you click the 'Search the web' button.": "Помощник автоматически решает, когда выполнить веб-поиск для обогащения ответов. Если отключено, помощник не будет использовать веб, если вы не нажмёте кнопку 'Поиск в веб'.",
+      "Automatic web search enabled": "Автоматический веб-поиск включен",
+      "Automatic web search disabled": "Автоматический веб-поиск отключен",
       "source": "источник",
       "sources": "источники",
       "{{productName}} Logo": "Логотип {{productName}}"
@@ -560,6 +572,10 @@
       "You will be notified!": "Ви отримаєте повідомлення!",
       "Your account is already activated.": "Ваш обліковий запис вже активовано.",
       "Your sovereign AI assistant": "Ваш надійний помічник з ШІ",
+      "Automatic web search": "Автоматичний веб-пошук",
+      "The Assistant automatically decides when to perform a web search to enrich responses. If disabled, the Assistant will not use the web unless you click the 'Search the web' button.": "Помічник автоматично вирішує, коли виконати веб-пошук для збагачення відповідей. Якщо вимкнено, помічник не буде використовувати веб, якщо ви не натиснете кнопку 'Пошук у веб'.",
+      "Automatic web search enabled": "Автоматичний веб-пошук увімкнено",
+      "Automatic web search disabled": "Автоматичний веб-пошук вимкнено",
       "source": "джерело",
       "sources": "джерела",
       "{{productName}} Logo": "Логотип {{productName}}"

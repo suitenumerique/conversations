@@ -166,6 +166,12 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         help_text=_("Whether the user allows to use their conversations for analytics."),
     )
 
+    allow_smart_web_search = models.BooleanField(
+        _("allow smart web search"),
+        default=True,
+        help_text=_("Whether the user allows to use smart web search features."),
+    )
+
     objects = UserManager()
 
     USERNAME_FIELD = "admin_email"
