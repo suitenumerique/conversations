@@ -58,26 +58,26 @@ async def document_summarize(  # pylint: disable=too-many-locals, too-many-state
     doc_index: int | None = None,
 ) -> ToolReturn:
     """
-    Generate a complete, ready-to-use summary of the documents in context
-    (do not request the documents to the user).
-    Return this summary directly to the user WITHOUT any modification,
-    or additional summarization.
-    The summary is already optimized and MUST be presented as-is in the final response
-    or translated preserving the information.
-
-    Instructions are optional but should reflect the user's request.
-
-    Examples:
-    "Summarize this doc in 2 paragraphs" -> instructions = "summary in 2 paragraphs", doc_index=None
-    "Summarize this doc in English" -> instructions = "In English", doc_index=None
-    "Summarize this doc" -> instructions = "" (default), doc_index=None
-    "Summarize the last document" -> instructions = "", doc_index=-1
-    "Summarize the first document" -> instructions = "", doc_index=0
-
-    Args:
-        instructions (str | None): The instructions the user gave to use for the summarization
-        doc_index (int | None): The index of the document to summarize (e.g. 0 for first, -1 for last).
-                               If None, summarizes all text documents found.
+    Produce a final, user-ready summary for one or more text documents from the conversation.
+    
+    Builds per-chunk summaries for the selected documents, synthesizes them into a single coherent
+    markdown-formatted summary that is intended to be returned to the user verbatim.
+    
+    Parameters:
+        instructions (str | None): Optional user instructions to guide the summary (e.g., length,
+            language, style). When omitted, a default hint is used.
+        doc_index (int | None): If provided, summarize only the document at this index (0-based;
+            negative indices allowed, e.g. -1 for the last document). If `None`, all text documents
+            found in the conversation are summarized.
+    
+    Returns:
+        str: The final synthesized summary formatted in Markdown.
+    
+    Raises:
+        ModelCannotRetry: If no text documents are found in the conversation or on unexpected errors
+            that should stop processing and be reported to the user.
+        ModelRetry: For retryable errors such as an out-of-range `doc_index`, errors during chunk
+            processing, merge-generation failures, or when the summarization produces an empty result.
     """
     try:
         instructions_hint = (
