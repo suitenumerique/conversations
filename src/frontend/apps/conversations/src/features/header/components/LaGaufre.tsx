@@ -1,8 +1,10 @@
 // import { Gaufre } from '@gouvfr-lasuite/integration';
-import '@gouvfr-lasuite/integration/dist/css/gaufre.css';
 import { Button } from '@openfun/cunningham-react';
 import Script from 'next/script';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+
+import { useCunninghamTheme } from '@/cunningham';
 
 declare global {
   interface Window {
@@ -11,6 +13,9 @@ declare global {
 }
 
 export const LaGaufre = () => {
+  const { t } = useTranslation();
+  const { isDarkMode } = useCunninghamTheme();
+
   useEffect(() => {
     const wrapper = document.querySelector('[data-gaufre-button-wrapper]');
     const button = wrapper?.querySelector('button') as HTMLButtonElement;
@@ -19,20 +24,58 @@ export const LaGaufre = () => {
       button.setAttribute('aria-expanded', 'false');
     }
 
-    const applyZIndex = () => {
+    const applyStyles = () => {
       const shadowHost = document.querySelector(
         '#lasuite-widget-lagaufre-shadow',
       );
-      const wrapper = shadowHost?.shadowRoot?.querySelector(
-        '#wrapper',
+      if (!shadowHost?.shadowRoot) return;
+
+      const shadowRoot = shadowHost.shadowRoot;
+
+      // Injecter les styles dans le shadow DOM
+      let styleElement = shadowRoot.querySelector('#c__la-gaufre-styles');
+      if (!styleElement) {
+        styleElement = document.createElement('style');
+        styleElement.id = 'c__la-gaufre-styles';
+        shadowRoot.appendChild(styleElement);
+      }
+
+      (styleElement as HTMLStyleElement).textContent = `
+        .c__la-gaufre {
+          z-index: 1000000000;
+          background-color: var(--c--contextuals--background--surface--primary) !important;
+          border-color: var(--c--contextuals--border--surface--primary);
+          #more-apps {
+            border-color: var(--c--contextuals--border--surface--primary);
+            color: var(--c--contextuals--content--semantic--neutral--tertiary);
+          }
+          #show-more-button:hover {
+            color: var(--c--contextuals--content--semantic--neutral--tertiary);
+            background-color: var(--c--contextuals--background--semantic--neutral--tertiary);
+          }
+          .service-card:hover {
+            background-color: var(--c--contextuals--background--semantic--overlay--primary);
+          }
+          .service-name {
+            font-weight: 500;
+            color: var(--c--contextuals--content--semantic--brand--tertiary) !important;
+          }
+        }
+      `;
+
+      const wrapperDialog = shadowRoot.querySelector(
+        '.wrapper-dialog',
       ) as HTMLElement;
-      if (wrapper) {
-        wrapper.style.zIndex = '1000000000';
+      if (wrapperDialog) {
+        wrapperDialog.classList.add('c__la-gaufre');
       }
     };
 
-    setTimeout(applyZIndex, 500);
-  }, []);
+    setTimeout(applyStyles, 500);
+    // Réessayer périodiquement au cas où le widget se charge plus tard
+    const interval = setInterval(applyStyles, 1000);
+    return () => clearInterval(interval);
+  }, [isDarkMode]);
 
   return (
     <>
@@ -84,25 +127,24 @@ export const LaGaufre = () => {
                 label: 'Services de la Suite numérique',
                 closeLabel: 'Fermer le menu',
                 headerLabel: 'À propos',
-                backgroundColor: '#fff',
-                background:
-                  'linear-gradient(#f1f2fd, rgba(255, 255, 255, 1) 20.54%, #FFF 0%',
+                backgroundColor: isDarkMode ? '#2B303D !important' : '#fff',
+                background: isDarkMode
+                  ? 'linear-gradient(rgba(62, 93, 281, 0.1) 0, rgba(43, 48, 61, 0.1) 48px)'
+                  : 'linear-gradient(#f1f2fd, rgba(255, 255, 255, 1) 48px, #FFF 0%',
                 headerLogo: '/assets/lasuite.svg',
                 headerUrl: 'https://lasuite.numerique.gouv.fr',
                 loadingText: 'Chargement…',
                 newWindowLabelSuffix: ' (nouvelle fenêtre)',
                 fontFamily: 'Marianne',
                 buttonElement: button,
-                viewMoreLabel: 'Voir plus',
-                viewLessLabel: 'Voir moins',
-                position: () => {
-                  return {
-                    backgroundColor: '#fff',
-                    position: 'fixed',
-                    top: 65,
-                    right: 20,
-                  };
-                },
+                viewMoreLabel: t('More apps'),
+                viewLessLabel: t('Fewer apps'),
+                position: () => ({
+                  backgroundColor: isDarkMode ? '#1E1E1E' : '#fff',
+                  position: 'fixed',
+                  top: 65,
+                  right: 20,
+                }),
               },
             ]);
           }

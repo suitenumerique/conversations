@@ -59,6 +59,10 @@ nextjs-portal {
   display: none;
 }
 
+.wrapper-dialog.c__la-gaufre {
+  border-color: var(--c--contextuals--content--semantic--info--secondary) !important;
+}
+
 .c__modal {
   box-shadow: 0 6px 18px 0 rgb(0 0 0 / 16%);
 }
