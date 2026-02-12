@@ -23,7 +23,6 @@ const SourceItemListComponent: React.FC<SourceItemListProps> = ({
   if (parts.length === 0) {
     return null;
   }
-
   return (
     <Box
       $direction="column"
