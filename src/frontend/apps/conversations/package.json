@@ -82,7 +82,7 @@
     "stylelint-config-standard": "38.0.0",
     "stylelint-prettier": "5.0.3",
     "typescript": "*",
-    "webpack": "5.99.9",
+    "webpack": "5.104.1",
     "workbox-webpack-plugin": "7.1.0"
   }
 }
