@@ -234,10 +234,10 @@ backend:
   ## @param backend.probes.readiness.initialDelaySeconds [nullable] Configure timeout for backend readiness probe
   probes:
     liveness:
-      path: /__heartbeat__
+      path: /__lbheartbeat__
       initialDelaySeconds: 10
     readiness:
-      path: /__lbheartbeat__
+      path: /__heartbeat__
       initialDelaySeconds: 10
 
   ## @param backend.resources Resource requirements for the backend container
