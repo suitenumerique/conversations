@@ -20,7 +20,7 @@ from chat.clients.pydantic_ai import AIAgentService
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(name="today_promt_date")
+@pytest.fixture(name="today_prompt_date")
 def today_prompt_date_fixture():
     """Fixture to mock date the system prompt when useless to test it."""
     _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)

@@ -41,17 +41,9 @@ def ai_settings(settings):
     return settings
 
 
-@pytest.fixture(name="history_conversation")
-def history_conversation_fixture():
-    """Create a conversation with existing message history."""
-    # Create a timestamp for the first message
-    history_timestamp = timezone.now().replace(year=2025, month=6, day=15, hour=10, minute=30)
-
-    # Create a conversation with pre-existing messages
-    conversation = ChatConversationFactory()
-
-    # Add previous user and assistant messages
-    conversation.messages = [
+def build__history_conversation_ui_messages(history_timestamp):
+    """Build ui messages list for fixtures."""
+    return [
         UIMessage(
             id="prev-user-msg-1",
             createdAt=history_timestamp,
@@ -120,6 +112,31 @@ def history_conversation_fixture():
         ),
     ]
 
+
+@pytest.fixture(name="history_conversation_pyai_v1_17")
+def history_conversation_fixture_pyai_v1_17():
+    """Create a conversation with existing message history from an older pydantic-ai (v1.1.17).
+
+    This fixture simulates a conversation persisted by a previous version of pydantic-ai,
+    containing 2 user/assistant exchanges  (4 UI messages + 4 pydantic messages).
+
+    Compared to the current format (see ``history_conversation`` fixture), the older
+    pydantic-ai serialization is missing several fields that should not affect behavior:
+
+    - ``metadata`` field on response messages
+    - ``provider_details`` (including ``finish_reason`` and ``timestamp``) on response parts
+    - ``provider_name`` on response parts
+    - ``provider_url`` on response messages
+    """
+    # Create a timestamp for the first message
+    history_timestamp = timezone.now().replace(year=2025, month=6, day=15, hour=10, minute=30)
+
+    # Create a conversation with pre-existing messages
+    conversation = ChatConversationFactory()
+
+    # Add previous user and assistant messages
+    conversation.messages = build__history_conversation_ui_messages(history_timestamp)
+
     # Set up the OpenAI message format as well
     conversation.pydantic_messages = [
         {
@@ -183,6 +200,110 @@ def history_conversation_fixture():
                         "biological neural networks in animal brains."
                     ),
                     "part_kind": "text",
+                }
+            ],
+            "timestamp": "2025-06-15T10:33:00.000000Z",
+            "usage": {
+                "details": None,
+                "request_tokens": 5,
+                "requests": 1,
+                "response_tokens": 15,
+                "total_tokens": 20,
+            },
+            "vendor_details": None,
+            "vendor_id": None,
+        },
+    ]
+
+    conversation.save()
+    return conversation
+
+
+@pytest.fixture(name="history_conversation")
+def history_conversation_fixture():
+    """Create a conversation with existing message history."""
+    # Create a timestamp for the first message
+    history_timestamp = timezone.now().replace(year=2025, month=6, day=15, hour=10, minute=30)
+
+    # Create a conversation with pre-existing messages
+    conversation = ChatConversationFactory()
+
+    # Add previous user and assistant messages
+    conversation.messages = build__history_conversation_ui_messages(history_timestamp)
+
+    # Set up the OpenAI message format as well
+    conversation.pydantic_messages = [
+        {
+            "instructions": None,
+            "kind": "request",
+            "parts": [
+                {
+                    "content": "You are a helpful test assistant :)",
+                    "dynamic_ref": None,
+                    "part_kind": "system-prompt",
+                    "timestamp": "2025-06-15T10:30:00.000000Z",
+                },
+                {
+                    "content": ["How does machine learning work?"],
+                    "part_kind": "user-prompt",
+                    "timestamp": "2025-06-15T10:30:00.000000Z",
+                },
+            ],
+        },
+        {
+            "kind": "response",
+            "model_name": "test-model",
+            "parts": [
+                {
+                    "content": (
+                        "Machine learning is a branch of artificial intelligence that "
+                        "focuses on building systems that learn from data."
+                    ),
+                    "part_kind": "text",
+                    "provider_details": {
+                        "finish_reason": "stop",
+                        "timestamp": "2025-07-25T10:36:35.297675Z",
+                    },
+                    "provider_name": "some model",
+                }
+            ],
+            "timestamp": "2025-06-15T10:31:00.000000Z",
+            "usage": {
+                "details": None,
+                "request_tokens": 10,
+                "requests": 1,
+                "response_tokens": 20,
+                "total_tokens": 30,
+            },
+            "vendor_details": None,
+            "vendor_id": None,
+        },
+        {
+            "instructions": None,
+            "kind": "request",
+            "parts": [
+                {
+                    "content": ["What are neural networks?"],
+                    "part_kind": "user-prompt",
+                    "timestamp": "2025-06-15T10:32:00.000000Z",
+                },
+            ],
+        },
+        {
+            "kind": "response",
+            "model_name": "test-model",
+            "parts": [
+                {
+                    "content": (
+                        "Neural networks are computing systems inspired by the "
+                        "biological neural networks in animal brains."
+                    ),
+                    "part_kind": "text",
+                    "provider_details": {
+                        "finish_reason": "stop",
+                        "timestamp": "2025-07-25T10:36:35.297675Z",
+                    },
+                    "provider_name": "some model",
                 }
             ],
             "timestamp": "2025-06-15T10:33:00.000000Z",
@@ -296,6 +417,109 @@ def test_post_conversation_data_protocol_with_history(
 
     # Verify that the pydantic_messages were appended correctly
     assert len(history_conversation.pydantic_messages) == 6  # Original 4 + 2 new ones
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@respx.mock
+def test_post_conversation_data_protocol_with_history_from_pyai_v_1_17(
+    api_client, mock_openai_stream, history_conversation_pyai_v1_17
+):
+    """Test backward compatibility of the data protocol with pydantic-ai v1.17 history.
+
+    Verify that a conversation whose history was persisted by pydantic-ai 1.17
+    (missing ``metadata``, ``provider_details``, ``provider_name``, and
+    ``provider_url`` fields) can still accept new messages, stream a response,
+    forward the full history to the LLM provider, and correctly append the new
+    exchange to both ``messages`` and ``pydantic_messages``."""
+
+    url = f"/api/v1.0/chats/{history_conversation_pyai_v1_17.pk}/conversation/?protocol=data"
+    data = {
+        "messages": [
+            {
+                "id": "yuPoOuBkKA4FnKvk",
+                "role": "user",
+                "parts": [{"text": "Hello", "type": "text"}],
+                "content": "Hello",
+                "createdAt": "2025-07-03T15:22:17.105Z",
+            }
+        ]
+    }
+    api_client.force_login(history_conversation_pyai_v1_17.owner)
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.get("Content-Type") == "text/event-stream"
+    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.streaming
+
+    # Wait for the streaming content to be fully received
+    response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
+    assert response_content == (
+        '0:"Hello"\n'
+        '0:" there"\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+    )
+
+    assert mock_openai_stream.called
+
+    # Verify that the request to OpenAI included the conversation history
+    request_sent = mock_openai_stream.calls[0].request
+    body = json.loads(request_sent.content)
+
+    # Check that the history is included in the messages sent to OpenAI
+    assert len(body["messages"]) >= 4  # System prompt + at least 3 more messages from history
+
+    # Verify the conversation still has its history plus the new messages
+    history_conversation_pyai_v1_17.refresh_from_db()
+    # The UI messages should only include the most recent one (sent from frontend)
+    assert history_conversation_pyai_v1_17.ui_messages == [
+        {
+            "content": "Hello",
+            "createdAt": "2025-07-03T15:22:17.105Z",
+            "id": "yuPoOuBkKA4FnKvk",
+            "parts": [{"text": "Hello", "type": "text"}],
+            "role": "user",
+        }
+    ]
+
+    # But the history should now have 6 messages - 4 from history + 2 new ones
+    assert len(history_conversation_pyai_v1_17.messages) == 6
+
+    # Verify the most recent message is the new one
+    assert history_conversation_pyai_v1_17.messages[4].id == IsUUID(4)
+    assert history_conversation_pyai_v1_17.messages[4] == UIMessage(
+        id=history_conversation_pyai_v1_17.messages[4].id,
+        createdAt=timezone.now(),  # Mocked timestamp
+        content="Hello",
+        reasoning=None,
+        experimental_attachments=None,
+        role="user",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello")],
+    )
+
+    assert history_conversation_pyai_v1_17.messages[5].id == IsUUID(4)
+    assert history_conversation_pyai_v1_17.messages[5] == UIMessage(
+        id=history_conversation_pyai_v1_17.messages[5].id,
+        createdAt=timezone.now(),  # Mocked timestamp
+        content="Hello there",
+        reasoning=None,
+        experimental_attachments=None,
+        role="assistant",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello there")],
+    )
+
+    # Verify that the pydantic_messages were appended correctly
+    assert len(history_conversation_pyai_v1_17.pydantic_messages) == 6  # Original 4 + 2 new ones
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
@@ -1028,6 +1252,7 @@ def history_conversation_with_tool_fixture():
         },
         {
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
             "parts": [
                 {
@@ -1069,6 +1294,7 @@ def history_conversation_with_tool_fixture():
         },
         {
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
             "parts": [
                 {
@@ -1102,6 +1328,7 @@ def history_conversation_with_tool_fixture():
         },
         {
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
             "parts": [
                 {
@@ -1148,6 +1375,7 @@ def history_conversation_with_tool_fixture():
         },
         {
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
             "parts": [
                 {
@@ -1384,6 +1612,7 @@ def test_post_conversation_with_existing_tool_history(
         "Today is Friday 25/07/2025.\n\n"
         "Answer in dutch.",
         "kind": "request",
+        "metadata": None,
         "parts": [
             {
                 "content": ["How about Paris weather?"],
@@ -1392,24 +1621,32 @@ def test_post_conversation_with_existing_tool_history(
             }
         ],
         "run_id": _run_id,
+        "timestamp": "2025-07-25T10:36:35.297675Z",
     }
 
     assert history_conversation_with_tool.pydantic_messages[9] == {
         "finish_reason": "tool_call",
         "kind": "response",
+        "metadata": None,
         "model_name": "test-model",
         "parts": [
             {
                 "args": '{"location":"Paris", "unit":"celsius"}',
                 "id": None,
                 "part_kind": "tool-call",
+                "provider_details": None,
+                "provider_name": None,
                 "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
                 "tool_name": "get_current_weather",
             }
         ],
-        "provider_details": {"finish_reason": "tool_calls"},
+        "provider_details": {
+            "finish_reason": "tool_calls",
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+        },
         "provider_name": "openai",
         "provider_response_id": "chatcmpl-tool-call",
+        "provider_url": "https://www.external-ai-service.com/",
         "timestamp": "2025-07-25T10:36:35.297675Z",
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -1429,6 +1666,7 @@ def test_post_conversation_with_existing_tool_history(
         "Today is Friday 25/07/2025.\n\n"
         "Answer in dutch.",
         "kind": "request",
+        "metadata": None,
         "parts": [
             {
                 "content": {"location": "Paris", "temperature": 22, "unit": "celsius"},
@@ -1440,18 +1678,30 @@ def test_post_conversation_with_existing_tool_history(
             }
         ],
         "run_id": _run_id,
+        "timestamp": "2025-07-25T10:36:35.297675Z",
     }
 
     assert history_conversation_with_tool.pydantic_messages[11] == {
         "finish_reason": "stop",
         "kind": "response",
+        "metadata": None,
         "model_name": "test-model",
         "parts": [
-            {"content": "The current weather in Paris is nice", "id": None, "part_kind": "text"}
+            {
+                "content": "The current weather in Paris is nice",
+                "id": None,
+                "part_kind": "text",
+                "provider_details": None,
+                "provider_name": None,
+            }
         ],
-        "provider_details": {"finish_reason": "stop"},
+        "provider_details": {
+            "finish_reason": "stop",
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+        },
         "provider_name": "openai",
         "provider_response_id": "chatcmpl-final",
+        "provider_url": "https://www.external-ai-service.com/",
         "timestamp": "2025-07-25T10:36:35.297675Z",
         "usage": {
             "cache_audio_read_tokens": 0,
