@@ -26,6 +26,7 @@ and this project adheres to
 ### Fixed
 
 - 💚(docker) vendor mime.types file instead of fetching from Apache SVN
+- 🚑️(back) fix mime type for pptx
 - 🐛(front) fix math formulas and carousel translations
 - 🐛(helm) reverse liveness and readiness for backend deployment
 - 🐛(front) fix dark mode styling on chat messages
