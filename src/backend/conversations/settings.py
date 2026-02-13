@@ -702,7 +702,7 @@ class Base(BraveSettings, Configuration):
             # docx files
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             # pptx files
-            "application/vnd.openxmlformats-officedocument.presentationml",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             # xlsx and xls files
             "application/vnd.ms-excel",
             "application/excel",

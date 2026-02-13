@@ -15,6 +15,7 @@ and this project adheres to
 ### Fixed
 
 - 💚(docker) vendor mime.types file instead of fetching from Apache SVN
+- 🚑️(back) fix mime type for pptx
 - 🐛(front) fix math formulas and carousel translations
 
 ## [0.0.13] - 2026-02-09
