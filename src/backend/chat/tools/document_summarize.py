@@ -51,8 +51,11 @@ async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
 
 
 @last_model_retry_soft_fail
-async def document_summarize(  # pylint: disable=too-many-locals
-    ctx: RunContext, *, instructions: str | None = None
+async def document_summarize(  # pylint: disable=too-many-locals, too-many-statements
+    ctx: RunContext,
+    *,
+    instructions: str | None = None,
+    doc_index: int | None = None,
 ) -> ToolReturn:
     """
     Generate a complete, ready-to-use summary of the documents in context
@@ -65,12 +68,16 @@ async def document_summarize(  # pylint: disable=too-many-locals
     Instructions are optional but should reflect the user's request.
 
     Examples:
-    "Summarize this doc in 2 paragraphs" -> instructions = "summary in 2 paragraphs"
-    "Summarize this doc in English" -> instructions = "In English"
-    "Summarize this doc" -> instructions = "" (default)
+    "Summarize this doc in 2 paragraphs" -> instructions = "summary in 2 paragraphs", doc_index=None
+    "Summarize this doc in English" -> instructions = "In English", doc_index=None
+    "Summarize this doc" -> instructions = "" (default), doc_index=None
+    "Summarize the last document" -> instructions = "", doc_index=-1
+    "Summarize the first document" -> instructions = "", doc_index=0
 
     Args:
         instructions (str | None): The instructions the user gave to use for the summarization
+        doc_index (int | None): The index of the document to summarize (e.g. 0 for first, -1 for last).
+                               If None, summarizes all text documents found.
     """
     try:
         instructions_hint = (
@@ -90,6 +97,15 @@ async def document_summarize(  # pylint: disable=too-many-locals
                 "No text documents found in the conversation. "
                 "You must explain this to the user and ask them to provide documents."
             )
+
+        if doc_index is not None:
+            try:
+                text_attachment = [text_attachment[doc_index]]
+            except IndexError as exc:
+                raise ModelRetry(
+                    f"Document index {doc_index} is out of range. "
+                    f"There are {len(text_attachment)} documents available."
+                ) from exc
 
         documents = [await read_document_content(doc) for doc in text_attachment]
 
