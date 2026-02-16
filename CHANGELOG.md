@@ -12,6 +12,7 @@ and this project adheres to
 
 - ✨(waffle) hide the waffle if not fr theme
 - ✨(front) allow pasting an attachment from clipboard
+- ✨(array) temporarily adjust array
 
 ### Changed
 
