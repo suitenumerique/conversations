@@ -109,8 +109,13 @@ zip-safe = true
 universal = true
 
 [tool.uv]
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'darwin'",
+]
 override-dependencies = [
     "cryptography>=46.0.5", # CVE-2026-26007
+    "pillow>=12.1.1", #CVE-2026-25990
 ]
 
 [tool.uv.build-backend]

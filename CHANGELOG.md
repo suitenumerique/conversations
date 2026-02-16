@@ -20,6 +20,7 @@ and this project adheres to
 - ⬆️(back) update pydantic-ai
 - ♻️(chat) refactor AIAgentService for readability and maintainability
 - 🚸(oidc) ignore case when fallback on email #281
+- ⬆️(back) update pillow
 
 ### Fixed
 
