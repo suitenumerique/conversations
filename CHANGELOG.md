@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(waffle) hide the waffle if not fr theme
 - ✨(front) allow pasting an attachment from clipboard
 
 ### Changed

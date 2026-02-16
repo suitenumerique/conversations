@@ -3,10 +3,10 @@ export const tokens = {
     default: {
       globals: {
         colors: {
-          'logo-1-light': '#4844AD',
-          'logo-2-light': '#4844AD',
-          'logo-1-dark': '#BEC5F0',
-          'logo-2-dark': '#BEC5F0',
+          'logo-1-light': '#377FDB',
+          'logo-2-light': '#377FDB',
+          'logo-1-dark': '#C1D6F2',
+          'logo-2-dark': '#C1D6F2',
           'brand-050': '#EEF1FA',
           'brand-100': '#DDE2F5',
           'brand-150': '#CED3F1',
@@ -336,6 +336,8 @@ export const tokens = {
           'white-900': '#F8F8F9E5',
           'white-950': '#F8F8F9F2',
           'white-975': '#F8F8F9F9',
+          'logo-1': '#4844AD',
+          'logo-2': '#4844AD',
         },
         transitions: {
           'ease-in': 'cubic-bezier(0.32, 0, 0.67, 0)',
@@ -547,8 +549,8 @@ export const tokens = {
           },
         },
         content: {
-          logo1: '#4844AD',
-          logo2: '#4844AD',
+          logo1: '#377FDB',
+          logo2: '#377FDB',
           semantic: {
             contextual: { primary: '#F8F8F9F2' },
             overlay: { primary: '#F8F8F9F2' },
@@ -681,10 +683,10 @@ export const tokens = {
     dark: {
       globals: {
         colors: {
-          'logo-1-light': '#4844AD',
-          'logo-2-light': '#4844AD',
-          'logo-1-dark': '#BEC5F0',
-          'logo-2-dark': '#BEC5F0',
+          'logo-1-light': '#377FDB',
+          'logo-2-light': '#377FDB',
+          'logo-1-dark': '#C1D6F2',
+          'logo-2-dark': '#C1D6F2',
           'brand-050': '#EEF1FA',
           'brand-100': '#DDE2F5',
           'brand-150': '#CED3F1',
@@ -1014,6 +1016,8 @@ export const tokens = {
           'white-900': '#F8F8F9E5',
           'white-950': '#F8F8F9F2',
           'white-975': '#F8F8F9F9',
+          'logo-1': '#4844AD',
+          'logo-2': '#4844AD',
         },
         transitions: {
           'ease-in': 'cubic-bezier(0.32, 0, 0.67, 0)',
@@ -1225,8 +1229,8 @@ export const tokens = {
           },
         },
         content: {
-          logo1: '#BEC5F0',
-          logo2: '#BEC5F0',
+          logo1: '#C1D6F2',
+          logo2: '#C1D6F2',
           semantic: {
             contextual: { primary: '#1B1B23D9' },
             overlay: { primary: '#1B1B23D9' },
@@ -1876,8 +1880,8 @@ export const tokens = {
           },
         },
         content: {
-          logo1: '#4844AD',
-          logo2: '#4844AD',
+          logo1: '#377FDB',
+          logo2: '#377FDB',
           semantic: {
             contextual: { primary: '#F8F8F9F2' },
             overlay: { primary: '#F8F8F9F2' },
@@ -2527,8 +2531,8 @@ export const tokens = {
           },
         },
         content: {
-          logo1: '#BEC5F0',
-          logo2: '#BEC5F0',
+          logo1: '#C1D6F2',
+          logo2: '#C1D6F2',
           semantic: {
             contextual: { primary: '#1B1B23D9' },
             overlay: { primary: '#1B1B23D9' },
