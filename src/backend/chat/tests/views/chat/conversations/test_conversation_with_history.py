@@ -29,6 +29,10 @@ from chat.tests.utils import replace_uuids_with_placeholder
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
+PYAI_CURRENT = "current"
+PYAI_V1_17 = "v1.17"
+
+
 @pytest.fixture(autouse=True)
 def ai_settings(settings):
     """Fixture to set AI service URLs for testing."""
@@ -41,17 +45,9 @@ def ai_settings(settings):
     return settings
 
 
-@pytest.fixture(name="history_conversation")
-def history_conversation_fixture():
-    """Create a conversation with existing message history."""
-    # Create a timestamp for the first message
-    history_timestamp = timezone.now().replace(year=2025, month=6, day=15, hour=10, minute=30)
-
-    # Create a conversation with pre-existing messages
-    conversation = ChatConversationFactory()
-
-    # Add previous user and assistant messages
-    conversation.messages = [
+def build__history_conversation_ui_messages(history_timestamp):
+    """Build ui messages list for fixtures."""
+    return [
         UIMessage(
             id="prev-user-msg-1",
             createdAt=history_timestamp,
@@ -120,94 +116,205 @@ def history_conversation_fixture():
         ),
     ]
 
+
+@pytest.fixture(name="history_conversation")
+def history_conversation_fixture(request):
+    """Create a conversation with existing message history according to pydantic ai version."""
+
+    # Create a timestamp for the first message
+    history_timestamp = timezone.now().replace(year=2025, month=6, day=15, hour=10, minute=30)
+
+    # Create a conversation with pre-existing messages
+    conversation = ChatConversationFactory()
+    pyai_version = getattr(request, "param", PYAI_CURRENT)
+    # Add previous user and assistant messages
+    if pyai_version == PYAI_V1_17:
+        conversation.pydantic_messages = [
+            {
+                "instructions": None,
+                "kind": "request",
+                "parts": [
+                    {
+                        "content": "You are a helpful test assistant :)",
+                        "dynamic_ref": None,
+                        "part_kind": "system-prompt",
+                        "timestamp": "2025-06-15T10:30:00.000000Z",
+                    },
+                    {
+                        "content": ["How does machine learning work?"],
+                        "part_kind": "user-prompt",
+                        "timestamp": "2025-06-15T10:30:00.000000Z",
+                    },
+                ],
+            },
+            {
+                "kind": "response",
+                "model_name": "test-model",
+                "parts": [
+                    {
+                        "content": (
+                            "Machine learning is a branch of artificial intelligence that "
+                            "focuses on building systems that learn from data."
+                        ),
+                        "part_kind": "text",
+                    }
+                ],
+                "timestamp": "2025-06-15T10:31:00.000000Z",
+                "usage": {
+                    "details": None,
+                    "request_tokens": 10,
+                    "requests": 1,
+                    "response_tokens": 20,
+                    "total_tokens": 30,
+                },
+                "vendor_details": None,
+                "vendor_id": None,
+            },
+            {
+                "instructions": None,
+                "kind": "request",
+                "parts": [
+                    {
+                        "content": ["What are neural networks?"],
+                        "part_kind": "user-prompt",
+                        "timestamp": "2025-06-15T10:32:00.000000Z",
+                    },
+                ],
+            },
+            {
+                "kind": "response",
+                "model_name": "test-model",
+                "parts": [
+                    {
+                        "content": (
+                            "Neural networks are computing systems inspired by the "
+                            "biological neural networks in animal brains."
+                        ),
+                        "part_kind": "text",
+                    }
+                ],
+                "timestamp": "2025-06-15T10:33:00.000000Z",
+                "usage": {
+                    "details": None,
+                    "request_tokens": 5,
+                    "requests": 1,
+                    "response_tokens": 15,
+                    "total_tokens": 20,
+                },
+                "vendor_details": None,
+                "vendor_id": None,
+            },
+        ]
+    else:
+        conversation.pydantic_messages = [
+            {
+                "instructions": None,
+                "kind": "request",
+                "parts": [
+                    {
+                        "content": "You are a helpful test assistant :)",
+                        "dynamic_ref": None,
+                        "part_kind": "system-prompt",
+                        "timestamp": "2025-06-15T10:30:00.000000Z",
+                    },
+                    {
+                        "content": ["How does machine learning work?"],
+                        "part_kind": "user-prompt",
+                        "timestamp": "2025-06-15T10:30:00.000000Z",
+                    },
+                ],
+            },
+            {
+                "kind": "response",
+                "model_name": "test-model",
+                "parts": [
+                    {
+                        "content": (
+                            "Machine learning is a branch of artificial intelligence that "
+                            "focuses on building systems that learn from data."
+                        ),
+                        "part_kind": "text",
+                        "provider_details": {
+                            "finish_reason": "stop",
+                            "timestamp": "2025-07-25T10:36:35.297675Z",
+                        },
+                        "provider_name": "some model",
+                    }
+                ],
+                "timestamp": "2025-06-15T10:31:00.000000Z",
+                "usage": {
+                    "details": None,
+                    "request_tokens": 10,
+                    "requests": 1,
+                    "response_tokens": 20,
+                    "total_tokens": 30,
+                },
+                "provider_details": None,
+                "vendor_id": None,
+            },
+            {
+                "instructions": None,
+                "kind": "request",
+                "parts": [
+                    {
+                        "content": ["What are neural networks?"],
+                        "part_kind": "user-prompt",
+                        "timestamp": "2025-06-15T10:32:00.000000Z",
+                    },
+                ],
+            },
+            {
+                "kind": "response",
+                "metadata": None,
+                "model_name": "test-model",
+                "finish_reason": "stop",
+                "parts": [
+                    {
+                        "content": (
+                            "Neural networks are computing systems inspired by the "
+                            "biological neural networks in animal brains."
+                        ),
+                        "part_kind": "text",
+                        "provider_details": {
+                            "finish_reason": "stop",
+                            "timestamp": "2025-07-25T10:36:35.297675Z",
+                        },
+                        "provider_name": "test-model",
+                        "provider_url": "https://www.external-ai-service.com/",
+                    }
+                ],
+                "timestamp": "2025-06-15T10:33:00.000000Z",
+                "usage": {
+                    "details": None,
+                    "request_tokens": 5,
+                    "requests": 1,
+                    "response_tokens": 15,
+                    "total_tokens": 20,
+                },
+                "provider_details": {
+                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                    "finish_reason": "stop",
+                },
+                "provider_name": "test-model",
+                "provider_response_id": "xyz",
+            },
+        ]
+
     # Set up the OpenAI message format as well
-    conversation.pydantic_messages = [
-        {
-            "instructions": None,
-            "kind": "request",
-            "parts": [
-                {
-                    "content": "You are a helpful test assistant :)",
-                    "dynamic_ref": None,
-                    "part_kind": "system-prompt",
-                    "timestamp": "2025-06-15T10:30:00.000000Z",
-                },
-                {
-                    "content": ["How does machine learning work?"],
-                    "part_kind": "user-prompt",
-                    "timestamp": "2025-06-15T10:30:00.000000Z",
-                },
-            ],
-        },
-        {
-            "kind": "response",
-            "model_name": "test-model",
-            "parts": [
-                {
-                    "content": (
-                        "Machine learning is a branch of artificial intelligence that "
-                        "focuses on building systems that learn from data."
-                    ),
-                    "part_kind": "text",
-                }
-            ],
-            "timestamp": "2025-06-15T10:31:00.000000Z",
-            "usage": {
-                "details": None,
-                "request_tokens": 10,
-                "requests": 1,
-                "response_tokens": 20,
-                "total_tokens": 30,
-            },
-            "vendor_details": None,
-            "vendor_id": None,
-        },
-        {
-            "instructions": None,
-            "kind": "request",
-            "parts": [
-                {
-                    "content": ["What are neural networks?"],
-                    "part_kind": "user-prompt",
-                    "timestamp": "2025-06-15T10:32:00.000000Z",
-                },
-            ],
-        },
-        {
-            "kind": "response",
-            "model_name": "test-model",
-            "parts": [
-                {
-                    "content": (
-                        "Neural networks are computing systems inspired by the "
-                        "biological neural networks in animal brains."
-                    ),
-                    "part_kind": "text",
-                }
-            ],
-            "timestamp": "2025-06-15T10:33:00.000000Z",
-            "usage": {
-                "details": None,
-                "request_tokens": 5,
-                "requests": 1,
-                "response_tokens": 15,
-                "total_tokens": 20,
-            },
-            "vendor_details": None,
-            "vendor_id": None,
-        },
-    ]
+    conversation.messages = build__history_conversation_ui_messages(history_timestamp)
 
     conversation.save()
     return conversation
 
 
+@pytest.mark.parametrize("history_conversation", [PYAI_CURRENT, PYAI_V1_17], indirect=True)
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_data_protocol_with_history(
     api_client, mock_openai_stream, history_conversation
 ):
     """Test posting messages to a conversation with history using the 'data' protocol."""
+
     url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
     data = {
         "messages": [
@@ -1028,6 +1135,7 @@ def history_conversation_with_tool_fixture():
         },
         {
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
             "parts": [
                 {
@@ -1069,6 +1177,7 @@ def history_conversation_with_tool_fixture():
         },
         {
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
             "parts": [
                 {
@@ -1102,6 +1211,7 @@ def history_conversation_with_tool_fixture():
         },
         {
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
             "parts": [
                 {
@@ -1148,6 +1258,7 @@ def history_conversation_with_tool_fixture():
         },
         {
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
             "parts": [
                 {
@@ -1384,6 +1495,7 @@ def test_post_conversation_with_existing_tool_history(
         "Today is Friday 25/07/2025.\n\n"
         "Answer in dutch.",
         "kind": "request",
+        "metadata": None,
         "parts": [
             {
                 "content": ["How about Paris weather?"],
@@ -1392,24 +1504,32 @@ def test_post_conversation_with_existing_tool_history(
             }
         ],
         "run_id": _run_id,
+        "timestamp": "2025-07-25T10:36:35.297675Z",
     }
 
     assert history_conversation_with_tool.pydantic_messages[9] == {
         "finish_reason": "tool_call",
         "kind": "response",
+        "metadata": None,
         "model_name": "test-model",
         "parts": [
             {
                 "args": '{"location":"Paris", "unit":"celsius"}',
                 "id": None,
                 "part_kind": "tool-call",
+                "provider_details": None,
+                "provider_name": None,
                 "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
                 "tool_name": "get_current_weather",
             }
         ],
-        "provider_details": {"finish_reason": "tool_calls"},
+        "provider_details": {
+            "finish_reason": "tool_calls",
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+        },
         "provider_name": "openai",
         "provider_response_id": "chatcmpl-tool-call",
+        "provider_url": "https://www.external-ai-service.com/",
         "timestamp": "2025-07-25T10:36:35.297675Z",
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -1429,6 +1549,7 @@ def test_post_conversation_with_existing_tool_history(
         "Today is Friday 25/07/2025.\n\n"
         "Answer in dutch.",
         "kind": "request",
+        "metadata": None,
         "parts": [
             {
                 "content": {"location": "Paris", "temperature": 22, "unit": "celsius"},
@@ -1440,18 +1561,30 @@ def test_post_conversation_with_existing_tool_history(
             }
         ],
         "run_id": _run_id,
+        "timestamp": "2025-07-25T10:36:35.297675Z",
     }
 
     assert history_conversation_with_tool.pydantic_messages[11] == {
         "finish_reason": "stop",
         "kind": "response",
+        "metadata": None,
         "model_name": "test-model",
         "parts": [
-            {"content": "The current weather in Paris is nice", "id": None, "part_kind": "text"}
+            {
+                "content": "The current weather in Paris is nice",
+                "id": None,
+                "part_kind": "text",
+                "provider_details": None,
+                "provider_name": None,
+            }
         ],
-        "provider_details": {"finish_reason": "stop"},
+        "provider_details": {
+            "finish_reason": "stop",
+            "timestamp": "2025-07-25T10:36:35.297675Z",
+        },
         "provider_name": "openai",
         "provider_response_id": "chatcmpl-final",
+        "provider_url": "https://www.external-ai-service.com/",
         "timestamp": "2025-07-25T10:36:35.297675Z",
         "usage": {
             "cache_audio_read_tokens": 0,

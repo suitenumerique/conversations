@@ -8,11 +8,13 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.http import Http404, StreamingHttpResponse
+from django.utils.decorators import method_decorator
 
 import langfuse
 import magic
 import posthog
 from lasuite.malware_detection import malware_detection
+from lasuite.oidc_login.decorators import refresh_oidc_access_token
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, ValidationError
 from rest_framework.response import Response
@@ -33,6 +35,19 @@ from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sy
 from chat.serializers import ChatConversationRequestSerializer
 
 logger = logging.getLogger(__name__)
+
+
+def conditional_refresh_oidc_token(func):
+    """
+    Conditionally apply refresh_oidc_access_token decorator.
+
+    The decorator is only applied if OIDC_STORE_REFRESH_TOKEN is True, meaning
+    we can actually refresh something. Broader settings checks are done in settings.py.
+    """
+    if settings.OIDC_STORE_REFRESH_TOKEN:
+        return method_decorator(refresh_oidc_access_token)(func)
+
+    return func
 
 
 class ChatConversationFilter(filters.BaseFilterBackend):
@@ -126,6 +141,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             self.permission_classes = []
         return super().get_permissions()
 
+    @conditional_refresh_oidc_token
     @decorators.action(
         methods=["post"],
         detail=True,
@@ -177,6 +193,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         ai_service = AIAgentService(
             conversation=conversation,
             user=self.request.user,
+            session=request.session,
             model_hrid=model_hrid,
             language=(
                 self.request.user.language

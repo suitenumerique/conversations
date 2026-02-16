@@ -3,6 +3,7 @@
 
 import json
 import logging
+import time
 from unittest.mock import ANY, patch
 
 from django.utils import timezone
@@ -189,6 +190,7 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
                 "Today is Friday 25/07/2025.\n\nAnswer in english."
             ),
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": ["Hello"],
@@ -197,15 +199,29 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
                 },
             ],
             "run_id": _run_id,
+            "timestamp": "2025-07-25T10:36:35.297675Z",
         },
         {
             "finish_reason": "stop",
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
-            "parts": [{"content": "Hello there", "id": None, "part_kind": "text"}],
-            "provider_details": {"finish_reason": "stop"},
+            "parts": [
+                {
+                    "content": "Hello there",
+                    "id": None,
+                    "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
+                }
+            ],
+            "provider_details": {
+                "finish_reason": "stop",
+                "timestamp": "2025-07-25T10:36:35.297675Z",
+            },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-1234567890",
+            "provider_url": "https://www.external-ai-service.com/",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -316,6 +332,7 @@ def test_post_conversation_data_protocol_triggers_keepalives(
                 "Answer in english."
             ),
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": ["Hello"],
@@ -324,15 +341,29 @@ def test_post_conversation_data_protocol_triggers_keepalives(
                 },
             ],
             "run_id": _run_id,
+            "timestamp": "2025-07-25T10:36:35.297675Z",
         },
         {
             "finish_reason": "stop",
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
-            "parts": [{"content": "Hello there", "id": None, "part_kind": "text"}],
-            "provider_details": {"finish_reason": "stop"},
+            "parts": [
+                {
+                    "content": "Hello there",
+                    "id": None,
+                    "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
+                }
+            ],
+            "provider_details": {
+                "finish_reason": "stop",
+                "timestamp": "2025-07-25T10:36:35.297675Z",
+            },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-1234567890",
+            "provider_url": "https://www.external-ai-service.com/",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -437,6 +468,7 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
                 "Today is Friday 25/07/2025.\n\nAnswer in english."
             ),
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": ["Hello"],
@@ -445,15 +477,29 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
                 },
             ],
             "run_id": _run_id,
+            "timestamp": "2025-07-25T10:36:35.297675Z",
         },
         {
             "finish_reason": "stop",
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
-            "parts": [{"content": "Hello there", "id": None, "part_kind": "text"}],
-            "provider_details": {"finish_reason": "stop"},
+            "parts": [
+                {
+                    "content": "Hello there",
+                    "id": None,
+                    "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
+                }
+            ],
+            "provider_details": {
+                "finish_reason": "stop",
+                "timestamp": "2025-07-25T10:36:35.297675Z",
+            },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-1234567890",
+            "provider_url": "https://www.external-ai-service.com/",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -623,6 +669,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
                 "Today is Friday 25/07/2025.\n\nAnswer in english."
             ),
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": [
@@ -643,15 +690,29 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
                 },
             ],
             "run_id": _run_id,
+            "timestamp": "2025-07-25T10:36:35.297675Z",
         },
         {
             "finish_reason": "stop",
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
-            "parts": [{"content": "I see a cat in the picture.", "id": None, "part_kind": "text"}],
-            "provider_details": {"finish_reason": "stop"},
+            "parts": [
+                {
+                    "content": "I see a cat in the picture.",
+                    "id": None,
+                    "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
+                }
+            ],
+            "provider_details": {
+                "finish_reason": "stop",
+                "timestamp": "2025-07-25T10:36:35.297675Z",
+            },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-1234567890",
+            "provider_url": "https://www.external-ai-service.com/",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -789,6 +850,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                 "Today is Friday 25/07/2025.\n\nAnswer in english."
             ),
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": ["Weather in Paris?"],
@@ -797,23 +859,31 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                 },
             ],
             "run_id": _run_id,
+            "timestamp": "2025-07-25T10:36:35.297675Z",
         },
         {
             "finish_reason": "tool_call",
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
             "parts": [
                 {
                     "args": '{"location":"Paris", "unit":"celsius"}',
                     "id": None,
                     "part_kind": "tool-call",
+                    "provider_details": None,
+                    "provider_name": None,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
                     "tool_name": "get_current_weather",
                 }
             ],
-            "provider_details": {"finish_reason": "tool_calls"},
+            "provider_details": {
+                "finish_reason": "tool_calls",
+                "timestamp": "2025-07-25T10:36:35.297675Z",
+            },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-tool-call",
+            "provider_url": "https://www.external-ai-service.com/",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -833,6 +903,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                 "Today is Friday 25/07/2025.\n\nAnswer in english."
             ),
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": {"location": "Paris", "temperature": 22, "unit": "celsius"},
@@ -844,17 +915,29 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                 }
             ],
             "run_id": _run_id,
+            "timestamp": "2025-07-25T10:36:35.297675Z",
         },
         {
             "finish_reason": "stop",
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
             "parts": [
-                {"content": "The current weather in Paris is nice", "id": None, "part_kind": "text"}
+                {
+                    "content": "The current weather in Paris is nice",
+                    "id": None,
+                    "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
+                }
             ],
-            "provider_details": {"finish_reason": "stop"},
+            "provider_details": {
+                "finish_reason": "stop",
+                "timestamp": "2025-07-25T10:36:35.297675Z",
+            },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-final",
+            "provider_url": "https://www.external-ai-service.com/",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -991,6 +1074,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
                 "Today is Friday 25/07/2025.\n\nAnswer in french."
             ),
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": ["Weather in Paris?"],
@@ -999,23 +1083,31 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
                 },
             ],
             "run_id": _run_id,
+            "timestamp": "2025-07-25T10:36:35.297675Z",
         },
         {
             "finish_reason": "tool_call",
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
             "parts": [
                 {
                     "args": '{"location":"Paris", "unit":"celsius"}',
                     "id": None,
                     "part_kind": "tool-call",
+                    "provider_details": None,
+                    "provider_name": None,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
                     "tool_name": "get_current_weather",
                 }
             ],
-            "provider_details": {"finish_reason": "tool_calls"},
+            "provider_details": {
+                "finish_reason": "tool_calls",
+                "timestamp": "2025-07-25T10:36:35.297675Z",
+            },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-tool-call",
+            "provider_url": "https://www.external-ai-service.com/",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -1035,6 +1127,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
                 "Today is Friday 25/07/2025.\n\nAnswer in french."
             ),
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": "Unknown tool name: 'get_current_weather'. No tools available.",
@@ -1045,17 +1138,29 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
                 }
             ],
             "run_id": _run_id,
+            "timestamp": "2025-07-25T10:36:35.297675Z",
         },
         {
             "finish_reason": "stop",
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
             "parts": [
-                {"content": "I cannot give you an answer to that.", "id": None, "part_kind": "text"}
+                {
+                    "content": "I cannot give you an answer to that.",
+                    "id": None,
+                    "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
+                }
             ],
-            "provider_details": {"finish_reason": "stop"},
+            "provider_details": {
+                "finish_reason": "stop",
+                "timestamp": "2025-07-25T10:36:35.297675Z",
+            },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-final",
+            "provider_url": "https://www.external-ai-service.com/",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -1301,6 +1406,7 @@ def test_post_conversation_data_protocol_no_stream(
                 "You are an amazing assistant.\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
             ),
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": ["Why the sky is blue?"],
@@ -1309,10 +1415,12 @@ def test_post_conversation_data_protocol_no_stream(
                 },
             ],
             "run_id": _run_id,
+            "timestamp": "2025-07-25T10:36:35.297675Z",
         },
         {
             "finish_reason": "stop",
             "kind": "response",
+            "metadata": None,
             "model_name": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
             "parts": [
                 {
@@ -1320,12 +1428,18 @@ def test_post_conversation_data_protocol_no_stream(
                     "Rayleigh scattering.",
                     "id": None,
                     "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
                 }
             ],
-            "provider_details": {"finish_reason": "stop"},
+            "provider_details": {
+                "finish_reason": "stop",
+                "timestamp": "2025-09-22T14:13:49Z",
+            },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-92c413bb5a45426299335d0621324654",
-            "timestamp": "2025-09-22T14:13:49Z",
+            "provider_url": "https://www.external-ai-service.com",
+            "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
                 "cache_read_tokens": 0,
@@ -1441,6 +1555,7 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
                 "Today is Friday 25/07/2025.\n\nAnswer in english."
             ),
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": ["Hello"],
@@ -1449,15 +1564,29 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
                 },
             ],
             "run_id": _run_id,
+            "timestamp": "2025-07-25T10:36:35.297675Z",
         },
         {
             "finish_reason": "stop",
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
-            "parts": [{"content": "Hello there", "id": None, "part_kind": "text"}],
-            "provider_details": {"finish_reason": "stop"},
+            "parts": [
+                {
+                    "content": "Hello there",
+                    "id": None,
+                    "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
+                }
+            ],
+            "provider_details": {
+                "finish_reason": "stop",
+                "timestamp": "2025-07-25T10:36:35.297675Z",
+            },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-1234567890",
+            "provider_url": "https://www.external-ai-service.com/",
             "timestamp": "2025-07-25T10:36:35.297675Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -1581,6 +1710,7 @@ async def test_post_conversation_async_triggers_keepalive(
                 "Today is Friday 25/07/2025.\n\nAnswer in english."
             ),
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": ["Hello"],
@@ -1589,15 +1719,29 @@ async def test_post_conversation_async_triggers_keepalive(
                 },
             ],
             "run_id": _run_id,
+            "timestamp": ANY,
         },
         {
             "finish_reason": "stop",
             "kind": "response",
+            "metadata": None,
             "model_name": "test-model",
-            "parts": [{"content": "Hello there", "id": None, "part_kind": "text"}],
-            "provider_details": {"finish_reason": "stop"},
+            "parts": [
+                {
+                    "content": "Hello there",
+                    "id": None,
+                    "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
+                }
+            ],
+            "provider_details": {
+                "finish_reason": "stop",
+                "timestamp": ANY,
+            },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-1234567890",
+            "provider_url": "https://www.external-ai-service.com/",
             "timestamp": ANY,
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -1612,3 +1756,106 @@ async def test_post_conversation_async_triggers_keepalive(
             "run_id": _run_id,
         },
     ]
+
+
+def test_post_conversation_oidc_refresh_enabled_unrefreshed(  # pylint: disable=unused-argument
+    api_client, oidc_refresh_token_enabled
+):
+    """Test posting messages to a conversation without fresh access token should be forbidden."""
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
+
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
+    data = {
+        "messages": [
+            {
+                "id": "yuPoOuBkKA4FnKvk",
+                "role": "user",
+                "parts": [{"text": "Hello", "type": "text"}],
+                "content": "Hello",
+                "createdAt": "2025-07-03T15:22:17.105Z",
+            }
+        ]
+    }
+    api_client.force_login(
+        chat_conversation.owner, backend="core.authentication.backends.OIDCAuthenticationBackend"
+    )
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@respx.mock
+def test_post_conversation_oidc_refresh_enabled(  # pylint: disable=unused-argument
+    api_client, mock_openai_stream, oidc_refresh_token_enabled
+):
+    """Test posting messages to a conversation using the 'data' protocol."""
+    chat_conversation = ChatConversationFactory(owner__language="en-us")
+
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
+    data = {
+        "messages": [
+            {
+                "id": "yuPoOuBkKA4FnKvk",
+                "role": "user",
+                "parts": [{"text": "Hello", "type": "text"}],
+                "content": "Hello",
+                "createdAt": "2025-07-03T15:22:17.105Z",
+            }
+        ]
+    }
+    api_client.force_login(
+        chat_conversation.owner, backend="core.authentication.backends.OIDCAuthenticationBackend"
+    )
+    session = api_client.session
+
+    session["oidc_id_token_expiration"] = time.time() + 3600  # valid for 1 hour
+    session["oidc_token_expiration"] = session["oidc_id_token_expiration"]  # ...
+    session.save()
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.get("Content-Type") == "text/event-stream"
+    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.streaming
+
+    # Wait for the streaming content to be fully received
+    response_content = b"".join(response.streaming_content).decode("utf-8")
+
+    # Replace UUIDs with placeholders for assertion
+    response_content = replace_uuids_with_placeholder(response_content)
+
+    assert response_content == (
+        '0:"Hello"\n'
+        '0:" there"\n'
+        'f:{"messageId":"<mocked_uuid>"}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+    )
+
+    assert mock_openai_stream.called
+
+    # ensure instructions are merged as a system prompt
+    last_request_payload = json.loads(respx.calls.last.request.content)
+    assert last_request_payload["messages"][0] == {
+        "content": (
+            "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\n"
+            "Answer in english."
+        ),
+        "role": "system",
+    }
+
+    chat_conversation.refresh_from_db()
+    assert chat_conversation.ui_messages == [
+        {
+            "content": "Hello",
+            "createdAt": "2025-07-03T15:22:17.105Z",
+            "id": "yuPoOuBkKA4FnKvk",
+            "parts": [{"text": "Hello", "type": "text"}],
+            "role": "user",
+        }
+    ]
+
+    assert len(chat_conversation.messages) == 2
+    assert len(chat_conversation.pydantic_messages) == 2

@@ -37,11 +37,20 @@ from chat.tests.utils import replace_uuids_with_placeholder
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-@pytest.fixture(autouse=True)
-def ai_settings(settings):
+@pytest.fixture(
+    autouse=True,
+    params=[
+        "chat.agent_rag.document_rag_backends.find_rag_backend.FindRagBackend",
+        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend",
+    ],
+)
+def ai_settings(request, settings):
     """Fixture to set AI service URLs for testing."""
+    settings.RAG_DOCUMENT_SEARCH_BACKEND = request.param
     settings.AI_BASE_URL = "https://www.external-ai-service.com/"
     settings.AI_API_KEY = "test-api-key"
+    settings.FIND_API_URL = "https://app-find"
+    settings.FIND_API_KEY = "find-api-key"
     settings.AI_MODEL = "test-model"
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
     return settings
@@ -64,12 +73,13 @@ def test_post_conversation_with_local_pdf_document_url(
     # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
     sample_document_content,
-    today_promt_date,
+    today_prompt_date,
     mock_ai_agent_service,
 ):
     """
     Test POST to /api/v1/chats/{pk}/conversation/ with a document URL.
     """
+
     responses.post(
         "https://albert.api.etalab.gouv.fr/v1/collections",
         json={"id": 123, "object": "collection"},
@@ -83,6 +93,10 @@ def test_post_conversation_with_local_pdf_document_url(
     responses.post(
         "https://albert.api.etalab.gouv.fr/v1/documents",
         json={"id": "document_id", "object": "document"},
+        status=200,
+    )
+    responses.post(
+        "https://app-find/api/v1.0/documents/index/",
         status=200,
     )
 
@@ -127,7 +141,7 @@ def test_post_conversation_with_local_pdf_document_url(
                 ],
                 instructions=(
                     "You are a helpful test assistant :)\n\n"
-                    f"{today_promt_date}\n\n"
+                    f"{today_prompt_date}\n\n"
                     "Answer in english.\n\n"
                     "Use document_search_rag ONLY to retrieve specific passages from attached "
                     "documents. Do NOT use it to summarize; for summaries, call the summarize "
@@ -143,6 +157,7 @@ def test_post_conversation_with_local_pdf_document_url(
                     "via the internal store."
                 ),
                 run_id=messages[0].run_id,
+                timestamp=timezone.now(),
             )
         ]
         yield "This is a document about a single pixel."
@@ -216,7 +231,7 @@ def test_post_conversation_with_local_pdf_document_url(
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": "You are a helpful test assistant :)\n\n"
-            f"{today_promt_date}\n\n"
+            f"{today_prompt_date}\n\n"
             "Answer in english.\n"
             "\n"
             "Use document_search_rag ONLY to retrieve specific passages "
@@ -236,6 +251,7 @@ def test_post_conversation_with_local_pdf_document_url(
             "conversation. Do not request re-upload of documents; "
             "consider them already available via the internal store.",
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": [
@@ -246,21 +262,26 @@ def test_post_conversation_with_local_pdf_document_url(
                 },
             ],
             "run_id": _run_id,
+            "timestamp": timestamp,
         },
         {
             "finish_reason": None,
             "kind": "response",
+            "metadata": None,
             "model_name": "function::agent_model",
             "parts": [
                 {
                     "content": "This is a document about a single pixel.",
                     "id": None,
                     "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
                 }
             ],
             "provider_details": None,
             "provider_name": None,
             "provider_response_id": None,
+            "provider_url": None,
             "timestamp": timestamp,
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -532,6 +553,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         assert presigned_url.find("X-Amz-Signature=") != -1
         assert presigned_url.find("X-Amz-Date=") != -1
         assert presigned_url.find("X-Amz-Expires=") != -1
+        timestamp_now = timezone.now()
 
         assert messages == [
             ModelRequest(
@@ -545,7 +567,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                                 identifier="sample.pdf",
                             ),
                         ],
-                        timestamp=timezone.now(),
+                        timestamp=timestamp_now,
                     ),
                 ],
                 instructions="You are a helpful test assistant :)\n\n"
@@ -557,7 +579,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                 parts=[TextPart(content="This is a document about a single pixel.")],
                 usage=RequestUsage(input_tokens=50, output_tokens=9),
                 model_name="function::agent_model",
-                timestamp=timezone.now(),
+                timestamp=timestamp_now,
                 run_id=messages[1].run_id,
             ),
             ModelRequest(
@@ -566,9 +588,10 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                         content=[
                             "Give more details about this document.",
                         ],
-                        timestamp=timezone.now(),
+                        timestamp=timestamp_now,
                     )
                 ],
+                timestamp=timestamp_now,
                 instructions="You are a helpful test assistant :)\n\n"
                 "Today is Saturday 18/10/2025.\n\n"
                 "Answer in english.",
@@ -725,6 +748,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
             "instructions": "You are a helpful test assistant :)\n\n"
             "Today is Saturday 18/10/2025.\n\n"
             "Answer in english.",
+            "metadata": None,
             "kind": "request",
             "parts": [
                 {
@@ -734,21 +758,26 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                 }
             ],
             "run_id": _run_id,
+            "timestamp": "2025-10-18T20:48:20.286204Z",
         },
         {
             "finish_reason": None,
             "kind": "response",
+            "metadata": None,
             "model_name": "function::agent_model",
             "parts": [
                 {
                     "content": "This is a document of square, very small and nice.",
                     "id": None,
                     "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
                 }
             ],
             "provider_details": None,
             "provider_name": None,
             "provider_response_id": None,
+            "provider_url": None,
             "timestamp": "2025-10-18T20:48:20.286204Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -778,7 +807,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
 def test_post_conversation_with_local_not_pdf_document_url(
     # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
-    today_promt_date,
+    today_prompt_date,
     mock_ai_agent_service,
     file_name,
     content_type,
@@ -799,6 +828,10 @@ def test_post_conversation_with_local_not_pdf_document_url(
     responses.post(
         "https://albert.api.etalab.gouv.fr/v1/documents",
         json={"id": "document_id", "object": "document"},
+        status=200,
+    )
+    responses.post(
+        "https://app-find/api/v1.0/documents/index/",
         status=200,
     )
 
@@ -836,6 +869,8 @@ def test_post_conversation_with_local_not_pdf_document_url(
     )
 
     async def agent_model(messages: list[ModelMessage], _info: AgentInfo):
+        timestamp_now = timezone.now()
+
         assert messages == [
             ModelRequest(
                 parts=[
@@ -844,12 +879,13 @@ def test_post_conversation_with_local_not_pdf_document_url(
                             "What is in this document?",
                             # No presigned URL for non-PDF documents (not supporter by LLM)
                         ],
-                        timestamp=timezone.now(),
+                        timestamp=timestamp_now,
                     ),
                 ],
+                timestamp=timestamp_now,
                 instructions=(
                     "You are a helpful test assistant :)\n\n"
-                    f"{today_promt_date}\n\n"
+                    f"{today_prompt_date}\n\n"
                     "Answer in english.\n\n"
                     "Use document_search_rag ONLY to retrieve specific passages from "
                     "attached documents. Do NOT use it to summarize; for summaries, "
@@ -940,7 +976,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
         {
             "instructions": (
                 "You are a helpful test assistant :)\n\n"
-                f"{today_promt_date}\n\n"
+                f"{today_prompt_date}\n\n"
                 "Answer in english.\n\n"
                 "Use document_search_rag ONLY to retrieve specific passages from "
                 "attached documents. Do NOT use it to summarize; for summaries, "
@@ -957,6 +993,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
                 "consider them already available via the internal store."
             ),
             "kind": "request",
+            "metadata": None,
             "parts": [
                 {
                     "content": [
@@ -967,21 +1004,26 @@ def test_post_conversation_with_local_not_pdf_document_url(
                 },
             ],
             "run_id": _run_id,
+            "timestamp": timestamp,
         },
         {
             "finish_reason": None,
             "kind": "response",
+            "metadata": None,
             "model_name": "function::agent_model",
             "parts": [
                 {
                     "content": "This is a document about you.",
                     "id": None,
                     "part_kind": "text",
+                    "provider_details": None,
+                    "provider_name": None,
                 }
             ],
             "provider_details": None,
             "provider_name": None,
             "provider_response_id": None,
+            "provider_url": None,
             "timestamp": timestamp,
             "usage": {
                 "cache_audio_read_tokens": 0,

@@ -8,6 +8,7 @@ import logging
 from io import BytesIO
 from unittest import mock
 
+from django.contrib.sessions.backends.cache import SessionStore
 from django.utils import formats, timezone
 
 import httpx
@@ -41,26 +42,47 @@ from chat.tests.utils import replace_uuids_with_placeholder
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-@pytest.fixture(autouse=True)
-def ai_settings(settings):
+@pytest.fixture(
+    autouse=True,
+    params=[
+        "chat.agent_rag.document_rag_backends.find_rag_backend.FindRagBackend",
+        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend",
+    ],
+)
+def ai_settings(request, settings):
     """Fixture to set AI service URLs for testing."""
-    settings.AI_BASE_URL = "https://www.external-ai-service.com/"
-    settings.AI_API_KEY = "test-api-key"
-    settings.AI_MODEL = "test-model"
-    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
 
-    # Enable Albert API for document search
-    settings.RAG_DOCUMENT_SEARCH_BACKEND = (
-        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend"
-    )
-    settings.ALBERT_API_URL = "https://albert.api.etalab.gouv.fr"
-    settings.ALBERT_API_KEY = "albert-api-key"
+    # enable on rag document search tool
+    settings.RAG_DOCUMENT_SEARCH_BACKEND = request.param
     settings.RAG_WEB_SEARCH_PROMPT_UPDATE = (
         "Based on the following document contents:\n\n{search_results}\n\n"
         "Please answer the user's question: {user_prompt}"
     )
 
+    settings.AI_BASE_URL = "https://www.external-ai-service.com/"
+    settings.AI_API_KEY = "test-api-key"
+    settings.AI_MODEL = "test-model"
+    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
+
+    # Albert API settings
+    settings.ALBERT_API_URL = "https://albert.api.etalab.gouv.fr"
+    settings.ALBERT_API_KEY = "albert-api-key"
+
+    # Find API settings
+    settings.FIND_API_URL = "https://find.api.example.com"
+    settings.FIND_API_KEY = "find-api-key"
+
     return settings
+
+
+@pytest.fixture(autouse=True)
+def mock_refresh_access_token():
+    """Mock refresh_access_token to bypass token refresh in tests."""
+    with mock.patch("utils.oidc.refresh_access_token") as mocked_refresh_access_token:
+        session = SessionStore()
+        session["oidc_access_token"] = "mocked-access-token"
+        mocked_refresh_access_token.return_value = session
+        yield mocked_refresh_access_token
 
 
 @pytest.fixture(name="sample_pdf_content")
@@ -81,10 +103,18 @@ def fixture_sample_pdf_content():
     return BytesIO(pdf_data)
 
 
-@pytest.fixture(name="mock_albert_api")
-def fixture_mock_albert_api():
+@pytest.fixture(name="mock_document_api")
+def fixture_mock_document_api():
     """Fixture to mock the Albert API endpoints."""
     # Mock collection creation
+
+    document_name = "sample.pdf"
+    document_content = "This is the content of the PDF."
+    prompt_tokens = 10
+    completion_tokens = 20
+    search_method = "semantic"
+    search_score = 0.9
+
     responses.post(
         "https://albert.api.etalab.gouv.fr/v1/collections",
         json={"id": "123", "name": "test-collection"},
@@ -101,7 +131,7 @@ def fixture_mock_albert_api():
                     "metadata": {"document_name": "sample.pdf"},
                 }
             ],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 20},
+            "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
         },
         status=status.HTTP_200_OK,
     )
@@ -119,17 +149,39 @@ def fixture_mock_albert_api():
         json={
             "data": [
                 {
-                    "method": "semantic",
+                    "method": search_method,
                     "chunk": {
                         "id": 123,
-                        "content": "This is the content of the PDF.",
-                        "metadata": {"document_name": "sample.pdf"},
+                        "content": document_content,
+                        "metadata": {"document_name": document_name},
                     },
-                    "score": 0.9,
+                    "score": search_score,
                 }
             ],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 20},
+            "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
         },
+        status=status.HTTP_200_OK,
+    )
+
+    # Mock document indexing (Find API)
+    responses.post(
+        "https://find.api.example.com/api/v1.0/documents/index/",
+        json={"id": "456", "status": "indexed"},
+        status=status.HTTP_200_OK,
+    )
+
+    # Mock document search (Find API)
+    responses.post(
+        "https://find.api.example.com/api/v1.0/documents/search/",
+        json=[
+            {
+                "_source": {
+                    "title.fr": document_name,
+                    "content.fr": document_content,
+                },
+                "_score": search_score,
+            }
+        ],
         status=status.HTTP_200_OK,
     )
 
@@ -219,9 +271,9 @@ def fixture_mock_openai_stream():
 def test_post_conversation_with_document_upload(
     # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
-    mock_albert_api,  # pylint: disable=unused-argument
+    mock_document_api,  # pylint: disable=unused-argument
     sample_pdf_content,
-    today_promt_date,
+    today_prompt_date,
     mock_ai_agent_service,
 ):
     """
@@ -357,7 +409,7 @@ def test_post_conversation_with_document_upload(
 
     assert chat_conversation.pydantic_messages[0] == {
         "instructions": "You are a helpful test assistant :)\n\n"
-        f"{today_promt_date}\n\n"
+        f"{today_prompt_date}\n\n"
         "Answer in english.\n\n"
         "Use document_search_rag ONLY to retrieve specific passages from "
         "attached documents. Do NOT use it to summarize; for summaries, "
@@ -372,6 +424,7 @@ def test_post_conversation_with_document_upload(
         "Do not request re-upload of documents; consider them already "
         "available via the internal store.",
         "kind": "request",
+        "metadata": None,
         "parts": [
             {
                 "content": ["What does the document say?"],
@@ -380,10 +433,12 @@ def test_post_conversation_with_document_upload(
             },
         ],
         "run_id": _run_id,
+        "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[1] == {
         "finish_reason": None,
         "kind": "response",
+        "metadata": None,
         "model_name": "function::agent_model",
         "parts": [
             {
@@ -392,11 +447,14 @@ def test_post_conversation_with_document_upload(
                 "part_kind": "tool-call",
                 "tool_call_id": chat_conversation.pydantic_messages[1]["parts"][0]["tool_call_id"],
                 "tool_name": "document_search_rag",
+                "provider_details": None,
+                "provider_name": None,
             }
         ],
         "provider_details": None,
         "provider_name": None,
         "provider_response_id": None,
+        "provider_url": None,
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -413,7 +471,7 @@ def test_post_conversation_with_document_upload(
     assert chat_conversation.pydantic_messages[2] == {
         "instructions": (
             "You are a helpful test assistant :)\n\n"
-            f"{today_promt_date}\n\n"
+            f"{today_prompt_date}\n\n"
             "Answer in english.\n\n"
             "Use document_search_rag ONLY to retrieve specific passages from "
             "attached documents. Do NOT use it to summarize; for summaries, "
@@ -429,6 +487,7 @@ def test_post_conversation_with_document_upload(
             "available via the internal store."
         ),
         "kind": "request",
+        "metadata": None,
         "parts": [
             {
                 "content": [
@@ -446,21 +505,26 @@ def test_post_conversation_with_document_upload(
             }
         ],
         "run_id": _run_id,
+        "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[3] == {
         "finish_reason": None,
         "kind": "response",
+        "metadata": None,
         "model_name": "function::agent_model",
         "parts": [
             {
                 "content": "From the document, I can see that it says 'Hello PDF'.",
                 "id": None,
                 "part_kind": "text",
+                "provider_details": None,
+                "provider_name": None,
             }
         ],
         "provider_details": None,
         "provider_name": None,
         "provider_response_id": None,
+        "provider_url": None,
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -548,9 +612,9 @@ def test_post_conversation_with_document_upload_feature_disabled(
 @freeze_time()
 def test_post_conversation_with_document_upload_summarize(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
     api_client,
-    mock_albert_api,  # pylint: disable=unused-argument
+    mock_document_api,  # pylint: disable=unused-argument
     sample_pdf_content,
-    today_promt_date,
+    today_prompt_date,
     mock_ai_agent_service,
     mock_summarization_agent,  # pylint: disable=unused-argument
 ):
@@ -687,7 +751,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     assert chat_conversation.pydantic_messages[0] == {
         "instructions": (
             "You are a helpful test assistant :)\n\n"
-            f"{today_promt_date}\n\n"
+            f"{today_prompt_date}\n\n"
             "Answer in english.\n\n"
             "Use document_search_rag ONLY to retrieve specific passages from "
             "attached documents. Do NOT use it to summarize; for summaries, "
@@ -703,6 +767,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             "available via the internal store."
         ),
         "kind": "request",
+        "metadata": None,
         "parts": [
             {
                 "content": ["Make a summary of this document."],
@@ -711,10 +776,12 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             },
         ],
         "run_id": _run_id,
+        "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[1] == {
         "finish_reason": None,
         "kind": "response",
+        "metadata": None,
         "model_name": "function::agent_model",
         "parts": [
             {
@@ -723,11 +790,14 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "part_kind": "tool-call",
                 "tool_call_id": chat_conversation.pydantic_messages[1]["parts"][0]["tool_call_id"],
                 "tool_name": "summarize",
+                "provider_details": None,
+                "provider_name": None,
             }
         ],
         "provider_details": None,
         "provider_name": None,
         "provider_response_id": None,
+        "provider_url": None,
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -744,7 +814,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     assert chat_conversation.pydantic_messages[2] == {
         "instructions": (
             "You are a helpful test assistant :)\n\n"
-            f"{today_promt_date}\n\n"
+            f"{today_prompt_date}\n\n"
             "Answer in english.\n\n"
             "Use document_search_rag ONLY to retrieve specific passages from "
             "attached documents. Do NOT use it to summarize; for summaries, "
@@ -760,6 +830,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             "available via the internal store."
         ),
         "kind": "request",
+        "metadata": None,
         "parts": [
             {
                 "content": "The document discusses various topics.",
@@ -771,17 +842,26 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             }
         ],
         "run_id": _run_id,
+        "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[3] == {
         "finish_reason": None,
         "kind": "response",
+        "metadata": None,
         "model_name": "function::agent_model",
         "parts": [
-            {"content": "The document discusses various topics.", "id": None, "part_kind": "text"}
+            {
+                "content": "The document discusses various topics.",
+                "id": None,
+                "part_kind": "text",
+                "provider_details": None,
+                "provider_name": None,
+            }
         ],
         "provider_details": None,
         "provider_name": None,
         "provider_response_id": None,
+        "provider_url": None,
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,

@@ -16,7 +16,6 @@ const BlueStripe = styled.div`
   position: absolute;
   height: 2px;
   width: 100%;
-  background: var(--c--theme--colors--primary-600);
   top: 0;
 `;
 
@@ -129,12 +128,15 @@ export const Footer = () => {
                     gap:0.2rem;
                     transition: box-shadow 0.3s;
                     &:hover {
-                      box-shadow: 0px 2px 0 0 var(--c--theme--colors--greyscale-text);
+                      box-shadow: 0px 2px 0 0 var(--c--contextuals--content--semantic--neutral--tertiary);
                     }
                   `}
                 >
                   <Text $weight="bold">{label}</Text>
-                  <IconLink width={18} />
+                  <IconLink
+                    width={18}
+                    color="var(--c--contextuals--content--semantic--neutral--primary)"
+                  />
                 </StyledLink>
               ))}
           </Box>
@@ -172,7 +174,9 @@ export const Footer = () => {
                   $css={css`
                     &:hover {
                       box-shadow: 0px 2px 0 0
-                        var(--c--theme--colors--greyscale-text);
+                        var(
+                          --c--contextuals--content--semantic--neutral--tertiary
+                        );
                     }
                   `}
                 >
@@ -199,14 +203,17 @@ export const Footer = () => {
                 $css={css`
                   display: inline-flex;
                   box-shadow: 0px 1px 0 0
-                    var(--c--theme--colors--greyscale-text);
+                    var(--c--contextuals--content--semantic--neutral--tertiary);
                   gap: 0.2rem;
                 `}
               >
                 <Text $variation="tertiary" $theme="neutral">
                   {bottomInformation.link.label}
                 </Text>
-                <IconLink width={14} />
+                <IconLink
+                  width={14}
+                  color="var(--c--contextuals--content--semantic--neutral--primary)"
+                />
               </StyledLink>
             )}
           </Text>

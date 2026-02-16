@@ -3,13 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Box } from '@/components';
 
-const SUGGESTION_KEYS = [
-  'Ask a question',
-  'Turn this list into bullet points',
-  'Write a short product description',
-  'Find recent news about...',
-] as const;
-const SUGGESTIONS_COUNT = SUGGESTION_KEYS.length;
+const SUGGESTIONS_COUNT = 4;
 
 const WRAPPER_CSS = `position: absolute;
                   top: 1rem;
@@ -42,7 +36,15 @@ export const SuggestionCarousel = ({
   const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
   const [isResetting, setIsResetting] = useState(false);
 
-  const suggestions = useMemo(() => SUGGESTION_KEYS.map((key) => t(key)), [t]);
+  const suggestions = useMemo(
+    () => [
+      t('Ask a question'),
+      t('Turn this list into bullet points'),
+      t('Write a short product description'),
+      t('Find recent news about...'),
+    ],
+    [t],
+  );
   const carouselSuggestions = useMemo(
     () => [...suggestions, suggestions[0]],
     [suggestions],

@@ -743,6 +743,11 @@ class Base(BraveSettings, Configuration):
         environ_name="RAG_DOCUMENT_SEARCH_BACKEND",
         environ_prefix=None,
     )
+    RAG_DOCUMENT_PARSER = values.Value(
+        "chat.agent_rag.document_converter.parser.AlbertParser",
+        environ_name="RAG_DOCUMENT_PARSER",
+        environ_prefix=None,
+    )
     SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS = values.DictValue(
         default={},
         environ_name="SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS",
@@ -808,6 +813,51 @@ USER QUESTION:
         environ_prefix=None,
     )
 
+    # OCR settings for AdaptivePdfParser
+    OCR_HRID = values.Value(
+        default="etalab-plateform-mistral-medium-2508",
+        environ_name="OCR_HRID",
+        environ_prefix=None,
+    )
+    # Specific Mistral OCR model - Designates which Mistral vision model to use for OCR
+    OCR_MODEL = values.Value(
+        default="mistral-ocr-2512",
+        environ_name="OCR_MODEL",
+        environ_prefix=None,
+    )
+    OCR_TIMEOUT = values.PositiveIntegerValue(
+        default=240,
+        environ_name="OCR_TIMEOUT",
+        environ_prefix=None,
+    )
+    OCR_MAX_RETRIES = values.PositiveIntegerValue(
+        default=3,
+        environ_name="OCR_MAX_RETRIES",
+        environ_prefix=None,
+    )
+
+    OCR_RETRY_DELAY = values.PositiveIntegerValue(
+        default=5,
+        environ_name="OCR_RETRY_DELAY",
+        environ_prefix=None,
+    )
+
+    OCR_BATCH_PAGES = values.PositiveIntegerValue(
+        default=10,
+        environ_name="OCR_BATCH_PAGES",
+        environ_prefix=None,
+    )
+    MIN_AVG_CHARS_FOR_TEXT_EXTRACTION = values.PositiveIntegerValue(
+        default=200,
+        environ_name="MIN_AVG_CHARS_FOR_TEXT_EXTRACTION",
+        environ_prefix=None,
+    )
+    MIN_TEXT_COVERAGE_FOR_TEXT_EXTRACTION = values.FloatValue(
+        default=0.7,
+        environ_name="MIN_TEXT_COVERAGE_FOR_TEXT_EXTRACTION",
+        environ_prefix=None,
+    )
+
     # Summarization
     SUMMARIZATION_SYSTEM_PROMPT = values.Value(
         (
@@ -864,6 +914,23 @@ USER QUESTION:
     ALBERT_API_TIMEOUT = values.PositiveIntegerValue(
         default=30,  # seconds
         environ_name="ALBERT_API_TIMEOUT",
+        environ_prefix=None,
+    )
+
+    # Find
+    FIND_API_KEY = values.Value(
+        None,
+        environ_name="FIND_API_KEY",
+        environ_prefix=None,
+    )
+    FIND_API_URL = values.Value(
+        "https://app-find/api",
+        environ_name="FIND_API_URL",
+        environ_prefix=None,
+    )
+    FIND_API_TIMEOUT = values.PositiveIntegerValue(
+        default=30,  # seconds
+        environ_name="FIND_API_TIMEOUT",
         environ_prefix=None,
     )
 
@@ -1078,6 +1145,35 @@ USER QUESTION:
                 "FILE_TO_LLM_MODE is set to 'backend_temporary_url' but FILE_BACKEND_URL is empty. "
                 "Please set FILE_BACKEND_URL to a valid URL for backend temporary file access."
             )
+
+        # Find configuration
+        if (
+            cls.RAG_DOCUMENT_SEARCH_BACKEND
+            == "chat.agent_rag.document_rag_backends.find_rag_backend.FindRagBackend"
+            and not all(
+                (
+                    cls.FIND_API_KEY,
+                    cls.FIND_API_URL,
+                    cls.OIDC_STORE_ACCESS_TOKEN,
+                    cls.OIDC_STORE_REFRESH_TOKEN,
+                )
+            )
+        ):
+            raise ValueError(
+                f"{cls.RAG_DOCUMENT_SEARCH_BACKEND} requires FIND_API_KEY, FIND_API_URL, "
+                "OIDC_STORE_ACCESS_TOKEN and OIDC_STORE_REFRESH_TOKEN to be set."
+            )
+
+        # OCR configuration validation
+        # Note: we call load_llm_configuration directly because LLM_CONFIGURATIONS is a
+        # @property returning a lazy object, which cannot be accessed via cls in a classmethod.
+        if cls.RAG_DOCUMENT_PARSER == "chat.agent_rag.document_converter.parser.AdaptivePdfParser":
+            llm_configs = load_llm_configuration(cls._llm_configuration_file_path)
+            if cls.OCR_HRID not in llm_configs:
+                raise ValueError(
+                    f"OCR_HRID '{cls.OCR_HRID}' not found in LLM_CONFIGURATIONS. "
+                    "Please add a matching provider entry or set OCR_HRID to an existing key."
+                )
 
         # Langfuse initialization
         if cls.LANGFUSE_ENABLED:

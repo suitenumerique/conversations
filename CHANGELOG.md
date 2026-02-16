@@ -10,12 +10,39 @@ and this project adheres to
 
 ### Added
 
-- ✨(front) add ui kit #240
-- 🧱(files) allow to use S3 storage without external access #849
+- ✨(front) allow pasting an attachment from clipboard
 
 ### Changed
 
+- ⚡️(front) optimize streaming markdown rendering performance
+- ⬆️(back) update pydantic-ai
+
+### Fixed
+
+- 💚(docker) vendor mime.types file instead of fetching from Apache SVN
+- 🐛(front) fix math formulas and carousel translations
+
+## [0.0.13] - 2026-02-09
+
+### Added
+
+- 💄(front) ui fix : update ui-kit
+- ✨(front) add persistent darkmode
+- ✨(front) add ui kit #240
+- 🧱(files) allow to use S3 storage without external access #849
+- ✨(backend) add FindRagBackend #209
+- ⬆️(back) update dependencies
+- ✨(back) use adaptive parsing for pdf documents
+
+### Changed
+
+- 💄(darkmode) change color feedback button
 - 🏗️(back) migrate to uv
+- ♻️(front) optimize syntax highlighting bundle size
+
+### Fixed
+
+-  🐛(back) cast collection Ids to API expected types
 
 ## [0.0.12] - 2026-01-27
 
@@ -33,7 +60,7 @@ and this project adheres to
 ### Changed
 
 - 📦️(front) update react
-- ✨(chat) Generate and edit conversation title
+- ✨(chat) generate and edit conversation title
 
 
 ### Fixed
@@ -42,6 +69,7 @@ and this project adheres to
 - 🐛(back) fix system prompt compatibility with self-hosted models #200
 - ⚰️(back) remove dead code and unused files
 - 🐛(back) prevent tool call timeouts
+
 
 ### Removed
 
@@ -201,7 +229,8 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.12...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.13...main
+[0.0.13]: https://github.com/suitenumerique/conversations/releases/v0.0.13
 [0.0.12]: https://github.com/suitenumerique/conversations/releases/v0.0.12
 [0.0.11]: https://github.com/suitenumerique/conversations/releases/v0.0.11
 [0.0.10]: https://github.com/suitenumerique/conversations/releases/v0.0.10

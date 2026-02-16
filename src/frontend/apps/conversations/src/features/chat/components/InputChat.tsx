@@ -213,39 +213,56 @@ export const InputChat = ({
     }
   }, [status, input]);
 
-  const handleFilesAccepted = useCallback(
-    (acceptedFiles: File[]) => {
-      setFiles((prev) => {
-        const dt = new DataTransfer();
+  const validateAndAddFiles = useCallback(
+    (filesToAdd: File[]) => {
+      const acceptedFiles: File[] = [];
+      const rejectedFiles: File[] = [];
 
-        // Keep existing files
-        if (prev) {
-          Array.from(prev).forEach((f) => dt.items.add(f));
+      filesToAdd.forEach((file) => {
+        if (isFileAccepted(file)) {
+          acceptedFiles.push(file);
+        } else {
+          rejectedFiles.push(file);
         }
-
-        // Add new files (avoiding duplicates)
-        acceptedFiles.forEach((f) => {
-          const isDuplicate = Array.from(prev || []).some(
-            (pf) =>
-              pf.name === f.name &&
-              pf.size === f.size &&
-              pf.lastModified === f.lastModified,
-          );
-          if (!isDuplicate) {
-            dt.items.add(f);
-          }
-        });
-
-        return dt.files;
       });
+
+      if (rejectedFiles.length > 0) {
+        showToastError();
+      }
+
+      if (acceptedFiles.length > 0) {
+        setFiles((prev) => {
+          const dt = new DataTransfer();
+
+          // Keep existing files
+          if (prev) {
+            Array.from(prev).forEach((f) => dt.items.add(f));
+          }
+
+          // Add new files (avoiding duplicates)
+          acceptedFiles.forEach((f) => {
+            const isDuplicate = Array.from(prev || []).some(
+              (pf) =>
+                pf.name === f.name &&
+                pf.size === f.size &&
+                pf.lastModified === f.lastModified,
+            );
+            if (!isDuplicate) {
+              dt.items.add(f);
+            }
+          });
+
+          return dt.files;
+        });
+      }
     },
-    [setFiles],
+    [isFileAccepted, showToastError, setFiles],
   );
 
   const { isDragActive } = useFileDragDrop({
     enabled: fileUploadEnabled,
     isFileAccepted,
-    onFilesAccepted: handleFilesAccepted,
+    onFilesAccepted: validateAndAddFiles,
     onFilesRejected: () => showToastError(),
   });
 
@@ -293,6 +310,41 @@ export const InputChat = ({
     [],
   );
 
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      if (!fileUploadEnabled) {
+        return;
+      }
+
+      const clipboardData = e.clipboardData;
+      if (!clipboardData) {
+        return;
+      }
+
+      // Due to browser limitations, only one file can be pasted at a time
+      // Check files first (for files from file system)
+      let file: File | null = null;
+
+      if (clipboardData.files && clipboardData.files.length > 0) {
+        file = clipboardData.files[0];
+      } else if (clipboardData.items) {
+        for (let i = 0; i < clipboardData.items.length; i++) {
+          const item = clipboardData.items[i];
+          if (item.kind === 'file') {
+            file = item.getAsFile();
+            break;
+          }
+        }
+      }
+
+      if (file) {
+        e.preventDefault();
+        validateAndAddFiles([file]);
+      }
+    },
+    [fileUploadEnabled, validateAndAddFiles],
+  );
+
   const handleAttachClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
@@ -309,46 +361,10 @@ export const InputChat = ({
         return;
       }
 
-      const acceptedFiles: File[] = [];
-      const rejectedFiles: string[] = [];
-
-      Array.from(fileList).forEach((file) => {
-        if (isFileAccepted(file)) {
-          acceptedFiles.push(file);
-        } else {
-          rejectedFiles.push(file.name);
-        }
-      });
-
-      if (rejectedFiles.length > 0) {
-        showToastError();
-      }
-
-      if (acceptedFiles.length > 0) {
-        setFiles((prev) => {
-          const dt = new DataTransfer();
-          if (prev) {
-            Array.from(prev).forEach((f) => dt.items.add(f));
-          }
-          acceptedFiles.forEach((f) => {
-            if (
-              !Array.from(prev || []).some(
-                (pf) =>
-                  pf.name === f.name &&
-                  pf.size === f.size &&
-                  pf.lastModified === f.lastModified,
-              )
-            ) {
-              dt.items.add(f);
-            }
-          });
-          return dt.files;
-        });
-      }
-
+      validateAndAddFiles(Array.from(fileList));
       e.target.value = '';
     },
-    [isFileAccepted, showToastError, setFiles],
+    [validateAndAddFiles],
   );
 
   const handleAttachmentRemove = useCallback(
@@ -443,6 +459,7 @@ export const InputChat = ({
                 name="inputchat-textarea"
                 onChange={handleTextareaChange}
                 onKeyDown={handleTextareaKeyDown}
+                onPaste={handlePaste}
                 disabled={isInputDisabled}
                 rows={1}
                 style={textareaStyle}
