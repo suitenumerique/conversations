@@ -21,10 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22.x"
 
@@ -32,7 +32,7 @@ jobs:
         run: npm install -g yarn
 
       - name: Restore the frontend cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: "src/frontend/**/node_modules"
           key: front-node_modules-${{ hashFiles('src/frontend/**/yarn.lock') }}
@@ -46,10 +46,10 @@ jobs:
     needs: install-dependencies
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22.x"
 
@@ -57,7 +57,7 @@ jobs:
         run: npm install -g yarn
 
       - name: Restore the frontend cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: "src/frontend/**/node_modules"
           key: front-node_modules-${{ hashFiles('src/frontend/**/yarn.lock') }}
@@ -72,10 +72,10 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22.x"
 
@@ -83,7 +83,7 @@ jobs:
         run: npm install -g yarn
 
       - name: Restore the frontend cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: "src/frontend/**/node_modules"
           key: front-node_modules-${{ hashFiles('src/frontend/**/yarn.lock') }}
@@ -114,10 +114,10 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22.x"
 
@@ -125,7 +125,7 @@ jobs:
         run: npm install -g yarn
 
       - name: Restore the frontend cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: "src/frontend/**/node_modules"
           key: front-node_modules-${{ hashFiles('src/frontend/**/yarn.lock') }}
