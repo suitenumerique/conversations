@@ -207,6 +207,7 @@ jobs:
 
       - name: Run tests
         run: uv run pytest -n 2
+        timeout-minutes: 30
 
   security-trivy-critical:
     permissions:
