@@ -48,9 +48,13 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
       >
         <Loader />
         <Text $variation="600" $size="md">
-          {t('Extracting documents: {{documents}} ...', {
-            documents: documentIdentifiers.join(', '),
-          })}
+          {documentIdentifiers.length === 1
+            ? t('Extracting document: {{documents}} ...', {
+                documents: documentIdentifiers[0],
+              })
+            : t('Extracting documents: {{documents}} ...', {
+                documents: documentIdentifiers.join(', '),
+              })}
         </Text>
       </Box>
     );

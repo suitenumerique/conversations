@@ -227,6 +227,21 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     return tool?.toolInvocation;
   }, [toolInvocationParts]);
 
+  const activeToolInvocationDisplayName = React.useMemo(() => {
+    if (!activeToolInvocation) {
+      return '';
+    }
+
+    if (activeToolInvocation.toolName === 'summarize') {
+      return t('Summarizing...');
+    }
+    if (activeToolInvocation.toolName === 'translate') {
+      return t('Translation in progress...');
+    }
+
+    return t('Search...');
+  }, [activeToolInvocation, t]);
+
   // Memoize the streaming content split to avoid recreating components in JSX
   const { completedBlocks, pending } = React.useMemo(() => {
     // When not streaming, everything is completed as a single block array
@@ -361,9 +376,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 >
                   <Loader />
                   <Text $variation="600" $size="md">
-                    {activeToolInvocation?.toolName === 'summarize'
-                      ? t('Summarizing...')
-                      : t('Search...')}
+                    {activeToolInvocationDisplayName}
                   </Text>
                 </Box>
               )}

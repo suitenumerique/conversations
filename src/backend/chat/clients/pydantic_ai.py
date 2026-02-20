@@ -142,6 +142,7 @@ from chat.mcp_servers import get_mcp_servers
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize
+from chat.tools.document_translate import document_translate
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
 
@@ -667,6 +668,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 "You may add a follow-up question after the summary if needed."
             )
 
+        @self.conversation_agent.instructions
+        def translation_system_prompt() -> str:
+            return (
+                "When you receive a result from the translation tool, you MUST return it "
+                "directly to the user without any modification, paraphrasing, or additional "
+                "summarization. "
+                "The tool already produces complete translations that should be presented "
+                "verbatim."
+            )
+
         # Inform the model (system-level) that documents are attached and available
         @self.conversation_agent.instructions
         def attached_documents_note() -> str:
@@ -681,6 +692,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         async def summarize(ctx: RunContext, *args, **kwargs) -> ToolReturn:
             """Wrap the document_summarize tool to provide context and add the tool."""
             return await document_summarize(ctx, *args, **kwargs)
+
+        @self.conversation_agent.tool(name="translate", retries=2)
+        @functools.wraps(document_translate)
+        async def translate(ctx: RunContext, *args, **kwargs) -> ToolReturn:
+            """Wrap the document_translate tool to provide context and add the tool."""
+            return await document_translate(ctx, *args, **kwargs)
 
     async def _handle_input_documents(
         self,
