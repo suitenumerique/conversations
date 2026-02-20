@@ -38,7 +38,7 @@ export function registerServiceWorker() {
                   ) {
                     newWorker.postMessage({ type: 'SKIP_WAITING' });
                     refreshing = true;
-                    window.location.reload();
+                    globalThis.window.location.reload();
                   }
                 }
               });
@@ -53,7 +53,7 @@ export function registerServiceWorker() {
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!refreshing) {
           refreshing = true;
-          window.location.reload();
+          globalThis.window.location.reload();
         }
       });
     });
