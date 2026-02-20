@@ -17,9 +17,12 @@ export function registerServiceWorker() {
         .register(swUrl)
         .then((registration) => {
           // Check for updates every hour
-          setInterval(() => {
-            registration.update();
-          }, 60 * 60 * 1000);
+          setInterval(
+            () => {
+              void registration.update();
+            },
+            60 * 60 * 1000,
+          );
 
           // Handle updates
           registration.addEventListener('updatefound', () => {
@@ -32,8 +35,9 @@ export function registerServiceWorker() {
                 ) {
                   // New service worker available, prompt user to refresh
                   if (
+                    // eslint-disable-next-line no-alert
                     window.confirm(
-                      'New version available! Would you like to update?'
+                      'New version available! Would you like to update?',
                     )
                   ) {
                     newWorker.postMessage({ type: 'SKIP_WAITING' });
@@ -59,4 +63,3 @@ export function registerServiceWorker() {
     });
   }
 }
-
