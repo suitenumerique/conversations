@@ -21,6 +21,15 @@ function pathnameLooksLikeFile(pathname) {
 
 const cacheableOk = new CacheableResponsePlugin({ statuses: [0, 200] });
 
+/**
+ * Determines if a navigation request should be served with the app shell (index.html).
+ * Returns false for non-navigation requests, paths starting with '/_', or file-like paths.
+ *
+ * @param {Object} params - The route parameters
+ * @param {Request} params.request - The request object
+ * @param {URL} params.url - The URL object
+ * @returns {boolean} True if the request should be served with the app shell
+ */
 function shouldServeAppShell({ request, url }) {
   if (request.mode !== 'navigate') {
     return false;
@@ -34,6 +43,12 @@ function shouldServeAppShell({ request, url }) {
   return true;
 }
 
+/**
+ * Checks if a request is for a static asset (script, style, or image).
+ *
+ * @param {Request} request - The request object to check
+ * @returns {boolean} True if the request is for a static asset
+ */
 function isStaticAsset(request) {
   return (
     request.destination === 'script' ||
@@ -42,6 +57,12 @@ function isStaticAsset(request) {
   );
 }
 
+/**
+ * Checks if a URL is a same-origin API endpoint.
+ *
+ * @param {URL} url - The URL object to check
+ * @returns {boolean} True if the URL is a same-origin API endpoint
+ */
 function isSameOriginApi(url) {
   return (
     url.origin === globalThis.location.origin &&
@@ -49,10 +70,22 @@ function isSameOriginApi(url) {
   );
 }
 
+/**
+ * Checks if a request is for a font resource.
+ *
+ * @param {Request} request - The request object to check
+ * @returns {boolean} True if the request is for a font
+ */
 function isFont(request) {
   return request.destination === 'font';
 }
 
+/**
+ * Handles the SKIP_WAITING message from the client to immediately activate
+ * a waiting service worker without requiring all clients to close.
+ *
+ * @param {MessageEvent} event - The message event from the client
+ */
 function handleSkipWaitingMessage(event) {
   if (!event.data || event.data.type !== 'SKIP_WAITING') {
     return;
