@@ -76,22 +76,9 @@ async def document_translate(
                 "You must explain this to the user and ask them to provide documents."
             )
 
-        # Check file size before reading to avoid loading oversized files into memory.
-        # Since UTF-8 encodes at least 1 byte per character, a file whose byte size
-        # already exceeds max_chars cannot possibly be within the character limit.
-        max_chars = settings.TRANSLATION_MAX_CHARS
-        if last_attachment.size and last_attachment.size > max_chars:
-            raise ModelCannotRetry(
-                "The document is too large to translate. "
-                "You must explain this to the user, without providing numerical details. "
-                "Suggest them to reduce the document size by summarizing it or "
-                "by splitting it into smaller parts. "
-                "Also offer them to summarize the document in the target language instead, "
-                "which can be a good alternative to translation for large documents."
-            )
-
         doc_name, content = await read_document_content(last_attachment)
 
+        max_chars = settings.TRANSLATION_MAX_CHARS
         if len(content) > max_chars:
             raise ModelCannotRetry(
                 f"The document is too large to translate ({len(content):,} characters, "

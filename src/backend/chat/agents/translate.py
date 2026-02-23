@@ -17,7 +17,7 @@ class TranslationAgent(BaseAgent):
     def __init__(self, **kwargs):
         """Initialize the agent with the configured model."""
         super().__init__(
-            model_hrid=settings.LLM_SUMMARIZATION_MODEL_HRID,
+            model_hrid=settings.LLM_DEFAULT_MODEL_HRID,
             output_type=str,
             **kwargs,
         )

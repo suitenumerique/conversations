@@ -37,7 +37,7 @@
       "hrid": "default-provider",
       "base_url": "settings.AI_BASE_URL",
       "api_key": "settings.AI_API_KEY",
-      "kind": "mistral"
+      "kind": "openai"
     }
   ]
 }
