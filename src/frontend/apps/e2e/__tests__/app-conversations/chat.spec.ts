@@ -72,7 +72,9 @@ test.describe('Chat page', () => {
     await expect(messageContent).toBeVisible();
   });
 
-  test('the user can paste a document into the chat input', async ({ page }) => {
+  test('the user can paste a document into the chat input', async ({
+    page,
+  }) => {
     await overrideConfig(page, {
       FEATURE_FLAGS: {
         'document-upload': 'enabled',
