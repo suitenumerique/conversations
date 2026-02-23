@@ -26,6 +26,7 @@ and this project adheres to
 - 💚(docker) vendor mime.types file instead of fetching from Apache SVN
 - 🐛(front) fix math formulas and carousel translations
 - 🐛(helm) reverse liveness and readiness for backend deployment
+- 🐛(front) fix dark mode styling on chat messages
 
 ## [0.0.13] - 2026-02-09
 
