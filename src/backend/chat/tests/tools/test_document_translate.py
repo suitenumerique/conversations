@@ -20,13 +20,13 @@ def fixture_translation_agent_config(settings):
     """Fixture to set used settings for agent configuration."""
     settings.TRANSLATION_MAX_CHARS = 100_000
     settings.LLM_CONFIGURATIONS = {
-        settings.LLM_SUMMARIZATION_MODEL_HRID: LLModel(
+        settings.LLM_DEFAULT_MODEL_HRID: LLModel(
             hrid="mistral-model",
-            model_name="mistral-7b-instruct-v0.1",
-            human_readable_name="Mistral 7B Instruct",
+            model_name="mistral-medium-2508",
+            human_readable_name="Mistral Medium 2508",
             profile=None,
             provider=LLMProvider(
-                hrid="mistral",
+                hrid="mistral-medium-2508",
                 kind="mistral",
                 base_url="https://api.mistral.ai/v1",
                 api_key="testkey",
@@ -71,6 +71,7 @@ async def test_document_translate_single_document(mocked_context, mock_translati
     mock_attachment.key = "test_doc.txt"
     mock_attachment.file_name = "test_doc.txt"
     mock_attachment.content_type = "text/plain"
+    mock_attachment.size = None
 
     mock_conversation = mock.Mock()
     mock_conversation.attachments = _mock_attachments_queryset(mock_attachment)
@@ -103,6 +104,7 @@ async def test_document_translate_uses_last_document(mocked_context, mock_transl
     mock_attachment.key = "latest_doc.txt"
     mock_attachment.file_name = "latest_doc.txt"
     mock_attachment.content_type = "text/plain"
+    mock_attachment.size = None
 
     mock_conversation = mock.Mock()
     mock_conversation.attachments = _mock_attachments_queryset(mock_attachment)
@@ -134,6 +136,7 @@ async def test_document_translate_with_custom_instructions(mocked_context, mock_
     mock_attachment.key = "test.txt"
     mock_attachment.file_name = "test.txt"
     mock_attachment.content_type = "text/plain"
+    mock_attachment.size = None
 
     mock_conversation = mock.Mock()
     mock_conversation.attachments = _mock_attachments_queryset(mock_attachment)
@@ -204,6 +207,7 @@ async def test_document_translate_error_reading_document(mocked_context, mock_tr
     mock_attachment.key = "test.txt"
     mock_attachment.file_name = "test.txt"
     mock_attachment.content_type = "text/plain"
+    mock_attachment.size = None
 
     mock_conversation = mock.Mock()
     mock_conversation.attachments = _mock_attachments_queryset(mock_attachment)
@@ -227,6 +231,7 @@ async def test_document_translate_error_during_translation(mocked_context, mock_
     mock_attachment.key = "test.txt"
     mock_attachment.file_name = "test.txt"
     mock_attachment.content_type = "text/plain"
+    mock_attachment.size = None
 
     mock_conversation = mock.Mock()
     mock_conversation.attachments = _mock_attachments_queryset(mock_attachment)
@@ -259,6 +264,7 @@ async def test_document_translate_too_large(settings, mocked_context, mock_trans
     mock_attachment.key = "large_doc.txt"
     mock_attachment.file_name = "large_doc.txt"
     mock_attachment.content_type = "text/plain"
+    mock_attachment.size = None
 
     mock_conversation = mock.Mock()
     mock_conversation.attachments = _mock_attachments_queryset(mock_attachment)
@@ -286,6 +292,7 @@ async def test_document_translate_empty_result(mocked_context, mock_translation_
     mock_attachment.key = "test.txt"
     mock_attachment.file_name = "test.txt"
     mock_attachment.content_type = "text/plain"
+    mock_attachment.size = None
 
     mock_conversation = mock.Mock()
     mock_conversation.attachments = _mock_attachments_queryset(mock_attachment)
