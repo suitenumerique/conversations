@@ -4,7 +4,6 @@ import asyncio
 import logging
 
 from django.conf import settings
-from django.core.files.storage import default_storage
 
 import semchunk
 from asgiref.sync import sync_to_async
@@ -14,16 +13,9 @@ from pydantic_ai.messages import ToolReturn
 
 from chat.agents.summarize import SummarizationAgent
 from chat.tools.exceptions import ModelCannotRetry
-from chat.tools.utils import last_model_retry_soft_fail
+from chat.tools.utils import last_model_retry_soft_fail, read_document_content
 
 logger = logging.getLogger(__name__)
-
-
-@sync_to_async
-def read_document_content(doc):
-    """Read document content asynchronously."""
-    with default_storage.open(doc.key) as f:
-        return doc.file_name, f.read().decode("utf-8")
 
 
 async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):

@@ -9,9 +9,8 @@ from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
 from chat.agents.translate import TranslationAgent
-from chat.tools.document_summarize import read_document_content
 from chat.tools.exceptions import ModelCannotRetry
-from chat.tools.utils import last_model_retry_soft_fail
+from chat.tools.utils import last_model_retry_soft_fail, read_document_content
 
 logger = logging.getLogger(__name__)
 

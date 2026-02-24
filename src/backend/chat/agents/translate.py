@@ -21,3 +21,7 @@ class TranslationAgent(BaseAgent):
             output_type=str,
             **kwargs,
         )
+
+    def get_tools(self) -> list:
+        """Translation does not need any tools."""
+        return []
