@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(back) add projects with custom LLM instructions
+
 ## [0.0.14] - 2026-03-11
 
 ### Added
@@ -57,7 +61,7 @@ and this project adheres to
 
 ### Fixed
 
--  🐛(back) cast collection Ids to API expected types
+- 🐛(back) cast collection Ids to API expected types
 
 ## [0.0.12] - 2026-01-27
 
@@ -77,14 +81,12 @@ and this project adheres to
 - 📦️(front) update react
 - ✨(chat) generate and edit conversation title
 
-
 ### Fixed
 
 - 🐛(e2e) fix test-e2e-chromium
 - 🐛(back) fix system prompt compatibility with self-hosted models #200
 - ⚰️(back) remove dead code and unused files
 - 🐛(back) prevent tool call timeouts
-
 
 ### Removed
 
@@ -242,7 +244,6 @@ and this project adheres to
 - ✨(langfuse) allow user to score messages from LLM #6
 - ✨(onboarding) add activation code logic for launch #62
 - 💄(chat) add code highlighting for LLM responses #67
-
 
 [unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.14...main
 [0.0.14]: https://github.com/suitenumerique/conversations/releases/v0.0.14

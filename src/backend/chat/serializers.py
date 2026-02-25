@@ -25,10 +25,21 @@ class ChatConversationSerializer(serializers.ModelSerializer):
 
     class Meta:  # pylint: disable=missing-class-docstring
         model = models.ChatConversation
-        fields = ["id", "title", "created_at", "updated_at", "messages", "owner"]
+        fields = ["id", "title", "created_at", "updated_at", "messages", "owner", "project"]
         read_only_fields = ["id", "created_at", "updated_at", "messages"]
 
+    def validate_project(self, project):
+        """Ensure the project belongs to the current user."""
+        if project and project.owner != self.context["request"].user:
+            raise serializers.ValidationError("The project must belong to the current user.")
+        return project
+
     def update(self, instance, validated_data):
+        # Project is immutable after creation — no moving or detaching
+        if "project" in validated_data:
+            raise serializers.ValidationError(
+                {"project": "This field can only be set at creation time."}
+            )
         # If title is being changed, mark it as user-set
         if "title" in validated_data and validated_data["title"] != instance.title:
             instance.title_set_by_user_at = timezone.now()
@@ -216,3 +227,68 @@ class CreateChatConversationAttachmentSerializer(serializers.ModelSerializer):
             )
 
         return size
+
+
+class ChatProjectNestedSerializer(serializers.ModelSerializer):
+    """Lightweight read-only serializer for nested project info in search results."""
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        model = models.ChatProject
+        fields = ["id", "title", "icon"]
+        read_only_fields = ["id", "title", "icon"]
+
+
+class ChatConversationSearchSerializer(serializers.ModelSerializer):
+    """Serializer for conversation search results with nested project info."""
+
+    project = ChatProjectNestedSerializer(read_only=True)
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        model = models.ChatConversation
+        fields = ["id", "title", "created_at", "updated_at", "project"]
+        read_only_fields = ["id", "title", "created_at", "updated_at", "project"]
+
+
+class ChatConversationNestedSerializer(serializers.ModelSerializer):
+    """Serializer for chat conversations."""
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        model = models.ChatConversation
+        fields = [
+            "id",
+            "title",
+        ]
+        read_only_fields = ["id", "title"]
+
+
+class ChatProjectSerializer(serializers.ModelSerializer):
+    """Serializer for projects."""
+
+    LLM_INSTRUCTIONS_MAX_LENGTH = 4000  # prevent too large prompts, easier to handle here
+
+    owner = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    # Unbounded: the sidebar needs all conversations per project.
+    # Projects are paginated at the view level, keeping payloads reasonable.
+    conversations = ChatConversationNestedSerializer(many=True, read_only=True)
+    llm_instructions = serializers.CharField(
+        max_length=LLM_INSTRUCTIONS_MAX_LENGTH, required=False, allow_blank=True
+    )
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        model = models.ChatProject
+        fields = [
+            "id",
+            "title",
+            "created_at",
+            "updated_at",
+            "icon",
+            "color",
+            "llm_instructions",
+            "owner",
+            "conversations",
+        ]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+        ]
