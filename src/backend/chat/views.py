@@ -2,17 +2,19 @@
 
 import logging
 import os
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from django.conf import settings
 from django.core.cache import cache
 from django.core.files.storage import default_storage
+from django.db.models import Prefetch
 from django.http import Http404, StreamingHttpResponse
 from django.utils.decorators import method_decorator
 
 import langfuse
 import magic
 import posthog
+from drf_spectacular.utils import extend_schema
 from lasuite.malware_detection import malware_detection
 from lasuite.oidc_login.decorators import refresh_oidc_access_token
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
@@ -50,14 +52,64 @@ def conditional_refresh_oidc_token(func):
     return func
 
 
-class ChatConversationFilter(filters.BaseFilterBackend):
-    """Filter conversation."""
+class TitleSearchFilter(filters.BaseFilterBackend):
+    """Filter conversation by title (accent-insensitive)."""
 
     def filter_queryset(self, request, queryset, view):
         """Filter conversation by title."""
         if title := request.GET.get("title"):
             queryset = queryset.filter(title__unaccent__icontains=remove_accents(title))
         return queryset
+
+    def get_schema_operation_parameters(self, view):
+        return [
+            {
+                "name": "title",
+                "required": False,
+                "in": "query",
+                "description": "Search conversations by title (accent-insensitive). "
+                "When provided, the response uses a search-specific serializer "
+                "with nested project info.",
+                "schema": {"type": "string"},
+            },
+        ]
+
+
+class ProjectFilter(filters.BaseFilterBackend):
+    """Filter conversations by project.
+
+    Accepts a `project` query parameter:
+    - a UUID: conversations belonging to that specific project
+    - "none": conversations not linked to any project
+    - "any": conversations linked to any project
+    """
+
+    def filter_queryset(self, request, queryset, view):
+        """Filter conversations by project."""
+        project_id = request.GET.get("project")
+        if project_id is None:
+            return queryset
+        if project_id == "none":
+            return queryset.filter(project__isnull=True)
+        if project_id == "any":
+            return queryset.filter(project__isnull=False)
+        try:
+            UUID(project_id)
+        except ValueError:
+            return queryset.none()
+        return queryset.filter(project_id=project_id)
+
+    def get_schema_operation_parameters(self, view):
+        return [
+            {
+                "name": "project",
+                "required": False,
+                "in": "query",
+                "description": "Filter by project. Pass a UUID for a specific project, "
+                '"none" for standalone conversations, or "any" for all project conversations.',
+                "schema": {"type": "string"},
+            },
+        ]
 
 
 class ChatAttachmentMixin(AttachmentMixin):  # pylint: disable=abstract-method
@@ -121,18 +173,42 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
     ]
     serializer_class = serializers.ChatConversationSerializer
     post_conversation_serializer_class = serializers.ChatConversationInputSerializer
-    filter_backends = [filters.OrderingFilter, ChatConversationFilter]
+    filter_backends = [filters.OrderingFilter, TitleSearchFilter, ProjectFilter]
     ordering = ["-created_at"]
     ordering_fields = ["created_at", "updated_at"]
     queryset = models.ChatConversation.objects  # defined to be used in AttachmentMixin
 
+    @extend_schema(
+        responses=serializers.ChatConversationSearchSerializer(many=True),
+        description=(
+            "When the `title` query parameter is provided, returns search results "
+            "with nested project info (id, title, icon) and no messages. "
+            "Without `title`, returns the default conversation list."
+        ),
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+    def get_serializer_class(self):
+        """Return search serializer when filtering by title on list action."""
+
+        # Search results only include nested project info
+        if self.action == "list" and self.request.query_params.get("title"):
+            return serializers.ChatConversationSearchSerializer
+        return super().get_serializer_class()
+
     def get_queryset(self):
         """Return the queryset for the chat conversations."""
-        return (
-            self.queryset.filter(owner=self.request.user)
-            if self.request.user.is_authenticated
-            else self.queryset.none()
-        )
+        if not self.request.user.is_authenticated:
+            return self.queryset.none()
+
+        qs = self.queryset.filter(owner=self.request.user)
+
+        # Search results use nested project info; post_conversation needs
+        # project.llm_instructions — prefetch to avoid extra queries
+        if self.request.query_params.get("title") or self.action == "post_conversation":
+            qs = qs.select_related("project")
+        return qs
 
     def get_permissions(self):
         """Return the permissions for the viewset."""
@@ -624,3 +700,33 @@ class FileStreamView(APIView):
         except Exception as exc:
             logger.exception("Failed to serve file via temporary key: %s", temporary_key)
             raise Http404("Failed to retrieve file") from exc
+
+
+class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-ancestors
+    """ViewSet for managing projects."""
+
+    pagination_class = Pagination
+    permission_classes = [
+        IsActivatedUser,  # see activation_codes application
+        permissions.IsAuthenticated,
+    ]
+    ordering = ["title"]
+    ordering_fields = ["title", "created_at", "updated_at"]
+    queryset = models.ChatProject.objects
+    serializer_class = serializers.ChatProjectSerializer
+    filter_backends = [filters.OrderingFilter, TitleSearchFilter]
+
+    def get_queryset(self):
+        """Return the queryset for the projects."""
+
+        # Prefetch conversations ordered by most recent first
+        conversations_prefetch = Prefetch(
+            "conversations",
+            queryset=models.ChatConversation.objects.order_by("-created_at"),
+        )
+
+        return (
+            self.queryset.filter(owner=self.request.user).prefetch_related(conversations_prefetch)
+            if self.request.user.is_authenticated
+            else self.queryset.none()
+        )

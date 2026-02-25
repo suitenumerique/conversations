@@ -13,6 +13,7 @@ and this project adheres to
 - ✨(waffle) hide the waffle if not fr theme
 - ✨(front) allow pasting an attachment from clipboard
 - ✨(array) temporarily adjust array
+- ✨(back) add projects with custom LLM instructions
 
 ### Changed
 

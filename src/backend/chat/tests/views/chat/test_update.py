@@ -6,7 +6,7 @@ from rest_framework.exceptions import ErrorDetail
 
 from core.factories import UserFactory
 
-from chat.factories import ChatConversationFactory
+from chat.factories import ChatConversationFactory, ChatProjectFactory
 from chat.models import ChatConversation
 
 pytestmark = pytest.mark.django_db
@@ -66,6 +66,23 @@ def test_update_conversation_anonymous(api_client):
     response = api_client.put(url, data, format="json")
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+def test_update_conversation_project_fails(api_client):
+    """Test that updating a conversation's project is rejected."""
+    conversation = ChatConversationFactory()
+    project = ChatProjectFactory(owner=conversation.owner)
+
+    url = f"/api/v1.0/chats/{conversation.pk}/"
+    data = {"title": "Updated Title", "project": str(project.pk)}
+    api_client.force_login(conversation.owner)
+    response = api_client.put(url, data, format="json")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "project" in response.data
+
+    conversation.refresh_from_db()
+    assert conversation.project is None
 
 
 def test_update_other_user_conversation_fails(api_client):
