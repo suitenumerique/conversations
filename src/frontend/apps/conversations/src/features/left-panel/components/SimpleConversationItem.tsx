@@ -1,12 +1,11 @@
-import { memo } from 'react';
+import { DateTime } from 'luxon';
+import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import { Box, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { ChatConversation } from '@/features/chat/types';
-
-import BubbleIcon from '../assets/bubble-bold.svg';
 
 const ItemTextCss = css`
   overflow: hidden;
@@ -17,49 +16,70 @@ const ItemTextCss = css`
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
 `;
-const bubbleContainerStyles = css`
-  background-color: transparent;
-  filter: drop-shadow(0px 2px 2px rgba(0, 0, 0, 0.05));
+
+const descriptionCss = css`
+  color: var(--c--contextuals--content--semantic--neutral--tertiary);
+  font-weight: 400;
 `;
+
 type SimpleConversationItemProps = {
   conversation: ChatConversation;
   showAccesses?: boolean;
+  showUpdatedAt?: boolean;
 };
 
 export const SimpleConversationItem = memo(function SimpleConversationItem({
   conversation,
   showAccesses: _showAccesses = false,
+  showUpdatedAt = false,
 }: SimpleConversationItemProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { spacingsTokens } = useCunninghamTheme();
   const title = conversation.title || t('Untitled conversation');
+
+  const updatedAtLabel = useMemo(() => {
+    if (!showUpdatedAt || !conversation.updated_at) {
+      return null;
+    }
+    const dt = DateTime.fromISO(conversation.updated_at);
+    if (!dt.isValid) {
+      return null;
+    }
+    return dt.toRelative({ locale: i18n.language });
+  }, [showUpdatedAt, conversation.updated_at, i18n.language]);
 
   return (
     <Box
       $direction="row"
       $gap={spacingsTokens.sm}
       $overflow="auto"
+      $justify="space-between"
+      $align="center"
       className="--docs--simple-doc-item"
     >
       <Box
         $direction="row"
-        $align="center"
-        $css={bubbleContainerStyles}
-        $padding={`${spacingsTokens['3xs']} 0`}
+        $gap={spacingsTokens.sm}
+        $overflow="auto"
+        $shrink={1}
       >
-        <BubbleIcon aria-label={t('Simple chat icon')} color="brand" />
+        <Box $justify="center" $overflow="auto">
+          <Text
+            aria-label={title}
+            $size="sm"
+            $variation="primary"
+            $weight="400"
+            $css={ItemTextCss}
+          >
+            {title}
+          </Text>
+        </Box>
       </Box>
-      <Box $justify="center" $overflow="auto">
-        <Text
-          aria-describedby="doc-title"
-          aria-label={title}
-          $size="sm"
-          $variation="850"
-          $css={ItemTextCss}
-        >
-          {title}
+      {updatedAtLabel && (
+        <Text $size="xs" $variation="tertiary" $css={descriptionCss}>
+          {updatedAtLabel}
         </Text>
-      </Box>
+      )}
     </Box>
   );
 });

@@ -52,11 +52,11 @@ export const Header = () => {
           : `1px solid var(--c--contextuals--border--surface--primary)`};
         transition: border-bottom 0.2s ease;
       `}
-      className="--docs--header"
     >
       {!isDesktop && <ButtonTogglePanel />}
       <Box
         $align="center"
+        className="container"
         $gap={spacingsTokens['xs']}
         $direction="row"
         $position="relative"

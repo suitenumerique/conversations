@@ -56,9 +56,9 @@ test.describe('Chat page', () => {
     await expect(messageContent).toBeVisible();
     await expect(messageContent).not.toBeEmpty();
 
-    // Check history
+    // Check history (link shows conversation title only, no icon label)
     const chatHistoryLink = page
-      .getByRole('link', { name: 'Simple chat icon Hello, how' })
+      .getByRole('link', { name: /Hello, how/ })
       .first();
     await expect(chatHistoryLink).toBeVisible();
 

@@ -92,6 +92,7 @@ export const ToastProvider = ({ children }: ToastProviderProps) => {
       {isMounted &&
         typeof document !== 'undefined' &&
         document.body &&
+        toasts.length > 0 &&
         createPortal(
           <Box
             aria-live="polite"
