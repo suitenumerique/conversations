@@ -1,15 +1,10 @@
-import { useState } from 'react';
-
 import { Box } from '@/components';
 import { useAuth } from '@/features/auth/hooks';
-import { Feedback } from '@/features/feedback/Feedback';
 import { LeftPanelConversations } from '@/features/left-panel/components/LeftPanelConversations';
-import { LeftPanelSearch } from '@/features/left-panel/components/LeftPanelSearch';
 import { useResponsiveStore } from '@/stores';
 
 export const LeftPanelContent = () => {
   const { isDesktop } = useResponsiveStore();
-  const [hasSearch, setHasSearch] = useState(false);
   const { authenticated } = useAuth();
 
   return (
@@ -22,25 +17,12 @@ export const LeftPanelContent = () => {
         height: calc(100dvh - ${isDesktop ? '52px' : '104px'});
       `}
     >
-      {!isDesktop && (
+      {authenticated && <LeftPanelConversations />}
+      {/* {!isDesktop && (
         <Box $padding={{ horizontal: 'sm', top: 'sm' }}>
           <Feedback />
         </Box>
-      )}
-      {authenticated && (
-        <>
-          <Box
-            $css={`
-          z-index: 100;
-          position: sticky;
-          top: 0px;
-        `}
-          >
-            <LeftPanelSearch onSearchChange={setHasSearch} />
-          </Box>
-          {!hasSearch && <LeftPanelConversations />}
-        </>
-      )}
+      )} */}
     </Box>
   );
 };

@@ -69,6 +69,16 @@ nextjs-portal {
     'Material Icons', 'Material Symbols Outlined', sans-serif !important;
 }
 
+.c__toast__container {
+  min-height: 0 !important;
+  height: auto !important;
+  pointer-events: none;
+}
+
+.c__toast__container > * {
+  pointer-events: auto;
+}
+
 .c__button {
   font-weight: 500;
 }
