@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- 👷(docker) add arm64 platform support for image builds
 - ✨(waffle) hide the waffle if not fr theme
 - ✨(front) allow pasting an attachment from clipboard
 - ✨(array) temporarily adjust array
