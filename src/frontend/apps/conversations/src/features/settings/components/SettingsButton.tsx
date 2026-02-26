@@ -3,18 +3,20 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Icon } from '@/components';
+import { useResponsiveStore } from '@/stores';
 
 import { SettingsModal } from './SettingsModal';
 
 export const SettingsButton = () => {
   const { t } = useTranslation();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { isDesktop } = useResponsiveStore();
 
   return (
     <>
       <Button
         size="medium"
-        color="brand"
+        color={isDesktop ? 'neutral' : 'brand'}
         variant="tertiary"
         onClick={() => setIsSettingsOpen(true)}
         aria-label={t('Settings')}

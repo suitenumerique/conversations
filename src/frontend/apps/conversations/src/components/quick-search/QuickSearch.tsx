@@ -1,7 +1,6 @@
 import { Command } from 'cmdk';
-import { ReactNode, useRef } from 'react';
+import { PropsWithChildren, ReactNode, useId, useRef, useState } from 'react';
 
-import { useResponsiveStore } from '@/stores';
 import { hasChildrens } from '@/utils/children';
 
 import { Box } from '../Box';
@@ -25,80 +24,79 @@ export type QuickSearchData<T> = {
 
 export type QuickSearchProps = {
   onFilter?: (str: string) => void;
-  onClear?: () => void;
   inputValue?: string;
   inputContent?: ReactNode;
   showInput?: boolean;
+  loading?: boolean;
   label?: string;
   placeholder?: string;
-  children?: ReactNode;
+  /** Affiche le séparateur sous l'input seulement quand il y a des résultats à afficher */
+  hasResults?: boolean;
 };
 
 export const QuickSearch = ({
   onFilter,
-  onClear,
   inputContent,
   inputValue,
+  loading,
   showInput = true,
   label,
   placeholder,
+  hasResults,
   children,
-}: QuickSearchProps) => {
+}: PropsWithChildren<QuickSearchProps>) => {
   const ref = useRef<HTMLDivElement | null>(null);
-  const { isMobile, isTablet } = useResponsiveStore();
+  const listId = useId();
+  const NO_SELECTION_VALUE = '__none__';
+  const [userInteracted, setUserInteracted] = useState(false);
+  const [selectedValue, setSelectedValue] = useState(NO_SELECTION_VALUE);
+  const isExpanded = userInteracted;
+
+  const handleValueChange = (val: string) => {
+    if (userInteracted) {
+      setSelectedValue(val);
+    }
+  };
+
+  const handleUserInteract = () => {
+    if (!userInteracted) {
+      setUserInteracted(true);
+    }
+  };
 
   return (
     <>
       <QuickSearchStyle />
-      <Command label={label} shouldFilter={false} ref={ref}>
-        {showInput && (
-          <Box
-            $css={`
-              position: sticky;
-              top: 0px;
-              &:after {
-                content: "";
-                position: absolute;
-                width: 100%;
-                height: 20px;
-                bottom: -20px;
-                background: linear-gradient(
-                  to bottom,
-                  rgba(var(--c--contextuals--background--surface--tertiary), 1),
-                  rgba(var(--c--contextuals--background--surface--tertiary), 0)
-                );
-              }
-              ${
-                !isMobile && !isTablet
-                  ? `
-                &:before {
-                  content: "";
-                  background-color: var(--c--contextuals--background--surface--tertiary);
-                  position: absolute;
-                  width: 100%;
-                  height: 20px;
-                  top: -8px;
-                }
-              `
-                  : ''
-              }
-            `}
-          >
+      <div className="quick-search-container">
+        <Command
+          label={label}
+          shouldFilter={false}
+          ref={ref}
+          tabIndex={-1}
+          value={selectedValue}
+          onValueChange={handleValueChange}
+        >
+          {showInput && (
             <QuickSearchInput
-              withSeparator={hasChildrens(children)}
+              loading={loading}
+              withSeparator={
+                hasResults !== undefined ? hasResults : hasChildrens(children)
+              }
               inputValue={inputValue}
               onFilter={onFilter}
-              onClear={onClear}
               placeholder={placeholder}
+              listId={listId}
+              isExpanded={isExpanded}
+              onUserInteract={handleUserInteract}
             >
               {inputContent}
             </QuickSearchInput>
-          </Box>
-        )}
-        <Command.List>
-          <Box $padding={{ horizontal: 'xs', top: 'sm' }}>{children}</Box>
-        </Command.List>
-      </Command>
+          )}
+          <Command.List id={listId} aria-label={label} role="listbox">
+            <Box>{children}</Box>
+          </Command.List>
+        </Command>
+      </div>
     </>
   );
 };
