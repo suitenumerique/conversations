@@ -15,6 +15,7 @@ import core.urls
 import chat.views
 import conversations.urls
 from chat.agents.summarize import SummarizationAgent
+from chat.agents.translate import TranslationAgent
 from chat.clients.pydantic_ai import AIAgentService
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,34 @@ def mock_summarization_agent_fixture():
                 patch(
                     "chat.tools.document_summarize.SummarizationAgent", new=SummarizationAgentMock
                 )
+            )
+            yield
+
+    yield _mock_agent
+
+
+@pytest.fixture(name="mock_translation_agent")
+def mock_translation_agent_fixture():
+    """Fixture to mock TranslationAgent with a custom model."""
+
+    @contextmanager
+    def _mock_agent(model):
+        """Context manager to mock TranslationAgent with a custom model."""
+        with ExitStack() as stack:
+
+            class TranslationAgentMock(TranslationAgent):
+                """Mocked TranslationAgent to override the model."""
+
+                def __init__(self, **kwargs):
+                    super().__init__(**kwargs)
+                    logger.info("Overriding TranslationAgent model with %s", model)
+                    self._model = model  # pylint: disable=protected-access
+
+            stack.enter_context(
+                patch("chat.agents.translate.TranslationAgent", new=TranslationAgentMock)
+            )
+            stack.enter_context(
+                patch("chat.tools.document_translate.TranslationAgent", new=TranslationAgentMock)
             )
             yield
 

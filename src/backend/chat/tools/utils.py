@@ -4,6 +4,9 @@ import functools
 import logging
 from typing import Any, Callable
 
+from django.core.files.storage import default_storage
+
+from asgiref.sync import sync_to_async
 from pydantic_ai import ModelRetry, RunContext
 
 from chat.tools.exceptions import ModelCannotRetry
@@ -48,3 +51,10 @@ def last_model_retry_soft_fail(
             raise  # Re-raise to allow retrying
 
     return wrapper
+
+
+@sync_to_async
+def read_document_content(doc):
+    """Read document content asynchronously."""
+    with default_storage.open(doc.key) as f:
+        return doc.file_name, f.read().decode("utf-8")

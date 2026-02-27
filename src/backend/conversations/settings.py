@@ -888,6 +888,13 @@ USER QUESTION:
         environ_prefix=None,
     )
 
+    # Translation
+    TRANSLATION_MAX_CHARS = values.PositiveIntegerValue(
+        default=100_000,  # ~100k characters, roughly half a 128k context window
+        environ_name="TRANSLATION_MAX_CHARS",
+        environ_prefix=None,
+    )
+
     # Tavily API
     TAVILY_API_KEY = values.Value(
         None,  # Tavily API key is not set by default
