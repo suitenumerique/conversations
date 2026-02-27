@@ -15,6 +15,72 @@ from chat.ai_sdk_types import UIMessage
 User = get_user_model()
 
 
+class ChatProjectIcon(models.TextChoices):
+    """Project icon text choices."""
+
+    FOLDER = "folder", "Folder icon"
+    FILE = "file", "File icon"
+    PERSO = "perso", "Perso icon"
+    GEAR = "gear", "Gear icon"
+    MEGAPHONE = "megaphone", "Megaphone icon"
+    STAR = "star", "Star icon"
+    BOOKMARK = "bookmark", "Bookmark icon"
+    CHART = "chart", "Chart icon"
+    EURO = "euro", "Euro icon"
+    KEY = "key", "Key icon"
+    JUSTICE = "justice", "Justice icon"
+    BOOK = "book", "Book icon"
+    PUZZLE = "puzzle", "Puzzle icon"
+    PALETTE = "palette", "Palette icon"
+    TERMINAL = "terminal", "Terminal icon"
+    CAR = "car", "Car icon"
+    MUSIC = "music", "Music icon"
+    CHECKMARK = "checkmark", "Checkmark icon"
+    LA_SUITE = "la_suite", "La Suite icon"
+
+
+class ChatProjectColor(models.TextChoices):
+    """Project icon color choices. We keep it generic to ease frontend compatibility."""
+
+    COLOR_1 = "color_1", "Color 1"
+    COLOR_2 = "color_2", "Color 2"
+    COLOR_3 = "color_3", "Color 3"
+    COLOR_4 = "color_4", "Color 4"
+    COLOR_5 = "color_5", "Color 5"
+    COLOR_6 = "color_6", "Color 6"
+    COLOR_7 = "color_7", "Color 7"
+    COLOR_8 = "color_8", "Color 8"
+    COLOR_9 = "color_9", "Color 9"
+
+
+class ChatProject(BaseModel):
+    """Model representing a project that groups conversations together."""
+
+    owner = models.ForeignKey(
+        User,
+        related_name="projects",
+        on_delete=models.CASCADE,
+        null=False,
+        blank=False,
+    )
+    title = models.CharField(
+        max_length=100,
+        help_text="Title of the chat project",
+    )
+    icon = models.CharField(max_length=20, choices=ChatProjectIcon, help_text="Project icon")
+    color = models.CharField(
+        max_length=20, choices=ChatProjectColor, help_text="Project icon color"
+    )
+
+    llm_instructions = models.TextField(
+        blank=True,
+        help_text="Custom user instructions to be sent to the llm",
+    )
+
+    def __str__(self):
+        return self.title
+
+
 class ChatConversation(BaseModel):
     """
     Model representing a chat conversation.
@@ -78,6 +144,23 @@ class ChatConversation(BaseModel):
         null=True,
         help_text="Collection ID for the conversation, used for RAG document search",
     )
+
+    project = models.ForeignKey(
+        ChatProject,
+        related_name="conversations",
+        on_delete=models.SET_NULL,  # explicitly avoid Cascade here
+        null=True,
+        blank=True,
+    )
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        indexes = [
+            models.Index(fields=["owner", "-created_at"]),
+            models.Index(fields=["owner", "project"]),
+        ]
+
+    def __str__(self):
+        return self.title or str(self.pk)
 
 
 class ChatConversationAttachment(BaseModel):

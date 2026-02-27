@@ -10,6 +10,8 @@ changes are needed in views.py or tests.
 
 1. **Initialization**: `AIAgentService` is created with a conversation and user.
    Feature flags, model config, and the conversation agent are set up.
+   If the conversation belongs to a project with custom LLM instructions,
+   they are injected as a dynamic agent instruction.
 
 2. **Streaming Entry Points**: `stream_text()` or `stream_data()` are called
    with user messages. These wrap async generators for sync consumption.
@@ -262,6 +264,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             deps_type=ContextDeps,
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
+
+        # Inject project-level custom instructions if the conversation belongs to a project
+        llm_user_instructions = (
+            conversation.project.llm_instructions.strip()
+            if conversation.project_id is not None
+            else ""
+        )
+        if llm_user_instructions:
+
+            @self.conversation_agent.instructions
+            def project_instructions() -> str:
+                return llm_user_instructions
 
     @property
     def _stop_cache_key(self):
