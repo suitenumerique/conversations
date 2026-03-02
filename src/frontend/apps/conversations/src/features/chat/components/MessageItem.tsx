@@ -15,14 +15,14 @@ import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationIte
 // Memoized blocks list to prevent parent re-renders from causing block remounts
 const BlocksList = React.memo(
   ({ blocks, pending }: { blocks: string[]; pending: string }) => (
-    <div>
+    <>
       {/* key={index} is safe here: blocks are append-only during streaming
          and a completed block's content never changes once finalized. */}
       {blocks.map((block, index) => (
         <CompletedMarkdownBlock key={index} content={block} />
       ))}
       {pending && <RawTextBlock content={pending} />}
-    </div>
+    </>
   ),
   (prev, next) => {
     const lengthChanged = prev.blocks.length !== next.blocks.length;
@@ -299,16 +299,12 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
             </Box>
           )}
         <Box
-          $radius="8px"
-          $width={`${message.role === 'user' ? 'auto' : '100%'}`}
-          $maxWidth="100%"
-          $padding={`${message.role === 'user' ? '12px' : '0'}`}
-          $margin={{ vertical: 'base' }}
-          $background={`${message.role === 'user' ? '#EEF1F4' : 'white'}`}
-          $css={`
-            display: inline-block;
-            float: right;
-            ${shouldApplyStreamingHeight ? `min-height: ${streamingMessageHeight}px;` : ''}`}
+          className={`chatMessage ${message.role === 'user' ? 'chatMessage--user' : 'chatMessage--assistant'}`}
+          style={
+            shouldApplyStreamingHeight
+              ? { minHeight: `${streamingMessageHeight}px` }
+              : undefined
+          }
         >
           {/* Message content */}
           {message.content && (

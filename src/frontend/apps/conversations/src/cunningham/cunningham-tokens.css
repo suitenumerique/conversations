@@ -1,8 +1,8 @@
 :root {
-  --c--globals--colors--logo-1-light: #4844ad;
-  --c--globals--colors--logo-2-light: #4844ad;
-  --c--globals--colors--logo-1-dark: #bec5f0;
-  --c--globals--colors--logo-2-dark: #bec5f0;
+  --c--globals--colors--logo-1-light: #377fdb;
+  --c--globals--colors--logo-2-light: #377fdb;
+  --c--globals--colors--logo-1-dark: #c1d6f2;
+  --c--globals--colors--logo-2-dark: #c1d6f2;
   --c--globals--colors--brand-050: #eef1fa;
   --c--globals--colors--brand-100: #dde2f5;
   --c--globals--colors--brand-150: #ced3f1;
@@ -332,6 +332,8 @@
   --c--globals--colors--white-900: #f8f8f9e5;
   --c--globals--colors--white-950: #f8f8f9f2;
   --c--globals--colors--white-975: #f8f8f9f9;
+  --c--globals--colors--logo-1: #4844ad;
+  --c--globals--colors--logo-2: #4844ad;
   --c--globals--transitions--ease-in: cubic-bezier(0.32, 0, 0.67, 0);
   --c--globals--transitions--ease-out: cubic-bezier(0.33, 1, 0.68, 1);
   --c--globals--transitions--ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -893,10 +895,10 @@
 }
 
 .cunningham-theme--dark {
-  --c--globals--colors--logo-1-light: #4844ad;
-  --c--globals--colors--logo-2-light: #4844ad;
-  --c--globals--colors--logo-1-dark: #bec5f0;
-  --c--globals--colors--logo-2-dark: #bec5f0;
+  --c--globals--colors--logo-1-light: #377fdb;
+  --c--globals--colors--logo-2-light: #377fdb;
+  --c--globals--colors--logo-1-dark: #c1d6f2;
+  --c--globals--colors--logo-2-dark: #c1d6f2;
   --c--globals--colors--brand-050: #eef1fa;
   --c--globals--colors--brand-100: #dde2f5;
   --c--globals--colors--brand-150: #ced3f1;
@@ -1226,6 +1228,8 @@
   --c--globals--colors--white-900: #f8f8f9e5;
   --c--globals--colors--white-950: #f8f8f9f2;
   --c--globals--colors--white-975: #f8f8f9f9;
+  --c--globals--colors--logo-1: #4844ad;
+  --c--globals--colors--logo-2: #4844ad;
   --c--globals--transitions--ease-in: cubic-bezier(0.32, 0, 0.67, 0);
   --c--globals--transitions--ease-out: cubic-bezier(0.33, 1, 0.68, 1);
   --c--globals--transitions--ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
@@ -4854,6 +4858,14 @@
   color: var(--c--globals--colors--white-975);
 }
 
+.clr-logo-1 {
+  color: var(--c--globals--colors--logo-1);
+}
+
+.clr-logo-2 {
+  color: var(--c--globals--colors--logo-2);
+}
+
 .bg-logo-1-light {
   background-color: var(--c--globals--colors--logo-1-light);
 }
@@ -6184,6 +6196,14 @@
 
 .bg-white-975 {
   background-color: var(--c--globals--colors--white-975);
+}
+
+.bg-logo-1 {
+  background-color: var(--c--globals--colors--logo-1);
+}
+
+.bg-logo-2 {
+  background-color: var(--c--globals--colors--logo-2);
 }
 
 .bg-surface-primary {

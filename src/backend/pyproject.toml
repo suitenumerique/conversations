@@ -35,7 +35,7 @@ dependencies = [
     "django-filter==25.2",
     "django-lasuite[all]==0.0.18",
     "django-parler==2.3",
-    "django-pydantic-field==0.4.0",
+    "django-pydantic-field==0.5.4",
     "django-redis==6.0.0",
     "django-storages[s3]==1.14.6",
     "django-timezone-field>=5.1",
@@ -56,7 +56,7 @@ dependencies = [
     "nested-multipart-parser==1.6.0",
     "posthog==7.0.0",
     "pydantic==2.12.4",
-    "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.56.0",
+    "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.62.0",
     "psycopg[binary]==3.2.12",
     "PyJWT==2.10.1",
     "python-magic==0.4.27",
@@ -67,7 +67,7 @@ dependencies = [
     "trafilatura==2.0.0",
     "uvicorn==0.38.0",
     "whitenoise==6.11.0",
-    "pypdf>=6.6.2",
+    "pypdf>=6.7.2",
 ]
 
 [project.urls]
@@ -109,8 +109,13 @@ zip-safe = true
 universal = true
 
 [tool.uv]
+required-environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'darwin'",
+]
 override-dependencies = [
     "cryptography>=46.0.5", # CVE-2026-26007
+    "pillow>=12.1.1", #CVE-2026-25990
 ]
 
 [tool.uv.build-backend]

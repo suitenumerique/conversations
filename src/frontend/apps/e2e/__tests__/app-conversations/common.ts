@@ -26,7 +26,7 @@ export const CONFIG = {
   theme_customization: {},
   chat_upload_accept:
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document,' +
-    'application/vnd.openxmlformats-officedocument.presentationml,' +
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation,' +
     'application/vnd.ms-excel,' +
     'application/excel,' +
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,' +

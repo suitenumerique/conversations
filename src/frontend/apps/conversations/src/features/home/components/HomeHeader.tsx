@@ -26,6 +26,8 @@ export const HomeHeader = () => {
   const logo = (componentTokens as Record<string, unknown>).logo as
     | { src: string; alt: string; widthHeader: string; widthFooter: string }
     | undefined;
+  const showLaGaufre =
+    (componentTokens as Record<string, unknown>)['la-gaufre'] === true;
 
   return (
     <Box
@@ -79,7 +81,7 @@ export const HomeHeader = () => {
         <Box $direction="row" $gap="1rem" $align="center">
           <ButtonLogin />
           <LanguagePicker />
-          <LaGaufre />
+          {showLaGaufre && <LaGaufre />}
         </Box>
       )}
     </Box>

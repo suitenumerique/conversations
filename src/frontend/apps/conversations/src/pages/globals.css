@@ -301,6 +301,40 @@ figure[data-rehype-pretty-code-figure] > pre > code {
   display: block;
 }
 
+.mainContent-chat table {
+  display: block;
+  width: 100%;
+  margin-top: 32px;
+  overflow-x: scroll;
+  font-size: 0.875rem;
+}
+
+.mainContent-chat table th {
+  color: var(--c--contextuals--content--semantic--neutral--secondary);
+  font-weight: 500;
+  font-size: 0.75rem;
+}
+
+.mainContent-chat table tr,
+.mainContent-chat table th {
+  display: flex;
+  border-bottom: 1px solid var(--c--contextuals--border--surface--primary);
+}
+
+.mainContent-chat tbody tr,
+.mainContent-chat thead th {
+  padding: 8px;
+}
+
+.mainContent-chat table tr:last-child {
+  border-bottom: none;
+}
+
+.mainContent-chat table td,
+.mainContent-chat table th {
+  min-width: 200px;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

@@ -77,10 +77,13 @@ class UserManager(auth_models.UserManager):
 
             if settings.OIDC_FALLBACK_TO_EMAIL_FOR_IDENTIFICATION:
                 try:
-                    return self.get(email=email)
+                    return self.get(email__iexact=email)
                 except self.model.DoesNotExist:
                     pass
-            elif self.filter(email=email).exists() and not settings.OIDC_ALLOW_DUPLICATE_EMAILS:
+            elif (
+                self.filter(email__iexact=email).exists()
+                and not settings.OIDC_ALLOW_DUPLICATE_EMAILS
+            ):
                 raise DuplicateEmailError(
                     _(
                         "We couldn't find a user with this sub but the email is already "
@@ -161,6 +164,12 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         _("allow conversation analytics"),
         default=False,
         help_text=_("Whether the user allows to use their conversations for analytics."),
+    )
+
+    allow_smart_web_search = models.BooleanField(
+        _("allow smart web search"),
+        default=True,
+        help_text=_("Whether the user allows to use smart web search features."),
     )
 
     objects = UserManager()

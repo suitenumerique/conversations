@@ -10,17 +10,28 @@ and this project adheres to
 
 ### Added
 
+- ✨(user) allow disabling automatic internet search
+- ✨(waffle) hide the waffle if not fr theme
 - ✨(front) allow pasting an attachment from clipboard
+- ✨(array) temporarily adjust array
 
 ### Changed
 
 - ⚡️(front) optimize streaming markdown rendering performance
 - ⬆️(back) update pydantic-ai
+- ♻️(chat) refactor AIAgentService for readability and maintainability
+- 🚸(oidc) ignore case when fallback on email #281
+- ⬆️(back) update pillow, django-pydantic-field, pypdf
+- ♻️(front) migrate from ESLint 8 to ESLint 9 flat config
 
 ### Fixed
 
+
 - 💚(docker) vendor mime.types file instead of fetching from Apache SVN
+- 🚑️(back) fix mime type for pptx
 - 🐛(front) fix math formulas and carousel translations
+- 🐛(helm) reverse liveness and readiness for backend deployment
+- 🐛(front) fix dark mode styling on chat messages
 
 ## [0.0.13] - 2026-02-09
 

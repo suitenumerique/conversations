@@ -8,14 +8,13 @@
     "format-deploy": "yarn format-deploy:conversations",
     "format-deploy:conversations": "node ./format-deploy.mjs --app=conversations --output=../../apps/conversations/src/i18n/translations.json",
     "format-rebuild-fr:conversations": "node ./rebuild-translations.mjs --language=fr --app=conversations --output=../../apps/conversations/src/i18n/translations.json",
-    "lint": "eslint --ext .js,.ts,.mjs .",
+    "lint": "eslint .",
     "test": "jest"
   },
   "dependencies": {
     "@types/jest": "29.5.14",
     "@types/node": "*",
     "eslint-config-conversations": "*",
-    "eslint-plugin-import": "2.31.0",
     "i18next-parser": "9.3.0",
     "jest": "29.7.0",
     "ts-jest": "29.3.4",

@@ -24,7 +24,10 @@ import { LaGaufre } from './LaGaufre';
 
 export const Header = () => {
   const { t } = useTranslation();
-  const { spacingsTokens, colorsTokens } = useCunninghamTheme();
+  const { spacingsTokens, colorsTokens, componentTokens } =
+    useCunninghamTheme();
+  const showLaGaufre =
+    (componentTokens as Record<string, unknown>)['la-gaufre'] === true;
   const { isDesktop } = useResponsiveStore();
   const { setPanelOpen } = useChatPreferencesStore();
   const { isAtTop } = useChatScroll();
@@ -95,7 +98,7 @@ export const Header = () => {
         >
           <ButtonLogin />
           <LanguagePicker />
-          <LaGaufre />
+          {showLaGaufre && <LaGaufre />}
         </Box>
       )}
     </Box>

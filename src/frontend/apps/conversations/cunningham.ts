@@ -145,10 +145,8 @@ export const commonGlobals = {
 
 export const whiteLabelGlobals = {
   colors: {
-    'logo-1-light': '#4844AD',
-    'logo-2-light': '#4844AD',
-    'logo-1-dark': '#BEC5F0',
-    'logo-2-dark': '#BEC5F0',
+    'logo-1': '#4844AD',
+    'logo-2': '#4844AD',
     'brand-050': '#EEF1FA',
     'brand-100': '#DDE2F5',
     'brand-150': '#CED3F1',
