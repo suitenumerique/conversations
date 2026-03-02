@@ -3,6 +3,7 @@ import { UseQueryOptions, useQuery } from '@tanstack/react-query';
 import {
   APIError,
   APIList,
+  DefinedInitialDataInfiniteOptionsAPI,
   errorCauses,
   fetchAPI,
   useAPIInfiniteQuery,
@@ -71,6 +72,16 @@ export function useConversations(
   });
 }
 
-export const useInfiniteConversations = (params: ConversationsParams) => {
-  return useAPIInfiniteQuery(KEY_LIST_CONVERSATION, getConversations, params);
+export const useInfiniteConversations = (
+  params: ConversationsParams,
+  queryConfig?: Partial<
+    DefinedInitialDataInfiniteOptionsAPI<ConversationsResponse>
+  >,
+) => {
+  return useAPIInfiniteQuery(
+    KEY_LIST_CONVERSATION,
+    getConversations,
+    params,
+    queryConfig as DefinedInitialDataInfiniteOptionsAPI<ConversationsResponse>,
+  );
 };
