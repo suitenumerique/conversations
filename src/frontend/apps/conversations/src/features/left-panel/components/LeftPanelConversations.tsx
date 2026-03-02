@@ -34,12 +34,14 @@ export const LeftPanelConversations = () => {
         data-testid="left-panel-favorites"
       >
         <Text
-          $size="sm"
-          $variation="700"
-          $padding={{ horizontal: 'xs' }}
-          $weight="700"
+          $size="xs"
+          $theme="neutral"
+          $textTransform="uppercase"
+          $variation="tertiary"
+          $padding={{ horizontal: 'xs', bottom: '6px' }}
+          $weight="500"
         >
-          {t('History')}
+          {t('Your chats')}
         </Text>
         <InfiniteScroll
           hasMore={conversations.hasNextPage}

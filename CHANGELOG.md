@@ -13,6 +13,7 @@ and this project adheres to
 ### Added
 
 - ✨(user) allow disabling automatic internet search
+- ✨(search) add searchModal and modify leftPanel
 - ✨(waffle) hide the waffle if not fr theme
 - ✨(front) allow pasting an attachment from clipboard
 - ✨(array) temporarily adjust array
