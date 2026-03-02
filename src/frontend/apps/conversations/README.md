@@ -1,5 +1,14 @@
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
+## PWA assets
+
+For full PWA installability (e.g. Chrome install prompt, iOS “Add to Home Screen”), ensure `public/assets` contains:
+
+- **`favicon-512.png`** – 512×512 PNG (maskable recommended)
+- **`apple-touch-icon.png`** – 180×180 PNG with solid background (Safari/iOS ignores SVG)
+
+You can generate these from `public/assets/icon-assistant.svg` or existing favicon PNGs.
+
 ## Getting Started
 
 First, run the development server:
