@@ -84,12 +84,24 @@ function isFont(request) {
  * Handles the SKIP_WAITING message from the client to immediately activate
  * a waiting service worker without requiring all clients to close.
  *
+ * The origin of the message is verified using the URL of the sending client.
+ *
  * @param {MessageEvent} event - The message event from the client
  */
 function handleSkipWaitingMessage(event) {
   if (!event.data || event.data.type !== 'SKIP_WAITING') {
     return;
   }
+
+  // Verify message comes from a same-origin client when possible.
+  const source = event.source;
+  if (source && 'url' in source) {
+    const clientUrl = new URL(source.url);
+    if (clientUrl.origin !== globalThis.location.origin) {
+      return;
+    }
+  }
+
   globalThis.skipWaiting();
 }
 
