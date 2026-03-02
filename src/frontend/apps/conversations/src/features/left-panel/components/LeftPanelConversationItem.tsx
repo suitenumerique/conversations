@@ -11,6 +11,8 @@ import { useResponsiveStore } from '@/stores';
 type LeftPanelConversationItemProps = {
   conversation: ChatConversation;
   isCurrentConversation: boolean;
+  /** Affiche le temps depuis le dernier message (ex. dans la modale de recherche) */
+  showUpdatedAt?: boolean;
 };
 
 const linkStyles = css`
@@ -58,6 +60,7 @@ export const LeftPanelConversationItem = memo(
   function LeftPanelConversationItem({
     conversation,
     isCurrentConversation,
+    showUpdatedAt = false,
   }: LeftPanelConversationItemProps) {
     const isDesktop = useResponsiveStore((state) => state.isDesktop);
     const setPanelOpen = useChatPreferencesStore((state) => state.setPanelOpen);
@@ -87,7 +90,11 @@ export const LeftPanelConversationItem = memo(
           $css={linkStyles}
           onClick={handleLinkClick}
         >
-          <SimpleConversationItem showAccesses conversation={conversation} />
+          <SimpleConversationItem
+            showAccesses
+            showUpdatedAt={showUpdatedAt}
+            conversation={conversation}
+          />
         </StyledLink>
 
         <Box className="pinned-actions">

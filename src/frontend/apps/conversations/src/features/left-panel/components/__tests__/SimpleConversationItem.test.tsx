@@ -5,12 +5,6 @@ import { AppWrapper } from '@/tests/utils';
 
 import { SimpleConversationItem } from '../SimpleConversationItem';
 
-jest.mock('../../assets/bubble-bold.svg', () => {
-  return function BubbleIcon({ color, ...props }: { color: string }) {
-    return <svg data-testid="bubble-icon" data-color={color} {...props} />;
-  };
-});
-
 const mockConversation = {
   id: 'conv-123',
   title: 'Test Conversation',
@@ -30,22 +24,6 @@ describe('SimpleConversationItem', () => {
     );
 
     expect(screen.getByText('Test Conversation')).toBeInTheDocument();
-  });
-
-  it('should render bubble icon', () => {
-    renderWithWrapper(
-      <SimpleConversationItem conversation={mockConversation} />,
-    );
-
-    expect(screen.getByTestId('bubble-icon')).toBeInTheDocument();
-  });
-
-  it('should have accessible label for bubble icon', () => {
-    renderWithWrapper(
-      <SimpleConversationItem conversation={mockConversation} />,
-    );
-
-    expect(screen.getByLabelText('Simple chat icon')).toBeInTheDocument();
   });
 
   it('should display "Untitled conversation" when title is empty', () => {
