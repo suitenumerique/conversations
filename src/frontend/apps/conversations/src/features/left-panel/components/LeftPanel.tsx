@@ -52,6 +52,10 @@ export const LeftPanel = () => {
             <LeftPanelHeader />
           </Box>
           <LeftPanelContent />
+          <SeparatedSection showSeparator={true} />
+          <Box $padding={{ top: 'sm', bottom: 'sm' }}>
+            <SettingsButton />
+          </Box>
         </Box>
       )}
 
@@ -85,6 +89,7 @@ export const LeftPanel = () => {
                 gap: ${spacingsTokens['base']};
               `}
             >
+              <LeftPanelHeader />
               <LeftPanelContent />
               <SeparatedSection showSeparator={false}>
                 <Box

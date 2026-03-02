@@ -42,11 +42,6 @@ export const LeftPanelSearch = ({ onSearchChange }: LeftPanelSearchProps) => {
     router.push(`/chat/${conversation.id}`);
   };
 
-  const handleClear = () => {
-    setSearch('');
-    onSearchChange?.(false);
-  };
-
   const conversationsData: QuickSearchData<ChatConversation> = useMemo(() => {
     const conversations = data?.pages.flatMap((page) => page.results) || [];
 
@@ -64,7 +59,6 @@ export const LeftPanelSearch = ({ onSearchChange }: LeftPanelSearchProps) => {
     <QuickSearch
       placeholder={t('Search for a chat')}
       onFilter={handleInputSearch}
-      onClear={handleClear}
       inputValue={search}
     >
       <Box>
