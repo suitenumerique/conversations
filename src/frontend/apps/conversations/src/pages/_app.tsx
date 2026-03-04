@@ -6,7 +6,7 @@ import { AppProvider, productName } from '@/core/';
 import { useCunninghamTheme } from '@/cunningham';
 import '@/i18n/initI18n';
 import { NextPageWithLayout } from '@/types/next';
-
+import "@gouvfr-lasuite/ui-kit/style";
 import './globals.css';
 
 type AppPropsWithLayout = AppProps & {

@@ -3,45 +3,44 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import { DropdownMenu, DropdownMenuOption, Icon } from '@/components';
+import { ChatProject } from '@/features/chat/types';
 import { useOwnModal } from '@/features/left-panel/hooks/useModalHook';
 
-import { ModalRemoveConversation } from './ModalRemoveConversation';
-import { ModalRenameConversation } from './ModalRenameConversation';
+import { ModalProjectSettings } from './ModalProjectSettings';
+import { ModalRemoveProject } from './ModalRemoveProject';
 
-interface ConversationItemActionsProps {
-  conversation: { id: string; title?: string };
+interface ProjectItemActionsProps {
+  project: ChatProject;
 }
 
-export const ConversationItemActions = ({
-  conversation,
-}: ConversationItemActionsProps) => {
+export const ProjectItemActions = ({ project }: ProjectItemActionsProps) => {
   const { t } = useTranslation();
 
   const deleteModal = useOwnModal();
-  const renameModal = useOwnModal();
+  const settingsModal = useOwnModal();
 
   const options: DropdownMenuOption[] = [
     {
-      label: t('Rename chat'),
-      icon: 'edit',
-      callback: renameModal.open,
+      label: t('Project settings'),
+      icon: 'settings',
+      callback: settingsModal.open,
       disabled: false,
-      testId: `conversation-item-actions-rename-${conversation.id}`,
+      testId: `project-item-actions-settings-${project.id}`,
     },
     {
-      label: t('Delete chat'),
+      label: t('Delete project'),
       icon: 'delete',
       callback: deleteModal.open,
       disabled: false,
-      testId: `conversation-item-actions-remove-${conversation.id}`,
+      testId: `project-item-actions-remove-${project.id}`,
     },
   ];
   const dropdownLabel = useMemo(
     () =>
-      t('Actions list for conversation {{title}}', {
-        title: conversation.title || t('Untitled conversation'),
+      t('Actions list for project {{title}}', {
+        title: project.title,
       }),
-    [t, conversation.title],
+    [t, project.title],
   );
 
   return (
@@ -70,7 +69,7 @@ export const ConversationItemActions = ({
         `}
       >
         <Icon
-          data-testid={`conversation-item-actions-button-${conversation.id}`}
+          data-testid={`project-item-actions-button-${project.id}`}
           iconName="more_horiz"
           $theme="brand"
           $variation="tertiary"
@@ -78,15 +77,15 @@ export const ConversationItemActions = ({
       </DropdownMenu>
 
       {deleteModal.isOpen && (
-        <ModalRemoveConversation
+        <ModalRemoveProject
           onClose={deleteModal.close}
-          conversation={conversation}
+          project={project}
         />
       )}
-      {renameModal.isOpen && (
-        <ModalRenameConversation
-          onClose={renameModal.close}
-          conversation={conversation}
+      {settingsModal.isOpen && (
+        <ModalProjectSettings
+          onClose={settingsModal.close}
+          project={project}
         />
       )}
     </>

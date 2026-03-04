@@ -1,29 +1,30 @@
 import { Button, Modal, ModalSize } from '@openfun/cunningham-react';
 import { t } from 'i18next';
+
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/router';
 
 import { Box, Text, useToast } from '@/components';
-import { useRemoveConversation } from '@/features/chat/api/useRemoveConversation';
+import { useRemoveProject } from '@/features/chat/api/useRemoveProject';
 
-interface ModalRemoveConversationProps {
+interface ModalRemoveProjectProps {
   onClose: () => void;
-  conversation: { id: string; title?: string };
+  project: { id: string; title: string };
 }
 
-export const ModalRemoveConversation = ({
+export const ModalRemoveProject = ({
   onClose,
-  conversation,
-}: ModalRemoveConversationProps) => {
+  project,
+}: ModalRemoveProjectProps) => {
   const { showToast } = useToast();
   const { push } = useRouter();
   const pathname = usePathname();
 
-  const { mutate: removeDoc } = useRemoveConversation({
+  const { mutate: removeProject } = useRemoveProject({
     onSuccess: () => {
       showToast(
         'success',
-        t('The conversation has been deleted.'),
+        t('The project has been deleted.'),
         undefined,
         4000,
       );
@@ -40,34 +41,35 @@ export const ModalRemoveConversation = ({
       isOpen
       closeOnClickOutside
       onClose={() => onClose()}
-      aria-label={t('Content modal to delete conversation')}
+      aria-label={t('Content modal to delete project')}
       rightActions={
         <>
+                  <Button
+            aria-label={t('Confirm deletion')}
+            color="error"
+            variant="bordered"
+            fullWidth
+            onClick={() =>
+              removeProject({
+                projectId: project.id,
+              })
+            }
+          >
+            {t('Delete anyway')}
+          </Button>
           <Button
             aria-label={t('Close the modal')}
             color="brand"
-            variant="bordered"
+
             fullWidth
             onClick={() => onClose()}
           >
             {t('Cancel')}
           </Button>
-          <Button
-            aria-label={t('Confirm deletion')}
-            color="error"
-            variant="primary"
-            fullWidth
-            onClick={() =>
-              removeDoc({
-                conversationId: conversation.id,
-              })
-            }
-          >
-            {t('Delete')}
-          </Button>
+
         </>
       }
-      size={ModalSize.SMALL}
+      size={ModalSize.MEDIUM}
       title={
         <Text
           $size="h6"
@@ -76,16 +78,17 @@ export const ModalRemoveConversation = ({
           $align="flex-start"
           $variation="1000"
         >
-          {t('Delete a conversation')}
+    {t('Delete {{title}}', { title: project.title })}
         </Text>
       }
     >
       <Box
-        className="--conversations--modal-remove-chat"
-        data-testid="delete-chat-confirm"
+        className="--conversations--modal-remove-project"
+        data-testid="delete-project-confirm"
       >
         <Text $size="sm" $variation="600">
-          {t('Are you sure you want to delete this conversation ?')}
+          {t('Are you sure you want to delete the “{{title}}” project? All associated conversations and embedded' +
+              ' documents will be permanently lost.', { title: project.title })}
         </Text>
       </Box>
     </Modal>

@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
+import FolderPlusIcon from '@/assets/icons/uikit-custom/folder-plus.svg';
 import NewChatIcon from '@/assets/icons/new-message-bold.svg';
 import { Box, Icon } from '@/components';
 
@@ -20,11 +21,13 @@ const iconWrapperCss = css`
 type LeftPanelHeaderActionsProps = {
   onNewChat: () => void;
   onSearch: () => void;
+  onCreateProject: () => void;
 };
 
 export const LeftPanelHeaderActions = ({
   onNewChat,
   onSearch,
+  onCreateProject,
 }: LeftPanelHeaderActionsProps) => {
   const { t } = useTranslation();
 
@@ -55,6 +58,16 @@ export const LeftPanelHeaderActions = ({
         label={t('Search for a chat')}
         onClick={onSearch}
         aria-label={t('Search for a chat')}
+      />
+      <LeftPanelMenuItem
+        icon={
+          <Box $css={iconWrapperCss} $display="flex" $align="center">
+            <FolderPlusIcon aria-hidden />
+          </Box>
+        }
+        label={t('Create project')}
+        onClick={onCreateProject}
+        aria-label={t('Create project')}
       />
     </Box>
   );

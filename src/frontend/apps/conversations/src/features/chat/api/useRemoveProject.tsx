@@ -6,45 +6,39 @@ import {
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
 
-import { KEY_LIST_CONVERSATION } from './useConversations';
 import { KEY_LIST_PROJECT } from './useProjects';
 
-interface RemoveConversationProps {
-  conversationId: string;
+interface RemoveProjectProps {
+  projectId: string;
 }
 
-export const removeConversation = async ({
-  conversationId,
-}: RemoveConversationProps): Promise<void> => {
-  const response = await fetchAPI(`chats/${conversationId}/`, {
+export const removeProject = async ({
+  projectId,
+}: RemoveProjectProps): Promise<void> => {
+  const response = await fetchAPI(`projects/${projectId}/`, {
     method: 'DELETE',
   });
 
   if (!response.ok) {
     throw new APIError(
-      'Failed to delete the conversation',
+      'Failed to delete the project',
       await errorCauses(response),
     );
   }
 };
 
-type UseRemoveConversationOptions = UseMutationOptions<
+type UseRemoveProjectOptions = UseMutationOptions<
   void,
   APIError,
-  RemoveConversationProps
+  RemoveProjectProps
 >;
 
-export const useRemoveConversation = (
-  options?: UseRemoveConversationOptions,
-) => {
+export const useRemoveProject = (options?: UseRemoveProjectOptions) => {
   const queryClient = useQueryClient();
-  return useMutation<void, APIError, RemoveConversationProps>({
-    mutationFn: removeConversation,
+  return useMutation<void, APIError, RemoveProjectProps>({
+    mutationFn: removeProject,
     ...options,
     onSuccess: (data, variables, context) => {
-      void queryClient.invalidateQueries({
-        queryKey: [KEY_LIST_CONVERSATION],
-      });
       void queryClient.invalidateQueries({
         queryKey: [KEY_LIST_PROJECT],
       });
