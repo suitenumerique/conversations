@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Resource } from 'i18next';
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
-import { Theme } from '@/cunningham/';
+import { BaseTheme } from '@/cunningham/';
 import { FooterType } from '@/features/footer';
 import { PostHogConf } from '@/services';
 
@@ -28,7 +28,7 @@ export interface ConfigResponse {
   FEATURE_FLAGS: FeatureFlags;
   FRONTEND_CSS_URL?: string;
   FRONTEND_HOMEPAGE_FEATURE_ENABLED?: boolean;
-  FRONTEND_THEME?: Theme;
+  FRONTEND_THEME?: BaseTheme;
   LANGUAGES: [string, string][];
   LANGUAGE_CODE: string;
   MEDIA_BASE_URL?: string;

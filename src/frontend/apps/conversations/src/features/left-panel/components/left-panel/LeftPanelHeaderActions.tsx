@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import FolderPlusIcon from '@/assets/icons/uikit-custom/folder-plus.svg';
 import NewChatIcon from '@/assets/icons/new-message-bold.svg';
+import FolderPlusIcon from '@/assets/icons/uikit-custom/folder-plus.svg';
 import { Box, Icon } from '@/components';
 
 import { LeftPanelMenuItem } from './LeftPanelMenuItem';
@@ -36,7 +36,7 @@ export const LeftPanelHeaderActions = ({
       $direction="column"
       $gap="2px"
       $align="center"
-      $margin={{ vertical: 'base' }}
+      $margin={{ top: 'base' }}
       $padding={{ horizontal: 'sm' }}
     >
       <LeftPanelMenuItem
@@ -62,12 +62,12 @@ export const LeftPanelHeaderActions = ({
       <LeftPanelMenuItem
         icon={
           <Box $css={iconWrapperCss} $display="flex" $align="center">
-            <FolderPlusIcon aria-hidden />
+            <FolderPlusIcon aria-hidden width="24" height="24" />
           </Box>
         }
-        label={t('Create project')}
+        label={t('New project')}
         onClick={onCreateProject}
-        aria-label={t('Create project')}
+        aria-label={t('New project')}
       />
     </Box>
   );

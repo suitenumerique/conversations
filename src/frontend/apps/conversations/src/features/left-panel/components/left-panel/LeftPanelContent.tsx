@@ -1,8 +1,7 @@
 import { Box } from '@/components';
 import { useAuth } from '@/features/auth/hooks';
-import { LeftPanelConversations } from '@/features/left-panel/components/LeftPanelConversations';
-import { LeftPanelProjects } from '@/features/left-panel/components/LeftPanelProjects';
-
+import { LeftPanelConversations } from '@/features/left-panel/components/left-panel/LeftPanelConversations';
+import { LeftPanelProjects } from '@/features/left-panel/components/left-panel/LeftPanelProjects';
 import { useResponsiveStore } from '@/stores';
 
 export const LeftPanelContent = () => {
@@ -21,7 +20,6 @@ export const LeftPanelContent = () => {
     >
       {authenticated && (
         <>
-          {' '}
           <LeftPanelProjects /> <LeftPanelConversations />
         </>
       )}

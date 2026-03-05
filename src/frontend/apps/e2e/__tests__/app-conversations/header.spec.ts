@@ -39,8 +39,6 @@ test.describe('Header', () => {
 
     await expect(header.getByText('English')).toBeVisible();
 
-    await page.waitForTimeout(2000);
-
     await expect(
       header.getByRole('button', {
         name: 'Les services de LaSuite',
@@ -55,8 +53,6 @@ test.describe('Header', () => {
     await page.goto('/');
 
     const header = page.locator('header').first();
-
-    await page.waitForTimeout(2000);
 
     await expect(
       header.getByRole('button', {

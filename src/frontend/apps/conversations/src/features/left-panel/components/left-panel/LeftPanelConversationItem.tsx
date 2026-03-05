@@ -8,7 +8,7 @@ import { SimpleConversationItem } from '@/features/left-panel/components/SimpleC
 type LeftPanelConversationItemProps = {
   conversation: ChatConversation;
   isCurrentConversation: boolean;
-  /** Affiche le temps depuis le dernier message (ex. dans la modale de recherche) */
+  /** Displays the time since the last message (e.g., in the search modal) */
   showUpdatedAt?: boolean;
 };
 

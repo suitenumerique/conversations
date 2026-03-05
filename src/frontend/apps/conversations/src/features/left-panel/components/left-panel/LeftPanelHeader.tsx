@@ -1,4 +1,4 @@
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/router';
 import { PropsWithChildren, useEffect, useState } from 'react';
 
 import { Box } from '@/components';
@@ -7,9 +7,10 @@ import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferenc
 import { useOwnModal } from '@/features/left-panel/hooks/useModalHook';
 import { useResponsiveStore } from '@/stores';
 
+import { ModalProjectForm } from '../projects/ModalProjectForm';
+
 import { LeftPanelHeaderActions } from './LeftPanelHeaderActions';
 import { LeftPanelSearchModal } from './LeftPanelSearchModal';
-import { ModalCreateProject } from './ModalCreateProject';
 
 export const LeftPanelHeader = ({ children }: PropsWithChildren) => {
   const router = useRouter();
@@ -32,7 +33,7 @@ export const LeftPanelHeader = ({ children }: PropsWithChildren) => {
   }, []);
 
   const goToHome = () => {
-    router.push('/');
+    void router.push('/');
     if (!isDesktop) {
       setPanelOpen(false);
     }
@@ -60,7 +61,7 @@ export const LeftPanelHeader = ({ children }: PropsWithChildren) => {
         <LeftPanelSearchModal onClose={() => setIsSearchModalOpen(false)} />
       )}
       {authenticated && createProjectModal.isOpen && (
-        <ModalCreateProject onClose={createProjectModal.close} />
+        <ModalProjectForm onClose={createProjectModal.close} />
       )}
     </>
   );

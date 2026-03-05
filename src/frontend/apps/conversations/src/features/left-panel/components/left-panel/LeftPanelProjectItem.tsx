@@ -1,14 +1,20 @@
-import { memo, useCallback, useState } from 'react';
-import { css } from 'styled-components';
+import { Button } from '@gouvfr-lasuite/cunningham-react';
+import { useRouter } from 'next/router';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { css } from 'styled-components';
 
 import { Box, Icon, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
+import { usePendingChatStore } from '@/features/chat/stores/usePendingChatStore';
 import { ChatProject } from '@/features/chat/types';
 import { ConversationItemActions } from '@/features/left-panel/components/ConversationItemActions';
 import { ConversationRow } from '@/features/left-panel/components/ConversationRow';
-import { PROJECT_COLORS, PROJECT_ICONS } from '@/features/left-panel/components/project-constants';
-import { ProjectItemActions } from '@/features/left-panel/components/ProjectItemActions';
+import { ProjectItemActions } from '@/features/left-panel/components/projects/ProjectItemActions';
+import {
+  PROJECT_COLORS,
+  PROJECT_ICONS,
+} from '@/features/left-panel/components/projects/project-constants';
 type LeftPanelProjectItemProps = {
   project: ChatProject;
   currentConversationId?: string;
@@ -51,9 +57,25 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
 }: LeftPanelProjectItemProps) {
   const { t } = useTranslation();
   const { colorsTokens } = useCunninghamTheme();
+  const router = useRouter();
+  const pendingProjectId = usePendingChatStore((s) => s.projectId);
+  const setProjectId = usePendingChatStore((s) => s.setProjectId);
 
   const [isOpen, setIsOpen] = useState(false);
 
+  // Auto-open when current conversation belongs to this project or creating a new one in it
+  const belongsToProject =
+    currentConversationId &&
+    project.conversations.some((c) => c.id === currentConversationId);
+  const isTargetProject = belongsToProject || pendingProjectId === project.id;
+
+  useEffect(() => {
+    if (isTargetProject) {
+      setIsOpen(true);
+    }
+  }, [isTargetProject]);
+
+  const IconComponent = PROJECT_ICONS[project.icon] ?? PROJECT_ICONS.folder;
   const iconColor =
     colorsTokens[PROJECT_COLORS[project.color] as keyof typeof colorsTokens] ??
     undefined;
@@ -62,9 +84,14 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
     setIsOpen((prev) => !prev);
   }, []);
 
+  const handleNewConversation = useCallback(() => {
+    setProjectId(project.id);
+    void router.push('/chat/');
+  }, [router, project.id, setProjectId]);
+
   return (
     <Box>
-      {/* Project header - click to toggle */}
+      {/* Project header */}
       <Box
         $direction="row"
         $align="center"
@@ -72,18 +99,24 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
         $gap="2px"
         $justify="space-between"
         $css={headerStyles}
-        onClick={toggleOpen}
-        role="button"
-        aria-expanded={isOpen}
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            toggleOpen();
-          }
-        }}
       >
-        <Box $direction="row" $align="center" $gap="2px" $css="min-width: 0;">
+        <Box
+          $direction="row"
+          $align="center"
+          $gap="2px"
+          $css="min-width: 0; flex: 1; cursor: pointer;"
+          role="button"
+          tabIndex={0}
+          aria-expanded={isOpen}
+          aria-label={project.title}
+          onClick={toggleOpen}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleOpen();
+            }
+          }}
+        >
           <Icon
             iconName={isOpen ? 'keyboard_arrow_down' : 'keyboard_arrow_right'}
             $theme="greyscale"
@@ -91,23 +124,21 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
             $size="18px"
           />
 
-          {(() => {
-            const IconComp = PROJECT_ICONS[project.icon] ?? PROJECT_ICONS.folder;
-            return (
-              <Box
-                $display="flex"
-                $align="center"
-                $justify="center"
-                $width="18px"
-                $height="18px"
-                style={{ color: iconColor, marginRight: '4px', flexShrink: 0 }}
-              >
-                <IconComp width={18} height={18} style={{ fill: 'currentColor', display: 'block' }} />
-              </Box>
-            );
-          })()}
+          <Box
+            $display="flex"
+            $align="center"
+            $justify="center"
+            $width="18px"
+            $height="18px"
+            style={{ color: iconColor, marginRight: '4px', flexShrink: 0 }}
+          >
+            <IconComponent
+              width={18}
+              height={18}
+              style={{ fill: 'currentColor', display: 'block' }}
+            />
+          </Box>
           <Text
-            aria-label={project.title}
             $size="sm"
             $variation="primary"
             $weight="500"
@@ -117,18 +148,26 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
           </Text>
         </Box>
 
-        <Box
+        <div
           className="pinned-actions"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
+          role="presentation"
+          style={{ display: 'flex', alignItems: 'center', gap: 0 }}
         >
           <ProjectItemActions project={project} />
-        </Box>
+          <Button
+            aria-label={t('New conversation in project')}
+            onClick={handleNewConversation}
+            color="info"
+            variant="bordered"
+            size="nano"
+            icon={<Icon iconName="add" $size="18px" $theme="primary" />}
+          />
+        </div>
       </Box>
 
       {/* Conversations list */}
       {isOpen && (
-        <Box $padding={{ left: 'sm' }} $css={conversationListStyles}>
+        <Box $padding={{ left: '28px' }} $css={conversationListStyles}>
           {project.conversations.length === 0 ? (
             <Text
               $size="xs"

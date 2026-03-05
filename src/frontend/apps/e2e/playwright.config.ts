@@ -11,6 +11,7 @@ export default defineConfig({
   // Timeout per test
   timeout: 30 * 1000,
   testDir: './__tests__',
+  testMatch: '**/*.spec.ts',
   outputDir: './test-results',
 
   /* Run tests in files in parallel */

@@ -1,5 +1,3 @@
-import { UseQueryOptions, useQuery } from '@tanstack/react-query';
-
 import { APIError, errorCauses, fetchAPI } from '@/api';
 import { ChatConversation } from '@/features/chat/types';
 
@@ -25,18 +23,3 @@ export const getConversation = async ({
 };
 
 export const KEY_CONVERSATION = 'conversation';
-
-export function useConversations(
-  param: ConversationsParams,
-  queryConfig?: UseQueryOptions<
-    ConversationResponse,
-    APIError,
-    ConversationResponse
-  >,
-) {
-  return useQuery<ConversationResponse, APIError, ConversationResponse>({
-    queryKey: [KEY_CONVERSATION, param],
-    queryFn: () => getConversation(param),
-    ...queryConfig,
-  });
-}

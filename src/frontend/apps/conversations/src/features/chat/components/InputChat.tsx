@@ -12,6 +12,7 @@ import { useToast } from '@/components/ToastProvider';
 import { FeatureFlagState, useConfig } from '@/core';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 import { InputChatActions } from '@/features/chat/components/InputChatAction';
+import { ProjectWelcomeMessage } from '@/features/chat/components/ProjectWelcomeMessage';
 import { SuggestionCarousel } from '@/features/chat/components/SuggestionCarousel';
 import { WelcomeMessage } from '@/features/chat/components/WelcomeMessage';
 import { useFileDragDrop } from '@/features/chat/hooks/useFileDragDrop';
@@ -415,7 +416,9 @@ export const InputChat = ({
           </Box>
         )}
         {/* Message de bienvenue */}
-        {messagesLength === 0 && <WelcomeMessage />}
+        {messagesLength === 0 && (
+          <ProjectWelcomeMessage fallback={<WelcomeMessage />} />
+        )}
 
         <form onSubmit={handleSubmit} style={STYLES.form}>
           <Box $padding={formPadding}>

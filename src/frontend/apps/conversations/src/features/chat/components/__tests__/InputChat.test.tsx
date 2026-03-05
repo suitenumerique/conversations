@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import '@/i18n/initI18n';
+import { AppWrapper } from '@/tests/utils';
 
 import { InputChat } from '../InputChat';
 
@@ -94,7 +95,7 @@ describe('InputChat', () => {
   });
 
   it('should render the textarea', () => {
-    render(<InputChat {...defaultProps} />);
+    render(<InputChat {...defaultProps} />, { wrapper: AppWrapper });
 
     expect(
       screen.getByRole('textbox', { name: 'Enter your message or a question' }),
@@ -102,31 +103,37 @@ describe('InputChat', () => {
   });
 
   it('should render welcome message when messagesLength is 0', () => {
-    render(<InputChat {...defaultProps} messagesLength={0} />);
+    render(<InputChat {...defaultProps} messagesLength={0} />, {
+      wrapper: AppWrapper,
+    });
 
     expect(screen.getByTestId('welcome-message')).toBeInTheDocument();
   });
 
   it('should not render welcome message when messagesLength > 0', () => {
-    render(<InputChat {...defaultProps} messagesLength={1} />);
+    render(<InputChat {...defaultProps} messagesLength={1} />, {
+      wrapper: AppWrapper,
+    });
 
     expect(screen.queryByTestId('welcome-message')).not.toBeInTheDocument();
   });
 
   it('should render suggestion carousel when input is empty', () => {
-    render(<InputChat {...defaultProps} input="" />);
+    render(<InputChat {...defaultProps} input="" />, { wrapper: AppWrapper });
 
     expect(screen.getByTestId('suggestion-carousel')).toBeInTheDocument();
   });
 
   it('should not render suggestion carousel when input has content', () => {
-    render(<InputChat {...defaultProps} input="Hello" />);
+    render(<InputChat {...defaultProps} input="Hello" />, {
+      wrapper: AppWrapper,
+    });
 
     expect(screen.queryByTestId('suggestion-carousel')).not.toBeInTheDocument();
   });
 
   it('should render input chat actions', () => {
-    render(<InputChat {...defaultProps} />);
+    render(<InputChat {...defaultProps} />, { wrapper: AppWrapper });
 
     expect(screen.getByTestId('input-chat-actions')).toBeInTheDocument();
   });
@@ -136,6 +143,7 @@ describe('InputChat', () => {
     const handleInputChange = jest.fn();
     render(
       <InputChat {...defaultProps} handleInputChange={handleInputChange} />,
+      { wrapper: AppWrapper },
     );
 
     const textarea = screen.getByRole('textbox', {
@@ -147,7 +155,9 @@ describe('InputChat', () => {
   });
 
   it('should disable textarea when status is not ready', () => {
-    render(<InputChat {...defaultProps} status="streaming" />);
+    render(<InputChat {...defaultProps} status="streaming" />, {
+      wrapper: AppWrapper,
+    });
 
     expect(
       screen.getByRole('textbox', { name: 'Enter your message or a question' }),
@@ -155,7 +165,9 @@ describe('InputChat', () => {
   });
 
   it('should disable textarea when isUploadingFiles is true', () => {
-    render(<InputChat {...defaultProps} isUploadingFiles={true} />);
+    render(<InputChat {...defaultProps} isUploadingFiles={true} />, {
+      wrapper: AppWrapper,
+    });
 
     expect(
       screen.getByRole('textbox', { name: 'Enter your message or a question' }),
@@ -165,7 +177,9 @@ describe('InputChat', () => {
   it('should submit form when pressing Enter', async () => {
     const user = userEvent.setup();
     const handleSubmit = jest.fn((e) => e.preventDefault());
-    render(<InputChat {...defaultProps} handleSubmit={handleSubmit} />);
+    render(<InputChat {...defaultProps} handleSubmit={handleSubmit} />, {
+      wrapper: AppWrapper,
+    });
 
     const textarea = screen.getByRole('textbox', {
       name: 'Enter your message or a question',
@@ -178,7 +192,9 @@ describe('InputChat', () => {
   it('should not submit form when pressing Shift+Enter', async () => {
     const user = userEvent.setup();
     const handleSubmit = jest.fn((e) => e.preventDefault());
-    render(<InputChat {...defaultProps} handleSubmit={handleSubmit} />);
+    render(<InputChat {...defaultProps} handleSubmit={handleSubmit} />, {
+      wrapper: AppWrapper,
+    });
 
     const textarea = screen.getByRole('textbox', {
       name: 'Enter your message or a question',
