@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 
 import '@/i18n/initI18n';
 
-import { LeftPanelConversationItem } from '../LeftPanelConversationItem';
+import { LeftPanelConversationItem } from '../left-panel/LeftPanelConversationItem';
 
 const mockSetPanelOpen = jest.fn();
 const mockPush = jest.fn();
@@ -24,7 +24,7 @@ jest.mock('@/features/chat/stores/useChatPreferencesStore', () => ({
   ),
 }));
 
-jest.mock('../SimpleConversationItem', () => ({
+jest.mock('@/features/left-panel/components/SimpleConversationItem', () => ({
   SimpleConversationItem: ({
     conversation,
   }: {
@@ -32,7 +32,7 @@ jest.mock('../SimpleConversationItem', () => ({
   }) => <div data-testid="simple-conversation-item">{conversation.title}</div>,
 }));
 
-jest.mock('../ConversationItemActions', () => ({
+jest.mock('@/features/left-panel/components/ConversationItemActions', () => ({
   ConversationItemActions: ({
     conversation,
   }: {

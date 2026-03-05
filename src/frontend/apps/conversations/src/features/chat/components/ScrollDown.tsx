@@ -1,4 +1,4 @@
-import { Button } from '@openfun/cunningham-react';
+import { Button } from '@gouvfr-lasuite/cunningham-react';
 import React, { useEffect, useState } from 'react';
 
 import { Box, Icon } from '@/components';

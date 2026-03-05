@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 
 import { fetchAPI } from '@/api';
 import { KEY_LIST_CONVERSATION } from '@/features/chat/api/useConversations';
+import { KEY_LIST_PROJECT } from '@/features/chat/api/useProjects';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 
 const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
@@ -75,6 +76,9 @@ export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
         if (isConversationMetadataEvent(item)) {
           void queryClient.invalidateQueries({
             queryKey: [KEY_LIST_CONVERSATION],
+          });
+          void queryClient.invalidateQueries({
+            queryKey: [KEY_LIST_PROJECT],
           });
         }
       }

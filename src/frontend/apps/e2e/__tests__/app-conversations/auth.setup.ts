@@ -39,6 +39,8 @@ const saveStorageState = async (
       console.log(window.console.log),
     );
     console.log(consoleLogs);
+
+    throw error;
   } finally {
     await browser.close();
   }
@@ -51,9 +53,22 @@ async function globalSetup(config: FullConfig) {
   const webkitConfig = config.projects.find((p) => p.name === 'webkit')!;
   /* eslint-enable @typescript-eslint/no-non-null-assertion */
 
-  await saveStorageState(chromeConfig);
-  await saveStorageState(webkitConfig);
-  await saveStorageState(firefoxConfig);
+  const results = await Promise.allSettled([
+    saveStorageState(chromeConfig),
+    saveStorageState(webkitConfig),
+    saveStorageState(firefoxConfig),
+  ]);
+
+  const failures = results.filter(
+    (r): r is PromiseRejectedResult => r.status === 'rejected',
+  );
+
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures.map((f) => f.reason as Error),
+      `${failures.length} browser(s) failed auth setup`,
+    );
+  }
 }
 
 export default globalSetup;

@@ -17,6 +17,7 @@ type ComponentTokens = Partial<
   Record<string, unknown>;
 type ContextualTokens = Tokens['contextuals'];
 export type Theme = keyof typeof tokens.themes;
+export type BaseTheme = Exclude<Theme, 'dark' | 'dsfr-dark'>;
 
 interface ThemeStore {
   colorsTokens: Partial<ColorsTokens>;
@@ -24,10 +25,10 @@ interface ThemeStore {
   contextualTokens: ContextualTokens;
   currentTokens: Partial<Tokens>;
   fontSizesTokens: Partial<FontSizesTokens>;
-  setTheme: (theme: Theme) => void;
+  setTheme: (theme: BaseTheme) => void;
   spacingsTokens: Partial<SpacingsTokens>;
   theme: Theme;
-  baseTheme: Theme; // 'default' or 'dsfr' (not persisted)
+  baseTheme: BaseTheme;
   themeTokens: Partial<Tokens['globals']>;
   toggleDarkMode: () => void;
 }
@@ -47,7 +48,7 @@ const getComponentTokens = (
   );
 };
 
-const DEFAULT_THEME: Theme = 'default';
+const DEFAULT_THEME: BaseTheme = 'default';
 const defaultTokens = getMergedTokens(DEFAULT_THEME);
 
 const initialState: ThemeStore = {
@@ -65,12 +66,16 @@ const initialState: ThemeStore = {
 };
 
 const getIsDarkMode = () =>
-  useChatPreferencesStore.getState().isDarkModePreference;
+  useChatPreferencesStore.getState?.()?.isDarkModePreference ?? false;
 
-const resolveTheme = (baseTheme: Theme, isDarkMode: boolean): Theme =>
-  isDarkMode ? (baseTheme === 'dsfr' ? 'dsfr-dark' : 'dark') : baseTheme;
+const resolveTheme = (baseTheme: BaseTheme, isDarkMode: boolean): Theme => {
+  if (!isDarkMode) {
+    return baseTheme;
+  }
+  return baseTheme === 'dsfr' ? 'dsfr-dark' : 'dark';
+};
 
-const computeThemeState = (baseTheme: Theme, isDarkMode: boolean) => {
+const computeThemeState = (baseTheme: BaseTheme, isDarkMode: boolean) => {
   const theme = resolveTheme(baseTheme, isDarkMode);
   const mergedTokens = getMergedTokens(theme);
   return {
@@ -88,19 +93,21 @@ const computeThemeState = (baseTheme: Theme, isDarkMode: boolean) => {
 
 export const useCunninghamTheme = create<ThemeStore>()((set) => ({
   ...initialState,
-  setTheme: (theme: Theme) => {
-    const baseTheme: Theme =
-      theme === 'dark' || theme === 'dsfr-dark'
-        ? theme === 'dark'
-          ? 'default'
-          : 'dsfr'
-        : theme;
-
+  ...computeThemeState(DEFAULT_THEME, getIsDarkMode()),
+  setTheme: (baseTheme: BaseTheme) => {
     set(computeThemeState(baseTheme, getIsDarkMode()));
   },
   toggleDarkMode: () => {
     useChatPreferencesStore.getState().toggleDarkModePreferences();
-
-    set((state) => computeThemeState(state.baseTheme, getIsDarkMode()));
   },
 }));
+
+// Sync theme when isDarkModePreference changes (e.g. persist rehydration)
+useChatPreferencesStore.subscribe?.((state, prev) => {
+  if (state.isDarkModePreference !== prev.isDarkModePreference) {
+    const { baseTheme } = useCunninghamTheme.getState();
+    useCunninghamTheme.setState(
+      computeThemeState(baseTheme, state.isDarkModePreference),
+    );
+  }
+});

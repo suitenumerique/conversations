@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, type ReactNode } from 'react';
+import { type ReactNode, memo, useCallback, useMemo } from 'react';
 import { css } from 'styled-components';
 
 import { Box, StyledLink } from '@/components';
@@ -24,7 +24,7 @@ const getBoxStyles = (isActive: boolean, isDesktop: boolean) => css`
   margin-bottom: 1px;
   background-color: ${isActive
     ? 'var(--c--contextuals--background--semantic--overlay--primary)'
-    : ''};
+    : 'transparent'};
   font-weight: ${isActive ? '700' : '500'};
   transition: background-color 0.2s cubic-bezier(1, 0, 0, 1);
   .pinned-actions {

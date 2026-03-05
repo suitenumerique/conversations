@@ -846,8 +846,6 @@ if (dsfrThemes.dark) {
   dsfrThemes.dark.globals.colors['logo-2'] = '#E78087';
 }
 
-console.log(dsfrThemes);
-
 const themes = {
   themes: {
     default: whiteLabelThemes.light,

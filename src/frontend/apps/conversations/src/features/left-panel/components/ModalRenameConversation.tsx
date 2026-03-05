@@ -1,4 +1,9 @@
-import { Button, Input, Modal, ModalSize } from '@openfun/cunningham-react';
+import {
+  Button,
+  Input,
+  Modal,
+  ModalSize,
+} from '@gouvfr-lasuite/cunningham-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 

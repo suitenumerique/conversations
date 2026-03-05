@@ -19,18 +19,22 @@ import PersoIcon from '@/assets/icons/uikit-custom/perso-filled.svg';
 import PhotoIcon from '@/assets/icons/uikit-custom/picture-filled.svg';
 import PuzzleIcon from '@/assets/icons/uikit-custom/puzzle-filled.svg';
 import StarIcon from '@/assets/icons/uikit-custom/star-filled.svg';
+import TerminalIcon from '@/assets/icons/uikit-custom/terminal-filled.svg';
 
 export const PROJECT_COLORS: Record<string, string> = {
-  color_1: 'warning-500',
-  color_2: 'warning-600',
+  color_1: 'red-500',
+  color_2: 'warning-400',
   color_3: 'orange-500',
-  color_4: 'brown-600',
+  color_4: 'brown-350',
   color_5: 'green-650',
-  color_6: 'blue-1-600',
-  color_7: 'blue-2-600',
-  color_8: 'yellow-600',
-  color_9: 'purple-500',
+  color_6: 'blue-1-500',
+  color_7: 'blue-2-500',
+  color_8: 'pink-300',
+  color_9: 'yellow-500',
+  color_10: 'purple-500',
 };
+
+export const defaultIconColor = 'blue-1-500';
 
 export const PROJECT_ICONS: Record<
   string,
@@ -51,6 +55,7 @@ export const PROJECT_ICONS: Record<
   book: BookIcon,
   puzzle: PuzzleIcon,
   palette: PaletteIcon,
+  terminal: TerminalIcon,
   car: CarIcon,
   music: MusicIcon,
   checkmark: CheckmarkIcon,

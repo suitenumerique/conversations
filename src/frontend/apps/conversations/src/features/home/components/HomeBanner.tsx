@@ -1,4 +1,4 @@
-import { Button } from '@openfun/cunningham-react';
+import { Button } from '@gouvfr-lasuite/cunningham-react';
 import _Image from 'next/image';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
@@ -7,7 +7,6 @@ import IconAssistant from '@/assets/logo/logo-beta.svg';
 import { Box, Icon, Text } from '@/components';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
-import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { gotoLogin } from '@/features/auth';
 import { useResponsiveStore } from '@/stores';
 
@@ -18,11 +17,8 @@ import { getHeaderHeight } from './HomeHeader';
 
 export default function HomeBanner() {
   const { t } = useTranslation();
-  const { spacingsTokens, colorsTokens, componentTokens } =
+  const { theme, spacingsTokens, colorsTokens, componentTokens } =
     useCunninghamTheme();
-  const isDarkMode = useChatPreferencesStore(
-    (state) => state.isDarkModePreference,
-  );
   const { isMobile, isSmallMobile } = useResponsiveStore();
   const withProConnect = Boolean(
     (componentTokens as Record<string, unknown>)['home-proconnect'],
@@ -110,7 +106,8 @@ export default function HomeBanner() {
             </Button>
           </Box>
         </Box>
-        {!isMobile && (isDarkMode ? <BannerDarkMode /> : <Banner />)}
+        {!isMobile &&
+          (theme.includes('dark') ? <BannerDarkMode /> : <Banner />)}
       </Box>
     </Box>
   );

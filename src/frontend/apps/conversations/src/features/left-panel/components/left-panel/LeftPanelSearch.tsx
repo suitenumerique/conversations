@@ -12,7 +12,7 @@ import {
 } from '@/components/quick-search';
 import { useInfiniteConversations } from '@/features/chat/api/useConversations';
 import { ChatConversation } from '@/features/chat/types';
-import { LeftPanelConversationItem } from '@/features/left-panel/components/LeftPanelConversationItem';
+import { LeftPanelConversationItem } from '@/features/left-panel/components/left-panel/LeftPanelConversationItem';
 import { useResponsiveStore } from '@/stores';
 
 type LeftPanelSearchProps = {

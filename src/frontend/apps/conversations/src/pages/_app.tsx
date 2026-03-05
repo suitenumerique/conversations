@@ -1,3 +1,4 @@
+import '@gouvfr-lasuite/ui-kit/style';
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import { useTranslation } from 'react-i18next';
@@ -6,7 +7,7 @@ import { AppProvider, productName } from '@/core/';
 import { useCunninghamTheme } from '@/cunningham';
 import '@/i18n/initI18n';
 import { NextPageWithLayout } from '@/types/next';
-import "@gouvfr-lasuite/ui-kit/style";
+
 import './globals.css';
 
 type AppPropsWithLayout = AppProps & {

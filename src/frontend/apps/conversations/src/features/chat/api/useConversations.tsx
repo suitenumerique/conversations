@@ -1,5 +1,3 @@
-import { UseQueryOptions, useQuery } from '@tanstack/react-query';
-
 import {
   APIError,
   APIList,
@@ -43,7 +41,9 @@ export const getConversations = async (
     searchParams.set('title', params.title);
   }
 
-  searchParams.set("project", "none")
+  if (!params.title) {
+    searchParams.set('project', 'none');
+  }
 
   const response = await fetchAPI(`chats/?${searchParams.toString()}`);
 
@@ -58,21 +58,6 @@ export const getConversations = async (
 };
 
 export const KEY_LIST_CONVERSATION = 'conversations';
-
-export function useConversations(
-  param: ConversationsParams,
-  queryConfig?: UseQueryOptions<
-    ConversationsResponse,
-    APIError,
-    ConversationsResponse
-  >,
-) {
-  return useQuery<ConversationsResponse, APIError, ConversationsResponse>({
-    queryKey: [KEY_LIST_CONVERSATION, param],
-    queryFn: () => getConversations(param),
-    ...queryConfig,
-  });
-}
 
 export const useInfiniteConversations = (
   params: ConversationsParams,

@@ -1,5 +1,6 @@
 import { Message, SourceUIPart } from '@ai-sdk/ui-utils';
-import { Modal, ModalSize } from '@openfun/cunningham-react';
+import { Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
+import { InfiniteData, useQueryClient } from '@tanstack/react-query';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -16,6 +17,10 @@ import {
   LLMModel,
   useLLMConfiguration,
 } from '@/features/chat/api/useLLMConfiguration';
+import {
+  KEY_LIST_PROJECT,
+  ProjectsResponse,
+} from '@/features/chat/api/useProjects';
 import { ChatError } from '@/features/chat/components/ChatError';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { MessageItem } from '@/features/chat/components/MessageItem';
@@ -159,13 +164,20 @@ export const Chat = ({
   } | null>(null);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
+  const queryClient = useQueryClient();
+  const [isReadingInstructions, setIsReadingInstructions] = useState(false);
+  const readingInstructionsStartRef = useRef<number>(0);
 
   // Zustand store for pending chat state
   const {
     input: pendingInput,
     files: pendingFiles,
+    projectId: pendingProjectId,
+    hasProjectInstructions,
     setPendingChat,
-    clearPendingChat,
+    setProjectId,
+    setHasProjectInstructions,
+    clearPendingInput,
   } = usePendingChatStore();
 
   const scrollToBottom = useCallback(() => {
@@ -332,6 +344,23 @@ export const Chat = ({
     }
   }, [messages]);
 
+  // Clear "reading instructions" once streaming begins or on error, with minimum display time
+  useEffect(() => {
+    if (isReadingInstructions) {
+      if (status === 'error') {
+        setIsReadingInstructions(false);
+      } else if (status === 'streaming') {
+        const elapsed = Date.now() - readingInstructionsStartRef.current;
+        const remaining = Math.max(0, 1500 - elapsed);
+        const timer = setTimeout(
+          () => setIsReadingInstructions(false),
+          remaining,
+        );
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [status, isReadingInstructions]);
+
   // Détecter l'arrivée d'un nouveau message user et retirer la hauteur de l'ancien
   useEffect(() => {
     if (status === 'streaming') {
@@ -399,6 +428,10 @@ export const Chat = ({
       (pendingInput && pendingInput.trim()) ||
       (pendingFiles && pendingFiles.length > 0)
     ) {
+      if (hasProjectInstructions) {
+        readingInstructionsStartRef.current = Date.now();
+        setIsReadingInstructions(true);
+      }
       if (pendingInput) {
         const syntheticEvent = {
           target: { value: pendingInput },
@@ -409,10 +442,9 @@ export const Chat = ({
         setFiles(pendingFiles);
       }
       setShouldAutoSubmit(true);
-      clearPendingChat();
-    } else {
-      clearPendingChat();
     }
+    // Clear input/files but keep projectId alive until conversation is created
+    clearPendingInput();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -502,6 +534,18 @@ export const Chat = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasInitialized, messages.length]);
 
+  // Check if the current project has custom LLM instructions
+  const checkProjectHasInstructions = useCallback(() => {
+    if (!pendingProjectId) return false;
+    const projectsData = queryClient.getQueryData<
+      InfiniteData<ProjectsResponse>
+    >([KEY_LIST_PROJECT, { page: 1 }]);
+    const project = projectsData?.pages
+      .flatMap((page) => page.results)
+      .find((p) => p.id === pendingProjectId);
+    return !!project?.llm_instructions?.trim();
+  }, [pendingProjectId, queryClient]);
+
   // Custom handleSubmit to include attachments and handle chat creation
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -538,10 +582,17 @@ export const Chat = ({
       setPendingFirstMessage({ event, attachments, forceWebSearch });
       // Save input and files to Zustand store before navigation
       setPendingChat(input, files);
+      if (checkProjectHasInstructions()) {
+        setHasProjectInstructions(true);
+      }
       void createChatConversation(
-        { title: input.length > 100 ? `${input.slice(0, 97)}...` : input },
+        {
+          title: input.length > 100 ? `${input.slice(0, 97)}...` : input,
+          ...(pendingProjectId && { project: pendingProjectId }),
+        },
         {
           onSuccess: (data) => {
+            setProjectId(null);
             setConversationId(data.id);
             // Update the URL to /chat/[id]/
             void router.push(`/chat/${data.id}/`);
@@ -671,7 +722,12 @@ export const Chat = ({
           >
             <Loader />
             <Text $variation="600" $size="md">
-              {isUploadingFiles ? t('Uploading files...') : t('Thinking...')}
+              {(() => {
+                if (isUploadingFiles) return t('Uploading files...');
+                if (isReadingInstructions)
+                  return t('Reading project instructions...');
+                return t('Thinking...');
+              })()}
             </Text>
           </Box>
         ) : null}

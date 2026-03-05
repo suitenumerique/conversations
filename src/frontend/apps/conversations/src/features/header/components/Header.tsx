@@ -1,4 +1,4 @@
-import { Button } from '@openfun/cunningham-react';
+import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { useRouter } from 'next/navigation';
 import { useEffect as _useEffect, useState as _useState } from 'react';
 import { useTranslation } from 'react-i18next';
