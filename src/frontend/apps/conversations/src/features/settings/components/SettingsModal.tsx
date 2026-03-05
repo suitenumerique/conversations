@@ -47,8 +47,8 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
       });
 
       const toastMessage = updatedValue
-        ? t(STATUS_I18N_KEYS[field].disabled)
-        : t(STATUS_I18N_KEYS[field].enabled);
+        ? t(STATUS_I18N_KEYS[field].enabled)
+        : t(STATUS_I18N_KEYS[field].disabled);
       showToast('success', toastMessage, 'check_circle', 3000);
     } catch (error) {
       console.error(`Error updating user settings for ${field}:`, error);

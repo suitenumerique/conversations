@@ -32,6 +32,7 @@ and this project adheres to
 - 🐛(front) fix math formulas and carousel translations
 - 🐛(helm) reverse liveness and readiness for backend deployment
 - 🐛(front) fix dark mode styling on chat messages
+- 🐛(front) fixed inverted toast for setting changes
 
 ## [0.0.13] - 2026-02-09
 
