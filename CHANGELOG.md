@@ -23,6 +23,7 @@ and this project adheres to
 - 🚸(oidc) ignore case when fallback on email #281
 - ⬆️(back) update pillow, django-pydantic-field, pypdf
 - ♻️(front) migrate from ESLint 8 to ESLint 9 flat config
+- ⬆️(back) update django and pypdf
 
 ### Fixed
 

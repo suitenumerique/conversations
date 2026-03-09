@@ -1,6 +1,7 @@
 [codespell]
 skip =
     ./git/,
+    **/*.pdf,
     **/*.po,
     **/*.pot,
     **/*.json,
