@@ -53,7 +53,7 @@ export const LeftPanel = () => {
           </Box>
           <LeftPanelContent />
           <SeparatedSection showSeparator={true} />
-          <Box $padding={{ top: 'sm', bottom: 'sm' }}>
+          <Box $padding={{ all: 'sm' }}>
             <SettingsButton />
           </Box>
         </Box>

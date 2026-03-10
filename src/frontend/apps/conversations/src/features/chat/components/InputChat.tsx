@@ -44,7 +44,7 @@ interface InputChatProps {
 
 const STYLES = {
   form: { width: '100%' },
-  formPadding: { bottom: 'base' },
+  formPadding: { bottom: 'sm' },
   formPaddingMobile: { bottom: '' },
   attachmentMargin: { horizontal: '0', bottom: 'xs', top: 'xs' },
   attachmentPadding: { horizontal: 'base' },
@@ -507,6 +507,19 @@ export const InputChat = ({
             </Box>
           </Box>
         </form>
+        {isDesktop && (
+          <Box>
+            <Text
+              $textAlign="center"
+              $size="xs"
+              $color="var(--c--contextuals--content--semantic--neutral--tertiary)"
+            >
+              {t(
+                'The Assistant can make mistakes. Please verify any important information.',
+              )}
+            </Text>
+          </Box>
+        )}
       </Box>
     </>
   );

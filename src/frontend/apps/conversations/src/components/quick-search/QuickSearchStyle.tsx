@@ -96,7 +96,7 @@ export const QuickSearchStyle = createGlobalStyle`
     [cmdk-separator] {
       height: 1px;
       width: 100%;
-      background: var(--c--contextuals--border--surface--primary)
+      background: var(--c--contextuals--border--surface--primary);
       margin: var(--c--globals--spacings--st) 0;
     }
 
@@ -107,7 +107,7 @@ export const QuickSearchStyle = createGlobalStyle`
     [cmdk-group-heading] {
       user-select: none;
       font-size: var(--c--globals--font--sizes--sm);
-      color: var(--c--globals--colors--gray-700);
+      color: var(--c--contextuals--content--semantic--neutral--primary);
       font-weight: bold;
 
       display: flex;

@@ -275,7 +275,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
         display: flex;
         width: 100%;
         margin: auto;
-        margin-bottom: ${isLastAssistantMessage ? '30px' : '0px'};
+        margin-top: ${message.role === 'user' ? '32px' : '0px'};
+        margin-bottom: ${isLastAssistantMessage || message.role === 'user' ? '32px' : '0px'};
         color: var(--c--theme--colors--greyscale-850);
         padding-left: 12px;
         padding-right: 12px;

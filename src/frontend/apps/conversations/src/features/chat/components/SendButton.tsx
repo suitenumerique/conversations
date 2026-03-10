@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Icon, Text } from '@/components';
 
-// Composant SVG pour l'icône stop
+// Component SVG pour l'icône stop
 const StopIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"

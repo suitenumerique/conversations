@@ -22,10 +22,10 @@ describe('SuggestionCarousel', () => {
 
     expect(screen.getAllByText('Poser une question')).toHaveLength(2);
     expect(
-      screen.getByText('Transformer cette liste en liste à puces...'),
+      screen.getByText('Transformer cette liste en points à puces'),
     ).toBeInTheDocument();
     expect(
-      screen.getByText('Écrire une description courte du produit...'),
+      screen.getByText('Écrire une description courte du produit'),
     ).toBeInTheDocument();
     expect(
       screen.getByText('Trouver les dernières actualités concernant...'),
