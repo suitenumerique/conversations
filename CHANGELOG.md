@@ -33,6 +33,7 @@ and this project adheres to
 - 🐛(helm) reverse liveness and readiness for backend deployment
 - 🐛(front) fix dark mode styling on chat messages
 - 🐛(front) fixed inverted toast for setting changes
+- 🐛(back) check e2e
 
 ## [0.0.13] - 2026-02-09
 
