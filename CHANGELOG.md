@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.14] - 2026-03-11
+
 ### Added
 
 - ✨(user) allow disabling automatic internet search
@@ -26,7 +28,6 @@ and this project adheres to
 - ⬆️(back) update django and pypdf
 
 ### Fixed
-
 
 - 💚(docker) vendor mime.types file instead of fetching from Apache SVN
 - 🚑️(back) fix mime type for pptx
@@ -242,7 +243,8 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.13...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.14...main
+[0.0.14]: https://github.com/suitenumerique/conversations/compare/v0.0.14
 [0.0.13]: https://github.com/suitenumerique/conversations/releases/v0.0.13
 [0.0.12]: https://github.com/suitenumerique/conversations/releases/v0.0.12
 [0.0.11]: https://github.com/suitenumerique/conversations/releases/v0.0.11
