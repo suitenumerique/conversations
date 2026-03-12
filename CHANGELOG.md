@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✅(e2e) add dedicated e2e tests for file paste in chat input
+
 ## [0.0.14] - 2026-03-11
 
 ### Added
