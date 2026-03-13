@@ -259,7 +259,9 @@ def format_tool_return(raw_search_results: List[dict]) -> ToolReturn:
         },
         metadata={
             "sources": {
-                result["url"] for result in raw_search_results if result.get("snippets", []) or result.get("extra_snippets", [])
+                result["url"]
+                for result in raw_search_results
+                if result.get("snippets", []) or result.get("extra_snippets", [])
             }
         },
     )
