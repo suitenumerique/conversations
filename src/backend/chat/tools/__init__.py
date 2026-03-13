@@ -23,8 +23,9 @@ def get_pydantic_tools_by_name(name: str) -> Tool:
             prepare=only_if_web_search_enabled,
             max_retries=2,
         ),
-        "web_search_brave_with_document_backend": Tool(
+        "web_search": Tool(
             web_search_brave_with_document_backend,
+            name="web_search",
             takes_ctx=True,
             prepare=only_if_web_search_enabled,
             max_retries=2,

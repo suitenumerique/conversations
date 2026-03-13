@@ -128,7 +128,8 @@ class ConversationAgent(BaseAgent):
         """
         for toolset in self.toolsets:
             for tool in toolset.tools.values():
-                if tool.name.startswith("web_search_"):
+                # Support both legacy names (web_search_*) and the new generic "web_search"
+                if tool.name == "web_search" or tool.name.startswith("web_search_"):
                     return tool.name
         return None
 
