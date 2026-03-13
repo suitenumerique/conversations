@@ -23,7 +23,7 @@ def _llm_config_with_websearch(settings):
             is_active=True,
             icon=None,
             system_prompt="You are an amazing assistant.",
-            tools=["web_search_brave_with_document_backend"],
+            tools=["web_search"],
             provider=LLMProvider(
                 hrid="unused",
                 base_url="https://example.com",
@@ -68,7 +68,7 @@ def test_smart_search_enabled_tool_is_called(_llm_config_with_websearch):
     with service.conversation_agent.override(model=TestModel(), deps=service._context_deps):
         response = service.conversation_agent.run_sync("Search the web for something.")
 
-    assert "web_search_brave_with_document_backend" in response.output
+    assert "web_search" in response.output
 
 
 def test_force_websearch_overrides_smart_search_disabled(_llm_config_with_websearch):
@@ -92,4 +92,4 @@ def test_force_websearch_overrides_smart_search_disabled(_llm_config_with_websea
     )
     with service.conversation_agent.override(model=TestModel(), deps=service._context_deps):
         response = service.conversation_agent.run_sync("Search the web for something.")
-        assert "web_search_brave_with_document_backend" in response.output
+        assert "web_search" in response.output

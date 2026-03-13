@@ -27,7 +27,8 @@ from chat.tools.web_search_brave import (
     web_search_brave_with_document_backend,
 )
 
-BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
+# Must match the URL used in _query_brave_api_async
+BRAVE_URL = "https://api.search.brave.com/res/v1/llm/context"
 
 
 @pytest.fixture(autouse=True)

@@ -144,7 +144,11 @@ async def _fetch_and_store_async(url: str, document_store, **kwargs) -> None:
 
 async def _query_brave_api_async(query: str) -> List[dict]:
     """Query the Brave Search API and return the raw results."""
-    url = "https://api.search.brave.com/res/v1/web/search"
+    # NOTE:
+    # - Standard web search endpoint: https://api.search.brave.com/res/v1/web/search
+    # - LLM context endpoint:       https://api.search.brave.com/res/v1/llm/context
+    #   The latter returns results under `grounding.generic` instead of `web.results`.
+    url = "https://api.search.brave.com/res/v1/llm/context"
     headers = {
         "Accept": "application/json",
         "X-Subscription-Token": settings.BRAVE_API_KEY,
@@ -158,6 +162,10 @@ async def _query_brave_api_async(query: str) -> List[dict]:
         "spellcheck": settings.BRAVE_SEARCH_SPELLCHECK,
         "result_filter": "web,faq,query",
         "extra_snippets": settings.BRAVE_SEARCH_EXTRA_SNIPPETS,
+        "maximum_number_of_urls": settings.BRAVE_MAX_RESULTS,
+        "maximum_number_of_tokens": settings.BRAVE_MAX_TOKENS,
+        "maximum_number_of_snippets": settings.BRAVE_MAX_SNIPPETS,
+        "maximum_number_of_snippets_per_url": settings.BRAVE_MAX_SNIPPETS_PER_URL,
     }
     params = {k: v for k, v in data.items() if v is not None}
 
@@ -167,6 +175,31 @@ async def _query_brave_api_async(query: str) -> List[dict]:
             response.raise_for_status()
             json_response = response.json()
 
+            # LLM context API: results are under `grounding.generic`
+            # See: https://api-dashboard.search.brave.com/documentation/services/llm-context
+            if "grounding" in json_response:
+                generic_results = json_response.get("grounding", {}).get("generic", []) or []
+                normalized_results: List[dict] = []
+                for item in generic_results:
+                    item_url = item.get("url")
+                    if not item_url:
+                        continue
+
+                    # `snippets` is already a list of strings suitable for our format_tool_return
+                    snippets = item.get("snippets") or []
+
+                    normalized_results.append(
+                        {
+                            "url": item_url,
+                            # Fallback to URL if no title is provided
+                            "title": item.get("title") or item_url,
+                            "snippets": snippets,
+                        }
+                    )
+
+                return normalized_results
+
+            # Fallback for classic web search JSON shape, if we ever switch back
             # https://api-dashboard.search.brave.com/app/documentation/web-search/responses#Result
             return json_response.get("web", {}).get("results", [])
 
@@ -211,20 +244,24 @@ async def _query_brave_api_async(query: str) -> List[dict]:
 
 def format_tool_return(raw_search_results: List[dict]) -> ToolReturn:
     """Format the raw search results into a ToolReturn object."""
+    logger.info("Raw search results: %s", raw_search_results)
+    logger.info("Unduplicated sources: %s", {result["url"] for result in raw_search_results})
     return ToolReturn(
         # Format return value "mistral-like": https://docs.mistral.ai/capabilities/citations/
         return_value={
             str(idx): {
                 "url": result["url"],
                 "title": result["title"],
-                "snippets": result.get("extra_snippets", []),
+                "snippets": result.get("snippets", []) or result.get("extra_snippets", []),
             }
             for idx, result in enumerate(raw_search_results)
-            if result.get("extra_snippets", [])
+            if result.get("snippets", []) or result.get("extra_snippets", [])
         },
         metadata={
             "sources": {
-                result["url"] for result in raw_search_results if result.get("extra_snippets", [])
+                result["url"]
+                for result in raw_search_results
+                if result.get("snippets", []) or result.get("extra_snippets", [])
             }
         },
     )
