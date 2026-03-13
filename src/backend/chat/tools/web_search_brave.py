@@ -142,22 +142,32 @@ async def _fetch_and_store_async(url: str, document_store, **kwargs) -> None:
         # Continue with other documents
 
 
-async def _query_brave_api_async(query: str) -> List[dict]:
-    """Query the Brave Search API and return the raw results."""
-    url = "https://api.search.brave.com/res/v1/web/search"
+def _normalize_llm_context_results(json_response: dict) -> List[dict]:
+    """Normalize Brave LLM context payload into our common result shape."""
+    generic_results = json_response.get("grounding", {}).get("generic", []) or []
+    normalized_results: List[dict] = []
+    for item in generic_results:
+        item_url = item.get("url")
+        if not item_url:
+            continue
+
+        normalized_results.append(
+            {
+                "url": item_url,
+                # Fallback to URL if no title is provided
+                "title": item.get("title") or item_url,
+                # `snippets` is already a list
+                "snippets": item.get("snippets") or [],
+            }
+        )
+    return normalized_results
+
+
+async def _query_brave_api_with_endpoint_async(url: str, data: dict) -> List[dict]:
+    """Query a Brave endpoint and return raw results normalized to our schema."""
     headers = {
         "Accept": "application/json",
         "X-Subscription-Token": settings.BRAVE_API_KEY,
-    }
-    data = {
-        "q": query,
-        "country": settings.BRAVE_SEARCH_COUNTRY,
-        "search_lang": settings.BRAVE_SEARCH_LANG,
-        "count": settings.BRAVE_MAX_RESULTS,
-        "safesearch": settings.BRAVE_SEARCH_SAFE_SEARCH,
-        "spellcheck": settings.BRAVE_SEARCH_SPELLCHECK,
-        "result_filter": "web,faq,query",
-        "extra_snippets": settings.BRAVE_SEARCH_EXTRA_SNIPPETS,
     }
     params = {k: v for k, v in data.items() if v is not None}
 
@@ -167,6 +177,12 @@ async def _query_brave_api_async(query: str) -> List[dict]:
             response.raise_for_status()
             json_response = response.json()
 
+            # LLM context API: results are under `grounding.generic`
+            # See: https://api-dashboard.search.brave.com/documentation/services/llm-context
+            if "grounding" in json_response:
+                return _normalize_llm_context_results(json_response)
+
+            # Fallback for classic web search JSON shape
             # https://api-dashboard.search.brave.com/app/documentation/web-search/responses#Result
             return json_response.get("web", {}).get("results", [])
 
@@ -209,44 +225,99 @@ async def _query_brave_api_async(query: str) -> List[dict]:
         ) from e
 
 
+async def _query_brave_llm_context_api_async(query: str) -> List[dict]:
+    """Query Brave LLM context endpoint and return normalized results."""
+    logger.debug("Using LLM context endpoint")
+    return await _query_brave_api_with_endpoint_async(
+        "https://api.search.brave.com/res/v1/llm/context",
+        {
+            "q": query,
+            "country": settings.BRAVE_SEARCH_COUNTRY,
+            "search_lang": settings.BRAVE_SEARCH_LANG,
+            "count": settings.BRAVE_MAX_RESULTS,
+            "safesearch": settings.BRAVE_SEARCH_SAFE_SEARCH,
+            "spellcheck": settings.BRAVE_SEARCH_SPELLCHECK,
+            "result_filter": "web,faq,query",
+            "extra_snippets": settings.BRAVE_SEARCH_EXTRA_SNIPPETS,
+            "maximum_number_of_urls": settings.BRAVE_MAX_RESULTS,
+            "maximum_number_of_tokens": settings.BRAVE_MAX_TOKENS,
+            "maximum_number_of_snippets": settings.BRAVE_MAX_SNIPPETS,
+            "maximum_number_of_snippets_per_url": settings.BRAVE_MAX_SNIPPETS_PER_URL,
+        },
+    )
+
+
+async def _query_brave_web_search_api_async(query: str) -> List[dict]:
+    """Query Brave classic web search endpoint and return normalized results."""
+    logger.debug("Using classic web search endpoint")
+    return await _query_brave_api_with_endpoint_async(
+        "https://api.search.brave.com/res/v1/web/search",
+        {
+            "q": query,
+            "country": settings.BRAVE_SEARCH_COUNTRY,
+            "search_lang": settings.BRAVE_SEARCH_LANG,
+            "count": settings.BRAVE_MAX_RESULTS,
+            "safesearch": settings.BRAVE_SEARCH_SAFE_SEARCH,
+            "spellcheck": settings.BRAVE_SEARCH_SPELLCHECK,
+            "result_filter": "web,faq,query",
+            "extra_snippets": settings.BRAVE_SEARCH_EXTRA_SNIPPETS,
+        },
+    )
+
+
 def format_tool_return(raw_search_results: List[dict]) -> ToolReturn:
-    """Format the raw search results into a ToolReturn object."""
+    """Build the tool payload from Brave results.
+
+    Keep only sources that have non-empty snippets and prefer `snippets` over
+    `extra_snippets` when both are present.
+    """
+    formatted_results = {}
+    sources = set()
+
+    for idx, result in enumerate(raw_search_results):
+        logger.debug("Formatting result: %s", result)
+        snippets = result.get("snippets") or result.get("extra_snippets") or []
+        if not snippets:
+            continue
+
+        formatted_results[str(idx)] = {
+            "url": result["url"],
+            "title": result["title"],
+            "snippets": snippets,
+        }
+        sources.add(result["url"])
+
     return ToolReturn(
-        # Format return value "mistral-like": https://docs.mistral.ai/capabilities/citations/
-        return_value={
-            str(idx): {
-                "url": result["url"],
-                "title": result["title"],
-                "snippets": result.get("extra_snippets", []),
-            }
-            for idx, result in enumerate(raw_search_results)
-            if result.get("extra_snippets", [])
-        },
-        metadata={
-            "sources": {
-                result["url"] for result in raw_search_results if result.get("extra_snippets", [])
-            }
-        },
+        return_value=formatted_results,
+        metadata={"sources": sources},
     )
 
 
 @last_model_retry_soft_fail
 async def web_search_brave(_ctx: RunContext, query: str) -> ToolReturn:
     """
-    Search the web for up-to-date information
+    Search the web for up-to-date information.
+    This function use the classic websearch endpoint of the Brave API.
+    URLs are then fetched and extracted using trafilatura.
+    The extracted text is then summarized using the LLM summarization agent.
+    The results are then formatted and returned.
 
     Args:
         _ctx (RunContext): The run context, used by the wrapper.
         query (str): The query to search for.
     """
+    logger.debug("Starting classic web search without RAG backend for query: %s", query)
     try:
-        raw_search_results = await _query_brave_api_async(query)
+        raw_search_results = await _query_brave_web_search_api_async(query)
 
         await sync_to_async(reset_caches)()  # Clear trafilatura caches to avoid memory bloat/leaks
 
-        # Parallelize fetch/extract for results that don't include extra_snippets
+        # Parallelize fetch/extract only for results that don't already include any snippets
+        # (neither Brave `snippets` nor `extra_snippets`).
         to_process = [
-            (idx, r) for idx, r in enumerate(raw_search_results) if not r.get("extra_snippets")
+            (idx, r)
+            for idx, r in enumerate(raw_search_results)
+            if not r.get("extra_snippets") and not r.get("snippets")
         ]
 
         if to_process:
@@ -284,17 +355,44 @@ async def web_search_brave(_ctx: RunContext, query: str) -> ToolReturn:
 
 
 @last_model_retry_soft_fail
+async def web_search_brave_llm_context(_ctx: RunContext, query: str) -> ToolReturn:
+    """
+    Search the web using Brave LLM context endpoint (no RAG post-processing).
+    This function use the LLM context endpoint of the Brave API.
+    The results are then formatted and returned.
+    """
+    logger.debug("Starting web search with LLM context endpoint for query: %s", query)
+    try:
+        raw_search_results = await _query_brave_llm_context_api_async(query)
+        formatted_result = format_tool_return(raw_search_results)
+        if not formatted_result.return_value:
+            raise ModelRetry("No valid search results were extracted from Brave LLM context.")
+        return formatted_result
+    except (ModelCannotRetry, ModelRetry):
+        raise
+    except Exception as exc:
+        logger.exception("Unexpected error in web_search_brave_llm_context: %s", exc)
+        raise ModelCannotRetry(
+            f"An unexpected error occurred during web search: {type(exc).__name__}. "
+            "You must explain this to the user and not try to answer based on your knowledge."
+        ) from exc
+
+
+@last_model_retry_soft_fail
 async def web_search_brave_with_document_backend(ctx: RunContext, query: str) -> ToolReturn:
     """
-    Search the web for up-to-date information using RAG backend
+    Search the web for up-to-date information using RAG backend.
+    URLs are then fetched and extracted using trafilatura.
+    The extracted text is then stored in a temporary document store for RAG search.
+    The RAG search is then performed and the results are returned.
 
     Args:
         ctx (RunContext): The run context containing the conversation.
         query (str): The query to search for.
     """
-    logger.info("Starting web search with RAG backend for query: %s", query)
+    logger.debug("Starting web search with RAG backend for query: %s", query)
     try:
-        raw_search_results = await _query_brave_api_async(query)
+        raw_search_results = await _query_brave_web_search_api_async(query)
 
         # Clear trafilatura caches in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
@@ -328,7 +426,7 @@ async def web_search_brave_with_document_backend(ctx: RunContext, query: str) ->
                     session=ctx.deps.session,
                     user_sub=ctx.deps.user.sub,
                 )
-                logger.info("RAG search returned:  %s", rag_results)
+                logger.debug("RAG search returned:  %s", rag_results)
 
                 ctx.usage += RunUsage(
                     input_tokens=rag_results.usage.prompt_tokens,

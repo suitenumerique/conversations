@@ -251,6 +251,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             session=session,
             web_search_enabled=self._is_web_search_enabled and self._is_smart_search_enabled,
         )
+        self._web_search_tool_registered = False
 
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
@@ -440,8 +441,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             logger.warning("Web search is forced but the feature is disabled, ignoring.")
             return False
 
-        web_search_tool_name = self.conversation_agent.get_web_search_tool_name()
-        if not web_search_tool_name:
+        if not self.conversation_agent.is_web_search_configured():
             logger.warning("Web search is forced but no web search tool is available, ignoring.")
             return False
 
@@ -450,9 +450,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         @self.conversation_agent.instructions
         def force_web_search_prompt() -> str:
             """Dynamic system prompt function to force web search."""
-            return (
-                f"You must call the {web_search_tool_name} tool before answering the user request."
-            )
+            return "You must call the web_search tool before answering the user request."
 
         return True
 
@@ -698,6 +696,33 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         async def summarize(ctx: RunContext, *args, **kwargs) -> ToolReturn:
             """Wrap the document_summarize tool to provide context and add the tool."""
             return await document_summarize(ctx, *args, **kwargs)
+
+    def _setup_web_search_tool(self) -> None:
+        """Register model-specific web search tool when configured."""
+        if self._web_search_tool_registered:
+            return
+        configuration = self.conversation_agent.configuration
+        if not getattr(configuration, "web_search", None):
+            return
+
+        async def only_if_web_search_enabled(ctx, tool_def):
+            """Prepare function to include a tool only if web search is enabled in the context."""
+            return tool_def if ctx.deps.web_search_enabled else None
+
+        web_search_impl = import_string(configuration.web_search)
+
+        @self.conversation_agent.tool(
+            name="web_search",
+            retries=1,
+            prepare=only_if_web_search_enabled,
+            description="Search the web for up-to-date information",
+        )
+        @functools.wraps(web_search_impl)
+        async def web_search(ctx: RunContext, *args, **kwargs) -> ToolReturn:
+            """Wrap the web_search tool to provide context and add the tool."""
+            return await web_search_impl(ctx, *args, **kwargs)
+
+        self._web_search_tool_registered = True
 
     async def _handle_input_documents(
         self,
@@ -1016,6 +1041,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         conversation_has_documents = doc_result.has_documents
 
         await self._agent_stop_streaming(force_cache_check=True)
+        self._setup_web_search_tool()
         self._setup_web_search(force_web_search)
 
         if await self._check_should_enable_rag(conversation_has_documents):

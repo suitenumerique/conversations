@@ -23,7 +23,8 @@ def _llm_config_with_websearch(settings):
             is_active=True,
             icon=None,
             system_prompt="You are an amazing assistant.",
-            tools=["web_search_brave_with_document_backend"],
+            tools=[],
+            web_search="chat.tools.web_search_brave.web_search_brave_llm_context",
             provider=LLMProvider(
                 hrid="unused",
                 base_url="https://example.com",
@@ -48,6 +49,7 @@ def test_smart_search_disabled_suppresses_tool_at_runtime(_llm_config_with_webse
     if not service._is_smart_search_enabled and service._is_web_search_enabled:
         service._context_deps.web_search_enabled = False
 
+    service._setup_web_search_tool()
     with service.conversation_agent.override(model=TestModel(), deps=service._context_deps):
         response = service.conversation_agent.run_sync("Search the web for something.")
 
@@ -65,10 +67,11 @@ def test_smart_search_enabled_tool_is_called(_llm_config_with_websearch):
     assert service._is_smart_search_enabled is True
     assert service._context_deps.web_search_enabled is True
 
+    service._setup_web_search_tool()
     with service.conversation_agent.override(model=TestModel(), deps=service._context_deps):
         response = service.conversation_agent.run_sync("Search the web for something.")
 
-    assert "web_search_brave_with_document_backend" in response.output
+    assert "web_search" in response.output
 
 
 def test_force_websearch_overrides_smart_search_disabled(_llm_config_with_websearch):
@@ -82,14 +85,16 @@ def test_force_websearch_overrides_smart_search_disabled(_llm_config_with_websea
     assert service._is_smart_search_enabled is False
     assert service._context_deps.web_search_enabled is False
 
+    # Match _run_agent: register the tool first, then enable deps + forced prompt.
+    service._setup_web_search_tool()
     service._setup_web_search(force_web_search=True)
 
-    web_search_tool_name = service.conversation_agent.get_web_search_tool_name()
+    assert service.conversation_agent.is_web_search_configured() is True
     assert service._context_deps.web_search_enabled is True
     assert any(
-        callable(instr) and web_search_tool_name in instr()
+        callable(instr) and "web_search" in instr()
         for instr in service.conversation_agent._instructions
     )
     with service.conversation_agent.override(model=TestModel(), deps=service._context_deps):
         response = service.conversation_agent.run_sync("Search the web for something.")
-        assert "web_search_brave_with_document_backend" in response.output
+        assert "web_search" in response.output

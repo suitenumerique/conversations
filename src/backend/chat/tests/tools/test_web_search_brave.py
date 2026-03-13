@@ -21,13 +21,14 @@ from chat.tools.web_search_brave import (
     _extract_and_summarize_snippets_async,
     _fetch_and_extract_async,
     _fetch_and_store_async,
-    _query_brave_api_async,
+    _query_brave_llm_context_api_async,
     format_tool_return,
     web_search_brave,
     web_search_brave_with_document_backend,
 )
 
-BRAVE_URL = "https://api.search.brave.com/res/v1/web/search"
+BRAVE_WEB_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
+BRAVE_LLM_CONTEXT_URL = "https://api.search.brave.com/res/v1/llm/context"
 
 
 @pytest.fixture(autouse=True)
@@ -67,7 +68,7 @@ def fixture_mocked_context():
 @respx.mock
 async def test_agent_web_search_brave_success_with_extra_snippets(mocked_context):
     """Test when the Brave search returns results with extra_snippets."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={
@@ -122,7 +123,7 @@ async def test_agent_web_search_brave_success_with_extra_snippets(mocked_context
 @respx.mock
 async def test_agent_web_search_brave_success_without_extra_snippets(mocked_context):
     """Test when the Brave search returns results without extra_snippets."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={
@@ -168,7 +169,7 @@ async def test_agent_web_search_brave_success_without_extra_snippets_summarizati
     """Test when the Brave search returns results without extra_snippets with summarization."""
     settings.BRAVE_SUMMARIZATION_ENABLED = True
 
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={
@@ -216,7 +217,7 @@ async def test_agent_web_search_brave_success_without_extra_snippets_summarizati
 @respx.mock
 async def test_agent_web_search_brave_empty_results(mocked_context):
     """Test when the Brave search returns no results."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={"web": {"results": []}},
@@ -233,7 +234,7 @@ async def test_agent_web_search_brave_empty_results(mocked_context):
 @respx.mock
 async def test_agent_web_search_brave_http_error(mocked_context):
     """Test handling of HTTP errors from Brave API."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=500,
             json={"error": "Internal Server Error"},
@@ -256,7 +257,7 @@ async def test_agent_web_search_brave_params_exclude_none(settings, mocked_conte
     settings.BRAVE_SEARCH_COUNTRY = None
     settings.BRAVE_SEARCH_LANG = None
 
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={"web": {"results": []}},
@@ -290,7 +291,7 @@ async def test_agent_web_search_brave_params_exclude_none(settings, mocked_conte
 @respx.mock
 async def test_agent_web_search_brave_concurrent_processing(mocked_context):
     """Test concurrent processing with asyncio.gather."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={
@@ -401,7 +402,7 @@ async def test_extract_and_summarize_snippets_summarization_failure(settings):
 @respx.mock
 async def test_web_search_brave_with_document_backend_success(mocked_context):
     """Test web_search_brave_with_document_backend with successful RAG search."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={
@@ -452,7 +453,7 @@ async def test_web_search_brave_with_document_backend_success(mocked_context):
 @respx.mock
 async def test_web_search_brave_with_document_backend_fetch_error(mocked_context):
     """Test web_search_brave_with_document_backend when document fetching fails."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={
@@ -495,7 +496,7 @@ async def test_web_search_brave_with_document_backend_no_matching_rag_results(mo
 
     This is actually a problematic scenario, but we want to ensure graceful handling.
     """
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={
@@ -565,37 +566,37 @@ async def test_fetch_and_store_empty_document():
 @pytest.mark.asyncio
 @respx.mock
 async def test_query_brave_api_missing_web_key():
-    """Test _query_brave_api_async when response doesn't contain 'web' key."""
-    respx.get(BRAVE_URL).mock(
+    """Test _query_brave_llm_context_api_async when response doesn't contain 'web' key."""
+    respx.get(BRAVE_LLM_CONTEXT_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={"error": "no web results"},
         )
     )
 
-    result = await _query_brave_api_async("query")
+    result = await _query_brave_llm_context_api_async("query")
     assert not result
 
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_query_brave_api_missing_results_key():
-    """Test _query_brave_api_async when 'web' exists but 'results' is missing."""
-    respx.get(BRAVE_URL).mock(
+    """Test _query_brave_llm_context_api_async when 'web' exists but 'results' is missing."""
+    respx.get(BRAVE_LLM_CONTEXT_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={"web": {}},
         )
     )
-    result = await _query_brave_api_async("query")
+    result = await _query_brave_llm_context_api_async("query")
     assert not result
 
 
 @pytest.mark.asyncio
 @respx.mock
 async def test_query_brave_api_rate_limit():
-    """Test _query_brave_api_async handles 429 rate limit errors."""
-    respx.get(BRAVE_URL).mock(
+    """Test _query_brave_llm_context_api_async handles 429 rate limit errors."""
+    respx.get(BRAVE_LLM_CONTEXT_URL).mock(
         return_value=httpx.Response(
             status_code=429,
             json={"error": "Rate limit exceeded"},
@@ -603,7 +604,7 @@ async def test_query_brave_api_rate_limit():
     )
 
     with pytest.raises(ModelRetry) as exc:
-        await _query_brave_api_async("query")
+        await _query_brave_llm_context_api_async("query")
 
     assert "rate limited" in str(exc.value).lower()
 
@@ -611,8 +612,8 @@ async def test_query_brave_api_rate_limit():
 @pytest.mark.asyncio
 @respx.mock
 async def test_query_brave_api_client_error():
-    """Test _query_brave_api_async handles 4xx client errors."""
-    respx.get(BRAVE_URL).mock(
+    """Test _query_brave_llm_context_api_async handles 4xx client errors."""
+    respx.get(BRAVE_LLM_CONTEXT_URL).mock(
         return_value=httpx.Response(
             status_code=400,
             json={"error": "Bad request"},
@@ -620,7 +621,7 @@ async def test_query_brave_api_client_error():
     )
 
     with pytest.raises(ModelCannotRetry) as exc:
-        await _query_brave_api_async("query")
+        await _query_brave_llm_context_api_async("query")
 
     assert "client error" in str(exc.value).lower()
 
@@ -628,11 +629,11 @@ async def test_query_brave_api_client_error():
 @pytest.mark.asyncio
 @respx.mock
 async def test_query_brave_api_timeout():
-    """Test _query_brave_api_async handles timeout errors."""
-    respx.get(BRAVE_URL).mock(side_effect=httpx.TimeoutException("Request timed out"))
+    """Test _query_brave_llm_context_api_async handles timeout errors."""
+    respx.get(BRAVE_LLM_CONTEXT_URL).mock(side_effect=httpx.TimeoutException("Request timed out"))
 
     with pytest.raises(ModelRetry) as exc:
-        await _query_brave_api_async("query")
+        await _query_brave_llm_context_api_async("query")
 
     assert "timed out" in str(exc.value).lower()
 
@@ -640,11 +641,11 @@ async def test_query_brave_api_timeout():
 @pytest.mark.asyncio
 @respx.mock
 async def test_query_brave_api_generic_http_error():
-    """Test _query_brave_api_async handles generic HTTP errors."""
-    respx.get(BRAVE_URL).mock(side_effect=httpx.ConnectError("Connection failed"))
+    """Test _query_brave_llm_context_api_async handles generic HTTP errors."""
+    respx.get(BRAVE_LLM_CONTEXT_URL).mock(side_effect=httpx.ConnectError("Connection failed"))
 
     with pytest.raises(ModelRetry) as exc:
-        await _query_brave_api_async("query")
+        await _query_brave_llm_context_api_async("query")
 
     assert "connection error" in str(exc.value).lower()
 
@@ -652,11 +653,11 @@ async def test_query_brave_api_generic_http_error():
 @pytest.mark.asyncio
 @respx.mock
 async def test_query_brave_api_unexpected_error():
-    """Test _query_brave_api_async handles unexpected errors."""
-    respx.get(BRAVE_URL).mock(side_effect=ValueError("Unexpected value error"))
+    """Test _query_brave_llm_context_api_async handles unexpected errors."""
+    respx.get(BRAVE_LLM_CONTEXT_URL).mock(side_effect=ValueError("Unexpected value error"))
 
     with pytest.raises(ModelCannotRetry) as exc:
-        await _query_brave_api_async("query")
+        await _query_brave_llm_context_api_async("query")
 
     assert "unexpected error" in str(exc.value).lower()
 
@@ -768,7 +769,7 @@ async def test_fetch_and_store_extraction_error():
 @respx.mock
 async def test_web_search_brave_mixed_results(mocked_context):
     """Test web_search_brave with mixed results (some with snippets, some without)."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={
@@ -812,7 +813,7 @@ async def test_web_search_brave_mixed_results(mocked_context):
 @respx.mock
 async def test_web_search_brave_extraction_fails_for_all(mocked_context):
     """Test web_search_brave when extraction fails for all results without snippets."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={
@@ -845,7 +846,7 @@ async def test_web_search_brave_extraction_fails_for_all(mocked_context):
 @respx.mock
 async def test_web_search_brave_model_cannot_retry_exception(mocked_context):
     """Test web_search_brave handling of ModelCannotRetry from API."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=403,
             json={"error": "Forbidden"},
@@ -863,7 +864,7 @@ async def test_web_search_brave_model_cannot_retry_exception(mocked_context):
 @respx.mock
 async def test_web_search_brave_unexpected_exception(mocked_context):
     """Test web_search_brave handling of unexpected exceptions."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={
@@ -894,7 +895,7 @@ async def test_web_search_brave_unexpected_exception(mocked_context):
 @respx.mock
 async def test_web_search_brave_with_document_backend_empty_rag_results(mocked_context):
     """Test web_search_brave_with_document_backend when RAG search returns empty results."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={
@@ -929,7 +930,7 @@ async def test_web_search_brave_with_document_backend_empty_rag_results(mocked_c
 @respx.mock
 async def test_web_search_brave_with_document_backend_store_exception(mocked_context):
     """Test web_search_brave_with_document_backend when document store raises exception."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={
@@ -958,7 +959,7 @@ async def test_web_search_brave_with_document_backend_store_exception(mocked_con
 @respx.mock
 async def test_web_search_brave_with_document_backend_unexpected_exception(mocked_context):
     """Test web_search_brave_with_document_backend handling of unexpected exceptions."""
-    respx.get(BRAVE_URL).mock(side_effect=TypeError("Unexpected type error"))
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(side_effect=TypeError("Unexpected type error"))
 
     result = await web_search_brave_with_document_backend(mocked_context, "error query")
     assert result == (
@@ -971,7 +972,7 @@ async def test_web_search_brave_with_document_backend_unexpected_exception(mocke
 @respx.mock
 async def test_web_search_brave_with_document_backend_model_cannot_retry(mocked_context):
     """Test web_search_brave_with_document_backend handling of ModelCannotRetry."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=401,
             json={"error": "Unauthorized"},
@@ -989,7 +990,7 @@ async def test_web_search_brave_with_document_backend_model_cannot_retry(mocked_
 @respx.mock
 async def test_web_search_brave_with_document_backend_rag_search_params(mocked_context):
     """Test web_search_brave_with_document_backend passes correct parameters to RAG search."""
-    respx.get(BRAVE_URL).mock(
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
         return_value=httpx.Response(
             status_code=200,
             json={

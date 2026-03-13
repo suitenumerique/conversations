@@ -125,11 +125,20 @@ class LLModel(BaseModel):
     supports_streaming: bool | None = None
     system_prompt: SettingEnvValue
     tools: list[str]
+    web_search: SettingEnvValue | None = None
 
     @field_validator("tools", mode="before")
     @classmethod
     def validate_tools(cls, value: list[str] | str) -> list[str]:
         """Convert the tools if it's a setting or environment variable."""
+        if isinstance(value, str):
+            return _get_setting_or_env_or_value(value)
+        return value
+
+    @field_validator("web_search", mode="before")
+    @classmethod
+    def validate_web_search(cls, value: str | None) -> str | None:
+        """Convert web_search path if it's a setting or environment variable."""
         if isinstance(value, str):
             return _get_setting_or_env_or_value(value)
         return value
