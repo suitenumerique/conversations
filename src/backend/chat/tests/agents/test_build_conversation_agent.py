@@ -3,14 +3,12 @@
 # pylint:disable=protected-access
 
 import pytest
-import responses
 from freezegun import freeze_time
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.models.test import TestModel
 
 from chat.agents.conversation import ConversationAgent
-from chat.clients.pydantic_ai import ContextDeps
+from chat.llm_configuration import LLModel, LLMProvider
 
 
 @pytest.fixture(autouse=True)
@@ -87,47 +85,30 @@ def test_add_dynamic_system_prompt():
     assert agent._instructions[2]() == "Answer in french."
 
 
-def test_agent_get_web_search_tool_name(settings):
-    """Test the web_search_available method."""
-    settings.AI_AGENT_TOOLS = ["get_current_weather", "web_search_albert_rag"]
+def test_agent_is_web_search_configured():
+    """Test whether web search backend is configured on the model."""
     agent = ConversationAgent(model_hrid="default-model")
-    assert agent.get_web_search_tool_name() == "web_search_albert_rag"
+    assert agent.is_web_search_configured() is False
 
-    settings.AI_AGENT_TOOLS = ["get_current_weather"]
+
+def test_agent_is_web_search_configured_when_defined_in_model_config(settings):
+    """Web search is configured when LLModel.web_search is set."""
+    settings.LLM_CONFIGURATIONS = {
+        "default-model": LLModel(
+            hrid="default-model",
+            model_name="model-123",
+            human_readable_name="Default Model",
+            is_active=True,
+            icon=None,
+            system_prompt="You are a helpful assistant",
+            tools=[],
+            web_search="chat.tools.web_search_brave.web_search_brave_llm_context",
+            provider=LLMProvider(
+                hrid="default-provider",
+                base_url="https://api.llm.com/v1/",
+                api_key="test-key",
+            ),
+        ),
+    }
     agent = ConversationAgent(model_hrid="default-model")
-    assert agent.get_web_search_tool_name() is None
-
-    settings.AI_AGENT_TOOLS = ["get_current_weather", "web_search_tavily", "web_search_albert_rag"]
-    agent = ConversationAgent(model_hrid="default-model")
-    assert agent.get_web_search_tool_name() == "web_search_tavily"
-
-
-@responses.activate
-def test_web_search_tool_avalability(settings):
-    """Test the web search tool availability according to context."""
-    responses.add(
-        responses.POST,
-        "https://api.tavily.com/search",
-        json={"results": []},
-        status=200,
-    )
-    context_deps = ContextDeps(conversation=None, user=None, web_search_enabled=True)
-
-    # No tools (context allows web search, but no tool configured)
-    agent = ConversationAgent(model_hrid="default-model")
-    with agent.override(model=TestModel(), deps=context_deps):
-        response = agent.run_sync("What tools do you have?")
-        assert response.output == "success (no tool calls)"
-
-    # Tool configured, context allows web search
-    settings.AI_AGENT_TOOLS = ["web_search_tavily"]
-    agent = ConversationAgent(model_hrid="default-model")  # re-init to pick up new settings
-    with agent.override(model=TestModel(), deps=context_deps):
-        response = agent.run_sync("What tools do you have?")
-        assert response.output == '{"web_search_tavily":[]}'
-
-    # Tool configured, context disables web search
-    context_deps.web_search_enabled = False
-    with agent.override(model=TestModel(), deps=context_deps):
-        response = agent.run_sync("What tools do you have?")
-        assert response.output == "success (no tool calls)"
+    assert agent.is_web_search_configured() is True

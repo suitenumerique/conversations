@@ -117,20 +117,14 @@ class ConversationAgent(BaseAgent):
             """Dynamic instruction function to set the expected language to use."""
             return f"Answer in {get_language_name(language).lower()}." if language else ""
 
-    def get_web_search_tool_name(self) -> str | None:
+    def is_web_search_configured(self) -> bool:
         """
-        Get the name of the web search tool if available.
+        Return True when a web search backend is configured on this model.
 
-        If several are available, return the first one found.
-
-        Warning, this says the tool is available, not that
-        it (the tool/feature) is enabled for the current conversation.
+        This does not mean web search is enabled for the current conversation
+        (feature flags and runtime deps still apply).
         """
-        for toolset in self.toolsets:
-            for tool in toolset.tools.values():
-                if tool.name.startswith("web_search_"):
-                    return tool.name
-        return None
+        return bool(getattr(self.configuration, "web_search", None))
 
 
 @dataclasses.dataclass(init=False)

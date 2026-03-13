@@ -74,3 +74,20 @@ class BraveSettings:
         environ_name="BRAVE_SEARCH_EXTRA_SNIPPETS",
         environ_prefix=None,
     )
+
+    # LLM context endpoint limits
+    BRAVE_MAX_TOKENS = values.IntegerValue(
+        default=8192,
+        environ_name="BRAVE_MAX_TOKENS",
+        environ_prefix=None,
+    )
+    BRAVE_MAX_SNIPPETS = values.IntegerValue(
+        default=50,
+        environ_name="BRAVE_MAX_SNIPPETS",
+        environ_prefix=None,
+    )
+    BRAVE_MAX_SNIPPETS_PER_URL = values.IntegerValue(
+        default=10,
+        environ_name="BRAVE_MAX_SNIPPETS_PER_URL",
+        environ_prefix=None,
+    )
