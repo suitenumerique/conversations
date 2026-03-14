@@ -58,7 +58,7 @@ dependencies = [
     "pydantic==2.12.4",
     "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.62.0",
     "psycopg[binary]==3.2.12",
-    "PyJWT==2.10.1",
+    "PyJWT==2.12.0",
     "python-magic==0.4.27",
     "redis<6.0.0",
     "requests==2.32.5",
