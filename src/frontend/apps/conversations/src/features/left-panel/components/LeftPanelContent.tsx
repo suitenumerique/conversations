@@ -1,6 +1,8 @@
 import { Box } from '@/components';
 import { useAuth } from '@/features/auth/hooks';
 import { LeftPanelConversations } from '@/features/left-panel/components/LeftPanelConversations';
+import { LeftPanelProjects } from '@/features/left-panel/components/LeftPanelProjects';
+
 import { useResponsiveStore } from '@/stores';
 
 export const LeftPanelContent = () => {
@@ -17,7 +19,12 @@ export const LeftPanelContent = () => {
         height: calc(100dvh - ${isDesktop ? '52px' : '104px'});
       `}
     >
-      {authenticated && <LeftPanelConversations />}
+      {authenticated && (
+        <>
+          {' '}
+          <LeftPanelProjects /> <LeftPanelConversations />
+        </>
+      )}
     </Box>
   );
 };

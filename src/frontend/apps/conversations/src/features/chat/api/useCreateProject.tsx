@@ -5,46 +5,47 @@ import {
 } from '@tanstack/react-query';
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
+import { ChatProject } from '@/features/chat/types';
 
-import { KEY_LIST_CONVERSATION } from './useConversations';
 import { KEY_LIST_PROJECT } from './useProjects';
 
-interface RemoveConversationProps {
-  conversationId: string;
+interface CreateProjectProps {
+  title: string;
+  icon: string;
+  color: string;
+  llm_instructions?: string;
 }
 
-export const removeConversation = async ({
-  conversationId,
-}: RemoveConversationProps): Promise<void> => {
-  const response = await fetchAPI(`chats/${conversationId}/`, {
-    method: 'DELETE',
+export const createProject = async (
+  props: CreateProjectProps,
+): Promise<ChatProject> => {
+  const response = await fetchAPI('projects/', {
+    method: 'POST',
+    body: JSON.stringify(props),
   });
 
   if (!response.ok) {
     throw new APIError(
-      'Failed to delete the conversation',
+      'Failed to create the project',
       await errorCauses(response),
     );
   }
+
+  return response.json() as Promise<ChatProject>;
 };
 
-type UseRemoveConversationOptions = UseMutationOptions<
-  void,
+type UseCreateProjectOptions = UseMutationOptions<
+  ChatProject,
   APIError,
-  RemoveConversationProps
+  CreateProjectProps
 >;
 
-export const useRemoveConversation = (
-  options?: UseRemoveConversationOptions,
-) => {
+export const useCreateProject = (options?: UseCreateProjectOptions) => {
   const queryClient = useQueryClient();
-  return useMutation<void, APIError, RemoveConversationProps>({
-    mutationFn: removeConversation,
+  return useMutation<ChatProject, APIError, CreateProjectProps>({
+    mutationFn: createProject,
     ...options,
     onSuccess: (data, variables, context) => {
-      void queryClient.invalidateQueries({
-        queryKey: [KEY_LIST_CONVERSATION],
-      });
       void queryClient.invalidateQueries({
         queryKey: [KEY_LIST_PROJECT],
       });
