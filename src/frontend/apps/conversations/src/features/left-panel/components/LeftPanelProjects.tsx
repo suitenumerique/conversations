@@ -1,7 +1,7 @@
 import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
 
-import { Box, InfiniteScroll, Text } from '@/components';
+import { Box, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { useInfiniteProjects } from '@/features/chat/api/useProjects';
 import { LeftPanelProjectItem } from '@/features/left-panel/components/LeftPanelProjectItem';

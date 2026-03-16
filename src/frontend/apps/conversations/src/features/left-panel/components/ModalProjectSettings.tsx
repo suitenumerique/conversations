@@ -1,4 +1,9 @@
-import { Button, Input, Modal, ModalSize } from '@openfun/cunningham-react';
+import {
+  Button,
+  Input,
+  Modal,
+  ModalSize,
+} from '@gouvfr-lasuite/cunningham-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
@@ -9,8 +14,8 @@ import { useUpdateProject } from '@/features/chat/api/useUpdateProject';
 import { ChatProject } from '@/features/chat/types';
 import { useOwnModal } from '@/features/left-panel/hooks/useModalHook';
 
-import { PROJECT_COLORS, PROJECT_ICONS } from './project-constants';
 import { ModalIconColorPicker } from './ModalIconColorPicker';
+import { PROJECT_COLORS, PROJECT_ICONS } from './project-constants';
 
 const textareaCss = css`
   width: 100%;
@@ -75,12 +80,7 @@ export const ModalProjectSettings = ({
 
   const { mutate: updateProject, isPending } = useUpdateProject({
     onSuccess: () => {
-      showToast(
-        'success',
-        t('The project has been updated.'),
-        undefined,
-        4000,
-      );
+      showToast('success', t('The project has been updated.'), undefined, 4000);
       onClose();
     },
     onError: (error) => {

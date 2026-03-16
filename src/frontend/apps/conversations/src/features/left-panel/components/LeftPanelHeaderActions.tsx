@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import FolderPlusIcon from '@/assets/icons/uikit-custom/folder-plus.svg';
 import NewChatIcon from '@/assets/icons/new-message-bold.svg';
+import FolderPlusIcon from '@/assets/icons/uikit-custom/folder-plus.svg';
 import { Box, Icon } from '@/components';
 
 import { LeftPanelMenuItem } from './LeftPanelMenuItem';

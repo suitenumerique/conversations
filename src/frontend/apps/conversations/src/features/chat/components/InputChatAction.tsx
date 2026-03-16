@@ -1,4 +1,4 @@
-import { Button } from '@openfun/cunningham-react';
+import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 

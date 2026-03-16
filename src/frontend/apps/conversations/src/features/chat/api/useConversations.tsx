@@ -43,7 +43,7 @@ export const getConversations = async (
     searchParams.set('title', params.title);
   }
 
-  searchParams.set("project", "none")
+  searchParams.set('project', 'none');
 
   const response = await fetchAPI(`chats/?${searchParams.toString()}`);
 

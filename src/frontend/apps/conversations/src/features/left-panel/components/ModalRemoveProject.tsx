@@ -1,6 +1,5 @@
-import { Button, Modal, ModalSize } from '@openfun/cunningham-react';
+import { Button, Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { t } from 'i18next';
-
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/router';
 
@@ -22,12 +21,7 @@ export const ModalRemoveProject = ({
 
   const { mutate: removeProject } = useRemoveProject({
     onSuccess: () => {
-      showToast(
-        'success',
-        t('The project has been deleted.'),
-        undefined,
-        4000,
-      );
+      showToast('success', t('The project has been deleted.'), undefined, 4000);
       if (pathname === '/') {
         onClose();
       } else {
@@ -44,7 +38,7 @@ export const ModalRemoveProject = ({
       aria-label={t('Content modal to delete project')}
       rightActions={
         <>
-                  <Button
+          <Button
             aria-label={t('Confirm deletion')}
             color="error"
             variant="bordered"
@@ -60,13 +54,11 @@ export const ModalRemoveProject = ({
           <Button
             aria-label={t('Close the modal')}
             color="brand"
-
             fullWidth
             onClick={() => onClose()}
           >
             {t('Cancel')}
           </Button>
-
         </>
       }
       size={ModalSize.MEDIUM}
@@ -78,7 +70,7 @@ export const ModalRemoveProject = ({
           $align="flex-start"
           $variation="1000"
         >
-    {t('Delete {{title}}', { title: project.title })}
+          {t('Delete {{title}}', { title: project.title })}
         </Text>
       }
     >
@@ -87,8 +79,11 @@ export const ModalRemoveProject = ({
         data-testid="delete-project-confirm"
       >
         <Text $size="sm" $variation="600">
-          {t('Are you sure you want to delete the “{{title}}” project? All associated conversations and embedded' +
-              ' documents will be permanently lost.', { title: project.title })}
+          {t(
+            'Are you sure you want to delete the “{{title}}” project? All associated conversations and embedded' +
+              ' documents will be permanently lost.',
+            { title: project.title },
+          )}
         </Text>
       </Box>
     </Modal>

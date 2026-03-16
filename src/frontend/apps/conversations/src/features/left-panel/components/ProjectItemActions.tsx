@@ -77,16 +77,10 @@ export const ProjectItemActions = ({ project }: ProjectItemActionsProps) => {
       </DropdownMenu>
 
       {deleteModal.isOpen && (
-        <ModalRemoveProject
-          onClose={deleteModal.close}
-          project={project}
-        />
+        <ModalRemoveProject onClose={deleteModal.close} project={project} />
       )}
       {settingsModal.isOpen && (
-        <ModalProjectSettings
-          onClose={settingsModal.close}
-          project={project}
-        />
+        <ModalProjectSettings onClose={settingsModal.close} project={project} />
       )}
     </>
   );

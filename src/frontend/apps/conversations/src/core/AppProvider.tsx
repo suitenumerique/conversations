@@ -16,7 +16,7 @@ const ToastProviderNoSSR = dynamic(
 
 const CunninghamProviderNoSSR = dynamic(
   () =>
-    import('@openfun/cunningham-react').then((mod) => ({
+    import('@gouvfr-lasuite/cunningham-react').then((mod) => ({
       default: mod.CunninghamProvider,
     })),
   { ssr: false },

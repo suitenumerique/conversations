@@ -1,4 +1,4 @@
-import { Button, Modal, ModalSize } from '@openfun/cunningham-react';
+import { Button, Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { t } from 'i18next';
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/router';

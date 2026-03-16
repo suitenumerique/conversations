@@ -1,5 +1,5 @@
 import { Message, SourceUIPart } from '@ai-sdk/ui-utils';
-import { Modal, ModalSize } from '@openfun/cunningham-react';
+import { Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import { useRouter } from 'next/router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';

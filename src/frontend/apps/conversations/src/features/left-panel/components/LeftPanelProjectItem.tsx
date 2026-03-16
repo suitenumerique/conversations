@@ -1,14 +1,17 @@
 import { memo, useCallback, useState } from 'react';
-import { css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { css } from 'styled-components';
 
 import { Box, Icon, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { ChatProject } from '@/features/chat/types';
 import { ConversationItemActions } from '@/features/left-panel/components/ConversationItemActions';
 import { ConversationRow } from '@/features/left-panel/components/ConversationRow';
-import { PROJECT_COLORS, PROJECT_ICONS } from '@/features/left-panel/components/project-constants';
 import { ProjectItemActions } from '@/features/left-panel/components/ProjectItemActions';
+import {
+  PROJECT_COLORS,
+  PROJECT_ICONS,
+} from '@/features/left-panel/components/project-constants';
 type LeftPanelProjectItemProps = {
   project: ChatProject;
   currentConversationId?: string;
@@ -92,7 +95,8 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
           />
 
           {(() => {
-            const IconComp = PROJECT_ICONS[project.icon] ?? PROJECT_ICONS.folder;
+            const IconComp =
+              PROJECT_ICONS[project.icon] ?? PROJECT_ICONS.folder;
             return (
               <Box
                 $display="flex"
@@ -102,7 +106,11 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
                 $height="18px"
                 style={{ color: iconColor, marginRight: '4px', flexShrink: 0 }}
               >
-                <IconComp width={18} height={18} style={{ fill: 'currentColor', display: 'block' }} />
+                <IconComp
+                  width={18}
+                  height={18}
+                  style={{ fill: 'currentColor', display: 'block' }}
+                />
               </Box>
             );
           })()}
@@ -119,6 +127,7 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
 
         <Box
           className="pinned-actions"
+          role="toolbar"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
         >

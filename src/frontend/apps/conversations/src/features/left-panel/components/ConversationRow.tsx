@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, type ReactNode } from 'react';
+import { type ReactNode, memo, useCallback, useMemo } from 'react';
 import { css } from 'styled-components';
 
 import { Box, StyledLink } from '@/components';

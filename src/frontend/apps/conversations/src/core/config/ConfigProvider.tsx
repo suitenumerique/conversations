@@ -1,4 +1,4 @@
-import { Loader } from '@openfun/cunningham-react';
+import { Loader } from '@gouvfr-lasuite/cunningham-react';
 import Head from 'next/head';
 import { PropsWithChildren, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';

@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(back) add projects with custom LLM instructions
+- ✨(front) projects management UI
 
 ## [0.0.14] - 2026-03-11
 

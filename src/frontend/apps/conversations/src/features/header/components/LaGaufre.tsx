@@ -1,6 +1,6 @@
 // import { Gaufre } from '@gouvfr-lasuite/integration';
+import { Button } from '@gouvfr-lasuite/cunningham-react';
 import '@gouvfr-lasuite/integration/dist/css/gaufre.css';
-import { Button } from '@openfun/cunningham-react';
 import Script from 'next/script';
 import { useEffect } from 'react';
 

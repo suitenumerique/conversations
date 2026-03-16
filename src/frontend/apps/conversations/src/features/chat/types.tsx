@@ -8,6 +8,7 @@ export interface ChatConversation {
   created_at: string;
   updated_at: string;
   title?: string;
+  project?: string | null;
 }
 export interface ChatProjectConversation {
   id: string;

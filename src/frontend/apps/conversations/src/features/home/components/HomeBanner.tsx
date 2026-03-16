@@ -1,4 +1,4 @@
-import { Button } from '@openfun/cunningham-react';
+import { Button } from '@gouvfr-lasuite/cunningham-react';
 import _Image from 'next/image';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
@@ -7,8 +7,8 @@ import IconAssistant from '@/assets/logo/logo-beta.svg';
 import { Box, Icon, Text } from '@/components';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
-import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { gotoLogin } from '@/features/auth';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { useResponsiveStore } from '@/stores';
 
 import BannerDarkMode from '../assets/banner-dark.svg';

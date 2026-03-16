@@ -2,7 +2,6 @@ import { Box } from '@/components';
 import { useAuth } from '@/features/auth/hooks';
 import { LeftPanelConversations } from '@/features/left-panel/components/LeftPanelConversations';
 import { LeftPanelProjects } from '@/features/left-panel/components/LeftPanelProjects';
-
 import { useResponsiveStore } from '@/stores';
 
 export const LeftPanelContent = () => {

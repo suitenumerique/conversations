@@ -1,5 +1,5 @@
 /* eslint-disable testing-library/no-unnecessary-act, @typescript-eslint/require-await */
-import { CunninghamProvider } from '@openfun/cunningham-react';
+import { CunninghamProvider } from '@gouvfr-lasuite/cunningham-react';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Suspense } from 'react';
