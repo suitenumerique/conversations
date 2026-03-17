@@ -79,7 +79,13 @@ array. Passing a UUID from the `documents` array will be rejected.
 """
 
 WEB_SEARCH_TOOL_DESCRIPTION = """
-Search the web for real-time and up-to-date information.
+Search the web for real-time and up-to-date information, or fetch the
+content of a specific URL.
+
+Arguments:
+- query: search terms for a web search (snippets). Use alone for open search.
+- url: a full URL to fetch and read. Use alone to get page content.
+- query + url: fetch that URL and search inside it for the query.
 
 Use this tool when the user asks about:
 - Recent news, current events or ongoing situations
@@ -88,26 +94,24 @@ Use this tool when the user asks about:
 - Complex technical topics requiring verifiable sources
 - Any topic where outdated information could mislead or harm the user
 - Any terms, acronyms, or specificities that sound foreign to you
+- The content of a link / URL they provide
 
 When in doubt, ALWAYS prefer calling this tool rather than relying 
 on your training data, which may be outdated.
 
 Do NOT use for general conversation or creative tasks without factual needs.
 
-Examples of queries that MUST trigger web_search tool:
-- "Quelles sont les dernières nouvelles sur X ?"
-- "Quel est le taux d'intérêt actuel ?"
-- "Est-ce que la loi X est toujours en vigueur ?"
-- "Quelle est la réglementation RGPD sur X ?"
-- "Quel est le prix actuel de X ?"
-- "Que signifie l'acronyme X ?"
-- "Qu'est-ce qui s'est passé récemment avec X ?"
-- "Quelles sont les sanctions prévues par la loi pour X ?"
+Examples that MUST trigger web_search:
+- "Quelles sont les dernières nouvelles sur X ?" -> query="dernières nouvelles X"
+- "Quel est le taux d'intérêt actuel ?" -> query="taux d'intérêt actuel"
+- "Lis https://example.com/page et résume" -> url="https://example.com/page"
+- "Que dit https://example.com/doc à propos de Y ?"
+  -> query="Y", url="https://example.com/doc"
 
-Examples of queries that do NOT need web_search tool:
+Examples that do NOT need web_search:
 - "Explique-moi comment fonctionne une boucle for"
 - "Écris-moi un poème sur l'automne"
-- "Résume ce texte"
+- "Résume ce texte" (attached document — use summarize instead)
 """
 
 SELF_DOCUMENTATION_SYSTEM_PROMPT = (

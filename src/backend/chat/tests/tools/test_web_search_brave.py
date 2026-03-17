@@ -17,12 +17,14 @@ from pydantic_ai._run_context import RunContextAgentDepsT
 
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.web_search_brave import (
+    DOCS_HOST,
     DocumentFetchError,
     _extract_and_summarize_snippets_async,
     _fetch_and_extract_async,
     _fetch_and_store_async,
     _query_brave_llm_context_api_async,
     format_tool_return,
+    web_search,
     web_search_brave,
     web_search_brave_with_document_backend,
 )
@@ -215,6 +217,34 @@ async def test_agent_web_search_brave_success_without_extra_snippets_summarizati
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_web_search_query_mode_uses_brave(mocked_context):
+    """web_search with a non-empty query should delegate to Brave LLM context."""
+    respx.get(BRAVE_LLM_CONTEXT_URL).mock(
+        return_value=httpx.Response(
+            status_code=200,
+            json={
+                "grounding": {
+                    "generic": [
+                        {
+                            "url": "https://example.com/a",
+                            "title": "Result A",
+                            "snippets": ["Snippet A1"],
+                        },
+                    ]
+                }
+            },
+        )
+    )
+
+    result = await web_search(mocked_context, query="test query")
+
+    assert "0" in result.return_value
+    assert result.return_value["0"]["url"] == "https://example.com/a"
+    assert result.return_value["0"]["snippets"] == ["Snippet A1"]
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_agent_web_search_brave_empty_results(mocked_context):
     """Test when the Brave search returns no results."""
     respx.get(BRAVE_WEB_SEARCH_URL).mock(
@@ -320,6 +350,71 @@ async def test_agent_web_search_brave_concurrent_processing(mocked_context):
 
     assert len(tool_return.return_value) == 2
     assert mock_fetch.call_count == 2
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_web_search_url_mode_fetches_content(mocked_context):
+    """web_search with only a URL should fetch and return page content."""
+    html_content = "<html><body>Example content</body></html>"
+    respx.get("https://example.com/page").mock(
+        return_value=httpx.Response(
+            status_code=200,
+            text=html_content,
+            headers={"content-type": "text/html; charset=utf-8"},
+        )
+    )
+
+    with patch(
+        "chat.tools.web_search_brave._fetch_and_extract_async", new_callable=AsyncMock
+    ) as mock_extract:
+        mock_extract.return_value = "Example content"
+
+        result = await web_search(mocked_context, query=None, url="https://example.com/page")
+
+    assert result.return_value["url"] == "https://example.com/page"
+    assert "Example content" in result.return_value["content"]
+    assert result.metadata["sources"] == {"https://example.com/page"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_web_search_docs_url_uses_markdown_api(mocked_context):
+    """Docs URLs should be fetched via the Docs markdown API and returned inline."""
+    docs_id = "1ef86abf-f7e0-46ce-b6c7-8be8b8af4c3d"
+    docs_url = f"https://docs.numerique.gouv.fr/docs/{docs_id}/"
+    api_url = (
+        f"https://{DOCS_HOST}/api/v1.0/documents/{docs_id}/content/?content_format=markdown"
+    )
+
+    respx.get(api_url).mock(
+        return_value=httpx.Response(
+            status_code=200,
+            json={"content": "# Titre\n\nContenu markdown"},
+        )
+    )
+
+    result = await web_search(mocked_context, query=None, url=docs_url)
+
+    assert result.return_value["url"] == docs_url
+    assert "Contenu markdown" in result.return_value["content"]
+    assert result.return_value["source"] == DOCS_HOST
+    assert result.metadata["sources"] == {docs_url}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_web_search_url_mode_propagates_fetch_error(mocked_context):
+    """web_search URL mode should return a structured error when fetch fails."""
+    with patch(
+        "chat.tools.web_search_brave._fetch_and_extract_async", new_callable=AsyncMock
+    ) as mock_extract:
+        mock_extract.side_effect = DocumentFetchError("boom")
+
+        result = await web_search(mocked_context, query=None, url="https://example.com/error")
+
+    assert result.return_value["url"] == "https://example.com/error"
+    assert "Error while fetching URL" in result.return_value["error"]
 
 
 @pytest.mark.asyncio

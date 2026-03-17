@@ -2,11 +2,14 @@
 
 import asyncio
 import logging
+import re
 import uuid
 from typing import List
 
 from django.conf import settings
 from django.core.cache import cache
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.utils.module_loading import import_string
 from django.utils.text import slugify
 
@@ -18,10 +21,15 @@ from pydantic_ai.messages import ToolReturn
 from trafilatura import extract
 from trafilatura.meta import reset_caches
 
+from chat.models import ChatConversationAttachment
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.utils import last_model_retry_soft_fail
+from core.file_upload.enums import AttachmentStatus
 
 logger = logging.getLogger(__name__)
+
+MAX_INLINE_CONTENT_CHARS = 1000
+DOCS_HOST = "docs.numerique.gouv.fr"
 
 
 class WebSearchError(Exception):
@@ -464,3 +472,223 @@ async def web_search_brave_with_document_backend(ctx: RunContext, query: str) ->
             f"An unexpected error occurred during web search with RAG: {type(e).__name__}. "
             "You must explain this to the user and not try to answer based on your knowledge."
         ) from e
+
+
+@last_model_retry_soft_fail
+async def web_search(ctx: RunContext, query: str | None = None, url: str | None = None) -> ToolReturn:
+    """
+    Unified web search tool supporting three usage modes:
+
+    - **Snippet mode (query only)**:
+      Perform a Brave LLM-context search from a textual query and return
+      snippets from the results.
+    - **URL mode (url only)**:
+      Fetch and return the content of a given URL. For small pages, the full
+      extracted text is returned inline. For large pages, the content is
+      indexed into the conversation's document base when possible and only a
+      preview is returned (plus guidance to use document tools).
+    - **URL+RAG mode (query and url)**:
+      Fetch and index the given URL into the conversation's document base, then
+      run a RAG search on this document using the provided query and return the
+      most relevant chunks.
+    """
+    # Snippet mode: query only — reuse main's LLM context endpoint path
+    if query and not url:
+        return await web_search_brave_llm_context(ctx, query)
+
+    # URL-only or URL+RAG mode require at least a URL
+    if not url and not query:
+        raise ModelCannotRetry(
+            "web_search requires either a non-empty query or a URL. "
+        )
+
+    # URL mode: handle Docs Numérique URLs specially to use their markdown API,
+    # then fall back to generic HTML extraction.
+    docs_match = re.search(r"https?://(?:www\.)?docs\.numerique\.gouv\.fr/docs/([^/?#]+)", url or "")
+    if docs_match:
+        docs_id = docs_match.group(1)
+        api_url = f"https://{DOCS_HOST}/api/v1.0/documents/{docs_id}/content/?content_format=markdown"
+        try:
+            async with httpx.AsyncClient(timeout=settings.BRAVE_API_TIMEOUT, follow_redirects=True) as client:
+                resp = await client.get(api_url)
+                resp.raise_for_status()
+                data = resp.json()
+        except Exception as exc:  # pragma: no cover - network / JSON edge cases
+            logger.warning("Error fetching Docs content for %s via %s: %s", url, api_url, exc, exc_info=True)
+            return ToolReturn(
+                return_value={
+                    "url": url,
+                    "error": f"Failed to fetch Docs content: {exc}",
+                }
+            )
+
+        content = data.get("content") or ""
+        if not content:
+            return ToolReturn(
+                return_value={
+                    "url": url,
+                    "error": "Content empty or private for this Docs URL.",
+                }
+            )
+
+        snippet = content[:MAX_INLINE_CONTENT_CHARS]
+        return ToolReturn(
+            return_value={
+                "url": url,
+                "content": snippet,
+                "source": DOCS_HOST,
+            },
+            metadata={"sources": {url}},
+        )
+
+    # Generic URL / URL+RAG mode: reuse the lightweight extractor already used in
+    # the Brave RAG backend. This keeps behavior consistent and avoids
+    # re-implementing RAG wiring here.
+    try:
+        document = await _fetch_and_extract_async(url)
+    except DocumentFetchError as exc:
+        logger.warning("Failed to fetch URL in web_search URL mode: %s", exc, exc_info=True)
+        return ToolReturn(
+            return_value={
+                "url": url,
+                "error": f"Error while fetching URL: {exc}",
+            }
+        )
+
+    if not document:
+        return ToolReturn(
+            return_value={
+                "url": url,
+                "error": "No textual content could be extracted from the URL.",
+            }
+        )
+
+    # For very long content, store in the conversation's RAG collection when possible
+    # and return only a preview with guidance to use RAG tools. When a query is also
+    # provided, run a RAG search over this document and return the most relevant chunks.
+    if len(document) > MAX_INLINE_CONTENT_CHARS or query:
+        deps = getattr(ctx, "deps", None)
+        conversation = getattr(deps, "conversation", None) if deps else None
+        user = getattr(deps, "user", None) if deps else None
+        session = getattr(deps, "session", None) if deps else None
+
+        stored_in_rag = False
+        attachment_created = False
+        document_store = None
+
+        if conversation and user:
+            try:
+                document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+                # Ensure a collection exists for this conversation (async version of
+                # the logic in AIAgentService._handle_input_documents).
+                document_store = document_store_backend(conversation.collection_id)
+                if not document_store.collection_id:
+                    collection_id = await document_store.acreate_collection(
+                        name=f"conversation-{conversation.pk}",
+                    )
+                    conversation.collection_id = str(collection_id)
+                    await conversation.asave(update_fields=["collection_id", "updated_at"])
+
+                await document_store.astore_document(
+                    name=url,
+                    content=document,
+                    user_sub=user.sub,
+                    session=session,
+                )
+                stored_in_rag = True
+
+                # Also create a text attachment so tools like document_summarize
+                # can operate on this content as if it had been uploaded.
+                safe_name = slugify(url)[:100] or "document"
+                file_name = f"{safe_name}.txt"
+                key = f"{conversation.pk}/attachments/{file_name}"
+
+                await sync_to_async(default_storage.save)(
+                    key,
+                    ContentFile(document.encode("utf-8")),
+                )
+                await sync_to_async(ChatConversationAttachment.objects.create)(
+                    conversation=conversation,
+                    uploaded_by=user,
+                    upload_state=AttachmentStatus.READY,
+                    key=key,
+                    file_name=file_name,
+                    content_type="text/plain; charset=utf-8",
+                    size=len(document.encode("utf-8")),
+                    conversion_from=url,
+                )
+                attachment_created = True
+            except Exception as exc:  # pragma: no cover - best-effort storage
+                logger.warning(
+                    "Failed to store URL content in RAG or attachments for %s: %s",
+                    url,
+                    exc,
+                    exc_info=True,
+                )
+
+        # If a query is also provided, run a RAG search over this single document
+        # and return the most relevant chunks instead of a generic preview.
+        if query and document_store and conversation and user:
+            try:
+                rag_results = await document_store.asearch(
+                    query=query,
+                    results_count=settings.BRAVE_RAG_WEB_SEARCH_CHUNK_NUMBER,
+                    session=session,
+                    user_sub=user.sub,
+                )
+
+                ctx.usage += RunUsage(
+                    input_tokens=rag_results.usage.prompt_tokens,
+                    output_tokens=rag_results.usage.completion_tokens,
+                )
+
+                return ToolReturn(
+                    return_value={
+                        str(idx): {
+                            "url": url,
+                            "snippets": result.content,
+                        }
+                        for idx, result in enumerate(rag_results.data)
+                    },
+                    metadata={"sources": {url}},
+                )
+            except Exception as exc:  # pragma: no cover - best-effort RAG search
+                logger.warning(
+                    "RAG search over URL content failed for %s: %s", url, exc, exc_info=True
+                )
+
+        # Fallback: behave like pure URL mode with preview and guidance
+        preview = document[:MAX_INLINE_CONTENT_CHARS]
+        return ToolReturn(
+            return_value={
+                "url": url,
+                "stored_in_rag": stored_in_rag,
+                "attachment_created": attachment_created,
+                "content_preview": preview,
+                "content": (
+                    "Le contenu de cette ressource est volumineux. Tu dois éviter de le coller "
+                    "intégralement dans ta réponse. Résume ou extrait uniquement les passages "
+                    "pertinents. "
+                    + (
+                        "Il a été indexé dans la base de documents de la conversation : utilise "
+                        "l’outil `document_search_rag` ou `document_summarize` avec une requête "
+                        "précise pour retrouver ou résumer les informations nécessaires."
+                        if stored_in_rag or attachment_created
+                        else "Si le document est présent dans la base de documents de la conversation, "
+                        "utilise l’outil `document_search_rag` ou `document_summarize` avec une requête "
+                        "précise pour retrouver ou résumer les informations nécessaires."
+                    )
+                ),
+            },
+            metadata={"sources": {url}},
+        )
+
+    # Small document and no query: simple inline content
+    content = document[:MAX_INLINE_CONTENT_CHARS]
+    return ToolReturn(
+        return_value={
+            "url": url,
+            "content": content,
+        },
+        metadata={"sources": {url}},
+    )
