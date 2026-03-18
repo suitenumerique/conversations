@@ -87,6 +87,7 @@ class Migration(migrations.Migration):
                             ("color_7", "Color 7"),
                             ("color_8", "Color 8"),
                             ("color_9", "Color 9"),
+                            ("color_10", "Color 10"),
                         ],
                         help_text="Project icon color",
                         max_length=20,

@@ -52,6 +52,7 @@ class ChatProjectColor(models.TextChoices):
     COLOR_7 = "color_7", "Color 7"
     COLOR_8 = "color_8", "Color 8"
     COLOR_9 = "color_9", "Color 9"
+    COLOR_10 = "color_10", "Color 10"
 
 
 class ChatProject(BaseModel):
