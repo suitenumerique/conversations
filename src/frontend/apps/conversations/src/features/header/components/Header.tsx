@@ -1,4 +1,4 @@
-import { Button } from '@openfun/cunningham-react';
+import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { useRouter } from 'next/navigation';
 import { useEffect as _useEffect, useState as _useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -52,11 +52,11 @@ export const Header = () => {
           : `1px solid var(--c--contextuals--border--surface--primary)`};
         transition: border-bottom 0.2s ease;
       `}
-      className="--docs--header"
     >
       {!isDesktop && <ButtonTogglePanel />}
       <Box
         $align="center"
+        className="container"
         $gap={spacingsTokens['xs']}
         $direction="row"
         $position="relative"

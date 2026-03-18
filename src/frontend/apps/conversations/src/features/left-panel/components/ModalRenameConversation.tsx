@@ -1,14 +1,18 @@
-import { Button, Input, Modal, ModalSize } from '@openfun/cunningham-react';
+import {
+  Button,
+  Input,
+  Modal,
+  ModalSize,
+} from '@gouvfr-lasuite/cunningham-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Box, Text, useToast } from '@/components';
 import { useRenameConversation } from '@/features/chat/api/useRenameConversation';
-import { ChatConversation } from '@/features/chat/types';
 
 interface ModalRenameConversationProps {
   onClose: () => void;
-  conversation: ChatConversation;
+  conversation: { id: string; title?: string };
 }
 
 export const ModalRenameConversation = ({

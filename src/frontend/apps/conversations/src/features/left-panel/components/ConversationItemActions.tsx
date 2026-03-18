@@ -3,14 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import { DropdownMenu, DropdownMenuOption, Icon } from '@/components';
-import { ChatConversation } from '@/features/chat/types';
 import { useOwnModal } from '@/features/left-panel/hooks/useModalHook';
 
 import { ModalRemoveConversation } from './ModalRemoveConversation';
 import { ModalRenameConversation } from './ModalRenameConversation';
 
 interface ConversationItemActionsProps {
-  conversation: ChatConversation;
+  conversation: { id: string; title?: string };
 }
 
 export const ConversationItemActions = ({

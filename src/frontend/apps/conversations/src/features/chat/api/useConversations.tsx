@@ -1,8 +1,7 @@
-import { UseQueryOptions, useQuery } from '@tanstack/react-query';
-
 import {
   APIError,
   APIList,
+  DefinedInitialDataInfiniteOptionsAPI,
   errorCauses,
   fetchAPI,
   useAPIInfiniteQuery,
@@ -42,6 +41,10 @@ export const getConversations = async (
     searchParams.set('title', params.title);
   }
 
+  if (!params.title) {
+    searchParams.set('project', 'none');
+  }
+
   const response = await fetchAPI(`chats/?${searchParams.toString()}`);
 
   if (!response.ok) {
@@ -56,21 +59,16 @@ export const getConversations = async (
 
 export const KEY_LIST_CONVERSATION = 'conversations';
 
-export function useConversations(
-  param: ConversationsParams,
-  queryConfig?: UseQueryOptions<
-    ConversationsResponse,
-    APIError,
-    ConversationsResponse
+export const useInfiniteConversations = (
+  params: ConversationsParams,
+  queryConfig?: Partial<
+    DefinedInitialDataInfiniteOptionsAPI<ConversationsResponse>
   >,
-) {
-  return useQuery<ConversationsResponse, APIError, ConversationsResponse>({
-    queryKey: [KEY_LIST_CONVERSATION, param],
-    queryFn: () => getConversations(param),
-    ...queryConfig,
-  });
-}
-
-export const useInfiniteConversations = (params: ConversationsParams) => {
-  return useAPIInfiniteQuery(KEY_LIST_CONVERSATION, getConversations, params);
+) => {
+  return useAPIInfiniteQuery(
+    KEY_LIST_CONVERSATION,
+    getConversations,
+    params,
+    queryConfig as DefinedInitialDataInfiniteOptionsAPI<ConversationsResponse>,
+  );
 };

@@ -1,5 +1,3 @@
-import { useCunninghamTheme } from '@/cunningham';
-
 import { Box } from '../Box';
 
 export enum SeparatorVariant {
@@ -16,8 +14,6 @@ export const HorizontalSeparator = ({
   variant = SeparatorVariant.LIGHT,
   $withPadding = true,
 }: Props) => {
-  const { colorsTokens } = useCunninghamTheme();
-
   return (
     <Box
       $height="1px"
@@ -26,7 +22,7 @@ export const HorizontalSeparator = ({
       $background={
         variant === SeparatorVariant.DARK
           ? '#e5e5e533'
-          : colorsTokens['gray-100']
+          : 'var(--c--contextuals--border--surface--primary)'
       }
       className="--docs--horizontal-separator"
     />

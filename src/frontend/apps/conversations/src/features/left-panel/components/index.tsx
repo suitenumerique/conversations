@@ -1,1 +1,1 @@
-export * from './LeftPanel';
+export * from './left-panel/LeftPanel';

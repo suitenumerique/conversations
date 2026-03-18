@@ -7,6 +7,7 @@ import {
 import { APIError, errorCauses, fetchAPI } from '@/api';
 
 import { KEY_LIST_CONVERSATION } from './useConversations';
+import { KEY_LIST_PROJECT } from './useProjects';
 
 interface RemoveConversationProps {
   conversationId: string;
@@ -43,6 +44,9 @@ export const useRemoveConversation = (
     onSuccess: (data, variables, context) => {
       void queryClient.invalidateQueries({
         queryKey: [KEY_LIST_CONVERSATION],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [KEY_LIST_PROJECT],
       });
       if (options?.onSuccess) {
         void options.onSuccess(data, variables, context);

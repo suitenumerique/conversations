@@ -12,6 +12,7 @@ import { useToast } from '@/components/ToastProvider';
 import { FeatureFlagState, useConfig } from '@/core';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 import { InputChatActions } from '@/features/chat/components/InputChatAction';
+import { ProjectWelcomeMessage } from '@/features/chat/components/ProjectWelcomeMessage';
 import { SuggestionCarousel } from '@/features/chat/components/SuggestionCarousel';
 import { WelcomeMessage } from '@/features/chat/components/WelcomeMessage';
 import { useFileDragDrop } from '@/features/chat/hooks/useFileDragDrop';
@@ -44,7 +45,7 @@ interface InputChatProps {
 
 const STYLES = {
   form: { width: '100%' },
-  formPadding: { bottom: 'base' },
+  formPadding: { bottom: 'sm' },
   formPaddingMobile: { bottom: '' },
   attachmentMargin: { horizontal: '0', bottom: 'xs', top: 'xs' },
   attachmentPadding: { horizontal: 'base' },
@@ -415,7 +416,9 @@ export const InputChat = ({
           </Box>
         )}
         {/* Message de bienvenue */}
-        {messagesLength === 0 && <WelcomeMessage />}
+        {messagesLength === 0 && (
+          <ProjectWelcomeMessage fallback={<WelcomeMessage />} />
+        )}
 
         <form onSubmit={handleSubmit} style={STYLES.form}>
           <Box $padding={formPadding}>
@@ -507,6 +510,19 @@ export const InputChat = ({
             </Box>
           </Box>
         </form>
+        {isDesktop && (
+          <Box>
+            <Text
+              $textAlign="center"
+              $size="xs"
+              $color="var(--c--contextuals--content--semantic--neutral--tertiary)"
+            >
+              {t(
+                'The Assistant can make mistakes. Please verify any important information.',
+              )}
+            </Text>
+          </Box>
+        )}
       </Box>
     </>
   );

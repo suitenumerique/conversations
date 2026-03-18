@@ -4,7 +4,7 @@ import {
   Modal,
   ModalSize,
   useModal,
-} from '@openfun/cunningham-react';
+} from '@gouvfr-lasuite/cunningham-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 

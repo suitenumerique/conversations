@@ -1,15 +1,13 @@
-import { Button, Modal, ModalSize } from '@openfun/cunningham-react';
+import { Button, Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { t } from 'i18next';
-import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/router';
 
 import { Box, Text, useToast } from '@/components';
 import { useRemoveConversation } from '@/features/chat/api/useRemoveConversation';
-import { ChatConversation } from '@/features/chat/types';
 
 interface ModalRemoveConversationProps {
   onClose: () => void;
-  conversation: ChatConversation;
+  conversation: { id: string; title?: string };
 }
 
 export const ModalRemoveConversation = ({
@@ -17,8 +15,7 @@ export const ModalRemoveConversation = ({
   conversation,
 }: ModalRemoveConversationProps) => {
   const { showToast } = useToast();
-  const { push } = useRouter();
-  const pathname = usePathname();
+  const { push, pathname } = useRouter();
 
   const { mutate: removeDoc } = useRemoveConversation({
     onSuccess: () => {
