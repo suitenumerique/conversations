@@ -16,6 +16,10 @@ and this project adheres to
 ### Changed
 
 - ⬆️(dependencies) upgrade Next.js 15 to 16, upgrade python dependencies
+ 
+### Fixed
+
+- 🐛(back) add missing color option for project colors
 
 ## [0.0.14] - 2026-03-11
 

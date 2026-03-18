@@ -78,6 +78,24 @@ def test_create_project_with_llm_instructions(api_client):
     assert project.llm_instructions == "Always answer in French."
 
 
+@pytest.mark.parametrize("color", ChatProjectColor)
+def test_create_project_with_each_color(api_client, color):
+    """Test creating a project with each available color."""
+    user = UserFactory()
+    url = "/api/v1.0/projects/"
+    data = {
+        "title": "Color Project",
+        "icon": ChatProjectIcon.FOLDER,
+        "color": color,
+    }
+    api_client.force_login(user)
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_201_CREATED
+    project = ChatProject.objects.get(id=response.data["id"])
+    assert project.color == color
+
+
 def test_create_project_anonymous(api_client):
     """Test creating a project as an anonymous user returns a 401 error."""
     url = "/api/v1.0/projects/"
