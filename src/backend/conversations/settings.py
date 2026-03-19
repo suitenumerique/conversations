@@ -368,6 +368,7 @@ class Base(BraveSettings, Configuration):
         "django.contrib.staticfiles",
         # OIDC third party
         "mozilla_django_oidc",
+        "lasuite.malware_detection",
     ]
 
     # Cache
