@@ -33,7 +33,7 @@ dependencies = [
     "django-cors-headers==4.9.0",
     "django-countries==8.1.0",
     "django-filter==25.2",
-    "django-lasuite[all]==0.0.18",
+    "django-lasuite[all]==0.0.25",
     "django-parler==2.3",
     "django-pydantic-field==0.5.4",
     "django-redis==6.0.0",
@@ -58,7 +58,7 @@ dependencies = [
     "pydantic==2.12.4",
     "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.62.0",
     "psycopg[binary]==3.2.12",
-    "PyJWT==2.10.1",
+    "PyJWT==2.12.0",
     "python-magic==0.4.27",
     "redis<6.0.0",
     "requests==2.32.5",
@@ -67,7 +67,7 @@ dependencies = [
     "trafilatura==2.0.0",
     "uvicorn==0.38.0",
     "whitenoise==6.11.0",
-    "pypdf==6.8.0",
+    "pypdf==6.9.1",
 ]
 
 [project.urls]
@@ -115,6 +115,7 @@ required-environments = [
 ]
 override-dependencies = [
     "cryptography>=46.0.5", # CVE-2026-26007
+    "joserfc>=1.6.3", # CVE-2026-27932
     "pillow>=12.1.1", #CVE-2026-25990
 ]
 

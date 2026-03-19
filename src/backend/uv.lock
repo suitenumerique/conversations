@@ -13,6 +13,7 @@ required-markers = [
 [manifest]
 overrides = [
     { name = "cryptography", specifier = ">=46.0.5" },
+    { name = "joserfc", specifier = ">=1.6.3" },
     { name = "pillow", specifier = ">=12.1.1" },
 ]
 
@@ -486,7 +487,7 @@ requires-dist = [
     { name = "django-countries", specifier = "==8.1.0" },
     { name = "django-extensions", marker = "extra == 'dev'", specifier = "==4.1" },
     { name = "django-filter", specifier = "==25.2" },
-    { name = "django-lasuite", extras = ["all"], specifier = "==0.0.18" },
+    { name = "django-lasuite", extras = ["all"], specifier = "==0.0.25" },
     { name = "django-parler", specifier = "==2.3" },
     { name = "django-pydantic-field", specifier = "==0.5.4" },
     { name = "django-redis", specifier = "==6.0.0" },
@@ -516,11 +517,11 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.12.4" },
     { name = "pydantic-ai-slim", extras = ["openai", "mistral", "mcp", "evals", "logfire"], specifier = "==1.62.0" },
     { name = "pyfakefs", marker = "extra == 'dev'", specifier = "==5.10.2" },
-    { name = "pyjwt", specifier = "==2.10.1" },
+    { name = "pyjwt", specifier = "==2.12.0" },
     { name = "pylint", marker = "extra == 'dev'", specifier = "==3.3.9" },
     { name = "pylint-django", marker = "extra == 'dev'", specifier = "==2.6.1" },
     { name = "pylint-pydantic", marker = "extra == 'dev'", specifier = "==0.4.1" },
-    { name = "pypdf", specifier = "==6.8.0" },
+    { name = "pypdf", specifier = "==6.9.1" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==9.0.1" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.3.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==7.0.0" },
@@ -780,19 +781,20 @@ wheels = [
 
 [[package]]
 name = "django-lasuite"
-version = "0.0.18"
+version = "0.0.25"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
     { name = "djangorestframework" },
     { name = "joserfc" },
     { name = "mozilla-django-oidc" },
+    { name = "pyjwt" },
     { name = "requests" },
     { name = "requests-toolbelt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6c/af/e42d4307dc2505792b2e8e73c86f26fb24d2e674a95b148d0eb9618e193c/django_lasuite-0.0.18.tar.gz", hash = "sha256:be0c0b234025d9d2a76eb66189abb8bd8a581d5b1f5f66715751e6849c42fbe4", size = 29719, upload-time = "2025-11-12T09:02:01.474Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5e/bc/5826a3e5ada5dad1ff6af9a2e1eb598a0dc2cb9c4d2dbf011f1bbb310c9e/django_lasuite-0.0.25.tar.gz", hash = "sha256:ee44783942e6ead74a732f6d7280c5fca961b66581350ce01c0589c3e80684cf", size = 34819, upload-time = "2026-03-10T13:40:28.705Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/05/60f0114a3d7cf95eb1dd0d1c3234dd4c8b612264b4774733d2188b010036/django_lasuite-0.0.18-py3-none-any.whl", hash = "sha256:30754c0ff532174546355997c3cf143cb123a457c7e4ecbf0fc5404504aca0e9", size = 43422, upload-time = "2025-11-12T09:01:59.917Z" },
+    { url = "https://files.pythonhosted.org/packages/61/2f/819ebbc9d3a4b8233cef1e9b0b607724e4acf527988393b04a4036b9c235/django_lasuite-0.0.25-py3-none-any.whl", hash = "sha256:4c10f625005cd41d05e8d34269f1a3b58fea8be5296528bd58596227f50d9884", size = 54034, upload-time = "2026-03-10T13:40:26.903Z" },
 ]
 
 [package.optional-dependencies]
@@ -1314,14 +1316,14 @@ wheels = [
 
 [[package]]
 name = "joserfc"
-version = "1.6.1"
+version = "1.6.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c7/3d/82375487dcc2bcdf136a68e1a8543165feccbbc8833dfc451f87a5f83b81/joserfc-1.6.1.tar.gz", hash = "sha256:7759a14d732d93503317468c0dd258510c4f64b30759cf42e96016c97b38c4b7", size = 226277, upload-time = "2025-12-30T08:45:07.289Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/90/b8cc8635c4ce2e5e8104bf26ef147f6e599478f6329107283cdc53aae97f/joserfc-1.6.3.tar.gz", hash = "sha256:c00c2830db969b836cba197e830e738dd9dda0955f1794e55d3c636f17f5c9a6", size = 229090, upload-time = "2026-02-25T15:33:38.167Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a1/01/9674cc6d478406ae61d910cb16ca8b5699a8a9e6a2019987ebe5a5957d1d/joserfc-1.6.1-py3-none-any.whl", hash = "sha256:74d158c9d56be54c710cdcb2a0741372254b682ad2101a0f72e5bd0e925695f0", size = 70349, upload-time = "2025-12-30T08:45:05.573Z" },
+    { url = "https://files.pythonhosted.org/packages/12/4f/124b3301067b752f44f292f0b9a74e837dd75ff863ee39500a082fc4c733/joserfc-1.6.3-py3-none-any.whl", hash = "sha256:6beab3635358cbc565cb94fb4c53d0557e6d10a15b933e2134939351590bda9a", size = 70465, upload-time = "2026-02-25T15:33:36.997Z" },
 ]
 
 [[package]]
@@ -2300,11 +2302,11 @@ wheels = [
 
 [[package]]
 name = "pyjwt"
-version = "2.10.1"
+version = "2.12.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e7/46/bd74733ff231675599650d3e47f361794b22ef3e3770998dda30d3b63726/pyjwt-2.10.1.tar.gz", hash = "sha256:3cc5772eb20009233caf06e9d8a0577824723b44e6648ee0a2aedb6cf9381953", size = 87785, upload-time = "2024-11-28T03:43:29.933Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/10/e8192be5f38f3e8e7e046716de4cae33d56fd5ae08927a823bb916be36c1/pyjwt-2.12.0.tar.gz", hash = "sha256:2f62390b667cd8257de560b850bb5a883102a388829274147f1d724453f8fb02", size = 102511, upload-time = "2026-03-12T17:15:30.831Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/61/ad/689f02752eeec26aed679477e80e632ef1b682313be70793d798c1d5fc8f/PyJWT-2.10.1-py3-none-any.whl", hash = "sha256:dcdd193e30abefd5debf142f9adfcdd2b58004e644f25406ffaebd50bd98dacb", size = 22997, upload-time = "2024-11-28T03:43:27.893Z" },
+    { url = "https://files.pythonhosted.org/packages/15/70/70f895f404d363d291dcf62c12c85fdd47619ad9674ac0f53364d035925a/pyjwt-2.12.0-py3-none-any.whl", hash = "sha256:9bb459d1bdd0387967d287f5656bf7ec2b9a26645d1961628cda1764e087fd6e", size = 29700, upload-time = "2026-03-12T17:15:29.257Z" },
 ]
 
 [package.optional-dependencies]
@@ -2370,11 +2372,11 @@ wheels = [
 
 [[package]]
 name = "pypdf"
-version = "6.8.0"
+version = "6.9.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b4/a3/e705b0805212b663a4c27b861c8a603dba0f8b4bb281f96f8e746576a50d/pypdf-6.8.0.tar.gz", hash = "sha256:cb7eaeaa4133ce76f762184069a854e03f4d9a08568f0e0623f7ea810407833b", size = 5307831, upload-time = "2026-03-09T13:37:40.591Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/fb/dc2e8cb006e80b0020ed20d8649106fe4274e82d8e756ad3e24ade19c0df/pypdf-6.9.1.tar.gz", hash = "sha256:ae052407d33d34de0c86c5c729be6d51010bf36e03035a8f23ab449bca52377d", size = 5311551, upload-time = "2026-03-17T10:46:07.876Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8c/ec/4ccf3bb86b1afe5d7176e1c8abcdbf22b53dd682ec2eda50e1caadcf6846/pypdf-6.8.0-py3-none-any.whl", hash = "sha256:2a025080a8dd73f48123c89c57174a5ff3806c71763ee4e49572dc90454943c7", size = 332177, upload-time = "2026-03-09T13:37:38.774Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/f4/75543fa802b86e72f87e9395440fe1a89a6d149887e3e55745715c3352ac/pypdf-6.9.1-py3-none-any.whl", hash = "sha256:f35a6a022348fae47e092a908339a8f3dc993510c026bb39a96718fc7185e89f", size = 333661, upload-time = "2026-03-17T10:46:06.286Z" },
 ]
 
 [[package]]

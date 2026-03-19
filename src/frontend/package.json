@@ -27,14 +27,17 @@
   },
   "resolutions": {
     "@types/node": "22.15.29",
-    "@types/react": "19.1.6",
-    "@types/react-dom": "19.1.6",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
     "@typescript-eslint/eslint-plugin": "8.33.1",
     "@typescript-eslint/parser": "8.33.1",
     "eslint": "^9.0.0",
-    "react": "19.2.1",
-    "react-dom": "19.2.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
     "typescript": "5.8.3",
-    "minimatch": ">=10.2.1"
+    "minimatch": ">=10.2.1",
+    "flatted": ">=3.4.0",
+    "rollup": ">=4.59.0",
+    "undici": ">=7.24.0"
   }
 }

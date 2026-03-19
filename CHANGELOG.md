@@ -13,6 +13,10 @@ and this project adheres to
 - ✨(back) add projects with custom LLM instructions
 - ✨(front) projects management UI
 
+### Changed
+
+- ⬆️(dependencies) upgrade Next.js 15 to 16, upgrade python dependencies
+
 ## [0.0.14] - 2026-03-11
 
 ### Added
