@@ -20,6 +20,7 @@ from chat.views import (
     FileStreamView,
     LLMConfigurationView,
     ModelHealthView,
+    ToolProgressView,
 )
 
 # - Main endpoints
@@ -50,6 +51,11 @@ urlpatterns = [
                 path("model-health/", ModelHealthView.as_view(), name="model-health"),
                 path("assistant-health/", AssistantHealthView.as_view(), name="assistant-health"),
                 path("chat-cooldown/", ChatCooldownView.as_view(), name="chat-cooldown"),
+                path(
+                    "chats/<uuid:conversation_pk>/tool-progress/<str:tool_name>/",
+                    ToolProgressView.as_view(),
+                    name="tool-progress",
+                ),
                 path(
                     "chats/<uuid:conversation_pk>/",
                     include(conversation_router.urls),

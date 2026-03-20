@@ -3,14 +3,20 @@ Util classes for  main agent.
 """
 
 import dataclasses
+import logging
+import time
 from typing import Dict, List, Optional
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 
 from chat import models
 from chat.ai_sdk_types import SourceUIPart
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
+
+CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
 
 
 @dataclasses.dataclass
@@ -52,6 +58,36 @@ class ContextDeps:
     user: User
     session: Optional[Dict] = None
     web_search_enabled: bool = False
+
+    def report_tool_progress(self, *, tool_name: str, message: str) -> None:
+        """
+        Lightweight progress hook for the frontend.
+
+        Tools send a human-readable string that the UI can display directly.
+        """
+        try:
+            cache.set(
+                f"tool-progress:{tool_name}:{self.conversation.pk}",
+                {
+                    "message": message,
+                    "timestamp": time.time(),
+                },
+                timeout=CACHE_TIMEOUT,
+            )
+        except Exception:  # pylint: disable=broad-except
+            logger.debug(
+                "Failed to store tool progress in cache (tool=%s, conversation=%s)",
+                tool_name,
+                self.conversation.pk,
+            )
+
+    def report_summarization_progress(self, *, message: str) -> None:
+        """
+        Lightweight hook used by the summarization tool to expose progress.
+
+        This is kept for backward compatibility with existing tool code.
+        """
+        self.report_tool_progress(tool_name="summarize", message=message)
 
 
 @dataclasses.dataclass

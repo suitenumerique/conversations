@@ -15,6 +15,7 @@ import { MessageEnergyIndicator } from '@/features/chat/components/MessageEnergy
 import { MoreActionsButton } from '@/features/chat/components/MoreActionsButton';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
+import { useToolProgress } from '@/features/chat/hooks/useToolProgress';
 import { getMessageCo2Impact } from '@/features/chat/utils/getMessageCo2Impact';
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
@@ -225,6 +226,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     (status === 'streaming' || status === 'submitted');
 
   const co2ImpactKg = getMessageCo2Impact(message);
+  const hasAssistantResponseContent =
+    typeof message.content === 'string' && message.content.trim().length > 0;
 
   const sourceParts = React.useMemo(() => {
     if (!message.parts) {
@@ -271,6 +274,22 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     );
     return tool?.toolInvocation;
   }, [toolInvocationParts]);
+
+  const shouldPollToolProgress =
+    !!conversationId &&
+    isLastAssistantMessage &&
+    status === 'streaming' &&
+    hasNonDocumentParsingTool &&
+    !!activeToolInvocation?.toolName;
+
+  const toolProgressMessage = useToolProgress({
+    conversationId,
+    toolName: activeToolInvocation?.toolName,
+    enabled: shouldPollToolProgress,
+  });
+
+  const toolProgressIndicatesDone =
+    toolProgressMessage?.toLowerCase().startsWith('done') ?? false;
 
   // Memoize the streaming content split to avoid recreating components in JSX
   const { completedBlocks, pending } = React.useMemo(() => {
@@ -390,7 +409,9 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
             {isCurrentlyStreaming &&
               isLastAssistantMessage &&
               status === 'streaming' &&
-              hasNonDocumentParsingTool && (
+              hasNonDocumentParsingTool &&
+              !hasAssistantResponseContent &&
+              !toolProgressIndicatesDone && (
                 <Box
                   $direction="row"
                   $align="center"
@@ -405,9 +426,10 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 >
                   <Loader />
                   <Text $variation="600" $size="md">
-                    {activeToolInvocation?.toolName === 'summarize'
-                      ? t('Summarizing...')
-                      : t('Search...')}
+                    {toolProgressMessage ??
+                      (activeToolInvocation?.toolName === 'summarize'
+                        ? t('Summarizing...')
+                        : t('Search...'))}
                   </Text>
                 </Box>
               )}

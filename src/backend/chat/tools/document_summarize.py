@@ -64,36 +64,6 @@ async def _read_documents_safely(text_attachment, document_id):
     return documents
 
 
-async def _summarize_documents_chunks(documents_chunks, summarization_agent, ctx):
-    """
-    Run chunk summarization for every document concurrently (bounded by a
-    semaphore) and return per-document lists of chunk summaries.
-    """
-    semaphore = asyncio.Semaphore(settings.SUMMARIZATION_CONCURRENT_REQUESTS)
-
-    async def summarize_chunk_with_semaphore(idx, chunk, total_chunks):
-        """Summarize a chunk with semaphore-controlled concurrency."""
-        async with semaphore:
-            return await summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx)
-
-    doc_chunk_summaries = []
-    try:
-        for doc_chunks in documents_chunks:
-            summarization_tasks = [
-                summarize_chunk_with_semaphore(idx, chunk, len(doc_chunks))
-                for idx, chunk in enumerate(doc_chunks, start=1)
-            ]
-            chunk_summaries = await asyncio.gather(*summarization_tasks)
-            doc_chunk_summaries.append(chunk_summaries)
-    except ModelRetry as exc:
-        logger.warning("Retryable error during chunk summarization: %s", exc, exc_info=True)
-        raise
-    except Exception as exc:
-        logger.warning("Error during chunk summarization: %s", exc, exc_info=True)
-        raise ModelRetry("An error occurred while processing document chunks.") from exc
-    return doc_chunk_summaries
-
-
 async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
     """Summarize a single chunk of text."""
     sum_prompt = (
@@ -118,7 +88,186 @@ async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
     return resp.output or ""
 
 
-async def _summarize_text_attachments(
+async def merge_two_summaries(
+    left: str,
+    right: str,
+    level: int,
+    idx: int,
+    total_pairs: int,
+    summarization_agent: SummarizationAgent,
+    ctx: RunContext,
+    instructions_hint: str,
+) -> str:
+    """Merge two partial summaries into a single, more coherent one."""
+    merge_prompt = (
+        "You are an expert at hierarchical summarization.\n"
+        "You receive two partial summaries that cover adjacent parts of the same document "
+        "or set of documents. Merge them into a single, coherent summary that preserves all "
+        "important information while eliminating redundancies.\n\n"
+        f"Level: {level}, pair {idx}/{total_pairs}\n\n"
+        "LEFT SUMMARY:\n"
+        f"'''\n{left}\n'''\n\n"
+        "RIGHT SUMMARY:\n"
+        f"'''\n{right}\n'''\n\n"
+        "Constraints:\n"
+        "- Do not repeat information present in both summaries.\n"
+        "- Harmonize style and terminology.\n"
+        "- Keep a good level of detail; do not over-compress at this stage.\n"
+        "- Structure the result clearly, using markdown when appropriate.\n"
+        f"- Keep the user instructions for the final summary in mind: {instructions_hint}\n"
+        "- This is not the final summary\n"
+        "Respond directly with the merged summary."
+    )
+
+    logger.debug(
+        "[summarize] TREE MERGE level=%s pair=%s/%s prompt=> %s",
+        level,
+        idx,
+        total_pairs,
+        merge_prompt[0:200] + "...",
+    )
+
+    try:
+        resp = await summarization_agent.run(merge_prompt, usage=ctx.usage)
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.warning(
+            "Error during hierarchical merge (level=%s, pair=%s/%s): %s",
+            level,
+            idx,
+            total_pairs,
+            exc,
+            exc_info=True,
+        )
+        raise ModelRetry("An error occurred while merging partial summaries.") from exc
+
+    output = (resp.output or "").strip()
+    if not output:
+        raise ModelRetry("The hierarchical merge produced an empty result.")
+
+    logger.debug(
+        "[summarize] TREE MERGE level=%s pair=%s/%s response<= %s",
+        level,
+        idx,
+        total_pairs,
+        output[0:200] + "...",
+    )
+    return output
+
+
+async def merge_two_summaries_with_semaphore(
+    left: str,
+    right: str,
+    level: int,
+    idx: int,
+    total_pairs: int,
+    summarization_agent: SummarizationAgent,
+    ctx: RunContext,
+    instructions_hint: str,
+    semaphore: asyncio.Semaphore,
+) -> str:
+    """Wrapper to run merge_two_summaries under a semaphore."""
+    async with semaphore:
+        return await merge_two_summaries(
+            left,
+            right,
+            level,
+            idx,
+            total_pairs,
+            summarization_agent,
+            ctx,
+            instructions_hint,
+        )
+
+
+async def hierarchical_merge_summaries(
+    summaries: list[str],
+    summarization_agent: SummarizationAgent,
+    ctx: RunContext,
+    instructions_hint: str,
+    semaphore: asyncio.Semaphore | None = None,
+    on_merge_done=None,
+) -> str:
+    """
+    Merge a list of summaries using a binary tree strategy until a single root summary remains.
+    """
+    cleaned_summaries = [s.strip() for s in summaries if s and s.strip()]
+    if not cleaned_summaries:
+        raise ModelRetry("No summaries available to perform hierarchical merging.")
+    if len(cleaned_summaries) == 1:
+        return cleaned_summaries[0]
+
+    level = 0
+    current_level = cleaned_summaries
+
+    while len(current_level) > 1:
+        next_level: list[str] = []
+        merge_tasks = []
+        total_pairs = (len(current_level) + 1) // 2
+        current_level_number = level
+        current_total_pairs = total_pairs
+
+        for i in range(0, len(current_level), 2):
+            left = current_level[i]
+            if i + 1 >= len(current_level):
+                next_level.append(left)
+                continue
+
+            right = current_level[i + 1]
+            pair_idx = (i // 2) + 1
+
+            if semaphore is None:
+
+                async def _merge_and_report(
+                    left_summary: str, right_summary: str, pair_number: int
+                ) -> str:
+                    result = await merge_two_summaries(
+                        left_summary,
+                        right_summary,
+                        current_level_number,
+                        pair_number,
+                        current_total_pairs,
+                        summarization_agent,
+                        ctx,
+                        instructions_hint,
+                    )
+                    if on_merge_done:
+                        on_merge_done()
+                    return result
+
+                merge_tasks.append(_merge_and_report(left, right, pair_idx))
+            else:
+
+                async def _merge_and_report(
+                    left_summary: str, right_summary: str, pair_number: int
+                ) -> str:
+                    result = await merge_two_summaries_with_semaphore(
+                        left_summary,
+                        right_summary,
+                        current_level_number,
+                        pair_number,
+                        current_total_pairs,
+                        summarization_agent,
+                        ctx,
+                        instructions_hint,
+                        semaphore,
+                    )
+                    if on_merge_done:
+                        on_merge_done()
+                    return result
+
+                merge_tasks.append(_merge_and_report(left, right, pair_idx))
+
+        if merge_tasks:
+            merged_results = await asyncio.gather(*merge_tasks)
+            next_level.extend(merged_results)
+
+        current_level = next_level
+        level += 1
+
+    return current_level[0]
+
+
+async def _summarize_text_attachments(  # pylint: disable=too-many-locals
     text_attachment: list,
     *,
     instructions: str | None,
@@ -126,7 +275,7 @@ async def _summarize_text_attachments(
     ctx: RunContext,
     empty_set_message: str,
 ) -> ToolReturn:
-    """Run chunking + per-chunk + merge summarization on the supplied attachments.
+    """Run chunking + hierarchical merge summarization on the supplied attachments.
 
     Shared core for the conversation-scoped (`summarize`) and project-scoped
     (`summarize_project`) tools. The two tools differ only in which attachment
@@ -160,6 +309,25 @@ async def _summarize_text_attachments(
             "or provide the documents again."
         )
 
+    # Lightweight, optional progress reporting hook for the frontend.
+    progress_callback = getattr(ctx.deps, "report_summarization_progress", None)
+
+    def _report_progress(done: int, total: int, stage: str) -> None:
+        if not progress_callback or total <= 0:
+            return
+        try:
+            percent = int(done / total * 100) if total > 0 else 0
+            message = f"{stage} {percent}%"
+            progress_callback(message=message)
+        except Exception:  # pylint: disable=broad-except
+            # Progress reporting must never break summarization.
+            logger.debug(
+                "[summarize] progress callback failed (done=%s, total=%s, stage=%s)",
+                done,
+                total,
+                stage,
+            )
+
     # Chunk documents and summarize each chunk
     chunk_size = settings.SUMMARIZATION_CHUNK_SIZE
     chunker = semchunk.chunkerify(
@@ -178,25 +346,85 @@ async def _summarize_text_attachments(
         instructions_hint,
     )
 
-    # Parallelize the chunk summarization with a semaphore (inside the
-    # helper) to limit concurrent tasks - it can be very resource intensive
-    # on the LLM backend.
-    doc_chunk_summaries = await _summarize_documents_chunks(
-        documents_chunks, summarization_agent, ctx
-    )
+    # Estimate total work units for a simple progress percentage:
+    # - one step per chunk summary
+    # - one step per internal binary-tree merge per document (n_chunks - 1)
+    # - one final merge step
+    total_chunk_summaries = sum(len(chunks) for chunks in documents_chunks)
+    total_hierarchical_merges = sum(max(0, len(doc_chunks) - 1) for doc_chunks in documents_chunks)
+    total_steps = total_chunk_summaries + total_hierarchical_merges + 1
+    completed_steps = 0
+    _report_progress(completed_steps, total_steps, stage="Résumé en cours...")
 
+    # Parallelize the chunk summarization with a semaphore to limit concurrent
+    # tasks - it can be very resource intensive on the LLM backend.
+    semaphore = asyncio.Semaphore(settings.SUMMARIZATION_CONCURRENT_REQUESTS)
+
+    async def summarize_chunk_with_semaphore(idx, chunk, total_chunks):
+        """Summarize a chunk with semaphore-controlled concurrency."""
+        async with semaphore:
+            result = await summarize_chunk(
+                idx,
+                chunk,
+                total_chunks,
+                summarization_agent,
+                ctx,
+            )
+        nonlocal completed_steps
+        completed_steps += 1
+        _report_progress(completed_steps, total_steps, stage="Résumé en cours...")
+        return result
+
+    doc_chunk_summaries: list[list[str]] = []
+    try:
+        for doc_chunks in documents_chunks:
+            summarization_tasks = [
+                summarize_chunk_with_semaphore(idx, chunk, len(doc_chunks))
+                for idx, chunk in enumerate(doc_chunks, start=1)
+            ]
+            chunk_summaries = await asyncio.gather(*summarization_tasks)
+            doc_chunk_summaries.append(chunk_summaries)
+    except ModelRetry as exc:
+        logger.warning("Retryable error during chunk summarization: %s", exc, exc_info=True)
+        raise
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.warning("Error during chunk summarization: %s", exc, exc_info=True)
+        raise ModelRetry("An error occurred while processing document chunks.") from exc
+
+    # First, build a root summary per document using hierarchical merging
+    per_doc_root_summaries: list[tuple[str, str]] = []
+
+    def _on_merge_done() -> None:
+        nonlocal completed_steps
+        completed_steps += 1
+        _report_progress(completed_steps, total_steps, stage="Finalisation du résumé...")
+
+    try:
+        for (doc_name, _), chunk_summaries in zip(documents, doc_chunk_summaries, strict=True):
+            root_summary = await hierarchical_merge_summaries(
+                chunk_summaries,
+                summarization_agent,
+                ctx,
+                instructions_hint,
+                semaphore=semaphore,
+                on_merge_done=_on_merge_done,
+            )
+            per_doc_root_summaries.append((doc_name, root_summary))
+    except ModelRetry as exc:
+        logger.warning("Retryable error during hierarchical document merge: %s", exc, exc_info=True)
+        raise
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.warning("Error during hierarchical document merge: %s", exc, exc_info=True)
+        raise ModelRetry("An error occurred while aggregating document summaries.") from exc
+
+    # Build a concise context from per-document root summaries
     context = "\n\n".join(
-        doc_name + "\n\n" + "\n\n".join(summaries)
-        for doc_name, summaries in zip(
-            (doc[0] for doc in documents),
-            doc_chunk_summaries,
-            strict=True,
-        )
+        f"{doc_name}\n\n{doc_root_summary}" for doc_name, doc_root_summary in per_doc_root_summaries
     )
 
-    # Merge chunk summaries into a single concise summary
+    # Merge per-document root summaries into a single concise summary
     merged_prompt = (
-        "Produce a coherent synthesis from the summaries below.\n\n"
+        "Produce a coherent synthesis from the high-level document summaries below.\n\n"
         f"'''\n{context}\n'''\n\n"
         "Constraints:\n"
         "- Summarize without repetition.\n"
@@ -210,7 +438,7 @@ async def _summarize_text_attachments(
 
     try:
         merged_resp = await summarization_agent.run(merged_prompt, usage=ctx.usage)
-    except Exception as exc:
+    except Exception as exc:  # pylint: disable=broad-except
         logger.warning("Error during merge summarization: %s", exc, exc_info=True)
         raise ModelRetry("An error occurred while generating the final summary.") from exc
 
@@ -218,6 +446,9 @@ async def _summarize_text_attachments(
 
     if not final_summary:
         raise ModelRetry("The summarization produced an empty result.")
+
+    completed_steps += 1
+    _report_progress(completed_steps, total_steps, stage="Résumé terminé.")
 
     logger.debug("[summarize] MERGE response<= %s", final_summary)
 
@@ -269,7 +500,7 @@ async def document_summarize(
             ),
         )
 
-    except ModelCannotRetry, ModelRetry:
+    except (ModelCannotRetry, ModelRetry):
         # Re-raise these as-is
         raise
     except Exception as exc:
@@ -325,7 +556,7 @@ async def document_summarize_project(
             ),
         )
 
-    except ModelCannotRetry, ModelRetry:
+    except (ModelCannotRetry, ModelRetry):
         raise
     except Exception as exc:
         logger.exception("Unexpected error in document_summarize_project: %s", exc)

@@ -16,6 +16,7 @@ from chat.views.filters import ProjectFilter, TitleSearchFilter
 from chat.views.health import AssistantHealthView, ModelHealthView
 from chat.views.llm_config import LLMConfigurationView
 from chat.views.projects import ChatProjectViewSet
+from chat.views.tool_progress import ToolProgressView
 
 __all__ = [
     "AssistantHealthView",
@@ -32,4 +33,5 @@ __all__ = [
     "ModelHealthView",
     "ProjectFilter",
     "TitleSearchFilter",
+    "ToolProgressView",
 ]
