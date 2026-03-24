@@ -4,6 +4,8 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Suspense } from 'react';
 
+import { ToastProvider } from '@/components/ToastProvider';
+
 import {
   MessageItem,
   splitIntoBlocks,
@@ -367,7 +369,9 @@ describe('MessageItem', () => {
   const renderWithProviders = (ui: React.ReactNode) => {
     return render(
       <CunninghamProvider>
-        <Suspense fallback={null}>{ui}</Suspense>
+        <ToastProvider>
+          <Suspense fallback={null}>{ui}</Suspense>
+        </ToastProvider>
       </CunninghamProvider>,
     );
   };

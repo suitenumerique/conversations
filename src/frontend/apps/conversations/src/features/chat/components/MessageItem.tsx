@@ -1,9 +1,9 @@
 import { Message, SourceUIPart, ToolInvocationUIPart } from '@ai-sdk/ui-utils';
+import { Button } from '@gouvfr-lasuite/cunningham-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '@gouvfr-lasuite/cunningham-react';
-import { Box, Icon, Loader, Text } from '@/components';
+import { Box, Icon, Loader, Text, useToast } from '@/components';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import {
@@ -187,6 +187,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   getMetadata,
 }) => {
   const { t } = useTranslation();
+  const { showToast } = useToast();
+  const contentRef = React.useRef<HTMLDivElement>(null);
 
   const shouldApplyStreamingHeight =
     isLastAssistantMessage &&
@@ -242,8 +244,26 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   }, [isCurrentlyStreaming, message.content]);
 
   const handleCopy = React.useCallback(() => {
-    onCopyToClipboard(message.content);
-  }, [onCopyToClipboard, message.content]);
+    const html = contentRef.current?.innerHTML;
+    if (
+      html &&
+      typeof ClipboardItem !== 'undefined' &&
+      navigator.clipboard.write
+    ) {
+      // Write both formats: Word/Docs use text/html (preserving formatting),
+      // while code editors and plain-text apps use text/plain (raw markdown).
+      const item = new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([message.content], { type: 'text/plain' }),
+      });
+      navigator.clipboard.write([item]).then(
+        () => showToast('success', t('Copied'), 'content_copy', 3000),
+        () => onCopyToClipboard(message.content),
+      );
+    } else {
+      onCopyToClipboard(message.content);
+    }
+  }, [contentRef, message.content, onCopyToClipboard, showToast, t]);
 
   const handleOpenSources = React.useCallback(() => {
     onOpenSources(message.id);
@@ -292,6 +312,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
           {/* Message content */}
           {message.content && (
             <Box
+              ref={contentRef}
               className="mainContent-chat"
               data-testid={
                 message.role === 'assistant'
