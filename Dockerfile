@@ -1,11 +1,12 @@
 # Django conversations
 
 # ---- base image to inherit from ----
-FROM python:3.13.3-alpine AS base
+FROM python:3.13.3-slim AS base
 
 # Upgrade system packages to install security updates
-RUN apk update && \
-  apk upgrade
+RUN apt-get update && \
+  apt-get upgrade -y && \
+  rm -rf /var/lib/apt/lists/*
 
 # ---- Back-end builder image ----
 FROM base AS back-builder
@@ -17,14 +18,13 @@ ENV UV_PYTHON_DOWNLOADS=0
 
 COPY --from=ghcr.io/astral-sh/uv:0.9.26 /uv /uvx /bin/
 
-# Install Rust and Cargo using Alpine's package manager
-RUN apk add --no-cache \
-  build-base \
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  build-essential \
   libffi-dev \
   libxml2-dev \
-  libxslt-dev \
-  rust \
-  cargo
+  libxslt1-dev \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -52,9 +52,10 @@ FROM base AS link-collector
 ARG CONVERSATIONS_STATIC_ROOT=/data/static
 
 # Install pango & rdfind
-RUN apk add \
-  pango \
-  rdfind
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  libpango-1.0-0 \
+  rdfind \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -80,18 +81,20 @@ FROM base AS core
 ENV PYTHONUNBUFFERED=1
 
 # Install required system libs
-RUN apk add \
-  cairo \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  libcairo2 \
   file \
-  font-noto \
-  font-noto-emoji \
+  fonts-noto-core \
+  fonts-noto-color-emoji \
   gettext \
-  gdk-pixbuf \
-  libffi-dev \
+  libgdk-pixbuf-2.0-0 \
+  libffi8 \
   libxml2 \
-  libxslt \
-  pango \
-  shared-mime-info
+  libxslt1.1 \
+  libpango-1.0-0 \
+  libpangocairo-1.0-0 \
+  shared-mime-info \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY ./docker/files/etc/mime.types /etc/mime.types
 
@@ -128,7 +131,9 @@ FROM core AS backend-development
 USER root:root
 
 # Install psql
-RUN apk add postgresql-client
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  postgresql-client \
+  && rm -rf /var/lib/apt/lists/*
 
  # Install development dependencies
 RUN --mount=from=ghcr.io/astral-sh/uv:0.9.26,source=/uv,target=/bin/uv \
@@ -149,8 +154,8 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 # ---- Production image ----
 FROM core AS backend-production
 
-# Remove apk cache, we don't need it anymore
-RUN rm -rf /var/cache/apk/*
+# Remove apt lists, we don't need them anymore
+RUN rm -rf /var/lib/apt/lists/*
 
 ARG CONVERSATIONS_STATIC_ROOT=/data/static
 

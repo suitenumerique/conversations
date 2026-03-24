@@ -51,7 +51,7 @@ dependencies = [
     "langfuse==3.10.0",
     "lxml==5.4.0",
     "markdown==3.10",
-    "markitdown==0.0.2",
+    "markitdown==0.1.5",
     "mozilla-django-oidc==4.0.1",
     "nested-multipart-parser==1.6.0",
     "posthog==7.0.0",

@@ -16,6 +16,7 @@ and this project adheres to
 - ⬆️(dependencies) update back and front dependencies
 - 💄(ui) new header
 - ✨(back) add debug mode setup for local development
+- ⬆️(dependencies) switch base docker image to upgrade markitdown
 
 ### Fixed
 
@@ -33,7 +34,7 @@ and this project adheres to
 
 - ⬆️(dependencies) upgrade Next.js 15 to 16, upgrade python dependencies
 - ✨(front) rich text copy for Word/Docs paste
- 
+
 ### Fixed
 
 - 🐛(back) add missing color option for project colors
