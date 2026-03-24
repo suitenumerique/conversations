@@ -16,6 +16,7 @@ and this project adheres to
 ### Changed
 
 - ⬆️(dependencies) upgrade Next.js 15 to 16, upgrade python dependencies
+- ✨(front) rich text copy for Word/Docs paste
  
 ### Fixed
 
