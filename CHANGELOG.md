@@ -12,6 +12,7 @@ and this project adheres to
 
 - ✨(back) add projects with custom LLM instructions
 - ✨(front) projects management UI
+- 🥚(front) add April Fools day prank
 
 ### Changed
 

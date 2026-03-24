@@ -3,7 +3,13 @@ import { Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import { useRouter } from 'next/router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -28,6 +34,7 @@ import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
 
 import { useSourceMetadataCache } from '../hooks';
+import { useAprilFools } from '../hooks/useAprilFools';
 import { useChatPreferencesStore } from '../stores/useChatPreferencesStore';
 import { usePendingChatStore } from '../stores/usePendingChatStore';
 import { useScrollStore } from '../stores/useScrollStore';
@@ -167,6 +174,7 @@ export const Chat = ({
   const queryClient = useQueryClient();
   const [isReadingInstructions, setIsReadingInstructions] = useState(false);
   const readingInstructionsStartRef = useRef<number>(0);
+  const aprilFools = useAprilFools();
 
   // Zustand store for pending chat state
   const {
@@ -550,6 +558,12 @@ export const Chat = ({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    // April Fools' prank on the very first message of a new conversation.
+    // Use triggerDeferred so the prank survives the router.push() remount.
+    if (messages.length === 0) {
+      aprilFools.triggerDeferred();
+    }
+
     // Upload files to server and get URLs
     let attachments: Attachment[] = [];
     if (files && files.length > 0 && conversationId) {
@@ -684,30 +698,63 @@ export const Chat = ({
       >
         {messages.length > 0 && (
           <Box>
-            {messages.map((message, index) => (
-              <MessageItem
-                key={message.id}
-                message={message}
-                isLastMessage={index === messages.length - 1}
-                isLastAssistantMessage={
-                  message.role === 'assistant' &&
-                  index === lastAssistantMessageIndex
-                }
-                isFirstConversationMessage={isFirstConversationMessage}
-                streamingMessageHeight={streamingMessageHeight}
-                status={status}
-                conversationId={conversationId}
-                isSourceOpen={isSourceOpen}
-                isMobile={isMobile}
-                onCopyToClipboard={copyToClipboard}
-                onOpenSources={openSources}
-                getMetadata={getMetadata}
-              />
-            ))}
+            {messages.map((message, index) => {
+              // Hide the real assistant response while the prank is still streaming
+              const hideAssistant =
+                aprilFools.isActive &&
+                message.role === 'assistant' &&
+                index === messages.length - 1;
+
+              return (
+                <React.Fragment key={message.id}>
+                  {hideAssistant ? null : (
+                    <MessageItem
+                      message={message}
+                      isLastMessage={index === messages.length - 1}
+                      isLastAssistantMessage={
+                        message.role === 'assistant' &&
+                        index === lastAssistantMessageIndex
+                      }
+                      isFirstConversationMessage={isFirstConversationMessage}
+                      streamingMessageHeight={streamingMessageHeight}
+                      status={status}
+                      conversationId={conversationId}
+                      isSourceOpen={isSourceOpen}
+                      isMobile={isMobile}
+                      onCopyToClipboard={copyToClipboard}
+                      onOpenSources={openSources}
+                      getMetadata={getMetadata}
+                    />
+                  )}
+                  {/* Inject the prank right after the last user message */}
+                  {aprilFools.isActive &&
+                    message.role === 'user' &&
+                    (index === messages.length - 1 ||
+                      index === messages.length - 2) && (
+                      <Box
+                        $direction="column"
+                        $width="100%"
+                        $maxWidth="750px"
+                        $margin={{ all: 'auto', top: 'base', bottom: '0' }}
+                        $padding={{ left: '13px', bottom: 'md' }}
+                      >
+                        <Text
+                          $variation="600"
+                          $size="md"
+                          $css="white-space: pre-wrap;"
+                        >
+                          {aprilFools.displayedText}
+                        </Text>
+                      </Box>
+                    )}
+                </React.Fragment>
+              );
+            })}
           </Box>
         )}
-        {(status !== 'ready' && status !== 'streaming' && status !== 'error') ||
-        isUploadingFiles ? (
+        {!aprilFools.isActive &&
+        ((status !== 'ready' && status !== 'streaming' && status !== 'error') ||
+          isUploadingFiles) ? (
           <Box
             $direction="row"
             $align="start"
