@@ -7,8 +7,7 @@ test.describe('Header', () => {
     await page.goto('/');
 
     const header = page.locator('header').first();
-
-    await expect(header.getByLabel('Assistant Logo')).toBeVisible();
+    await expect(header).toBeVisible();
 
     await expect(
       header.getByRole('button', {
@@ -28,8 +27,7 @@ test.describe('Header', () => {
     await page.goto('/');
 
     const header = page.locator('header').first();
-
-    await expect(header.getByLabel('Assistant Logo')).toBeVisible();
+    await expect(header).toBeVisible();
 
     await expect(
       header.getByRole('button', {
@@ -91,7 +89,7 @@ test.describe('Header mobile', () => {
 
     await expect(header.getByLabel('Open the menu')).toBeVisible();
     await expect(
-      header.getByRole('link', { name: 'Assistant Logo' }),
+      header.getByRole('button', { name: 'New chat' }),
     ).toBeVisible();
   });
 });

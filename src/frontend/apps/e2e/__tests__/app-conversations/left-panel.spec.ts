@@ -10,7 +10,7 @@ const createProject = async (page: Page, projectName: string) => {
   await createModal
     .getByRole('textbox', { name: 'Project name' })
     .fill(projectName);
-  await createModal.getByRole('button', { name: 'New project' }).click();
+  await createModal.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByText('The project has been created.')).toBeVisible();
 };
 

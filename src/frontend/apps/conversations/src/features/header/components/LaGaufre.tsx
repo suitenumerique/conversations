@@ -86,7 +86,8 @@ export const LaGaufre = () => {
                 backgroundColor: '#fff',
                 background:
                   'linear-gradient(#f1f2fd, rgba(255, 255, 255, 1) 20.54%, #FFF 0%',
-                headerLogo: '/assets/lasuite.svg',
+                headerLogo:
+                  'https://lasuite.numerique.gouv.fr/assets/lasuite.svg',
                 headerUrl: 'https://lasuite.numerique.gouv.fr',
                 loadingText: 'Chargement…',
                 newWindowLabelSuffix: ' (nouvelle fenêtre)',

@@ -42,7 +42,7 @@ export const LeftPanelHeaderActions = ({
       <LeftPanelMenuItem
         icon={
           <Box $css={iconWrapperCss} $display="flex" $align="center">
-            <NewChatIcon aria-hidden />
+            <NewChatIcon width="24" height="24" aria-hidden />
           </Box>
         }
         label={t('New chat')}

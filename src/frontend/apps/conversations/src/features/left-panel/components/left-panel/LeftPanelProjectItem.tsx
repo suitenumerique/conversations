@@ -4,10 +4,12 @@ import { memo, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
+import NewChatIcon from '@/assets/icons/new-message-bold.svg';
 import { Box, Icon, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { usePendingChatStore } from '@/features/chat/stores/usePendingChatStore';
 import { ChatProject } from '@/features/chat/types';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { ConversationItemActions } from '@/features/left-panel/components/ConversationItemActions';
 import { ConversationRow } from '@/features/left-panel/components/ConversationRow';
 import { ProjectItemActions } from '@/features/left-panel/components/projects/ProjectItemActions';
@@ -15,6 +17,8 @@ import {
   PROJECT_COLORS,
   PROJECT_ICONS,
 } from '@/features/left-panel/components/projects/project-constants';
+import { useResponsiveStore } from '@/stores';
+
 type LeftPanelProjectItemProps = {
   project: ChatProject;
   currentConversationId?: string;
@@ -39,16 +43,40 @@ const headerStyles = css`
       opacity: 1;
     }
   }
+
+  @media (width <= 768px) {
+    &[data-project-open='true'] {
+      .pinned-actions {
+        opacity: 1;
+      }
+    }
+  }
 `;
 
 const conversationListStyles = css`
+  margin-top: 2px;
   overflow: hidden;
 `;
 
 const titleTextStyles = css`
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: initial;
+  display: -webkit-box;
+  line-clamp: 1;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+`;
+
+const titleStyles = css`
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: initial;
+  display: -webkit-box;
+  line-clamp: 1;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  padding-left: 24px;
 `;
 
 export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
@@ -60,6 +88,8 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
   const router = useRouter();
   const pendingProjectId = usePendingChatStore((s) => s.projectId);
   const setProjectId = usePendingChatStore((s) => s.setProjectId);
+  const { isDesktop } = useResponsiveStore();
+  const { setPanelOpen } = useChatPreferencesStore();
 
   const [isOpen, setIsOpen] = useState(false);
 
@@ -87,7 +117,10 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
   const handleNewConversation = useCallback(() => {
     setProjectId(project.id);
     void router.push('/chat/');
-  }, [router, project.id, setProjectId]);
+    if (!isDesktop) {
+      setPanelOpen(false);
+    }
+  }, [router, project.id, setProjectId, isDesktop, setPanelOpen]);
 
   return (
     <Box>
@@ -99,6 +132,7 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
         $gap="2px"
         $justify="space-between"
         $css={headerStyles}
+        data-project-open={isOpen ? 'true' : 'false'}
       >
         <Box
           $direction="row"
@@ -118,10 +152,15 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
           }}
         >
           <Icon
-            iconName={isOpen ? 'keyboard_arrow_down' : 'keyboard_arrow_right'}
-            $theme="greyscale"
-            $variation="600"
+            iconName={
+              isOpen && project.conversations.length > 0
+                ? 'keyboard_arrow_down'
+                : 'keyboard_arrow_right'
+            }
+            $theme="neutral"
+            $variation="tertiary"
             $size="18px"
+            $css={`opacity: ${project.conversations.length === 0 ? '0' : '1'};`}
           />
 
           <Box
@@ -141,7 +180,7 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
           <Text
             $size="sm"
             $variation="primary"
-            $weight="500"
+            $weight={isOpen ? '700' : '500'}
             $css={titleTextStyles}
           >
             {project.title}
@@ -151,32 +190,24 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
         <div
           className="pinned-actions"
           role="presentation"
-          style={{ display: 'flex', alignItems: 'center', gap: 0 }}
+          style={{ display: 'flex', alignItems: 'center', gap: '2px' }}
         >
           <ProjectItemActions project={project} />
           <Button
             aria-label={t('New conversation in project')}
             onClick={handleNewConversation}
-            color="info"
-            variant="bordered"
+            color="brand"
+            variant="tertiary"
             size="nano"
-            icon={<Icon iconName="add" $size="18px" $theme="primary" />}
+            icon={<NewChatIcon width="16" height="16" />}
           />
         </div>
       </Box>
 
       {/* Conversations list */}
       {isOpen && (
-        <Box $padding={{ left: '28px' }} $css={conversationListStyles}>
-          {project.conversations.length === 0 ? (
-            <Text
-              $size="xs"
-              $variation="tertiary"
-              $padding={{ horizontal: 'xs', vertical: '4px' }}
-            >
-              {t('No conversations')}
-            </Text>
-          ) : (
+        <Box $padding={{ left: '0px' }} $css={conversationListStyles}>
+          {project.conversations.length > 0 &&
             project.conversations.map((conv) => (
               <ConversationRow
                 key={conv.id}
@@ -184,12 +215,16 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
                 isActive={conv.id === currentConversationId}
                 actions={<ConversationItemActions conversation={conv} />}
               >
-                <Text $size="sm" $variation="primary" $weight="400">
+                <Text
+                  $css={titleStyles}
+                  $size="sm"
+                  $variation="primary"
+                  $weight="400"
+                >
                   {conv.title || t('Untitled conversation')}
                 </Text>
               </ConversationRow>
-            ))
-          )}
+            ))}
         </Box>
       )}
     </Box>

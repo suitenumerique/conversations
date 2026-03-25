@@ -61,7 +61,7 @@ export const ModalRenameConversation = ({
         <>
           <Button
             aria-label={t('Close the modal')}
-            color="brand"
+            color="neutral"
             variant="bordered"
             onClick={() => onClose()}
           >
@@ -96,11 +96,12 @@ export const ModalRenameConversation = ({
           onSubmit={handleSubmit}
           id="rename-chat-form"
           data-testid="rename-chat-form"
-          className="mt-s"
+          className="mt-base"
         >
           <Input
+            className="inputName__text"
             type="text"
-            label={t('New name')}
+            placeholder={t('New name')}
             maxLength={100}
             value={newName}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => {

@@ -44,26 +44,27 @@ export const ModalRemoveProject = ({
       rightActions={
         <>
           <Button
+            aria-label={t('Close the modal')}
+            color="neutral"
+            variant="bordered"
+            fullWidth
+            onClick={() => onClose()}
+          >
+            {t('Cancel')}
+          </Button>
+          <Button
             aria-label={t('Confirm deletion')}
             color="error"
-            variant="bordered"
-            disabled={isRemoving}
+            variant="primary"
             fullWidth
+            disabled={isRemoving}
             onClick={() =>
               removeProject({
                 projectId: project.id,
               })
             }
           >
-            {t('Delete anyway')}
-          </Button>
-          <Button
-            aria-label={t('Close the modal')}
-            color="brand"
-            fullWidth
-            onClick={() => onClose()}
-          >
-            {t('Cancel')}
+            {t('Delete')}
           </Button>
         </>
       }

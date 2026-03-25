@@ -68,11 +68,11 @@ export const LeftPanel = () => {
               z-index: 1000;
               overflow: hidden;
               width: ${isPanelOpen ? '100%' : '200px'};
-              height: calc(100dvh - 52px);
+              width: 100vw;
               border-right: 1px solid
                 var(--c--contextuals--border--surface-primary);
-              position: fixed;
-              top: 52px;
+              position: absolute;
+              top: 0px;
               left: ${isPanelOpen ? '0' : '-300px'};
               background-color: var(
                 --c--contextuals--background--surface--secondary
@@ -83,43 +83,43 @@ export const LeftPanel = () => {
             <Box
               data-testid="left-panel-mobile"
               $css={css`
+                display: ${isPanelOpen ? 'flex' : 'none'};
+                flex-direction: column;
                 width: 100%;
+                height: 100vh;
                 justify-content: center;
                 align-items: center;
-                gap: ${spacingsTokens['base']};
               `}
             >
               <LeftPanelHeader />
               <LeftPanelContent />
-              <SeparatedSection showSeparator={false}>
+              <SeparatedSection showSeparator={false}></SeparatedSection>
+              <Box
+                $css={css`
+                  display: flex;
+                  bottom: 0;
+                  height: 52px;
+                  width: 100%;
+                  gap: ${spacingsTokens['base']};
+                  border-top: 1px solid
+                    var(--c--contextuals--border--surface--primary);
+                `}
+                $justify="space-between"
+                $align="center"
+                $direction="row"
+                $padding={{ horizontal: 'sm' }}
+                $gap={spacingsTokens['sm']}
+              >
+                <ButtonLogin />
                 <Box
-                  $css={css`
-                    display: flex;
-                    position: absolute;
-                    bottom: 0;
-                    height: 52px;
-                    width: 100%;
-                    gap: ${spacingsTokens['base']};
-                    border-top: 1px solid
-                      var(--c--contextuals--border--surface--primary);
-                  `}
-                  $justify="space-between"
-                  $align="center"
                   $direction="row"
-                  $padding={{ horizontal: 'sm' }}
                   $gap={spacingsTokens['sm']}
+                  $align="center"
                 >
-                  <ButtonLogin />
-                  <Box
-                    $direction="row"
-                    $gap={spacingsTokens['sm']}
-                    $align="center"
-                  >
-                    <LanguagePicker />
-                    <SettingsButton />
-                  </Box>
+                  <LanguagePicker />
+                  <SettingsButton />
                 </Box>
-              </SeparatedSection>
+              </Box>
             </Box>
           </Box>
         </>

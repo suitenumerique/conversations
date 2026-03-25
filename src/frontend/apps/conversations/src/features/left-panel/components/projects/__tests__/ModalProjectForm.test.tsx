@@ -84,7 +84,7 @@ describe('ModalProjectForm', () => {
       screen.getByRole('textbox', { name: 'Project name' }),
       'Test',
     );
-    await user.click(screen.getByRole('button', { name: 'New project' }));
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
 
     await waitFor(() => expect(fetchMock.called()).toBe(true));
 
@@ -130,7 +130,9 @@ describe('ModalProjectForm', () => {
     const user = userEvent.setup();
     renderWithProviders(<ModalProjectForm onClose={mockOnClose} />);
 
-    const submitButton = screen.getByRole('button', { name: 'New project' });
+    const submitButton = screen.getByRole('button', {
+      name: 'Create project',
+    });
 
     // Initially disabled (empty name)
     expect(submitButton).toBeDisabled();
@@ -165,7 +167,7 @@ describe('ModalProjectForm', () => {
       screen.getByRole('textbox', { name: 'Project name' }),
       'Test',
     );
-    await user.click(screen.getByRole('button', { name: 'New project' }));
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
 
     await waitFor(() => {
       expect(mockShowToast).toHaveBeenCalledWith(
@@ -191,7 +193,7 @@ describe('ModalProjectForm', () => {
       screen.getByRole('textbox', { name: 'Project name' }),
       'Duplicate',
     );
-    await user.click(screen.getByRole('button', { name: 'New project' }));
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
 
     await waitFor(() => {
       expect(mockShowToast).toHaveBeenCalledWith(
@@ -216,7 +218,7 @@ describe('ModalProjectForm', () => {
       screen.getByRole('textbox', { name: 'Project name' }),
       'Test',
     );
-    await user.click(screen.getByRole('button', { name: 'New project' }));
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
 
     await waitFor(() => {
       expect(mockShowToast).toHaveBeenCalledWith(
