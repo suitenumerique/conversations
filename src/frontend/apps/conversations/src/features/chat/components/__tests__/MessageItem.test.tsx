@@ -413,7 +413,7 @@ describe('MessageItem', () => {
         renderWithProviders(<MessageItem {...defaultProps} />);
       });
 
-      expect(screen.getByText('Copy')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
     });
 
     it('does not render copy button while streaming', async () => {
@@ -427,7 +427,9 @@ describe('MessageItem', () => {
         );
       });
 
-      expect(screen.queryByText('Copy')).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Copy' }),
+      ).not.toBeInTheDocument();
     });
 
     it('hides copy text on mobile', async () => {
@@ -453,7 +455,7 @@ describe('MessageItem', () => {
         );
       });
 
-      await user.click(screen.getByText('Copy'));
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
 
       expect(onCopyToClipboard).toHaveBeenCalledWith('Hello world');
     });

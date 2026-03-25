@@ -5,9 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import NewChatIcon from '@/assets/icons/new-message-bold.svg';
-import Logo from '@/assets/logo/logo-assistant.svg';
-import { Box, StyledLink } from '@/components/';
-import { productName } from '@/core';
+import LogoAssistant from '@/assets/logo/logo-beta.svg';
+import { Box } from '@/components/';
 import { useCunninghamTheme } from '@/cunningham';
 import { ButtonLogin } from '@/features/auth';
 import { useChatScroll } from '@/features/chat/hooks';
@@ -24,8 +23,7 @@ import { LaGaufre } from './LaGaufre';
 
 export const Header = () => {
   const { t } = useTranslation();
-  const { spacingsTokens, colorsTokens, componentTokens } =
-    useCunninghamTheme();
+  const { spacingsTokens, componentTokens } = useCunninghamTheme();
   const showLaGaufre =
     (componentTokens as Record<string, unknown>)['la-gaufre'] === true;
   const { isDesktop } = useResponsiveStore();
@@ -61,19 +59,15 @@ export const Header = () => {
         $direction="row"
         $position="relative"
         $height="fit-content"
+        $flex={isDesktop ? undefined : '1'}
+        $justify={isDesktop ? undefined : 'center'}
       >
         {isDesktop && <ButtonToggleLeftPanel />}
-        <StyledLink href="/">
-          <Logo
-            aria-label={t('{{productName}} Logo', { productName })}
-            width={139}
-            color={colorsTokens['logo-1-light']}
-          />
-        </StyledLink>
+        {!isDesktop && <LogoAssistant height="32px" width="auto" />}
         <Box className="c__button--feedback">{isDesktop && <Feedback />}</Box>
       </Box>
       {!isDesktop ? (
-        <Box $direction="row" $gap={spacingsTokens['sm']}>
+        <Box $direction="row" $gap={spacingsTokens['sm']} $align="center">
           <Button
             size="medium"
             onClick={() => {
@@ -84,7 +78,7 @@ export const Header = () => {
             aria-label={t('New chat')}
             color="brand"
             variant="tertiary"
-            icon={<NewChatIcon />}
+            icon={<NewChatIcon height="25px" />}
           />
         </Box>
       ) : (

@@ -43,7 +43,6 @@ export default function HomeBanner() {
         $direction={!isMobile ? 'row' : 'column'}
         $gap="1rem"
         $overflow="auto"
-        $css="flex-basis: 70%;"
       >
         <Box
           $width={!isMobile ? '50%' : '100%'}

@@ -10,7 +10,7 @@ const createProject = async (page: Page, projectName: string) => {
   await createModal
     .getByRole('textbox', { name: 'Project name' })
     .fill(projectName);
-  await createModal.getByRole('button', { name: 'New project' }).click();
+  await createModal.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByText('The project has been created.')).toBeVisible();
 };
 
@@ -115,11 +115,11 @@ test.describe('Projects', () => {
     });
     await projectHeader.click();
 
-    // Should show "No conversations" when expanded
-    await expect(page.getByText('No conversations')).toBeVisible();
+    // Should be expanded after first click
+    await expect(projectHeader).toHaveAttribute('aria-expanded', 'true');
 
     // Click again to collapse
     await projectHeader.click();
-    await expect(page.getByText('No conversations')).toBeHidden();
+    await expect(projectHeader).toHaveAttribute('aria-expanded', 'false');
   });
 });

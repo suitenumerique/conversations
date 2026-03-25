@@ -2,6 +2,7 @@ import { Message, SourceUIPart, ToolInvocationUIPart } from '@ai-sdk/ui-utils';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { Box, Icon, Loader, Text } from '@/components';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
@@ -11,6 +12,8 @@ import {
 } from '@/features/chat/components/MessageBlock';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
+
+import CopyIcon from '../assets/copy.svg';
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
 const BlocksList = React.memo(
@@ -179,7 +182,6 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   status,
   conversationId,
   isSourceOpen,
-  isMobile,
   onCopyToClipboard,
   onOpenSources,
   getMetadata,
@@ -243,29 +245,9 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     onCopyToClipboard(message.content);
   }, [onCopyToClipboard, message.content]);
 
-  const handleCopyKeyDown = React.useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        onCopyToClipboard(message.content);
-      }
-    },
-    [onCopyToClipboard, message.content],
-  );
-
   const handleOpenSources = React.useCallback(() => {
     onOpenSources(message.id);
   }, [onOpenSources, message.id]);
-
-  const handleOpenSourcesKeyDown = React.useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        onOpenSources(message.id);
-      }
-    },
-    [onOpenSources, message.id],
-  );
 
   return (
     <Box
@@ -387,57 +369,41 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 $margin={{ top: 'base' }}
               >
                 <Box $direction="row" $gap="4px">
-                  <Box
-                    $direction="row"
-                    $align="center"
-                    $gap="4px"
-                    className="c__button--neutral action-chat-button"
+                  <Button
+                    size="nano"
+                    color="neutral"
+                    variant="tertiary"
                     onClick={handleCopy}
-                    onKeyDown={handleCopyKeyDown}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <Icon
-                      iconName="content_copy"
-                      $theme="greyscale"
-                      $variation="550"
-                      $size="16px"
-                      className="action-chat-button-icon"
-                    />
-                    {!isMobile && (
-                      <Text $theme="greyscale" $variation="550">
-                        {t('Copy')}
-                      </Text>
-                    )}
-                  </Box>
+                    aria-label={t('Copy')}
+                    icon={<CopyIcon className="action-chat-button-icon" />}
+                    className="c__button--neutral action-chat-button"
+                  ></Button>
                   {sourceParts.length > 0 && (
-                    <Box
-                      $direction="row"
-                      $align="center"
-                      $gap="4px"
-                      className={`c__button--neutral action-chat-button ${isSourceOpen === message.id ? 'action-chat-button--open' : ''}`}
+                    <Button
+                      size="nano"
+                      variant="tertiary"
+                      color="neutral"
                       onClick={handleOpenSources}
-                      onKeyDown={handleOpenSourcesKeyDown}
-                      role="button"
-                      tabIndex={0}
+                      icon={
+                        <Icon
+                          iconName="book"
+                          $theme="neutral"
+                          $variation="550"
+                          $size="16px"
+                          className="action-chat-button-icon"
+                        />
+                      }
+                      className={`c__button--neutral action-chat-button ${
+                        isSourceOpen === message.id
+                          ? 'action-chat-button--open'
+                          : ''
+                      }`}
                     >
-                      <Icon
-                        iconName="book"
-                        $theme="greyscale"
-                        $variation="550"
-                        $size="16px"
-                        className="action-chat-button-icon"
-                      />
-                      <Text
-                        $theme="greyscale"
-                        $variation="550"
-                        $weight="500"
-                        $size="12px"
-                      >
+                      <Text>
                         {t('Show')} {sourceParts.length}{' '}
                         {sourceParts.length !== 1 ? t('sources') : t('source')}
                       </Text>
-                    </Box>
+                    </Button>
                   )}
                 </Box>
                 <Box $direction="row" $gap="4px">

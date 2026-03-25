@@ -15,6 +15,7 @@ type ConversationRowProps = {
 const linkStyles = css`
   overflow: auto;
   flex-grow: 1;
+  flex-shrink: 1;
   color: var(--c--theme--colors--greyscale-900);
 `;
 

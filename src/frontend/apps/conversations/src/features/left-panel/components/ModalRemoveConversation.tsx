@@ -43,7 +43,7 @@ export const ModalRemoveConversation = ({
         <>
           <Button
             aria-label={t('Close the modal')}
-            color="brand"
+            color="neutral"
             variant="bordered"
             fullWidth
             onClick={() => onClose()}
