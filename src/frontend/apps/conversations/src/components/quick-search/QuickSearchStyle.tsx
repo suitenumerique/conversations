@@ -131,7 +131,6 @@ export const QuickSearchStyle = createGlobalStyle`
     .c__modal__title {
       font-size: var(--c--globals--font--sizes--xs);
       padding: var(--c--globals--spacings--sm) var(--c--globals--spacings--base) var(--c--globals--spacings--xs) var(--c--globals--spacings--base);
-      margin-bottom: var(--c--globals--spacings--0);
     }
   }
 `;

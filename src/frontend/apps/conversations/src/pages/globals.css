@@ -60,6 +60,7 @@ nextjs-portal {
 }
 
 .c__modal {
+  border: 1px solid var(--c--contextuals--border--surface--primary);
   box-shadow: 0 6px 18px 0 rgb(0 0 0 / 16%);
 }
 
@@ -95,24 +96,6 @@ nextjs-portal {
   border: none;
 }
 
-.c__button--neutral {
-  transition: background-color 0.4s !important;
-  color: var(--c--theme--colors--greyscale-550) !important;
-  font-weight: 500 !important;
-  cursor: pointer !important;
-  background-color: inherit !important;
-  border: none !important;
-  z-index: 100;
-  font-size: 12px !important;
-  padding: 4px !important;
-  padding-right: 9px !important;
-  border-radius: 4px !important;
-
-  @media (width <= 768px) {
-    padding-right: 4px !important;
-  }
-}
-
 .c__button--neutral.c__button--neutral--icon {
   padding-right: 4px !important;
 }
@@ -136,13 +119,6 @@ nextjs-portal {
     font-size: 19px !important;
   }
 }
-
-/* .c__button--neutral:hover,
-.c__button--neutral:active,
-.action-chat-button--open {
-  background-color: #f2f5f4 !important;
-  border: none !important;
-} */
 
 .c__button--neutral:active {
   background-color: inherit !important;
@@ -263,8 +239,53 @@ ul a:hover {
   }
 }
 
+.labelled-box__children {
+  padding: 6px 8px !important;
+}
+
 .c__button--small {
   padding: 0.2rem !important;
+}
+
+.inputName__text {
+  height: 40px !important;
+}
+
+.c__input__wrapper {
+  padding: 0 !important;
+}
+
+.c__textarea__wrapper,
+.c__textarea__wrapper:hover,
+.c__textarea__wrapper:focus,
+.c__input__wrapper,
+.c__input__wrapper:hover,
+.c__input__wrapper:focus {
+  border-radius: 4px !important;
+}
+
+.c__input__wrapper .labelled-box__children {
+  display: flex;
+  height: 40px !important;
+  padding: 0;
+  align-items: center;
+  gap: var(--xxs, 6px);
+  flex: 1 0 0;
+}
+
+.c__input,
+.c__textarea {
+  line-height: 1.25rem;
+}
+
+.c__textarea {
+  padding: 6px !important;
+}
+
+.c__input::placeholder,
+.c__textarea::placeholder {
+  line-height: 1.25rem;
+  opacity: 1;
 }
 
 .c__button--feedback {

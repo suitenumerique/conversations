@@ -26,7 +26,7 @@ export const LeftPanelProjects = () => {
 
   return (
     <Box
-      $padding={{ horizontal: 'xs' }}
+      $padding={{ horizontal: 'sm' }}
       $margin={{ vertical: 'base' }}
       $gap={spacingsTokens['2xs']}
       data-testid="left-panel-projects"

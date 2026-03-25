@@ -5,6 +5,7 @@ import {
   ModalSize,
   TextArea,
 } from '@gouvfr-lasuite/cunningham-react';
+
 import { useReducer } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
@@ -45,17 +46,21 @@ const formReducer = (state: FormState, action: FormAction): FormState => {
 };
 
 const avatarButtonCss = css`
-  width: 48px;
-  height: 48px;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #ccc;
-  border-radius: 8px;
+  border: 1px solid var(--c--contextuals--border--semantic--neutral--tertiary);
+  border-radius: 4px;
   background-color: transparent;
   cursor: pointer;
   flex-shrink: 0;
   transition: border-color 0.15s ease;
+`;
+
+const inputNameCss = css`
+  height: 38px !important;
 `;
 
 interface ModalProjectFormProps {
@@ -71,7 +76,7 @@ export const ModalProjectForm = ({
   const { showToast } = useToast();
   const { t } = useTranslation();
 
-  const { colorsTokens, spacingsTokens } = useCunninghamTheme();
+  const { colorsTokens } = useCunninghamTheme();
 
   const [form, dispatch] = useReducer(formReducer, {
     name: project?.title ?? '',
@@ -159,7 +164,7 @@ export const ModalProjectForm = ({
           </Button>
           <Button
             aria-label={
-              isEditing ? t('Save project settings') : t('New project')
+              isEditing ? t('Save project settings') : t('Create project')
             }
             color="brand"
             variant="primary"
@@ -167,7 +172,7 @@ export const ModalProjectForm = ({
             form={formId}
             disabled={!form.name.trim() || isPending}
           >
-            {isEditing ? t('Save') : t('New project')}
+            {isEditing ? t('Save') : t('Create project')}
           </Button>
         </>
       }
@@ -199,12 +204,12 @@ export const ModalProjectForm = ({
           data-testid={formId}
           className="mt-s"
         >
-          <Box $gap={spacingsTokens['base']} $direction="column">
-            <Box $direction="column">
-              <Text $size="sm" $variation="600" $weight="500">
-                {t('Project avatar and name')}
+          <Box $direction="column">
+            <Box $direction="column" $gap="8px" $margin={{ bottom: 'base' }}>
+              <Text $size="sm" $theme="neutral" $weight="500">
+                {t('Avatar and name')}
               </Text>
-              <Box $direction="row" $align="center" $gap={spacingsTokens['xs']}>
+              <Box $direction="row" $align="top" $gap="8px" $height="42px">
                 <DropButton
                   button={
                     <Box $css={avatarButtonCss} style={{ color: iconColor }}>
@@ -229,23 +234,45 @@ export const ModalProjectForm = ({
                   />
                 </DropButton>
 
-                <Input
-                  type="text"
-                  label={t('Project name')}
-                  maxLength={100}
-                  value={form.name}
-                  fullWidth={true}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    dispatch({ type: 'SET_NAME', value: e.target.value })
-                  }
-                  required
-                />
+                <Box $width="100%" $height="40px">
+                  <Input
+                    className="inputName__text"
+                    type="text"
+                    aria-label={t('Project name')}
+                    maxLength={100}
+                    value={form.name}
+                    fullWidth
+                    placeholder={t('Project name')}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      dispatch({ type: 'SET_NAME', value: e.target.value })
+                    }
+                    required
+                  />
+                </Box>
               </Box>
             </Box>
 
             <Box $direction="column">
+              <Text
+                $size="sm"
+                $theme="neutral"
+                $weight="500"
+                $margin={{ bottom: 'xs' }}
+              >
+                {t('Instructions (experimental)')}
+              </Text>
+              <Text
+                $size="sm"
+                $theme="neutral"
+                $variation="secondary"
+                $margin={{ bottom: 'xxs' }}
+              >
+                {t(
+                  'Use this field to provide any additional context the Assistant may need. This feature is being tested. It may not work as expected.',
+                )}
+              </Text>
               <TextArea
-                label={t('Instructions (experimental)')}
+                aria-label={t('Instructions (experimental)')}
                 rows={6}
                 maxLength={4000} // cf. backend LLM_INSTRUCTIONS_MAX_LENGTH
                 value={form.instructions}
@@ -256,11 +283,6 @@ export const ModalProjectForm = ({
                   'Example: Be concise and maintain a professional tone.',
                 )}
               />
-              <Text $size="sm" $variation="600">
-                {t(
-                  'Use this field to provide any additional context the Assistant may need. This feature is being tested. It may not work as expected.',
-                )}
-              </Text>
             </Box>
           </Box>
         </form>

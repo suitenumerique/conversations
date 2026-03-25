@@ -5,6 +5,7 @@ import { Box } from '@/components';
 import { useAuth } from '@/features/auth';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { useOwnModal } from '@/features/left-panel/hooks/useModalHook';
+import { usePendingChatStore } from '@/features/chat/stores/usePendingChatStore';
 import { useResponsiveStore } from '@/stores';
 
 import { ModalProjectForm } from '../projects/ModalProjectForm';
@@ -18,6 +19,7 @@ export const LeftPanelHeader = ({ children }: PropsWithChildren) => {
   const { isDesktop } = useResponsiveStore();
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const createProjectModal = useOwnModal();
+  const setProjectId = usePendingChatStore((s) => s.setProjectId);
 
   const { setPanelOpen } = useChatPreferencesStore();
 
@@ -33,6 +35,7 @@ export const LeftPanelHeader = ({ children }: PropsWithChildren) => {
   }, []);
 
   const goToHome = () => {
+    setProjectId(null);
     void router.push('/');
     if (!isDesktop) {
       setPanelOpen(false);

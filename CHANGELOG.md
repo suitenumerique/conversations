@@ -20,6 +20,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(back) add missing color option for project colors
+- 💄(project) ui fix project
 
 ## [0.0.14] - 2026-03-11
 

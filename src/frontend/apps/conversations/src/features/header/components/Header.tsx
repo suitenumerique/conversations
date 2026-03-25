@@ -84,7 +84,7 @@ export const Header = () => {
             aria-label={t('New chat')}
             color="brand"
             variant="tertiary"
-            icon={<NewChatIcon />}
+            icon={<NewChatIcon height="25px" />}
           />
         </Box>
       ) : (
