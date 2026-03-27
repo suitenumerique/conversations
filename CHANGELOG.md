@@ -12,6 +12,7 @@ and this project adheres to
 
 - ✨(back) add projects with custom LLM instructions
 - ✨(front) projects management UI
+- ✅(e2e) add dedicated e2e tests for file paste in chat input
 
 ### Changed
 
