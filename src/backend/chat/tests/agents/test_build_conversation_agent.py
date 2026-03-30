@@ -2,6 +2,8 @@
 
 # pylint:disable=protected-access
 
+import logging
+
 import pytest
 from freezegun import freeze_time
 from pydantic_ai import Agent
@@ -112,3 +114,36 @@ def test_agent_is_web_search_configured_when_defined_in_model_config(settings):
     }
     agent = ConversationAgent(model_hrid="default-model")
     assert agent.is_web_search_configured() is True
+
+
+@freeze_time("2025-07-25T10:36:35.297675Z")
+@pytest.mark.parametrize(
+    "legacy_tool",
+    [
+        "web_search_brave",
+        "web_search_brave_with_document_backend",
+        "web_search_tavily",
+        "web_search_albert_rag",
+    ],
+)
+def test_build_pydantic_agent_with_legacy_tools(settings, caplog, legacy_tool):
+    """Test successful agent creation when obsolete tools are used."""
+    settings.AI_AGENT_TOOLS = [legacy_tool]
+    with caplog.at_level(logging.WARNING, logger="chat.llm_configuration"):
+        agent = ConversationAgent(model_hrid="default-model")
+    assert "Ignoring legacy tool(s)" in caplog.text
+    assert isinstance(agent, Agent)
+
+    instructions = agent._instructions
+    assert len(instructions) == 3
+    assert instructions[0] == "You are a helpful assistant"
+    assert instructions[1].__name__ == "add_the_date"
+    assert instructions[1]() == "Today is Friday 25/07/2025."
+    assert instructions[2].__name__ == "enforce_response_language"
+    assert instructions[2]() == ""
+
+    assert isinstance(agent.model, OpenAIChatModel)
+    assert agent.model.model_name == "model-123"
+    assert str(agent.model.client.base_url) == "https://api.llm.com/v1/"
+    assert agent.model.client.api_key == "test-key"
+    assert not list(agent._function_toolset.tools.keys())

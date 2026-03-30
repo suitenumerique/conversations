@@ -1,5 +1,6 @@
 """Module for managing LLM configurations from a JSON configuration file."""
 
+import logging
 import os
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Optional, Self, Sequence
@@ -14,6 +15,21 @@ from pydantic import (
     model_validator,
 )
 from pydantic_ai.profiles import JsonSchemaTransformer
+
+logger = logging.getLogger(__name__)
+
+# Legacy tool names that were moved to the `web_search` setting.
+# Kept here for backward compatibility: old configs that still list them
+# under `tools` won't break - the values are stripped and a warning is logged
+# so admins know to update their configuration.
+LEGACY_TOOL_NAMES = frozenset(
+    {
+        "web_search_brave",
+        "web_search_brave_with_document_backend",
+        "web_search_tavily",
+        "web_search_albert_rag",
+    }
+)
 
 
 def _get_setting_or_env_or_value(value: str) -> Any:
@@ -132,7 +148,18 @@ class LLModel(BaseModel):
     def validate_tools(cls, value: list[str] | str) -> list[str]:
         """Convert the tools if it's a setting or environment variable."""
         if isinstance(value, str):
-            return _get_setting_or_env_or_value(value)
+            value = _get_setting_or_env_or_value(value)
+
+        # Strip legacy tool names that are now handled by `web_search`
+        legacy_found = LEGACY_TOOL_NAMES.intersection(value)
+        if legacy_found:
+            logger.warning(
+                "Ignoring legacy tool(s) %s in model configuration. "
+                "Use the 'web_search' setting instead.",
+                ", ".join(sorted(legacy_found)),
+            )
+            value = [t for t in value if t not in LEGACY_TOOL_NAMES]
+
         return value
 
     @field_validator("web_search", mode="before")
