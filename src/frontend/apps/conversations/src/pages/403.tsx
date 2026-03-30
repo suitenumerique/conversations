@@ -1,4 +1,5 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import Head from 'next/head';
 import Image from 'next/image';
 import { ReactElement } from 'react';
@@ -6,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 
 import img403 from '@/assets/icons/icon-403.png';
-import { Box, Icon, StyledLink, Text } from '@/components';
+import { Box, StyledLink, Text } from '@/components';
 import { productName } from '@/core';
 import { PageLayout } from '@/layouts';
 import { NextPageWithLayout } from '@/types/next';
@@ -52,7 +53,7 @@ const Page: NextPageWithLayout = () => {
           </Text>
 
           <StyledLink href="/">
-            <StyledButton icon={<Icon iconName="house" $color="white" />}>
+            <StyledButton icon={<Icon name="house" color="white" />}>
               {t('Home')}
             </StyledButton>
           </StyledLink>

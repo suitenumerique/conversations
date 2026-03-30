@@ -1,5 +1,6 @@
+import { Icon } from '@gouvfr-lasuite/ui-kit';
+
 import { Box } from './Box';
-import { Icon } from './Icon';
 
 interface ToggleSwitchProps {
   checked: boolean;
@@ -58,12 +59,9 @@ export const ToggleSwitch = ({
             justify-content: center;
           `}
         >
-          <Icon
-            iconName={checked ? 'check' : ''}
-            $size="12px"
-            $theme="brand"
-            $variation="tertiary"
-          />
+          {checked && (
+            <Icon name="check" size={12} color="tertiary" />
+          )}
         </Box>
       </Box>
     </Box>

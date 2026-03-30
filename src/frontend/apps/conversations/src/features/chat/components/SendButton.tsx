@@ -1,7 +1,8 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import { useTranslation } from 'react-i18next';
 
-import { Icon, Text } from '@/components';
+import { Text } from '@/components';
 
 // Component SVG pour l'icône stop
 const StopIcon = () => (
@@ -43,7 +44,7 @@ export const SendButton = ({
           aria-label={t('Send')}
           disabled={disabled || status === 'error'}
           variant="primary"
-          icon={<Icon $theme="primary-text" iconName="arrow_upward" />}
+          icon={<Icon color="primary-text" name="arrow_upward" />}
         />
       ) : (
         <Button

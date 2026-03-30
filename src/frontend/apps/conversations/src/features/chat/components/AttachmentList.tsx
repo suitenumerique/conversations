@@ -1,7 +1,8 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Icon, Text } from '@/components';
+import { Box, Text } from '@/components';
 
 // Define Attachment type locally (mirroring backend structure)
 export interface Attachment {
@@ -120,7 +121,7 @@ export const AttachmentList = ({
                     }
                   }}
                 >
-                  <Icon iconName="close" $size="18px" />
+                  <Icon name="close" size={18} />
                 </Button>
               )}
             </Box>

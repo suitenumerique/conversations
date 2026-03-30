@@ -1,7 +1,8 @@
 import { PropsWithChildren, useEffect, useRef, useState } from 'react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import { css } from 'styled-components';
 
-import { Box, BoxButton, BoxProps, DropButton, Icon, Text } from '@/components';
+import { Box, BoxButton, BoxProps, DropButton, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 
 export type DropdownMenuOption = {
@@ -78,7 +79,7 @@ export const DropdownMenu = ({
                   --c--contextuals--content--semantic--brand--tertiary
                 );
               `}
-              iconName={isOpen ? 'arrow_drop_up' : 'arrow_drop_down'}
+              name={isOpen ? 'arrow_drop_up' : 'arrow_drop_down'}
             />
           </Box>
         ) : (
@@ -172,10 +173,9 @@ export const DropdownMenu = ({
               >
                 {option.icon && (
                   <Icon
-                    $size="20px"
-                    $theme="neutral"
-                    $variation={isDisabled ? 'tertiary' : 'primary'}
-                    iconName={option.icon}
+                    size={20}
+                    color={isDisabled ? 'tertiary' : 'primary'}
+                    name={option.icon}
                     aria-hidden="true"
                   />
                 )}
@@ -184,7 +184,7 @@ export const DropdownMenu = ({
                 </Text>
               </Box>
               {option.isSelected && (
-                <Icon iconName="check" $size="20px" aria-hidden="true" />
+                <Icon name="check" size={20} aria-hidden="true" />
               )}
             </BoxButton>
           );

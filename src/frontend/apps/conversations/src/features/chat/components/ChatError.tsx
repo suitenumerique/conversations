@@ -1,8 +1,9 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Icon, Text } from '@/components';
+import { Box, Text } from '@/components';
 
 interface ChatErrorProps {
   hasLastSubmission: boolean;
@@ -62,7 +63,7 @@ export const ChatError = ({ hasLastSubmission, onRetry }: ChatErrorProps) => {
             onClick={() => {
               void router.push('/');
             }}
-            icon={<Icon iconName="add" $color="greyscale" />}
+            icon={<Icon name="add" color="greyscale" />}
           >
             {t('Start a new conversation')}
           </Button>

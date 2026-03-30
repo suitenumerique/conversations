@@ -1,8 +1,9 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import { BoxButton, Icon } from '@/components';
+import { BoxButton } from '@/components';
 import { useResponsiveStore } from '@/stores';
 
 import ProConnectImg from '../assets/button-proconnect.svg';
@@ -33,7 +34,7 @@ export const ButtonLogin = () => {
       onClick={gotoLogout}
       color="brand"
       variant="tertiary"
-      icon={!isDesktop ? <Icon iconName="logout" $theme="primary" /> : ''}
+      icon={!isDesktop ? <Icon name="logout" color="primary" /> : ''}
       aria-label={t('Logout')}
       className="--docs--button-logout"
     >

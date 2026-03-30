@@ -2,8 +2,9 @@ import { Button } from '@gouvfr-lasuite/cunningham-react';
 import Image from 'next/image';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 
-import { Box, Icon, Text } from '@/components';
+import { Box, Text } from '@/components';
 import {
   LLMModel,
   useLLMConfiguration,
@@ -115,10 +116,9 @@ export const ModelSelector = ({
           }
         >
           <Icon
-            iconName={isOpen ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
-            $theme="greyscale"
-            $variation="600"
-            $size="18px"
+            name={isOpen ? 'chevron-right' : 'chevron-down'}
+            color="var(--c--contextuals--content--semantic--neutral--tertiary)"
+            size={18}
           />
         </Button>
       </Box>

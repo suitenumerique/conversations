@@ -3,9 +3,10 @@ import { useRouter } from 'next/router';
 import { memo, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 
 import NewChatIcon from '@/assets/icons/new-message-bold.svg';
-import { Box, Icon, Text } from '@/components';
+import { Box, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { usePendingChatStore } from '@/features/chat/stores/usePendingChatStore';
 import { ChatProject } from '@/features/chat/types';
@@ -152,15 +153,16 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
           }}
         >
           <Icon
-            iconName={
+            name={
               isOpen && project.conversations.length > 0
-                ? 'keyboard_arrow_down'
-                : 'keyboard_arrow_right'
+                ? 'chevron-forward'
+                : 'chevron-updown'
             }
-            $theme="neutral"
-            $variation="tertiary"
-            $size="18px"
-            $css={`opacity: ${project.conversations.length === 0 ? '0' : '1'};`}
+            color="var(--c--contextuals--content--semantic--neutral--tertiary)"
+            size={18}
+            style={{
+              opacity: project.conversations.length === 0 ? 0 : 1,
+            }}
           />
 
           <Box

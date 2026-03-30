@@ -1,7 +1,7 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import { useTranslation } from 'react-i18next';
 
-import { Icon } from '@/components/';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 
 export const ButtonTogglePanel = () => {
@@ -15,7 +15,7 @@ export const ButtonTogglePanel = () => {
       aria-label={isPanelOpen ? t('Close the menu') : t('Open the menu')}
       color="brand"
       variant="tertiary"
-      icon={<Icon $theme="default" iconName={isPanelOpen ? 'close' : 'menu'} />}
+      icon={<Icon color="default" name={isPanelOpen ? 'close' : 'menu'} />}
       className="mobile-no-focus"
     />
   );

@@ -1,8 +1,9 @@
 import { useRef } from 'react';
 import type { ReactNode } from 'react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Icon, Text } from '@/components';
+import { Box, Text } from '@/components';
 import { useClipboard } from '@/hook';
 
 interface CopyCodeButtonProps {
@@ -43,10 +44,9 @@ const CopyCodeButton = ({ onCopy }: CopyCodeButtonProps) => {
       `}
     >
       <Icon
-        iconName="content_copy"
-        $size="14px"
-        $theme="greyscale"
-        $variation="200"
+        name="content_copy"
+        size={14}
+        color="200"
       />
       <Text $size="xs" $theme="greyscale" $variation="200">
         {t('Copy code')}

@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
+import { Icon, IconSize } from '@gouvfr-lasuite/ui-kit';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import { Box, DropdownMenu, Icon } from '@/components/';
+import { Box, DropdownMenu } from '@/components/';
 import { useConfig } from '@/core';
 import { useAuthQuery } from '@/features/auth';
 import {
@@ -65,7 +66,7 @@ export const LanguagePicker = () => {
         $theme="brand"
         $variation="tertiary"
       >
-        <Icon iconName="translate" $color="inherit" $size="xl" />
+        <Icon name="translate" color="inherit" size={IconSize.X_LARGE} />
         {currentLanguageLabel}
       </Box>
     </DropdownMenu>

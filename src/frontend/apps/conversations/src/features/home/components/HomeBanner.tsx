@@ -1,10 +1,11 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import _Image from 'next/image';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import IconAssistant from '@/assets/logo/logo-beta.svg';
-import { Box, Icon, Text } from '@/components';
+import { Box, Text } from '@/components';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
 import { gotoLogin } from '@/features/auth';
@@ -89,7 +90,7 @@ export default function HomeBanner() {
             ) : (
               <Button
                 onClick={() => gotoLogin()}
-                icon={<Icon iconName="bolt" $color="white" />}
+                icon={<Icon name="bolt" color="white" />}
               >
                 {t('Start conversation')}
               </Button>

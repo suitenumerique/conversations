@@ -1,7 +1,8 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
 import React, { useEffect, useState } from 'react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 
-import { Box, Icon } from '@/components';
+import { Box } from '@/components';
 
 interface ScrollDownProps {
   onClick: () => void;
@@ -51,7 +52,7 @@ export const ScrollDown: React.FC<ScrollDownProps> = ({
         color="brand"
         variant="bordered"
         onClick={onClick}
-        icon={<Icon $theme="inherit" iconName="arrow_downward" />}
+        icon={<Icon color="inherit" name="arrow_downward" />}
       />
     </Box>
   );

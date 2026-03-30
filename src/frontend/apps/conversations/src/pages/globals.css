@@ -1,5 +1,5 @@
 @import url('../cunningham/cunningham-style.css');
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined');
+@import "@fontsource/material-icons";
 
 body {
   margin: 0;

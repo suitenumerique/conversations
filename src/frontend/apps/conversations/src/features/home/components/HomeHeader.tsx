@@ -7,8 +7,8 @@ import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
 import { ButtonLogin } from '@/features/auth';
 import { Feedback } from '@/features/feedback/Feedback';
-import { ButtonTogglePanel, Title as _Title } from '@/features/header/';
 import { LaGaufre } from '@/features/header/components/LaGaufre';
+import { ButtonTogglePanel } from '@/features/header/components/ButtonTogglePanel';
 import { LanguagePicker } from '@/features/language';
 import { useResponsiveStore } from '@/stores';
 

@@ -1,8 +1,9 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Icon, IconSize } from '@gouvfr-lasuite/ui-kit';
 
-import { Box, Icon, Text } from '@/components';
+import { Box, Text } from '@/components';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 
 import { ModelSelector } from './ModelSelector';
@@ -119,7 +120,7 @@ export const InputChatActions = memo(
       [forceWebSearch],
     );
 
-    const attachIconSize = isMobile ? '24px' : '16px';
+    const attachIconSize = isMobile ? 24 : 16;
 
     return (
       <Box
@@ -147,7 +148,7 @@ export const InputChatActions = memo(
             disabled={!fileUploadEnabled || isUploadingFiles}
             onClick={onAttachClick}
             aria-label={t('Add attach file')}
-            icon={<Icon iconName="attach_file" $size={attachIconSize} />}
+            icon={<Icon name="attach_file" size={attachIconSize} />}
           >
             {!isMobile && <Text $weight="500">{t('Attach file')}</Text>}
           </Button>
@@ -162,7 +163,7 @@ export const InputChatActions = memo(
                 onClick={onWebSearchToggle}
                 aria-label={t('Research on the web')}
                 className="c__button--neutral research-web-button"
-                icon={<Icon iconName="language" $css={webSearchIconCss} />}
+                icon={<Icon name="language" $css={webSearchIconCss} />}
               >
                 {!isMobile && (
                   <Text
@@ -188,10 +189,9 @@ export const InputChatActions = memo(
                       {t('Web')}
                     </Text>
                     <Icon
-                      iconName="close"
-                      $theme="brand"
-                      $variation="secondary"
-                      $size="md"
+                      name="close"
+                      color="secondary"
+                      size={IconSize.MEDIUM}
                       $css={CLOSE_ICON_CSS}
                     />
                   </Box>

@@ -1,9 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 
 import NewChatIcon from '@/assets/icons/new-message-bold.svg';
 import FolderPlusIcon from '@/assets/icons/uikit-custom/folder-plus.svg';
-import { Box, Icon } from '@/components';
+import { Box } from '@/components';
 
 import { LeftPanelMenuItem } from './LeftPanelMenuItem';
 
@@ -52,7 +53,7 @@ export const LeftPanelHeaderActions = ({
       <LeftPanelMenuItem
         icon={
           <Box $css={iconWrapperCss} $display="flex" $align="center">
-            <Icon iconName="search" aria-hidden />
+            <Icon name="search" aria-hidden />
           </Box>
         }
         label={t('Search for a chat')}

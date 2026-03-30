@@ -1,4 +1,5 @@
 import { Loader } from '@gouvfr-lasuite/cunningham-react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import { Command } from 'cmdk';
 import { ReactNode, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +8,6 @@ import { HorizontalSeparator } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 
 import { Box } from '../Box';
-import { Icon } from '../Icon';
 
 type Props = {
   loading?: boolean;
@@ -60,12 +60,7 @@ export const QuickSearchInput = ({
             <Loader size="small" />
           </div>
         ) : (
-          <Icon
-            iconName="search"
-            $theme="neutral"
-            $variation="secondary"
-            aria-hidden="true"
-          />
+          <Icon name="search" color="secondary" aria-hidden="true" />
         )}
         <Command.Input
           ref={inputRef}

@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import { DropdownMenu, DropdownMenuOption, Icon } from '@/components';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
+import { DropdownMenu, DropdownMenuOption } from '@/components';
 import { ChatProject } from '@/features/chat/types';
 import { useOwnModal } from '@/features/left-panel/hooks/useModalHook';
 
@@ -73,9 +74,8 @@ export const ProjectItemActions = ({ project }: ProjectItemActionsProps) => {
       >
         <Icon
           data-testid={`project-item-actions-button-${project.id}`}
-          iconName="more_horiz"
-          $theme="brand"
-          $variation="tertiary"
+          name="more_horiz"
+          color="var(--c--globals--colors--brand-550)"
         />
       </DropdownMenu>
 

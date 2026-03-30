@@ -1,9 +1,10 @@
 import { Message, SourceUIPart, ToolInvocationUIPart } from '@ai-sdk/ui-utils';
 import React from 'react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import { Box, Icon, Loader, Text } from '@/components';
+import { Box, Loader, Text } from '@/components';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import {
@@ -388,10 +389,9 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                       aria-label={t('Show sources')}
                       icon={
                         <Icon
-                          iconName="book"
-                          $theme="neutral"
-                          $variation="550"
-                          $size="16px"
+                          name="book"
+                          color="550"
+                          size={16}
                           className="action-chat-button-icon"
                         />
                       }

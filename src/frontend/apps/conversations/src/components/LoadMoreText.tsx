@@ -1,7 +1,7 @@
+import { Icon, IconSize } from '@gouvfr-lasuite/ui-kit';
 import { useTranslation } from 'react-i18next';
 
 import { Box } from './Box';
-import { Icon } from './Icon';
 import { Text } from './Text';
 
 type LoadMoreTextProps = {
@@ -22,12 +22,7 @@ export const LoadMoreText = ({
       $padding={{ horizontal: '2xs', vertical: 'sm' }}
       className="--docs--load-more"
     >
-      <Icon
-        $theme="primary"
-        $variation="800"
-        iconName="arrow_downward"
-        $size="md"
-      />
+      <Icon name="arrow_downward" color="800" size={IconSize.MEDIUM} />
       <Text $theme="primary" $variation="800">
         {t('Load more')}
       </Text>

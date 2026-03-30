@@ -5,8 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import NewChatIcon from '@/assets/icons/new-message-bold.svg';
-import Logo from '@/assets/logo/logo-assistant.svg';
-import { Box, StyledLink } from '@/components/';
+import { Box } from '@/components/';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
 import { ButtonLogin } from '@/features/auth';
@@ -63,13 +62,6 @@ export const Header = () => {
         $height="fit-content"
       >
         {isDesktop && <ButtonToggleLeftPanel />}
-        <StyledLink href="/">
-          <Logo
-            aria-label={t('{{productName}} Logo', { productName })}
-            width={139}
-            color={colorsTokens['logo-1-light']}
-          />
-        </StyledLink>
         <Box className="c__button--feedback">{isDesktop && <Feedback />}</Box>
       </Box>
       {!isDesktop ? (

@@ -1,7 +1,11 @@
 import { useRouter } from 'next/router';
 import { PropsWithChildren, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Button } from '@gouvfr-lasuite/cunningham-react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 
-import { Box } from '@/components';
+import Logo from '@/assets/logo/logo-assistant.svg';
+import { Box, StyledLink } from '@/components';
 import { useAuth } from '@/features/auth';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { useOwnModal } from '@/features/left-panel/hooks/useModalHook';
@@ -15,6 +19,7 @@ import { LeftPanelSearchModal } from './LeftPanelSearchModal';
 
 export const LeftPanelHeader = ({ children }: PropsWithChildren) => {
   const router = useRouter();
+  const { t } = useTranslation();
   const { authenticated } = useAuth();
   const { isDesktop } = useResponsiveStore();
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -44,6 +49,30 @@ export const LeftPanelHeader = ({ children }: PropsWithChildren) => {
 
   return (
     <>
+      <Box
+        $width="100%"
+        $padding={{ horizontal: 'sm', top: 'sm' }}
+        $direction="row"
+        $justify={isDesktop ? 'flex-start' : 'space-between'}
+        $align="center"
+      >
+        <StyledLink href="/">
+          <Logo
+            aria-label="Assistant Logo"
+            width={139}
+            color="var(--c--globals--colors--logo-1-light)"
+          />
+        </StyledLink>
+        {!isDesktop && (
+          <Button
+            aria-label={t('Close the menu')}
+            onClick={() => setPanelOpen(false)}
+            color="neutral"
+            variant="tertiary"
+            icon={<Icon name="close" />}
+          />
+        )}
+      </Box>
       {authenticated && (
         <Box $width="100%" className="--docs--left-panel-header">
           <LeftPanelHeaderActions

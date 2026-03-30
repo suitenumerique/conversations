@@ -1,9 +1,10 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import { PropsWithChildren } from 'react';
 import { useTranslation } from 'react-i18next';
 import { InView } from 'react-intersection-observer';
 
-import { Box, BoxType, Icon } from '@/components';
+import { Box, BoxType } from '@/components';
 
 interface InfiniteScrollProps extends BoxType {
   hasMore: boolean;
@@ -40,7 +41,7 @@ export const InfiniteScroll = ({
           <Button
             onClick={() => void next()}
             color="neutral"
-            icon={<Icon iconName="arrow_downward" />}
+            icon={<Icon name="arrow_downward" />}
           >
             {buttonLabel ?? t('Load more')}
           </Button>

@@ -1,8 +1,8 @@
+import { Icon } from '@gouvfr-lasuite/ui-kit';
 import { useEffect, useState } from 'react';
 import { css } from 'styled-components';
 
 import { Box, Text } from '@/components';
-import { Icon } from '@/components/Icon';
 import { useResponsiveStore } from '@/stores';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
@@ -114,14 +114,7 @@ export const Toast = ({
         $gap="12px"
         $justify="space-between"
       >
-        <Icon
-          iconName={iconToUse}
-          $variation="600"
-          $size="20px"
-          $css={css`
-            color: ${config.color} !important;
-          `}
-        />
+        <Icon name={iconToUse} color={config.color} size={20} />
         <Box
           $direction="row"
           $align="center"
