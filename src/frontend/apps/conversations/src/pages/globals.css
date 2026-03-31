@@ -116,14 +116,6 @@ nextjs-portal {
   cursor: not-allowed !important;
 }
 
-.c__button--neutral.action-chat-button .action-chat-button-icon,
-.c__button--neutral.research-web-button .c__button__icon span,
-.c__button--neutral.attach-file-button .c__button__icon span {
-  @media (width <= 768px) {
-    font-size: 19px !important;
-  }
-}
-
 .c__button--neutral:active {
   background-color: inherit !important;
 }

@@ -113,14 +113,6 @@ export const InputChatActions = memo(
       return css;
     }, [isMobile, forceWebSearch]);
 
-    const webSearchIconCss = useMemo(
-      () =>
-        `color: ${forceWebSearch ? 'var(--c--theme--colors--primary-600) !important' : 'var(--c--theme--colors--greyscale-600)'}`,
-      [forceWebSearch],
-    );
-
-    const attachIconSize = isMobile ? '24px' : '16px';
-
     return (
       <Box
         $direction="row"
@@ -147,9 +139,9 @@ export const InputChatActions = memo(
             disabled={!fileUploadEnabled || isUploadingFiles}
             onClick={onAttachClick}
             aria-label={t('Add attach file')}
-            icon={<Icon iconName="attach_file" $size={attachIconSize} />}
+            icon={<Icon iconName="attach_file" />}
           >
-            {!isMobile && <Text $weight="500">{t('Attach file')}</Text>}
+            {!isMobile && <Text>{t('Attach file')}</Text>}
           </Button>
 
           {/* Web search toggle button */}
@@ -157,17 +149,25 @@ export const InputChatActions = memo(
             <Box $margin={STYLES.webSearchMargin} $css={webSearchWrapperCss}>
               <Button
                 size="nano"
+                color={forceWebSearch ? 'brand' : 'neutral'}
+                variant="tertiary"
                 type="button"
                 disabled={!webSearchEnabled || isUploadingFiles}
                 onClick={onWebSearchToggle}
                 aria-label={t('Research on the web')}
                 className="c__button--neutral research-web-button"
-                icon={<Icon iconName="language" $css={webSearchIconCss} />}
+                icon={
+                  <Icon
+                    iconName="language"
+                    $theme={forceWebSearch ? 'brand' : 'neutral'}
+                    $variation={forceWebSearch ? 'tertiary' : 'primary'}
+                  />
+                }
               >
                 {!isMobile && (
                   <Text
-                    $theme={forceWebSearch ? 'primary' : 'greyscale'}
-                    $variation="550"
+                    $theme={forceWebSearch ? 'brand' : 'neutral'}
+                    $variation={forceWebSearch ? 'tertiary' : 'primary'}
                   >
                     {t('Research on the web')}
                   </Text>

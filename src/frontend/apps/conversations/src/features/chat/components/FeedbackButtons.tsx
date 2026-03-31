@@ -121,6 +121,8 @@ export const FeedbackButtons = ({
     >
       <Button
         size="small"
+        color={selectedFeedback === 'positive' ? 'brand' : 'neutral'}
+        variant="tertiary"
         onClick={() => {
           void handleScore('positive');
         }}
@@ -130,6 +132,8 @@ export const FeedbackButtons = ({
       />
       <Button
         size="small"
+        color={selectedFeedback === 'negative' ? 'brand' : 'neutral'}
+        variant="tertiary"
         onClick={() => {
           void handleScore('negative');
         }}
