@@ -102,7 +102,7 @@ export const ModelSelector = ({
         `}
       >
         <Button
-          size="small"
+          size="nano"
           type="button"
           color="neutral"
           variant="tertiary"

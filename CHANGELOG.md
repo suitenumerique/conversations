@@ -24,6 +24,7 @@ and this project adheres to
 - 🐛(back) add missing color option for project colors
 - 💄(project) ui fix project
 - 💄(ui) ui fix button css
+- 💄(ui) ui fix model selector css
 
 ## [0.0.14] - 2026-03-11
 
