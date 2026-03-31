@@ -96,7 +96,6 @@ export const ModelSelector = ({
       <Box
         $css={`
           .model-selector-button {
-            background: white;
             transition: all 0.2s ease;
             padding-right: 0 !important;
           }
@@ -105,6 +104,8 @@ export const ModelSelector = ({
         <Button
           size="small"
           type="button"
+          color="neutral"
+          variant="tertiary"
           onClick={() => setIsOpen(!isOpen)}
           aria-label={t('Select model')}
           className="c__button--neutral model-selector-button"
