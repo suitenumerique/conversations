@@ -358,7 +358,9 @@
       "Delete chat": "Удалить беседу",
       "Delete project": "Удалить проект",
       "Delete {{title}}": "Удалить {{title}}",
+      "Destroying all documents in 3...2...1...": "Уничтожение всех документов через 3...2...1...",
       "Direct exchange with our team": "Прямое общение с нашей командой",
+      "Due to budget cuts, I will now only provide 10% of answers": "В связи с сокращением бюджета, я теперь буду отвечать только на 10% вопросов",
       "Enter your message or a question": "Введите сообщение или вопрос",
       "Example: Be concise and maintain a professional tone.": "Пример: Будьте лаконичны и сохраняйте профессиональный тон.",
       "Explore other LaSuite apps": "Посмотреть другие приложения LaSuite",
@@ -430,6 +432,7 @@
       "Settings": "Настройки",
       "Show": "Показать",
       "Something bad happens, please retry.": "Что-то пошло не так, повторите попытку.",
+      "Sorry, I'm a little tired today. Maybe ask another AI?": "Извините, но сегодня мне лень. Может, обратитесь к другому ИИ?",
       "Sorry, an error occurred. Please try again.": "Извините, произошла ошибка. Пожалуйста, попробуйте ещё раз.",
       "Start a new conversation": "Начать новую беседу",
       "Start conversation": "Начать беседу",
@@ -470,7 +473,8 @@
       "Your sovereign AI assistant": "Ваш надёжный ИИ-помощник",
       "source": "источник",
       "sources": "источники",
-      "{{productName}} Logo": "Логотип {{productName}}"
+      "{{productName}} Logo": "Логотип {{productName}}",
+      "😄 April Fools! Alright, let me answer for real...": "😄 Первоапрельская шутка! Ну ладно, сейчас отвечу..."
     }
   },
   "uk": {
@@ -524,7 +528,9 @@
       "Delete chat": "Видалити розмову",
       "Delete project": "Видалити проект",
       "Delete {{title}}": "Видалити {{title}}",
+      "Destroying all documents in 3...2...1...": "Знищення всіх документів через 3...2...1...",
       "Direct exchange with our team": "Пряме спілкування з нашою командою",
+      "Due to budget cuts, I will now only provide 10% of answers": "Через скорочення бюджету, я відповідаю лише на 10% запитань",
       "Enter your message or a question": "Введіть ваше повідомлення або питання",
       "Example: Be concise and maintain a professional tone.": "Приклад: Будьте лаконічними та підтримуйте професійний тон.",
       "Explore other LaSuite apps": "Ознайомтесь з іншими застосунками LaSuite",
@@ -596,6 +602,7 @@
       "Settings": "Налаштування",
       "Show": "Показати",
       "Something bad happens, please retry.": "Сталася помилка, спробуйте ще раз.",
+      "Sorry, I'm a little tired today. Maybe ask another AI?": "Вибачте, але мені сьогодні ліньки. Може вам відповість інший ШІ?",
       "Sorry, an error occurred. Please try again.": "Вибачте, виникла помилка. Спробуйте ще раз.",
       "Start a new conversation": "Розпочати нову розмову",
       "Start conversation": "Почати розмову",
@@ -636,7 +643,8 @@
       "Your sovereign AI assistant": "Ваш надійний помічник з ШІ",
       "source": "джерело",
       "sources": "джерела",
-      "{{productName}} Logo": "Логотип {{productName}}"
+      "{{productName}} Logo": "Логотип {{productName}}",
+      "😄 April Fools! Alright, let me answer for real...": "😄 Першоквітневий жарт! Гаразд-гаразд, зараз відповім..."
     }
   }
 }
