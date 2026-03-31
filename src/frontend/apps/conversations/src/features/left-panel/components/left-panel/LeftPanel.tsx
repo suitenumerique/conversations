@@ -1,11 +1,11 @@
+import dynamic from 'next/dynamic';
 import { useEffect } from 'react';
 import { createGlobalStyle, css } from 'styled-components';
 
 import { Box, SeparatedSection } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
-import { ButtonLogin } from '@/features/auth';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
-import { LanguagePicker } from '@/features/language';
+import { LaGaufre } from '@/features/header/components/LaGaufre';
 import { SettingsButton } from '@/features/settings';
 import { useResponsiveStore } from '@/stores';
 
@@ -18,10 +18,18 @@ const MobileLeftPanelStyle = createGlobalStyle`
   }
 `;
 
+const UserInfo = dynamic(
+  () =>
+    import('@/features/auth/components/UserInfo').then((mod) => mod.UserInfo),
+  { ssr: false },
+);
+
 export const LeftPanel = () => {
   const { isDesktop } = useResponsiveStore();
 
-  const { spacingsTokens } = useCunninghamTheme();
+  const { spacingsTokens, componentTokens } = useCunninghamTheme();
+  const showLaGaufre =
+    (componentTokens as Record<string, unknown>)['la-gaufre'] === true;
   const { setPanelOpen, isPanelOpen } = useChatPreferencesStore();
 
   useEffect(() => {
@@ -66,7 +74,7 @@ export const LeftPanel = () => {
             $hasTransition
             $css={css`
               z-index: 1000;
-              overflow: hidden;
+              overflow: visible;
               width: ${isPanelOpen ? '100%' : '200px'};
               width: 100vw;
               border-right: 1px solid
@@ -110,14 +118,14 @@ export const LeftPanel = () => {
                 $padding={{ horizontal: 'sm' }}
                 $gap={spacingsTokens['sm']}
               >
-                <ButtonLogin />
+                <SettingsButton />
                 <Box
                   $direction="row"
                   $gap={spacingsTokens['sm']}
                   $align="center"
                 >
-                  <LanguagePicker />
-                  <SettingsButton />
+                  {showLaGaufre && <LaGaufre />}
+                  <UserInfo />
                 </Box>
               </Box>
             </Box>

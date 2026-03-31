@@ -1,6 +1,6 @@
 import { FullConfig, FullProject, chromium, expect } from '@playwright/test';
 
-import { keyCloakSignIn } from './common';
+import { headerUserMenuTrigger, keyCloakSignIn } from './common';
 
 const saveStorageState = async (
   browserConfig: FullProject<unknown, unknown>,
@@ -19,11 +19,9 @@ const saveStorageState = async (
 
     await keyCloakSignIn(page, browserName);
 
-    await expect(
-      page.locator('header').first().getByRole('button', {
-        name: 'Logout',
-      }),
-    ).toBeVisible();
+    await expect(headerUserMenuTrigger(page)).toBeVisible({
+      timeout: 15_000,
+    });
 
     await page.context().storageState({
       path: storageState as string,

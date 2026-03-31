@@ -19,8 +19,6 @@ export function MainLayout({
   const { isDesktop } = useResponsiveStore();
   const { isPanelOpen } = useChatPreferencesStore();
 
-  const HEADER_HEIGHT = `${isDesktop ? '65' : '52'}`;
-
   return (
     <Box className="--docs--main-layout">
       <Box
@@ -35,6 +33,12 @@ export function MainLayout({
         <LeftPanel />
       </Box>
       <Box
+        $flex="none"
+        className={
+          isDesktop && !isPanelOpen
+            ? 'main-layout__chat-column--wide'
+            : undefined
+        }
         $css={css`
           transition: all 0.3s ease;
           position: fixed;
@@ -48,11 +52,8 @@ export function MainLayout({
             as="main"
             id={MAIN_LAYOUT_ID}
             $align="center"
-            $width="100vw"
-            $height={`calc(100dvh - ${HEADER_HEIGHT}px)`}
-            $padding={{
-              all: isDesktop ? '0' : '0',
-            }}
+            $width="100dvw"
+            $height="100dvh"
             $css={css`
               overflow-y: auto;
               overflow-x: clip;

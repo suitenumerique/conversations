@@ -14,6 +14,7 @@ skip =
 check-filenames = true
 ignore-words-list =
     afterAll,
+    projet,
     statics,
 exclude-file =
     ./src/backend/chat/agent_rag/web_search/mocked.py,

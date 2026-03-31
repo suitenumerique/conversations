@@ -121,12 +121,10 @@ test.describe('Left panel desktop', () => {
     const projectRow = projectButton.locator('..');
 
     await expect(
-      projectRow.getByRole('button', { name: /Actions list for project/ }),
+      projectRow.locator('[data-testid^="project-item-actions-button-"]'),
     ).toBeVisible();
     await expect(
-      projectRow.getByRole('button', {
-        name: 'New conversation in project',
-      }),
+      projectRow.locator('.pinned-actions').locator('button').last(),
     ).toBeVisible();
   });
 });

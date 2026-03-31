@@ -1,5 +1,6 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { useRouter } from 'next/router';
 import { useEffect as _useEffect, useState as _useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
@@ -8,18 +9,33 @@ import NewChatIcon from '@/assets/icons/new-message-bold.svg';
 import LogoAssistant from '@/assets/logo/logo-beta.svg';
 import { Box } from '@/components/';
 import { useCunninghamTheme } from '@/cunningham';
-import { ButtonLogin } from '@/features/auth';
+
 import { useChatScroll } from '@/features/chat/hooks';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
-import { Feedback } from '@/features/feedback/Feedback';
-import { LanguagePicker } from '@/features/language';
 import { useResponsiveStore } from '@/stores';
 
 import { HEADER_HEIGHT } from '../conf';
 
 import { ButtonToggleLeftPanel } from './ButtonToggleLeftPanel';
-import { ButtonTogglePanel } from './ButtonTogglePanel';
 import { LaGaufre } from './LaGaufre';
+
+const UserInfo = dynamic(
+  () =>
+    import('@/features/auth/components/UserInfo').then((mod) => mod.UserInfo),
+  { ssr: false },
+);
+
+const headerStyles = css`
+  display: flex;
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1000;
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+`;
 
 export const Header = () => {
   const { t } = useTranslation();
@@ -30,28 +46,29 @@ export const Header = () => {
   const { setPanelOpen } = useChatPreferencesStore();
   const { isAtTop } = useChatScroll();
   const router = useRouter();
+  const hasConversationIdInRoute =
+    router.query.id && router.query.id.length > 0;
 
   return (
     <Box
       as="header"
-      $css={css`
-        position: sticky;
-        top: 0;
-        right: 0;
-        z-index: 1000;
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-        height: ${isDesktop ? HEADER_HEIGHT : '52'}px;
-        padding: 0 ${spacingsTokens['base']};
-        background-color: var(--c--contextuals--background--surface--secondary);
-        border-bottom: ${isAtTop
-          ? `1px solid transparent`
-          : `1px solid var(--c--contextuals--border--surface--primary)`};
-        transition: border-bottom 0.2s ease;
-      `}
+      $css={headerStyles}
+      style={{
+        height: `${HEADER_HEIGHT}px`,
+        padding: `${isDesktop ? '0' : '12px'} ${spacingsTokens['base']}`,
+        background: `${
+          isAtTop
+            ? ''
+            : 'linear-gradient(180deg, color-mix(in srgb, var(--c--contextuals--background--surface--primary) 75%, transparent) 0%, transparent 100%)'
+        }`,
+        backdropFilter: `${isAtTop ? 'blur(0px)' : 'blur(0.8px)'}`,
+      }}
     >
-      {!isDesktop && <ButtonTogglePanel />}
+      {!isDesktop && (
+        <Box className="selector-header">
+          <ButtonToggleLeftPanel />
+        </Box>
+      )}
       <Box
         $align="center"
         className="container"
@@ -62,37 +79,38 @@ export const Header = () => {
         $flex={isDesktop ? undefined : '1'}
         $justify={isDesktop ? undefined : 'center'}
       >
-        {isDesktop && <ButtonToggleLeftPanel />}
-        {!isDesktop && <LogoAssistant height="32px" width="auto" />}
-        <Box className="c__button--feedback">{isDesktop && <Feedback />}</Box>
+        {isDesktop && (
+          <Box className="selector-header">
+            <ButtonToggleLeftPanel />
+          </Box>
+        )}
+        {!isDesktop && !hasConversationIdInRoute && (
+          <LogoAssistant height="32px" width="auto" />
+        )}
       </Box>
       {!isDesktop ? (
         <Box $direction="row" $gap={spacingsTokens['sm']} $align="center">
-          <Button
-            size="medium"
-            onClick={() => {
-              router.push('/');
-              setPanelOpen(false);
-            }}
-            className="mobile-no-focus"
-            aria-label={t('New chat')}
-            color="brand"
-            variant="tertiary"
-            icon={<NewChatIcon height="25px" />}
-          />
+          <Box className="selector-header">
+            <Button
+              size="small"
+              onClick={() => {
+                void router.push('/');
+                setPanelOpen(false);
+              }}
+              className="mobile-no-focus"
+              aria-label={t('New chat')}
+              color="brand"
+              variant="tertiary"
+              icon={<NewChatIcon height="24px" />}
+            />
+          </Box>
         </Box>
       ) : (
-        <Box
-          $align="center"
-          $gap={spacingsTokens['sm']}
-          $direction="row"
-          $css={css`
-            height: '52px';
-          `}
-        >
-          <ButtonLogin />
-          <LanguagePicker />
-          {showLaGaufre && <LaGaufre />}
+        <Box $align="center" $direction="column">
+          <Box $direction="row" $gap="4px" className="selector-header">
+            {showLaGaufre && <LaGaufre />}
+            <UserInfo />
+          </Box>
         </Box>
       )}
     </Box>

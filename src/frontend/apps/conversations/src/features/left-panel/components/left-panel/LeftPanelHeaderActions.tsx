@@ -36,7 +36,7 @@ export const LeftPanelHeaderActions = ({
       $direction="column"
       $gap="2px"
       $align="center"
-      $margin={{ top: 'base' }}
+      $margin={{ top: 'base', bottom: '3px' }}
       $padding={{ horizontal: 'sm' }}
     >
       <LeftPanelMenuItem

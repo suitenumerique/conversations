@@ -1,5 +1,10 @@
 import { Page, expect, test } from '@playwright/test';
 
+import {
+  clickLanguageDropdownOption,
+  getLanguagePickerTrigger,
+} from './common';
+
 test.describe.serial('Language', () => {
   let page: Page;
 
@@ -22,8 +27,6 @@ test.describe.serial('Language', () => {
   });
 
   test('checks language switching', async ({ page }) => {
-    const header = page.locator('header').first();
-
     // initial language should be english
     await expect(
       page.getByRole('button', {
@@ -34,11 +37,10 @@ test.describe.serial('Language', () => {
     // switch to french
     await waitForLanguageSwitch(page, TestLanguage.French);
 
-    await expect(
-      header.getByRole('button').getByText('Français'),
-    ).toBeVisible();
-
-    await expect(page.getByLabel('Se déconnecter')).toBeVisible();
+    const pickerAfterFrench = await getLanguagePickerTrigger(page);
+    await expect(pickerAfterFrench.locator('.c__language-picker__label')).toHaveText(
+      /^FR$/i,
+    );
 
     // Switch back to English (including backend PATCH)
     await waitForLanguageSwitch(page, TestLanguage.English);
@@ -93,22 +95,21 @@ export async function waitForLanguageSwitch(
   page: Page,
   lang: TestLanguageValue,
 ) {
-  const header = page.locator('header').first();
-  const languagePicker = header.locator('.--docs--language-picker-text');
-  const isAlreadyTargetLanguage = await languagePicker
-    .innerText()
-    .then((text) => text.toLowerCase().includes(lang.label.toLowerCase()));
+  const trigger = await getLanguagePickerTrigger(page);
+  const label = trigger.locator('.c__language-picker__label');
+  const text = (await label.innerText()).trim().toUpperCase();
+  const expectedShort = lang === TestLanguage.French ? 'FR' : 'EN';
 
-  if (isAlreadyTargetLanguage) {
+  if (text === expectedShort) {
     return;
   }
 
-  await languagePicker.click();
+  await trigger.click();
   const responsePromise = page.waitForResponse(
     (resp) =>
       resp.url().includes('/user') && resp.request().method() === 'PATCH',
   );
-  await page.getByLabel(lang.label).click();
+  await clickLanguageDropdownOption(page, lang.label);
   const resolvedResponsePromise = await responsePromise;
   const responseData = await resolvedResponsePromise.json();
 

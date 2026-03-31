@@ -1,4 +1,5 @@
-import { Page, expect } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
+import { expect } from '@playwright/test';
 
 export const CONFIG = {
   ACTIVATION_REQUIRED: false,
@@ -100,3 +101,33 @@ export const expectLoginPage = async (page: Page) =>
   await expect(
     page.getByRole('heading', { name: 'Your sovereign AI assistant' }),
   ).toBeVisible();
+
+export const headerUserMenuTrigger = (page: Page) =>
+  page.locator('header').locator('.user-menu__button');
+
+export async function getLanguagePickerTrigger(page: Page): Promise<Locator> {
+  const picker = page.locator('.c__language-picker').first();
+  try {
+    await picker.waitFor({ state: 'visible', timeout: 5000 });
+    return picker;
+  } catch {
+    await headerUserMenuTrigger(page).click();
+    await picker.waitFor({ state: 'visible', timeout: 10_000 });
+    return picker;
+  }
+}
+
+export async function clickLanguageDropdownOption(
+  page: Page,
+  optionLabel: string,
+) {
+  await page.getByRole('menuitem', { name: optionLabel }).first().click();
+}
+
+export const clickUserMenuLogout = async (page: Page) => {
+  await headerUserMenuTrigger(page).click();
+  await page
+    .locator('.user-menu__item')
+    .filter({ hasText: /Log ?out/i })
+    .click();
+};

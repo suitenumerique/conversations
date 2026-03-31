@@ -1,5 +1,20 @@
 @import url('../cunningham/cunningham-style.css');
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined');
+@import url('@fontsource/material-icons');
+@import url('@fontsource-variable/material-symbols-outlined');
+@import url('@fontsource/material-icons-outlined');
+@import url('@gouvfr-lasuite/ui-kit/fonts/Marianne');
+
+:root {
+  --chat-content-base: 750px;
+  --left-panel-width: 300px;
+  --chat-content-max-width: var(--chat-content-base);
+}
+
+.main-layout__chat-column--wide {
+  --chat-content-max-width: calc(
+    var(--chat-content-base) + var(--left-panel-width)
+  );
+}
 
 body {
   margin: 0;
@@ -72,6 +87,41 @@ nextjs-portal {
 .c__modal__close .c__button__icon {
   font-family:
     'Material Icons', 'Material Symbols Outlined', sans-serif !important;
+}
+
+.material-icons,
+.material-icons-filled,
+.material-symbols-outlined {
+  font-family: 'Material Icons Outlined', 'Material Icons', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px; /* Preferred icon size */
+  display: inline-block;
+  text-transform: none;
+  letter-spacing: normal;
+  overflow-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+
+  /* Support for all WebKit browsers. */
+  -webkit-font-smoothing: antialiased;
+
+  /* Support for Safari and Chrome. */
+  text-rendering: optimizelegibility;
+
+  /* Support for Firefox. */
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Support for IE. */
+  font-feature-settings: 'liga';
+}
+
+.material-icons-filled {
+  font-family: 'Material Icons', sans-serif;
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined Variable', sans-serif;
 }
 
 .c__toast__container {
@@ -360,6 +410,25 @@ figure[data-rehype-pretty-code-figure] > pre > code {
 .mainContent-chat table td,
 .mainContent-chat table th {
   min-width: 200px;
+}
+
+.selector-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 8px;
+  background-color: var(--c--contextuals--background--surface--primary);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--c--contextuals--border--surface--primary);
+  padding: 4px;
+  box-shadow: 0 2px 4px 0 rgb(0 0 0 / 5%);
+}
+
+[data-gaufre-button-wrapper] button,
+.user-menu__button {
+  justify-content: center;
+  width: 32px;
+  height: 32px;
 }
 
 .sr-only {

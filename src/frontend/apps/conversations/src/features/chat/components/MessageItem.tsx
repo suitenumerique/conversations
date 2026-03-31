@@ -282,7 +282,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
         color: var(--c--theme--colors--greyscale-850);
         padding-left: 12px;
         padding-right: 12px;
-        max-width: 750px;
+        max-width: var(--chat-content-max-width, 750px);
         text-align: left;
         overflow-wrap: anywhere;
         flex-direction: ${message.role === 'user' ? 'row-reverse' : 'row'};
@@ -352,7 +352,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   $align="center"
                   $gap="6px"
                   $width="100%"
-                  $maxWidth="750px"
+                  $maxWidth="var(--chat-content-max-width, 750px)"
                   $margin={{
                     all: 'auto',
                     top: 'base',

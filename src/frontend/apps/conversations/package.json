@@ -18,7 +18,9 @@
   "dependencies": {
     "@ai-sdk/react": "1.2.12",
     "@ai-sdk/ui-utils": "1.2.11",
+    "@fontsource-variable/material-symbols-outlined": "5.2.5",
     "@fontsource/material-icons": "5.2.5",
+    "@fontsource/material-icons-outlined": "5.2.5",
     "@gouvfr-lasuite/cunningham-react": "^4.2.0",
     "@gouvfr-lasuite/cunningham-tokens": "^3.1.0",
     "@gouvfr-lasuite/integration": "1.0.3",

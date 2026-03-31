@@ -57,7 +57,7 @@ const CONTAINER_CSS = `
   position: relative;
   margin: auto;
   width: 100%;
-  max-width: 750px;
+  max-width: var(--chat-content-max-width, 750px);
 `;
 
 const INPUT_BOX_CSS = `
@@ -111,7 +111,7 @@ const SCROLL_DOWN_WRAPPER_CSS = `
   height: 0;
   width: 100%;
   margin: auto;
-  max-width: 750px;
+  max-width: var(--chat-content-max-width, 750px);
 `;
 export const InputChat = ({
   messagesLength,

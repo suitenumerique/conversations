@@ -154,8 +154,8 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
           <Icon
             iconName={
               isOpen && project.conversations.length > 0
-                ? 'keyboard_arrow_down'
-                : 'keyboard_arrow_right'
+                ? 'expand_more'
+                : 'chevron_right'
             }
             $theme="neutral"
             $variation="tertiary"

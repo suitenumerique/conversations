@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@fontsource-variable/material-symbols-outlined": "^5.2.39",
+    "@fontsource/material-icons": "^5.2.7",
+    "@fontsource/material-icons-outlined": "^5.2.6"
+  }
+}

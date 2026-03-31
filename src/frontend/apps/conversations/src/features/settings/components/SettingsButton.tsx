@@ -16,19 +16,15 @@ export const SettingsButton = () => {
   return (
     <>
       <Button
-        size="medium"
         color={isDesktop ? 'neutral' : 'brand'}
         variant="tertiary"
+        size="small"
         onClick={() => setIsSettingsOpen(true)}
         aria-label={t('Settings')}
         icon={
           <SettingsIcon
             aria-hidden
-            color={
-              isDesktop
-                ? 'var(--c--contextuals--content--semantic--neutral--tertiary)'
-                : 'var(--c--contextuals--content--semantic--brand--tertiary)'
-            }
+            color="var(--c--contextuals--content--semantic--neutral--tertiary)"
           />
         }
         className="--docs--button-settings-panel"

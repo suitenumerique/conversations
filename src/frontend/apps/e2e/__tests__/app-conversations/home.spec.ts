@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { overrideConfig } from './common';
+import { getLanguagePickerTrigger, overrideConfig } from './common';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/home/');
@@ -15,9 +15,11 @@ test.describe('Home page', () => {
     const header = page.locator('header').first();
     const footer = page.locator('footer').first();
     await expect(header).toBeVisible();
-    await expect(
-      header.getByRole('button', { name: 'Select language' }),
-    ).toBeVisible();
+    const langPicker = await getLanguagePickerTrigger(page);
+    await expect(langPicker).toBeVisible();
+    await expect(langPicker.locator('.c__language-picker__label')).toHaveText(
+      /^EN$/i,
+    );
     await expect(
       header.getByRole('img', { name: 'Assistant logo' }),
     ).toBeVisible();
@@ -54,9 +56,11 @@ test.describe('Home page', () => {
     const header = page.locator('header').first();
     const footer = page.locator('footer').first();
     await expect(header).toBeVisible();
-    await expect(
-      header.getByRole('button', { name: 'Select language' }),
-    ).toBeVisible();
+    const langPicker = await getLanguagePickerTrigger(page);
+    await expect(langPicker).toBeVisible();
+    await expect(langPicker.locator('.c__language-picker__label')).toHaveText(
+      /^EN$/i,
+    );
     await expect(
       header.getByRole('button', { name: 'Les services de LaSuite' }),
     ).toBeVisible();

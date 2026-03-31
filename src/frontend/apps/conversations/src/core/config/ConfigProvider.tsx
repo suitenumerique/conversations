@@ -25,20 +25,35 @@ export const ConfigProvider = ({ children }: PropsWithChildren) => {
   const { customizeTranslations } = useCustomTranslations();
   const { AnalyticsProvider } = useAnalytics();
   const { i18n } = useTranslation();
-  const languageSynchronized = useRef(false);
+  const hasSyncedInitialLanguage = useRef(false);
+  const lastSyncedUserLanguage = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!user || languageSynchronized.current) {
+    if (!conf || hasSyncedInitialLanguage.current) {
       return;
     }
 
     const targetLanguage =
-      user?.language ?? i18n.resolvedLanguage ?? i18n.language;
+      conf.LANGUAGE_CODE || i18n.resolvedLanguage || i18n.language;
 
-    void changeLanguageSynchronized(targetLanguage, user).then(() => {
-      languageSynchronized.current = true;
+    void changeLanguageSynchronized(targetLanguage).then(() => {
+      hasSyncedInitialLanguage.current = true;
     });
-  }, [user, i18n.resolvedLanguage, i18n.language, changeLanguageSynchronized]);
+  }, [conf, i18n.resolvedLanguage, i18n.language, changeLanguageSynchronized]);
+
+  useEffect(() => {
+    const language = user?.language;
+    if (!user || !language) {
+      return;
+    }
+    if (lastSyncedUserLanguage.current === language) {
+      return;
+    }
+
+    void changeLanguageSynchronized(language, user).then(() => {
+      lastSyncedUserLanguage.current = language;
+    });
+  }, [user, changeLanguageSynchronized]);
 
   useEffect(() => {
     if (!conf?.theme_customization?.translations) {

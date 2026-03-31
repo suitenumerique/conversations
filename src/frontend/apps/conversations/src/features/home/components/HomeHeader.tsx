@@ -5,9 +5,8 @@ import Logo from '@/assets/logo/logo-assistant.svg';
 import { Box } from '@/components';
 import { productName } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
-import { ButtonLogin } from '@/features/auth';
+import { ButtonLogin } from '@/features/auth/components/ButtonLogin';
 import { Feedback } from '@/features/feedback/Feedback';
-import { ButtonTogglePanel, Title as _Title } from '@/features/header/';
 import { LaGaufre } from '@/features/header/components/LaGaufre';
 import { LanguagePicker } from '@/features/language';
 import { useResponsiveStore } from '@/stores';
@@ -47,11 +46,6 @@ export const HomeHeader = () => {
         $width={isSmallMobile ? '100%' : 'auto'}
         $justify="center"
       >
-        {isSmallMobile && (
-          <Box $position="absolute" $css="left: 1rem;">
-            <ButtonTogglePanel />
-          </Box>
-        )}
         {!isSmallMobile && logo?.src && (
           <Image
             priority
@@ -77,13 +71,14 @@ export const HomeHeader = () => {
         </Box>
         {isDesktop && <Feedback />}
       </Box>
-      {!isSmallMobile && (
-        <Box $direction="row" $gap="1rem" $align="center">
-          <ButtonLogin />
-          <LanguagePicker />
-          {showLaGaufre && <LaGaufre />}
-        </Box>
-      )}
+
+      <Box $direction="row" $gap="1rem" $align="center">
+        {!isSmallMobile && <ButtonLogin />}
+        {!isSmallMobile && (
+          <LanguagePicker color="brand" size="medium" compact={false} />
+        )}
+        {showLaGaufre && <LaGaufre />}
+      </Box>
     </Box>
   );
 };

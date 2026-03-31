@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 
-import { overrideConfig } from './common';
+import {
+  clickLanguageDropdownOption,
+  getLanguagePickerTrigger,
+  overrideConfig,
+} from './common';
 
 test.describe('Footer', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
@@ -10,12 +14,12 @@ test.describe('Footer', () => {
       theme_customization: {},
     });
 
-    await page.goto('/');
+    await page.goto('/home');
     await expect(page.locator('footer')).toBeHidden();
   });
 
   test('checks all the elements are visible', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/home');
     const footer = page.locator('footer').first();
 
     await expect(footer.getByRole('link', { name: 'Github' })).toBeVisible();
@@ -37,10 +41,9 @@ test.describe('Footer', () => {
       ),
     ).toBeVisible();
 
-    // Check the translation
-    const header = page.locator('header').first();
-    await header.getByRole('button').getByText('English').click();
-    await page.getByLabel('Français').click();
+    const langTrigger = await getLanguagePickerTrigger(page);
+    await langTrigger.click();
+    await clickLanguageDropdownOption(page, 'Français');
 
     await expect(
       page.locator('footer').getByText('Mentions légales'),
@@ -95,7 +98,7 @@ test.describe('Footer', () => {
       },
     });
 
-    await page.goto('/');
+    await page.goto('/home');
     const footer = page.locator('footer').first();
 
     await expect(footer.getByAltText('Gouvernement Logo')).toBeVisible();
@@ -120,10 +123,9 @@ test.describe('Footer', () => {
       footer.getByRole('link', { name: 'a custom label' }),
     ).toBeVisible();
 
-    // Check the translation
-    const header = page.locator('header').first();
-    await header.getByRole('button').getByText('English').click();
-    await page.getByLabel('Français').click();
+    const langTrigger = await getLanguagePickerTrigger(page);
+    await langTrigger.click();
+    await clickLanguageDropdownOption(page, 'Français');
 
     await expect(
       page

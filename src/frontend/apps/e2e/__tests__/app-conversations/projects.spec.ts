@@ -10,7 +10,9 @@ test.describe('Projects', () => {
   });
 
   test('checks the create project button is visible', async ({ page }) => {
-    const createButton = page.getByRole('button', { name: 'New project' });
+    const createButton = page.getByRole('button', {
+      name: /New project|Nouveau projet/,
+    });
     await expect(createButton).toBeVisible();
   });
 

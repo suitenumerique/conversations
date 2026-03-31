@@ -339,7 +339,7 @@ export const Chat = ({
           const userMessageHeight = (lastUserMessageElement as HTMLElement)
             .offsetHeight;
 
-          const availableHeight = containerHeight - userMessageHeight - 38;
+          const availableHeight = containerHeight - (userMessageHeight + 130);
 
           setStreamingMessageHeight((prev) => {
             if (prev === null || Math.abs(prev - availableHeight) > 10) {
@@ -408,11 +408,18 @@ export const Chat = ({
     }
 
     requestAnimationFrame(() => {
-      const messageElement = chatContainerRef.current?.querySelector(
+      const container = chatContainerRef.current;
+      const messageElement = container?.querySelector(
         `[data-message-id="${lastUserMessage.id}"]`,
       );
 
-      messageElement?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      if (container && messageElement) {
+        const targetTop = Math.max(
+          0,
+          (messageElement as HTMLElement).offsetTop - 100,
+        );
+        container.scrollTo({ top: targetTop, behavior: 'smooth' });
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
@@ -692,8 +699,7 @@ export const Chat = ({
           position: relative;
           margin-bottom: 0;
           padding-bottom: 20px;
-          height: ${messages.length > 0 ? 'calc(100vh - 62px)' : '0'}; 
-          max-height: ${messages.length > 0 ? 'calc(100vh - 62px)' : '0'};
+          max-height: ${messages.length > 0 ? 'calc(100vh - 75px)' : '0'};
         `}
       >
         {messages.length > 0 && (

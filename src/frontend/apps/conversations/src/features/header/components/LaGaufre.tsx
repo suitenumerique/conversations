@@ -37,6 +37,7 @@ export const LaGaufre = () => {
     <>
       <div data-gaufre-button-wrapper>
         <Button
+          size="small"
           variant="tertiary"
           className="!w-10 !h-10 !p-0 !min-w-0"
           aria-label="Les services de LaSuite"

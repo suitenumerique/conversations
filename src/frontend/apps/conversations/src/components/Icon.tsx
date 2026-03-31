@@ -19,7 +19,7 @@ export const Icon = ({
       aria-hidden="true"
       $theme={$theme}
       className={clsx('--docs--icon-bg', textProps.className, {
-        'material-symbols': variant === 'filled',
+        'material-icons': variant === 'filled',
         'material-symbols-outlined': variant === 'outlined',
       })}
     >
