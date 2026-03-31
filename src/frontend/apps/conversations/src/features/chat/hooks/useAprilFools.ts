@@ -1,13 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-
-const APRIL_FOOLS_MESSAGES = [
-  'Destroying all documents in 3...2...1...',
-  'Due to budget cuts, I will now only provide 10% of answers',
-  "Sorry, I'm a little tired today. Maybe ask another AI?",
-];
-
-const REVEAL_MESSAGE = '😄 April Fools! Alright, let me answer for real...';
 
 const CHAR_INTERVAL_MS = 30;
 const PAUSE_AFTER_PRANK_MS = 1500;
@@ -39,6 +31,20 @@ export function useAprilFools() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const aprilFoolsMessages = useMemo(
+    () => [
+      t('Destroying all documents in 3...2...1...'),
+      t('Due to budget cuts, I will now only provide 10% of answers'),
+      t("Sorry, I'm a little tired today. Maybe ask another AI?"),
+    ],
+    [t],
+  );
+
+  const revealMessage = useMemo(
+    () => t('😄 April Fools! Alright, let me answer for real...'),
+    [t],
+  );
+
   const cleanup = useCallback(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -49,17 +55,16 @@ export function useAprilFools() {
     usedRef.current = true;
     markPrankDone();
 
-    const translatedMessages = APRIL_FOOLS_MESSAGES.map((msg) => t(msg));
     // not security-sensitive, just picking a random joke
     const msg =
-      translatedMessages[Math.floor(Math.random() * translatedMessages.length)]; // NOSONAR
+      aprilFoolsMessages[Math.floor(Math.random() * aprilFoolsMessages.length)]; // NOSONAR
     fullMessageRef.current = msg;
     charIndexRef.current = 0;
     setDisplayedText('');
     setPhase('streaming');
 
     return true;
-  }, [t]);
+  }, [aprilFoolsMessages]);
 
   // Queue the prank so it survives a navigation remount
   const triggerDeferred = useCallback(() => {
@@ -100,14 +105,14 @@ export function useAprilFools() {
     if (phase !== 'pause') return;
 
     timeoutRef.current = setTimeout(() => {
-      setDisplayedText((prev) => prev + '\n\n' + t(REVEAL_MESSAGE));
+      setDisplayedText((prev) => prev + '\n\n' + revealMessage);
       setPhase('reveal');
     }, PAUSE_AFTER_PRANK_MS);
 
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [phase, t]);
+  }, [phase, revealMessage]);
 
   // After reveal, transition to done
   useEffect(() => {

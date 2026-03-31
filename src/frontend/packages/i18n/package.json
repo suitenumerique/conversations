@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "extract-translation": "yarn extract-translation:conversations",
-    "extract-translation:conversations": "yarn i18next ../../apps/conversations/**/*.{ts,tsx} -c ./i18next-parser.config.mjs -o ./locales/conversations/translations-crowdin.json",
+    "extract-translation:conversations": "yarn i18next -c ./i18next-parser.config.mjs -o ./locales/conversations/translations-crowdin.json",
     "format-deploy": "yarn format-deploy:conversations",
     "format-deploy:conversations": "node ./format-deploy.mjs --app=conversations --output=../../apps/conversations/src/i18n/translations.json",
     "format-rebuild-fr:conversations": "node ./rebuild-translations.mjs --language=fr --app=conversations --output=../../apps/conversations/src/i18n/translations.json",
