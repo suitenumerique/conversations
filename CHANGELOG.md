@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.15] - 2026-03-31
+
 ### Added
 
 - ✨(back) add projects with custom LLM instructions
@@ -259,7 +261,8 @@ and this project adheres to
 - ✨(onboarding) add activation code logic for launch #62
 - 💄(chat) add code highlighting for LLM responses #67
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.14...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.15...main
+[0.0.15]: https://github.com/suitenumerique/conversations/releases/v0.0.15
 [0.0.14]: https://github.com/suitenumerique/conversations/releases/v0.0.14
 [0.0.13]: https://github.com/suitenumerique/conversations/releases/v0.0.13
 [0.0.12]: https://github.com/suitenumerique/conversations/releases/v0.0.12
