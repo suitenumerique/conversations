@@ -5,7 +5,6 @@ import {
   ModalSize,
   TextArea,
 } from '@gouvfr-lasuite/cunningham-react';
-
 import { useReducer } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
