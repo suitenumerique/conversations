@@ -38,6 +38,10 @@
     "minimatch": ">=10.2.1",
     "flatted": ">=3.4.0",
     "rollup": ">=4.59.0",
-    "undici": ">=7.24.0"
+    "undici": ">=7.24.0",
+    "**/anymatch/picomatch": "4.0.4",
+    "**/readdirp/picomatch": "4.0.4",
+    "**/jest-util/picomatch": "4.0.4",
+    "**/micromatch/picomatch": "4.0.4"
   }
 }
