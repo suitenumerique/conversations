@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- 💄(ui) little fix margin top
+
 ## [0.0.15] - 2026-03-31
 
 ### Added

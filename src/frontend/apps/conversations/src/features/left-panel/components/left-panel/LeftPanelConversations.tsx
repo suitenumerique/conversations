@@ -28,6 +28,7 @@ export const LeftPanelConversations = () => {
   return (
     <Box
       $padding={{ horizontal: 'sm' }}
+      $margin={{ top: 'base' }}
       $gap={spacingsTokens['2xs']}
       $height="50vh"
       data-testid="left-panel-favorites"
