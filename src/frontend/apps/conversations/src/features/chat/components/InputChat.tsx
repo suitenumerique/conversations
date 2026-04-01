@@ -267,7 +267,9 @@ export const InputChat = ({
     onFilesRejected: () => showToastError(),
   });
 
-  const isInputDisabled = status !== 'ready' || isUploadingFiles;
+  const isInputDisabled =
+    (status !== 'ready' && status !== 'streaming' && status !== 'submitted') ||
+    isUploadingFiles;
 
   const containerCss = useMemo(
     () => `
@@ -303,12 +305,13 @@ export const InputChat = ({
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
         e.preventDefault();
+        if (status === 'streaming' || status === 'submitted') return; // ← ajout
         const textarea = e.target as HTMLTextAreaElement;
         textarea.style.height = '0';
         e.currentTarget.form?.requestSubmit?.();
       }
     },
-    [],
+    [status], // ← status ajouté aux dépendances
   );
 
   const handlePaste = useCallback(

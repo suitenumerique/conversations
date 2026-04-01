@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- ✨(front) allow typing while LLM is generating a response
+
 ### Fixed
 
 - 💄(ui) little fix margin top

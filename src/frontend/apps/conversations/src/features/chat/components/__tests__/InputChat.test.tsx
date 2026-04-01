@@ -154,14 +154,74 @@ describe('InputChat', () => {
     expect(handleInputChange).toHaveBeenCalled();
   });
 
-  it('should disable textarea when status is not ready', () => {
-    render(<InputChat {...defaultProps} status="streaming" />, {
+  it('should disable textarea when status is error', () => {
+    render(<InputChat {...defaultProps} status="error" />, {
       wrapper: AppWrapper,
     });
 
     expect(
       screen.getByRole('textbox', { name: 'Enter your message or a question' }),
     ).toBeDisabled();
+  });
+
+  it('should enable textarea when status is streaming', () => {
+    render(<InputChat {...defaultProps} status="streaming" />, {
+      wrapper: AppWrapper,
+    });
+
+    expect(
+      screen.getByRole('textbox', { name: 'Enter your message or a question' }),
+    ).not.toBeDisabled();
+  });
+
+  it('should enable textarea when status is submitted', () => {
+    render(<InputChat {...defaultProps} status="submitted" />, {
+      wrapper: AppWrapper,
+    });
+
+    expect(
+      screen.getByRole('textbox', { name: 'Enter your message or a question' }),
+    ).not.toBeDisabled();
+  });
+
+  it('should not submit form when pressing Enter and status is streaming', async () => {
+    const user = userEvent.setup();
+    const handleSubmit = jest.fn((e) => e.preventDefault());
+    render(
+      <InputChat
+        {...defaultProps}
+        status="streaming"
+        handleSubmit={handleSubmit}
+      />,
+      { wrapper: AppWrapper },
+    );
+
+    const textarea = screen.getByRole('textbox', {
+      name: 'Enter your message or a question',
+    });
+    await user.type(textarea, '{Enter}');
+
+    expect(handleSubmit).not.toHaveBeenCalled();
+  });
+
+  it('should not submit form when pressing Enter and status is submitted', async () => {
+    const user = userEvent.setup();
+    const handleSubmit = jest.fn((e) => e.preventDefault());
+    render(
+      <InputChat
+        {...defaultProps}
+        status="submitted"
+        handleSubmit={handleSubmit}
+      />,
+      { wrapper: AppWrapper },
+    );
+
+    const textarea = screen.getByRole('textbox', {
+      name: 'Enter your message or a question',
+    });
+    await user.type(textarea, '{Enter}');
+
+    expect(handleSubmit).not.toHaveBeenCalled();
   });
 
   it('should disable textarea when isUploadingFiles is true', () => {

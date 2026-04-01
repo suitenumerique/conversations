@@ -17,11 +17,18 @@ jest.mock('../SendButton', () => ({
   SendButton: ({
     onClick,
     disabled,
+    status,
   }: {
     onClick: () => void;
     disabled: boolean;
+    status: string | null;
   }) => (
-    <button onClick={onClick} disabled={disabled} data-testid="send-button">
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      data-testid="send-button"
+      data-status={status ?? ''}
+    >
       Send
     </button>
   ),
@@ -161,6 +168,24 @@ describe('InputChatActions', () => {
     render(<InputChatActions {...defaultProps} />);
 
     expect(screen.getByTestId('send-button')).toBeInTheDocument();
+  });
+
+  it('should pass streaming status to SendButton', () => {
+    render(<InputChatActions {...defaultProps} status="streaming" />);
+
+    expect(screen.getByTestId('send-button')).toHaveAttribute(
+      'data-status',
+      'streaming',
+    );
+  });
+
+  it('should pass submitted status to SendButton', () => {
+    render(<InputChatActions {...defaultProps} status="submitted" />);
+
+    expect(screen.getByTestId('send-button')).toHaveAttribute(
+      'data-status',
+      'submitted',
+    );
   });
 
   it('should show "Web" text on mobile when forceWebSearch is active', () => {
