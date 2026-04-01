@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- 👷(ci) replace trivy by grype for vulnerability scanning
+
 ### Fixed
 
 - 💄(ui) little fix margin top
