@@ -1,21 +1,13 @@
-import { Locator } from '@playwright/test';
+import { Page, expect } from '@playwright/test';
 
-export async function waitForElementCount(
-  locator: Locator,
-  count: number,
-  timeout: number,
-) {
-  let elapsedTime = 0;
-  const interval = 200; // Check every 200 ms
-  while (elapsedTime < timeout) {
-    const currentCount = await locator.count();
-    if (currentCount >= count) {
-      return true;
-    }
-    await locator.page().waitForTimeout(interval); // Wait for the interval before checking again
-    elapsedTime += interval;
-  }
-  throw new Error(
-    `Timeout after ${timeout}ms waiting for element count to be at least ${count}`,
-  );
-}
+export const createProject = async (page: Page, projectName: string) => {
+  await page.getByRole('button', { name: 'New project' }).click();
+  const createModal = page.getByRole('dialog', {
+    name: 'Content modal to create a project',
+  });
+  await createModal
+    .getByRole('textbox', { name: 'Project name' })
+    .fill(projectName);
+  await createModal.getByRole('button', { name: 'Create project' }).click();
+  await expect(page.getByText('The project has been created.')).toBeVisible();
+};

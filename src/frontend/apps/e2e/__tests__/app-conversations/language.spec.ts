@@ -40,8 +40,8 @@ test.describe.serial('Language', () => {
 
     await expect(page.getByLabel('Se déconnecter')).toBeVisible();
 
-    await header.getByRole('button').getByText('Français').click();
-    await page.getByLabel('English').click();
+    // Switch back to English (including backend PATCH)
+    await waitForLanguageSwitch(page, TestLanguage.English);
   });
 
   test.fixme(
