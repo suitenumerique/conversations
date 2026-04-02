@@ -212,6 +212,7 @@ class ConfigView(drf.views.APIView):
             "SENTRY_DSN",
             "FEATURE_FLAGS",
             "FILE_UPLOAD_MODE",
+            "FRONTEND_SILENT_LOGIN_ENABLED",
         ]
         dict_settings = {}
         for setting in array_settings:

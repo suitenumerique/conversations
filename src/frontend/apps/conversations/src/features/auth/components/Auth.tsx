@@ -7,13 +7,14 @@ import { useConfig } from '@/core';
 import { useActivationStatus } from '../api/useActivationStatus';
 import { HOME_URL } from '../conf';
 import { useAuth } from '../hooks';
+import { attemptSilentLogin, canAttemptSilentLogin } from '../silentLogin';
 import { getAuthUrl, gotoLogin } from '../utils';
 
 export const Auth = ({ children }: PropsWithChildren) => {
   const { isLoading, pathAllowed, isFetchedAfterMount, authenticated } =
     useAuth();
   const { replace, pathname } = useRouter();
-  const { data: config } = useConfig();
+  const { data: config, isLoading: isConfigLoading } = useConfig();
   const { data: activationStatus, isLoading: isActivationLoading } =
     useActivationStatus();
 
@@ -42,10 +43,20 @@ export const Auth = ({ children }: PropsWithChildren) => {
   }
 
   /**
-   * If the user is not authenticated and the path is not allowed, we redirect to the login page.
+   * If the user is not authenticated and the path is not allowed,
+   * try silent login first, then fall back to the login page.
    */
   if (!authenticated && !pathAllowed) {
-    if (config?.FRONTEND_HOMEPAGE_FEATURE_ENABLED) {
+    if (isConfigLoading) {
+      return (
+        <Box $height="100vh" $width="100vw" $align="center" $justify="center">
+          <Loader />
+        </Box>
+      );
+    }
+    if (config?.FRONTEND_SILENT_LOGIN_ENABLED && canAttemptSilentLogin()) {
+      attemptSilentLogin(30);
+    } else if (config?.FRONTEND_HOMEPAGE_FEATURE_ENABLED) {
       void replace(HOME_URL);
     } else {
       gotoLogin();

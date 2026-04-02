@@ -50,6 +50,7 @@ def test_api_config(is_authenticated):
         "FILE_UPLOAD_MODE": "presigned_url",
         "FRONTEND_CSS_URL": "http://testcss/",
         "FRONTEND_HOMEPAGE_FEATURE_ENABLED": True,
+        "FRONTEND_SILENT_LOGIN_ENABLED": True,
         "FRONTEND_THEME": "test-theme",
         "LANGUAGES": [
             ["en-us", "English"],
@@ -193,6 +194,7 @@ async def test_api_config_async(is_authenticated):
         "FILE_UPLOAD_MODE": "presigned_url",
         "FRONTEND_CSS_URL": "http://testcss/",
         "FRONTEND_HOMEPAGE_FEATURE_ENABLED": True,
+        "FRONTEND_SILENT_LOGIN_ENABLED": True,
         "FRONTEND_THEME": "test-theme",
         "LANGUAGES": [
             ["en-us", "English"],

@@ -84,6 +84,7 @@ test.describe('Home page', () => {
   test('it checks the homepage feature flag', async ({ page }) => {
     await overrideConfig(page, {
       FRONTEND_HOMEPAGE_FEATURE_ENABLED: false,
+      FRONTEND_SILENT_LOGIN_ENABLED: false,
     });
 
     await page.goto('/');

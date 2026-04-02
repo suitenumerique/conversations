@@ -35,6 +35,7 @@ export interface ConfigResponse {
   POSTHOG_KEY?: PostHogConf;
   SENTRY_DSN?: string;
   FILE_UPLOAD_MODE?: string;
+  FRONTEND_SILENT_LOGIN_ENABLED?: boolean;
   theme_customization?: ThemeCustomization;
   chat_upload_accept?: string;
 }

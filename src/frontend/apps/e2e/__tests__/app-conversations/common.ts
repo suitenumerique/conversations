@@ -12,6 +12,7 @@ export const CONFIG = {
   FILE_UPLOAD_MODE: 'presigned_url',
   FRONTEND_CSS_URL: null,
   FRONTEND_HOMEPAGE_FEATURE_ENABLED: true,
+  FRONTEND_SILENT_LOGIN_ENABLED: true,
   FRONTEND_THEME: null,
   MEDIA_BASE_URL: 'http://localhost:8083',
   LANGUAGES: [
