@@ -1,10 +1,20 @@
 """Tool to perform a document search using Albert RAG API."""
 
+import logging
+
 from django.conf import settings
 from django.utils.module_loading import import_string
 
 from pydantic_ai import Agent, RunContext, RunUsage
 from pydantic_ai.messages import ToolReturn
+
+from chat.agent_rag.collection_manager import (
+    get_conversation_collection,
+    reindex_collection,
+)
+from chat.agent_rag.document_rag_backends.registry import get_backend_key
+
+logger = logging.getLogger(__name__)
 
 
 def add_document_rag_search_tool(agent: Agent) -> None:
@@ -22,9 +32,24 @@ def add_document_rag_search_tool(agent: Agent) -> None:
             ctx (RunContext): The run context containing the conversation.
             query (str): The query to search the documents for.
         """
-        document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+        current_key = get_backend_key(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+        collection = get_conversation_collection(ctx.deps.conversation)
 
-        document_store = document_store_backend(ctx.deps.conversation.collection_id)
+        if not collection:
+            # Check if a collection exists for another backend (needs re-index)
+            collection = ctx.deps.conversation.collections.first()
+
+        if collection and collection.backend != current_key:
+            collection = reindex_collection(  # preemptively reindex elsewhere ?
+                ctx.deps.conversation,
+                user_sub=ctx.deps.user.sub,
+            )
+
+        if collection:
+            backend_class = collection.get_backend_class()
+        else:
+            backend_class = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+        document_store = backend_class(collection.external_id if collection else None)
 
         rag_results = document_store.search(query, session=ctx.deps.session)
 

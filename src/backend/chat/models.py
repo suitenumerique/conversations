@@ -4,12 +4,17 @@ from typing import Sequence
 
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.utils.module_loading import import_string
 
 from django_pydantic_field import SchemaField
 
 from core.file_upload.enums import AttachmentStatus
 from core.models import BaseModel
 
+from chat.agent_rag.document_rag_backends.registry import (
+    RAG_BACKEND_CLASSES,
+    RagBackend,
+)
 from chat.ai_sdk_types import UIMessage
 
 User = get_user_model()
@@ -53,6 +58,97 @@ class ChatProjectColor(models.TextChoices):
     COLOR_8 = "color_8", "Color 8"
     COLOR_9 = "color_9", "Color 9"
     COLOR_10 = "color_10", "Color 10"
+
+
+class Collection(BaseModel):
+    """Tracks a RAG collection and the backend that owns it.
+
+    A conversation or project can have multiple collections (one per backend).
+    The active collection is determined by filtering on the current backend key.
+    """
+
+    backend = models.CharField(
+        max_length=20,
+        choices=RagBackend,
+        help_text="RAG backend key",
+    )
+    external_id = models.CharField(
+        blank=True,
+        null=True,
+        help_text="Backend-specific collection ID (Albert int, Find UUID, etc.)",
+    )
+    name = models.CharField(
+        max_length=255,
+        help_text="Human-readable name, e.g. 'conversation-{pk}' or 'project-{pk}'",
+    )
+    conversation = models.ForeignKey(
+        "ChatConversation",
+        related_name="collections",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
+    project = models.ForeignKey(
+        "ChatProject",
+        related_name="collections",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        constraints = [
+            models.CheckConstraint(
+                name="collection_owner_exactly_one",
+                condition=(
+                    models.Q(conversation__isnull=False, project__isnull=True)
+                    | models.Q(conversation__isnull=True, project__isnull=False)
+                ),
+            ),
+            models.UniqueConstraint(
+                name="one_collection_per_backend_per_conversation",
+                fields=["conversation", "backend"],
+                condition=models.Q(conversation__isnull=False),
+            ),
+            models.UniqueConstraint(
+                name="one_collection_per_backend_per_project",
+                fields=["project", "backend"],
+                condition=models.Q(project__isnull=False),
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.backend})"
+
+    def get_backend_class(self):
+        """Resolve the backend class from the short key."""
+        return import_string(RAG_BACKEND_CLASSES[self.backend])
+
+
+class CollectionDocument(BaseModel):
+    """Tracks which attachments are indexed in which collections."""
+
+    collection = models.ForeignKey(
+        Collection,
+        on_delete=models.CASCADE,
+        related_name="documents",
+    )
+    attachment = models.ForeignKey(
+        "ChatConversationAttachment",
+        on_delete=models.CASCADE,
+        related_name="collection_entries",
+    )
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        constraints = [
+            models.UniqueConstraint(
+                name="one_document_per_collection_per_attachment",
+                fields=["collection", "attachment"],
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.attachment} in {self.collection}"
 
 
 class ChatProject(BaseModel):

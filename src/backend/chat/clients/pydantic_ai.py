@@ -124,6 +124,7 @@ from pydantic_ai.messages import (
 from core.feature_flags.helpers import is_feature_enabled
 
 from chat import models
+from chat.agent_rag.collection_manager import aget_or_create_conversation_collection
 from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
 from chat.agents.local_media_url_processors import (
     update_history_local_urls,
@@ -414,13 +415,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         usage = {"promptTokens": 0, "completionTokens": 0}
 
         conversation_has_documents = self._is_document_upload_enabled and (
-            bool(self.conversation.collection_id)
-            or bool(
-                await models.ChatConversationAttachment.objects.filter(
-                    conversation=self.conversation,
-                    content_type__startswith="text/",
-                ).aexists()
-            )
+            await self.conversation.collections.aexists()
+            or await models.ChatConversationAttachment.objects.filter(
+                conversation=self.conversation,
+                content_type__startswith="text/",
+            ).aexists()
         )
         return (
             user_prompt,
@@ -559,14 +558,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         ):
             raise ValueError("Document URL does not belong to the conversation.")
 
-        document_store = document_store_backend(self.conversation.collection_id)
-        if not document_store.collection_id:
-            # Create a new collection for the conversation
-            collection_id = document_store.create_collection(
-                name=f"conversation-{self.conversation.pk}",
-            )
-            self.conversation.collection_id = str(collection_id)
-            await self.conversation.asave(update_fields=["collection_id", "updated_at"])
+        rag_collection, document_store = await aget_or_create_conversation_collection(
+            self.conversation,
+            backend_class=document_store_backend,
+        )
 
         for document in documents:
             key = None
@@ -600,6 +595,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     content=document.data,
                     user_sub=self.user.sub,
                 )
+
+            # Track which attachment was indexed in this collection
+            if key:
+                attachment = await models.ChatConversationAttachment.objects.filter(
+                    conversation=self.conversation,
+                    key=key,
+                ).afirst()
+                if attachment:
+                    await models.CollectionDocument.objects.acreate(
+                        collection=rag_collection,
+                        attachment=attachment,
+                    )
 
             if not document.media_type.startswith("text/"):
                 md_attachment = await models.ChatConversationAttachment.objects.acreate(
