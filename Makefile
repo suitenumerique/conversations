@@ -181,7 +181,7 @@ lint: ## lint back-end python sources
 lint: \
   lint-ruff-format \
   lint-ruff-check \
-  lint-pylint
+  lint-pylint  
 .PHONY: lint
 
 lint-ruff-format: ## format back-end python sources with ruff
@@ -198,6 +198,11 @@ lint-pylint: ## lint back-end python sources with pylint only on changed files f
 	@echo 'lint:pylint started…'
 	bin/pylint --diff-only=origin/main
 .PHONY: lint-pylint
+
+lint-gitlint: ## lint commit messages with gitlint (requires gitlint to be installed locally)
+	@echo 'gitlint started…'
+	@gitlint --commits origin/main..HEAD && echo 'gitlint OK ✔'
+.PHONY: lint-gitlint
 
 test: ## run project tests
 	@$(MAKE) test-back-parallel
