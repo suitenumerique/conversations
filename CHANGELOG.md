@@ -11,6 +11,7 @@ and this project adheres to
 ### Changed
 
 - ✨(front) allow typing while LLM is generating a response
+- ✨(back) add debug mode setup for local development
 
 ### Fixed
 

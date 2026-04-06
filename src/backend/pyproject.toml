@@ -99,6 +99,7 @@ dev = [
     "respx==0.22.0",
     "ruff==0.14.5",
     "types-requests==2.32.4.20250913",
+    "debugpy>=1.8.20",    
 ]
 
 [tool.setuptools]
@@ -177,3 +178,4 @@ python_files = [
     "test_*.py",
     "tests.py",
 ]
+
