@@ -18,7 +18,7 @@ export const ChatError = ({ hasLastSubmission, onRetry }: ChatErrorProps) => {
       $direction="column"
       $gap="6px"
       $width="100%"
-      $maxWidth="750px"
+      $maxWidth="var(--chat-content-max-width, 750px)"
       $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
       $padding={{ left: '13px' }}
     >

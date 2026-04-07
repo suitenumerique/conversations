@@ -740,7 +740,7 @@ export const Chat = ({
                       <Box
                         $direction="column"
                         $width="100%"
-                        $maxWidth="750px"
+                        $maxWidth="var(--chat-content-max-width, 750px)"
                         $margin={{ all: 'auto', top: 'base', bottom: '0' }}
                         $padding={{ left: '13px', bottom: 'md' }}
                       >
@@ -766,7 +766,7 @@ export const Chat = ({
             $align="start"
             $gap="6px"
             $width="100%"
-            $maxWidth="750px"
+            $maxWidth="var(--chat-content-max-width, 750px)"
             $margin={{ all: 'auto', top: 'base', bottom: '0' }}
             $padding={{ left: '13px', bottom: 'md' }}
             $css={`

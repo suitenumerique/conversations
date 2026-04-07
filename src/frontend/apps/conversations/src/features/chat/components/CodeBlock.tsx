@@ -21,24 +21,24 @@ const CopyCodeButton = ({ onCopy }: CopyCodeButtonProps) => {
         top: 8px;
         right: 8px;
         padding: 6px 10px;
-        background: rgba(0, 0, 0, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: var(--c--contextuals--background--surface--primary);
+        border: 0px solid var(--c--contextuals--border--semantic--neutral--tertiary);
         border-radius: 4px;
         cursor: pointer;
         font-size: 12px;
+        border: 1px solid var(--c--contextuals--border--semantic--neutral--tertiary);
         font-weight: 500;
-        color: #fff;
+        color: var(--c--contextuals--content--semantic--neutral--tertiary);
         display: flex;
         flex-direction: row;
         align-items: center;
         gap: 4px;
         z-index: 10;
         transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         width: fit-content;
         &:hover {
-          background:rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.20);
+          background: var(--c--contextuals--background--semantic--neutral--tertiary);
+          border: 1px solid var(--c--contextuals--border--semantic--neutral--tertiary);
         }
       `}
     >

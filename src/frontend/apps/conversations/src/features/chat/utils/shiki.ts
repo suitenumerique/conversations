@@ -10,11 +10,12 @@ import langPython from 'shiki/langs/python.mjs';
 import langSql from 'shiki/langs/sql.mjs';
 import langTypescript from 'shiki/langs/typescript.mjs';
 import langYaml from 'shiki/langs/yaml.mjs';
-import themeDimmed from 'shiki/themes/github-dark-dimmed.mjs';
+import themeDimmed from 'shiki/themes/ayu-dark.mjs';
+import themeLight from 'shiki/themes/ayu-light.mjs';
 
 export const getHighlighter = () =>
   createHighlighterCore({
-    themes: [themeDimmed],
+    themes: [themeDimmed, themeLight],
     langs: [
       langJavascript,
       langTypescript,

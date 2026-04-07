@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 
 import { Text } from '@/components';
+import { useCunninghamTheme } from '@/cunningham';
 import { CodeBlock } from '@/features/chat/components/CodeBlock';
 
 // Memoized markdown plugins - created once at module level
@@ -19,14 +20,29 @@ import { getHighlighter } from '../utils/shiki';
 const highlighterPromise = getHighlighter();
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const rehypePluginsPromise: Promise<any[]> = highlighterPromise.then(
+const rehypePluginsDarkPromise: Promise<any[]> = highlighterPromise.then(
   (highlighter) => [
     rehypeKatex,
     [
       rehypeShikiFromHighlighter,
       highlighter,
       {
-        theme: 'github-dark-dimmed',
+        theme: 'ayu-dark',
+        fallbackLanguage: 'plaintext',
+      },
+    ],
+  ],
+);
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const rehypePluginsLightPromise: Promise<any[]> = highlighterPromise.then(
+  (highlighter) => [
+    rehypeKatex,
+    [
+      rehypeShikiFromHighlighter,
+      highlighter,
+      {
+        theme: 'ayu-light',
         fallbackLanguage: 'plaintext',
       },
     ],
@@ -61,7 +77,12 @@ const MARKDOWN_COMPONENTS: Components = {
 
 export const CompletedMarkdownBlock = React.memo(
   ({ content }: { content: string }) => {
-    const rehypePlugins = use(rehypePluginsPromise);
+    const { theme } = useCunninghamTheme();
+    const rehypePlugins = use(
+      theme.includes('dark')
+        ? rehypePluginsDarkPromise
+        : rehypePluginsLightPromise,
+    );
     return (
       <MarkdownHooks
         remarkPlugins={REMARK_PLUGINS}

@@ -11,6 +11,7 @@ and this project adheres to
 ### Changed
 
 - 🐛(fix) source links should open a new tab
+- 💄(ui) codeblock light mode
 - ✨(front) allow typing while LLM is generating a response
 - ⬆️(dependencies) update back and front dependencies
 - 💄(ui) new header
