@@ -50,11 +50,15 @@ export const StyledLink = memo(function StyledLink({
         return;
       }
 
+      if (props.target === '_blank') {
+        return;
+      }
+
       e.preventDefault();
       onClick?.(e);
       routerRef.current.push(href);
     },
-    [href, onClick],
+    [href, onClick, props.target],
   );
 
   return <Anchor href={href} onClick={handleClick} {...props} />;

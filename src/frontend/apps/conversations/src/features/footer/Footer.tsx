@@ -123,7 +123,8 @@ export const Footer = () => {
                 <StyledLink
                   key={label}
                   href={href}
-                  target="__blank"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   $css={`
                     gap:0.2rem;
                     transition: box-shadow 0.3s;
@@ -158,6 +159,8 @@ export const Footer = () => {
               <StyledLink
                 key={label}
                 href={href}
+                target="_blank"
+                rel="noopener noreferrer"
                 $css={css`
                   padding-right: 1rem;
                   &:not(:last-child) {
@@ -199,7 +202,8 @@ export const Footer = () => {
             {bottomInformation.link && (
               <StyledLink
                 href={bottomInformation.link.href}
-                target="__blank"
+                target="_blank"
+                rel="noopener noreferrer"
                 $css={css`
                   display: inline-flex;
                   box-shadow: 0px 1px 0 0
