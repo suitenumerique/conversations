@@ -145,6 +145,7 @@ class LLModel(BaseModel):
     tools: list[str]
     web_search: SettingEnvValue | None = None
     concatenate_instruction_messages: bool | None = None
+    max_token_context: int | None = None
 
     @field_validator("tools", mode="before")
     @classmethod
@@ -172,6 +173,24 @@ class LLModel(BaseModel):
         if isinstance(value, str):
             return _get_setting_or_env_or_value(value)
         return value
+
+    @field_validator("max_token_context", mode="before")
+    @classmethod
+    def validate_max_token_context(cls, value: int | str | None) -> int | None:
+        """Accept integer-like values from JSON for model context size."""
+        if value is None or value == "":
+            return None
+        if isinstance(value, int):
+            parsed_value = value
+        elif isinstance(value, str):
+            parsed_value = int(value)
+        else:
+            raise ValueError("max_token_context must be an integer value.")
+
+        if parsed_value <= 0:
+            raise ValueError("max_token_context must be a positive integer")
+
+        return parsed_value
 
     @model_validator(mode="after")
     def check_provider_or_provider_name(self) -> Self:

@@ -224,3 +224,31 @@ def test_llm_profile_concatenate_instruction_messages_from_json():
     )
     config = LLMConfiguration.model_validate_json(config_json)
     assert config.models[0].concatenate_instruction_messages is True
+
+
+def test_llmodel_max_token_context_parses_string():
+    """Test max_token_context accepts string values from JSON config."""
+    model = LLModel(
+        hrid="gpt-4",
+        model_name="openai:gpt-4",
+        human_readable_name="GPT-4",
+        is_active=True,
+        system_prompt="direct",
+        tools=[],
+        max_token_context="128000",
+    )
+    assert model.max_token_context == 128000
+
+
+def test_llmodel_max_token_context_rejects_invalid_value():
+    """Test max_token_context rejects non integer-like values."""
+    with pytest.raises(ValueError):
+        LLModel(
+            hrid="gpt-4",
+            model_name="openai:gpt-4",
+            human_readable_name="GPT-4",
+            is_active=True,
+            system_prompt="direct",
+            tools=[],
+            max_token_context="abc",
+        )
