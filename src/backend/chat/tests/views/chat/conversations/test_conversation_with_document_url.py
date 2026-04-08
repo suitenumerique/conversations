@@ -1,5 +1,6 @@
 """Unit tests for chat conversation actions with document URL."""
 
+import json
 import uuid
 
 # pylint: disable=too-many-lines
@@ -42,9 +43,16 @@ from chat.tools.descriptions import (
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-def _expected_document_instructions(today_prompt_date: str) -> str:
+def _expected_document_instructions(
+    today_prompt_date: str,
+    document_id: str | None = None,
+    document_title: str | None = None,
+    *,
+    is_converted: bool = False,
+    info: str | None = None,
+) -> str:
     """Return expected concatenated system instructions for document conversations."""
-    return (
+    base = (
         "You are a helpful test assistant :)\n\n"
         f"{today_prompt_date}\n\n"
         "Answer in english.\n\n"
@@ -53,8 +61,58 @@ def _expected_document_instructions(today_prompt_date: str) -> str:
         f"{DOCUMENT_SUMMARIZE_SYSTEM_PROMPT}\n\n"
         "[Internal context] User documents are attached to this conversation. "
         "Do not request re-upload of documents; consider them already available "
-        "via the internal store."
+        "either here in context or via the internal store."
     )
+    if not document_title or not document_id:
+        return base
+    normalized_title = document_title.removesuffix(".md") if is_converted else document_title
+    # Payload for hybrid document context
+    payload = {
+        "documents_order": "newest_to_oldest",
+        "documents": [
+            {
+                "document_id": document_id,
+                "title": normalized_title,
+                "access": "tool_call_only",
+                "content": None,
+                "info": info,
+            }
+        ],
+        "note": (
+            "Documents marked 'tool_call_only' are accessible through "
+            "tools like RAG search or summary. "
+        ),
+    }
+    return (
+        f"{base}\n\nList of documents attached to this conversation:\n"
+        f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
+    )
+
+
+def _assert_document_instructions(
+    instructions: str,
+    today_prompt_date: str,
+    expected_title: str,
+    *,
+    expected_info: str | None = None,
+) -> None:
+    """Assert the document instruction payload shape without hardcoding document_id."""
+    assert f"{today_prompt_date}\n\nAnswer in english." in instructions
+    assert "User documents are attached to this conversation." in instructions
+    assert "consider them already available" in instructions
+
+    _, _, payload_text = instructions.partition(
+        "List of documents attached to this conversation:\n"
+    )
+    payload = json.loads(payload_text)
+    assert payload["documents_order"] == "newest_to_oldest"
+    assert len(payload["documents"]) == 1
+    document = payload["documents"][0]
+    assert document["document_id"]
+    assert document["title"] == expected_title
+    assert document["access"] == "tool_call_only"
+    assert document["content"] is None
+    assert document["info"] == expected_info
 
 
 @pytest.fixture(
@@ -154,16 +212,14 @@ def test_post_conversation_with_local_pdf_document_url(
     )
 
     async def agent_model(messages: list[ModelMessage], _info: AgentInfo):
-        assert messages == [
-            ModelRequest(
-                parts=[
-                    UserPromptPart(content=["What is in this document?"], timestamp=timezone.now())
-                ],
-                instructions=_expected_document_instructions(today_prompt_date),
-                run_id=messages[0].run_id,
-                timestamp=timezone.now(),
-            )
-        ]
+        assert len(messages) == 1
+        assert messages[0] == ModelRequest(
+            parts=[UserPromptPart(content=["What is in this document?"], timestamp=timezone.now())],
+            instructions=messages[0].instructions,
+            run_id=messages[0].run_id,
+            timestamp=timezone.now(),
+        )
+        _assert_document_instructions(messages[0].instructions, today_prompt_date, "sample.pdf")
         yield "This is a document about a single pixel."
 
     # Use the fixture with FunctionModel
@@ -233,9 +289,11 @@ def test_post_conversation_with_local_pdf_document_url(
     _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
+    instruction_0 = chat_conversation.pydantic_messages[0]["instructions"]
+    _assert_document_instructions(instruction_0, today_prompt_date, "sample.pdf")
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": _expected_document_instructions(today_prompt_date),
+            "instructions": instruction_0,
             "kind": "request",
             "metadata": None,
             "parts": [
@@ -792,8 +850,8 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
 def test_post_conversation_with_local_not_pdf_document_url(
     # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
-    today_prompt_date,
     mock_ai_agent_service,
+    today_prompt_date,
     file_name,
     content_type,
 ):
@@ -856,22 +914,22 @@ def test_post_conversation_with_local_not_pdf_document_url(
     async def agent_model(messages: list[ModelMessage], _info: AgentInfo):
         timestamp_now = timezone.now()
 
-        assert messages == [
-            ModelRequest(
-                parts=[
-                    UserPromptPart(
-                        content=[
-                            "What is in this document?",
-                            # No presigned URL for non-PDF documents (not supporter by LLM)
-                        ],
-                        timestamp=timestamp_now,
-                    ),
-                ],
-                timestamp=timestamp_now,
-                instructions=_expected_document_instructions(today_prompt_date),
-                run_id=messages[0].run_id,
-            )
-        ]
+        assert len(messages) == 1
+        assert messages[0] == ModelRequest(
+            parts=[
+                UserPromptPart(
+                    content=[
+                        "What is in this document?",
+                        # No presigned URL for non-PDF documents (not supporter by LLM)
+                    ],
+                    timestamp=timestamp_now,
+                ),
+            ],
+            timestamp=timestamp_now,
+            instructions=messages[0].instructions,
+            run_id=messages[0].run_id,
+        )
+        _assert_document_instructions(messages[0].instructions, today_prompt_date, file_name)
         yield "This is a document about you."
 
     # Use the fixture with FunctionModel
@@ -941,9 +999,11 @@ def test_post_conversation_with_local_not_pdf_document_url(
     _formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
+    instruction_0 = chat_conversation.pydantic_messages[0]["instructions"]
+    _assert_document_instructions(instruction_0, today_prompt_date, file_name)
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": (_expected_document_instructions(today_prompt_date)),
+            "instructions": instruction_0,
             "kind": "request",
             "metadata": None,
             "parts": [

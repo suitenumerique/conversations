@@ -16,6 +16,13 @@ Must be used whenever the user asks for specific information while having docume
 Do NOT use this tool for up-to-date information or current events.
 
 The query must contain all information to find accurate results.
+
+When `document_id` is provided, search is filtered to a single
+text attachment by UUID from the context documents list.
+Example:
+user : "Based on the X, answer the question"
+query : "question"
+document_id : id_from_context
 """
 
 DOCUMENT_SUMMARIZE_SYSTEM_PROMPT = """
@@ -36,8 +43,9 @@ Instructions are optional but should reflect the user's request.
 
 Examples:
 "Summarize this doc in 2 paragraphs" -> instructions = "summary in 2 paragraphs"
-"Summarize this doc in English" -> instructions = "In English"
-"Summarize this doc" -> instructions = "" (default)
+"Summarize this doc in English" -> instructions = "In English", document_id=None
+"Summarize this doc" -> instructions = "" (default), document_id=None
+"Summarize this specific doc" -> instructions = "", document_id=id_from_context
 """
 
 WEB_SEARCH_TOOL_DESCRIPTION = """

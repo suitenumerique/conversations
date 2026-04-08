@@ -1,6 +1,7 @@
 """Tests for document_summarize functionality."""
 
 import io
+import uuid
 from unittest import mock
 
 from django.core.files.storage import default_storage
@@ -51,6 +52,16 @@ def fixture_mocked_context():
 def mocked_summary(_messages, _info=None):
     """Mocked summary response."""
     return ModelResponse(parts=[TextPart(content="This is a summary of the test chunk.")])
+
+
+def _queryset_like(attachments):
+    """Return a queryset-like mock supporting order_by and iteration."""
+    queryset = mock.MagicMock()
+    queryset.order_by.return_value = queryset
+    queryset.__iter__.side_effect = lambda: iter(attachments)
+    queryset.__len__.side_effect = lambda: len(attachments)
+    queryset.__getitem__.side_effect = attachments.__getitem__
+    return queryset
 
 
 @pytest.mark.asyncio
@@ -119,7 +130,7 @@ async def test_document_summarize_single_document(
     mock_attachment.file_name = "test_doc.txt"
     mock_attachment.content_type = "text/plain"
 
-    mock_conversation.attachments.filter.return_value = [mock_attachment]
+    mock_conversation.attachments.filter.return_value = _queryset_like([mock_attachment])
 
     # Mock file storage
     file_content = "This is a test document. " * 20  # Create a document with some content
@@ -176,7 +187,9 @@ async def test_document_summarize_multiple_documents(
     mock_attachment2.file_name = "doc2.txt"
     mock_attachment2.content_type = "text/plain"
 
-    mock_conversation.attachments.filter.return_value = [mock_attachment1, mock_attachment2]
+    mock_conversation.attachments.filter.return_value = _queryset_like(
+        [mock_attachment1, mock_attachment2]
+    )
 
     file_content1 = "Content of document one. " * 10
     file_content2 = "Content of document two. " * 10
@@ -209,6 +222,59 @@ async def test_document_summarize_multiple_documents(
 
 
 @pytest.mark.asyncio
+async def test_document_summarize_document_id_selects_attachment(
+    settings, mocked_context, mock_summarization_agent
+):
+    """document_id must select the matching attachment from context."""
+    settings.SUMMARIZATION_CHUNK_SIZE = 50
+    settings.SUMMARIZATION_OVERLAP_SIZE = 5
+    settings.SUMMARIZATION_CONCURRENT_REQUESTS = 2
+
+    mock_conversation = mock.Mock()
+    mock_attachment1 = mock.Mock()
+    mock_attachment1.id = uuid.uuid4()
+    mock_attachment1.key = "doc1.txt"
+    mock_attachment1.file_name = "doc1.txt"
+    mock_attachment1.content_type = "text/plain"
+
+    mock_attachment2 = mock.Mock()
+    mock_attachment2.id = uuid.uuid4()
+    mock_attachment2.key = "doc2.txt"
+    mock_attachment2.file_name = "doc2.txt"
+    mock_attachment2.content_type = "text/plain"
+
+    mock_conversation.attachments.filter.return_value = _queryset_like(
+        [mock_attachment1, mock_attachment2]
+    )
+
+    file_content1 = "Content of document one. " * 10
+    file_content2 = "Content of document two. " * 10
+
+    def mock_open_side_effect(key):
+        if key == "doc1.txt":
+            return io.BytesIO(file_content1.encode("utf-8"))
+        return io.BytesIO(file_content2.encode("utf-8"))
+
+    with mock.patch.object(default_storage, "open", side_effect=mock_open_side_effect):
+        mocked_context.deps = mock.Mock()
+        mocked_context.deps.conversation = mock_conversation
+
+        def mocked_summary_for_selected_doc(messages, _info=None):
+            messages_text = messages[0].parts[-1].content
+            if "Produce a coherent synthesis" in messages_text:
+                return ModelResponse(parts=[TextPart(content="Summary for selected document")])
+            return ModelResponse(parts=[TextPart(content="Chunk summary")])
+
+        with mock_summarization_agent(FunctionModel(mocked_summary_for_selected_doc)):
+            result = await document_summarize(
+                mocked_context, instructions=None, document_id=str(mock_attachment2.id)
+            )
+
+        assert result.return_value == "Summary for selected document"
+        assert result.metadata["sources"] == {"doc2.txt"}
+
+
+@pytest.mark.asyncio
 async def test_document_summarize_with_custom_instructions(
     settings, mocked_context, mock_summarization_agent
 ):
@@ -223,7 +289,7 @@ async def test_document_summarize_with_custom_instructions(
     mock_attachment.file_name = "test.txt"
     mock_attachment.content_type = "text/plain"
 
-    mock_conversation.attachments.filter.return_value = [mock_attachment]
+    mock_conversation.attachments.filter.return_value = _queryset_like([mock_attachment])
 
     file_content = "Test content " * 20
 
@@ -260,7 +326,7 @@ async def test_document_summarize_with_custom_instructions(
 async def test_document_summarize_no_text_attachments(mocked_context, mock_summarization_agent):
     """Test document_summarize returns error message when no text documents found."""
     mock_conversation = mock.Mock()
-    mock_conversation.attachments.filter.return_value = []
+    mock_conversation.attachments.filter.return_value = _queryset_like([])
 
     # Set up mocked_context with conversation
     mocked_context.deps = mock.Mock()
@@ -283,7 +349,7 @@ async def test_document_summarize_error_reading_document(mocked_context, mock_su
     mock_attachment.file_name = "test.txt"
     mock_attachment.content_type = "text/plain"
 
-    mock_conversation.attachments.filter.return_value = [mock_attachment]
+    mock_conversation.attachments.filter.return_value = _queryset_like([mock_attachment])
 
     with mock.patch.object(default_storage, "open", side_effect=IOError("File read error")):
         # Set up mocked_context with conversation
@@ -313,7 +379,7 @@ async def test_document_summarize_error_during_chunk_summarization(
     mock_attachment.file_name = "test.txt"
     mock_attachment.content_type = "text/plain"
 
-    mock_conversation.attachments.filter.return_value = [mock_attachment]
+    mock_conversation.attachments.filter.return_value = _queryset_like([mock_attachment])
 
     file_content = "Test content " * 20
 
@@ -353,7 +419,7 @@ async def test_document_summarize_error_during_merge(
     mock_attachment.file_name = "test.txt"
     mock_attachment.content_type = "text/plain"
 
-    mock_conversation.attachments.filter.return_value = [mock_attachment]
+    mock_conversation.attachments.filter.return_value = _queryset_like([mock_attachment])
 
     file_content = "Test content " * 20
 
@@ -394,7 +460,7 @@ async def test_document_summarize_empty_result(settings, mocked_context, mock_su
     mock_attachment.file_name = "test.txt"
     mock_attachment.content_type = "text/plain"
 
-    mock_conversation.attachments.filter.return_value = [mock_attachment]
+    mock_conversation.attachments.filter.return_value = _queryset_like([mock_attachment])
 
     file_content = "Test content " * 20
 
@@ -437,7 +503,7 @@ async def test_document_summarize_large_document_multiple_chunks(
     mock_attachment.file_name = "large_doc.txt"
     mock_attachment.content_type = "text/plain"
 
-    mock_conversation.attachments.filter.return_value = [mock_attachment]
+    mock_conversation.attachments.filter.return_value = _queryset_like([mock_attachment])
 
     # Create a large document
     file_content = "This is a word. " * 100  # Should create multiple chunks

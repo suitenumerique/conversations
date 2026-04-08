@@ -36,11 +36,6 @@ from chat.ai_sdk_types import (
 )
 from chat.factories import ChatConversationFactory
 from chat.tests.utils import replace_uuids_with_placeholder
-from chat.tools.descriptions import (
-    DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT,
-    DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
-    SELF_DOCUMENTATION_TOOL_DESCRIPTION,
-)
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -48,19 +43,32 @@ from chat.tools.descriptions import (
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-def _expected_document_instructions(today_prompt_date: str) -> str:
-    """Return expected concatenated system instructions for document conversations."""
-    return (
-        "You are a helpful test assistant :)\n\n"
-        f"{today_prompt_date}\n\n"
-        "Answer in english.\n\n"
-        f"{SELF_DOCUMENTATION_TOOL_DESCRIPTION}\n\n"
-        f"{DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT}\n\n"
-        f"{DOCUMENT_SUMMARIZE_SYSTEM_PROMPT}\n\n"
-        "[Internal context] User documents are attached to this conversation. "
-        "Do not request re-upload of documents; consider them already "
-        "available via the internal store."
+def _assert_document_instructions(
+    instructions: str,
+    today_prompt_date: str,
+    expected_title: str,
+    *,
+    expected_info: str | None = None,
+) -> None:
+    """Assert document instruction format and payload fields."""
+    assert f"{today_prompt_date}\n\nAnswer in english." in instructions
+    assert "User documents are attached to this conversation." in instructions
+    assert "consider them already available" in instructions
+    assert "List of documents attached to this conversation:\n" in instructions
+
+    _, _, payload_text = instructions.partition(
+        "List of documents attached to this conversation:\n"
     )
+    payload = json.loads(payload_text)
+    assert payload["documents_order"] == "newest_to_oldest"
+    assert len(payload["documents"]) == 1
+
+    doc = payload["documents"][0]
+    assert doc["document_id"]
+    assert doc["title"] == expected_title
+    assert doc["access"] == "tool_call_only"
+    assert doc["content"] is None
+    assert doc["info"] == expected_info
 
 
 @pytest.fixture(
@@ -518,9 +526,11 @@ def test_post_conversation_with_document_upload(
     assert len(chat_conversation.pydantic_messages) == 4
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
+    instruction_0 = chat_conversation.pydantic_messages[0]["instructions"]
+    _assert_document_instructions(instruction_0, today_prompt_date, "sample.pdf.md")
 
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": _expected_document_instructions(today_prompt_date),
+        "instructions": instruction_0,
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -566,8 +576,10 @@ def test_post_conversation_with_document_upload(
         },
         "run_id": _run_id,
     }
+    instruction_2 = chat_conversation.pydantic_messages[2]["instructions"]
+    _assert_document_instructions(instruction_2, today_prompt_date, "sample.pdf.md")
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": _expected_document_instructions(today_prompt_date),
+        "instructions": instruction_2,
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -833,8 +845,10 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     assert len(chat_conversation.pydantic_messages) == 4
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
+    instruction_0 = chat_conversation.pydantic_messages[0]["instructions"]
+    _assert_document_instructions(instruction_0, today_prompt_date, "sample.pdf.md")
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": _expected_document_instructions(today_prompt_date),
+        "instructions": instruction_0,
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -880,8 +894,10 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         },
         "run_id": _run_id,
     }
+    instruction_2 = chat_conversation.pydantic_messages[2]["instructions"]
+    _assert_document_instructions(instruction_2, today_prompt_date, "sample.pdf.md")
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": _expected_document_instructions(today_prompt_date),
+        "instructions": instruction_2,
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -1074,9 +1090,11 @@ def test_post_conversation_with_odt_document_upload(
     assert len(chat_conversation.pydantic_messages) == 4
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
+    instruction_0 = chat_conversation.pydantic_messages[0]["instructions"]
+    _assert_document_instructions(instruction_0, today_prompt_date, "sample.odt.md")
 
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": _expected_document_instructions(today_prompt_date),
+        "instructions": instruction_0,
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -1122,8 +1140,10 @@ def test_post_conversation_with_odt_document_upload(
         },
         "run_id": _run_id,
     }
+    instruction_2 = chat_conversation.pydantic_messages[2]["instructions"]
+    _assert_document_instructions(instruction_2, today_prompt_date, "sample.odt.md")
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": _expected_document_instructions(today_prompt_date),
+        "instructions": instruction_2,
         "kind": "request",
         "metadata": None,
         "parts": [

@@ -894,6 +894,16 @@ USER QUESTION:
         environ_name="SUMMARIZATION_CONCURRENT_REQUESTS",
         environ_prefix=None,
     )
+    DOCUMENT_CONTEXT_BUDGET_RATIO = values.FloatValue(
+        default=0.5,
+        environ_name="DOCUMENT_CONTEXT_BUDGET_RATIO",
+        environ_prefix=None,
+    )
+    DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = values.PositiveIntegerValue(
+        default=1000,
+        environ_name="DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS",
+        environ_prefix=None,
+    )
 
     # Tavily API
     TAVILY_API_KEY = values.Value(

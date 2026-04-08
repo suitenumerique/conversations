@@ -14,6 +14,7 @@ and this project adheres to
 - ✨(back) add ODT parsing support
 - ✨(back) add self-documentation tool
 - ✅(front) add tests for SourceItem component
+- ✨(documents) make document context hybrid
 
 ### Changed
 
