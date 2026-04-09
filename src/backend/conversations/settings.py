@@ -357,6 +357,7 @@ class Base(BraveSettings, Configuration):
         "rest_framework",
         "parler",
         "easy_thumbnails",
+        "solo.apps.SoloAppConfig",
         # Django
         "django.contrib.admin",
         "django.contrib.auth",

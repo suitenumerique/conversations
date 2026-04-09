@@ -12,6 +12,7 @@ from django.core import mail, validators
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
+from solo.models import SingletonModel
 from timezone_field import TimeZoneField
 
 logger = getLogger(__name__)
@@ -191,3 +192,16 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         if not self.email:
             raise ValueError("User has no email address.")
         mail.send_mail(subject, message, from_email, [self.email], **kwargs)
+
+
+class SiteConfiguration(SingletonModel):
+    """Singleton model for site configuration"""
+
+    self_documentation = models.TextField(
+        verbose_name=_("Self documentation content. Must be valid markdown."),
+        blank=True,
+        default="",
+    )
+
+    class Meta:
+        verbose_name = _("Site Configuration")

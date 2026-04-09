@@ -4,6 +4,8 @@ from django.contrib import admin
 from django.contrib.auth import admin as auth_admin
 from django.utils.translation import gettext_lazy as _
 
+from solo.admin import SingletonModelAdmin
+
 from . import models
 
 
@@ -107,3 +109,18 @@ class UserAdmin(auth_admin.UserAdmin):
         "allow_conversation_analytics",
     )
     list_editable = ("allow_conversation_analytics",)
+
+
+@admin.register(models.SiteConfiguration)
+class SiteConfigurationAdmin(SingletonModelAdmin):
+    """Admin class for the SiteConfiguration model"""
+
+    fieldsets = (
+        (
+            None,
+            {
+                "description": _("Text content with self documentation "),
+                "fields": ("self_documentation",),
+            },
+        ),
+    )

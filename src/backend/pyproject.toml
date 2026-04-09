@@ -69,6 +69,7 @@ dependencies = [
     "whitenoise==6.11.0",
     "pypdf==6.10.0",
     "odfdo==3.22.1",
+    "django-solo==2.5.1",
 ]
 
 [project.urls]
@@ -111,7 +112,7 @@ zip-safe = true
 universal = true
 
 [tool.uv]
-exclude-newer = "7 days"
+exclude-newer = "5 days"
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
     "sys_platform == 'darwin'",

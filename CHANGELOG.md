@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(back) add ODT parsing support
+- ✨(back) add self-documentation tool
 
 ### Changed
 

@@ -93,6 +93,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
 from django.db.models import Q
 from django.utils.module_loading import import_string
+from django.utils.translation import gettext_lazy as _
 
 from asgiref.sync import sync_to_async
 from langfuse import get_client
@@ -149,6 +150,7 @@ from chat.tools.descriptions import (
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize
+from chat.tools.self_documentation import build_self_documentation_payload
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
 
@@ -270,6 +272,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             web_search_enabled=self._is_web_search_enabled and self._is_smart_search_enabled,
         )
         self._web_search_tool_registered = False
+        self._self_documentation_tool_registered = False
 
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
@@ -737,6 +740,38 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self._web_search_tool_registered = True
 
+    def _setup_self_documentation_tool(self) -> None:
+        """Register a tool exposing static and runtime self-documentation metadata."""
+        if self._self_documentation_tool_registered:
+            return
+
+        @self.conversation_agent.instructions
+        def self_documentation_instruction() -> str:
+            return (
+                "For questions about your identity, model, capabilities, limitations, privacy, "
+                "internet access, accepted files, "
+                "or hosting, call the self_documentation tool before answering."
+            )
+
+        @self.conversation_agent.tool(name="self_documentation", retries=0)
+        async def self_documentation(_ctx: RunContext) -> ToolReturn:
+            """Return a single payload with static and runtime assistant metadata."""
+            return ToolReturn(
+                return_value=await build_self_documentation_payload(
+                    model_hrid=self.model_hrid,
+                    model_configuration=self.conversation_agent.configuration,
+                    tools_configuration={
+                        "web_search_feature_enabled": self._is_web_search_enabled,
+                        "smart_web_search_enabled": self._is_smart_search_enabled,
+                        "document_upload_enabled": self._is_document_upload_enabled,
+                        "web_search_runtime_enabled": _ctx.deps.web_search_enabled,
+                    },
+                ),
+                metadata={"sources": [str(_("Internal Documentation of the AI Assistant"))]},
+            )
+
+        self._self_documentation_tool_registered = True
+
     async def _handle_input_documents(
         self,
         input_documents: List[BinaryContent | DocumentUrl],
@@ -1057,6 +1092,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         conversation_has_documents = doc_result.has_documents
 
         await self._agent_stop_streaming(force_cache_check=True)
+        self._setup_self_documentation_tool()
         self._setup_web_search_tool()
         self._setup_web_search(force_web_search)
 
