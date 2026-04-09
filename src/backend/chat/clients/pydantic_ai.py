@@ -739,10 +739,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             )
 
         @self.conversation_agent.tool(name="self_documentation", retries=0)
-        def self_documentation(_ctx: RunContext) -> ToolReturn:
+        async def self_documentation(_ctx: RunContext) -> ToolReturn:
             """Return a single payload with static and runtime assistant metadata."""
             return ToolReturn(
-                return_value=build_self_documentation_payload(
+                return_value=await build_self_documentation_payload(
                     model_hrid=self.model_hrid,
                     model_configuration=self.conversation_agent.configuration,
                     web_search_feature_enabled=self._is_web_search_enabled,

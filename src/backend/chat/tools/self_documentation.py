@@ -5,21 +5,37 @@ from copy import deepcopy
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict
-
+import re
+import httpx
 from django.conf import settings
+import logging
+
+logger = logging.getLogger(__name__)
+
+DOCS_HOST = "docs.numerique.gouv.fr"
+SELF_DOCUMENTATION_ID = "e701bf5a-9c16-487e-b406-75767225fe3d"
+#SELF_DOCUMENTATION_FILE = Path(__file__).resolve().parent.parent / "meta_docs" / "self_documentation.json"
 
 
-SELF_DOCUMENTATION_FILE = Path(__file__).resolve().parent.parent / "meta_docs" / "self_documentation.json"
-
-
-@lru_cache(maxsize=1)
-def load_static_self_documentation() -> Dict[str, Any]:
+#@lru_cache(maxsize=1)
+async def load_static_self_documentation() -> Dict[str, Any]:
     """Load static self-documentation content from repository."""
-    with SELF_DOCUMENTATION_FILE.open(encoding="utf-8") as file:
-        return json.load(file)
+    #with SELF_DOCUMENTATION_FILE.open(encoding="utf-8") as file:
+    #    return json.load(file)
+
+    url_transformed = f"https://{DOCS_HOST}/api/v1.0/documents/{SELF_DOCUMENTATION_ID}/content/?content_format=markdown"
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            response = await client.get(url_transformed)
+            data = response.json()
+            content = data.get('content', '')
+            return content
+    except Exception as e:
+        logger.warning("Error fetching Docs content %s: %s", SELF_DOCUMENTATION_ID, e)
+        return "There was an error fetching the self-documentation content."
 
 
-def build_self_documentation_payload(
+async def build_self_documentation_payload(
     *,
     model_hrid: str,
     model_configuration: Any,
@@ -29,13 +45,12 @@ def build_self_documentation_payload(
     web_search_runtime_enabled: bool,
 ) -> Dict[str, Any]:
     """Return a single payload combining static documentation and runtime details."""
-    static_doc = deepcopy(load_static_self_documentation())
+    #static_doc = deepcopy(load_static_self_documentation())
+    static_doc = await load_static_self_documentation()
 
     provider = getattr(model_configuration, "provider", None)
     provider_kind = getattr(provider, "kind", None)
     provider_hrid = getattr(provider, "hrid", None)
-    model_settings = getattr(model_configuration, "settings", None)
-    max_tokens = getattr(model_settings, "max_tokens", None) if model_settings else None
 
     runtime = {
         "model": {
@@ -44,7 +59,6 @@ def build_self_documentation_payload(
             "human_readable_name": getattr(model_configuration, "human_readable_name", None),
             "provider_kind": provider_kind,
             "provider_hrid": provider_hrid,
-            "max_tokens": max_tokens,
         },
         "features": {
             "document_upload_enabled": document_upload_enabled,
