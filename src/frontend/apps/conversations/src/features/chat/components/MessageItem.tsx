@@ -2,9 +2,11 @@ import { Message, SourceUIPart, ToolInvocationUIPart } from '@ai-sdk/ui-utils';
 import { Button } from '@gouvfr-lasuite/cunningham-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-
+import { useConfig } from '@/core/config';
+import { MoreActionsButton } from '@/features/chat/components/MoreActionsButton';
 import { Box, Icon, Loader, Text, useToast } from '@/components';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
+
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import {
   CompletedMarkdownBlock,
@@ -188,6 +190,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
 }) => {
   const { t } = useTranslation();
   const { showToast } = useToast();
+  const { data: config } = useConfig();
+  const docsBaseUrl = config?.DOCS_BASE_URL;
   const contentRef = React.useRef<HTMLDivElement>(null);
 
   const shouldApplyStreamingHeight =
@@ -399,6 +403,12 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                     icon={<CopyIcon className="action-chat-button-icon" />}
                     className="c__button--neutral action-chat-button"
                   ></Button>
+                  {docsBaseUrl && conversationId && message.id && message.content && (
+                    <MoreActionsButton
+                      conversationId={conversationId}
+                      messageId={message.id}
+                    />
+                  )}
                   {sourceParts.length > 0 && (
                     <Button
                       size="nano"

@@ -939,6 +939,11 @@ USER QUESTION:
         environ_name="FIND_API_TIMEOUT",
         environ_prefix=None,
     )
+    # Docs
+    DOCS_BASE_URL = values.Value(None, environ_name="DOCS_BASE_URL", environ_prefix=None)
+    DOCS_API_TIMEOUT = values.PositiveIntegerValue(
+        default=30, environ_name="DOCS_API_TIMEOUT", environ_prefix=None
+    )
 
     # Logging
     # We want to make it easy to log to console but by default we log production
@@ -1168,6 +1173,13 @@ USER QUESTION:
             raise ValueError(
                 f"{cls.RAG_DOCUMENT_SEARCH_BACKEND} requires FIND_API_KEY, FIND_API_URL, "
                 "OIDC_STORE_ACCESS_TOKEN and OIDC_STORE_REFRESH_TOKEN to be set."
+            )
+
+        # Docs configuration
+        if cls.DOCS_BASE_URL and not cls.OIDC_STORE_ACCESS_TOKEN:
+            raise ValueError(
+                "DOCS_BASE_URL is set but OIDC_STORE_ACCESS_TOKEN is not enabled. "
+                "The Docs integration requires OIDC access tokens to be stored in the session."
             )
 
         # OCR configuration validation

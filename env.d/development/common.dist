@@ -53,3 +53,14 @@ OIDC_AUTH_REQUEST_EXTRA_PARAMS={"acr_values": "eidas1"}
 # AI_BASE_URL=https://openaiendpoint.com
 AI_API_KEY=password
 # AI_MODEL=llama
+
+## --- Addition Docs Resource Server Config
+# Docs integration — "Edit in Docs" export feature
+# DOCS_BASE_URL=http://docs
+# DOCS_API_TIMEOUT=30
+
+# Store OIDC tokens in the session
+# OIDC_STORE_ACCESS_TOKEN = True  # Store the access token in the session
+# OIDC_STORE_REFRESH_TOKEN = True  # Store the encrypted refresh token in the session
+# Required for refresh token encryption
+# OIDC_STORE_REFRESH_TOKEN_KEY = "" # Must be a valid Fernet key (32 url-safe base64-encoded bytes)

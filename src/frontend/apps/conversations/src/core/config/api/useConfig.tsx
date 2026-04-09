@@ -37,6 +37,7 @@ export interface ConfigResponse {
   FILE_UPLOAD_MODE?: string;
   theme_customization?: ThemeCustomization;
   chat_upload_accept?: string;
+  DOCS_BASE_URL?: string;
 }
 
 const LOCAL_STORAGE_KEY = 'conversations_config';
