@@ -482,3 +482,21 @@ def fixture_mock_openai_stream_tool():
     )
 
     return route
+
+
+@pytest.fixture(name="hello_user_message")
+def hello_user_message_fixture():
+    """Common Hello user message dict for conversation request payloads."""
+    return {
+        "id": "yuPoOuBkKA4FnKvk",
+        "role": "user",
+        "parts": [{"text": "Hello", "type": "text"}],
+        "content": "Hello",
+        "createdAt": "2025-07-03T15:22:17.105Z",
+    }
+
+
+@pytest.fixture(name="hello_conversation_data")
+def hello_conversation_data_fixture(hello_user_message):
+    """Common request payload for a single Hello user message conversation."""
+    return {"messages": [hello_user_message]}

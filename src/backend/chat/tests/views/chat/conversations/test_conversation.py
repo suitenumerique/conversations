@@ -26,12 +26,116 @@ from chat.ai_sdk_types import (
 )
 from chat.factories import ChatConversationFactory
 from chat.llm_configuration import LLModel, LLMProvider
-from chat.tests.utils import replace_uuids_with_placeholder
+from chat.tests.utils import (
+    ZERO_USAGE,
+    assert_data_stream_response,
+    replace_uuids_with_placeholder,
+)
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
 # in other threads
 pytestmark = pytest.mark.django_db(transaction=True)
+
+FROZEN_TIMESTAMP = "2025-07-25T10:36:35.297675Z"
+ENGLISH_INSTRUCTIONS = (
+    "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
+)
+
+
+def _assert_hello_ui_messages(chat_conversation):
+    assert chat_conversation.ui_messages == [
+        {
+            "content": "Hello",
+            "createdAt": "2025-07-03T15:22:17.105Z",
+            "id": "yuPoOuBkKA4FnKvk",
+            "parts": [{"text": "Hello", "type": "text"}],
+            "role": "user",
+        }
+    ]
+
+
+def _assert_hello_messages(chat_conversation, frozen_now):
+    assert len(chat_conversation.messages) == 2
+    assert chat_conversation.messages[0].id == IsUUID(4)
+    assert chat_conversation.messages[0] == UIMessage(
+        id=chat_conversation.messages[0].id,
+        createdAt=frozen_now,
+        content="Hello",
+        reasoning=None,
+        experimental_attachments=None,
+        role="user",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello")],
+    )
+    assert chat_conversation.messages[1].id == IsUUID(4)
+    assert chat_conversation.messages[1] == UIMessage(
+        id=chat_conversation.messages[1].id,
+        createdAt=frozen_now,
+        content="Hello there",
+        reasoning=None,
+        experimental_attachments=None,
+        role="assistant",
+        annotations=None,
+        toolInvocations=None,
+        parts=[TextUIPart(type="text", text="Hello there")],
+    )
+
+
+def _make_pydantic_request(run_id, instructions, content, timestamp=FROZEN_TIMESTAMP):
+    return {
+        "instructions": instructions,
+        "kind": "request",
+        "metadata": None,
+        "parts": [{"content": content, "part_kind": "user-prompt", "timestamp": timestamp}],
+        "run_id": run_id,
+        "timestamp": timestamp,
+    }
+
+
+def _make_pydantic_text_response(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
+    run_id,
+    content,
+    timestamp=FROZEN_TIMESTAMP,
+    model_name="test-model",
+    provider_response_id="chatcmpl-1234567890",
+    provider_url="https://www.external-ai-service.com/",
+    usage=None,
+):
+    return {
+        "finish_reason": "stop",
+        "kind": "response",
+        "metadata": None,
+        "model_name": model_name,
+        "parts": [
+            {
+                "content": content,
+                "id": None,
+                "part_kind": "text",
+                "provider_details": None,
+                "provider_name": None,
+            }
+        ],
+        "provider_details": {"finish_reason": "stop", "timestamp": timestamp},
+        "provider_name": "openai",
+        "provider_response_id": provider_response_id,
+        "provider_url": provider_url,
+        "timestamp": timestamp,
+        "usage": usage if usage is not None else ZERO_USAGE,
+        "run_id": run_id,
+    }
+
+
+def _assert_english_system_prompts(last_request_payload):
+    system_messages = [
+        m["content"] for m in last_request_payload["messages"] if m["role"] == "system"
+    ]
+    assert system_messages == [
+        "You are a helpful test assistant :)",
+        "Today is Friday 25/07/2025.",
+        "Answer in english.",
+    ]
 
 
 @pytest.fixture(autouse=True)
@@ -92,36 +196,20 @@ def test_post_conversation_invalid_protocol(api_client):
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_data_protocol(api_client, mock_openai_stream):
+def test_post_conversation_data_protocol(api_client, mock_openai_stream, hello_conversation_data):
     """Test posting messages to a conversation using the 'data' protocol."""
     chat_conversation = ChatConversationFactory(owner__language="en-us")
 
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
-    data = {
-        "messages": [
-            {
-                "id": "yuPoOuBkKA4FnKvk",
-                "role": "user",
-                "parts": [{"text": "Hello", "type": "text"}],
-                "content": "Hello",
-                "createdAt": "2025-07-03T15:22:17.105Z",
-            }
-        ]
-    }
     api_client.force_login(chat_conversation.owner)
 
-    response = api_client.post(url, data, format="json")
+    response = api_client.post(url, hello_conversation_data, format="json")
 
-    assert response.status_code == status.HTTP_200_OK
-    assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
-    assert response.streaming
+    assert_data_stream_response(response)
 
-    # Wait for the streaming content to be fully received
-    response_content = b"".join(response.streaming_content).decode("utf-8")
-
-    # Replace UUIDs with placeholders for assertion
-    response_content = replace_uuids_with_placeholder(response_content)
+    response_content = replace_uuids_with_placeholder(
+        b"".join(response.streaming_content).decode("utf-8")
+    )
 
     assert response_content == (
         '0:"Hello"\n'
@@ -132,111 +220,16 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
 
     assert mock_openai_stream.called
 
-    # ensure instructions are merged as a system prompt
-    last_request_payload = json.loads(respx.calls.last.request.content)
-
-    system_messages_content = [
-        message["content"]
-        for message in last_request_payload["messages"]
-        if message["role"] == "system"
-    ]
-    assert system_messages_content[0] == "You are a helpful test assistant :)"
-    assert system_messages_content[1] == "Today is Friday 25/07/2025."
-    assert system_messages_content[2] == "Answer in english."
+    _assert_english_system_prompts(json.loads(respx.calls.last.request.content))
 
     chat_conversation.refresh_from_db()
-    assert chat_conversation.ui_messages == [
-        {
-            "content": "Hello",
-            "createdAt": "2025-07-03T15:22:17.105Z",
-            "id": "yuPoOuBkKA4FnKvk",
-            "parts": [{"text": "Hello", "type": "text"}],
-            "role": "user",
-        }
-    ]
-
-    assert len(chat_conversation.messages) == 2
-
-    assert chat_conversation.messages[0].id == IsUUID(4)
-    assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,  # don't test the message ID here
-        createdAt=timezone.now(),  # Mocked timestamp
-        content="Hello",
-        reasoning=None,
-        experimental_attachments=None,
-        role="user",
-        annotations=None,
-        toolInvocations=None,
-        parts=[TextUIPart(type="text", text="Hello")],
-    )
-
-    assert chat_conversation.messages[1].id == IsUUID(4)
-    assert chat_conversation.messages[1] == UIMessage(
-        id=chat_conversation.messages[1].id,  # don't test the message ID here
-        createdAt=timezone.now(),  # Mocked timestamp
-        content="Hello there",
-        reasoning=None,
-        experimental_attachments=None,
-        role="assistant",
-        annotations=None,
-        toolInvocations=None,
-        parts=[TextUIPart(type="text", text="Hello there")],
-    )
+    _assert_hello_ui_messages(chat_conversation)
+    _assert_hello_messages(chat_conversation, timezone.now())
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
-
     assert chat_conversation.pydantic_messages == [
-        {
-            "instructions": (
-                "You are a helpful test assistant :)\n\n"
-                "Today is Friday 25/07/2025.\n\nAnswer in english."
-            ),
-            "kind": "request",
-            "metadata": None,
-            "parts": [
-                {
-                    "content": ["Hello"],
-                    "part_kind": "user-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-            ],
-            "run_id": _run_id,
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-        },
-        {
-            "finish_reason": "stop",
-            "kind": "response",
-            "metadata": None,
-            "model_name": "test-model",
-            "parts": [
-                {
-                    "content": "Hello there",
-                    "id": None,
-                    "part_kind": "text",
-                    "provider_details": None,
-                    "provider_name": None,
-                }
-            ],
-            "provider_details": {
-                "finish_reason": "stop",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
-            },
-            "provider_name": "openai",
-            "provider_response_id": "chatcmpl-1234567890",
-            "provider_url": "https://www.external-ai-service.com/",
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-            "usage": {
-                "cache_audio_read_tokens": 0,
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "details": {},
-                "input_audio_tokens": 0,
-                "input_tokens": 0,
-                "output_audio_tokens": 0,
-                "output_tokens": 0,
-            },
-            "run_id": _run_id,
-        },
+        _make_pydantic_request(_run_id, ENGLISH_INSTRUCTIONS, ["Hello"]),
+        _make_pydantic_text_response(_run_id, "Hello there"),
     ]
 
 
@@ -244,37 +237,21 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
 @respx.mock
 @patch("chat.keepalive.get_current_time")
 def test_post_conversation_data_protocol_triggers_keepalives(
-    mock_time, api_client, mock_openai_stream
+    mock_time, api_client, mock_openai_stream, hello_conversation_data
 ):
     """Test streaming response contains keepalive messages"""
     chat_conversation = ChatConversationFactory(owner__language="en-us")
     mock_time.side_effect = [float(i * 60) for i in range(10)]
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
-    data = {
-        "messages": [
-            {
-                "id": "yuPoOuBkKA4FnKvk",
-                "role": "user",
-                "parts": [{"text": "Hello", "type": "text"}],
-                "content": "Hello",
-                "createdAt": "2025-07-03T15:22:17.105Z",
-            }
-        ]
-    }
     api_client.force_login(chat_conversation.owner)
 
-    response = api_client.post(url, data, format="json")
+    response = api_client.post(url, hello_conversation_data, format="json")
 
-    assert response.status_code == status.HTTP_200_OK
-    assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
-    assert response.streaming
+    assert_data_stream_response(response)
 
-    # Wait for the streaming content to be fully received
-    response_content = b"".join(response.streaming_content).decode("utf-8")
-
-    # Replace UUIDs with placeholders for assertion
-    response_content = replace_uuids_with_placeholder(response_content)
+    response_content = replace_uuids_with_placeholder(
+        b"".join(response.streaming_content).decode("utf-8")
+    )
 
     assert response_content == (
         '0:"Hello"\n'
@@ -287,122 +264,26 @@ def test_post_conversation_data_protocol_triggers_keepalives(
     assert mock_openai_stream.called
 
     chat_conversation.refresh_from_db()
-    assert chat_conversation.ui_messages == [
-        {
-            "content": "Hello",
-            "createdAt": "2025-07-03T15:22:17.105Z",
-            "id": "yuPoOuBkKA4FnKvk",
-            "parts": [{"text": "Hello", "type": "text"}],
-            "role": "user",
-        }
-    ]
-
-    assert len(chat_conversation.messages) == 2
-
-    assert chat_conversation.messages[0].id == IsUUID(4)
-    assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,  # don't test the message ID here
-        createdAt=timezone.now(),  # Mocked timestamp
-        content="Hello",
-        reasoning=None,
-        experimental_attachments=None,
-        role="user",
-        annotations=None,
-        toolInvocations=None,
-        parts=[TextUIPart(type="text", text="Hello")],
-    )
-
-    assert chat_conversation.messages[1].id == IsUUID(4)
-    assert chat_conversation.messages[1] == UIMessage(
-        id=chat_conversation.messages[1].id,  # don't test the message ID here
-        createdAt=timezone.now(),  # Mocked timestamp
-        content="Hello there",
-        reasoning=None,
-        experimental_attachments=None,
-        role="assistant",
-        annotations=None,
-        toolInvocations=None,
-        parts=[TextUIPart(type="text", text="Hello there")],
-    )
+    _assert_hello_ui_messages(chat_conversation)
+    _assert_hello_messages(chat_conversation, timezone.now())
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
-        {
-            "instructions": (
-                "You are a helpful test assistant :)\n\n"
-                "Today is Friday 25/07/2025.\n\n"
-                "Answer in english."
-            ),
-            "kind": "request",
-            "metadata": None,
-            "parts": [
-                {
-                    "content": ["Hello"],
-                    "part_kind": "user-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-            ],
-            "run_id": _run_id,
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-        },
-        {
-            "finish_reason": "stop",
-            "kind": "response",
-            "metadata": None,
-            "model_name": "test-model",
-            "parts": [
-                {
-                    "content": "Hello there",
-                    "id": None,
-                    "part_kind": "text",
-                    "provider_details": None,
-                    "provider_name": None,
-                }
-            ],
-            "provider_details": {
-                "finish_reason": "stop",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
-            },
-            "provider_name": "openai",
-            "provider_response_id": "chatcmpl-1234567890",
-            "provider_url": "https://www.external-ai-service.com/",
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-            "usage": {
-                "cache_audio_read_tokens": 0,
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "details": {},
-                "input_audio_tokens": 0,
-                "input_tokens": 0,
-                "output_audio_tokens": 0,
-                "output_tokens": 0,
-            },
-            "run_id": _run_id,
-        },
+        _make_pydantic_request(_run_id, ENGLISH_INSTRUCTIONS, ["Hello"]),
+        _make_pydantic_text_response(_run_id, "Hello there"),
     ]
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
-def test_post_conversation_text_protocol(api_client, mock_openai_stream):
+def test_post_conversation_text_protocol(api_client, mock_openai_stream, hello_conversation_data):
     """Test posting messages to a conversation using the 'text' protocol."""
     chat_conversation = ChatConversationFactory(owner__language="en-us")
 
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=text"
-    data = {
-        "messages": [
-            {
-                "id": "yuPoOuBkKA4FnKvk",
-                "role": "user",
-                "parts": [{"text": "Hello", "type": "text"}],
-                "content": "Hello",
-                "createdAt": "2025-07-03T15:22:17.105Z",
-            }
-        ]
-    }
     api_client.force_login(chat_conversation.owner)
 
-    response = api_client.post(url, data, format="json")
+    response = api_client.post(url, hello_conversation_data, format="json")
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
@@ -412,111 +293,16 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
     assert response_content == "Hello there"
 
     assert mock_openai_stream.called
-    # ensure instructions are merged as a system prompt
-    last_request_payload = json.loads(respx.calls.last.request.content)
-
-    system_messages_content = [
-        message["content"]
-        for message in last_request_payload["messages"]
-        if message["role"] == "system"
-    ]
-    assert system_messages_content[0] == "You are a helpful test assistant :)"
-    assert system_messages_content[1] == "Today is Friday 25/07/2025."
-    assert system_messages_content[2] == "Answer in english."
+    _assert_english_system_prompts(json.loads(respx.calls.last.request.content))
 
     chat_conversation.refresh_from_db()
-    assert chat_conversation.ui_messages == [
-        {
-            "content": "Hello",
-            "createdAt": "2025-07-03T15:22:17.105Z",
-            "id": "yuPoOuBkKA4FnKvk",
-            "parts": [{"text": "Hello", "type": "text"}],
-            "role": "user",
-        }
-    ]
-
-    assert len(chat_conversation.messages) == 2
-
-    assert chat_conversation.messages[0].id == IsUUID(4)
-    assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,  # don't test the message ID here
-        createdAt=timezone.now(),  # Mocked timestamp
-        content="Hello",
-        reasoning=None,
-        experimental_attachments=None,
-        role="user",
-        annotations=None,
-        toolInvocations=None,
-        parts=[TextUIPart(type="text", text="Hello")],
-    )
-
-    assert chat_conversation.messages[1].id == IsUUID(4)
-    assert chat_conversation.messages[1] == UIMessage(
-        id=chat_conversation.messages[1].id,  # don't test the message ID here
-        createdAt=timezone.now(),  # Mocked timestamp
-        content="Hello there",
-        reasoning=None,
-        experimental_attachments=None,
-        role="assistant",
-        annotations=None,
-        toolInvocations=None,
-        parts=[TextUIPart(type="text", text="Hello there")],
-    )
+    _assert_hello_ui_messages(chat_conversation)
+    _assert_hello_messages(chat_conversation, timezone.now())
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
-
     assert chat_conversation.pydantic_messages == [
-        {
-            "instructions": (
-                "You are a helpful test assistant :)\n\n"
-                "Today is Friday 25/07/2025.\n\nAnswer in english."
-            ),
-            "kind": "request",
-            "metadata": None,
-            "parts": [
-                {
-                    "content": ["Hello"],
-                    "part_kind": "user-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-            ],
-            "run_id": _run_id,
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-        },
-        {
-            "finish_reason": "stop",
-            "kind": "response",
-            "metadata": None,
-            "model_name": "test-model",
-            "parts": [
-                {
-                    "content": "Hello there",
-                    "id": None,
-                    "part_kind": "text",
-                    "provider_details": None,
-                    "provider_name": None,
-                }
-            ],
-            "provider_details": {
-                "finish_reason": "stop",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
-            },
-            "provider_name": "openai",
-            "provider_response_id": "chatcmpl-1234567890",
-            "provider_url": "https://www.external-ai-service.com/",
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-            "usage": {
-                "cache_audio_read_tokens": 0,
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "details": {},
-                "input_audio_tokens": 0,
-                "input_tokens": 0,
-                "output_audio_tokens": 0,
-                "output_tokens": 0,
-            },
-            "run_id": _run_id,
-        },
+        _make_pydantic_request(_run_id, ENGLISH_INSTRUCTIONS, ["Hello"]),
+        _make_pydantic_text_response(_run_id, "Hello there"),
     ]
 
 
@@ -553,16 +339,11 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
 
     response = api_client.post(url, data, format="json")
 
-    assert response.status_code == status.HTTP_200_OK
-    assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
-    assert response.streaming
+    assert_data_stream_response(response)
 
-    # Wait for the streaming content to be fully received
-    response_content = b"".join(response.streaming_content).decode("utf-8")
-
-    # Replace UUIDs with placeholders for assertion
-    response_content = replace_uuids_with_placeholder(response_content)
+    response_content = replace_uuids_with_placeholder(
+        b"".join(response.streaming_content).decode("utf-8")
+    )
 
     assert response_content == (
         '0:"I see a cat"\n'
@@ -672,69 +453,24 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
-        {
-            "instructions": (
-                "You are a helpful test assistant :)\n\n"
-                "Today is Friday 25/07/2025.\n\nAnswer in english."
-            ),
-            "kind": "request",
-            "metadata": None,
-            "parts": [
+        _make_pydantic_request(
+            _run_id,
+            ENGLISH_INSTRUCTIONS,
+            [
+                "Hello, what do you see on this picture?",
                 {
-                    "content": [
-                        "Hello, what do you see on this picture?",
-                        {
-                            "data": (
-                                "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD-wSzIAAAABlBMVEX___-_"
-                                "v7-jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD_aNpbtEAAAAASUVORK5CYII="
-                            ),
-                            "kind": "binary",
-                            "identifier": "FELV-cat.jpg",
-                            "media_type": "image/png",
-                            "vendor_metadata": None,
-                        },
-                    ],
-                    "part_kind": "user-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                    "data": (
+                        "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD-wSzIAAAABlBMVEX___-_"
+                        "v7-jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD_aNpbtEAAAAASUVORK5CYII="
+                    ),
+                    "kind": "binary",
+                    "identifier": "FELV-cat.jpg",
+                    "media_type": "image/png",
+                    "vendor_metadata": None,
                 },
             ],
-            "run_id": _run_id,
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-        },
-        {
-            "finish_reason": "stop",
-            "kind": "response",
-            "metadata": None,
-            "model_name": "test-model",
-            "parts": [
-                {
-                    "content": "I see a cat in the picture.",
-                    "id": None,
-                    "part_kind": "text",
-                    "provider_details": None,
-                    "provider_name": None,
-                }
-            ],
-            "provider_details": {
-                "finish_reason": "stop",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
-            },
-            "provider_name": "openai",
-            "provider_response_id": "chatcmpl-1234567890",
-            "provider_url": "https://www.external-ai-service.com/",
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-            "usage": {
-                "cache_audio_read_tokens": 0,
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "details": {},
-                "input_audio_tokens": 0,
-                "input_tokens": 0,
-                "output_audio_tokens": 0,
-                "output_tokens": 0,
-            },
-            "run_id": _run_id,
-        },
+        ),
+        _make_pydantic_text_response(_run_id, "I see a cat in the picture."),
     ]
 
 
@@ -762,16 +498,11 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
 
     response = api_client.post(url, data, format="json")
 
-    assert response.status_code == status.HTTP_200_OK
-    assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
-    assert response.streaming
+    assert_data_stream_response(response)
 
-    # Wait for the streaming content to be fully received
-    response_content = b"".join(response.streaming_content).decode("utf-8")
-
-    # Replace UUIDs with placeholders for assertion
-    response_content = replace_uuids_with_placeholder(response_content)
+    response_content = replace_uuids_with_placeholder(
+        b"".join(response.streaming_content).decode("utf-8")
+    )
 
     assert response_content == (
         'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":'
@@ -858,23 +589,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
-        {
-            "instructions": (
-                "You are a helpful test assistant :)\n\n"
-                "Today is Friday 25/07/2025.\n\nAnswer in english."
-            ),
-            "kind": "request",
-            "metadata": None,
-            "parts": [
-                {
-                    "content": ["Weather in Paris?"],
-                    "part_kind": "user-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-            ],
-            "run_id": _run_id,
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-        },
+        _make_pydantic_request(_run_id, ENGLISH_INSTRUCTIONS, ["Weather in Paris?"]),
         {
             "finish_reason": "tool_call",
             "kind": "response",
@@ -893,29 +608,17 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
             ],
             "provider_details": {
                 "finish_reason": "tool_calls",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": FROZEN_TIMESTAMP,
             },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-tool-call",
             "provider_url": "https://www.external-ai-service.com/",
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-            "usage": {
-                "cache_audio_read_tokens": 0,
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "details": {},
-                "input_audio_tokens": 0,
-                "input_tokens": 0,
-                "output_audio_tokens": 0,
-                "output_tokens": 0,
-            },
+            "timestamp": FROZEN_TIMESTAMP,
+            "usage": ZERO_USAGE,
             "run_id": _run_id,
         },
         {
-            "instructions": (
-                "You are a helpful test assistant :)\n\n"
-                "Today is Friday 25/07/2025.\n\nAnswer in english."
-            ),
+            "instructions": ENGLISH_INSTRUCTIONS,
             "kind": "request",
             "metadata": None,
             "parts": [
@@ -924,48 +627,19 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                     "metadata": None,
                     "outcome": "success",
                     "part_kind": "tool-return",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                    "timestamp": FROZEN_TIMESTAMP,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
                     "tool_name": "get_current_weather",
                 }
             ],
             "run_id": _run_id,
-            "timestamp": "2025-07-25T10:36:35.297675Z",
+            "timestamp": FROZEN_TIMESTAMP,
         },
-        {
-            "finish_reason": "stop",
-            "kind": "response",
-            "metadata": None,
-            "model_name": "test-model",
-            "parts": [
-                {
-                    "content": "The current weather in Paris is nice",
-                    "id": None,
-                    "part_kind": "text",
-                    "provider_details": None,
-                    "provider_name": None,
-                }
-            ],
-            "provider_details": {
-                "finish_reason": "stop",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
-            },
-            "provider_name": "openai",
-            "provider_response_id": "chatcmpl-final",
-            "provider_url": "https://www.external-ai-service.com/",
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-            "usage": {
-                "cache_audio_read_tokens": 0,
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "details": {},
-                "input_audio_tokens": 0,
-                "input_tokens": 0,
-                "output_audio_tokens": 0,
-                "output_tokens": 0,
-            },
-            "run_id": _run_id,
-        },
+        _make_pydantic_text_response(
+            _run_id,
+            "The current weather in Paris is nice",
+            provider_response_id="chatcmpl-final",
+        ),
     ]
 
 
@@ -993,16 +667,11 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
 
     response = api_client.post(url, data, format="json")
 
-    assert response.status_code == status.HTTP_200_OK
-    assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
-    assert response.streaming
+    assert_data_stream_response(response)
 
-    # Wait for the streaming content to be fully received
-    response_content = b"".join(response.streaming_content).decode("utf-8")
-
-    # Replace UUIDs with placeholders for assertion
-    response_content = replace_uuids_with_placeholder(response_content)
+    response_content = replace_uuids_with_placeholder(
+        b"".join(response.streaming_content).decode("utf-8")
+    )
 
     assert response_content == (
         'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":"get_current_weather"}\n'
@@ -1086,25 +755,12 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
         ],
     )
 
+    french_instructions = (
+        "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in french."
+    )
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
-        {
-            "instructions": (
-                "You are a helpful test assistant :)\n\n"
-                "Today is Friday 25/07/2025.\n\nAnswer in french."
-            ),
-            "kind": "request",
-            "metadata": None,
-            "parts": [
-                {
-                    "content": ["Weather in Paris?"],
-                    "part_kind": "user-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-            ],
-            "run_id": _run_id,
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-        },
+        _make_pydantic_request(_run_id, french_instructions, ["Weather in Paris?"]),
         {
             "finish_reason": "tool_call",
             "kind": "response",
@@ -1123,77 +779,36 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
             ],
             "provider_details": {
                 "finish_reason": "tool_calls",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
+                "timestamp": FROZEN_TIMESTAMP,
             },
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-tool-call",
             "provider_url": "https://www.external-ai-service.com/",
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-            "usage": {
-                "cache_audio_read_tokens": 0,
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "details": {},
-                "input_audio_tokens": 0,
-                "input_tokens": 0,
-                "output_audio_tokens": 0,
-                "output_tokens": 0,
-            },
+            "timestamp": FROZEN_TIMESTAMP,
+            "usage": ZERO_USAGE,
             "run_id": _run_id,
         },
         {
-            "instructions": (
-                "You are a helpful test assistant :)\n\n"
-                "Today is Friday 25/07/2025.\n\nAnswer in french."
-            ),
+            "instructions": french_instructions,
             "kind": "request",
             "metadata": None,
             "parts": [
                 {
                     "content": "Unknown tool name: 'get_current_weather'. No tools available.",
                     "part_kind": "retry-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
+                    "timestamp": FROZEN_TIMESTAMP,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
                     "tool_name": "get_current_weather",
                 }
             ],
             "run_id": _run_id,
-            "timestamp": "2025-07-25T10:36:35.297675Z",
+            "timestamp": FROZEN_TIMESTAMP,
         },
-        {
-            "finish_reason": "stop",
-            "kind": "response",
-            "metadata": None,
-            "model_name": "test-model",
-            "parts": [
-                {
-                    "content": "I cannot give you an answer to that.",
-                    "id": None,
-                    "part_kind": "text",
-                    "provider_details": None,
-                    "provider_name": None,
-                }
-            ],
-            "provider_details": {
-                "finish_reason": "stop",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
-            },
-            "provider_name": "openai",
-            "provider_response_id": "chatcmpl-final",
-            "provider_url": "https://www.external-ai-service.com/",
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-            "usage": {
-                "cache_audio_read_tokens": 0,
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "details": {},
-                "input_audio_tokens": 0,
-                "input_tokens": 0,
-                "output_audio_tokens": 0,
-                "output_tokens": 0,
-            },
-            "run_id": _run_id,
-        },
+        _make_pydantic_text_response(
+            _run_id,
+            "I cannot give you an answer to that.",
+            provider_response_id="chatcmpl-final",
+        ),
     ]
 
 
@@ -1225,6 +840,7 @@ def test_post_conversation_model_selection_invalid(api_client):
 def test_post_conversation_model_selection_new(
     api_client,
     mock_openai_stream,
+    hello_conversation_data,
     settings,
 ):
     """Test the user can select a different model."""
@@ -1247,31 +863,15 @@ def test_post_conversation_model_selection_new(
     chat_conversation = ChatConversationFactory()
 
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data&model_hrid=plop"
-    data = {
-        "messages": [
-            {
-                "id": "yuPoOuBkKA4FnKvk",
-                "role": "user",
-                "parts": [{"text": "Hello", "type": "text"}],
-                "content": "Hello",
-                "createdAt": "2025-07-03T15:22:17.105Z",
-            }
-        ]
-    }
     api_client.force_login(chat_conversation.owner)
 
-    response = api_client.post(url, data, format="json")
+    response = api_client.post(url, hello_conversation_data, format="json")
 
-    assert response.status_code == status.HTTP_200_OK
-    assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
-    assert response.streaming
+    assert_data_stream_response(response)
 
-    # Wait for the streaming content to be fully received
-    response_content = b"".join(response.streaming_content).decode("utf-8")
-
-    # Replace UUIDs with placeholders for assertion
-    response_content = replace_uuids_with_placeholder(response_content)
+    response_content = replace_uuids_with_placeholder(
+        b"".join(response.streaming_content).decode("utf-8")
+    )
 
     assert response_content == (
         '0:"Hello"\n'
@@ -1333,16 +933,11 @@ def test_post_conversation_data_protocol_no_stream(
 
     response = api_client.post(url, data, format="json")
 
-    assert response.status_code == status.HTTP_200_OK
-    assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
-    assert response.streaming
+    assert_data_stream_response(response)
 
-    # Wait for the content to be fully received
-    response_content = b"".join(response.streaming_content).decode("utf-8")
-
-    # Replace UUIDs with placeholders for assertion
-    response_content = replace_uuids_with_placeholder(response_content)
+    response_content = replace_uuids_with_placeholder(
+        b"".join(response.streaming_content).decode("utf-8")
+    )
 
     if stream_delay:
         assert response_content == (
@@ -1421,56 +1016,25 @@ def test_post_conversation_data_protocol_no_stream(
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
-        {
-            "instructions": (
-                "You are an amazing assistant.\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
-            ),
-            "kind": "request",
-            "metadata": None,
-            "parts": [
-                {
-                    "content": ["Why the sky is blue?"],
-                    "part_kind": "user-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-            ],
-            "run_id": _run_id,
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-        },
-        {
-            "finish_reason": "stop",
-            "kind": "response",
-            "metadata": None,
-            "model_name": "mistralai/Mistral-Small-3.2-24B-Instruct-2506",
-            "parts": [
-                {
-                    "content": "The sky appears blue due to a phenomenon called "
-                    "Rayleigh scattering.",
-                    "id": None,
-                    "part_kind": "text",
-                    "provider_details": None,
-                    "provider_name": None,
-                }
-            ],
+        _make_pydantic_request(
+            _run_id,
+            "You are an amazing assistant.\n\nToday is Friday 25/07/2025.\n\nAnswer in english.",
+            ["Why the sky is blue?"],
+        ),
+        _make_pydantic_text_response(
+            _run_id,
+            "The sky appears blue due to a phenomenon called Rayleigh scattering.",
+            timestamp=FROZEN_TIMESTAMP,
+            model_name="mistralai/Mistral-Small-3.2-24B-Instruct-2506",
+            provider_response_id="chatcmpl-92c413bb5a45426299335d0621324654",
+            provider_url="https://www.external-ai-service.com",
+            usage={**ZERO_USAGE, "output_tokens": 135},
+        )
+        | {
             "provider_details": {
                 "finish_reason": "stop",
                 "timestamp": "2025-09-22T14:13:49Z",
             },
-            "provider_name": "openai",
-            "provider_response_id": "chatcmpl-92c413bb5a45426299335d0621324654",
-            "provider_url": "https://www.external-ai-service.com",
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-            "usage": {
-                "cache_audio_read_tokens": 0,
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "details": {},
-                "input_audio_tokens": 0,
-                "input_tokens": 0,
-                "output_audio_tokens": 0,
-                "output_tokens": 135,
-            },
-            "run_id": _run_id,
         },
     ]
 
@@ -1503,10 +1067,7 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
 
     response = await sync_to_async(api_client.post)(url, data, format="json")  # client is sync
 
-    assert response.status_code == status.HTTP_200_OK
-    assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
-    assert response.streaming
+    assert_data_stream_response(response)
 
     assert "Using ASYNC streaming for chat conversation" in caplog.text
 
@@ -1516,7 +1077,6 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
         "utf-8"
     )
 
-    # Replace UUIDs with placeholders for assertion
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
@@ -1529,15 +1089,7 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
     assert mock_openai_stream.called
 
     await chat_conversation.arefresh_from_db()
-    assert chat_conversation.ui_messages == [
-        {
-            "content": "Hello",
-            "createdAt": "2025-07-03T15:22:17.105Z",
-            "id": "yuPoOuBkKA4FnKvk",
-            "parts": [{"text": "Hello", "type": "text"}],
-            "role": "user",
-        }
-    ]
+    _assert_hello_ui_messages(chat_conversation)
 
     assert len(chat_conversation.messages) == 2
 
@@ -1569,57 +1121,8 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
-        {
-            "instructions": (
-                "You are a helpful test assistant :)\n\n"
-                "Today is Friday 25/07/2025.\n\nAnswer in english."
-            ),
-            "kind": "request",
-            "metadata": None,
-            "parts": [
-                {
-                    "content": ["Hello"],
-                    "part_kind": "user-prompt",
-                    "timestamp": "2025-07-25T10:36:35.297675Z",
-                },
-            ],
-            "run_id": _run_id,
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-        },
-        {
-            "finish_reason": "stop",
-            "kind": "response",
-            "metadata": None,
-            "model_name": "test-model",
-            "parts": [
-                {
-                    "content": "Hello there",
-                    "id": None,
-                    "part_kind": "text",
-                    "provider_details": None,
-                    "provider_name": None,
-                }
-            ],
-            "provider_details": {
-                "finish_reason": "stop",
-                "timestamp": "2025-07-25T10:36:35.297675Z",
-            },
-            "provider_name": "openai",
-            "provider_response_id": "chatcmpl-1234567890",
-            "provider_url": "https://www.external-ai-service.com/",
-            "timestamp": "2025-07-25T10:36:35.297675Z",
-            "usage": {
-                "cache_audio_read_tokens": 0,
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "details": {},
-                "input_audio_tokens": 0,
-                "input_tokens": 0,
-                "output_audio_tokens": 0,
-                "output_tokens": 0,
-            },
-            "run_id": _run_id,
-        },
+        _make_pydantic_request(_run_id, ENGLISH_INSTRUCTIONS, ["Hello"]),
+        _make_pydantic_text_response(_run_id, "Hello there"),
     ]
 
 
@@ -1655,10 +1158,7 @@ async def test_post_conversation_async_triggers_keepalive(
 
     response = await sync_to_async(api_client.post)(url, data, format="json")  # client is sync
 
-    assert response.status_code == status.HTTP_200_OK
-    assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
-    assert response.streaming
+    assert_data_stream_response(response)
 
     assert "Using ASYNC streaming for chat conversation" in caplog.text
 
@@ -1668,7 +1168,6 @@ async def test_post_conversation_async_triggers_keepalive(
         "utf-8"
     )
 
-    # Replace UUIDs with placeholders for assertion
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
@@ -1682,15 +1181,7 @@ async def test_post_conversation_async_triggers_keepalive(
     assert mock_openai_stream_slow.called
 
     await chat_conversation.arefresh_from_db()
-    assert chat_conversation.ui_messages == [
-        {
-            "content": "Hello",
-            "createdAt": "2025-07-03T15:22:17.105Z",
-            "id": "yuPoOuBkKA4FnKvk",
-            "parts": [{"text": "Hello", "type": "text"}],
-            "role": "user",
-        }
-    ]
+    _assert_hello_ui_messages(chat_conversation)
 
     assert len(chat_conversation.messages) == 2
 
@@ -1724,57 +1215,8 @@ async def test_post_conversation_async_triggers_keepalive(
 
     # using ANY because time is not frozen in this api mock
     assert chat_conversation.pydantic_messages == [
-        {
-            "instructions": (
-                "You are a helpful test assistant :)\n\n"
-                "Today is Friday 25/07/2025.\n\nAnswer in english."
-            ),
-            "kind": "request",
-            "metadata": None,
-            "parts": [
-                {
-                    "content": ["Hello"],
-                    "part_kind": "user-prompt",
-                    "timestamp": ANY,
-                },
-            ],
-            "run_id": _run_id,
-            "timestamp": ANY,
-        },
-        {
-            "finish_reason": "stop",
-            "kind": "response",
-            "metadata": None,
-            "model_name": "test-model",
-            "parts": [
-                {
-                    "content": "Hello there",
-                    "id": None,
-                    "part_kind": "text",
-                    "provider_details": None,
-                    "provider_name": None,
-                }
-            ],
-            "provider_details": {
-                "finish_reason": "stop",
-                "timestamp": ANY,
-            },
-            "provider_name": "openai",
-            "provider_response_id": "chatcmpl-1234567890",
-            "provider_url": "https://www.external-ai-service.com/",
-            "timestamp": ANY,
-            "usage": {
-                "cache_audio_read_tokens": 0,
-                "cache_read_tokens": 0,
-                "cache_write_tokens": 0,
-                "details": {},
-                "input_audio_tokens": 0,
-                "input_tokens": 0,
-                "output_audio_tokens": 0,
-                "output_tokens": 0,
-            },
-            "run_id": _run_id,
-        },
+        _make_pydantic_request(_run_id, ENGLISH_INSTRUCTIONS, ["Hello"], timestamp=ANY),
+        _make_pydantic_text_response(_run_id, "Hello there", timestamp=ANY),
     ]
 
 
@@ -1808,23 +1250,12 @@ def test_post_conversation_oidc_refresh_enabled_unrefreshed(  # pylint: disable=
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_oidc_refresh_enabled(  # pylint: disable=unused-argument
-    api_client, mock_openai_stream, oidc_refresh_token_enabled
+    api_client, mock_openai_stream, oidc_refresh_token_enabled, hello_conversation_data
 ):
     """Test posting messages to a conversation using the 'data' protocol."""
     chat_conversation = ChatConversationFactory(owner__language="en-us")
 
     url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
-    data = {
-        "messages": [
-            {
-                "id": "yuPoOuBkKA4FnKvk",
-                "role": "user",
-                "parts": [{"text": "Hello", "type": "text"}],
-                "content": "Hello",
-                "createdAt": "2025-07-03T15:22:17.105Z",
-            }
-        ]
-    }
     api_client.force_login(
         chat_conversation.owner, backend="core.authentication.backends.OIDCAuthenticationBackend"
     )
@@ -1834,18 +1265,13 @@ def test_post_conversation_oidc_refresh_enabled(  # pylint: disable=unused-argum
     session["oidc_token_expiration"] = session["oidc_id_token_expiration"]  # ...
     session.save()
 
-    response = api_client.post(url, data, format="json")
+    response = api_client.post(url, hello_conversation_data, format="json")
 
-    assert response.status_code == status.HTTP_200_OK
-    assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
-    assert response.streaming
+    assert_data_stream_response(response)
 
-    # Wait for the streaming content to be fully received
-    response_content = b"".join(response.streaming_content).decode("utf-8")
-
-    # Replace UUIDs with placeholders for assertion
-    response_content = replace_uuids_with_placeholder(response_content)
+    response_content = replace_uuids_with_placeholder(
+        b"".join(response.streaming_content).decode("utf-8")
+    )
 
     assert response_content == (
         '0:"Hello"\n'
@@ -1856,26 +1282,10 @@ def test_post_conversation_oidc_refresh_enabled(  # pylint: disable=unused-argum
 
     assert mock_openai_stream.called
 
-    # ensure instructions are merged as a system prompt
-    last_request_payload = json.loads(respx.calls.last.request.content)
-    system_messages_content = [
-        message["content"]
-        for message in last_request_payload["messages"]
-        if message["role"] == "system"
-    ]
-    assert system_messages_content[0] == "You are a helpful test assistant :)"
-    assert system_messages_content[1] == "Today is Friday 25/07/2025."
-    assert system_messages_content[2] == "Answer in english."
+    _assert_english_system_prompts(json.loads(respx.calls.last.request.content))
+
     chat_conversation.refresh_from_db()
-    assert chat_conversation.ui_messages == [
-        {
-            "content": "Hello",
-            "createdAt": "2025-07-03T15:22:17.105Z",
-            "id": "yuPoOuBkKA4FnKvk",
-            "parts": [{"text": "Hello", "type": "text"}],
-            "role": "user",
-        }
-    ]
+    _assert_hello_ui_messages(chat_conversation)
 
     assert len(chat_conversation.messages) == 2
     assert len(chat_conversation.pydantic_messages) == 2
