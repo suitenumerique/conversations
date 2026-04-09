@@ -380,9 +380,13 @@ build-k8s-cluster: ## build the kubernetes cluster using kind
 	./bin/start-kind.sh
 .PHONY: build-k8s-cluster
 
-start-tilt: ## start Tilt against the conversations kind cluster
-	tilt up --namespace=conversations -f ./bin/Tiltfile
-.PHONY: start-tilt
+start-tilt-keycloak: ## start Tilt with local Keycloak auth
+	DEV_ENV=dev tilt up --namespace=conversations -f ./bin/Tiltfile
+.PHONY: start-tilt-keycloak
+
+start-tilt-proconnect: ## start Tilt with staging ProConnect auth + Docs
+	DEV_ENV=dev-proconnect tilt up --namespace=conversations -f ./bin/Tiltfile
+.PHONY: start-tilt-proconnect
 
 stop-tilt: ## stop Tilt and leave the kind cluster running
 	tilt down --namespace=conversations -f ./bin/Tiltfile

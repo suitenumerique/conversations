@@ -3,6 +3,7 @@ import { expect } from '@playwright/test';
 
 export const CONFIG = {
   ACTIVATION_REQUIRED: false,
+  DOCS_BASE_URL: null,
   ENVIRONMENT: 'development',
   FEATURE_FLAGS: {
     'document-upload': 'enabled',

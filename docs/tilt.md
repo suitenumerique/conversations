@@ -49,7 +49,7 @@ Then edit `env.d/development/kube-secret`:
 ## Step 3 — Start the app
 
 ```bash
-make start-tilt
+make start-tilt-keycloak
 ```
 
 Tilt will:

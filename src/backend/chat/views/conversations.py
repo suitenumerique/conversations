@@ -30,6 +30,7 @@ from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sy
 from chat.model_routing import resolve_effective_model_hrid
 from chat.rate_limiting import ChatCooldownThrottle, get_cooldown_remaining
 from chat.serializers import ChatConversationRequestSerializer
+from chat.views.edit_in_docs import EditInDocsMixin
 from chat.views.filters import ProjectFilter, TitleSearchFilter
 from chat.views.helpers import _bulk_delete_s3_blobs, conditional_refresh_oidc_token
 
@@ -85,6 +86,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
     mixins.DestroyModelMixin,
     mixins.UpdateModelMixin,
     ChatAttachmentMixin,
+    EditInDocsMixin,
     viewsets.GenericViewSet,
 ):
     """ViewSet for managing chat conversations.
