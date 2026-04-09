@@ -38,7 +38,7 @@ backend:
     OIDC_RP_CLIENT_SECRET: 98a736e58775584a1051479703d5e0966d3b782e2a49b0068534f149f943c85f
     OIDC_RP_SIGN_ALGO: RS256
     OIDC_RP_SCOPES: "openid email given_name usual_name groups"
-    OIDC_STORE_REFRESH_TOKEN_KEY: qnw7gZrOFLkLuZIixzuxksNORFJyjWyi5ACugNchKJY=
+    OIDC_STORE_REFRESH_TOKEN_KEY: "oidcStoreRefreshToken"
     OIDC_STORE_ACCESS_TOKEN: True
     OIDC_STORE_REFRESH_TOKEN: True
     OIDC_USERINFO_SHORTNAME_FIELD: "given_name"
@@ -62,7 +62,11 @@ backend:
     STORAGES_STATICFILES_BACKEND: django.contrib.staticfiles.storage.StaticFilesStorage
     OIDC_STORE_ACCESS_TOKEN: True
     OIDC_STORE_REFRESH_TOKEN: True
-    OIDC_STORE_REFRESH_TOKEN_KEY: qnw7gZrOFLkLuZIixzuxksNORFJyjWyi5ACugNchKJY=
+    OIDC_STORE_REFRESH_TOKEN_KEY: "oidcStoreRefreshToken"
+    AI_MODEL: mistral-medium-2508
+    # "Edit in Docs" — call Docs as an OIDC resource server with the user's stored
+    # access token. Requires the token in the session (OIDC_STORE_ACCESS_TOKEN above).
+    DOCS_BASE_URL: https://docs.127.0.0.1.nip.io/
   migrate:
     command:
       - "/bin/sh"
@@ -90,7 +94,7 @@ backend:
   # Extra volume mounts to manage our local custom CA and avoid to set ssl_verify: false
   extraVolumeMounts:
     - name: certs
-      mountPath: /app/.venv/lib/python3.13/site-packages/certifi/cacert.pem
+      mountPath: /app/.venv/lib/python3.14/site-packages/certifi/cacert.pem
       subPath: cacert.pem
 
   # Extra volumes to manage our local custom CA and avoid to set ssl_verify: false

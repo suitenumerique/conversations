@@ -225,6 +225,12 @@ class ChatMessageCategoricalScoreSerializer(serializers.Serializer):  # pylint: 
     )
 
 
+class EditInDocsSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for opening a single assistant message in Docs."""
+
+    message_id = serializers.CharField(help_text="ID of the assistant message to edit in Docs.")
+
+
 class LLMConfigurationSerializer(serializers.Serializer):  # pylint: disable=abstract-method
     """Serializer for LLM configuration."""
 
