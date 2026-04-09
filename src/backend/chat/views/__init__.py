@@ -2,6 +2,7 @@
 
 import logging
 import os
+from urllib.parse import urljoin
 from uuid import UUID, uuid4
 
 from django.conf import settings
@@ -16,6 +17,7 @@ from django.utils.translation import gettext_lazy as _
 import langfuse
 import magic
 import posthog
+import requests as http_requests
 from botocore.exceptions import BotoCoreError, ClientError
 from drf_spectacular.utils import extend_schema
 from lasuite.malware_detection import malware_detection
@@ -36,6 +38,7 @@ from core.filters import remove_accents
 from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
+from chat.docs_client import DocsClient
 from chat.constants import IMAGE_MIME_PREFIX
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.rate_limiting import ChatCooldownThrottle, get_cooldown_remaining
@@ -48,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 def conditional_refresh_oidc_token(func):
     """
-    Conditionally apply refresh_oidc_access_token decorator.
+    Conditionally apply refresh_access_token decorator.
 
     The decorator is only applied if OIDC_STORE_REFRESH_TOKEN is True, meaning
     we can actually refresh something. Broader settings checks are done in settings.py.
@@ -464,6 +467,74 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         )
 
         return Response({"status": "OK"}, status=status.HTTP_200_OK)
+
+    @conditional_refresh_oidc_token
+    @decorators.action(
+        methods=["post"], detail=True, url_path="export-to-docs", url_name="export-to-docs"
+    )
+    def export_to_docs(self, request, pk):  # pylint: disable=unused-argument
+        """Export a single assistant message to a new Docs document.
+
+        Finds the assistant message by ID within the conversation's message array,
+        extracts its markdown text content, and creates a document in Docs.
+
+        Args:
+            request: The HTTP request containing message_id in the body.
+            pk: The primary key of the chat conversation.
+
+        Returns:
+            201 with doc_id and doc_url on success.
+            400 if message_id is missing or the message is not found.
+            503 if the Docs service is unreachable.
+        """
+        conversation = self.get_object()
+
+        serializer = serializers.ExportMessageToDocsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        message_id = serializer.validated_data["message_id"]
+
+        # Find the assistant message by ID in the conversation's message array
+        message = next(
+            (m for m in conversation.messages if m.id == message_id and m.role == "assistant"),
+            None,
+        )
+        if message is None:
+            raise ValidationError({"message_id": "Assistant message not found."})
+
+        # Content is already markdown — just join the text parts
+        content = "\n\n".join(part.text for part in message.parts if part.type == "text")
+
+        if not content:
+            raise ValidationError({"message_id": "Message has no exportable text content."})
+
+        # Use the first non-empty line as title, stripped of leading '#'
+        first_line = next(
+            (line.lstrip("# ").strip() for line in content.splitlines() if line.strip()),
+            None,
+        )
+        title = first_line or "Exported from Conversations"
+
+        docs_client = DocsClient()
+        try:
+            doc_data = docs_client.create_document(
+                title=title,
+                content=content,
+                session=request.session,  # for OIDC token
+            )
+        except http_requests.exceptions.RequestException as exc:
+            logger.exception("Docs service error during export: %s", exc)
+            return Response(
+                {"detail": "Docs service is currently unavailable. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(
+            {
+                "docId": doc_data["id"],
+                "docUrl": urljoin(settings.DOCS_BASE_URL, f"{doc_data['id']}"),
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class BaseAttachmentViewSet(

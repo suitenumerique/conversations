@@ -162,6 +162,12 @@ class ChatMessageCategoricalScoreSerializer(serializers.Serializer):  # pylint: 
     )
 
 
+class ExportMessageToDocsSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Serializer for exporting a single assistant message to Docs."""
+
+    message_id = serializers.CharField(help_text="ID of the assistant message to export.")
+
+
 class LLMConfigurationSerializer(serializers.Serializer):  # pylint: disable=abstract-method
     """Serializer for LLM configuration."""
 

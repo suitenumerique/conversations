@@ -54,6 +54,7 @@ export interface ConfigResponse {
   status_banner?: StatusBanner;
   maintenance?: MaintenanceConfig | null;
   chat_upload_accept?: string;
+  DOCS_BASE_URL?: string;
   project_files_max_count?: number;
   project_images_max_count?: number;
   attachment_max_size?: number;
