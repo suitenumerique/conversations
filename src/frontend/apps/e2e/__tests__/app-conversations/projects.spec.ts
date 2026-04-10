@@ -97,21 +97,42 @@ test.describe('Projects', () => {
 
   test('it expands and collapses a project', async ({ page, browserName }) => {
     const [projectName] = randomName('project-toggle', browserName, 1);
+    const [prompt] = randomName('project-toggle-conv', browserName, 1);
 
     await createProject(page, projectName);
 
-    // Click the project to expand it
+    // Create one conversation so the toggle button is enabled
+    await page
+      .getByRole('button', {
+        name: `Start new conversation in ${projectName}`,
+        exact: true,
+      })
+      .click();
+    const chatInput = page.getByRole('textbox', {
+      name: /Enter your message|Entrez votre message/i,
+    });
+    await chatInput.fill(prompt);
+    await page.keyboard.press('Enter');
+
+    // Toggle project conversations
     const projectHeader = page.getByRole('button', {
-      name: projectName,
+      name: `Toggle conversations for ${projectName}`,
       exact: true,
     });
+    await expect(projectHeader).toBeEnabled();
+    const initialExpanded = await projectHeader.getAttribute('aria-expanded');
+    expect(initialExpanded).not.toBeNull();
+    if (!initialExpanded) {
+      throw new Error('Project toggle should expose aria-expanded.');
+    }
     await projectHeader.click();
 
-    // Should be expanded after first click
-    await expect(projectHeader).toHaveAttribute('aria-expanded', 'true');
+    // Should invert state after first click
+    const toggledExpanded = initialExpanded === 'true' ? 'false' : 'true';
+    await expect(projectHeader).toHaveAttribute('aria-expanded', toggledExpanded);
 
     // Click again to collapse
     await projectHeader.click();
-    await expect(projectHeader).toHaveAttribute('aria-expanded', 'false');
+    await expect(projectHeader).toHaveAttribute('aria-expanded', initialExpanded);
   });
 });

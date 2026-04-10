@@ -40,13 +40,13 @@ export const ScrollDown: React.FC<ScrollDownProps> = ({
         left: 50%;
         transform: translateX(-50%);
         z-index: 1000;
+        background-color: var(--c--contextuals--background--surface--primary);
         opacity: ${isVisible ? '1' : '0'};
         transition: opacity 0.3s ease;
         pointer-events: ${isVisible ? 'auto' : 'none'};
       `}
     >
       <Button
-        className="c__button--background"
         aria-label="See more"
         color="brand"
         variant="bordered"

@@ -52,10 +52,17 @@ export const LeftPanelHeaderActions = ({
       <LeftPanelMenuItem
         icon={
           <Box $css={iconWrapperCss} $display="flex" $align="center">
-            <Icon iconName="search" aria-hidden />
+            <Icon
+              iconName="search"
+              $theme="neutral"
+              $height="24px"
+              $margin={{ top: '-6px' }}
+              $variation="secondary"
+              aria-hidden="true"
+            />
           </Box>
         }
-        label={t('Search for a chat')}
+        label={t('Search')}
         onClick={onSearch}
         aria-label={t('Search for a chat')}
       />

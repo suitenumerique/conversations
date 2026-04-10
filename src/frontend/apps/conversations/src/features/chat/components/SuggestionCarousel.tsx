@@ -11,7 +11,7 @@ const WRAPPER_CSS = `position: absolute;
                   right: 1.5rem;
                   height: 1.5rem;
                   pointer-events: none;
-                  color: var(--c--theme--colors--greyscale-500);
+                  color: var(--c--contextuals--content--semantic--neutral--tertiary);
                   font-size: 1rem;
                   font-family: inherit;
                   line-height: 1.5;
@@ -21,6 +21,7 @@ const ITEM_CSS = `
   height: calc(100% / ${SUGGESTIONS_COUNT + 1});
   flex-shrink: 0;
   white-space: nowrap;
+  color: var(--c--contextuals--content--semantic--neutral--tertiary) !important;
   display: flex;
   justify-content: flex-start;
 `;

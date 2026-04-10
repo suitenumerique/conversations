@@ -273,6 +273,7 @@ ul a:hover {
 .c__button--stop {
   font-size: 0.8rem;
   padding: 12px 9px !important;
+  cursor: default !important;
 }
 
 .c__button--without-padding {
@@ -342,10 +343,15 @@ ul a:hover {
   }
 }
 
-.c__button--background,
-.c__button--background:hover {
+.c__button--background {
   background-color: var(
     --c--contextuals--background--surface--primary
+  ) !important;
+}
+
+.c__button--background:hover {
+  background-color: var(
+    --c--contextuals--background--semantic--overlay--primary
   ) !important;
 }
 
@@ -424,7 +430,7 @@ figure[data-rehype-pretty-code-figure] > pre > code {
   box-shadow: 0 2px 4px 0 rgb(0 0 0 / 5%);
 }
 
-[data-gaufre-button-wrapper] button,
+[id='gaufre_button'],
 .user-menu__button {
   justify-content: center;
   width: 32px;

@@ -31,7 +31,10 @@ test.describe('Left panel desktop', () => {
 
     // The created project item should be listed
     await expect(
-      projectsSection.getByRole('button', { name: projectName, exact: true }),
+      projectsSection.getByRole('button', {
+        name: `Start new conversation in ${projectName}`,
+        exact: true,
+      }),
     ).toBeVisible();
   });
 
@@ -71,17 +74,13 @@ test.describe('Left panel desktop', () => {
 
     const projectsSection = page.getByTestId('left-panel-projects');
     const projectButton = projectsSection.getByRole('button', {
-      name: projectName,
+      name: `Start new conversation in ${projectName}`,
       exact: true,
     });
     await expect(projectButton).toBeVisible();
 
     // Start a new conversation in the project
-    await projectButton.hover();
-    const projectRow = projectButton.locator('..');
-    await projectRow
-      .getByRole('button', { name: 'New conversation in project' })
-      .click();
+    await projectButton.click();
 
     // Send a message to materialize the conversation
     const [prompt] = randomName('project-conv', browserName, 1);
@@ -111,20 +110,15 @@ test.describe('Left panel desktop', () => {
 
     const projectsSection = page.getByTestId('left-panel-projects');
     const projectButton = projectsSection.getByRole('button', {
-      name: projectName,
+      name: `Start new conversation in ${projectName}`,
       exact: true,
     });
     await expect(projectButton).toBeVisible();
 
     // Hover to reveal action buttons
     await projectButton.hover();
-    const projectRow = projectButton.locator('..');
-
     await expect(
-      projectRow.locator('[data-testid^="project-item-actions-button-"]'),
-    ).toBeVisible();
-    await expect(
-      projectRow.locator('.pinned-actions').locator('button').last(),
+      page.getByLabel(`Actions list for project ${projectName}`),
     ).toBeVisible();
   });
 });

@@ -1,10 +1,8 @@
-import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { useRouter } from 'next/router';
 import { memo, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import NewChatIcon from '@/assets/icons/new-message-bold.svg';
 import { Box, Icon, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
@@ -79,6 +77,17 @@ const titleStyles = css`
   padding-left: 24px;
 `;
 
+const arrowButtonStyles = css`
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+`;
+
 export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
   project,
   currentConversationId,
@@ -86,24 +95,21 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
   const { t } = useTranslation();
   const { colorsTokens } = useCunninghamTheme();
   const router = useRouter();
-  const pendingProjectId = usePendingChatStore((s) => s.projectId);
   const setProjectId = usePendingChatStore((s) => s.setProjectId);
   const { isDesktop } = useResponsiveStore();
   const { setPanelOpen } = useChatPreferencesStore();
 
   const [isOpen, setIsOpen] = useState(false);
 
-  // Auto-open when current conversation belongs to this project or creating a new one in it
   const belongsToProject =
     currentConversationId &&
     project.conversations.some((c) => c.id === currentConversationId);
-  const isTargetProject = belongsToProject || pendingProjectId === project.id;
 
   useEffect(() => {
-    if (isTargetProject) {
+    if (belongsToProject) {
       setIsOpen(true);
     }
-  }, [isTargetProject]);
+  }, [belongsToProject]);
 
   const IconComponent = PROJECT_ICONS[project.icon] ?? PROJECT_ICONS.folder;
   const iconColor =
@@ -124,7 +130,6 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
 
   return (
     <Box>
-      {/* Project header */}
       <Box
         $direction="row"
         $align="center"
@@ -138,30 +143,29 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
           $direction="row"
           $align="center"
           $gap="2px"
-          $css="min-width: 0; flex: 1; cursor: pointer;"
-          role="button"
-          tabIndex={0}
-          aria-expanded={isOpen}
-          aria-label={project.title}
-          onClick={toggleOpen}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              toggleOpen();
-            }
-          }}
+          $css="min-width: 0; flex: 1;"
         >
-          <Icon
-            iconName={
-              isOpen && project.conversations.length > 0
-                ? 'expand_more'
-                : 'chevron_right'
-            }
-            $theme="neutral"
-            $variation="tertiary"
-            $size="18px"
-            $css={`opacity: ${project.conversations.length === 0 ? '0' : '1'};`}
-          />
+          <Box
+            as="button"
+            type="button"
+            onClick={toggleOpen}
+            aria-expanded={isOpen}
+            aria-label={`Toggle conversations for ${project.title}`}
+            disabled={project.conversations.length === 0}
+            $css={arrowButtonStyles}
+          >
+            <Icon
+              iconName={
+                isOpen && project.conversations.length > 0
+                  ? 'expand_more'
+                  : 'chevron_right'
+              }
+              $theme="neutral"
+              $variation="tertiary"
+              $size="18px"
+              $css={`opacity: ${project.conversations.length === 0 ? '0' : '1'};`}
+            />
+          </Box>
 
           <Box
             $display="flex"
@@ -177,14 +181,31 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
               style={{ fill: 'currentColor', display: 'block' }}
             />
           </Box>
-          <Text
-            $size="sm"
-            $variation="primary"
-            $weight={isOpen ? '700' : '500'}
-            $css={titleTextStyles}
+          <Box
+            as="button"
+            type="button"
+            onClick={handleNewConversation}
+            aria-label={`Start new conversation in ${project.title}`}
+            $css={css`
+              ${titleTextStyles}
+              border: none;
+              background: transparent;
+              padding: 0;
+              margin: 0;
+              text-align: left;
+              cursor: pointer;
+              font: inherit;
+              color: inherit;
+            `}
           >
-            {project.title}
-          </Text>
+            <Text
+              $size="sm"
+              $variation="primary"
+              $weight={isOpen ? '700' : '500'}
+            >
+              {project.title}
+            </Text>
+          </Box>
         </Box>
 
         <div
@@ -193,14 +214,6 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
           style={{ display: 'flex', alignItems: 'center', gap: '2px' }}
         >
           <ProjectItemActions project={project} />
-          <Button
-            aria-label={t('New conversation in project')}
-            onClick={handleNewConversation}
-            color="brand"
-            variant="tertiary"
-            size="nano"
-            icon={<NewChatIcon width="16" height="16" />}
-          />
         </div>
       </Box>
 

@@ -24,6 +24,7 @@ and this project adheres to
 ### Fixed
 
 - 💄(ui) little fix margin top
+- 💄(ui) review ui for part of the project
 
 ## [0.0.15] - 2026-03-31
 

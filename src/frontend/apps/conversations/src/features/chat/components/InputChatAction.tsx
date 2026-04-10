@@ -139,9 +139,19 @@ export const InputChatActions = memo(
             disabled={!fileUploadEnabled || isUploadingFiles}
             onClick={onAttachClick}
             aria-label={t('Add attach file')}
-            icon={<Icon iconName="attach_file" />}
+            icon={
+              <Icon
+                $theme="neutral"
+                $variation="tertiary"
+                iconName="attach_file"
+              />
+            }
           >
-            {!isMobile && <Text>{t('Attach file')}</Text>}
+            {!isMobile && (
+              <Text $theme="neutral" $variation="tertiary">
+                {t('Attach file')}
+              </Text>
+            )}
           </Button>
 
           {/* Web search toggle button */}
@@ -160,14 +170,14 @@ export const InputChatActions = memo(
                   <Icon
                     iconName="language"
                     $theme={forceWebSearch ? 'brand' : 'neutral'}
-                    $variation={forceWebSearch ? 'tertiary' : 'primary'}
+                    $variation="tertiary"
                   />
                 }
               >
                 {!isMobile && (
                   <Text
                     $theme={forceWebSearch ? 'brand' : 'neutral'}
-                    $variation={forceWebSearch ? 'tertiary' : 'primary'}
+                    $variation="tertiary"
                   >
                     {t('Research on the web')}
                   </Text>

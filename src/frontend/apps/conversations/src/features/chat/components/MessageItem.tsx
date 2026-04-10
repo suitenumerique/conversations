@@ -3,7 +3,7 @@ import { Button } from '@gouvfr-lasuite/cunningham-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Icon, Loader, Text, useToast } from '@/components';
+import { Box, Icon, Loader, Text } from '@/components';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import {
@@ -12,8 +12,6 @@ import {
 } from '@/features/chat/components/MessageBlock';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
-
-import CopyIcon from '../assets/copy.svg';
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
 const BlocksList = React.memo(
@@ -187,8 +185,28 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   getMetadata,
 }) => {
   const { t } = useTranslation();
-  const { showToast } = useToast();
   const contentRef = React.useRef<HTMLDivElement>(null);
+  const [isCopied, setIsCopied] = React.useState(false);
+  const copyTimeoutRef = React.useRef<number | null>(null);
+
+  const showCopiedState = React.useCallback(() => {
+    setIsCopied(true);
+    if (copyTimeoutRef.current) {
+      window.clearTimeout(copyTimeoutRef.current);
+    }
+    copyTimeoutRef.current = window.setTimeout(() => {
+      setIsCopied(false);
+      copyTimeoutRef.current = null;
+    }, 3000);
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        window.clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const shouldApplyStreamingHeight =
     isLastAssistantMessage &&
@@ -257,13 +275,17 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
         'text/plain': new Blob([message.content], { type: 'text/plain' }),
       });
       navigator.clipboard.write([item]).then(
-        () => showToast('success', t('Copied'), 'content_copy', 3000),
-        () => onCopyToClipboard(message.content),
+        () => showCopiedState(),
+        () => {
+          onCopyToClipboard(message.content);
+          showCopiedState();
+        },
       );
     } else {
       onCopyToClipboard(message.content);
+      showCopiedState();
     }
-  }, [contentRef, message.content, onCopyToClipboard, showToast, t]);
+  }, [contentRef, message.content, onCopyToClipboard, showCopiedState]);
 
   const handleOpenSources = React.useCallback(() => {
     onOpenSources(message.id);
@@ -319,7 +341,6 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   ? 'assistant-message-content'
                   : undefined
               }
-              $padding={{ all: 'xxs' }}
             >
               <p className="sr-only">
                 {message.role === 'user'
@@ -395,8 +416,16 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                     color="neutral"
                     variant="tertiary"
                     onClick={handleCopy}
-                    aria-label={t('Copy')}
-                    icon={<CopyIcon className="action-chat-button-icon" />}
+                    aria-label={isCopied ? t('Copied') : t('Copy')}
+                    icon={
+                      <Icon
+                        iconName={isCopied ? 'check' : 'content_copy'}
+                        $theme="neutral"
+                        $variation="550"
+                        $size="16px"
+                        className="action-chat-button-icon"
+                      />
+                    }
                     className="c__button--neutral action-chat-button"
                   ></Button>
                   {sourceParts.length > 0 && (

@@ -71,20 +71,28 @@ describe('LeftPanelProjectItem', () => {
     expect(screen.getByText('Design System')).toBeInTheDocument();
     expect(screen.queryByText('Colors discussion')).not.toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Design System' }),
+      screen.getByRole('button', {
+        name: 'Toggle conversations for Design System',
+      }),
     ).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('expands on click and shows conversations', async () => {
+  it('expands on arrow click and shows conversations', async () => {
     const user = userEvent.setup();
     renderWithProviders(<LeftPanelProjectItem project={makeProject()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Design System' }));
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Toggle conversations for Design System',
+      }),
+    );
 
     expect(screen.getByText('Colors discussion')).toBeInTheDocument();
     expect(screen.getByText('Typography')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Design System' }),
+      screen.getByRole('button', {
+        name: 'Toggle conversations for Design System',
+      }),
     ).toHaveAttribute('aria-expanded', 'true');
   });
 
@@ -98,19 +106,24 @@ describe('LeftPanelProjectItem', () => {
 
     expect(screen.getByText('Colors discussion')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Design System' }),
+      screen.getByRole('button', {
+        name: 'Toggle conversations for Design System',
+      }),
     ).toHaveAttribute('aria-expanded', 'true');
   });
 
-  it('"New conversation" button sets projectId and navigates to /chat/', async () => {
+  it('clicking project title starts a new conversation', async () => {
     const user = userEvent.setup();
     renderWithProviders(<LeftPanelProjectItem project={makeProject()} />);
 
     await user.click(
-      screen.getByRole('button', { name: 'New conversation in project' }),
+      screen.getByRole('button', {
+        name: 'Start new conversation in Design System',
+      }),
     );
 
     expect(usePendingChatStore.getState().projectId).toBe('proj-1');
     expect(mockPush).toHaveBeenCalledWith('/chat/');
+    expect(screen.queryByText('Colors discussion')).not.toBeInTheDocument();
   });
 });

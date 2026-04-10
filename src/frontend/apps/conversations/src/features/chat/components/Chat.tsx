@@ -774,7 +774,7 @@ export const Chat = ({
             `}
           >
             <Loader />
-            <Text $variation="600" $size="md">
+            <Text $theme="neutral" $variation="tertiary" $size="md">
               {(() => {
                 if (isUploadingFiles) return t('Uploading files...');
                 if (isReadingInstructions)

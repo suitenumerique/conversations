@@ -1,7 +1,7 @@
 import { Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Text, ToggleSwitch, useToast } from '@/components';
+import { Box, Text, ToggleSwitch } from '@/components';
 import { useUserUpdate } from '@/core/api/useUserUpdate';
 import { useCunninghamTheme } from '@/cunningham';
 import { useAuthQuery } from '@/features/auth/api';
@@ -12,25 +12,10 @@ interface SettingsModalProps {
   isOpen: boolean;
 }
 
-const STATUS_I18N_KEYS: Record<
-  'allow_conversation_analytics' | 'allow_smart_web_search',
-  { enabled: string; disabled: string }
-> = {
-  allow_conversation_analytics: {
-    enabled: 'Conversation analysis enabled',
-    disabled: 'Conversation analysis disabled',
-  },
-  allow_smart_web_search: {
-    enabled: 'Automatic web search enabled',
-    disabled: 'Automatic web search disabled',
-  },
-};
-
 export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
   const { t } = useTranslation();
   const { data: user } = useAuthQuery();
   const { mutateAsync: updateUser, isPending } = useUserUpdate();
-  const { showToast } = useToast();
   const { toggleDarkMode } = useCunninghamTheme();
   const isDarkMode = useChatPreferencesStore(
     (state) => state.isDarkModePreference,
@@ -49,14 +34,8 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
         id: user.id,
         [field]: updatedValue,
       });
-
-      const toastMessage = updatedValue
-        ? t(STATUS_I18N_KEYS[field].enabled)
-        : t(STATUS_I18N_KEYS[field].disabled);
-      showToast('success', toastMessage, 'check_circle', 3000);
     } catch (error) {
       console.error(`Error updating user settings for ${field}:`, error);
-      showToast('error', t('Failed to update settings'), 'error', 3000);
     }
   };
 
