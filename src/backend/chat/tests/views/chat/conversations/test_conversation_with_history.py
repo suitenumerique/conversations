@@ -1554,6 +1554,7 @@ def test_post_conversation_with_existing_tool_history(
             {
                 "content": {"location": "Paris", "temperature": 22, "unit": "celsius"},
                 "metadata": None,
+                "outcome": "success",
                 "part_kind": "tool-return",
                 "timestamp": "2025-07-25T10:36:35.297675Z",
                 "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",

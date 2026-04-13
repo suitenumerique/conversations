@@ -589,6 +589,7 @@ def test_post_conversation_with_document_upload(
                     }
                 ],
                 "metadata": {"sources": ["sample.pdf"]},
+                "outcome": "success",
                 "part_kind": "tool-return",
                 "timestamp": timezone_now,
                 "tool_call_id": chat_conversation.pydantic_messages[2]["parts"][0]["tool_call_id"],
@@ -926,6 +927,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             {
                 "content": "The document discusses various topics.",
                 "metadata": {"sources": ["sample.pdf.md"]},
+                "outcome": "success",
                 "part_kind": "tool-return",
                 "timestamp": timezone_now,
                 "tool_call_id": chat_conversation.pydantic_messages[2]["parts"][0]["tool_call_id"],

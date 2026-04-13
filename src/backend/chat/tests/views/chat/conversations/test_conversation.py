@@ -134,13 +134,15 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream):
 
     # ensure instructions are merged as a system prompt
     last_request_payload = json.loads(respx.calls.last.request.content)
-    assert last_request_payload["messages"][0] == {
-        "content": (
-            "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\n"
-            "Answer in english."
-        ),
-        "role": "system",
-    }
+
+    system_messages_content = [
+        message["content"]
+        for message in last_request_payload["messages"]
+        if message["role"] == "system"
+    ]
+    assert system_messages_content[0] == "You are a helpful test assistant :)"
+    assert system_messages_content[1] == "Today is Friday 25/07/2025."
+    assert system_messages_content[2] == "Answer in english."
 
     chat_conversation.refresh_from_db()
     assert chat_conversation.ui_messages == [
@@ -412,13 +414,15 @@ def test_post_conversation_text_protocol(api_client, mock_openai_stream):
     assert mock_openai_stream.called
     # ensure instructions are merged as a system prompt
     last_request_payload = json.loads(respx.calls.last.request.content)
-    assert last_request_payload["messages"][0] == {
-        "content": (
-            "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\n"
-            "Answer in english."
-        ),
-        "role": "system",
-    }
+
+    system_messages_content = [
+        message["content"]
+        for message in last_request_payload["messages"]
+        if message["role"] == "system"
+    ]
+    assert system_messages_content[0] == "You are a helpful test assistant :)"
+    assert system_messages_content[1] == "Today is Friday 25/07/2025."
+    assert system_messages_content[2] == "Answer in english."
 
     chat_conversation.refresh_from_db()
     assert chat_conversation.ui_messages == [
@@ -574,10 +578,15 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
     # Check the exact structure expected by the AI service
     assert body["messages"] == [
         {
-            "content": (
-                "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025."
-                "\n\nAnswer in english."
-            ),
+            "content": ("You are a helpful test assistant :)"),
+            "role": "system",
+        },
+        {
+            "content": ("Today is Friday 25/07/2025."),
+            "role": "system",
+        },
+        {
+            "content": ("Answer in english."),
             "role": "system",
         },
         {
@@ -782,10 +791,15 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
 
     assert body["messages"] == [
         {
-            "content": (
-                "You are a helpful test assistant :)\n\n"
-                "Today is Friday 25/07/2025.\n\nAnswer in english."
-            ),
+            "content": "You are a helpful test assistant :)",
+            "role": "system",
+        },
+        {
+            "content": "Today is Friday 25/07/2025.",
+            "role": "system",
+        },
+        {
+            "content": "Answer in english.",
             "role": "system",
         },
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
@@ -908,6 +922,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                 {
                     "content": {"location": "Paris", "temperature": 22, "unit": "celsius"},
                     "metadata": None,
+                    "outcome": "success",
                     "part_kind": "tool-return",
                     "timestamp": "2025-07-25T10:36:35.297675Z",
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
@@ -1006,10 +1021,15 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
 
     assert body["messages"] == [
         {
-            "content": (
-                "You are a helpful test assistant :)\n\n"
-                "Today is Friday 25/07/2025.\n\nAnswer in french."
-            ),
+            "content": "You are a helpful test assistant :)",
+            "role": "system",
+        },
+        {
+            "content": "Today is Friday 25/07/2025.",
+            "role": "system",
+        },
+        {
+            "content": "Answer in french.",
             "role": "system",
         },
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
@@ -1838,14 +1858,14 @@ def test_post_conversation_oidc_refresh_enabled(  # pylint: disable=unused-argum
 
     # ensure instructions are merged as a system prompt
     last_request_payload = json.loads(respx.calls.last.request.content)
-    assert last_request_payload["messages"][0] == {
-        "content": (
-            "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\n"
-            "Answer in english."
-        ),
-        "role": "system",
-    }
-
+    system_messages_content = [
+        message["content"]
+        for message in last_request_payload["messages"]
+        if message["role"] == "system"
+    ]
+    assert system_messages_content[0] == "You are a helpful test assistant :)"
+    assert system_messages_content[1] == "Today is Friday 25/07/2025."
+    assert system_messages_content[2] == "Answer in english."
     chat_conversation.refresh_from_db()
     assert chat_conversation.ui_messages == [
         {

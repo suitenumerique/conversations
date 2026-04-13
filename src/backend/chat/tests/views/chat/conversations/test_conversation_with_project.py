@@ -61,9 +61,12 @@ def test_post_conversation_includes_project_llm_instructions(api_client, mock_op
     )
 
     last_request_payload = json.loads(respx.calls.last.request.content)
-    system_message = last_request_payload["messages"][0]
-    assert system_message["role"] == "system"
-    assert "Always reply in bullet points." in system_message["content"]
+    system_messages_content = [
+        message["content"]
+        for message in last_request_payload["messages"]
+        if message["role"] == "system"
+    ]
+    assert "Always reply in bullet points." in system_messages_content
     assert mock_openai_stream.called
 
 
@@ -104,9 +107,15 @@ def test_post_conversation_without_project_has_no_project_instructions(
     )
 
     last_request_payload = json.loads(respx.calls.last.request.content)
-    system_message = last_request_payload["messages"][0]
-    assert system_message["role"] == "system"
-    assert system_message["content"] == (
-        "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
-    )
+
+    system_messages_content = [
+        message["content"]
+        for message in last_request_payload["messages"]
+        if message["role"] == "system"
+    ]
+    assert system_messages_content == [
+        "You are a helpful test assistant :)",
+        "Today is Friday 25/07/2025.",
+        "Answer in english.",
+    ]
     assert mock_openai_stream.called

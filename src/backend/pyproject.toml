@@ -56,7 +56,7 @@ dependencies = [
     "nested-multipart-parser==1.6.0",
     "posthog==7.0.0",
     "pydantic==2.12.4",
-    "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.62.0",
+    "pydantic-ai-slim[openai,mistral,mcp,evals,logfire]==1.77.0",
     "psycopg[binary]==3.2.12",
     "PyJWT==2.12.0",
     "python-magic==0.4.27",
@@ -111,6 +111,7 @@ zip-safe = true
 universal = true
 
 [tool.uv]
+exclude-newer = "7 days"
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
     "sys_platform == 'darwin'",

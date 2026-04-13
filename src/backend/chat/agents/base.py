@@ -29,9 +29,9 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
     match configuration.provider.kind:
         case "mistral":
             import pydantic_ai.models.mistral as mistral_models  # noqa: PLC0415
-            from mistralai import TextChunk as MistralTextChunk  # noqa: PLC0415
-            from mistralai import ThinkChunk as MistralThinkChunk  # noqa: PLC0415
-            from mistralai.types.basemodel import Unset as MistralUnset  # noqa: PLC0415
+            from mistralai.client.models import TextChunk as MistralTextChunk  # noqa: PLC0415
+            from mistralai.client.models import ThinkChunk as MistralThinkChunk  # noqa: PLC0415
+            from mistralai.client.types.basemodel import Unset as MistralUnset  # noqa: PLC0415
             from pydantic_ai.providers.mistral import MistralProvider  # noqa: PLC0415
 
             # --- Monkey patch for pydantic_ai.models.mistral._map_content ---

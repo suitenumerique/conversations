@@ -20,6 +20,7 @@ and this project adheres to
 - ⬆️(dependencies) update back and front dependencies
 - 💄(ui) new header
 - ✨(back) add debug mode setup for local development
+- ⬆️(dependencies) update pydanticai and related dependencies
 
 ### Fixed
 
