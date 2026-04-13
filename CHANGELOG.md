@@ -14,6 +14,7 @@ and this project adheres to
 - ✨(front) allow typing while LLM is generating a response
 - ⬆️(dependencies) update back and front dependencies
 - 💄(ui) new header
+- ✨(back) add debug mode setup for local development
 
 ### Fixed
 
