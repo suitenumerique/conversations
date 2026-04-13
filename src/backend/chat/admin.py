@@ -27,7 +27,7 @@ class ChatConversationAdmin(admin.ModelAdmin):
 class AttachmentAdmin(admin.ModelAdmin):
     """"""
 
-    search_fields = ("conversation__id",)
+    search_fields = ("conversation__id", "project__id",  )
     list_display = (
         "id",
         "file_name",
@@ -35,6 +35,7 @@ class AttachmentAdmin(admin.ModelAdmin):
         "upload_state",
         "size",
         "conversation",
+        "project",
         "uploaded_by",
         "created_at",
         "updated_at",
@@ -43,6 +44,7 @@ class AttachmentAdmin(admin.ModelAdmin):
     list_filter = ("content_type",)
     list_select_related = (
         "conversation",
+        "project",
         "uploaded_by",
     )
 

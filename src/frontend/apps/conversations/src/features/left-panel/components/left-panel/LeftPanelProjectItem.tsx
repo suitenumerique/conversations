@@ -79,6 +79,31 @@ const titleStyles = css`
   padding-left: 24px;
 `;
 
+const arrowButtonStyles = css`
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+`;
+
+const titleButtonStyles = css`
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  min-width: 0;
+  flex: 1;
+  flex-direction: row;
+`;
+
 export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
   project,
   currentConversationId,
@@ -138,53 +163,67 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
           $direction="row"
           $align="center"
           $gap="2px"
-          $css="min-width: 0; flex: 1; cursor: pointer;"
-          role="button"
-          tabIndex={0}
-          aria-expanded={isOpen}
-          aria-label={project.title}
-          onClick={toggleOpen}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              toggleOpen();
-            }
-          }}
+          $css="min-width: 0; flex: 1;"
         >
-          <Icon
-            iconName={
-              isOpen && project.conversations.length > 0
-                ? 'expand_more'
-                : 'chevron_right'
-            }
-            $theme="neutral"
-            $variation="tertiary"
-            $size="18px"
-            $css={`opacity: ${project.conversations.length === 0 ? '0' : '1'};`}
-          />
-
           <Box
-            $display="flex"
-            $align="center"
-            $justify="center"
-            $width="18px"
-            $height="18px"
-            style={{ color: iconColor, marginRight: '4px', flexShrink: 0 }}
+            as="button"
+            type="button"
+            onClick={toggleOpen}
+            aria-expanded={isOpen}
+            aria-label={t('Toggle conversations for {{title}}', {
+              title: project.title,
+            })}
+            disabled={project.conversations.length === 0}
+            $css={arrowButtonStyles}
           >
-            <IconComponent
-              width={18}
-              height={18}
-              style={{ fill: 'currentColor', display: 'block' }}
+            <Icon
+              iconName={
+                isOpen && project.conversations.length > 0
+                  ? 'expand_more'
+                  : 'chevron_right'
+              }
+              $theme="neutral"
+              $variation="tertiary"
+              $size="18px"
+              $css={`opacity: ${project.conversations.length === 0 ? '0' : '1'};`}
             />
           </Box>
-          <Text
-            $size="sm"
-            $variation="primary"
-            $weight={isOpen ? '700' : '500'}
-            $css={titleTextStyles}
+
+          <Box
+            as="button"
+            type="button"
+            onClick={handleNewConversation}
+            aria-label={t('Start new conversation in {{title}}', {
+              title: project.title,
+            })}
+            $direction="row"
+            $align="center"
+            $gap="2px"
+            $css={titleButtonStyles}
           >
-            {project.title}
-          </Text>
+            <Box
+              $display="flex"
+              $align="center"
+              $justify="center"
+              $width="18px"
+              $height="18px"
+              style={{ color: iconColor, marginRight: '4px', flexShrink: 0 }}
+            >
+              <IconComponent
+                width={18}
+                height={18}
+                style={{ fill: 'currentColor', display: 'block' }}
+              />
+            </Box>
+            <Text
+              $size="sm"
+              $variation="primary"
+              $weight={isOpen ? '700' : '500'}
+              $css={titleTextStyles}
+            >
+              {project.title}
+            </Text>
+          </Box>
         </Box>
 
         <div

@@ -9,8 +9,8 @@ import LeftPanelIcon from '@/assets/icons/left-panel-bold.svg';
 import { Box, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import {
-  getConversation,
   KEY_CONVERSATION,
+  getConversation,
 } from '@/features/chat/api/useConversation';
 import { useInfiniteProjects } from '@/features/chat/api/useProjects';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';

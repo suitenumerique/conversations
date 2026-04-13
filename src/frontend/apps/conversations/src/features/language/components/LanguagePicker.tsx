@@ -1,6 +1,7 @@
 import { LanguagePicker as LanguagePickerUi } from '@gouvfr-lasuite/ui-kit';
 import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import { useConfig } from '@/core';
 import { useAuth } from '@/features/auth/hooks';
 

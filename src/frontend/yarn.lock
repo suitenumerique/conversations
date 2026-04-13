@@ -1370,6 +1370,11 @@
     "@eslint/core" "^0.17.0"
     levn "^0.4.1"
 
+"@fontsource-variable/material-symbols-outlined@5.2.5":
+  version "5.2.5"
+  resolved "https://registry.yarnpkg.com/@fontsource-variable/material-symbols-outlined/-/material-symbols-outlined-5.2.5.tgz#07c170dc80c2992684f8b95850b4cfd7fa33c0bc"
+  integrity sha512-pYzxK4ZKUEOXei0OPcrGF34EgCSf1AMXriZarcshme7mMLfCU/zwVgBplHkU0ZZSivBG/PwziTi1QIn7joyUXA==
+
 "@fontsource-variable/roboto-flex@5.2.5":
   version "5.2.5"
   resolved "https://registry.yarnpkg.com/@fontsource-variable/roboto-flex/-/roboto-flex-5.2.5.tgz#38368ea754697c2fdf08df11b06e8b6d391ff4c1"
