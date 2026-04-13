@@ -54,3 +54,19 @@ class ChatConversationAttachmentFactory(factory.django.DjangoModelFactory):
 
     class Meta:
         model = models.ChatConversationAttachment
+
+
+class ChatProjectAttachmentFactory(factory.django.DjangoModelFactory):
+    """Factory for creating project-scoped attachment instances."""
+
+    conversation = None
+    project = factory.SubFactory(ChatProjectFactory)
+    uploaded_by = factory.SubFactory(UserFactory)
+    key = factory.LazyAttribute(
+        lambda obj: f"{obj.project.pk}/attachments/{uuid4()}.{obj.file_name.split('.')[-1]}"
+    )
+    file_name = factory.Faker("file_name")
+    content_type = factory.Faker("mime_type")
+
+    class Meta:
+        model = models.ChatConversationAttachment

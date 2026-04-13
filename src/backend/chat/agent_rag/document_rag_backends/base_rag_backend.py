@@ -3,7 +3,7 @@
 import logging
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager, contextmanager
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from asgiref.sync import sync_to_async
 
@@ -102,7 +102,7 @@ class BaseRagBackend(ABC):
         return self.parser.parse_document(name, content_type, content)
 
     @abstractmethod
-    def store_document(self, name: str, content: str, **kwargs) -> None:
+    def store_document(self, name: str, content: str, **kwargs) -> Optional[str]:
         """
         Store the document content in the collection.
         This method should handle the logic to send the document content to the API.
@@ -111,10 +111,15 @@ class BaseRagBackend(ABC):
             name (str): The name of the document.
             content (str): The content of the document in Markdown format.
             **kwargs: Additional arguments. ex: "user_sub" for access control.
+
+        Returns:
+            Optional[str]: The backend document id, when the backend supports
+            per-document deletion. None when the backend cannot identify the
+            stored document for later removal.
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
-    async def astore_document(self, name: str, content: str, **kwargs) -> None:
+    async def astore_document(self, name: str, content: str, **kwargs) -> Optional[str]:
         """
         Store the document content in the collection.
         This method should handle the logic to send the document content to the API.
@@ -128,22 +133,26 @@ class BaseRagBackend(ABC):
 
     def parse_and_store_document(
         self, name: str, content_type: str, content: bytes, **kwargs
-    ) -> str:
+    ) -> Tuple[Optional[str], str]:
         """
-        Parse the document and store it in the Albert collection.
+        Parse the document and store it in the collection.
 
         Args:
             name (str): The name of the document.
             content_type (str): The MIME type of the document (e.g., "application/pdf").
             content (bytes): The content of the document as a bytes stream.
             **kwargs: Additional arguments. ex: "user_sub" for access control.
+
+        Returns:
+            Tuple[Optional[str], str]: (document_id, parsed_content). document_id is
+            None when the backend does not expose per-document deletion.
         """
         if not self.collection_id:
             raise RuntimeError("The RAG backend requires collection_id")
 
         document_content = self.parse_document(name, content_type, content)
-        self.store_document(name, document_content, **kwargs)
-        return document_content
+        document_id = self.store_document(name, document_content, **kwargs)
+        return document_id, document_content
 
     @abstractmethod
     def delete_collection(self, **kwargs) -> None:
@@ -159,6 +168,21 @@ class BaseRagBackend(ABC):
         This method should handle the logic to delete the collection from the backend.
         """
         return await sync_to_async(self.delete_collection)(**kwargs)
+
+    @abstractmethod
+    def delete_document(self, document_id: str, **kwargs) -> None:
+        """
+        Delete a single document from the current collection.
+
+        Backends that cannot remove individual documents should still implement
+        this as an explicit no-op so the limitation is visible at the
+        implementation site.
+        """
+        raise NotImplementedError("Must be implemented in subclass.")
+
+    async def adelete_document(self, document_id: str, **kwargs) -> None:
+        """Async variant of delete_document."""
+        return await sync_to_async(self.delete_document)(document_id=document_id, **kwargs)
 
     @abstractmethod
     def search(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:

@@ -116,7 +116,16 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             )
             response.raise_for_status()
 
-    def store_document(self, name: str, content: str, **kwargs) -> None:
+    def delete_document(self, document_id: str, **kwargs) -> None:
+        """Delete a single document from the Albert collection."""
+        response = requests.delete(
+            urljoin(f"{self._documents_endpoint}/", document_id),
+            headers=self._headers,
+            timeout=settings.ALBERT_API_TIMEOUT,
+        )
+        response.raise_for_status()
+
+    def store_document(self, name: str, content: str, **kwargs) -> Optional[str]:
         """
         Store the document content in the Albert collection.
         This method should handle the logic to send the document content to the Albert API.
@@ -125,6 +134,9 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             name (str): The name of the document.
             content (str): The content of the document in Markdown format.
             **kwargs: Additional arguments.
+
+        Returns:
+            Optional[str]: Albert document id, used for per-document deletion.
         """
         response = requests.post(
             urljoin(self._base_url, self._documents_endpoint),
@@ -138,8 +150,10 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         )
         logger.debug(response.json())
         response.raise_for_status()
+        document_id = response.json().get("id")
+        return str(document_id) if document_id is not None else None
 
-    async def astore_document(self, name: str, content: str, **kwargs) -> None:
+    async def astore_document(self, name: str, content: str, **kwargs) -> Optional[str]:
         """
         Store the document content in the Albert collection.
         This method should handle the logic to send the document content to the Albert API.
@@ -164,6 +178,8 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             )
             logger.debug(response.json())
             response.raise_for_status()
+            document_id = response.json().get("id")
+            return str(document_id) if document_id is not None else None
 
     def search(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
         """

@@ -7,13 +7,15 @@ from uuid import UUID, uuid4
 from django.conf import settings
 from django.core.cache import cache
 from django.core.files.storage import default_storage
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.http import Http404, StreamingHttpResponse
 from django.utils.decorators import method_decorator
+from django.utils.module_loading import import_string
 
 import langfuse
 import magic
 import posthog
+from botocore.exceptions import BotoCoreError, ClientError
 from drf_spectacular.utils import extend_schema
 from lasuite.malware_detection import malware_detection
 from lasuite.oidc_login.decorators import refresh_oidc_access_token
@@ -131,21 +133,23 @@ class ChatAttachmentMixin(AttachmentMixin):  # pylint: disable=abstract-method
         """
         Check if the user has permission to access the holder of the attachment.
 
+        The holder pk in the media URL can be either a conversation or a project.
         Raises PermissionDenied if the user does not have permission.
         """
         if not user.is_authenticated:
             raise PermissionDenied()
 
-        try:
-            models.ChatConversation.objects.get(
-                pk=url_params["pk"],
-                owner=user,
-            )
-            # We don't need to check the ChatConversationAttachment here because
-            # if the storage object exists, it means the attachment is linked
-            # to the conversation, which is already verified by the above query.
-        except models.ChatConversation.DoesNotExist as exc:
-            raise PermissionDenied() from exc
+        holder_pk = url_params["pk"]
+
+        # Try conversation first (most common case)
+        if models.ChatConversation.objects.filter(pk=holder_pk, owner=user).exists():
+            return
+
+        # Try project
+        if models.ChatProject.objects.filter(pk=holder_pk, owner=user).exists():
+            return
+
+        raise PermissionDenied()
 
 
 class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
@@ -218,6 +222,24 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             # Permission is checked in AttachmentMixin
             self.permission_classes = []
         return super().get_permissions()
+
+    def perform_destroy(self, instance):
+        """Delete a conversation and drop its RAG collection on the backend.
+
+        Backend failures are logged but do not block the user-facing delete.
+        """
+        if instance.collection_id:
+            try:
+                backend_class = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+                backend_class(collection_id=instance.collection_id).delete_collection()
+            except Exception:  # pylint: disable=broad-except
+                logger.exception(
+                    "Failed to delete RAG collection %s for conversation %s",
+                    instance.collection_id,
+                    instance.pk,
+                )
+
+        instance.delete()
 
     @conditional_refresh_oidc_token
     @decorators.action(
@@ -424,61 +446,84 @@ class LLMConfigurationView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class ChatConversationAttachmentViewSet(
+class BaseAttachmentViewSet(
     SerializerPerActionMixin,
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
-    """ViewSet for managing chat conversation attachments.
+    """Base viewset for attachment management (conversation or project scoped).
 
-    Provides endpoints to create and retrieve chat conversation attachments.
+    Subclasses must define:
+    - holder_field: FK field name on the attachment ("conversation" or "project")
+    - holder_pk_kwarg: URL kwarg name ("conversation_pk" or "project_pk")
+    - holder_model: the Django model owning the attachments
+    - malware_callbacks: dict with safe/unknown/unsafe dotted callback paths
     """
 
-    pagination_class = None  # No pagination for attachments
+    pagination_class = None
     permission_classes = [
-        IsActivatedUser,  # see activation_codes application
+        IsActivatedUser,
         permissions.IsAuthenticated,
     ]
     serializer_class = serializers.ChatConversationAttachmentSerializer
     create_serializer_class = serializers.CreateChatConversationAttachmentSerializer
     queryset = models.ChatConversationAttachment.objects
 
+    # -- subclass configuration --
+    holder_field: str
+    holder_pk_kwarg: str
+    holder_model: type
+    malware_callbacks: dict  # {"safe": "...", "unknown": "...", "unsafe": "..."}
+
+    @property
+    def _holder_pk(self):
+        return self.kwargs[self.holder_pk_kwarg]
+
+    def _check_holder_ownership(self):
+        """Assert the current user owns the holder, or raise 404."""
+        if not self.holder_model.objects.filter(
+            pk=self._holder_pk,
+            owner=self.request.user,
+        ).exists():
+            raise Http404
+
+    def _malware_kwargs(self):
+        """Extra kwargs forwarded to malware_detection.analyse_file callbacks."""
+        return {f"{self.holder_field}_id": self._holder_pk}
+
     def get_queryset(self):
-        """Return the queryset for the chat conversation attachments."""
+        """Return attachments scoped to the holder and owned by the current user."""
         return (
             self.queryset.filter(
-                conversation_id=self.kwargs["conversation_pk"],
-                conversation__owner=self.request.user,
+                **{
+                    f"{self.holder_field}_id": self._holder_pk,
+                    f"{self.holder_field}__owner": self.request.user,
+                }
             )
             if self.request.user.is_authenticated
             else self.queryset.none()
         )
 
     def get_serializer_context(self):
-        """Return the context for the serializer."""
+        """Pass the holder pk to the serializer context."""
         context = super().get_serializer_context()
-        context["conversation_pk"] = self.kwargs["conversation_pk"]
+        context[self.holder_pk_kwarg] = self._holder_pk
         return context
 
     def perform_create(self, serializer):
-        """Set the uploaded_by field to the current user."""
-        # assert the user is the owner of the conversation
-        if not models.ChatConversation.objects.filter(
-            pk=self.kwargs["conversation_pk"],
-            owner=self.request.user,
-        ).exists():
-            raise Http404
+        """Create a PENDING attachment record for the holder."""
+        self._check_holder_ownership()
+
         file_name = serializer.validated_data["file_name"]
         extension = file_name.rpartition(".")[-1] if "." in file_name else None
 
         file_id = uuid4()
-        holder_key_base = f"{self.kwargs['conversation_pk']!s}"
         ext_suffix = f".{extension}" if extension else ""
-        key = f"{holder_key_base}/{AttachmentMixin.ATTACHMENTS_FOLDER:s}/{file_id!s}{ext_suffix}"
+        key = f"{self._holder_pk!s}/{AttachmentMixin.ATTACHMENTS_FOLDER:s}/{file_id!s}{ext_suffix}"
 
         serializer.save(
-            conversation_id=self.kwargs["conversation_pk"],
+            **{f"{self.holder_field}_id": self._holder_pk},
             uploaded_by=self.request.user,
             upload_state=enums.AttachmentStatus.PENDING,
             key=key,
@@ -486,10 +531,7 @@ class ChatConversationAttachmentViewSet(
 
     @decorators.action(detail=True, methods=["post"], url_path="upload-ended")
     def upload_ended(self, request, *args, **kwargs):
-        """
-        Start the analysis of an item after a successful upload.
-        """
-
+        """Start malware analysis after a successful upload."""
         attachment = self.get_object()
 
         if attachment.upload_state != AttachmentStatus.PENDING:
@@ -506,15 +548,14 @@ class ChatConversationAttachmentViewSet(
         attachment.upload_state = AttachmentStatus.ANALYZING
         attachment.content_type = mimetype
         attachment.size = size
-
         attachment.save(update_fields=["upload_state", "content_type", "size"])
 
         malware_detection.analyse_file(
             attachment.key,
-            safe_callback="chat.malware_detection.conversation_safe_attachment_callback",
-            unknown_callback="chat.malware_detection.unknown_attachment_callback",
-            unsafe_callback="chat.malware_detection.conversation_unsafe_attachment_callback",
-            conversation_id=self.kwargs["conversation_pk"],
+            safe_callback=self.malware_callbacks["safe"],
+            unknown_callback=self.malware_callbacks["unknown"],
+            unsafe_callback=self.malware_callbacks["unsafe"],
+            **self._malware_kwargs(),
         )
 
         serializer = self.get_serializer(attachment)
@@ -540,28 +581,9 @@ class ChatConversationAttachmentViewSet(
         url_name="backend-upload",
     )
     def backend_upload_attachment(self, request, *args, **kwargs):
-        """
-        Handle backend file upload for backend_to_s3 mode.
-
-        This endpoint is used when FILE_UPLOAD_MODE is set to backend_to_s3.
-        The frontend sends the file directly to this endpoint,
-        and the backend stores it on S3 and initiates malware detection.
-
-        The attachment lifecycle:
-        1. Frontend sends file via this endpoint
-        2. Backend stores file on S3
-        3. Backend detects MIME type and file size
-        4. Backend initiates malware detection
-        5. After detection, attachment status becomes READY or SUSPICIOUS
-        """
+        """Handle backend file upload for backend_to_s3 mode."""
         # pylint: disable=too-many-locals
-        # Verify the user owns the conversation
-        conversation_id = self.kwargs["conversation_pk"]
-        if not models.ChatConversation.objects.filter(
-            pk=conversation_id,
-            owner=request.user,
-        ).exists():
-            raise Http404
+        self._check_holder_ownership()
 
         serializer = FileUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -569,32 +591,30 @@ class ChatConversationAttachmentViewSet(
         file_obj = serializer.validated_data["file"]
         file_name = serializer.validated_data["file_name"]
 
-        # Generate unique file ID and storage key
         file_id = uuid4()
         extension = file_name.rpartition(".")[-1] if "." in file_name else None
         ext_suffix = f".{extension}" if extension else ""
-        key = f"{conversation_id}/{AttachmentMixin.ATTACHMENTS_FOLDER}/{file_id}{ext_suffix}"
+        key = f"{self._holder_pk!s}/{AttachmentMixin.ATTACHMENTS_FOLDER}/{file_id!s}{ext_suffix}"
 
-        # Store file on S3
         try:
             stored_path = default_storage.save(key, file_obj)
             logger.info("File uploaded to S3: %s", stored_path)
         except Exception:  # pylint: disable=broad-except
-            logger.exception("Failed to upload file to S3 for conversation %s", conversation_id)
+            logger.exception(
+                "Failed to upload file to S3 for %s %s", self.holder_field, self._holder_pk
+            )
             return Response(
                 {"detail": "Failed to upload file to storage"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # Detect MIME type
         mime_detector = magic.Magic(mime=True)
         with default_storage.open(key, "rb") as file:
             mimetype = mime_detector.from_buffer(file.read(2048))
             file_size = file.size
 
-        # Create attachment record with ANALYZING status
         attachment = models.ChatConversationAttachment.objects.create(
-            conversation_id=conversation_id,
+            **{f"{self.holder_field}_id": self._holder_pk},
             uploaded_by=request.user,
             upload_state=AttachmentStatus.ANALYZING,
             key=key,
@@ -604,21 +624,20 @@ class ChatConversationAttachmentViewSet(
         )
 
         logger.info(
-            "Created attachment %s for conversation %s, starting malware detection",
+            "Created attachment %s for %s %s, starting malware detection",
             attachment.pk,
-            conversation_id,
+            self.holder_field,
+            self._holder_pk,
         )
 
-        # Start malware detection (will update status to READY or SUSPICIOUS via callbacks)
         malware_detection.analyse_file(
             key,
-            safe_callback="chat.malware_detection.conversation_safe_attachment_callback",
-            unknown_callback="chat.malware_detection.unknown_attachment_callback",
-            unsafe_callback="chat.malware_detection.conversation_unsafe_attachment_callback",
-            conversation_id=conversation_id,
+            safe_callback=self.malware_callbacks["safe"],
+            unknown_callback=self.malware_callbacks["unknown"],
+            unsafe_callback=self.malware_callbacks["unsafe"],
+            **self._malware_kwargs(),
         )
 
-        # Track upload event
         if settings.POSTHOG_KEY:
             posthog.capture(
                 "item_uploaded_backend",
@@ -634,6 +653,70 @@ class ChatConversationAttachmentViewSet(
 
         serializer = self.get_serializer(attachment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class ChatConversationAttachmentViewSet(BaseAttachmentViewSet):
+    """Attachment viewset scoped to a conversation."""
+
+    holder_field = "conversation"
+    holder_pk_kwarg = "conversation_pk"
+    holder_model = models.ChatConversation
+    malware_callbacks = {
+        "safe": "chat.malware_detection.conversation_safe_attachment_callback",
+        "unknown": "chat.malware_detection.unknown_attachment_callback",
+        "unsafe": "chat.malware_detection.conversation_unsafe_attachment_callback",
+    }
+
+
+class ChatProjectAttachmentViewSet(  # pylint: disable=too-many-ancestors
+    mixins.ListModelMixin,
+    mixins.DestroyModelMixin,
+    BaseAttachmentViewSet,
+):
+    """Attachment viewset scoped to a project."""
+
+    holder_field = "project"
+    holder_pk_kwarg = "project_pk"
+    holder_model = models.ChatProject
+    malware_callbacks = {
+        "safe": "chat.malware_detection.project_safe_attachment_callback",
+        "unknown": "chat.malware_detection.project_unknown_attachment_callback",
+        "unsafe": "chat.malware_detection.project_unsafe_attachment_callback",
+    }
+
+    def get_queryset(self):
+        """Exclude markdown conversion attachments from listing."""
+        return (
+            super().get_queryset().filter(Q(conversion_from__isnull=True) | Q(conversion_from=""))
+        )
+
+    def perform_destroy(self, instance):
+        """Delete the attachment, its S3 object, and its RAG document.
+
+        The RAG document is removed from the project collection so its parsed
+        chunks stop appearing in search results. Backends that do not support
+        per-document deletion leave rag_document_id null, in which case this
+        is skipped (the chunks remain searchable until the project is deleted).
+        Backend failures are logged but do not block the user-facing delete.
+        """
+        try:
+            default_storage.delete(instance.key)
+        except (BotoCoreError, ClientError, OSError):
+            logger.exception("Failed to delete S3 object %s", instance.key)
+
+        if instance.rag_document_id and instance.project and instance.project.collection_id:
+            try:
+                backend_class = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+                backend = backend_class(collection_id=instance.project.collection_id)
+                backend.delete_document(instance.rag_document_id)
+            except Exception:  # pylint: disable=broad-except
+                logger.exception(
+                    "Failed to delete RAG document %s from collection %s",
+                    instance.rag_document_id,
+                    instance.project.collection_id,
+                )
+
+        instance.delete()
 
 
 class FileStreamView(APIView):
@@ -734,10 +817,27 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
         )
 
     def perform_destroy(self, instance):
-        """Delete a project and its related conversations.
+        """Delete a project, its conversations, and its RAG collection.
 
         ChatConversation.project uses on_delete=SET_NULL (to avoid accidental
         cascade), so we explicitly delete conversations here.
+
+        The RAG collection is dropped on the backend so indexed content does not
+        survive the project. Backend failures are logged but do not block the
+        user-facing delete - a dangling collection is preferable to a project
+        the user cannot remove.
         """
         instance.conversations.all().delete()
+
+        if instance.collection_id:
+            try:
+                backend_class = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+                backend_class(collection_id=instance.collection_id).delete_collection()
+            except Exception:  # pylint: disable=broad-except
+                logger.exception(
+                    "Failed to delete RAG collection %s for project %s",
+                    instance.collection_id,
+                    instance.pk,
+                )
+
         instance.delete()
