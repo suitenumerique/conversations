@@ -15,6 +15,7 @@ and this project adheres to
 - ✨(back) add self-documentation tool
 - ✅(front) add tests for SourceItem component
 - ✨(documents) make document context hybrid
+- ✨(back) handle project files for RAG search
 
 ### Changed
 

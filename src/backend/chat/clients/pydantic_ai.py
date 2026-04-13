@@ -143,7 +143,7 @@ from chat.clients.pydantic_ui_message_converter import (
     model_message_to_ui_message,
     ui_message_to_user_content,
 )
-from chat.constants import TEXT_MIME_PREFIX
+from chat.constants import IMAGE_MIME_PREFIX, TEXT_MIME_PREFIX
 from chat.document_context_builder import build_document_context_instruction
 from chat.mcp_servers import get_mcp_servers
 from chat.tools.descriptions import (
@@ -527,13 +527,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if not self._is_document_upload_enabled:
             return False
 
-        # Check for existing documents (any non-image attachment for this conversation)
+        # Check for existing READY documents (conversation-level or project-level).
+        # Only READY attachments matter: ensure_project_attachments_indexed and the
+        # conversation indexing flow both filter by READY, so non-READY attachments
+        # would register the tool but fail to search.
+        owner_filter = Q(conversation=self.conversation)
+        if self.conversation.project_id is not None:
+            owner_filter |= Q(project_id=self.conversation.project_id)
+
         has_documents = await (
             models.ChatConversationAttachment.objects.filter(
                 Q(conversion_from__isnull=True) | Q(conversion_from=""),
-                conversation=self.conversation,
+                owner_filter,
+                upload_state=models.AttachmentStatus.READY,
             )
-            .exclude(content_type__startswith="image/")
+            .exclude(content_type__startswith=IMAGE_MIME_PREFIX)
             .aexists()
         )
         return conversation_has_documents or has_documents
@@ -648,7 +656,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     with default_storage.open(key, "rb") as file:
                         document_data = file.read()
                     # Run in thread to avoid blocking the event loop during parsing
-                    parsed_content = await asyncio.to_thread(
+                    _document_id, parsed_content = await asyncio.to_thread(
                         document_store.parse_and_store_document,
                         name=document.identifier,
                         content_type=document.media_type,
@@ -660,7 +668,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     raise ValueError("External document URL are not accepted yet.")
             else:
                 # Run in thread to avoid blocking the event loop during parsing
-                parsed_content = await asyncio.to_thread(
+                _document_id, parsed_content = await asyncio.to_thread(
                     document_store.parse_and_store_document,
                     name=document.identifier,
                     content_type=document.media_type,

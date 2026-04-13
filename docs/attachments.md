@@ -16,6 +16,7 @@ This document describes how conversation attachments work in the Conversations a
   - [Image Attachments](#image-attachments)
   - [PDF Documents](#pdf-documents)
   - [Other Document Types](#other-document-types)
+- [Project-Level Attachments](#project-level-attachments)
 - [Configuration](#configuration)
 
 ---
@@ -26,6 +27,10 @@ Conversations allows users to attach files to their conversations with the AI as
 - **Images** (displayed directly to vision-capable LLMs)
 - **PDF documents** (sent as document URLs to the LLM)
 - **Other documents** (converted to text and indexed for semantic search)
+
+Attachments come in two flavors that share the same `ChatConversationAttachment` model:
+- **Conversation attachments**: scoped to a single chat, can be sent as message inputs (images, PDFs) or indexed for RAG search.
+- **Project attachments**: shared across every conversation in the project, indexed once at upload time and searched alongside the conversation's own RAG store. See [Project-Level Attachments](#project-level-attachments) for the full flow.
 
 The attachment system uses **S3-compatible object storage** (such as MinIO in development) to store files securely. 
 The backend generates **presigned URLs** that allow the frontend to upload files directly to the storage, 
@@ -372,6 +377,80 @@ If the model targeted a document via `document_id` and the backend returned no r
 - **Images**: Send as direct (presigned) URLs to the LLM
 - **Only PDFs**: Send as direct (presigned) URLs to the LLM
 - **Other documents present**: Convert to Markdown, build the documents listing for the system instruction, inline what fits the budget as `full-context`, expose the rest via the `document_search_rag` and `summarize` tools (with optional `document_id` targeting).
+
+---
+
+## Project-Level Attachments
+
+Projects act as folders that group conversations together. Files uploaded to a
+project are visible to every conversation inside that project via the document
+RAG search tool, without the user having to re-attach them to each chat.
+
+### Model
+
+A `ChatConversationAttachment` row belongs to **either** a conversation **or**
+a project, never both (DB-level check constraint `attachment_owner_exactly_one`).
+The project carries its own `collection_id` field, populated lazily the first
+time an indexable file is uploaded to it.
+
+### Upload flow
+
+The upload pipeline is the same as for conversation attachments (presigned URL
+or backend-relayed, malware scan), with one extra step at the end:
+
+1. File is stored in S3 under `{project_pk}/attachments/{uuid}.{ext}`.
+2. Malware scan runs.
+3. **On `SAFE`**: the project safe callback marks the attachment `READY` and
+   then calls `chat.agent_rag.indexing.index_project_attachment`:
+   - Skips images (they are never indexed for RAG).
+   - Creates a project RAG collection on first indexable file, or reuses the
+     existing one.
+   - Parses + stores the document content via the configured RAG backend
+     (`RAG_DOCUMENT_SEARCH_BACKEND`), using the uploader's `sub` for access
+     control on backends that support it.
+4. **On `UNSAFE` / `UNKNOWN`**: the attachment is marked `SUSPICIOUS` (or
+   `FILE_TOO_LARGE_TO_ANALYZE` for HTTP 413) and **never** indexed.
+
+Indexing failures are logged (`chat.agent_rag.indexing` logger, `ERROR` level)
+but never raised: the file remains uploaded and listed, just not searchable
+until a future re-index.
+
+### Search
+
+When a conversation belongs to a project, the `document_search_rag` tool sends
+the project's `collection_id` as a `read_only_collection_id` alongside the
+conversation's own `collection_id`. The configured RAG backend then searches
+both collections in a single request and returns merged results.
+
+### When the RAG tool is registered
+
+`AIAgentService._check_should_enable_rag` registers the document search tool
+when **either**:
+- the current user message carries documents (in-message uploads), or
+- the conversation has at least one `READY`, non-image, non-conversion-artifact
+  `ChatConversationAttachment`, or
+- the conversation belongs to a project that has at least one such attachment.
+
+This means a brand new conversation in a project with indexed files gets RAG
+search enabled on the very first turn, with no extra setup.
+
+### Known gaps
+
+- **Deletion**: deletion now performs backend cleanup before removing the DB
+  row. Per-attachment deletes (`ChatProjectAttachmentViewSet.perform_destroy`)
+  read the attachment's `rag_document_id` (recorded at index time) and call
+  `delete_document` on the configured backend - the Albert backend issues
+  `DELETE /v1/documents/{id}` against its collection. Conversation- and
+  project-level deletes (`ChatViewSet`, `ChatProjectViewSet`) drop the entire
+  RAG collection via `delete_collection`. Remaining gap: the Find backend's
+  `delete_document` is currently a no-op (lacks per-document tagging and an
+  OIDC session), so per-attachment removals only actually clear RAG content on
+  Albert-backed deployments.
+- **Backend switch**: changing `RAG_DOCUMENT_SEARCH_BACKEND` leaves stale
+  `collection_id`s on existing projects; there is no automatic re-index.
+- **Markdown conversion artifacts**: unlike conversation uploads, project
+  uploads do not produce a `text/markdown` companion attachment - the
+  parsed content lives only in the RAG collection.
 
 ---
 

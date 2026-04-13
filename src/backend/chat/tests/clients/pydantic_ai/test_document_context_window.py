@@ -12,7 +12,13 @@ from asgiref.sync import async_to_sync
 
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import ACCESS_FULL_CONTEXT, ACCESS_TOOL_CALL_ONLY
-from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory, UserFactory
+from chat.factories import (
+    ChatConversationAttachmentFactory,
+    ChatConversationFactory,
+    ChatProjectAttachmentFactory,
+    ChatProjectFactory,
+    UserFactory,
+)
 from chat.llm_configuration import LLModel, LLMProvider
 
 pytestmark = pytest.mark.django_db()
@@ -146,6 +152,58 @@ def test_document_context_uses_fifo_rolling_window(_llm_config_with_context, mon
     assert by_title["doc-1"]["content"] == TOOL_CALL_ONLY_CONTENT
     assert by_title["doc-2"]["access"] == ACCESS_FULL_CONTEXT
     assert by_title["doc-3"]["access"] == ACCESS_FULL_CONTEXT
+
+
+def test_document_context_inlines_only_conversation_attachments_not_project(
+    _llm_config_with_context, monkeypatch
+):
+    """Project attachments stay RAG-only; only conversation-owned text docs get inlined.
+
+    Hybrid context is built from ``conversation.attachments`` only - project files
+    are reachable via the RAG search tool (their collection is wired into the
+    search payload elsewhere) and must not appear in the inlined listing, even
+    when they would fit the budget.
+    """
+    user = UserFactory()
+    project = ChatProjectFactory(owner=user, collection_id="22")
+    conversation = ChatConversationFactory(owner=user, project=project)
+    service = AIAgentService(conversation, user=user)
+
+    ChatProjectAttachmentFactory(
+        project=project,
+        uploaded_by=user,
+        file_name="project-doc.md",
+        content_type="text/markdown",
+        conversion_from=None,
+    )
+    ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=user,
+        file_name="convo-doc.md",
+        content_type="text/markdown",
+        conversion_from=None,
+    )
+
+    async def fake_read_attachment_content(attachment):  # NOSONAR
+        return attachment.file_name, "x" * 6  # 2 tokens; well within budget
+
+    monkeypatch.setattr(
+        "chat.document_context_builder.read_attachment_content",
+        fake_read_attachment_content,
+    )
+    monkeypatch.setattr(
+        "chat.document_context_builder.count_approx_tokens",
+        lambda _text: 10,
+    )
+
+    instruction = async_to_sync(service._build_document_context_instruction)()  # pylint: disable=protected-access
+    listing = _parse_listing(instruction)
+
+    # conversion_from=None -> title keeps the .md suffix (no stripping).
+    titles = {d["title"] for d in listing["documents"]}
+    assert titles == {"convo-doc.md"}
+    by_title = {d["title"]: d for d in listing["documents"]}
+    assert by_title["convo-doc.md"]["access"] == ACCESS_FULL_CONTEXT
 
 
 def test_document_context_uses_configurable_ratio(_llm_config_with_context, monkeypatch, settings):

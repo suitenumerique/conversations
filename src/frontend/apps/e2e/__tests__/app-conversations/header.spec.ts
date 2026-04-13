@@ -87,13 +87,17 @@ test.describe('Header', () => {
     await page.goto('/');
 
     const [prompt] = randomName('header-toggle-title', browserName, 1);
-    await page.getByRole('textbox', { name: 'Enter your message or a' }).fill(prompt);
+    await page
+      .getByRole('textbox', { name: 'Enter your message or a' })
+      .fill(prompt);
     await page.keyboard.press('Enter');
 
     const header = page.locator('header').first();
     await header.getByRole('button', { name: 'Close the left panel' }).click();
 
-    const openLeftPanelButton = header.getByRole('button', { name: 'Open the left panel' });
+    const openLeftPanelButton = header.getByRole('button', {
+      name: 'Open the left panel',
+    });
     await expect(openLeftPanelButton).toBeVisible();
     await expect(header.getByTitle(prompt)).toBeVisible();
   });
