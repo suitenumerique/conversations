@@ -100,8 +100,12 @@ export const useFileDragDrop = ({
       return;
     }
 
+    const isModalOpen = () =>
+      document.querySelector('.c__modals--opened') !== null;
+
     const handleDragEnter = (e: DragEvent) => {
       e.preventDefault();
+      if (isModalOpen()) return;
       // Only activate for file drags (not text selections, etc.)
       if (e.dataTransfer?.types.includes('Files')) {
         setIsDragActive(true);
@@ -118,6 +122,7 @@ export const useFileDragDrop = ({
     };
 
     const handleDragOver = (e: DragEvent) => {
+      if (isModalOpen()) return;
       // Required to allow drop
       e.preventDefault();
     };
@@ -125,6 +130,7 @@ export const useFileDragDrop = ({
     const handleDrop = (e: DragEvent) => {
       e.preventDefault();
       setIsDragActive(false);
+      if (isModalOpen()) return;
 
       const droppedFiles = e.dataTransfer?.files;
       if (droppedFiles && droppedFiles.length > 0) {

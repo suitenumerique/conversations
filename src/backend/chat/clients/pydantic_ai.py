@@ -36,7 +36,7 @@ Documents attached to messages go through several stages:
 2. **Extraction** (`_prepare_prompt`): Documents are extracted from the UIMessage
    and separated from images. Audio/video attachments are rejected.
 
-3. **Parsing** (`_handle_input_documents` → `_parse_input_documents`):
+3. **Parsing** (`_handle_input_documents` -> `_parse_input_documents`):
    - Validates document URLs belong to the conversation (security check)
    - Creates a vector store collection if none exists
    - For each document:
@@ -49,6 +49,18 @@ Documents attached to messages go through several stages:
    - `document_rag_search` tool: Semantic search over document chunks
    - `summarize` tool: Full document summarization
    - Instructions informing the model that documents are available
+
+## Project Attachments
+
+Files can also be attached at the project level (shared across all conversations
+in a project). These bypass the per-message flow above:
+
+- Uploaded via `POST /api/v1.0/projects/{id}/attachments/` (same S3 + malware pipeline)
+- Indexed lazily: on the first RAG search in a project conversation,
+  `ensure_project_attachments_indexed` parses and stores any READY project
+  attachments that haven't been indexed yet.
+- Searched alongside conversation docs: the project collection is passed as
+  `read_only_collection_id` to the RAG backend so both are queried together.
 
 ## Streaming Architecture
 
@@ -124,7 +136,7 @@ from pydantic_ai.messages import (
 from core.feature_flags.helpers import is_feature_enabled
 
 from chat import models
-from chat.agent_rag.collection_manager import aget_or_create_conversation_collection
+from chat.agent_rag.indexing import aget_or_create_conversation_collection
 from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
 from chat.agents.local_media_url_processors import (
     update_history_local_urls,
@@ -459,15 +471,24 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if not self._is_document_upload_enabled:
             return False
 
-        # Check for existing documents (any non-image attachment for this conversation)
+        # Check for existing READY documents (conversation-level or project-level).
+        # Only READY attachments matter: ensure_project_attachments_indexed and the
+        # conversation indexing flow both filter by READY, so non-READY attachments
+        # would register the tool but fail to search.
+        owner_filter = Q(conversation=self.conversation)
+        if self.conversation.project_id is not None:
+            owner_filter |= Q(project_id=self.conversation.project_id)
+
         has_documents = await (
             models.ChatConversationAttachment.objects.filter(
                 Q(conversion_from__isnull=True) | Q(conversion_from=""),
-                conversation=self.conversation,
+                owner_filter,
+                upload_state=models.AttachmentStatus.READY,
             )
             .exclude(content_type__startswith="image/")
             .aexists()
         )
+
         return conversation_has_documents or has_documents
 
     async def _process_agent_nodes(

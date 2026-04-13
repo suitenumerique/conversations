@@ -12,6 +12,7 @@ from core.file_upload.enums import FileToLLMMode
 from activation_codes import viewsets as activation_viewsets
 from chat.views import (
     ChatConversationAttachmentViewSet,
+    ChatProjectAttachmentViewSet,
     ChatProjectViewSet,
     ChatViewSet,
     FileStreamView,
@@ -30,6 +31,11 @@ conversation_router.register(
     "attachments", ChatConversationAttachmentViewSet, basename="conversation-attachments"
 )
 
+project_router = DefaultRouter()
+project_router.register(
+    "attachments", ChatProjectAttachmentViewSet, basename="project-attachments"
+)
+
 urlpatterns = [
     path(
         f"api/{settings.API_VERSION}/",
@@ -43,6 +49,10 @@ urlpatterns = [
                 path(
                     "chats/<uuid:conversation_pk>/",
                     include(conversation_router.urls),
+                ),
+                path(
+                    "projects/<uuid:project_pk>/",
+                    include(project_router.urls),
                 ),
             ]
             + (
