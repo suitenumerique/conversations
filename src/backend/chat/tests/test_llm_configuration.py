@@ -191,3 +191,36 @@ def test_llmodel_is_custom_property():
     )
     assert custom_model.is_custom is True
     assert non_custom_model.is_custom is False
+
+
+def test_llm_profile_concatenate_instruction_messages_from_json():
+    """LLMProfile parses concatenate_instruction_messages from JSON config."""
+    config_json = json.dumps(
+        {
+            "models": [
+                {
+                    "hrid": "vllm-model",
+                    "model_name": "my-model",
+                    "human_readable_name": "My Model",
+                    "concatenate_instruction_messages": True,
+                    "provider": {
+                        "hrid": "my-provider",
+                        "base_url": "https://vllm.example.com/v1",
+                        "api_key": "testkey",
+                    },
+                    "is_active": True,
+                    "system_prompt": "You are helpful.",
+                    "tools": [],
+                }
+            ],
+            "providers": [
+                {
+                    "hrid": "my-provider",
+                    "base_url": "https://vllm.example.com/v1",
+                    "api_key": "testkey",
+                }
+            ],
+        }
+    )
+    config = LLMConfiguration.model_validate_json(config_json)
+    assert config.models[0].concatenate_instruction_messages is True

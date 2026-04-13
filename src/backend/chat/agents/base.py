@@ -7,7 +7,8 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
 import httpx
-from pydantic_ai import Agent
+from pydantic_ai import Agent, InstructionPart, ModelRequestContext, RunContext
+from pydantic_ai.capabilities import Hooks
 from pydantic_ai.models import get_user_agent
 from pydantic_ai.profiles import ModelProfile
 
@@ -177,7 +178,36 @@ class BaseAgent(Agent):
 
         _tools = self.get_tools()
 
-        super().__init__(model=_model_instance, instructions=_system_prompt, tools=_tools, **kwargs)
+        _capabilities = list(kwargs.pop("capabilities", []))
+        if self.configuration.concatenate_instruction_messages:
+            _hooks = Hooks()
+
+            @_hooks.on.before_model_request
+            async def _concatenate_instructions(
+                ctx: RunContext,  # pylint: disable=unused-argument
+                request_context: ModelRequestContext,
+            ) -> ModelRequestContext:
+                """We enable to concatenate_instructions so that
+                we support open source models running with vLLM"""
+                instruction_parts = request_context.model_request_parameters.instruction_parts
+                # Instead of merging SystemPromptPart in messages,
+                # merge InstructionPart in model_request_parameters
+                merged_content = "\n\n".join(p.content for p in instruction_parts)
+                merged_parts = [InstructionPart(content=merged_content)]
+                new_params = dataclasses.replace(
+                    request_context.model_request_parameters, instruction_parts=merged_parts
+                )
+                return dataclasses.replace(request_context, model_request_parameters=new_params)
+
+            _capabilities.append(_hooks)
+
+        super().__init__(
+            model=_model_instance,
+            instructions=_system_prompt,
+            tools=_tools,
+            capabilities=_capabilities,
+            **kwargs,
+        )
 
     def get_system_prompt(self) -> str | None:
         """Override this method to customize the system prompt."""

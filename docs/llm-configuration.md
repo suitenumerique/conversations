@@ -141,7 +141,8 @@ Models define the LLMs available in your application.
       "is_active": true,
       "icon": null,
       "system_prompt": "You are a helpful assistant",
-      "tools": []
+      "tools": [],
+      "concatenate_instruction_messages": false
     }
   ]
 }
@@ -149,22 +150,25 @@ Models define the LLMs available in your application.
 
 **Model Fields:**
 
-| Field                 | Type         | Required | Description                                                                                         |
-|-----------------------|--------------|----------|-----------------------------------------------------------------------------------------------------|
-| `hrid`                | string       | Yes      | Unique identifier for the model                                                                     |
-| `model_name`          | string       | Yes      | Name of the model as recognized by the provider (can use `settings.` or `environ.` prefix)          |
-| `human_readable_name` | string       | Yes      | Display name shown to users                                                                         |
-| `provider_name`       | string       | No*      | Reference to a provider's `hrid`                                                                    |
-| `provider`            | object       | No*      | Inline provider definition (alternative to `provider_name`)                                         |
-| `profile`             | object       | No       | Model-specific capabilities and settings                                                            |
-| `settings`            | object       | No       | Model inference settings (temperature, max_tokens, etc.)                                            |
-| `is_active`           | boolean      | Yes      | Whether the model is available for use                                                              |
-| `icon`                | string/array | No       | Base64-encoded icon or array of icon parts                                                          |
-| `system_prompt`       | string       | Yes      | Default system prompt for the model (can use `settings.` or `environ.` prefix)                      |
-| `tools`               | array        | Yes      | List of enabled tools for this model (can use `settings.` or `environ.` prefix for the whole array) |
-| `supports_streaming`  | boolean      | No       | Whether the model supports streaming responses                                                      |
+| Field                                | Type         | Required | Description                                                                                         |
+|--------------------------------------|--------------|----------|-----------------------------------------------------------------------------------------------------|
+| `hrid`                               | string       | Yes      | Unique identifier for the model                                                                     |
+| `model_name`                         | string       | Yes      | Name of the model as recognized by the provider (can use `settings.` or `environ.` prefix)          |
+| `human_readable_name`                | string       | Yes      | Display name shown to users                                                                         |
+| `provider_name`                      | string       | No*      | Reference to a provider's `hrid`                                                                    |
+| `provider`                           | object       | No*      | Inline provider definition (alternative to `provider_name`)                                         |
+| `profile`                            | object       | No       | Model-specific capabilities and settings                                                            |
+| `settings`                           | object       | No       | Model inference settings (temperature, max_tokens, etc.)                                            |
+| `is_active`                          | boolean      | Yes      | Whether the model is available for use                                                              |
+| `icon`                               | string/array | No       | Base64-encoded icon or array of icon parts                                                          |
+| `system_prompt`                      | string       | Yes      | Default system prompt for the model (can use `settings.` or `environ.` prefix)                      |
+| `tools`                              | array        | Yes      | List of enabled tools for this model (can use `settings.` or `environ.` prefix for the whole array) |
+| `supports_streaming`                 | boolean      | No       | Whether the model supports streaming responses                                                      |
+| `concatenate_instruction_messages`  | boolean      | No       | Whether the model must concatenate instructions messages before calling the Model                          |
 
 \* Either `provider_name` or `provider` must be set, unless `model_name` is in the format `<provider>:<model>`.
+
+\* `concatenate_instruction_messages` was added to make the app support Open Source models using vLLM for which Conversation must alternate user/assistant messages.
 
 ## Adding New Models
 

@@ -1204,6 +1204,7 @@ def test_post_conversation_with_odt_document_upload(
                     }
                 ],
                 "metadata": {"sources": ["sample.odt"]},
+                "outcome": "success",
                 "part_kind": "tool-return",
                 "timestamp": timezone_now,
                 "tool_call_id": chat_conversation.pydantic_messages[2]["parts"][0]["tool_call_id"],

@@ -1,11 +1,45 @@
 """Tests for the BaseAgent class and its model initialization logic."""
-# pylint: disable=protected-access
 
+# pylint: disable=protected-access
+import pytest
+from pydantic_ai.capabilities import Hooks
 from pydantic_ai.models.mistral import MistralModel
 from pydantic_ai.models.openai import OpenAIChatModel
 
 from chat.agents.base import BaseAgent
 from chat.llm_configuration import LLModel, LLMProfile, LLMProvider
+
+# ---------------------------------------------------------------------------
+# _concatenate_instructions hook — registration tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(name="llmodel_with_concatenate_instructions")
+def llmodel_with_concatenate_instructions_fixture():
+    """Return a basic OpenAI-compatible LLModel."""
+    return LLModel(
+        hrid="test-model",
+        model_name="gpt-4",
+        human_readable_name="Test Model",
+        provider=LLMProvider(
+            hrid="openai",
+            kind="openai",
+            base_url="https://test.vllm/v1",
+            api_key="testkey",
+        ),
+        is_active=True,
+        system_prompt="base system prompt",
+        tools=[],
+        concatenate_instruction_messages=True,
+    )
+
+
+def test_concatenate_instructions_enabled(settings, llmodel_with_concatenate_instructions):
+    """A Hooks capability is registered when concatenate_instruction_messages=True."""
+    settings.LLM_CONFIGURATIONS = {"test-model": llmodel_with_concatenate_instructions}
+    agent = BaseAgent(model_hrid="test-model")
+    capabilities = agent._root_capability.capabilities
+    assert any(isinstance(c, Hooks) for c in capabilities)
 
 
 def test_not_custom_model(monkeypatch, settings):
@@ -26,6 +60,9 @@ def test_not_custom_model(monkeypatch, settings):
 
     agent = BaseAgent(model_hrid="gpt-4")
     assert isinstance(agent._model, OpenAIChatModel)
+    # No Hooks capability when concatenate_instruction_messages is not set."""
+    capabilities = agent._root_capability.capabilities
+    assert not any(isinstance(c, Hooks) for c in capabilities)
 
 
 def test_custom_model_openai(settings):

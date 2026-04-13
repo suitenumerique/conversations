@@ -7,7 +7,7 @@ import respx
 from freezegun import freeze_time
 from rest_framework import status
 
-from chat.factories import ChatConversationFactory, ChatProjectFactory
+from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.tests.utils import replace_uuids_with_placeholder
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -53,15 +53,40 @@ def project_hello_data_fixture():
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
+@pytest.mark.parametrize(
+    ("with_project", "expected_system_messages"),
+    (
+        [
+            True,
+            [
+                "You are a helpful test assistant :)",
+                "Today is Friday 25/07/2025.",
+                "Answer in english.",
+                "Always reply in bullet points.",
+            ],
+        ],
+        [
+            False,
+            [
+                "You are a helpful test assistant :)",
+                "Today is Friday 25/07/2025.",
+                "Answer in english.",
+            ],
+        ],
+    ),
+)
 @respx.mock
 def test_post_conversation_includes_project_llm_instructions(
-    api_client, mock_openai_stream, project_hello_data
+    api_client, mock_openai_stream, project_hello_data, with_project, expected_system_messages
 ):
     """Test that project LLM instructions are sent to the LLM as part of the system prompt."""
-    project = ChatProjectFactory(llm_instructions="Always reply in bullet points.")
-    conversation = ChatConversationFactory(
-        owner=project.owner, project=project, owner__language="en-us"
-    )
+    if with_project:
+        project = ChatProjectFactory(
+            owner=UserFactory(language="en-us"), llm_instructions="Always reply in bullet points."
+        )
+        conversation = ChatConversationFactory(owner=project.owner, project=project)
+    else:
+        conversation = ChatConversationFactory(owner__language="en-us")
 
     url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
     api_client.force_login(conversation.owner)
@@ -74,32 +99,5 @@ def test_post_conversation_includes_project_llm_instructions(
     )
     assert response_content == _HELLO_THERE_STREAM
 
-    assert "Always reply in bullet points." in _get_system_messages(respx.calls.last)
-    assert mock_openai_stream.called
-
-
-@freeze_time("2025-07-25T10:36:35.297675Z")
-@respx.mock
-def test_post_conversation_without_project_has_no_project_instructions(
-    api_client, mock_openai_stream, project_hello_data
-):
-    """Test that conversations without a project do not include project instructions."""
-    conversation = ChatConversationFactory(owner__language="en-us")
-
-    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
-    api_client.force_login(conversation.owner)
-    response = api_client.post(url, project_hello_data, format="json")
-
-    assert response.status_code == status.HTTP_200_OK
-
-    response_content = replace_uuids_with_placeholder(
-        b"".join(response.streaming_content).decode("utf-8")
-    )
-    assert response_content == _HELLO_THERE_STREAM
-
-    assert _get_system_messages(respx.calls.last) == [
-        "You are a helpful test assistant :)",
-        "Today is Friday 25/07/2025.",
-        "Answer in english.",
-    ]
+    assert _get_system_messages(respx.calls.last) == expected_system_messages
     assert mock_openai_stream.called

@@ -142,6 +142,7 @@ class LLModel(BaseModel):
     system_prompt: SettingEnvValue
     tools: list[str]
     web_search: SettingEnvValue | None = None
+    concatenate_instruction_messages: bool | None = None
 
     @field_validator("tools", mode="before")
     @classmethod
