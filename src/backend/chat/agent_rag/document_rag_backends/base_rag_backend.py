@@ -39,7 +39,7 @@ class BaseRagBackend(ABC):
         self.collection_id = collection_id
         self.read_only_collection_id = read_only_collection_id or []
         self._default_collection_description = "Temporary collection for RAG document search"
-        self.parser: BaseParser = BaseParser()
+        self.parser: BaseParser
 
     @staticmethod
     def cast_collection_id(collection_id):

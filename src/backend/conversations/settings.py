@@ -733,6 +733,7 @@ class Base(BraveSettings, Configuration):
             "image/png",
             "image/gif",
             "image/webp",
+            "application/vnd.oasis.opendocument.text",
         ],
         environ_name="RAG_FILES_ACCEPTED_FORMATS",
         environ_prefix=None,
@@ -917,6 +918,7 @@ USER QUESTION:
         environ_name="ALBERT_API_URL",
         environ_prefix=None,
     )
+
     ALBERT_API_TIMEOUT = values.PositiveIntegerValue(
         default=30,  # seconds
         environ_name="ALBERT_API_TIMEOUT",

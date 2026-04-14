@@ -44,7 +44,8 @@ export const CONFIG = {
     'image/jpeg,' +
     'image/png,' +
     'image/gif,' +
-    'image/webp',
+    'image/webp,' +
+    'application/vnd.oasis.opendocument.text',
 } as const;
 
 export const overrideConfig = async (

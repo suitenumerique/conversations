@@ -8,6 +8,7 @@ import pytest
 import requests
 from pypdf import PdfReader
 
+from chat.agent_rag.document_converter.odt import OdtParsingError
 from chat.agent_rag.document_converter.parser import (
     METHOD_OCR,
     METHOD_TEXT_EXTRACTION,
@@ -34,6 +35,12 @@ def provide_text_pdf_10_pages():
 def provide_mixed_pdf_10_pages():
     """Load a 10-page PDF with 2 pages of text and 8 blank pages."""
     return (FIXTURES_DIR / "mixed_10_pages.pdf").read_bytes()
+
+
+@pytest.fixture(name="sample_odt")
+def provide_sample_odt():
+    """Load an ODT document."""
+    return (FIXTURES_DIR / "sample.odt").read_bytes()
 
 
 MIN_AVG_CHARS_FOR_TEXT_EXTRACTION = 200
@@ -297,6 +304,63 @@ def test_parse_document_pdf_routed_correctly(text_pdf_1_page):
         )
 
 
+def test_text_pdf_routed_to_text_extraction(text_pdf_10_pages):
+    """Text-rich PDF should be routed to extract_text_from_pdf, not OCR."""
+    parser = AdaptivePdfParser()
+
+    with (
+        patch.object(parser, "extract_text_from_pdf", return_value="extracted") as mock_extract,
+        patch.object(parser, "parse_pdf_document_with_ocr") as mock_ocr,
+    ):
+        result = parser.parse_pdf_document(
+            name="test.pdf", content_type="application/pdf", content=text_pdf_10_pages
+        )
+
+        assert result == "extracted"
+        mock_extract.assert_called_once_with(
+            name="test.pdf", content_type="application/pdf", content=text_pdf_10_pages
+        )
+        mock_ocr.assert_not_called()
+
+
+def test_mixed_pdf_routed_to_ocr(mixed_pdf_10_pages):
+    """PDF with low text coverage should be routed to OCR, not text extraction."""
+    parser = AdaptivePdfParser()
+
+    with (
+        patch.object(parser, "extract_text_from_pdf") as mock_extract,
+        patch.object(parser, "parse_pdf_document_with_ocr", return_value="ocr result") as mock_ocr,
+    ):
+        result = parser.parse_pdf_document(
+            name="test.pdf", content_type="application/pdf", content=mixed_pdf_10_pages
+        )
+
+        assert result == "ocr result"
+        mock_ocr.assert_called_once_with(name="test.pdf", content=mixed_pdf_10_pages)
+        mock_extract.assert_not_called()
+
+
+def test_parse_document_pdf(text_pdf_1_page):
+    """Should route PDF content type to PDF parser."""
+    parser = AdaptivePdfParser()
+
+    result = parser.parse_document("test.pdf", "application/pdf", text_pdf_1_page)
+
+    assert result == (
+        "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor "
+        "incididunt ut\nlabore et dolore magna aliqua. Ut enim ad minim veniam, "
+        "quis nostrud exercitation ullamco\nlaboris nisi ut aliquip ex ea commodo consequat. "
+        "Duis aute irure dolor in reprehenderit in\nvoluptate velit esse cillum dolore eu fugiat "
+        "nulla pariatur. Excepteur sint occaecat cupidatat non\nproident, sunt in culpa qui "
+        "oﬃcia deserunt mollit anim id est laborum.\n\nLorem ipsum dolor sit amet, consectetur "
+        "adipiscing elit, sed do eiusmod tempor incididunt ut\nlabore et dolore magna aliqua. "
+        "Ut enim ad minim veniam, quis nostrud exercitation ullamco\nlaboris nisi ut aliquip "
+        "ex ea commodo consequat. Duis aute irure dolor in reprehenderit in\nvoluptate velit "
+        "esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non"
+        "\nproident, sunt in culpa qui oﬃcia deserunt mollit anim id est laborum.\n\n"
+    )
+
+
 def test_parse_document_non_pdf_uses_document_converter():
     """Should route non-PDF content to DocumentConverter."""
     parser = AdaptivePdfParser()
@@ -308,3 +372,59 @@ def test_parse_document_non_pdf_uses_document_converter():
 
         assert result == "docx content"
         mock_converter.return_value.convert_raw.assert_called_once()
+
+
+EXPECTED_MD_FROM_ODT = (
+    "# Document Title\n\n## Introduction\n\nThis is a normal paragraph with "
+    "**bold text**, \\\n_italic text_, and \\\n***bold italic text***."
+    "\\\n\n\nThis has ~~strikethrough~~ and \\\n`inline code`.\\\n\n\n"
+    "Visit [Example Site](https://example.com) for more info.\\\n\n\n"
+    "## Features\n\n -  Fast parsing\n -  Clean output\n -  "
+    "Django integration\n -  LLM\\-ready markdown\n\n"
+    "### Nested List\n\n -  Parent item\n    -  Child A"
+    "\n    -  Child B\n -  Another parent\n\n## Data Table\n\n"
+    "| Name  | Age | City   |\n|-------|-----|--------|\n"
+    "| Alice | 30  | Paris  |\n| Bob   | 25  | London |"
+    "\n\n\n## Conclusion\n\nThis document tests "
+    "the ODT to Markdown conversion pipeline.\n"
+)
+
+
+def test_parse_odt(sample_odt):
+    """Should extract odt document correctly."""
+    parser = AdaptivePdfParser()
+
+    result = parser.parse_document(
+        "sample.odt", "application/vnd.oasis.opendocument.text", sample_odt
+    )
+
+    assert result == EXPECTED_MD_FROM_ODT
+
+
+def test_parse_document_odt_routed_correctly(sample_odt):
+    """Should route ODT content type to ODT parser."""
+    parser = AdaptivePdfParser()
+
+    with patch.object(parser, "parse_odt_document", return_value="odt content") as mock_parse:
+        result = parser.parse_document(
+            "sample.odt", "application/vnd.oasis.opendocument.text", sample_odt
+        )
+
+        assert result == "odt content"
+        mock_parse.assert_called_once_with(content=sample_odt)
+
+
+def test_parse_odt_corrupt_input():
+    """Should raise OdtParsingError on corrupt input."""
+    parser = AdaptivePdfParser()
+
+    with pytest.raises(OdtParsingError):
+        parser.parse_document("corrupt.odt", "application/vnd.oasis.opendocument.text", b"garbage")
+
+
+def test_parse_odt_empty_input():
+    """Should raise OdtParsingError on empty input."""
+    parser = AdaptivePdfParser()
+
+    with pytest.raises(OdtParsingError):
+        parser.parse_document("empty.odt", "application/vnd.oasis.opendocument.text", b"")

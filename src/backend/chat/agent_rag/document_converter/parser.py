@@ -3,6 +3,7 @@
 import base64
 import logging
 import time
+from abc import ABC, abstractmethod
 from io import BytesIO
 from urllib.parse import urljoin
 
@@ -13,31 +14,53 @@ from pypdf import PdfReader, PdfWriter
 
 from chat.agent_rag.document_converter.markitdown import DocumentConverter
 
+from .odt import OdtToMd
+
 logger = logging.getLogger(__name__)
 
+CT_PDF = "application/pdf"
+CT_ODT = "application/vnd.oasis.opendocument.text"
 
-class BaseParser:
-    """Base class for document parsers."""
+
+class BaseParser(ABC):
+    """Base class for document parsers.
+
+    Routes documents by content type:
+    - PDF -> self.parse_pdf_document() (must be provided by subclass or mixin)
+    - ODT -> self.parse_odt_document() (must be provided by subclass or mixin)
+    - Other -> DocumentConverter (markitdown)
+    """
 
     def parse_document(self, name: str, content_type: str, content: bytes) -> str:
-        """
-        Parse the document and prepare it for the search operation.
-        This method should handle the logic to convert the document
-        into a format suitable for storage.
+        """Route to the appropriate parser based on content type."""
+        content_type = content_type.lower()
+        if content_type == CT_PDF:
+            return self.parse_pdf_document(name=name, content_type=content_type, content=content)
+        if content_type == CT_ODT:
+            return self.parse_odt_document(content=content)
+        return DocumentConverter().convert_raw(
+            name=name, content_type=content_type, content=content
+        )
 
-        Args:
-            name (str): The name of the document.
-            content_type (str): The MIME type of the document (e.g., "application/pdf").
-            content (bytes): The content of the document as a bytes stream.
+    @abstractmethod
+    def parse_pdf_document(self, name: str, content_type: str, content: bytes) -> str:
+        """Parse PDF document. Must be implemented by subclass or mixin."""
 
-        Returns:
-            str: The document content in Markdown format.
-        """
-        raise NotImplementedError("Must be implemented in subclass.")
+    @abstractmethod
+    def parse_odt_document(self, content: bytes) -> str:
+        """Parse ODT document. Must be implemented by subclass or mixin."""
 
 
-class AlbertParser(BaseParser):
-    """Document parser using Albert API for PDFs and DocumentConverter for other formats."""
+class OdtParserMixin:
+    """Mixin that adds ODT parsing using odfdo."""
+
+    def parse_odt_document(self, content: bytes) -> str:
+        """Parse ODT document using ofdo util."""
+        return OdtToMd().extract(content)
+
+
+class AlbertParser(OdtParserMixin, BaseParser):
+    """Document parser using Albert API for PDFs."""
 
     endpoint = urljoin(settings.ALBERT_API_URL, "/v1/parse-beta")
 
@@ -60,23 +83,13 @@ class AlbertParser(BaseParser):
             document_page["content"] for document_page in response.json().get("data", [])
         )
 
-    def parse_document(self, name: str, content_type: str, content: bytes) -> str:
-        """Parse document based on content type."""
-        if content_type == "application/pdf":
-            return self.parse_pdf_document(name=name, content_type=content_type, content=content)
-        return DocumentConverter().convert_raw(
-            name=name, content_type=content_type, content=content
-        )
-
 
 METHOD_TEXT_EXTRACTION = "text_extraction"
 METHOD_OCR = "ocr"
 
 
 def analyze_pdf(pdf_data: bytes) -> dict:
-    """
-    Analyze a PDF to determine if it needs OCR or can use direct text extraction.
-    """
+    """Analyze a PDF to determine if it needs OCR or can use direct text extraction."""
     reader = PdfReader(BytesIO(pdf_data))
     total_pages = len(reader.pages)
     if total_pages == 0:
@@ -95,20 +108,17 @@ def analyze_pdf(pdf_data: bytes) -> dict:
         text = (page.extract_text() or "").strip()
         char_count = len(text)
         total_chars += char_count
-
         if char_count > 50:
             pages_with_text += 1
 
     avg_chars = total_chars / total_pages
     text_coverage = pages_with_text / total_pages
 
-    # Decision logic
     if (
         avg_chars > settings.MIN_AVG_CHARS_FOR_TEXT_EXTRACTION
         and text_coverage > settings.MIN_TEXT_COVERAGE_FOR_TEXT_EXTRACTION
     ):
         method = METHOD_TEXT_EXTRACTION
-
     else:
         method = METHOD_OCR
 
@@ -121,7 +131,7 @@ def analyze_pdf(pdf_data: bytes) -> dict:
     }
 
 
-class AdaptiveParserMixin:
+class AdaptivePdfParserMixin:
     """
     Mixin that adds adaptive PDF parsing behavior.
 
@@ -159,7 +169,7 @@ class AdaptiveParserMixin:
         raise NotImplementedError("Subclass must implement parse_pdf_document_with_ocr")
 
 
-class AdaptivePdfParser(AdaptiveParserMixin, BaseParser):
+class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
     """
     PDF parser with adaptive text extraction / OCR routing.
 
@@ -265,16 +275,6 @@ class AdaptivePdfParser(AdaptiveParserMixin, BaseParser):
                 )
             except Exception as e:  # pylint: disable=broad-except #noqa: BLE001
                 logger.error("Failed to OCR pages %d-%d: %s", start_index + 1, end_index, str(e))
-                # Preserve page count with empty placeholders to maintain correct ordering
                 results.extend([""] * (end_index - start_index))
 
         return "\n\n".join(results)
-
-    def parse_document(self, name: str, content_type: str, content: bytes) -> str:
-        """Route to PDF parser or DocumentConverter based on content type."""
-        if content_type == "application/pdf":
-            return self.parse_pdf_document(name=name, content_type=content_type, content=content)
-
-        return DocumentConverter().convert_raw(
-            name=name, content_type=content_type, content=content
-        )

@@ -96,6 +96,7 @@ def test_generate_temporary_url_various_key_formats():
         "conversation-123/attachments/file-uuid.pdf",
         "nested/folder/structure/file.jpg",
         "file_with_special-chars_123.png",
+        "my-document.odt",
     ]
 
     urls = []

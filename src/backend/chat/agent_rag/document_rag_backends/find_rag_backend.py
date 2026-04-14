@@ -8,11 +8,11 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.utils import timezone
+from django.utils.module_loading import import_string
 
 import requests
 
 from chat.agent_rag.constants import RAGWebResult, RAGWebResults, RAGWebUsage
-from chat.agent_rag.document_converter.parser import AlbertParser
 from chat.agent_rag.document_rag_backends.base_rag_backend import BaseRagBackend
 from utils.oidc import with_fresh_access_token
 
@@ -43,7 +43,8 @@ class FindRagBackend(BaseRagBackend):
         self.search_endpoint = "api/v1.0/documents/search/"
         self.indexing_endpoint = "api/v1.0/documents/index/"
         self.deleting_endpoint = "api/v1.0/documents/delete/"
-        self.parser = AlbertParser()  # Find Rag relies on Albert parser
+        parser_class = import_string(settings.RAG_DOCUMENT_PARSER)
+        self.parser = parser_class()
 
     def create_collection(self, name: str, description: Optional[str] = None) -> str:
         """

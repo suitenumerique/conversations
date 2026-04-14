@@ -39,5 +39,4 @@ class DocumentConverter:
         conversion = self.converter.convert_stream(
             document, file_extension=file_extension or ".txt"
         )
-        document_markdown = conversion.text_content
-        return document_markdown
+        return conversion.text_content

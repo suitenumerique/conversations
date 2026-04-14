@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(back) add ODT parsing support
+
 ### Changed
 
 - 🐛(fix) source links should open a new tab
