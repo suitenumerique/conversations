@@ -225,6 +225,9 @@ class ConfigView(drf.views.APIView):
 
         dict_settings["chat_upload_accept"] = ",".join(settings.RAG_FILES_ACCEPTED_FORMATS)
 
+        # Expose Docs integration URL so the frontend can show/hide the "Edit in Docs" button
+        dict_settings["DOCS_BASE_URL"] = settings.DOCS_BASE_URL
+
         return drf.response.Response(dict_settings)
 
     def _load_theme_customization(self):

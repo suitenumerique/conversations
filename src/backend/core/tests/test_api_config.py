@@ -45,6 +45,7 @@ def test_api_config(is_authenticated):
     assert response.json() == {
         "ACTIVATION_REQUIRED": False,
         "CRISP_WEBSITE_ID": "123",
+        "DOCS_BASE_URL": None,
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},
         "FILE_UPLOAD_MODE": "presigned_url",
@@ -65,6 +66,24 @@ def test_api_config(is_authenticated):
         "theme_customization": {},
         "chat_upload_accept": "application/pdf,text/plain",
     }
+
+
+@override_settings(DOCS_BASE_URL="http://docs.example.com/")
+def test_api_config_exposes_docs_base_url():
+    """DOCS_BASE_URL must be present in the config response when configured."""
+    client = APIClient()
+    response = client.get("/api/v1.0/config/")
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["DOCS_BASE_URL"] == "http://docs.example.com/"
+
+
+@override_settings(DOCS_BASE_URL=None)
+def test_api_config_docs_base_url_none_when_not_configured():
+    """DOCS_BASE_URL must be null in the config response when not configured."""
+    client = APIClient()
+    response = client.get("/api/v1.0/config/")
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["DOCS_BASE_URL"] is None
 
 
 @override_settings(
@@ -188,6 +207,7 @@ async def test_api_config_async(is_authenticated):
     assert response.json() == {
         "ACTIVATION_REQUIRED": False,
         "CRISP_WEBSITE_ID": "123",
+        "DOCS_BASE_URL": None,
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},
         "FILE_UPLOAD_MODE": "presigned_url",
