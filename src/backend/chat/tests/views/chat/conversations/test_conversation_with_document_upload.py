@@ -36,11 +36,29 @@ from chat.ai_sdk_types import (
 )
 from chat.factories import ChatConversationFactory
 from chat.tests.utils import replace_uuids_with_placeholder
+from chat.tools.descriptions import (
+    DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT,
+    DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
+)
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
 # in other threads
 pytestmark = pytest.mark.django_db(transaction=True)
+
+
+def _expected_document_instructions(today_prompt_date: str) -> str:
+    """Return expected concatenated system instructions for document conversations."""
+    return (
+        "You are a helpful test assistant :)\n\n"
+        f"{today_prompt_date}\n\n"
+        "Answer in english.\n\n"
+        f"{DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT}\n\n"
+        f"{DOCUMENT_SUMMARIZE_SYSTEM_PROMPT}\n\n"
+        "[Internal context] User documents are attached to this conversation. "
+        "Do not request re-upload of documents; consider them already "
+        "available via the internal store."
+    )
 
 
 @pytest.fixture(
@@ -500,21 +518,7 @@ def test_post_conversation_with_document_upload(
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
 
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": "You are a helpful test assistant :)\n\n"
-        f"{today_prompt_date}\n\n"
-        "Answer in english.\n\n"
-        "Use document_search_rag ONLY to retrieve specific passages from "
-        "attached documents. Do NOT use it to summarize; for summaries, "
-        "call the summarize tool instead.\n\nWhen you receive a result from the "
-        "summarization tool, you MUST return it directly to the user without "
-        "any modification, paraphrasing, or additional summarization."
-        "The tool already produces optimized summaries that should be "
-        "presented verbatim.You may translate the summary if required, "
-        "but you MUST preserve all the information from the original summary."
-        "You may add a follow-up question after the summary if needed.\n\n"
-        "[Internal context] User documents are attached to this conversation. "
-        "Do not request re-upload of documents; consider them already "
-        "available via the internal store.",
+        "instructions": _expected_document_instructions(today_prompt_date),
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -561,23 +565,7 @@ def test_post_conversation_with_document_upload(
         "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": (
-            "You are a helpful test assistant :)\n\n"
-            f"{today_prompt_date}\n\n"
-            "Answer in english.\n\n"
-            "Use document_search_rag ONLY to retrieve specific passages from "
-            "attached documents. Do NOT use it to summarize; for summaries, "
-            "call the summarize tool instead.\n\nWhen you receive a result from the "
-            "summarization tool, you MUST return it directly to the user without "
-            "any modification, paraphrasing, or additional summarization."
-            "The tool already produces optimized summaries that should be "
-            "presented verbatim.You may translate the summary if required, "
-            "but you MUST preserve all the information from the original summary."
-            "You may add a follow-up question after the summary if needed.\n\n"
-            "[Internal context] User documents are attached to this conversation. "
-            "Do not request re-upload of documents; consider them already "
-            "available via the internal store."
-        ),
+        "instructions": _expected_document_instructions(today_prompt_date),
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -844,23 +832,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": (
-            "You are a helpful test assistant :)\n\n"
-            f"{today_prompt_date}\n\n"
-            "Answer in english.\n\n"
-            "Use document_search_rag ONLY to retrieve specific passages from "
-            "attached documents. Do NOT use it to summarize; for summaries, "
-            "call the summarize tool instead.\n\nWhen you receive a result from the "
-            "summarization tool, you MUST return it directly to the user without "
-            "any modification, paraphrasing, or additional summarization."
-            "The tool already produces optimized summaries that should be "
-            "presented verbatim.You may translate the summary if required, "
-            "but you MUST preserve all the information from the original summary."
-            "You may add a follow-up question after the summary if needed.\n\n"
-            "[Internal context] User documents are attached to this conversation. "
-            "Do not request re-upload of documents; consider them already "
-            "available via the internal store."
-        ),
+        "instructions": _expected_document_instructions(today_prompt_date),
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -907,23 +879,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": (
-            "You are a helpful test assistant :)\n\n"
-            f"{today_prompt_date}\n\n"
-            "Answer in english.\n\n"
-            "Use document_search_rag ONLY to retrieve specific passages from "
-            "attached documents. Do NOT use it to summarize; for summaries, "
-            "call the summarize tool instead.\n\nWhen you receive a result from the "
-            "summarization tool, you MUST return it directly to the user without "
-            "any modification, paraphrasing, or additional summarization."
-            "The tool already produces optimized summaries that should be "
-            "presented verbatim.You may translate the summary if required, "
-            "but you MUST preserve all the information from the original summary."
-            "You may add a follow-up question after the summary if needed.\n\n"
-            "[Internal context] User documents are attached to this conversation. "
-            "Do not request re-upload of documents; consider them already "
-            "available via the internal store."
-        ),
+        "instructions": _expected_document_instructions(today_prompt_date),
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -1118,21 +1074,7 @@ def test_post_conversation_with_odt_document_upload(
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
 
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": "You are a helpful test assistant :)\n\n"
-        f"{today_prompt_date}\n\n"
-        "Answer in english.\n\n"
-        "Use document_search_rag ONLY to retrieve specific passages from "
-        "attached documents. Do NOT use it to summarize; for summaries, "
-        "call the summarize tool instead.\n\nWhen you receive a result from the "
-        "summarization tool, you MUST return it directly to the user without "
-        "any modification, paraphrasing, or additional summarization."
-        "The tool already produces optimized summaries that should be "
-        "presented verbatim.You may translate the summary if required, "
-        "but you MUST preserve all the information from the original summary."
-        "You may add a follow-up question after the summary if needed.\n\n"
-        "[Internal context] User documents are attached to this conversation. "
-        "Do not request re-upload of documents; consider them already "
-        "available via the internal store.",
+        "instructions": _expected_document_instructions(today_prompt_date),
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -1179,23 +1121,7 @@ def test_post_conversation_with_odt_document_upload(
         "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": (
-            "You are a helpful test assistant :)\n\n"
-            f"{today_prompt_date}\n\n"
-            "Answer in english.\n\n"
-            "Use document_search_rag ONLY to retrieve specific passages from "
-            "attached documents. Do NOT use it to summarize; for summaries, "
-            "call the summarize tool instead.\n\nWhen you receive a result from the "
-            "summarization tool, you MUST return it directly to the user without "
-            "any modification, paraphrasing, or additional summarization."
-            "The tool already produces optimized summaries that should be "
-            "presented verbatim.You may translate the summary if required, "
-            "but you MUST preserve all the information from the original summary."
-            "You may add a follow-up question after the summary if needed.\n\n"
-            "[Internal context] User documents are attached to this conversation. "
-            "Do not request re-upload of documents; consider them already "
-            "available via the internal store."
-        ),
+        "instructions": _expected_document_instructions(today_prompt_date),
         "kind": "request",
         "metadata": None,
         "parts": [

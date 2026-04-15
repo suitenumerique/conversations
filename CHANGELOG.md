@@ -22,6 +22,7 @@ and this project adheres to
 - ✨(back) add debug mode setup for local development
 - ⬆️(dependencies) update pydanticai and related dependencies
 - ⚙️(back) get carbon data from albert api provider
+- ✨(tools): update descriptions
 
 ### Fixed
 

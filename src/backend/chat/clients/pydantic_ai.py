@@ -141,6 +141,11 @@ from chat.clients.pydantic_ui_message_converter import (
     ui_message_to_user_content,
 )
 from chat.mcp_servers import get_mcp_servers
+from chat.tools.descriptions import (
+    DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
+    DOCUMENT_SUMMARIZE_TOOL_DESCRIPTION,
+    WEB_SEARCH_TOOL_DESCRIPTION,
+)
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize
@@ -684,16 +689,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         @self.conversation_agent.instructions
         def summarization_system_prompt() -> str:
-            return (
-                "When you receive a result from the summarization tool, you MUST return it "
-                "directly to the user without any modification, paraphrasing, or additional "
-                "summarization."
-                "The tool already produces optimized summaries that should be presented "
-                "verbatim."
-                "You may translate the summary if required, but you MUST preserve all the "
-                "information from the original summary."
-                "You may add a follow-up question after the summary if needed."
-            )
+            return DOCUMENT_SUMMARIZE_SYSTEM_PROMPT
 
         # Inform the model (system-level) that documents are attached and available
         @self.conversation_agent.instructions
@@ -704,7 +700,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 "via the internal store."
             )
 
-        @self.conversation_agent.tool(name="summarize", retries=2)
+        @self.conversation_agent.tool(
+            name="summarize",
+            retries=2,
+            description=DOCUMENT_SUMMARIZE_TOOL_DESCRIPTION,
+        )
         @functools.wraps(document_summarize)
         async def summarize(ctx: RunContext, *args, **kwargs) -> ToolReturn:
             """Wrap the document_summarize tool to provide context and add the tool."""
@@ -728,7 +728,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             name="web_search",
             retries=1,
             prepare=only_if_web_search_enabled,
-            description="Search the web for up-to-date information",
+            description=WEB_SEARCH_TOOL_DESCRIPTION,
         )
         @functools.wraps(web_search_impl)
         async def web_search(ctx: RunContext, *args, **kwargs) -> ToolReturn:
