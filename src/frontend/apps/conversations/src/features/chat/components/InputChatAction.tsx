@@ -5,8 +5,11 @@ import { useTranslation } from 'react-i18next';
 import { Box, Icon, Text } from '@/components';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 
+import { AudioRecordButton } from './AudioRecordButton';
 import { ModelSelector } from './ModelSelector';
 import { SendButton } from './SendButton';
+import { RecordingState } from '../hooks/useAudioRecording';
+
 interface InputChatActionsProps {
   /** Whether file upload feature is enabled */
   fileUploadEnabled: boolean;
@@ -32,6 +35,18 @@ interface InputChatActionsProps {
   inputHasContent: boolean;
   /** Handler for stop button */
   onStop?: () => void;
+  /** Whether audio transcription backend is available */
+  audioTranscriptionEnabled?: boolean;
+  /** Audio recording state */
+  recordingState: RecordingState;
+  /** Current mic volume level (0–1) */
+  volume: number;
+  /** Start audio recording */
+  onStartRecording: () => void;
+  /** Confirm transcription */
+  onConfirmRecording: () => void;
+  /** Cancel recording */
+  onCancelRecording: () => void;
 }
 
 const STYLES = {
@@ -93,6 +108,12 @@ export const InputChatActions = memo(
     status,
     inputHasContent,
     onStop,
+    audioTranscriptionEnabled = false,
+    recordingState,
+    volume,
+    onStartRecording,
+    onConfirmRecording,
+    onCancelRecording,
   }: InputChatActionsProps) => {
     const { t } = useTranslation();
 
@@ -113,6 +134,8 @@ export const InputChatActions = memo(
       return css;
     }, [isMobile, forceWebSearch]);
 
+    const isRecording = audioTranscriptionEnabled && recordingState !== 'idle';
+
     return (
       <Box
         $direction="row"
@@ -121,118 +144,145 @@ export const InputChatActions = memo(
         $align="space-between"
         $css={actionsOpacityCss}
       >
-        {/* Left side: Attach + Web Search */}
-        <Box
-          $flex="1"
-          $direction="row"
-          $align="end"
-          $padding={STYLES.horizontalPadding}
-          $gap="xs"
-        >
-          {/* Attach file button */}
-          <Button
-            size="nano"
-            type="button"
-            color="neutral"
-            className="c__button--neutral"
-            variant="tertiary"
-            disabled={!fileUploadEnabled || isUploadingFiles}
-            onClick={onAttachClick}
-            aria-label={t('Add attach file')}
-            icon={
-              <Icon
-                $theme="neutral"
-                $variation="tertiary"
-                iconName="attach_file"
-              />
-            }
-          >
-            {!isMobile && (
-              <Text $theme="neutral" $variation="tertiary">
-                {t('Attach file')}
-              </Text>
-            )}
-          </Button>
-
-          {/* Web search toggle button */}
-          {onWebSearchToggle && (
-            <Box $margin={STYLES.webSearchMargin} $css={webSearchWrapperCss}>
-              <Button
-                size="nano"
-                color={forceWebSearch ? 'brand' : 'neutral'}
-                variant="tertiary"
-                type="button"
-                disabled={!webSearchEnabled || isUploadingFiles}
-                onClick={onWebSearchToggle}
-                aria-label={t('Research on the web')}
-                className="c__button--neutral research-web-button"
-                icon={
-                  <Icon
-                    iconName="language"
-                    $theme={forceWebSearch ? 'brand' : 'neutral'}
-                    $variation="tertiary"
-                  />
-                }
-              >
-                {!isMobile && (
-                  <Text
-                    $theme={forceWebSearch ? 'brand' : 'neutral'}
-                    $variation="tertiary"
-                  >
-                    {t('Research on the web')}
-                  </Text>
-                )}
-                {isMobile && forceWebSearch && (
-                  <Box
-                    $direction="row"
-                    $align="space-between"
-                    $gap="xs"
-                    $css={MOBILE_TEXT_WRAPPER_CSS}
-                  >
-                    <Text
-                      $theme="brand"
-                      $variation="secondary"
-                      $weight="500"
-                      $css={MOBILE_TEXT_CSS}
-                    >
-                      {t('Web')}
-                    </Text>
-                    <Icon
-                      iconName="close"
-                      $theme="brand"
-                      $variation="secondary"
-                      $size="md"
-                      $css={CLOSE_ICON_CSS}
-                    />
-                  </Box>
-                )}
-              </Button>
-            </Box>
-          )}
-        </Box>
-
-        {/* Right side: Model selector + Send */}
-        <Box
-          $direction="row"
-          $align="center"
-          $padding={STYLES.horizontalPadding}
-          $gap="xs"
-        >
-          {onModelSelect && (
-            <Box $padding={STYLES.horizontalPaddingXs}>
-              <ModelSelector
-                selectedModel={selectedModel}
-                onModelSelect={onModelSelect}
-              />
-            </Box>
-          )}
-
-          <SendButton
-            status={status}
-            disabled={!inputHasContent || isUploadingFiles}
-            onClick={onStop}
+        {/* Recording UI: replaces left actions + takes full width */}
+        {isRecording ? (
+          <AudioRecordButton
+            recordingState={recordingState}
+            volume={volume}
+            onStartRecording={onStartRecording}
+            onConfirm={onConfirmRecording}
+            onCancel={onCancelRecording}
           />
-        </Box>
+        ) : (
+          /* Left side: Attach + Web Search */
+          <Box
+            $flex="1"
+            $direction="row"
+            $align="end"
+            $padding={STYLES.horizontalPadding}
+            $gap="xs"
+          >
+            {/* Attach file button */}
+            <Button
+              size="nano"
+              type="button"
+              color="neutral"
+              className="c__button--neutral"
+              variant="tertiary"
+              disabled={!fileUploadEnabled || isUploadingFiles}
+              onClick={onAttachClick}
+              aria-label={t('Add attach file')}
+              icon={
+                <Icon
+                  $theme="neutral"
+                  $variation="tertiary"
+                  iconName="attach_file"
+                />
+              }
+            >
+              {!isMobile && (
+                <Text $theme="neutral" $variation="tertiary">
+                  {t('Attach file')}
+                </Text>
+              )}
+            </Button>
+
+            {/* Web search toggle button */}
+            {onWebSearchToggle && (
+              <Box $margin={STYLES.webSearchMargin} $css={webSearchWrapperCss}>
+                <Button
+                  size="nano"
+                  color={forceWebSearch ? 'brand' : 'neutral'}
+                  variant="tertiary"
+                  type="button"
+                  disabled={!webSearchEnabled || isUploadingFiles}
+                  onClick={onWebSearchToggle}
+                  aria-label={t('Research on the web')}
+                  className="c__button--neutral research-web-button"
+                  icon={
+                    <Icon
+                      iconName="language"
+                      $theme={forceWebSearch ? 'brand' : 'neutral'}
+                      $variation="tertiary"
+                    />
+                  }
+                >
+                  {!isMobile && (
+                    <Text
+                      $theme={forceWebSearch ? 'brand' : 'neutral'}
+                      $variation="tertiary"
+                    >
+                      {t('Research on the web')}
+                    </Text>
+                  )}
+                  {isMobile && forceWebSearch && (
+                    <Box
+                      $direction="row"
+                      $align="space-between"
+                      $gap="xs"
+                      $css={MOBILE_TEXT_WRAPPER_CSS}
+                    >
+                      <Text
+                        $theme="brand"
+                        $variation="secondary"
+                        $weight="500"
+                        $css={MOBILE_TEXT_CSS}
+                      >
+                        {t('Web')}
+                      </Text>
+                      <Icon
+                        iconName="close"
+                        $theme="brand"
+                        $variation="secondary"
+                        $size="md"
+                        $css={CLOSE_ICON_CSS}
+                      />
+                    </Box>
+                  )}
+                </Button>
+              </Box>
+            )}
+          </Box>
+        )}
+
+        {/* Right side: Model selector + Send (hidden while recording) */}
+        {!isRecording && (
+          <Box
+            $direction="row"
+            $align="center"
+            $padding={STYLES.horizontalPadding}
+            $gap="xs"
+          >
+            {onModelSelect && (
+              <Box $padding={STYLES.horizontalPaddingXs}>
+                <ModelSelector
+                  selectedModel={selectedModel}
+                  onModelSelect={onModelSelect}
+                />
+              </Box>
+            )}
+
+            {/* Audio record button + Send, with extra gap between them */}
+            <Box $direction="row" $align="center" $gap="6px">
+              {audioTranscriptionEnabled && (
+                <AudioRecordButton
+                  volume={volume}
+                  recordingState={recordingState}
+                  onStartRecording={onStartRecording}
+                  onConfirm={onConfirmRecording}
+                  onCancel={onCancelRecording}
+                  disabled={isUploadingFiles}
+                />
+              )}
+
+              <SendButton
+                status={status}
+                disabled={!inputHasContent || isUploadingFiles}
+                onClick={onStop}
+              />
+            </Box>
+          </Box>
+        )}
       </Box>
     );
   },

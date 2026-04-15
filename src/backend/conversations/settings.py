@@ -750,6 +750,11 @@ class Base(BraveSettings, Configuration):
         environ_name="RAG_DOCUMENT_SEARCH_BACKEND",
         environ_prefix=None,
     )
+    AUDIO_TRANSCRIPTION_BACKEND = values.Value(
+        None,
+        environ_name="AUDIO_TRANSCRIPTION_BACKEND",
+        environ_prefix=None,
+    )
     RAG_DOCUMENT_PARSER = values.Value(
         "chat.agent_rag.document_converter.parser.AlbertParser",
         environ_name="RAG_DOCUMENT_PARSER",
@@ -922,6 +927,16 @@ USER QUESTION:
     ALBERT_API_TIMEOUT = values.PositiveIntegerValue(
         default=30,  # seconds
         environ_name="ALBERT_API_TIMEOUT",
+        environ_prefix=None,
+    )
+    ALBERT_API_ASR_MODEL = values.Value(
+        "openweight-audio",  # Default ASR model for Albert API
+        environ_name="ALBERT_API_ASR_MODEL",
+        environ_prefix=None,
+    )
+    ALBERT_API_ASR_LANGUAGE = values.Value(
+        "fr",  # Default ASR language for Albert API
+        environ_name="ALBERT_API_ASR_LANGUAGE",
         environ_prefix=None,
     )
 

@@ -15,6 +15,7 @@ import { InputChatActions } from '@/features/chat/components/InputChatAction';
 import { ProjectWelcomeMessage } from '@/features/chat/components/ProjectWelcomeMessage';
 import { SuggestionCarousel } from '@/features/chat/components/SuggestionCarousel';
 import { WelcomeMessage } from '@/features/chat/components/WelcomeMessage';
+import { useAudioRecording } from '@/features/chat/hooks/useAudioRecording';
 import { useFileDragDrop } from '@/features/chat/hooks/useFileDragDrop';
 import { useFileUrls } from '@/features/chat/hooks/useFileUrls';
 import { useAnalytics } from '@/libs';
@@ -179,6 +180,10 @@ export const InputChat = ({
     );
   }, [showToast, t]);
 
+  const showTranscriptionError = useCallback(() => {
+    showToast('error', t('An error occurred during transcription. Please try again.'));
+  }, [showToast, t]);
+
   useEffect(() => {
     if (!conf?.FEATURE_FLAGS) {
       setWebSearchEnabled(false);
@@ -299,18 +304,6 @@ export const InputChat = ({
     [handleInputChange],
   );
 
-  const handleTextareaKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
-        e.preventDefault();
-        const textarea = e.target as HTMLTextAreaElement;
-        textarea.style.height = '0';
-        e.currentTarget.form?.requestSubmit?.();
-      }
-    },
-    [],
-  );
-
   const handlePaste = useCallback(
     (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
       if (!fileUploadEnabled) {
@@ -384,6 +377,45 @@ export const InputChat = ({
     },
     [files, setFiles],
   );
+
+  const handleAudioTranscription = useCallback(
+    (text: string) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.value = text;
+      handleTextareaChange({ target: textarea } as React.ChangeEvent<HTMLTextAreaElement>);
+      textarea.focus();
+    },
+    [handleTextareaChange],
+  );
+
+  const { recordingState, volume, startRecording, confirmRecording, cancelRecording } =
+    useAudioRecording({ onTranscription: handleAudioTranscription, onTranscriptionError: showTranscriptionError });
+
+  const handleTextareaKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+        e.preventDefault();
+        if (recordingState === 'recording') return;
+        const textarea = e.target as HTMLTextAreaElement;
+        textarea.style.height = '0';
+        e.currentTarget.form?.requestSubmit?.();
+      }
+    },
+    [recordingState],
+  );
+
+  useEffect(() => {
+    if (recordingState !== 'recording') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+        e.preventDefault();
+        confirmRecording();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [recordingState, confirmRecording]);
 
   const fileUrlMap = useFileUrls(files);
 
@@ -506,6 +538,14 @@ export const InputChat = ({
                 status={status}
                 inputHasContent={Boolean(input?.trim())}
                 onStop={onStop}
+                audioTranscriptionEnabled={
+                  conf?.audio_transcription_enabled ?? false
+                }
+                recordingState={recordingState}
+                volume={volume}
+                onStartRecording={startRecording}
+                onConfirmRecording={confirmRecording}
+                onCancelRecording={cancelRecording}
               />
             </Box>
           </Box>
