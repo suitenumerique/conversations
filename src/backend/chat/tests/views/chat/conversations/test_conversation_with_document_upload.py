@@ -436,7 +436,8 @@ def test_post_conversation_with_document_upload(
         'is the content of the PDF.","score":0.9}]}\n'
         "0:\"From the document, I can see that it says 'Hello PDF'.\"\n"
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":100,"completionTokens":20}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":100,"completionTokens":20,'
+        '"co2Impact":0.0}}\n'
     )
 
     # Check that the conversation was updated
@@ -693,7 +694,8 @@ def test_post_conversation_with_document_upload_feature_disabled(
         '0:"From the document, I can see that "\n'
         "0:\"it says 'Hello PDF'.\"\n"
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":150,"completionTokens":25}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":150,"completionTokens":25,'
+        '"co2Impact":0.0}}\n'
     )
     # This behavior must be improved in the future to inform the user properly
     assert "Document upload feature is disabled, ignoring input documents." in caplog.text
@@ -779,7 +781,8 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         'document discusses various topics."}\n'
         '0:"The document discusses various topics."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":287,"completionTokens":19}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":287,"completionTokens":19,'
+        '"co2Impact":0.0}}\n'
     )
 
     # Check that the conversation was updated
@@ -1051,7 +1054,8 @@ def test_post_conversation_with_odt_document_upload(
         'is the content of the ODT.","score":0.9}]}\n'
         "0:\"From the document, I can see that it says 'Hello ODT'.\"\n"
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":100,"completionTokens":20}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":100,"completionTokens":20,'
+        '"co2Impact":0.0}}\n'
     )
 
     # Check that the conversation was updated

@@ -71,6 +71,8 @@ class LLMProvider(BaseModel):
     base_url: SettingEnvValue
     api_key: SettingEnvValue
     kind: Literal["openai", "mistral"] = "openai"
+    co2_handling: Optional[Literal["albert"]] = None  # for now, only Albert has CO2 handling,
+    # but this leaves room for other providers to implement it in the future
 
 
 class LLMProfile(BaseModel):

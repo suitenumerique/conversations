@@ -84,7 +84,7 @@ import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack
 from io import BytesIO
-from typing import AsyncGenerator, Callable, Dict, List, Optional, Tuple
+from typing import AsyncGenerator, Callable, Dict, List, Optional, Tuple, Union
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -96,7 +96,7 @@ from django.utils.module_loading import import_string
 
 from asgiref.sync import sync_to_async
 from langfuse import get_client
-from pydantic_ai import Agent, InstrumentationSettings, RunContext
+from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
 from pydantic_ai.messages import (
     BinaryContent,
     DocumentUrl,
@@ -205,6 +205,19 @@ def get_model_configuration(model_hrid: str):
         return settings.LLM_CONFIGURATIONS[model_hrid]
     except KeyError as exc:
         raise ImproperlyConfigured(f"LLM model configuration '{model_hrid}' not found.") from exc
+
+
+def _extract_co2_from_usage(usage: RunUsage) -> float:
+    """Extract the CO2 impact from a RunUsage object.
+
+    Reads `co2_impact_factor_20` from usage.details (set by AlbertOpenAIStreamedResponse),
+    reverting the 10^20 integer scaling back to a float in kgCO2eq.
+    Non-Albert providers always return 0 (details key absent).
+    """
+    co2_impact_scale = 10**20
+    if usage_details := usage.details:
+        return usage_details.get("co2_impact_factor_20", 0) / co2_impact_scale
+    return 0
 
 
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
@@ -369,7 +382,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
     async def _prepare_agent_run(
         self, messages: List[UIMessage]
-    ) -> Tuple[str, List, List, Dict[str, str], Dict[str, int], List, bool]:
+    ) -> Tuple[str, List, List, Dict[str, str], Dict[str, Union[int, float]], List, bool]:
         """
         Prepare all inputs needed before running the agent.
 
@@ -411,7 +424,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 input=user_prompt if self._store_analytics else "REDACTED"
             )
 
-        usage = {"promptTokens": 0, "completionTokens": 0}
+        usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
 
         conversation_has_documents = self._is_document_upload_enabled and (
             bool(self.conversation.collection_id)
@@ -728,7 +741,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         input_documents: List[BinaryContent | DocumentUrl],
         conversation_has_documents: bool,
-        usage: Dict[str, int],
+        usage: Dict[str, Union[int, float]],
     ) -> AsyncGenerator[events_v4.Event | DocumentParsingResult, None]:
         """
         Handle document parsing with streaming progress events.
@@ -781,6 +794,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     usage=events_v4.Usage(
                         prompt_tokens=usage["promptTokens"],
                         completion_tokens=usage["completionTokens"],
+                        co2_impact=usage["co2_impact"],
                     ),
                 )
             )
@@ -914,11 +928,30 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
         return events_v4.StartStepPart(message_id=state.model_response_message_id)
 
+    async def _generate_title_if_needed(self) -> str | None:
+        """Generate and set title if auto-title conditions are met."""
+        user_messages_count = sum(1 for msg in self.conversation.messages if msg.role == "user")
+        if user_messages_count != settings.AUTO_TITLE_AFTER_USER_MESSAGES:
+            return None
+        if self.conversation.title_set_by_user_at:
+            return None
+        title = await self._generate_title()
+        if title:
+            self.conversation.title = title
+        return title
+
+    def _update_langfuse_trace(self, run_output) -> None:
+        """Update the Langfuse trace with the final output, if analytics are enabled."""
+        if not self._langfuse_available:
+            return
+        output = run_output if self._store_analytics else "REDACTED"
+        get_client().update_current_trace(output=output)
+
     async def _finalize_conversation(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         new_messages: list,
         run_output,
-        usage: Dict[str, int],
+        usage: Dict[str, Union[int, float]],
         state: StreamingState,
         image_key_mapping: Dict[str, str],
     ) -> AsyncGenerator[events_v4.Event, None]:
@@ -944,7 +977,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         await self._agent_stop_streaming(force_cache_check=True)
 
-        # Prepare conversation update (save deferred until after potential title generation)
         await sync_to_async(self._prepare_update_conversation)(
             final_output=new_messages,
             usage=usage,
@@ -952,24 +984,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             model_response_message_id=state.model_response_message_id,
             image_key_mapping=image_key_mapping or None,
         )
-        generated_title = None
 
-        # Auto-generate title after N user messages if not manually set
-        user_messages_count = sum(1 for msg in self.conversation.messages if msg.role == "user")
+        generated_title = await self._generate_title_if_needed()
 
-        should_generate_title = (
-            user_messages_count == settings.AUTO_TITLE_AFTER_USER_MESSAGES
-            and not self.conversation.title_set_by_user_at
-        )
-
-        if should_generate_title:
-            if generated_title := await self._generate_title():
-                self.conversation.title = generated_title
-
-        # Persist conversation (including any generated title)
         await sync_to_async(self.conversation.save)()
 
-        # Notify frontend about the title update
         if generated_title:
             yield events_v4.DataPart(
                 data=[
@@ -980,17 +999,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     }
                 ]
             )
-        if self._langfuse_available:
-            langfuse = get_client()
-            langfuse.update_current_trace(
-                output=run_output if self._store_analytics else "REDACTED"
-            )
-            # Vercel finish message
+        self._update_langfuse_trace(run_output)
+        # Vercel finish message
         yield events_v4.FinishMessagePart(
             finish_reason=events_v4.FinishReason.STOP,
             usage=events_v4.Usage(
                 prompt_tokens=usage["promptTokens"],
                 completion_tokens=usage["completionTokens"],
+                co2_impact=usage["co2_impact"],
             ),
         )
 
@@ -1072,6 +1088,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 final_usage = run.usage()
                 usage["promptTokens"] = final_usage.input_tokens
                 usage["completionTokens"] = final_usage.output_tokens
+                usage["co2_impact"] = _extract_co2_from_usage(final_usage)
 
         async for event in self._finalize_conversation(
             new_messages, run_output, usage, state, image_key_mapping
@@ -1082,7 +1099,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         *,
         final_output: List[ModelRequest | ModelMessage],
-        usage: Dict[str, int],
+        usage: Dict[str, Union[int, float]],
         ui_sources: Optional[List[SourceUIPart]] = None,
         model_response_message_id: str | None = None,
         image_key_mapping: Optional[Dict[str, str]] = None,
@@ -1095,7 +1112,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         Args:
             final_output (List[ModelRequest | ModelMessage]): The final output from the agent.
-            usage (Dict[str, int]): The token usage statistics.
+            usage (Dict[str, Union[int, float]]): Token and CO2 usage statistics
+            (mutated in-place to accumulate across turns).
             model_response_message_id (str | None): Message ID
             image_key_mapping (Dict[str, str] | None): Mapping of image id and S3 urls
             ui_sources (List[SourceUIPart]): Optional UI sources to include in the conversation.
@@ -1130,11 +1148,22 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         else:
             logger.warning("model_response_message_id is None")
 
+        co2_impact = usage["co2_impact"]
+        if co2_impact:
+            if _output_ui_message.annotations is None:
+                _output_ui_message.annotations = []
+            _output_ui_message.annotations.append({"co2_impact": co2_impact})
+
+        usage["co2_impact"] += self.conversation.agent_usage.get("co2_impact", 0)
+        usage["promptTokens"] += self.conversation.agent_usage.get("promptTokens", 0)
+        usage["completionTokens"] += self.conversation.agent_usage.get("completionTokens", 0)
+
+        self.conversation.agent_usage = usage
+
         self.conversation.messages += [
             model_message_to_ui_message(_merged_final_output_request),
             _output_ui_message,
         ]
-        self.conversation.agent_usage = usage
 
         final_output_json = json.loads(
             ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")

@@ -8,6 +8,7 @@ from pydantic_ai.models.openai import OpenAIChatModel
 
 from chat.agents.base import BaseAgent
 from chat.llm_configuration import LLModel, LLMProfile, LLMProvider
+from chat.providers.albert_models import AlbertOpenAIChatModel, AlbertOpenAIProvider
 
 # ---------------------------------------------------------------------------
 # _concatenate_instructions hook — registration tests
@@ -134,6 +135,7 @@ def test_custom_model_openai_profile(settings):
                 kind="openai",
                 base_url="https://test.vllm/v1",
                 api_key="testkey",
+                co2_handling=None,
             ),
             is_active=True,
             system_prompt="direct",
@@ -147,3 +149,30 @@ def test_custom_model_openai_profile(settings):
     assert agent._model.profile.supports_tools is True
     assert agent._model.profile.supports_json_schema_output is False
     assert agent._model.profile.supports_json_object_output is True
+
+
+def test_custom_model_albert(settings):
+    """Test that a provider with hrid='albert' returns an AlbertOpenAIChatModel."""
+    settings.LLM_CONFIGURATIONS = {
+        "albert-model": LLModel(
+            hrid="albert-model",
+            model_name="albert-large",
+            human_readable_name="Albert Large",
+            profile=None,
+            provider=LLMProvider(
+                hrid="albert",
+                kind="openai",
+                base_url="https://albert.api.etalab.gouv.fr/v1",
+                api_key="testkey",
+                co2_handling="albert",
+            ),
+            is_active=True,
+            system_prompt="direct",
+            tools=[],
+        ),
+    }
+
+    agent = BaseAgent(model_hrid="albert-model")
+
+    assert isinstance(agent._model, AlbertOpenAIChatModel)
+    assert isinstance(agent._model._provider, AlbertOpenAIProvider)

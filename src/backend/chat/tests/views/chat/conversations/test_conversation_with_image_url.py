@@ -138,7 +138,8 @@ def test_post_conversation_with_local_image_url(
     assert response_content == (
         '0:"This is an image of a single pixel."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":9}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":9,'
+        '"co2Impact":0.0}}\n'
     )
 
     # Check that the conversation was updated
@@ -317,7 +318,8 @@ def test_post_conversation_with_local_image_wrong_url(
     assert response_content == (
         '0:"cannot read image."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":4}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":4,'
+        '"co2Impact":0.0}}\n'
     )
 
     # We don't check conversation messages here because the LLM would
@@ -403,7 +405,8 @@ def test_post_conversation_with_remote_image_url(
     assert response_content == (
         '0:"This is an image of a single pixel."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":9}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":9,'
+        '"co2Impact":0.0}}\n'
     )
 
     # Check that the conversation was updated
@@ -626,7 +629,8 @@ def test_post_conversation_with_local_image_url_in_history(
     assert response_content == (
         '0:"This is an image of square, very small and nice."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":11}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":11,'
+        '"co2Impact":0.0}}\n'
     )
 
     # Check that the conversation was updated

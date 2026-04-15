@@ -187,7 +187,8 @@ def test_post_conversation_with_local_pdf_document_url(
         'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         '0:"This is a document about a single pixel."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":9}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":9,'
+        '"co2Impact":0.0}}\n'
     )
 
     # Check that the conversation was updated
@@ -358,7 +359,8 @@ def test_post_conversation_with_local_document_wrong_url(
         'a:{"toolCallId":"XXX",'
         '"result":{"state":"error","error":"Document '
         'URL does not belong to the conversation."}}\n'
-        'd:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0}}\n'
+        'd:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0,'
+        '"co2Impact":0.0}}\n'
     )
 
     # Check that the conversation was not updated
@@ -426,7 +428,8 @@ def test_post_conversation_with_remote_document_url(
         'a:{"toolCallId":"XXX",'
         '"result":{"state":"error","error":"External document '
         'URL are not accepted yet."}}\n'
-        'd:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0}}\n'
+        'd:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0,'
+        '"co2Impact":0.0}}\n'
     )
 
     # Check that the conversation was not updated
@@ -622,7 +625,8 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
     assert response_content == (
         '0:"This is a document of square, very small and nice."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":11}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":11,'
+        '"co2Impact":0.0}}\n'
     )
 
     # Check that the conversation was updated
@@ -931,7 +935,8 @@ def test_post_conversation_with_local_not_pdf_document_url(
         'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         '0:"This is a document about you."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":7}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":7,'
+        '"co2Impact":0.0}}\n'
     )
 
     # Check that the conversation was updated

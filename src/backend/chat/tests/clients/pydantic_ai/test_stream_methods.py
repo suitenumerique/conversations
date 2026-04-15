@@ -95,6 +95,7 @@ async def test_stream_data_async_formats_as_sdk_events(ui_messages):
             usage=events_v4.Usage(
                 prompt_tokens=120,
                 completion_tokens=456,
+                co2_impact=0.0,
             ),
         )
 
@@ -105,5 +106,6 @@ async def test_stream_data_async_formats_as_sdk_events(ui_messages):
 
         assert results == [
             '0:"Hello"\n',
-            'd:{"finishReason":"stop","usage":{"promptTokens":120,"completionTokens":456}}\n',
+            'd:{"finishReason":"stop","usage":{"promptTokens":120,"completionTokens":456,'
+            '"co2Impact":0.0}}\n',
         ]

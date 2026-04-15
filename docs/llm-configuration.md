@@ -109,7 +109,8 @@ Providers define the API endpoints and authentication for LLM services.
       "hrid": "unique-provider-id",
       "base_url": "https://api.example.com/v1",
       "api_key": "environ.API_KEY_VAR",
-      "kind": "openai"
+      "kind": "openai",
+      "co2_handling": "albert"
     }
   ]
 }
@@ -117,12 +118,15 @@ Providers define the API endpoints and authentication for LLM services.
 
 **Provider Fields:**
 
-| Field      | Type   | Required | Description                                             |
-|------------|--------|----------|---------------------------------------------------------|
-| `hrid`     | string | Yes      | Unique identifier for the provider                      |
-| `base_url` | string | Yes      | API base URL (can use `settings.` or `environ.` prefix) |
-| `api_key`  | string | Yes      | API authentication key (use `environ.` here)            |
-| `kind`     | string | Yes      | Provider type: `openai` or `mistral`                    |
+| Field              | Type   | Required | Description                                             |
+|--------------------|--------|----------|---------------------------------------------------------|
+| `hrid`             | string | Yes      | Unique identifier for the provider                      |
+| `base_url`         | string | Yes      | API base URL (can use `settings.` or `environ.` prefix) |
+| `api_key`          | string | Yes      | API authentication key (use `environ.` here)            |
+| `kind`             | string | Yes      | Provider type: `openai` or `mistral`                    |
+| `co2_handling`     | string | No       | co2_handling method. Only `albert` is enabled*          |
+
+*Leave `co2_handling` empty if the provider does not provide co2 usage.
 
 ### 2. Models
 

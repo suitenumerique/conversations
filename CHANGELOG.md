@@ -21,6 +21,7 @@ and this project adheres to
 - 💄(ui) new header
 - ✨(back) add debug mode setup for local development
 - ⬆️(dependencies) update pydanticai and related dependencies
+- ⚙️(back) get carbon data from albert api provider
 
 ### Fixed
 

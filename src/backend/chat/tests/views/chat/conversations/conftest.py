@@ -47,6 +47,10 @@ def _create_openai_stream_data():
                     "prompt_tokens": 0,
                     "completion_tokens": 0,
                     "total_tokens": 0,
+                    "impacts": {
+                        "kWh": 5.0e-6,
+                        "kgCO2eq": 10.0e-6,
+                    },
                 },
             }
         )
@@ -81,6 +85,30 @@ def fixture_mock_openai_stream():
     See https://platform.openai.com/docs/api-reference/chat-streaming/streaming
     """
     return _create_mock_openai_route(with_delays=False)
+
+
+@pytest.fixture(name="mock_openai_stream_multi_calls")
+@freeze_time("2025-07-25T10:36:35.297675Z")
+def fixture_mock_openai_stream_multi_calls():
+    """
+    Mock the Albert OpenAI-compatible streaming response with CO2 impact data.
+
+    Uses side_effect (not return_value) so a fresh async generator is created
+    for every request — required when the same test makes multiple API calls.
+    """
+
+    def create_fresh_stream(_request):
+        albert_stream = _create_openai_stream_data()
+
+        async def mock_stream():
+            for line in albert_stream.splitlines(keepends=True):
+                yield line.encode()
+
+        return httpx.Response(200, stream=mock_stream())
+
+    return respx.post("https://www.external-ai-service.com/chat/completions").mock(
+        side_effect=create_fresh_stream
+    )
 
 
 @pytest.fixture(name="mock_openai_stream_slow")
@@ -146,7 +174,12 @@ def fixture_mock_openai_stream_with_title_generation():
                         "finish_reason": "stop",
                     }
                 ],
-                "usage": {"prompt_tokens": 50, "completion_tokens": 5, "total_tokens": 55},
+                "usage": {
+                    "prompt_tokens": 50,
+                    "completion_tokens": 5,
+                    "total_tokens": 55,
+                    "impacts": {"kWh": 5.0e-6, "kgCO2eq": 10.0e-6},
+                },
             },
         )
 
@@ -209,6 +242,10 @@ def fixture_mock_openai_no_stream():
                         "kWh": {"min": 0.0, "max": 0.0},
                         "kgCO2eq": {"min": 0.0, "max": 0.0},
                     },
+                    "impacts": {
+                        "kWh": 5.0e-6,
+                        "kgCO2eq": 10.0e-6,
+                    },
                     "details": [
                         {
                             "id": "chatcmpl-92c413bb5a45426299335d0621324654",
@@ -221,6 +258,10 @@ def fixture_mock_openai_no_stream():
                                 "carbon": {
                                     "kWh": {"min": 0.0, "max": 0.0},
                                     "kgCO2eq": {"min": 0.0, "max": 0.0},
+                                },
+                                "impacts": {
+                                    "kWh": 5.0e-6,
+                                    "kgCO2eq": 10.0e-6,
                                 },
                             },
                         }

@@ -16,7 +16,8 @@ _HELLO_THERE_STREAM = (
     '0:"Hello"\n'
     '0:" there"\n'
     'f:{"messageId":"<mocked_uuid>"}\n'
-    'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+    'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0,'
+    '"co2Impact":0.0}}\n'
 )
 
 

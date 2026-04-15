@@ -135,7 +135,7 @@ class MessageAnnotationPart(BaseEvent):
     annotations: List[JSONValue]
 
     def model_dump_json(self, *args, **kwargs) -> str:
-        return json.dumps(self.data)
+        return json.dumps(self.annotations)
 
 
 class ErrorPart(BaseEvent):
@@ -221,6 +221,7 @@ class Usage(ConfiguredBaseModel):
 
     prompt_tokens: int
     completion_tokens: int
+    co2_impact: Optional[float] = None
 
 
 class FinishStepPart(BaseEvent):

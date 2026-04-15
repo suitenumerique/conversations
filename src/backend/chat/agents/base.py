@@ -117,6 +117,11 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
             from pydantic_ai.profiles.openai import OpenAIModelProfile  # noqa: PLC0415
             from pydantic_ai.providers.openai import OpenAIProvider  # noqa: PLC0415
 
+            from chat.providers.albert_models import (  # noqa: PLC0415
+                AlbertOpenAIChatModel,
+                AlbertOpenAIProvider,
+            )
+
             if configuration.profile and (
                 _config_profile := configuration.profile.dict(exclude_unset=True)
             ):
@@ -130,6 +135,16 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
                 profile = OpenAIModelProfile(**_model_profile_params)
             else:
                 profile = None
+
+            if configuration.provider.co2_handling == "albert":
+                return AlbertOpenAIChatModel(
+                    model_name=configuration.model_name,
+                    profile=profile,
+                    provider=AlbertOpenAIProvider(
+                        base_url=configuration.provider.base_url,
+                        api_key=configuration.provider.api_key,
+                    ),
+                )
 
             return OpenAIChatModel(
                 model_name=configuration.model_name,

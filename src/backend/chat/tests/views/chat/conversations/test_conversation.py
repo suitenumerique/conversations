@@ -215,7 +215,8 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, hello_c
         '0:"Hello"\n'
         '0:" there"\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
+        ',"co2Impact":0.0}}\n'
     )
 
     assert mock_openai_stream.called
@@ -257,7 +258,8 @@ def test_post_conversation_data_protocol_triggers_keepalives(
         '0:"Hello"\n'
         '0:" there"\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
+        ',"co2Impact":0.0}}\n'
         '2:[{"status": "WAITING"}]\n'
     )
 
@@ -349,7 +351,8 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
         '0:"I see a cat"\n'
         '0:" in the picture."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
+        ',"co2Impact":0.0}}\n'
     )
 
     # --- Verify the outgoing HTTP request body contains the image ---
@@ -513,7 +516,8 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
         '"Paris","temperature":22,"unit":"celsius"}}\n'
         '0:"The current weather in Paris is nice"\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
+        ',"co2Impact":0.0}}\n'
     )
 
     # --- Verify the outgoing HTTP request body ---
@@ -681,7 +685,8 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
         "name: 'get_current_weather'. No tools available.\"}\n"
         '0:"I cannot give you an answer to that."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
+        ',"co2Impact":0.0}}\n'
     )
 
     # --- Verify the outgoing HTTP request body ---
@@ -877,7 +882,8 @@ def test_post_conversation_model_selection_new(
         '0:"Hello"\n'
         '0:" there"\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
+        ',"co2Impact":0.0}}\n'
     )
 
     # We check the model used in the outgoing request to the AI service
@@ -959,13 +965,15 @@ def test_post_conversation_data_protocol_no_stream(
             '0:"tter"\n'
             '0:"ing."\n'
             'f:{"messageId":"<mocked_uuid>"}\n'
-            'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135}}\n'
+            'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135'
+            ',"co2Impact":0.0}}\n'
         )
     else:
         assert response_content == (
             '0:"The sky appears blue due to a phenomenon called Rayleigh scattering."\n'
             'f:{"messageId":"<mocked_uuid>"}\n'
-            'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135}}\n'
+            'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":135'
+            ',"co2Impact":0.0}}\n'
         )
 
     assert mock_openai_no_stream.called
@@ -1083,7 +1091,8 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
         '0:"Hello"\n'
         '0:" there"\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
+        ',"co2Impact":0.0}}\n'
     )
 
     assert mock_openai_stream.called
@@ -1175,7 +1184,8 @@ async def test_post_conversation_async_triggers_keepalive(
         '2:[{"status": "WAITING"}]\n'
         '0:" there"\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
+        ',"co2Impact":0.0}}\n'
     )
 
     assert mock_openai_stream_slow.called
@@ -1277,7 +1287,8 @@ def test_post_conversation_oidc_refresh_enabled(  # pylint: disable=unused-argum
         '0:"Hello"\n'
         '0:" there"\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0}}\n'
+        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
+        ',"co2Impact":0.0}}\n'
     )
 
     assert mock_openai_stream.called
