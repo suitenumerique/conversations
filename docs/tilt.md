@@ -45,6 +45,12 @@ Then edit `env.d/development/kube-secret`:
 | `ALBERT_API_URL` | No | Albert API URL (if using Albert provider) |
 | `ALBERT_API_KEY` | No | Albert API key |
 | `BRAVE_API_KEY` | No | Brave Search API key (web search tool) |
+| `STT_SERVICE_URL` | No | Speech-to-text service URL |
+| `STT_SERVICE_API_KEY` | No | Speech-to-text service API key |
+| `STT_WEBHOOK_API_KEY` | No | Bearer token the STT service uses when calling back the transcription webhook |
+| `LANGFUSE_SECRET_KEY` | No | Langfuse secret key |
+| `LANGFUSE_PUBLIC_KEY` | No | Langfuse public key |
+| `LANGFUSE_HOST` | No | Langfuse instance URL |
 
 ## Step 3 — Start the app
 

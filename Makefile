@@ -169,6 +169,10 @@ stop: ## stop the development server using Docker
 	@$(COMPOSE_E2E) stop
 .PHONY: stop
 
+restart: ## restart the development server using Docker
+	@$(COMPOSE_E2E) restart
+.PHONY: restart
+
 # -- Backend
 
 demo: ## flush db then create a demo for load testing purpose

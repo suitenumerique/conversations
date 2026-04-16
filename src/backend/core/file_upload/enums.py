@@ -14,6 +14,8 @@ class AttachmentStatus(StrEnum):
     ANALYZING = "analyzing"
     FILE_TOO_LARGE_TO_ANALYZE = "file_too_large_to_analyze"
     SUSPICIOUS = "suspicious"
+    TRANSCRIBING = "transcribing"
+    TRANSCRIPTION_FAILED = "transcription_failed"
     READY = "ready"
 
     @classmethod
