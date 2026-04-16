@@ -64,6 +64,7 @@ def test_api_config(is_authenticated):
         "SENTRY_DSN": "https://sentry.test/123",
         "theme_customization": {},
         "chat_upload_accept": "application/pdf,text/plain",
+        "audio_transcription_enabled": False,
     }
 
 
@@ -207,4 +208,5 @@ async def test_api_config_async(is_authenticated):
         "SENTRY_DSN": "https://sentry.test/123",
         "theme_customization": {},
         "chat_upload_accept": "application/pdf,text/plain",
+        "audio_transcription_enabled": False,
     }

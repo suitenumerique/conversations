@@ -5,10 +5,11 @@ import { useTranslation } from 'react-i18next';
 import { Box, Icon, Text } from '@/components';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 
+import { RecordingState } from '../hooks/useAudioRecording';
+
 import { AudioRecordButton } from './AudioRecordButton';
 import { ModelSelector } from './ModelSelector';
 import { SendButton } from './SendButton';
-import { RecordingState } from '../hooks/useAudioRecording';
 
 interface InputChatActionsProps {
   /** Whether file upload feature is enabled */

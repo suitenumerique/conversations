@@ -760,6 +760,8 @@ class AudioTranscriptionView(APIView):
         permissions.IsAuthenticated,
     ]
     parser_classes = [MultiPartParser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "transcribe"
 
     def post(self, request):
         """Handle POST requests to transcribe audio."""
@@ -773,11 +775,17 @@ class AudioTranscriptionView(APIView):
         if not audio_file:
             return Response({"error": "No audio file provided"}, status=status.HTTP_400_BAD_REQUEST)
 
+        if audio_file.size > settings.AUDIO_MAX_SIZE:
+            return Response(
+                {"error": "Audio file too large"},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
         backend = import_string(settings.AUDIO_TRANSCRIPTION_BACKEND)()
         try:
             text = backend.transcribe(
                 audio_file.name,
-                audio_file.read(),
+                audio_file,
                 audio_file.content_type,
             )
         except TranscriptionError:

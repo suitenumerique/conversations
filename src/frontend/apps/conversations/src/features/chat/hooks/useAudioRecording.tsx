@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 
 import { fetchAPI } from '@/api';
-import { on } from 'events';
 
 export type RecordingState = 'idle' | 'recording' | 'transcribing';
 
@@ -50,7 +49,7 @@ export const useAudioRecording = ({
       const rms =
         Math.sqrt(
           dataArray.reduce((sum, v) => sum + (v - 128) ** 2, 0) /
-          dataArray.length,
+            dataArray.length,
         ) / 128;
       setVolume(rms);
       animFrameRef.current = requestAnimationFrame(tick);
@@ -68,8 +67,6 @@ export const useAudioRecording = ({
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      startVisualization(stream);
-      setRecordingState('recording');
       const mediaRecorder = new MediaRecorder(stream);
       audioChunksRef.current = [];
       mediaRecorder.ondataavailable = (e) => {
@@ -77,11 +74,14 @@ export const useAudioRecording = ({
       };
       mediaRecorder.start();
       mediaRecorderRef.current = mediaRecorder;
+      startVisualization(stream);
+      setRecordingState('recording');
     } catch {
+      stopStream();
       setRecordingState('idle');
       onTranscriptionErrorRef.current?.();
     }
-  }, [startVisualization]);
+  }, [startVisualization, stopStream]);
 
   const confirmRecording = useCallback(async () => {
     if (mediaRecorderRef.current) {

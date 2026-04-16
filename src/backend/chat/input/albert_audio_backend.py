@@ -1,6 +1,7 @@
 """Albert API implementation for audio transcription."""
 
 import logging
+from typing import IO
 from urllib.parse import urljoin
 
 from django.conf import settings
@@ -25,15 +26,14 @@ class AlbertAudioBackend(BaseAudioBackend):
         self._transcriptions_endpoint = urljoin(settings.ALBERT_API_URL, "/v1/audio/transcriptions")
         self._headers = {"Authorization": f"Bearer {settings.ALBERT_API_KEY}"}
 
-    def transcribe(self, file_name: str, file_content: bytes, content_type: str) -> str:
+    def transcribe(self, file_name: str, file_content: IO[bytes], content_type: str) -> str:
         """
         Transcribe the given audio file using the Albert ASR API.
 
         Args:
             file_name (str): The original file name of the audio file.
-            file_content (bytes): The raw audio file content.
+            file_content (IO[bytes]): A file-like object with the audio content.
             content_type (str): The MIME type of the audio file.
-            language (str): The language to transcribe the audio content in.
 
         Returns:
             str: The transcribed text.
@@ -48,8 +48,9 @@ class AlbertAudioBackend(BaseAudioBackend):
                 files={"file": (file_name, file_content, content_type)},
                 # whisper on vLLM does not support language detection yet,
                 # so we need to pass the language parameter to Albert API.
-                # TODO: Allow passing 'auto' when whisper on vLLM supports language detection,
-                #       or when Albert API migrates to whisperx.
+                # We should allow passing 'auto' when whisper once vLLM
+                # supports language detection, or when Albert API migrates
+                # to whisperx.
                 data={
                     "model": settings.ALBERT_API_ASR_MODEL,
                     "language": settings.ALBERT_API_ASR_LANGUAGE,

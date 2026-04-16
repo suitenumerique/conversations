@@ -181,7 +181,10 @@ export const InputChat = ({
   }, [showToast, t]);
 
   const showTranscriptionError = useCallback(() => {
-    showToast('error', t('An error occurred during transcription. Please try again.'));
+    showToast(
+      'error',
+      t('An error occurred during transcription. Please try again.'),
+    );
   }, [showToast, t]);
 
   useEffect(() => {
@@ -383,14 +386,24 @@ export const InputChat = ({
       const textarea = textareaRef.current;
       if (!textarea) return;
       textarea.value = text;
-      handleTextareaChange({ target: textarea } as React.ChangeEvent<HTMLTextAreaElement>);
+      handleTextareaChange({
+        target: textarea,
+      } as React.ChangeEvent<HTMLTextAreaElement>);
       textarea.focus();
     },
     [handleTextareaChange],
   );
 
-  const { recordingState, volume, startRecording, confirmRecording, cancelRecording } =
-    useAudioRecording({ onTranscription: handleAudioTranscription, onTranscriptionError: showTranscriptionError });
+  const {
+    recordingState,
+    volume,
+    startRecording,
+    confirmRecording,
+    cancelRecording,
+  } = useAudioRecording({
+    onTranscription: handleAudioTranscription,
+    onTranscriptionError: showTranscriptionError,
+  });
 
   const handleTextareaKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

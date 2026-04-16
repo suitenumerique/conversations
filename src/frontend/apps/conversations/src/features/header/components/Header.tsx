@@ -9,7 +9,6 @@ import NewChatIcon from '@/assets/icons/new-message-bold.svg';
 import LogoAssistant from '@/assets/logo/logo-beta.svg';
 import { Box } from '@/components/';
 import { useCunninghamTheme } from '@/cunningham';
-
 import { useChatScroll } from '@/features/chat/hooks';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { useResponsiveStore } from '@/stores';

@@ -87,9 +87,14 @@ export const AudioRecordButton = ({
   }
 
   return (
-    <RecordingButton recordingState={recordingState} onCancel={onCancel} onConfirm={onConfirm} volume={volume} />
+    <RecordingButton
+      recordingState={recordingState}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+      volume={volume}
+    />
   );
-}
+};
 
 interface RecordingButtonProps {
   recordingState: RecordingState;
@@ -106,9 +111,7 @@ const RecordingButton = ({
 }: RecordingButtonProps) => {
   const { t } = useTranslation();
 
-  const [history, setHistory] = useState<number[]>(
-    Array(BAR_COUNT).fill(0),
-  );
+  const [history, setHistory] = useState<number[]>(Array(BAR_COUNT).fill(0));
 
   const volumeRef = useRef<number>(volume);
   volumeRef.current = volume;
@@ -139,7 +142,8 @@ const RecordingButton = ({
               style={{
                 flex: 1,
                 height: `${height}px`,
-                background: 'var(--c--contextuals--border--semantic--brand--primary)',
+                background:
+                  'var(--c--contextuals--border--semantic--brand--primary)',
                 opacity,
                 borderRadius: '2px',
               }}

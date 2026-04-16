@@ -422,6 +422,11 @@ class Base(BraveSettings, Configuration):
                 environ_name="API_FILE_STREAM_THROTTLE_RATE",
                 environ_prefix=None,
             ),
+            "transcribe": values.Value(
+                default="30/minute",
+                environ_name="API_TRANSCRIBE_THROTTLE_RATE",
+                environ_prefix=None,
+            ),
         },
     }
 
@@ -753,6 +758,11 @@ class Base(BraveSettings, Configuration):
     AUDIO_TRANSCRIPTION_BACKEND = values.Value(
         None,
         environ_name="AUDIO_TRANSCRIPTION_BACKEND",
+        environ_prefix=None,
+    )
+    AUDIO_MAX_SIZE = values.PositiveIntegerValue(
+        512 * 1024 * 1024,  # 512 MB
+        environ_name="MAX_AUDIO_UPLOAD_BYTES",
         environ_prefix=None,
     )
     RAG_DOCUMENT_PARSER = values.Value(
