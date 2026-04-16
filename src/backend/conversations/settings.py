@@ -707,6 +707,15 @@ class Base(BraveSettings, Configuration):
         environ_prefix=None,
     )
 
+    # Audio transcription service (meet/summary)
+    STT_SERVICE_URL = values.Value(None, environ_name="STT_SERVICE_URL", environ_prefix=None)
+    STT_SERVICE_API_KEY = values.Value(
+        None, environ_name="STT_SERVICE_API_KEY", environ_prefix=None
+    )
+    STT_WEBHOOK_API_KEY = values.Value(
+        None, environ_name="STT_WEBHOOK_API_KEY", environ_prefix=None
+    )
+
     # Uploaded files
     RAG_FILES_ACCEPTED_FORMATS = values.ListValue(
         default=[
@@ -739,6 +748,14 @@ class Base(BraveSettings, Configuration):
             "image/gif",
             "image/webp",
             "application/vnd.oasis.opendocument.text",
+            # audio files supported by meet/transcribe
+            "audio/mp4",
+            "audio/x-m4a",
+            "audio/ogg",
+            "application/ogg",
+            "audio/webm",
+            "audio/opus",
+            "audio/wav",
         ],
         environ_name="RAG_FILES_ACCEPTED_FORMATS",
         environ_prefix=None,
@@ -1278,6 +1295,9 @@ class Test(Base):
     AI_BASE_URL = None
     AI_API_KEY = None
     AI_MODEL = None
+    STT_SERVICE_URL = "http://ai-service.test/api/v2"
+    STT_SERVICE_API_KEY = "test-api-key"
+    STT_WEBHOOK_API_KEY = "test-webhook-key"
 
     POSTHOG_KEY = None
 
@@ -1408,6 +1428,9 @@ class Feature(Production):
 
     nota bene: it should inherit from the Production environment.
     """
+
+    # TLS is terminated at the nginx ingress; Django sees plain HTTP internally
+    SECURE_SSL_REDIRECT = False
 
 
 class Staging(Production):
