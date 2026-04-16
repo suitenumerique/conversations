@@ -388,16 +388,24 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   </Text>
                 </Box>
               )}
-            {toolInvocationParts.map((part, partIndex) =>
-              isCurrentlyStreaming && isLastAssistantMessage ? (
+            {toolInvocationParts.map((part, partIndex) => {
+              const isErrorResult =
+                part.toolInvocation.state === 'result' &&
+                (
+                  part.toolInvocation.result as { state?: string } | undefined
+                )?.state === 'error';
+              const showDuringStream =
+                isCurrentlyStreaming && isLastAssistantMessage;
+              if (!showDuringStream && !isErrorResult) return null;
+              return (
                 <ToolInvocationItem
                   key={`tool-invocation-${partIndex}`}
                   toolInvocation={part.toolInvocation}
                   status={status}
                   hideSearchLoader={true}
                 />
-              ) : null,
-            )}
+              );
+            })}
           </Box>
 
           {message.role === 'assistant' &&

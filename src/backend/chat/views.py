@@ -2,6 +2,7 @@
 
 import logging
 import os
+from io import BytesIO
 from uuid import UUID, uuid4
 
 from django.conf import settings
@@ -14,9 +15,11 @@ from django.utils.decorators import method_decorator
 import langfuse
 import magic
 import posthog
+import requests as http_requests
 from drf_spectacular.utils import extend_schema
 from lasuite.malware_detection import malware_detection
 from lasuite.oidc_login.decorators import refresh_oidc_access_token
+from pydantic import ValidationError as PydanticValidationError
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, ValidationError
 from rest_framework.response import Response
@@ -32,9 +35,17 @@ from core.filters import remove_accents
 
 from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
+from chat.authentication import AiWebhookAuthentication
 from chat.clients.pydantic_ai import AIAgentService
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.serializers import ChatConversationRequestSerializer
+from chat.transcription import parse_whisper_response
+from chat.webhook_models import (
+    TranscribeWebhookFailurePayload,
+    TranscribeWebhookSuccessPayload,
+    WhisperXResponse,
+    webhook_payload_adapter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -741,3 +752,70 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
         """
         instance.conversations.all().delete()
         instance.delete()
+
+
+class TranscriptionWebhookView(APIView):
+    """Webhook endpoint that receives transcription results from the AI service."""
+
+    authentication_classes = [AiWebhookAuthentication]
+    permission_classes = []
+
+    def post(self, request):  # pylint: disable=too-many-return-statements
+        """Handle transcription webhook payload."""
+        try:
+            payload = webhook_payload_adapter.validate_python(request.data)
+        except PydanticValidationError:
+            return Response({"error": "Invalid payload"}, status=status.HTTP_400_BAD_REQUEST)
+
+        job_id = payload.job_id
+
+        try:
+            attachment = models.ChatConversationAttachment.objects.get(transcription_job_id=job_id)
+        except models.ChatConversationAttachment.DoesNotExist:
+            return Response({"error": "Attachment not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if not isinstance(payload, TranscribeWebhookSuccessPayload):
+            if isinstance(payload, TranscribeWebhookFailurePayload) and payload.status == "failure":
+                attachment.upload_state = AttachmentStatus.TRANSCRIPTION_FAILED
+                attachment.save(update_fields=["upload_state", "updated_at"])
+                logger.warning(
+                    "Transcription job %s failed, marking attachment as TRANSCRIPTION_FAILED",
+                    job_id,
+                )
+                return Response({"status": "failed"})
+            logger.warning(
+                "Transcription job %s is still in progress.",
+                job_id,
+            )
+            return Response({"status": "ignored"})
+
+        try:
+            transcript_response = http_requests.get(payload.transcription_data_url, timeout=30)
+            transcript_response.raise_for_status()
+            whisper_data = WhisperXResponse.model_validate_json(transcript_response.content)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Failed to fetch or parse transcript for job %s", job_id)
+            return Response({"error": "Failed to fetch transcript"}, status=status.HTTP_200_OK)
+
+        out_str = parse_whisper_response(whisper_data)
+
+        # Save transcript to S3 and create a linked text attachment
+        transcript_key = f"{attachment.conversation_id}/attachments/{attachment.file_name}.md"
+        _, created = models.ChatConversationAttachment.objects.get_or_create(
+            conversation=attachment.conversation,
+            conversion_from=attachment.key,
+            defaults={
+                "uploaded_by": attachment.uploaded_by,
+                "key": transcript_key,
+                "file_name": f"{attachment.file_name}.md",
+                "content_type": "text/markdown",
+                "upload_state": AttachmentStatus.READY,
+            },
+        )
+        if created:
+            default_storage.save(transcript_key, BytesIO(out_str.encode("utf-8")))
+
+        attachment.upload_state = AttachmentStatus.READY
+        attachment.save(update_fields=["upload_state", "updated_at"])
+
+        return Response({"status": "ok"})

@@ -35,6 +35,33 @@ backend:
       secretKeyRef:
         name: secret-dev
         key: BRAVE_API_KEY
+    STT_SERVICE_URL:
+      secretKeyRef:
+        name: secret-dev
+        key: STT_SERVICE_URL
+    STT_SERVICE_API_KEY:
+      secretKeyRef:
+        name: secret-dev
+        key: STT_SERVICE_API_KEY
+    STT_WEBHOOK_API_KEY:
+      secretKeyRef:
+        name: secret-dev
+        key: STT_WEBHOOK_API_KEY
+    LANGFUSE_SECRET_KEY:
+      secretKeyRef:
+        name: secret-dev
+        key: LANGFUSE_SECRET_KEY
+    LANGFUSE_PUBLIC_KEY:
+      secretKeyRef:
+        name: secret-dev
+        key: LANGFUSE_PUBLIC_KEY
+    LANGFUSE_HOST:
+      secretKeyRef:
+        name: secret-dev
+        key: LANGFUSE_HOST
+    LANGFUSE_ENABLED: true
+    LANGFUSE_DEBUG: true
+    LANGFUSE_MEDIA_UPLOAD_ENABLED: true
     COLLABORATION_SERVER_SECRET: my-secret
     DJANGO_CSRF_TRUSTED_ORIGINS: https://conversations.127.0.0.1.nip.io
     DJANGO_CONFIGURATION: Feature
@@ -85,6 +112,7 @@ backend:
     FEATURE_FLAG_WEB_SEARCH: ENABLED
     FEATURE_FLAG_DOCUMENT_UPLOAD: ENABLED
     LLM_CONFIGURATION_FILE_PATH: /app/conversations/configuration/llm/custom_llm_configuration.json
+    ATTACHMENT_MAX_SIZE: "104857600"
   migrate:
     command:
       - "/bin/sh"

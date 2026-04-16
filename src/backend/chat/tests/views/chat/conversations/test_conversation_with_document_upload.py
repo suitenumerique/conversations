@@ -445,7 +445,7 @@ def test_post_conversation_with_document_upload(
 
     assert response_content == (
         '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
+        '"args":{"documents":[{"identifier":"sample.pdf"}],"has_audio":false}}\n'
         'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         'b:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_rag"}\n'
         '9:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_rag",'
@@ -761,7 +761,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
 
     assert response_content == (
         '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
+        '"args":{"documents":[{"identifier":"sample.pdf"}],"has_audio":false}}\n'
         'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         'b:{"toolCallId":"pyd_ai_YYY","toolName":"summarize"}\n'
         '9:{"toolCallId":"pyd_ai_YYY","toolName":"summarize","args":{}}\n'
@@ -1001,7 +1001,7 @@ def test_post_conversation_with_odt_document_upload(
 
     assert response_content == (
         '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        '"args":{"documents":[{"identifier":"sample.odt"}]}}\n'
+        '"args":{"documents":[{"identifier":"sample.odt"}],"has_audio":false}}\n'
         'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         'b:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_rag"}\n'
         '9:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_rag",'

@@ -187,7 +187,7 @@ def test_post_conversation_with_local_pdf_document_url(
 
     assert response_content == (
         '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
+        '"args":{"documents":[{"identifier":"sample.pdf"}],"has_audio":false}}\n'
         'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         '0:"This is a document about a single pixel."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
@@ -340,7 +340,7 @@ def test_post_conversation_with_local_document_wrong_url(
 
     assert response_content == (
         '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
+        '"args":{"documents":[{"identifier":"sample.pdf"}],"has_audio":false}}\n'
         'a:{"toolCallId":"XXX",'
         '"result":{"state":"error","error":"Document '
         'URL does not belong to the conversation."}}\n'
@@ -409,7 +409,7 @@ def test_post_conversation_with_remote_document_url(
 
     assert response_content == (
         '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
+        '"args":{"documents":[{"identifier":"sample.pdf"}],"has_audio":false}}\n'
         'a:{"toolCallId":"XXX",'
         '"result":{"state":"error","error":"External document '
         'URL are not accepted yet."}}\n'
@@ -895,7 +895,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
 
     assert response_content == (
         '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        f'"args":{{"documents":[{{"identifier":"{file_name}"}}]}}}}\n'
+        f'"args":{{"documents":[{{"identifier":"{file_name}"}}],"has_audio":false}}}}\n'
         'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
         '0:"This is a document about you."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
