@@ -25,6 +25,7 @@ from chat.ai_sdk_types import (
 )
 from chat.factories import ChatConversationFactory
 from chat.tests.utils import replace_uuids_with_placeholder
+from chat.tools.descriptions import SELF_DOCUMENTATION_TOOL_DESCRIPTION
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -109,7 +110,8 @@ def test_post_conversation_with_local_image_url(
                     ),
                 ],
                 instructions="You are a helpful test assistant :)\n\nToday is "
-                f"{formatted_date}.\n\nAnswer in english.",
+                f"{formatted_date}.\n\nAnswer in english."
+                f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}",
                 run_id=messages[0].run_id,
                 timestamp=timezone.now(),
             )
@@ -181,8 +183,11 @@ def test_post_conversation_with_local_image_url(
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": "You are a helpful test assistant :)\n\n"
-            "Today is Saturday 18/10/2025.\n\nAnswer in english.",
+            "instructions": (
+                "You are a helpful test assistant :)\n\nToday is Saturday 18/10/2025."
+                "\n\nAnswer in english."
+                f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+            ),
             "kind": "request",
             "metadata": None,
             "parts": [
@@ -289,8 +294,11 @@ def test_post_conversation_with_local_image_wrong_url(
                     ),
                 ],
                 timestamp=timezone.now(),
-                instructions=f"You are a helpful test assistant :)\n\n{today_prompt_date}"
-                "\n\nAnswer in english.",
+                instructions=(
+                    f"You are a helpful test assistant :)\n\n{today_prompt_date}"
+                    "\n\nAnswer in english."
+                    f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+                ),
                 run_id=messages[0].run_id,
             )
         ]
@@ -375,8 +383,11 @@ def test_post_conversation_with_remote_image_url(
                         timestamp=timezone.now(),
                     ),
                 ],
-                instructions="You are a helpful test assistant :)\n\n"
-                f"{today_prompt_date}\n\nAnswer in english.",
+                instructions=(
+                    "You are a helpful test assistant :)\n\n"
+                    f"{today_prompt_date}\n\nAnswer in english."
+                    f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+                ),
                 run_id=messages[0].run_id,
                 timestamp=timezone.now(),
             )
@@ -492,8 +503,11 @@ def test_post_conversation_with_local_image_url_in_history(
         ],
         pydantic_messages=[
             {
-                "instructions": f"You are a helpful test assistant :)\n\n{today_prompt_date}"
-                "\n\nAnswer in english.",
+                "instructions": (
+                    "You are a helpful test assistant :)\n\n"
+                    f"{today_prompt_date}\n\nAnswer in english."
+                    f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+                ),
                 "kind": "request",
                 "parts": [
                     {
@@ -581,8 +595,11 @@ def test_post_conversation_with_local_image_url_in_history(
                         timestamp=timestamp_now,
                     ),
                 ],
-                instructions="You are a helpful test assistant :)\n\n"
-                f"{today_prompt_date}\n\nAnswer in english.",
+                instructions=(
+                    "You are a helpful test assistant :)\n\n"
+                    f"{today_prompt_date}\n\nAnswer in english."
+                    f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+                ),
             ),
             ModelResponse(
                 parts=[TextPart(content="This is an image of a single pixel.")],
@@ -601,7 +618,8 @@ def test_post_conversation_with_local_image_url_in_history(
                 ],
                 run_id=messages[2].run_id,
                 instructions="You are a helpful test assistant :)\n\n"
-                "Today is Saturday 18/10/2025.\n\nAnswer in english.",
+                "Today is Saturday 18/10/2025.\n\nAnswer in english."
+                f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}",
                 timestamp=timestamp_now,
             ),
         ]
@@ -703,7 +721,8 @@ def test_post_conversation_with_local_image_url_in_history(
     assert chat_conversation.pydantic_messages == [
         {
             "instructions": f"You are a helpful test assistant :)\n\n{today_prompt_date}"
-            "\n\nAnswer in english.",
+            "\n\nAnswer in english."
+            f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}",
             "kind": "request",
             "parts": [
                 {
@@ -747,7 +766,8 @@ def test_post_conversation_with_local_image_url_in_history(
         },
         {
             "instructions": "You are a helpful test assistant :)\n\nToday is Saturday 18/10/2025."
-            "\n\nAnswer in english.",
+            "\n\nAnswer in english."
+            f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}",
             "kind": "request",
             "metadata": None,
             "parts": [

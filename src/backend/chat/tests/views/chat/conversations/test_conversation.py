@@ -31,6 +31,7 @@ from chat.tests.utils import (
     assert_data_stream_response,
     replace_uuids_with_placeholder,
 )
+from chat.tools.descriptions import SELF_DOCUMENTATION_TOOL_DESCRIPTION
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -40,6 +41,7 @@ pytestmark = pytest.mark.django_db(transaction=True)
 FROZEN_TIMESTAMP = "2025-07-25T10:36:35.297675Z"
 ENGLISH_INSTRUCTIONS = (
     "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
+    f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
 )
 
 
@@ -135,6 +137,7 @@ def _assert_english_system_prompts(last_request_payload):
         "You are a helpful test assistant :)",
         "Today is Friday 25/07/2025.",
         "Answer in english.",
+        SELF_DOCUMENTATION_TOOL_DESCRIPTION,
     ]
 
 
@@ -374,6 +377,10 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
             "role": "system",
         },
         {
+            "content": SELF_DOCUMENTATION_TOOL_DESCRIPTION,
+            "role": "system",
+        },
+        {
             "content": [
                 {"text": "Hello, what do you see on this picture?", "type": "text"},
                 {
@@ -537,6 +544,10 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
             "content": "Answer in english.",
             "role": "system",
         },
+        {
+            "content": SELF_DOCUMENTATION_TOOL_DESCRIPTION,
+            "role": "system",
+        },
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
     ]
 
@@ -682,7 +693,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
         'c:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","argsTextDelta":'
         '"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n'
         'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":"Unknown tool '
-        "name: 'get_current_weather'. No tools available.\"}\n"
+        "name: 'get_current_weather'. Available tools: 'self_documentation'\"}\n"
         '0:"I cannot give you an answer to that."\n'
         'f:{"messageId":"<mocked_uuid>"}\n'
         'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
@@ -704,6 +715,10 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
         },
         {
             "content": "Answer in french.",
+            "role": "system",
+        },
+        {
+            "content": SELF_DOCUMENTATION_TOOL_DESCRIPTION,
             "role": "system",
         },
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
@@ -762,6 +777,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
 
     french_instructions = (
         "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in french."
+        f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
     )
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
@@ -799,7 +815,8 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
             "metadata": None,
             "parts": [
                 {
-                    "content": "Unknown tool name: 'get_current_weather'. No tools available.",
+                    "content": "Unknown tool name: 'get_current_weather'. "
+                    "Available tools: 'self_documentation'",
                     "part_kind": "retry-prompt",
                     "timestamp": FROZEN_TIMESTAMP,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
@@ -1026,7 +1043,10 @@ def test_post_conversation_data_protocol_no_stream(
     assert chat_conversation.pydantic_messages == [
         _make_pydantic_request(
             _run_id,
-            "You are an amazing assistant.\n\nToday is Friday 25/07/2025.\n\nAnswer in english.",
+            (
+                "You are an amazing assistant.\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
+                f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+            ),
             ["Why the sky is blue?"],
         ),
         _make_pydantic_text_response(

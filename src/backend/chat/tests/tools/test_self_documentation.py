@@ -28,6 +28,7 @@ def llm_configuration_fixture():
 
 
 @pytest.mark.asyncio
+@pytest.mark.django_db
 async def test_build_self_documentation_payload_merges_static_and_runtime(
     settings, llm_configuration
 ):
@@ -54,6 +55,7 @@ async def test_build_self_documentation_payload_merges_static_and_runtime(
 
 
 @pytest.mark.asyncio
+@pytest.mark.django_db
 async def test_build_self_documentation_payload_handles_missing_max_tokens(llm_configuration):
     """The payload should gracefully expose null max_tokens when unset."""
     configuration = llm_configuration

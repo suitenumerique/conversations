@@ -39,6 +39,7 @@ from chat.tests.utils import replace_uuids_with_placeholder
 from chat.tools.descriptions import (
     DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
+    SELF_DOCUMENTATION_TOOL_DESCRIPTION,
 )
 
 # enable database transactions for tests:
@@ -53,6 +54,7 @@ def _expected_document_instructions(today_prompt_date: str) -> str:
         "You are a helpful test assistant :)\n\n"
         f"{today_prompt_date}\n\n"
         "Answer in english.\n\n"
+        f"{SELF_DOCUMENTATION_TOOL_DESCRIPTION}\n\n"
         f"{DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT}\n\n"
         f"{DOCUMENT_SUMMARIZE_SYSTEM_PROMPT}\n\n"
         "[Internal context] User documents are attached to this conversation. "

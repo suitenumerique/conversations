@@ -1,6 +1,5 @@
 """Self-documentation helpers and tool payload builder."""
 
-import logging
 from typing import Any, Dict
 
 from django.conf import settings
@@ -9,14 +8,12 @@ from asgiref.sync import sync_to_async
 
 from core.models import SiteConfiguration
 
-logger = logging.getLogger(__name__)
-
 
 async def load_db_self_documentation() -> str:
     """Load self documentation from DB. Returns empty string if not set"""
     get_solo = sync_to_async(SiteConfiguration.get_solo)
-    self_doc = await get_solo()
-    return self_doc.self_documentation or ""
+    site_config = await get_solo()
+    return site_config.self_documentation or ""
 
 
 async def build_self_documentation_payload(
@@ -44,8 +41,6 @@ async def build_self_documentation_payload(
         "attachments": {
             "max_size_bytes": settings.ATTACHMENT_MAX_SIZE,
             "max_size_mb": round(settings.ATTACHMENT_MAX_SIZE / (1024 * 1024), 2),
-            "unsafe_mime_type_check_enabled": settings.ATTACHMENT_CHECK_UNSAFE_MIME_TYPES_ENABLED,
-            "unsafe_mime_types_blacklist": settings.ATTACHMENT_UNSAFE_MIME_TYPES,
         },
     }
 

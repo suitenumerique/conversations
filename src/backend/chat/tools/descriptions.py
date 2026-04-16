@@ -71,3 +71,10 @@ Examples of queries that do NOT need web_search tool:
 - "Écris-moi un poème sur l'automne"
 - "Résume ce texte"
 """
+
+SELF_DOCUMENTATION_TOOL_DESCRIPTION = (
+    "For questions about your "
+    "identity, model, capabilities, limitations, privacy, "
+    "internet access, accepted files, or hosting, call the "
+    "self_documentation tool before answering."
+)

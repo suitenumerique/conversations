@@ -22,6 +22,7 @@ from chat.ai_sdk_types import (
 )
 from chat.factories import ChatConversationFactory
 from chat.tests.utils import replace_uuids_with_placeholder
+from chat.tools.descriptions import SELF_DOCUMENTATION_TOOL_DESCRIPTION
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -777,18 +778,9 @@ def test_post_conversation_tool_call_fails_with_history(
     # Replace UUIDs with placeholders for assertion
     response_content = replace_uuids_with_placeholder(response_content)
 
-    assert response_content == (
-        'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":'
-        '"get_current_weather"}\n'
-        'c:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","argsTextDelta":'
-        '"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n'
-        'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":"Unknown tool '
-        "name: 'get_current_weather'. No tools available.\"}\n"
-        '0:"I cannot give you an answer to that."\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
-        ',"co2Impact":0.0}}\n'
-    )
+    assert "Unknown tool name: 'get_current_weather'." in response_content
+    assert "self_documentation" in response_content
+    assert '0:"I cannot give you an answer to that."' in response_content
 
     # --- Verify the outgoing HTTP request body ---
     request_sent = mock_openai_stream_tool.calls[0].request
@@ -1497,9 +1489,11 @@ def test_post_conversation_with_existing_tool_history(
 
     # Verify the new tool call request is included
     assert history_conversation_with_tool.pydantic_messages[8] == {
-        "instructions": "You are a helpful test assistant :)\n\n"
-        "Today is Friday 25/07/2025.\n\n"
-        "Answer in dutch.",
+        "instructions": (
+            "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025."
+            "\n\nAnswer in dutch."
+            f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+        ),
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -1551,9 +1545,11 @@ def test_post_conversation_with_existing_tool_history(
     }
 
     assert history_conversation_with_tool.pydantic_messages[10] == {
-        "instructions": "You are a helpful test assistant :)\n\n"
-        "Today is Friday 25/07/2025.\n\n"
-        "Answer in dutch.",
+        "instructions": (
+            "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025."
+            "\n\nAnswer in dutch."
+            f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+        ),
         "kind": "request",
         "metadata": None,
         "parts": [

@@ -145,6 +145,7 @@ from chat.mcp_servers import get_mcp_servers
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
     DOCUMENT_SUMMARIZE_TOOL_DESCRIPTION,
+    SELF_DOCUMENTATION_TOOL_DESCRIPTION,
     WEB_SEARCH_TOOL_DESCRIPTION,
 )
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
@@ -747,13 +748,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         @self.conversation_agent.instructions
         def self_documentation_instruction() -> str:
-            return (
-                "For questions about your identity, model, capabilities, limitations, privacy, "
-                "internet access, accepted files, "
-                "or hosting, call the self_documentation tool before answering."
-            )
+            return SELF_DOCUMENTATION_TOOL_DESCRIPTION
 
-        @self.conversation_agent.tool(name="self_documentation", retries=0)
+        @self.conversation_agent.tool(name="self_documentation", retries=2)
         async def self_documentation(_ctx: RunContext) -> ToolReturn:
             """Return a single payload with static and runtime assistant metadata."""
             return ToolReturn(

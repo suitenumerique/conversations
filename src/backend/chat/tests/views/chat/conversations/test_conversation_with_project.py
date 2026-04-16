@@ -9,6 +9,7 @@ from rest_framework import status
 
 from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.tests.utils import replace_uuids_with_placeholder
+from chat.tools.descriptions import SELF_DOCUMENTATION_TOOL_DESCRIPTION
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -64,6 +65,7 @@ def project_hello_data_fixture():
                 "Today is Friday 25/07/2025.",
                 "Answer in english.",
                 "Always reply in bullet points.",
+                SELF_DOCUMENTATION_TOOL_DESCRIPTION,
             ],
         ],
         [
@@ -72,6 +74,7 @@ def project_hello_data_fixture():
                 "You are a helpful test assistant :)",
                 "Today is Friday 25/07/2025.",
                 "Answer in english.",
+                SELF_DOCUMENTATION_TOOL_DESCRIPTION,
             ],
         ],
     ),

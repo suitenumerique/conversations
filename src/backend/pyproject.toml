@@ -112,7 +112,7 @@ zip-safe = true
 universal = true
 
 [tool.uv]
-exclude-newer = "5 days"
+exclude-newer = "7 days"
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
     "sys_platform == 'darwin'",

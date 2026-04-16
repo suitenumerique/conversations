@@ -119,7 +119,7 @@ class SiteConfigurationAdmin(SingletonModelAdmin):
         (
             None,
             {
-                "description": _("Text content with self documentation "),
+                "description": _("Text content with self documentation"),
                 "fields": ("self_documentation",),
             },
         ),

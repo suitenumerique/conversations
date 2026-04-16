@@ -33,6 +33,7 @@ from chat.tests.utils import replace_uuids_with_placeholder
 from chat.tools.descriptions import (
     DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
+    SELF_DOCUMENTATION_TOOL_DESCRIPTION,
 )
 
 # enable database transactions for tests:
@@ -47,6 +48,7 @@ def _expected_document_instructions(today_prompt_date: str) -> str:
         "You are a helpful test assistant :)\n\n"
         f"{today_prompt_date}\n\n"
         "Answer in english.\n\n"
+        f"{SELF_DOCUMENTATION_TOOL_DESCRIPTION}\n\n"
         f"{DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT}\n\n"
         f"{DOCUMENT_SUMMARIZE_SYSTEM_PROMPT}\n\n"
         "[Internal context] User documents are attached to this conversation. "
@@ -431,6 +433,12 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
     chat_conversation_pk = "0be55da5-8eb7-4dad-aa0f-fea454bd5809"
     document_url = f"/media-key/{chat_conversation_pk}/sample.pdf"
     formatted_date = formats.date_format(timezone.now(), "l d/m/Y", use_l10n=False)
+    expected_instructions = (
+        "You are a helpful test assistant :)\n\n"
+        f"Today is {formatted_date}.\n\n"
+        "Answer in english.\n\n"
+        f"{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+    )
 
     chat_conversation = ChatConversationFactory(
         pk=chat_conversation_pk,
@@ -467,9 +475,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         ],
         pydantic_messages=[
             {
-                "instructions": "You are a helpful test assistant :)\n\n"
-                f"Today is {formatted_date}.\n\n"
-                "Answer in english.",
+                "instructions": "",
                 "kind": "request",
                 "parts": [
                     {
@@ -556,9 +562,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                         timestamp=timestamp_now,
                     ),
                 ],
-                instructions="You are a helpful test assistant :)\n\n"
-                "Today is Saturday 18/10/2025.\n\n"
-                "Answer in english.",
+                instructions="",
                 run_id=messages[0].run_id,
             ),
             ModelResponse(
@@ -578,9 +582,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                     )
                 ],
                 timestamp=timestamp_now,
-                instructions="You are a helpful test assistant :)\n\n"
-                "Today is Saturday 18/10/2025.\n\n"
-                "Answer in english.",
+                instructions=expected_instructions,
                 run_id=messages[2].run_id,
             ),
         ]
@@ -681,9 +683,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
     _run_id = chat_conversation.pydantic_messages[2]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": "You are a helpful test assistant :)\n\n"
-            "Today is Saturday 18/10/2025.\n\n"
-            "Answer in english.",
+            "instructions": "",
             "kind": "request",
             "parts": [
                 {
@@ -732,9 +732,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
             # no run_id here
         },
         {
-            "instructions": "You are a helpful test assistant :)\n\n"
-            "Today is Saturday 18/10/2025.\n\n"
-            "Answer in english.",
+            "instructions": expected_instructions,
             "metadata": None,
             "kind": "request",
             "parts": [
