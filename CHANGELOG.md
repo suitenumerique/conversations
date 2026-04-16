@@ -27,6 +27,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(fix) new conversation in project button max size
 - 💄(ui) little fix margin top
 - 💄(ui) review ui for part of the project
 

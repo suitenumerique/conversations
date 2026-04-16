@@ -192,6 +192,7 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
               background: transparent;
               padding: 0;
               margin: 0;
+              width: 100%;
               text-align: left;
               cursor: pointer;
               font: inherit;
@@ -199,6 +200,9 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
             `}
           >
             <Text
+              $css={css`
+                ${titleTextStyles}
+              `}
               $size="sm"
               $variation="primary"
               $weight={isOpen ? '700' : '500'}
