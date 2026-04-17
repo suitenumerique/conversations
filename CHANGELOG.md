@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(back) add ODT parsing support
+- ✨(back) introduce Collection model and lazy per-backend RAG indexing
 
 ### Changed
 
