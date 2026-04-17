@@ -31,3 +31,11 @@ export interface ChatProject {
   llm_instructions: string;
   conversations: ChatProjectConversation[];
 }
+
+export type TranscribeAudioResponse =
+  | {
+      text: string;
+    }
+  | {
+      error: string;
+    };

@@ -170,9 +170,14 @@ nextjs-portal {
   background-color: inherit !important;
 }
 
-.c__button--send {
+.c__button--send,
+.c__button--mic {
   height: 24px !important;
   width: 24px !important;
+}
+
+.c__button--send {
+  padding: 0 !important;
 }
 
 .feedbackButton {

@@ -226,6 +226,8 @@ class ConfigView(drf.views.APIView):
 
         dict_settings["chat_upload_accept"] = ",".join(settings.RAG_FILES_ACCEPTED_FORMATS)
 
+        dict_settings["audio_transcription_enabled"] = bool(settings.AUDIO_TRANSCRIPTION_BACKEND)
+
         return drf.response.Response(dict_settings)
 
     def _load_theme_customization(self):

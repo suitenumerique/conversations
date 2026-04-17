@@ -10,6 +10,7 @@ from django.core.files.storage import default_storage
 from django.db.models import Prefetch
 from django.http import Http404, StreamingHttpResponse
 from django.utils.decorators import method_decorator
+from django.utils.module_loading import import_string
 
 import langfuse
 import magic
@@ -19,6 +20,7 @@ from lasuite.malware_detection import malware_detection
 from lasuite.oidc_login.decorators import refresh_oidc_access_token
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, ValidationError
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -33,6 +35,7 @@ from core.filters import remove_accents
 from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
+from chat.exceptions import TranscriptionError
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.serializers import ChatConversationRequestSerializer
 
@@ -741,3 +744,54 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
         """
         instance.conversations.all().delete()
         instance.delete()
+
+
+class AudioTranscriptionView(APIView):
+    """Transcribe audio using a configurable ASR backend.
+
+    Accepts a multipart/form-data POST with an ``audio`` file field and returns
+    ``{"text": "<transcription>"}``.
+
+    Requires ``AUDIO_TRANSCRIPTION_BACKEND`` to be set in settings.
+    """
+
+    permission_classes = [
+        IsActivatedUser,
+        permissions.IsAuthenticated,
+    ]
+    parser_classes = [MultiPartParser]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "transcribe"
+
+    def post(self, request):
+        """Handle POST requests to transcribe audio."""
+        if not settings.AUDIO_TRANSCRIPTION_BACKEND:
+            return Response(
+                {"error": "Audio transcription is not available"},
+                status=status.HTTP_501_NOT_IMPLEMENTED,
+            )
+
+        audio_file = request.FILES.get("audio")
+        if not audio_file:
+            return Response({"error": "No audio file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if audio_file.size > settings.AUDIO_MAX_SIZE:
+            return Response(
+                {"error": "Audio file too large"},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
+        backend = import_string(settings.AUDIO_TRANSCRIPTION_BACKEND)()
+        try:
+            text = backend.transcribe(
+                audio_file.name,
+                audio_file,
+                audio_file.content_type,
+            )
+        except TranscriptionError:
+            return Response(
+                {"error": "Transcription failed"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response({"text": text}, status=status.HTTP_200_OK)

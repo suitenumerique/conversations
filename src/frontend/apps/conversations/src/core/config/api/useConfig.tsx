@@ -38,6 +38,7 @@ export interface ConfigResponse {
   FRONTEND_SILENT_LOGIN_ENABLED?: boolean;
   theme_customization?: ThemeCustomization;
   chat_upload_accept?: string;
+  audio_transcription_enabled?: boolean;
 }
 
 const LOCAL_STORAGE_KEY = 'conversations_config';
