@@ -2,6 +2,8 @@ import { useCallback, useRef, useState } from 'react';
 
 import { fetchAPI } from '@/api';
 
+import { TranscribeAudioResponse } from '../types';
+
 export type RecordingState = 'idle' | 'recording' | 'transcribing';
 
 interface UseAudioRecordingOptions {
@@ -30,7 +32,7 @@ export const useAudioRecording = ({
 
   const stopVisualization = useCallback(() => {
     cancelAnimationFrame(animFrameRef.current);
-    audioCtxRef.current?.close();
+    void audioCtxRef.current?.close();
     audioCtxRef.current = null;
     setVolume(0);
   }, []);
@@ -83,7 +85,7 @@ export const useAudioRecording = ({
     }
   }, [startVisualization, stopStream]);
 
-  const confirmRecording = useCallback(async () => {
+  const confirmRecording = useCallback(() => {
     if (mediaRecorderRef.current) {
       const recorder = mediaRecorderRef.current;
       mediaRecorderRef.current = null;
@@ -104,9 +106,9 @@ export const useAudioRecording = ({
             body: form,
             withoutContentType: true,
           });
-          const data = await res.json();
-          if (data.error) onTranscriptionErrorRef.current?.();
-          if (data.text) onTranscriptionRef.current(data.text);
+          const data = (await res.json()) as TranscribeAudioResponse;
+          if ('error' in data) onTranscriptionErrorRef.current?.();
+          if ('text' in data) onTranscriptionRef.current(data.text);
         } catch {
           onTranscriptionErrorRef.current?.();
         } finally {

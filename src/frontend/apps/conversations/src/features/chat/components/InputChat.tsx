@@ -423,7 +423,7 @@ export const InputChat = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
         e.preventDefault();
-        confirmRecording();
+        void confirmRecording();
       }
     };
     document.addEventListener('keydown', handleKeyDown);
@@ -556,8 +556,8 @@ export const InputChat = ({
                 }
                 recordingState={recordingState}
                 volume={volume}
-                onStartRecording={startRecording}
-                onConfirmRecording={confirmRecording}
+                onStartRecording={() => void startRecording()}
+                onConfirmRecording={() => void confirmRecording()}
                 onCancelRecording={cancelRecording}
               />
             </Box>

@@ -1,6 +1,21 @@
 {
-  "de": { "translation": { "ABC-1234-XY": "ABC-1234-XY", "Cancel recording": "Aufnahme abbrechen", "Confirm recording": "Aufnahme bestätigen", "Record audio": "Audio aufnehmen" } },
-  "en": { "translation": { "Cancel recording": "Cancel recording", "Confirm recording": "Confirm recording", "Login": "Login", "Logout": "Logout", "Record audio": "Record audio" } },
+  "de": {
+    "translation": {
+      "ABC-1234-XY": "ABC-1234-XY",
+      "Cancel recording": "Aufnahme abbrechen",
+      "Confirm recording": "Aufnahme bestätigen",
+      "Record audio": "Audio aufnehmen"
+    }
+  },
+  "en": {
+    "translation": {
+      "Cancel recording": "Cancel recording",
+      "Confirm recording": "Confirm recording",
+      "Login": "Login",
+      "Logout": "Logout",
+      "Record audio": "Record audio"
+    }
+  },
   "fr": {
     "translation": {
       "30 sec to tell us what you think or report a bug": "Prenez 30 secondes pour partager votre avis ou signaler un bug",
