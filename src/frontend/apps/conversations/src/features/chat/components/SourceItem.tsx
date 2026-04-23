@@ -125,23 +125,37 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
     }
   }, [url, metadata]);
 
+  const getFallbackFaviconUrl = () => {
+    if (!url.startsWith('http')) {
+      return null;
+    }
+    const hostname = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+  };
+
   // Fallback for favicon if none is found or if there's an error
   const renderFavicon = () => {
-    if (loading || error || !favicon) {
-      return <Box>🔗</Box>;
-    }
     if (favicon === '📄') {
       return <Box>📄</Box>;
+    }
+
+    const faviconSrc = favicon || getFallbackFaviconUrl();
+    if (!faviconSrc) {
+      return null;
     }
 
     return (
       <Box>
         <Image
-          src={favicon}
+          src={faviconSrc}
           alt="Favicon"
           width={16}
           height={16}
-          onError={() => setFavicon(null)}
+          onError={() => {
+            if (!error) {
+              setError(true);
+            }
+          }}
         />
       </Box>
     );

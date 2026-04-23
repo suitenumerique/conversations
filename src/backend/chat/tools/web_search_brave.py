@@ -272,7 +272,9 @@ def format_tool_return(raw_search_results: List[dict]) -> ToolReturn:
     `extra_snippets` when both are present.
     """
     formatted_results = {}
-    sources = set()
+    sources: list[str] = []
+    seen_sources: set[str] = set()
+    citation_ids = set()
 
     for idx, result in enumerate(raw_search_results):
         logger.debug("Formatting result: %s", result)
@@ -280,16 +282,24 @@ def format_tool_return(raw_search_results: List[dict]) -> ToolReturn:
         if not snippets:
             continue
 
+        tagged_snippets = []
+        for snippet_idx, snippet in enumerate(snippets):
+            citation_id = f"web_{idx}_{snippet_idx}"
+            citation_ids.add(citation_id)
+            tagged_snippets.append(f"[ref:{citation_id}] {snippet}")
+
         formatted_results[str(idx)] = {
             "url": result["url"],
             "title": result["title"],
-            "snippets": snippets,
+            "snippets": tagged_snippets,
         }
-        sources.add(result["url"])
+        if result["url"] not in seen_sources:
+            seen_sources.add(result["url"])
+            sources.append(result["url"])
 
     return ToolReturn(
         return_value=formatted_results,
-        metadata={"sources": sources},
+        metadata={"sources": sources, "citation_ids": citation_ids},
     )
 
 

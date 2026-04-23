@@ -62,7 +62,23 @@ const MARKDOWN_COMPONENTS: Components = {
     />
   ),
   a: ({ children, ...props }) => (
-    <a target="_blank" {...props}>
+    <a
+      target="_blank"
+      rel="noreferrer"
+      style={{
+        display: 'inline-block',
+        padding: '1px 8px',
+        borderRadius: '999px',
+        border: '1px solid var(--c--theme--colors--greyscale-300)',
+        background: 'var(--c--theme--colors--greyscale-050)',
+        fontSize: '12px',
+        lineHeight: '18px',
+        textDecoration: 'none',
+        marginLeft: '4px',
+        verticalAlign: 'baseline',
+      }}
+      {...props}
+    >
       {children}
     </a>
   ),

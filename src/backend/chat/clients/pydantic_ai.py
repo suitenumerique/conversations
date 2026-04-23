@@ -81,6 +81,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack
@@ -200,6 +201,7 @@ User = get_user_model()
 
 CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
 DOCUMENT_URL_PREFIX = "/media-key/"
+REF_CITATION_REGEX = re.compile(r'<ref id="(web_\d+_\d+)"\s*/>')
 
 # Stream-protocol contract with the frontend. Mirrored in
 # ``useChat.tsx`` (``IMAGES_SKIPPED_EVENT_TYPE`` /
@@ -207,6 +209,16 @@ DOCUMENT_URL_PREFIX = "/media-key/"
 # reasons or events.
 IMAGES_SKIPPED_EVENT_TYPE = "images_skipped"
 IMAGE_SKIP_REASON_TEXT_ONLY = "model_text_only"
+
+
+def _strip_invalid_web_citations(text: str, allowed_ids: set[str]) -> str:
+    """Remove inline web citations that are not present in returned chunks."""
+
+    def _replace(match: re.Match[str]) -> str:
+        citation_id = match.group(1)
+        return match.group(0) if citation_id in allowed_ids else ""
+
+    return REF_CITATION_REGEX.sub(_replace, text)
 
 
 def get_model_configuration(model_hrid: str):
@@ -1121,6 +1133,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             """Wrap the web_search tool to provide context and add the tool."""
             return await web_search_impl(ctx, *args, **kwargs)
 
+        @self.conversation_agent.instructions
+        def web_search_citation_instruction() -> str:
+            """Constrain citations to the web chunks IDs returned by the tool."""
+            return (
+                "When you use information from web_search snippets, end the corresponding sentence "
+                "with the exact citation id with this format: <ref id=\"web_i_j\"/> found in those snippets. "
+                "Never invent citation IDs. Be sure to output the ref div in the response. Never end the response with a reference section, reference sources directly within the response."
+            )
+
         self._web_search_tool_registered = True
 
     def _setup_self_documentation_tool(self) -> None:
@@ -1307,6 +1328,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         )
                 elif isinstance(event, FunctionToolResultEvent):
                     if isinstance(event.part, ToolReturnPart):
+                        if event.part.metadata and (
+                            citation_ids := event.part.metadata.get("citation_ids")
+                        ):
+                            state.allowed_web_citation_ids.update(citation_ids)
                         if event.part.metadata and (sources := event.part.metadata.get("sources")):
                             for source_url in sources:
                                 url_source = LanguageModelV1Source(
@@ -1393,6 +1418,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             FinishMessagePart: Always emitted last to signal completion
         """
         await self._agent_stop_streaming(force_cache_check=True)
+
+        if state.allowed_web_citation_ids:
+            for message in new_messages:
+                if isinstance(message, ModelResponse):
+                    for part in message.parts:
+                        if isinstance(part, TextPart):
+                            part.content = _strip_invalid_web_citations(
+                                part.content, state.allowed_web_citation_ids
+                            )
 
         # Total tokens the model processed for this request, across every
         # tool-loop round-trip (RAG/web-search results fed back as input count

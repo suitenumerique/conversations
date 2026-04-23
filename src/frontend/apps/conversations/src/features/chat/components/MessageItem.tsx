@@ -153,6 +153,46 @@ export const splitStreamingContent = (content: string): StreamingContent => {
   return { completedBlocks, pending: pendingContent };
 };
 
+const WEB_REF_REGEX = /<ref id="(web_\d+_\d+)"\s*\/>/g;
+const DUPLICATED_INLINE_PILLS_REGEX =
+  /(\s\[(\d+)\]\([^)]+\))(?:\s*\[\2\]\([^)]+\))+/g;
+
+const replaceWebRefsWithLinks = (
+  content: string,
+  sourceParts: SourceUIPart[],
+): string => {
+  if (!content) {
+    return content;
+  }
+
+  const urlToIndex = new Map<string, number>();
+  let nextIndex = 1;
+
+  return content
+    .replace(WEB_REF_REGEX, (_fullMatch, citationId: string) => {
+      const webRefMatch = /^web_(\d+)_\d+$/.exec(citationId);
+      if (!webRefMatch) {
+        return '';
+      }
+      const sourceIndex = Number.parseInt(webRefMatch[1], 10);
+      const url = sourceParts[sourceIndex]?.source.url;
+      if (!url) {
+        return '';
+      }
+      if (!urlToIndex.has(url)) {
+        urlToIndex.set(url, nextIndex);
+        nextIndex += 1;
+      }
+      const refNumber = urlToIndex.get(url);
+      // Render as inline markdown link, then styled by markdown link styles.
+      return ` [${refNumber}](${url})`;
+    })
+    .replace(DUPLICATED_INLINE_PILLS_REGEX, '$1')
+    .replace(/\s+([.,;:!?])/g, '$1')
+    .replace(/[ \t]+$/gm, '')
+    .trim();
+};
+
 interface SourceMetadata {
   title: string | null;
   favicon: string | null;
@@ -272,17 +312,24 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     return tool?.toolInvocation;
   }, [toolInvocationParts]);
 
+  const renderedContent = React.useMemo(() => {
+    if (message.role !== 'assistant') {
+      return message.content;
+    }
+    return replaceWebRefsWithLinks(message.content, sourceParts);
+  }, [message.content, message.role, sourceParts]);
+
   // Memoize the streaming content split to avoid recreating components in JSX
   const { completedBlocks, pending } = React.useMemo(() => {
     // When not streaming, everything is completed as a single block array
     if (!isCurrentlyStreaming) {
       return {
-        completedBlocks: splitIntoBlocks(message.content),
+        completedBlocks: splitIntoBlocks(renderedContent),
         pending: '',
       };
     }
-    return splitStreamingContent(message.content);
-  }, [isCurrentlyStreaming, message.content]);
+    return splitStreamingContent(renderedContent);
+  }, [isCurrentlyStreaming, renderedContent]);
 
   const handleCopy = React.useCallback(() => {
     const html = contentRef.current?.innerHTML;
@@ -295,20 +342,20 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
       // while code editors and plain-text apps use text/plain (raw markdown).
       const item = new ClipboardItem({
         'text/html': new Blob([html], { type: 'text/html' }),
-        'text/plain': new Blob([message.content], { type: 'text/plain' }),
+        'text/plain': new Blob([renderedContent], { type: 'text/plain' }),
       });
       navigator.clipboard.write([item]).then(
         () => showCopiedState(),
         () => {
-          onCopyToClipboard(message.content);
+          onCopyToClipboard(renderedContent);
           showCopiedState();
         },
       );
     } else {
-      onCopyToClipboard(message.content);
+      onCopyToClipboard(renderedContent);
       showCopiedState();
     }
-  }, [contentRef, message.content, onCopyToClipboard, showCopiedState]);
+  }, [contentRef, onCopyToClipboard, renderedContent, showCopiedState]);
 
   const handleOpenSources = React.useCallback(() => {
     onOpenSources(message.id);
@@ -377,7 +424,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   $theme="greyscale"
                   $variation="850"
                 >
-                  {message.content}
+                  {renderedContent}
                 </Text>
               ) : (
                 // Render completed blocks as markdown, pending block as plain text
