@@ -128,6 +128,11 @@ class ChatConversation(BaseModel):
         blank=True,
         help_text="Pydantic messages for the chat conversation, used for history",
     )
+    history_summary = models.TextField(
+        blank=True,
+        default="",
+        help_text="Latest generated conversation summary used as system context",
+    )
     messages: Sequence[UIMessage] = SchemaField(
         schema=list[UIMessage],
         default=list,
