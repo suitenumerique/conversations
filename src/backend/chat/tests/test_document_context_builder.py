@@ -83,7 +83,7 @@ def _parse_listing(instruction: str) -> dict:
     return json.loads(instruction.split(prefix, 1)[1])
 
 
-async def _build(conversation, *, max_token_context=100, budget_ratio=0.5, security_buffer=0):
+async def _build(conversation, *, max_token_context=100, budget_ratio=0.5):
     """Run build_document_context_instruction with real components."""
     text_attachments = await sync_to_async(list)(
         conversation.attachments.filter(content_type__startswith="text/").order_by(
@@ -96,7 +96,6 @@ async def _build(conversation, *, max_token_context=100, budget_ratio=0.5, secur
         model_hrid="test-model",
         max_token_context=max_token_context,
         budget_ratio=budget_ratio,
-        security_buffer_tokens=security_buffer,
     )
 
 
