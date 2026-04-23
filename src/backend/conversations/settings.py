@@ -682,6 +682,23 @@ class Base(BraveSettings, Configuration):
         environ_name="DEFAULT_ALLOW_SMART_WEB_SEARCH",
         environ_prefix=None,
     )
+    # Conversation summary settings
+    # For now, we summarize the conversation every CONVERSATION_SUMMARY_INTERVAL_TURNS turns
+    # and keep up to CONVERSATION_SUMMARY_CONTEXT_TURNS turns in runtime context.
+    # In the future, we should use max_tokens_context and document_context_ratio
+    # to determine when to summarize the conversation
+    # i.e. if docoument_context_ratio = 0.3, then we should summarize the conversation
+    # if the number of tokens in the context is greater than (1-0.3) * max_tokens_context
+    CONVERSATION_SUMMARY_INTERVAL_TURNS = values.PositiveIntegerValue(
+        default=25,
+        environ_name="CONVERSATION_SUMMARY_INTERVAL_TURNS",
+        environ_prefix=None,
+    )
+    CONVERSATION_SUMMARY_CONTEXT_TURNS = values.PositiveIntegerValue(
+        default=25,
+        environ_name="CONVERSATION_SUMMARY_CONTEXT_TURNS",
+        environ_prefix=None,
+    )
 
     # These settings are default values used in the default LLM_CONFIGURATIONS
     # They allow a deployment with only one model without a specific configuration file

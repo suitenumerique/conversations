@@ -125,6 +125,11 @@ from core.feature_flags.helpers import is_feature_enabled
 
 from chat import models
 from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
+from chat.agents.history_processors import (
+    SUMMARY_SYSTEM_PREFIX,
+    history_cleanup,
+    should_generate_conversation_summary,
+)
 from chat.agents.local_media_url_processors import (
     update_history_local_urls,
     update_local_urls,
@@ -246,6 +251,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.conversation = conversation
         self.user = user  # authenticated user only
         self.model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID  # HRID of the model to use
+        self.model_configuration = get_model_configuration(self.model_hrid)
         self.language = language  # might be None
         self._last_stop_check = 0
 
@@ -254,7 +260,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.event_encoder = EventEncoder(CURRENT_EVENT_ENCODER_VERSION)  # We use v4 for now
 
         self._support_streaming = True
-        if (streaming := get_model_configuration(self.model_hrid).supports_streaming) is not None:
+        if (streaming := self.model_configuration.supports_streaming) is not None:
             self._support_streaming = streaming
 
         # Feature flags
@@ -270,6 +276,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             web_search_enabled=self._is_web_search_enabled and self._is_smart_search_enabled,
         )
         self._web_search_tool_registered = False
+        self._history_summary: str | None = (conversation.history_summary or "").strip() or None
+        self._conversation_summary_interval_turns = max(
+            settings.CONVERSATION_SUMMARY_INTERVAL_TURNS, 1
+        )
+        self._conversation_summary_context_turns = max(
+            settings.CONVERSATION_SUMMARY_CONTEXT_TURNS, 1
+        )
+        self._history_summary_generated_for_run = False
 
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
@@ -281,6 +295,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if self._langfuse_available
             else False,
             deps_type=ContextDeps,
+            history_processors=[self._history_processor],
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
 
@@ -295,6 +310,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             @self.conversation_agent.instructions
             def project_instructions() -> str:
                 return llm_user_instructions
+
+        @self.conversation_agent.instructions
+        def history_summary_instructions() -> str:
+            if not self._history_summary:
+                return ""
+            return f"{SUMMARY_SYSTEM_PREFIX}{self._history_summary.strip()}"
 
     @property
     def _stop_cache_key(self):
@@ -386,8 +407,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # --------------------------------------------------------------------- #
 
     async def _prepare_agent_run(
-        self, messages: List[UIMessage]
-    ) -> Tuple[str, List, List, Dict[str, str], Dict[str, Union[int, float]], List, bool]:
+        self, messages: List[UIMessage], history: List[ModelMessage]
+    ) -> Tuple[
+        str,
+        List,
+        List,
+        Dict[str, str],
+        Dict[str, Union[int, float]],
+        List,
+        bool,
+    ]:
         """
         Prepare all inputs needed before running the agent.
 
@@ -409,7 +438,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             - history: Validated message history for the agent
             - conversation_has_documents: Whether RAG should be enabled
         """
-        history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
         history = update_history_local_urls(
             self.conversation, history
         )  # presign URLs for local images
@@ -449,6 +477,20 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             history,
             conversation_has_documents,
         )
+
+    async def _history_processor(self, history: list[ModelMessage]) -> list[ModelMessage]:
+        """Native pydantic-ai history processor for context compaction."""
+        cleanup_result = await history_cleanup(
+            history,
+            previous_summary=self._history_summary,
+            summary_interval_turns=self._conversation_summary_interval_turns,
+            context_turns=self._conversation_summary_context_turns,
+        )
+        self._history_summary_generated_for_run = bool(cleanup_result.summary)
+        if cleanup_result.summary:
+            self._history_summary = cleanup_result.summary
+            self.conversation.history_summary = cleanup_result.summary
+        return cleanup_result.history
 
     def _setup_web_search(self, force_web_search: bool) -> bool:
         """Configure web search if forced. Returns whether web search is actually
@@ -1010,7 +1052,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    async def _run_agent(  # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    async def _run_agent(  # noqa: PLR0912
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
@@ -1031,7 +1074,20 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             )
         else:
             langfuse = None
-
+        # Conversation summary process
+        raw_history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
+        self._history_summary_generated_for_run = False
+        should_emit_summary_event = should_generate_conversation_summary(
+            raw_history,
+            summary_interval_turns=self._conversation_summary_interval_turns,
+        )
+        if should_emit_summary_event:
+            tool_call_id = str(uuid.uuid4())
+            yield events_v4.ToolCallPart(
+                tool_call_id=tool_call_id,
+                tool_name="summarize",
+                args={"state": "running", "summary_scope": "conversation"},
+            )
         (
             user_prompt,
             input_images,
@@ -1040,7 +1096,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             usage,
             history,
             conversation_has_documents,
-        ) = await self._prepare_agent_run(messages)
+        ) = await self._prepare_agent_run(messages, raw_history)
 
         doc_result = None
         async for item in self._handle_input_documents(
@@ -1079,8 +1135,30 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 toolsets=mcp_servers,
             ) as run:
                 state = StreamingState()
+                summary_tool_result_sent = False
+                if should_emit_summary_event and self._history_summary_generated_for_run:
+                    yield events_v4.ToolResultPart(
+                        tool_call_id=tool_call_id,
+                        result={"state": "done"},
+                    )
+                    summary_tool_result_sent = True
                 async for event in self._process_agent_nodes(run, state, langfuse):
+                    if (
+                        should_emit_summary_event
+                        and not summary_tool_result_sent
+                        and self._history_summary_generated_for_run
+                    ):
+                        yield events_v4.ToolResultPart(
+                            tool_call_id=tool_call_id,
+                            result={"state": "done"},
+                        )
+                        summary_tool_result_sent = True
                     yield event
+                if should_emit_summary_event and not summary_tool_result_sent:
+                    yield events_v4.ToolResultPart(
+                        tool_call_id=tool_call_id,
+                        result={"state": "done"},
+                    )
 
                 # Extract values from run before exiting the context manager
                 new_messages = run.result.new_messages()

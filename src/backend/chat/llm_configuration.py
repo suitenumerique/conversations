@@ -141,10 +141,21 @@ class LLModel(BaseModel):
     is_active: bool
     icon: LongStringAsListValue | None = None
     supports_streaming: bool | None = None
+    max_token_context: int | None = None
     system_prompt: SettingEnvValue
     tools: list[str]
     web_search: SettingEnvValue | None = None
     concatenate_instruction_messages: bool | None = None
+
+    @field_validator("max_token_context", mode="before")
+    @classmethod
+    def validate_max_token_context(cls, value: Any) -> int | None:
+        """Parse max_token_context from literal, setting, or env value."""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            value = _get_setting_or_env_or_value(value)
+        return int(value)
 
     @field_validator("tools", mode="before")
     @classmethod
