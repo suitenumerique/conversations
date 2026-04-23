@@ -96,7 +96,6 @@ async def _build(conversation, *, max_token_context=100, budget_ratio=0.5, secur
         model_hrid="test-model",
         max_token_context=max_token_context,
         budget_ratio=budget_ratio,
-        security_buffer_tokens=security_buffer,
     )
 
 

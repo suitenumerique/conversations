@@ -245,11 +245,13 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   }, [toolInvocationParts]);
 
   const activeToolInvocation = React.useMemo(() => {
-    const tool = toolInvocationParts.find(
-      (part) =>
-        part.toolInvocation.toolName !== 'document_parsing' &&
-        part.toolInvocation.toolName !== 'conversation_resume',
-    );
+    const tool = [...toolInvocationParts]
+      .reverse()
+      .find(
+        (part) =>
+          part.toolInvocation.toolName !== 'document_parsing' &&
+          part.toolInvocation.state !== 'result',
+      );
     return tool?.toolInvocation;
   }, [toolInvocationParts]);
 
@@ -371,7 +373,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
             {isCurrentlyStreaming &&
               isLastAssistantMessage &&
               status === 'streaming' &&
-              hasNonDocumentParsingTool && (
+              hasNonDocumentParsingTool &&
+              activeToolInvocation && (
                 <Box
                   $direction="row"
                   $align="center"
@@ -386,8 +389,14 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 >
                   <Loader />
                   <Text $variation="600" $size="md">
-                    {activeToolInvocation?.toolName === 'summarize'
-                      ? t('Summarizing...')
+                    {activeToolInvocation.toolName === 'summarize'
+                      ? (
+                          activeToolInvocation.args as {
+                            summary_scope?: string;
+                          }
+                        )?.summary_scope === 'conversation'
+                        ? t('Summarizing conversation...')
+                        : t('Summarizing...')
                       : t('Search...')}
                   </Text>
                 </Box>

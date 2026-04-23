@@ -130,7 +130,12 @@ from core.feature_flags.helpers import is_feature_enabled
 
 from chat import models
 from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
-from chat.agents.history_processors import apply_sliding_window, resolve_conversation_budget
+from chat.agents.history_processors import (
+    SUMMARY_SYSTEM_PREFIX,
+    maybe_summarize_history,
+    safe_clean_tool_history,
+    should_generate_conversation_summary,
+)
 from chat.agents.local_media_url_processors import (
     build_project_image_urls,
     project_has_image_attachments,
@@ -298,6 +303,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.conversation = conversation
         self.user = user  # authenticated user only
         self.model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID  # HRID of the model to use
+        self.model_configuration = get_model_configuration(self.model_hrid)
         self.language = language  # might be None
         self._last_stop_check = 0
         # Events queued during _prepare_agent_run for _run_agent to yield before
@@ -311,7 +317,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.event_encoder = EventEncoder(CURRENT_EVENT_ENCODER_VERSION)  # We use v4 for now
 
         self._support_streaming = True
-        if (streaming := get_model_configuration(self.model_hrid).supports_streaming) is not None:
+        if (streaming := self.model_configuration.supports_streaming) is not None:
             self._support_streaming = streaming
 
         # Feature flags
@@ -328,16 +334,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
         self._web_search_tool_registered = False
         self._self_documentation_tool_registered = False
+        self._history_summary = conversation.history_summary.strip() or None
+        self._history_summary_checkpoint = max(conversation.history_summary_checkpoint, 0)
 
-        _capabilities = (
-            [
-                Instrumentation(
-                    settings=InstrumentationSettings(
-                        include_binary_content=self._store_analytics,
-                        include_content=self._store_analytics,
-                    )
-                )
-            ]
+        self.conversation_agent = ConversationAgent(
+            model_hrid=self.model_hrid,
+            language=self.language,
+            instrument=InstrumentationSettings(
+                include_binary_content=self._store_analytics,
+                include_content=self._store_analytics,
+            )
             if self._langfuse_available
             else []
         )
@@ -346,8 +352,17 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             language=self.language,
             capabilities=_capabilities,
             deps_type=ContextDeps,
+            history_processors=[self._history_processor],
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
+        max_token_context = self.model_configuration.max_token_context or 0
+        usable_token_context = max(
+            max_token_context - settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS,
+            0,
+        )
+        self._conversation_message_token_budget = max(
+            int((1 - settings.DOCUMENT_CONTEXT_BUDGET_RATIO) * usable_token_context), 0
+        )
 
         # Inject project-level custom instructions if the conversation belongs to a project
         llm_user_instructions = (
@@ -360,6 +375,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             @self.conversation_agent.instructions
             def project_instructions() -> str:
                 return llm_user_instructions
+
+        @self.conversation_agent.instructions
+        def history_summary_instructions() -> str:
+            if not self._history_summary:
+                return ""
+            return f"{SUMMARY_SYSTEM_PREFIX}{self._history_summary.strip()}"
 
     @property
     def _stop_cache_key(self):
@@ -560,8 +581,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # --------------------------------------------------------------------- #
 
     async def _prepare_agent_run(
-        self, messages: List[UIMessage]
-    ) -> Tuple[str, List, List, Dict[str, str], Dict[str, Union[int, float]], List, bool]:
+        self, messages: List[UIMessage], history: List[ModelMessage]
+    ) -> Tuple[
+        str,
+        List,
+        List,
+        Dict[str, str],
+        Dict[str, Union[int, float]],
+        List,
+        bool,
+    ]:
         """
         Prepare all inputs needed before running the agent.
 
@@ -585,7 +614,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             - conversation_has_own_documents: Whether this
             conversation has its own (non-project) text attachments
         """
-        history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
         history = update_history_local_urls(
             self.conversation, history
         )  # presign URLs for local images
@@ -691,6 +719,32 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             history,
             conversation_has_own_documents,
         )
+
+    async def _apply_history_cleanup(
+        self, history: list[ModelMessage], *, allow_summary_generation: bool
+    ) -> list[ModelMessage]:
+        """Compact history and persist any generated summary metadata."""
+        cleaned_history = safe_clean_tool_history(history)
+        cleanup_result = await maybe_summarize_history(
+            cleaned_history,
+            previous_summary=self._history_summary,
+            summary_checkpoint=self._history_summary_checkpoint,
+            message_token_budget=self._conversation_message_token_budget,
+            context_messages=settings.CONVERSATION_SUMMARY_CONTEXT_MESSAGES,
+            summary_max_tokens=settings.CONVERSATION_SUMMARY_MAX_TOKENS,
+            allow_summary_generation=allow_summary_generation,
+        )
+        if cleanup_result.summary:
+            self._history_summary = cleanup_result.summary
+            self.conversation.history_summary = cleanup_result.summary
+        if cleanup_result.summary_checkpoint is not None:
+            self._history_summary_checkpoint = cleanup_result.summary_checkpoint
+            self.conversation.history_summary_checkpoint = cleanup_result.summary_checkpoint
+        return cleanup_result.history
+
+    async def _history_processor(self, history: list[ModelMessage]) -> list[ModelMessage]:
+        """Native pydantic-ai history processor for internal tool-cycle cleanup."""
+        return safe_clean_tool_history(history)
 
     def _setup_web_search(self, force_web_search: bool) -> bool:
         """Configure web search if forced. Returns whether web search is actually
@@ -985,7 +1039,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     upload_state=models.AttachmentStatus.READY,
                 ).order_by("created_at", "id")
             )
-        max_token_context = self.conversation_agent.configuration.max_token_context
+        max_token_context = self.model_configuration.max_token_context or 0
+        usable_token_context = max(max_token_context - security_buffer_tokens, 0)
 
         # Cache the DocumentsListing: building it requires reading every text
         # attachment from object storage and tokenizing it. The fingerprint includes
@@ -995,7 +1050,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             f"conv={self.conversation.id}",
             f"user={getattr(self.user, 'id', None)}",
             f"model={self.model_hrid}",
-            f"max_ctx={max_token_context}",
+            f"max_ctx={usable_token_context}",
             f"ratio={budget_ratio}",
             f"buffer={security_buffer_tokens}",
             *(f"{att.id}:{att.updated_at.isoformat()}" for att in text_attachments),
@@ -1015,9 +1070,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             text_attachments=text_attachments,
             project_text_attachments=project_text_attachments,
             model_hrid=self.model_hrid,
-            max_token_context=max_token_context,
+            max_token_context=usable_token_context,
             budget_ratio=budget_ratio,
-            security_buffer_tokens=security_buffer_tokens,
         )
         await sync_to_async(cache.set)(cache_key, listing, CACHE_TIMEOUT)
         return listing
@@ -1415,7 +1469,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    async def _run_agent(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # noqa: PLR0912
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    async def _run_agent(  # noqa: PLR0912
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
@@ -1427,7 +1482,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Trace-level attributes are propagated by `_stream_content` via
         # `propagate_attributes`; `langfuse` is kept for downstream helpers.
         langfuse = get_client() if self._langfuse_available else None
-
+        raw_history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
         (
             user_prompt,
             input_images,
@@ -1436,15 +1491,28 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             usage,
             history,
             conversation_has_own_documents,
-        ) = await self._prepare_agent_run(messages)
+        ) = await self._prepare_agent_run(messages, raw_history)
+
+        # Conversation summary process. This runs before agent.iter so dynamic
+        # instructions can read the updated summary in the same model request.
+        should_emit_summary_event = should_generate_conversation_summary(
+            history,
+            previous_summary=self._history_summary,
+            summary_checkpoint=self._history_summary_checkpoint,
+            message_token_budget=self._conversation_message_token_budget,
+            context_messages=settings.CONVERSATION_SUMMARY_CONTEXT_MESSAGES,
+        )
+        if should_emit_summary_event:
+            tool_call_id = str(uuid.uuid4())
+            yield events_v4.ToolCallPart(
+                tool_call_id=tool_call_id,
+                tool_name="summarize",
+                args={"state": "running", "summary_scope": "conversation"},
+            )
 
         for pre_event in self._pre_stream_events:
             yield events_v4.DataPart(data=[pre_event])
         self._pre_stream_events = []
-
-        history, was_trimmed = apply_sliding_window(
-            history, resolve_conversation_budget(self.conversation_agent.configuration)
-        )
 
         # Re-index (or report busy) when the conversation has READY attachments and
         # its index is not current. INDEXING is included: reindex_conversation handles
@@ -1487,10 +1555,17 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if doc_result is None or not doc_result.success:
             return
 
-        if was_trimmed:
-            yield events_v4.DataPart(data=[{"type": "context_trimmed"}])
-
         conversation_has_own_documents = doc_result.has_documents
+
+        history = await self._apply_history_cleanup(
+            history,
+            allow_summary_generation=should_emit_summary_event,
+        )
+        if should_emit_summary_event:
+            yield events_v4.ToolResultPart(
+                tool_call_id=tool_call_id,
+                result={"state": "done"},
+            )
 
         await self._agent_stop_streaming(force_cache_check=True)
         self._setup_self_documentation_tool()
@@ -1509,10 +1584,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if history and history[-1].kind == "request":
                 if history[-1].parts and history[-1].parts[-1].part_kind == "tool-return":
                     history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
+            message_history = history if history else None
 
             async with self.conversation_agent.iter(
                 [user_prompt] + input_images,
-                message_history=history,  # history will pass through agent's history_processors
+                # History passes through history_processors when set on the agent.
+                message_history=message_history,
                 deps=self._context_deps,
                 toolsets=mcp_servers,
             ) as run:

@@ -116,7 +116,8 @@ async def test_thinking_parts_stripped_when_model_does_not_support_thinking():
         ),
         patch("chat.clients.pydantic_ai.update_history_local_urls", side_effect=lambda _conv, h: h),
     ):
-        _, _, _, _, _, history, _ = await service._prepare_agent_run([ui_message])
+        raw_history = ModelMessagesTypeAdapter.validate_python(conversation.pydantic_messages)
+        _, _, _, _, _, history, _ = await service._prepare_agent_run([ui_message], raw_history)
 
     assert len(history) == 1
     assert isinstance(history[0], ModelResponse)
@@ -145,7 +146,8 @@ async def test_thinking_parts_kept_when_model_supports_thinking():
         ),
         patch("chat.clients.pydantic_ai.update_history_local_urls", side_effect=lambda _conv, h: h),
     ):
-        _, _, _, _, _, history, _ = await service._prepare_agent_run([ui_message])
+        raw_history = ModelMessagesTypeAdapter.validate_python(conversation.pydantic_messages)
+        _, _, _, _, _, history, _ = await service._prepare_agent_run([ui_message], raw_history)
 
     assert len(history) == 1
     assert isinstance(history[0], ModelResponse)
