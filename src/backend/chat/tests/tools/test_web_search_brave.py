@@ -31,6 +31,12 @@ BRAVE_WEB_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 BRAVE_LLM_CONTEXT_URL = "https://api.search.brave.com/res/v1/llm/context"
 
 
+def _assert_tagged_snippet(snippet: str, citation_id: str, expected_content: str) -> None:
+    """Assert that a snippet is wrapped with the expected reference ID."""
+    assert snippet.startswith(f"[ref:{citation_id}] ")
+    assert snippet.endswith(expected_content)
+
+
 @pytest.fixture(autouse=True)
 def brave_settings(settings):
     """Define Brave settings for tests."""
@@ -96,15 +102,15 @@ async def test_agent_web_search_brave_success_with_extra_snippets(mocked_context
         tool_return = await web_search_brave(mocked_context, "test query")
 
     assert hasattr(tool_return, "return_value")
-    assert tool_return.return_value == {
-        "0": {
-            "snippets": ["Snippet A1", "Snippet A2"],
-            "title": "Result A",
-            "url": "https://example.com/a",
-        },
-        "1": {"snippets": ["Snippet B1"], "title": "Result B", "url": "https://example.com/b"},
-    }
-    assert tool_return.metadata["sources"] == {"https://example.com/a", "https://example.com/b"}
+    _assert_tagged_snippet(tool_return.return_value["0"]["snippets"][0], "web_0_0", "Snippet A1")
+    _assert_tagged_snippet(tool_return.return_value["0"]["snippets"][1], "web_0_1", "Snippet A2")
+    _assert_tagged_snippet(tool_return.return_value["1"]["snippets"][0], "web_1_0", "Snippet B1")
+    assert tool_return.return_value["0"]["title"] == "Result A"
+    assert tool_return.return_value["1"]["title"] == "Result B"
+    assert tool_return.return_value["0"]["url"] == "https://example.com/a"
+    assert tool_return.return_value["1"]["url"] == "https://example.com/b"
+    assert tool_return.metadata["sources"] == ["https://example.com/a", "https://example.com/b"]
+    assert tool_return.metadata["citation_ids"] == {"web_0_0", "web_0_1", "web_1_0"}
 
     # Check request parameters
     brave_request = respx.calls[0].request
@@ -151,14 +157,12 @@ async def test_agent_web_search_brave_success_without_extra_snippets(mocked_cont
 
                 tool_return = await web_search_brave(mocked_context, "test query")
 
-    assert tool_return.return_value == {
-        "0": {
-            "snippets": ["Extracted Content C\nlink"],
-            "title": "Result C",
-            "url": "https://example.com/c",
-        }
-    }
-    assert tool_return.metadata["sources"] == {"https://example.com/c"}
+    _assert_tagged_snippet(
+        tool_return.return_value["0"]["snippets"][0], "web_0_0", "Extracted Content C\nlink"
+    )
+    assert tool_return.return_value["0"]["title"] == "Result C"
+    assert tool_return.return_value["0"]["url"] == "https://example.com/c"
+    assert tool_return.metadata["sources"] == ["https://example.com/c"]
 
 
 @pytest.mark.asyncio
@@ -203,14 +207,14 @@ async def test_agent_web_search_brave_success_without_extra_snippets_summarizati
 
                 mock_summarize.assert_called_with("test query", "Extracted Content C\nlink")
 
-    assert tool_return.return_value == {
-        "0": {
-            "snippets": ["Summarized extracted Content C\nlink"],
-            "title": "Result C",
-            "url": "https://example.com/c",
-        }
-    }
-    assert tool_return.metadata["sources"] == {"https://example.com/c"}
+    _assert_tagged_snippet(
+        tool_return.return_value["0"]["snippets"][0],
+        "web_0_0",
+        "Summarized extracted Content C\nlink",
+    )
+    assert tool_return.return_value["0"]["title"] == "Result C"
+    assert tool_return.return_value["0"]["url"] == "https://example.com/c"
+    assert tool_return.metadata["sources"] == ["https://example.com/c"]
 
 
 @pytest.mark.asyncio
@@ -436,13 +440,13 @@ async def test_web_search_brave_with_document_backend_success(mocked_context):
 
     assert len(tool_return.return_value) == 2
     assert tool_return.return_value["0"]["url"] == "https://example.com/doc1"
-    assert tool_return.return_value["0"]["snippets"] == ["RAG Content 1"]
+    _assert_tagged_snippet(tool_return.return_value["0"]["snippets"][0], "web_0_0", "RAG Content 1")
     assert tool_return.return_value["1"]["url"] == "https://example.com/doc2"
-    assert tool_return.return_value["1"]["snippets"] == ["RAG Content 2"]
-    assert tool_return.metadata["sources"] == {
+    _assert_tagged_snippet(tool_return.return_value["1"]["snippets"][0], "web_1_0", "RAG Content 2")
+    assert tool_return.metadata["sources"] == [
         "https://example.com/doc1",
         "https://example.com/doc2",
-    }
+    ]
 
     # Verify usage was updated
     assert mocked_context.usage.input_tokens == 10
@@ -803,8 +807,8 @@ async def test_web_search_brave_mixed_results(mocked_context):
                 tool_return = await web_search_brave(mocked_context, "mixed query")
 
     assert len(tool_return.return_value) == 2
-    assert tool_return.return_value["0"]["snippets"] == ["Snippet 1"]
-    assert tool_return.return_value["1"]["snippets"] == ["Extracted"]
+    _assert_tagged_snippet(tool_return.return_value["0"]["snippets"][0], "web_0_0", "Snippet 1")
+    _assert_tagged_snippet(tool_return.return_value["1"]["snippets"][0], "web_1_0", "Extracted")
     # Only one fetch should have happened (for the one without snippets)
     assert mock_fetch.call_count == 1
 
@@ -1072,16 +1076,18 @@ def test_format_tool_return():
     assert len(tool_return.return_value) == 2
     assert tool_return.return_value["0"]["url"] == "https://example.com/1"
     assert tool_return.return_value["0"]["title"] == "Result 1"
-    assert tool_return.return_value["0"]["snippets"] == ["Snippet 1A", "Snippet 1B"]
+    _assert_tagged_snippet(tool_return.return_value["0"]["snippets"][0], "web_0_0", "Snippet 1A")
+    _assert_tagged_snippet(tool_return.return_value["0"]["snippets"][1], "web_0_1", "Snippet 1B")
     assert tool_return.return_value["1"]["url"] == "https://example.com/2"
     assert tool_return.return_value["1"]["title"] == "Result 2"
-    assert tool_return.return_value["1"]["snippets"] == ["Snippet 2A"]
+    _assert_tagged_snippet(tool_return.return_value["1"]["snippets"][0], "web_1_0", "Snippet 2A")
 
     # Sources should only include URLs with snippets
-    assert tool_return.metadata["sources"] == {
+    assert tool_return.metadata["sources"] == [
         "https://example.com/1",
         "https://example.com/2",
-    }
+    ]
+    assert tool_return.metadata["citation_ids"] == {"web_0_0", "web_0_1", "web_1_0"}
 
 
 def test_format_tool_return_empty_snippets():

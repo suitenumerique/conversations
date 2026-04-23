@@ -37,11 +37,14 @@ class StreamingState:
             from web search or RAG). These are appended to the final UI message.
         model_response_message_id: Set when the agent reaches the end node.
             Used to link the UI message to the Langfuse trace for scoring.
+        allowed_web_citation_ids: Citation IDs returned by web-search tools.
+            Used to strip hallucinated inline ``<ref>`` tags before persist.
     """
 
     tool_is_streaming: bool = False
     ui_sources: List[SourceUIPart] = dataclasses.field(default_factory=list)
     model_response_message_id: Optional[str] = None
+    allowed_web_citation_ids: set[str] = dataclasses.field(default_factory=set)
 
 
 @dataclasses.dataclass
