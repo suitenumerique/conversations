@@ -31,6 +31,7 @@ and this project adheres to
 - 🐛(fix) new conversation in project button max size
 - 💄(ui) little fix margin top
 - 💄(ui) review ui for part of the project
+- ✨(dev) setup Tilt for local development
 
 ## [0.0.15] - 2026-03-31
 
