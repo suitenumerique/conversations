@@ -1,0 +1,113 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  rules:
+  - host: "conversations-keycloak.127.0.0.1.nip.io"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: keycloak
+            port:
+              number: 8080
+  tls:
+  - hosts:
+    - conversations-keycloak.127.0.0.1.nip.io
+    secretName: conversations-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  ports:
+  - name: tcp-keycloak
+    port: 8080
+    protocol: TCP
+    targetPort: tcp-keycloak
+  selector:
+    app.kubernetes.io/instance: extra
+    app.kubernetes.io/name: keycloak
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: conversations-keycloak
+  namespace: {{ .Release.Namespace | quote }}
+data:
+  conversations.json: |
+{{ .Values.realm | indent 4 }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keycloak
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: extra
+      app.kubernetes.io/name: keycloak
+  serviceName: "keycloak"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: extra
+        app.kubernetes.io/name: keycloak
+    spec:
+      terminationGracePeriodSeconds: 10
+      automountServiceAccountToken: false
+      containers:
+      - name: keycloak
+        image: quay.io/keycloak/keycloak:22.0.5
+        args:
+          - start-dev
+          - --import-realm
+          - --proxy=edge
+          - --hostname=conversations-keycloak.127.0.0.1.nip.io
+          - --hostname-strict=false
+          - --hostname-strict-https=false
+        ports:
+        - containerPort: 8080
+          name: tcp-keycloak
+        env:
+          - name: KEYCLOAK_ADMIN
+            value: su
+          - name: KEYCLOAK_ADMIN_PASSWORD
+            value: su
+          - name: KC_DB
+            value: postgres
+          - name: KC_DB_URL_HOST
+            value: kc-postgres
+          - name: KC_DB_URL_DATABASE
+            value: keycloak
+          - name: KC_DB_PASSWORD
+            value: keycloak
+          - name: KC_DB_USERNAME
+            value: keycloak
+          - name: KC_DB_SCHEMA
+            value: public
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+        volumeMounts:
+        - name: realm
+          mountPath: "/opt/keycloak/data/import"
+          readOnly: true
+      volumes:
+      - name: realm
+        configMap:
+          name: conversations-keycloak
