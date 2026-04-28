@@ -1,10 +1,13 @@
 """Tests for the BaseAgent class and its model initialization logic."""
 
 # pylint: disable=protected-access
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
 import pytest
 from pydantic_ai.capabilities import Hooks
 from pydantic_ai.models.mistral import MistralModel
-from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.models.openai import OpenAIChatModel, OpenAIStreamedResponse
 
 from chat.agents.base import BaseAgent
 from chat.llm_configuration import LLModel, LLMProfile, LLMProvider
@@ -176,3 +179,76 @@ def test_custom_model_albert(settings):
 
     assert isinstance(agent._model, AlbertOpenAIChatModel)
     assert isinstance(agent._model._provider, AlbertOpenAIProvider)
+
+
+def test_custom_model_openai_patches_text_delta(settings):
+    """Test that the OpenAI monkey patch for list content is applied."""
+    settings.LLM_CONFIGURATIONS = {
+        "openai-model": LLModel(
+            hrid="openai-model",
+            model_name="gpt-4",
+            human_readable_name="OpenAI Model",
+            provider=LLMProvider(
+                hrid="openai",
+                kind="openai",
+                base_url="https://test.vllm/v1",
+                api_key="testkey",
+            ),
+            is_active=True,
+            system_prompt="direct",
+            tools=[],
+        ),
+    }
+    BaseAgent(model_hrid="openai-model")
+
+    import pydantic_ai.models.openai as openai_models  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
+
+    assert openai_models.__safe_text_delta_patched__ is True
+
+
+@pytest.mark.parametrize(
+    "content_input,expected",
+    [
+        (["hello", " world"], "hello world"),
+        ([{"type": "text", "text": "hello"}, {"type": "text", "text": " world"}], "hello world"),
+        (["hello", {"type": "text", "text": " world"}], "hello world"),
+        ([{"type": "text", "text": None}], None),
+        ([], None),
+        ("hello", "hello"),
+    ],
+    ids=[
+        "list-of-strings",
+        "list-of-dicts",
+        "mixed",
+        "dict-text-null",
+        "empty-list",
+        "plain-string-noop",
+    ],
+)
+def test_openai_text_delta_normalizes_list_content(settings, content_input, expected):
+    """Test that _map_text_delta normalizes list content to string."""
+    settings.LLM_CONFIGURATIONS = {
+        "openai-model": LLModel(
+            hrid="openai-model",
+            model_name="gpt-4",
+            human_readable_name="OpenAI Model",
+            provider=LLMProvider(
+                hrid="openai",
+                kind="openai",
+                base_url="https://test.vllm/v1",
+                api_key="testkey",
+            ),
+            is_active=True,
+            system_prompt="direct",
+            tools=[],
+        ),
+    }
+    BaseAgent(model_hrid="openai-model")
+
+    choice = SimpleNamespace(delta=SimpleNamespace(content=content_input))
+
+    mock_self = MagicMock()
+    mock_self._parts_manager.handle_text_delta.return_value = iter([])
+    list(OpenAIStreamedResponse._map_text_delta(mock_self, choice))
+
+    assert choice.delta.content == expected
