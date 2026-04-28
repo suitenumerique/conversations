@@ -53,3 +53,16 @@ OIDC_AUTH_REQUEST_EXTRA_PARAMS={"acr_values": "eidas1"}
 # AI_BASE_URL=https://openaiendpoint.com
 AI_API_KEY=password
 # AI_MODEL=llama
+
+# Speech to Text service
+# STT_SERVICE_URL=https://ai-service.example.com
+# STT_SERVICE_API_KEY=
+# STT_WEBHOOK_API_KEY=
+
+# Langfuse observability
+# LANGFUSE_ENABLED=true
+# LANGFUSE_SECRET_KEY=
+# LANGFUSE_PUBLIC_KEY=
+# LANGFUSE_HOST=
+# LANGFUSE_DEBUG=false
+# LANGFUSE_MEDIA_UPLOAD_ENABLED=false

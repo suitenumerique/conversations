@@ -13,6 +13,17 @@ from rest_framework import exceptions
 logger = logging.getLogger(__name__)
 
 
+def is_audio_content_type(content_type: str) -> bool:
+    """Return True if the content type represents an audio file.
+
+    Covers standard audio/* types as well as container formats like application/ogg
+    that browsers may report for audio files.
+    """
+    return content_type.startswith("audio/") or content_type in {
+        "application/ogg",
+    }
+
+
 def auth_get_original_url(request):
     """
     Extracts and parses the original URL from the "HTTP_X_ORIGINAL_URL" header.
