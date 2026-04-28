@@ -25,6 +25,7 @@ and this project adheres to
 - ⚙️(back) get carbon data from albert api provider
 - ✨(tools): update descriptions
 - ✨(auth) add silent OIDC login
+- ⬆️(back) upgrade lxml and pypdf
 
 ### Fixed
 
