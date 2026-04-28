@@ -679,7 +679,7 @@ class Base(BraveSettings, Configuration):
         environ_prefix=None,
     )
     DEFAULT_ALLOW_SMART_WEB_SEARCH = values.BooleanValue(
-        default=True,
+        default=False,
         environ_name="DEFAULT_ALLOW_SMART_WEB_SEARCH",
         environ_prefix=None,
     )
