@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import uuid
 
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -51,8 +52,11 @@ async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
 
 
 @last_model_retry_soft_fail
-async def document_summarize(  # pylint: disable=too-many-locals
-    ctx: RunContext, *, instructions: str | None = None
+async def document_summarize(  # pylint: disable=too-many-locals, too-many-statements  # noqa: PLR0915
+    ctx: RunContext,
+    *,
+    instructions: str | None = None,
+    document_id: str | None = None,
 ) -> ToolReturn:
     """
     Generate a complete, ready-to-use summary of the documents in context
@@ -66,11 +70,14 @@ async def document_summarize(  # pylint: disable=too-many-locals
 
     Examples:
     "Summarize this doc in 2 paragraphs" -> instructions = "summary in 2 paragraphs"
-    "Summarize this doc in English" -> instructions = "In English"
-    "Summarize this doc" -> instructions = "" (default)
+    "Summarize this doc in English" -> instructions = "In English", document_id=None
+    "Summarize this doc" -> instructions = "" (default), document_id=None
+    "Summarize this specific doc" -> instructions = "", document_id=id_from_context
 
     Args:
         instructions (str | None): The instructions the user gave to use for the summarization
+        document_id (str | None): Document UUID from context JSON.
+        If document_id is None, summarize all docs.
     """
     try:
         instructions_hint = (
@@ -79,17 +86,35 @@ async def document_summarize(  # pylint: disable=too-many-locals
         summarization_agent = SummarizationAgent()
 
         # Collect documents content
-        text_attachment = await sync_to_async(list)(
-            ctx.deps.conversation.attachments.filter(
-                content_type__startswith="text/",
-            )
-        )
+        text_attachment_qs = ctx.deps.conversation.attachments.filter(
+            content_type__startswith="text/"
+        ).order_by("created_at", "id")
+        text_attachment = await sync_to_async(list)(text_attachment_qs)
 
         if not text_attachment:
             raise ModelCannotRetry(
                 "No text documents found in the conversation. "
                 "You must explain this to the user and ask them to provide documents."
             )
+
+        if document_id is not None:
+            try:
+                parsed_document_id = uuid.UUID(document_id)
+            except ValueError as exc:
+                raise ModelRetry("Invalid document_id. Expected a valid UUID.") from exc
+
+            selected_attachment = next(
+                (
+                    attachment
+                    for attachment in text_attachment
+                    if getattr(attachment, "id", None) == parsed_document_id
+                    or str(getattr(attachment, "id", "")) == document_id
+                ),
+                None,
+            )
+            if selected_attachment is None:
+                raise ModelRetry("document_id was not found among attached text documents.")
+            text_attachment = [selected_attachment]
 
         documents = [await read_document_content(doc) for doc in text_attachment]
 

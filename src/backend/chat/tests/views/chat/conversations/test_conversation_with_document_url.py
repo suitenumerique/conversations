@@ -1,5 +1,6 @@
 """Unit tests for chat conversation actions with document URL."""
 
+import json
 import uuid
 
 # pylint: disable=too-many-lines
@@ -42,9 +43,11 @@ from chat.tools.descriptions import (
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-def _expected_document_instructions(today_prompt_date: str) -> str:
+def _expected_document_instructions(
+    today_prompt_date: str, document_title: str | None = None
+) -> str:
     """Return expected concatenated system instructions for document conversations."""
-    return (
+    base = (
         "You are a helpful test assistant :)\n\n"
         f"{today_prompt_date}\n\n"
         "Answer in english.\n\n"
@@ -53,7 +56,31 @@ def _expected_document_instructions(today_prompt_date: str) -> str:
         f"{DOCUMENT_SUMMARIZE_SYSTEM_PROMPT}\n\n"
         "[Internal context] User documents are attached to this conversation. "
         "Do not request re-upload of documents; consider them already available "
-        "via the internal store."
+        "either here in context or via the internal store."
+    )
+    if not document_title:
+        return base
+    normalized_title = document_title.removesuffix(".md")
+    # Payload for hybrid document context
+    payload = {
+        "documents_order": "newest_to_oldest",
+        "documents": [
+            {
+                "index": 1,
+                "title": normalized_title,
+                "access": "tool_call_only",
+                "content": None,
+                "info": "first_uploaded_document",
+            }
+        ],
+        "note": (
+            "Documents marked 'tool_call_only' are accessible through "
+            "tools like RAG search or summary."
+        ),
+    }
+    return (
+        f"{base}\n\nList of documents attached to this conversation:\n"
+        f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )
 
 
@@ -159,7 +186,7 @@ def test_post_conversation_with_local_pdf_document_url(
                 parts=[
                     UserPromptPart(content=["What is in this document?"], timestamp=timezone.now())
                 ],
-                instructions=_expected_document_instructions(today_prompt_date),
+                instructions=_expected_document_instructions(today_prompt_date, "sample.pdf"),
                 run_id=messages[0].run_id,
                 timestamp=timezone.now(),
             )
@@ -235,7 +262,7 @@ def test_post_conversation_with_local_pdf_document_url(
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": _expected_document_instructions(today_prompt_date),
+            "instructions": _expected_document_instructions(today_prompt_date, "sample.pdf"),
             "kind": "request",
             "metadata": None,
             "parts": [
@@ -792,8 +819,8 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
 def test_post_conversation_with_local_not_pdf_document_url(
     # pylint: disable=too-many-arguments,too-many-positional-arguments
     api_client,
-    today_prompt_date,
     mock_ai_agent_service,
+    today_prompt_date,
     file_name,
     content_type,
 ):
@@ -868,7 +895,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
                     ),
                 ],
                 timestamp=timestamp_now,
-                instructions=_expected_document_instructions(today_prompt_date),
+                instructions=_expected_document_instructions(today_prompt_date, file_name),
                 run_id=messages[0].run_id,
             )
         ]
@@ -943,7 +970,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
-            "instructions": (_expected_document_instructions(today_prompt_date)),
+            "instructions": (_expected_document_instructions(today_prompt_date, file_name)),
             "kind": "request",
             "metadata": None,
             "parts": [

@@ -284,12 +284,14 @@ def test_document_search_rag_tool_execution(settings):
         "k": 4,
         "prompt": "a",
         "score_threshold": 0.6,
+        "metadata_filters": None,
     }
     assert json.loads(search_mock.calls[1].request.content) == {
         "collections": [200],
         "k": 4,
         "prompt": "a",
         "score_threshold": 0.6,
+        "metadata_filters": None,
     }
 
 
@@ -354,6 +356,7 @@ async def test_add_document_rag_search_tool_function_call(settings):
         "k": 4,
         "prompt": "Find information about French laws.",
         "score_threshold": 0.6,
+        "metadata_filters": None,
     }
 
 

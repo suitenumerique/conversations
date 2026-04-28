@@ -1,6 +1,7 @@
 """Tests for document_summarize functionality."""
 
 import io
+import uuid
 from unittest import mock
 
 from django.core.files.storage import default_storage
@@ -206,6 +207,57 @@ async def test_document_summarize_multiple_documents(
 
         assert result.return_value == "Combined summary of all documents"
         assert result.metadata["sources"] == {"doc1.txt", "doc2.txt"}
+
+
+@pytest.mark.asyncio
+async def test_document_summarize_document_id_selects_attachment(
+    settings, mocked_context, mock_summarization_agent
+):
+    """document_id must select the matching attachment from context."""
+    settings.SUMMARIZATION_CHUNK_SIZE = 50
+    settings.SUMMARIZATION_OVERLAP_SIZE = 5
+    settings.SUMMARIZATION_CONCURRENT_REQUESTS = 2
+
+    mock_conversation = mock.Mock()
+    mock_attachment1 = mock.Mock()
+    mock_attachment1.id = uuid.uuid4()
+    mock_attachment1.key = "doc1.txt"
+    mock_attachment1.file_name = "doc1.txt"
+    mock_attachment1.content_type = "text/plain"
+
+    mock_attachment2 = mock.Mock()
+    mock_attachment2.id = uuid.uuid4()
+    mock_attachment2.key = "doc2.txt"
+    mock_attachment2.file_name = "doc2.txt"
+    mock_attachment2.content_type = "text/plain"
+
+    mock_conversation.attachments.filter.return_value = [mock_attachment1, mock_attachment2]
+
+    file_content1 = "Content of document one. " * 10
+    file_content2 = "Content of document two. " * 10
+
+    def mock_open_side_effect(key):
+        if key == "doc1.txt":
+            return io.BytesIO(file_content1.encode("utf-8"))
+        return io.BytesIO(file_content2.encode("utf-8"))
+
+    with mock.patch.object(default_storage, "open", side_effect=mock_open_side_effect):
+        mocked_context.deps = mock.Mock()
+        mocked_context.deps.conversation = mock_conversation
+
+        def mocked_summary_for_selected_doc(messages, _info=None):
+            messages_text = messages[0].parts[-1].content
+            if "Produce a coherent synthesis" in messages_text:
+                return ModelResponse(parts=[TextPart(content="Summary for selected document")])
+            return ModelResponse(parts=[TextPart(content="Chunk summary")])
+
+        with mock_summarization_agent(FunctionModel(mocked_summary_for_selected_doc)):
+            result = await document_summarize(
+                mocked_context, instructions=None, document_id=str(mock_attachment2.id)
+            )
+
+        assert result.return_value == "Summary for selected document"
+        assert result.metadata["sources"] == {"doc2.txt"}
 
 
 @pytest.mark.asyncio

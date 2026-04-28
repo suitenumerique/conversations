@@ -48,9 +48,11 @@ from chat.tools.descriptions import (
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-def _expected_document_instructions(today_prompt_date: str) -> str:
+def _expected_document_instructions(
+    today_prompt_date: str, document_title: str | None = None
+) -> str:
     """Return expected concatenated system instructions for document conversations."""
-    return (
+    base = (
         "You are a helpful test assistant :)\n\n"
         f"{today_prompt_date}\n\n"
         "Answer in english.\n\n"
@@ -58,8 +60,32 @@ def _expected_document_instructions(today_prompt_date: str) -> str:
         f"{DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT}\n\n"
         f"{DOCUMENT_SUMMARIZE_SYSTEM_PROMPT}\n\n"
         "[Internal context] User documents are attached to this conversation. "
-        "Do not request re-upload of documents; consider them already "
-        "available via the internal store."
+        "Do not request re-upload of documents; consider them already available "
+        "either here in context or via the internal store."
+    )
+    if not document_title:
+        return base
+    normalized_title = document_title.removesuffix(".md")
+    # Payload for hybrid document context
+    payload = {
+        "documents_order": "newest_to_oldest",
+        "documents": [
+            {
+                "index": 1,
+                "title": normalized_title,
+                "access": "tool_call_only",
+                "content": None,
+                "info": "first_uploaded_document",
+            }
+        ],
+        "note": (
+            "Documents marked 'tool_call_only' are accessible through "
+            "tools like RAG search or summary."
+        ),
+    }
+    return (
+        f"{base}\n\nList of documents attached to this conversation:\n"
+        f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )
 
 
@@ -520,7 +546,7 @@ def test_post_conversation_with_document_upload(
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
 
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": _expected_document_instructions(today_prompt_date),
+        "instructions": _expected_document_instructions(today_prompt_date, "sample.pdf"),
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -533,6 +559,17 @@ def test_post_conversation_with_document_upload(
         "run_id": _run_id,
         "timestamp": timezone_now,
     }
+    assert (
+        f"{today_prompt_date}\n\nAnswer in english."
+        in chat_conversation.pydantic_messages[0]["instructions"]
+    )
+    assert (
+        "User documents are attached to this conversation."
+        in chat_conversation.pydantic_messages[0]["instructions"]
+    )
+    assert (
+        "consider them already available" in chat_conversation.pydantic_messages[0]["instructions"]
+    )
     assert chat_conversation.pydantic_messages[1] == {
         "finish_reason": None,
         "kind": "response",
@@ -567,7 +604,7 @@ def test_post_conversation_with_document_upload(
         "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": _expected_document_instructions(today_prompt_date),
+        "instructions": _expected_document_instructions(today_prompt_date, "sample.pdf"),
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -590,6 +627,17 @@ def test_post_conversation_with_document_upload(
         "run_id": _run_id,
         "timestamp": timezone_now,
     }
+    assert (
+        f"{today_prompt_date}\n\nAnswer in english."
+        in chat_conversation.pydantic_messages[2]["instructions"]
+    )
+    assert (
+        "User documents are attached to this conversation."
+        in chat_conversation.pydantic_messages[2]["instructions"]
+    )
+    assert (
+        "consider them already available" in chat_conversation.pydantic_messages[2]["instructions"]
+    )
     assert chat_conversation.pydantic_messages[3] == {
         "finish_reason": None,
         "kind": "response",
@@ -834,7 +882,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": _expected_document_instructions(today_prompt_date),
+        "instructions": _expected_document_instructions(today_prompt_date, "sample.pdf"),
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -847,6 +895,17 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "run_id": _run_id,
         "timestamp": timezone_now,
     }
+    assert (
+        f"{today_prompt_date}\n\nAnswer in english."
+        in chat_conversation.pydantic_messages[0]["instructions"]
+    )
+    assert (
+        "User documents are attached to this conversation."
+        in chat_conversation.pydantic_messages[0]["instructions"]
+    )
+    assert (
+        "consider them already available" in chat_conversation.pydantic_messages[0]["instructions"]
+    )
     assert chat_conversation.pydantic_messages[1] == {
         "finish_reason": None,
         "kind": "response",
@@ -881,7 +940,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": _expected_document_instructions(today_prompt_date),
+        "instructions": _expected_document_instructions(today_prompt_date, "sample.pdf"),
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -898,6 +957,17 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "run_id": _run_id,
         "timestamp": timezone_now,
     }
+    assert (
+        f"{today_prompt_date}\n\nAnswer in english."
+        in chat_conversation.pydantic_messages[2]["instructions"]
+    )
+    assert (
+        "User documents are attached to this conversation."
+        in chat_conversation.pydantic_messages[2]["instructions"]
+    )
+    assert (
+        "consider them already available" in chat_conversation.pydantic_messages[2]["instructions"]
+    )
     assert chat_conversation.pydantic_messages[3] == {
         "finish_reason": None,
         "kind": "response",
@@ -1076,7 +1146,7 @@ def test_post_conversation_with_odt_document_upload(
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
 
     assert chat_conversation.pydantic_messages[0] == {
-        "instructions": _expected_document_instructions(today_prompt_date),
+        "instructions": _expected_document_instructions(today_prompt_date, "sample.odt"),
         "kind": "request",
         "metadata": None,
         "parts": [
@@ -1123,7 +1193,7 @@ def test_post_conversation_with_odt_document_upload(
         "run_id": _run_id,
     }
     assert chat_conversation.pydantic_messages[2] == {
-        "instructions": _expected_document_instructions(today_prompt_date),
+        "instructions": _expected_document_instructions(today_prompt_date, "sample.odt"),
         "kind": "request",
         "metadata": None,
         "parts": [

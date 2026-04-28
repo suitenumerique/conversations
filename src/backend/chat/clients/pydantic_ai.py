@@ -95,6 +95,7 @@ from django.db.models import Q
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
+import tiktoken
 from asgiref.sync import sync_to_async
 from langfuse import get_client
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
@@ -141,6 +142,7 @@ from chat.clients.pydantic_ui_message_converter import (
     model_message_to_ui_message,
     ui_message_to_user_content,
 )
+from chat.document_context_builder import build_document_context_instruction
 from chat.mcp_servers import get_mcp_servers
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
@@ -164,6 +166,30 @@ User = get_user_model()
 
 CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
 DOCUMENT_URL_PREFIX = "/media-key/"
+TOKEN_ENCODING = tiktoken.get_encoding("cl100k_base")
+
+
+def count_approx_tokens(text: str) -> int:
+    """Estimate token count using tiktoken."""
+    if not text:
+        return 0
+    try:
+        tiktoken_len = len(TOKEN_ENCODING.encode(text))
+        logger.debug("Tiktoken length: %s", tiktoken_len)
+        return tiktoken_len
+    except Exception:  # pylint: disable=broad-except #noqa: BLE001
+        logger.warning("Failed to estimate tokens with tiktoken, falling back to heuristic.")
+        non_space_chars = len("".join(text.split()))
+        if non_space_chars == 0:
+            return 0
+        return non_space_chars // 3 + (1 if non_space_chars % 3 else 0)
+
+
+@sync_to_async
+def read_attachment_content(attachment: models.ChatConversationAttachment) -> tuple[str, str]:
+    """Read text attachment content from object storage."""
+    with default_storage.open(attachment.key) as file:
+        return attachment.file_name, file.read().decode("utf-8")
 
 
 @dataclasses.dataclass
@@ -687,7 +713,38 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         return user_prompt[0], attachment_images, attachment_documents
 
-    def _setup_rag_tools(self) -> None:
+    def _get_document_context_budget_ratio(self) -> float:
+        """Return a validated document-context ratio from settings."""
+        budget_ratio = getattr(settings, "DOCUMENT_CONTEXT_BUDGET_RATIO", 0.5)
+        if budget_ratio < 0 or budget_ratio > 1:
+            logger.warning(
+                "Invalid DOCUMENT_CONTEXT_BUDGET_RATIO=%s, falling back to 0.5",
+                budget_ratio,
+            )
+            return 0.5
+        return budget_ratio
+
+    async def _build_document_context_instruction(self) -> str:
+        budget_ratio = self._get_document_context_budget_ratio()
+        security_buffer_tokens = getattr(settings, "DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS", 1000)
+        text_attachments = await sync_to_async(list)(
+            self.conversation.attachments.filter(content_type__startswith="text/").order_by(
+                "created_at", "id"
+            )
+        )
+        model_max_context = self.conversation_agent.configuration.max_token_context
+        return await build_document_context_instruction(
+            text_attachments=text_attachments,
+            model_hrid=self.model_hrid,
+            model_max_context=model_max_context,
+            budget_ratio=budget_ratio,
+            security_buffer_tokens=security_buffer_tokens,
+            read_attachment_content=read_attachment_content,
+            count_approx_tokens=count_approx_tokens,
+            logger=logger,
+        )
+
+    def _setup_rag_tools(self, document_context_instruction: str = "") -> None:
         """Register RAG-related tools and instructions on the conversation agent."""
         add_document_rag_search_tool(self.conversation_agent)
 
@@ -698,11 +755,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Inform the model (system-level) that documents are attached and available
         @self.conversation_agent.instructions
         def attached_documents_note() -> str:
-            return (
+            base_note = (
                 "[Internal context] User documents are attached to this conversation. "
                 "Do not request re-upload of documents; consider them already available "
-                "via the internal store."
+                "either here in context or via the internal store."
             )
+            if not document_context_instruction:
+                return base_note
+            return f"{base_note}\n\n{document_context_instruction}"
 
         @self.conversation_agent.tool(
             name="summarize",
@@ -1094,7 +1154,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._setup_web_search(force_web_search)
 
         if await self._check_should_enable_rag(conversation_has_documents):
-            self._setup_rag_tools()
+            document_context_instruction = await self._build_document_context_instruction()
+            self._setup_rag_tools(document_context_instruction=document_context_instruction)
 
         async with AsyncExitStack() as stack:
             # MCP servers (if any) can be initialized here
