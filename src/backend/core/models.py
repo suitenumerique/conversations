@@ -169,7 +169,7 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
 
     allow_smart_web_search = models.BooleanField(
         _("allow smart web search"),
-        default=True,
+        default=False,
         help_text=_("Whether the user allows to use smart web search features."),
     )
 

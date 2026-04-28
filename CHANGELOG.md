@@ -27,6 +27,7 @@ and this project adheres to
 - ✨(tools): update descriptions
 - ✨(auth) add silent OIDC login
 - ⬆️(back) upgrade lxml and pypdf
+- ✨(back) set allow_smart_web_search to False for all users
 
 ### Fixed
 
