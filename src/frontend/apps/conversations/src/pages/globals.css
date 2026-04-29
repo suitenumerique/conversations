@@ -89,6 +89,19 @@ nextjs-portal {
     'Material Icons', 'Material Symbols Outlined', sans-serif !important;
 }
 
+.c__modal--tab .c__modal__tab-sidebar {
+  padding: var(--c--globals--spacings--md) var(--c--globals--spacings--base);
+}
+
+.c__modal--tab .c__modal__tab-content__head {
+  padding: var(--c--globals--spacings--md);
+  padding-bottom: 0;
+}
+
+.c__modal--tab .c__modal__tab-content .c__modal__content {
+  padding: var(--c--globals--spacings--md);
+}
+
 .material-icons,
 .material-icons-filled,
 .material-symbols-outlined {
@@ -435,6 +448,10 @@ figure[data-rehype-pretty-code-figure] > pre > code {
   justify-content: center;
   width: 32px;
   height: 32px;
+}
+
+.c__avatar.small {
+  min-width: 24px;
 }
 
 .sr-only {

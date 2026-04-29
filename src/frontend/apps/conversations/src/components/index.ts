@@ -8,7 +8,6 @@ export * from './InfiniteScroll';
 export * from './Link';
 export * from './Loader';
 export * from './LoadMoreText';
-export * from './SideModal';
 export * from './separators';
 export * from './Text';
 export * from './TextErrors';

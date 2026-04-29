@@ -50,6 +50,10 @@ const getComponentTokens = (
 
 const DEFAULT_THEME: BaseTheme = 'default';
 const defaultTokens = getMergedTokens(DEFAULT_THEME);
+const getSystemPrefersDark = () =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-color-scheme: dark)').matches;
 
 const initialState: ThemeStore = {
   colorsTokens: defaultTokens.globals.colors,
@@ -65,8 +69,16 @@ const initialState: ThemeStore = {
   toggleDarkMode: () => {},
 };
 
-const getIsDarkMode = () =>
-  useChatPreferencesStore.getState?.()?.isDarkModePreference ?? false;
+const getIsDarkMode = () => {
+  const mode = useChatPreferencesStore.getState?.()?.themeModePreference;
+  if (mode === 'dark') {
+    return true;
+  }
+  if (mode === 'light') {
+    return false;
+  }
+  return getSystemPrefersDark();
+};
 
 const resolveTheme = (baseTheme: BaseTheme, isDarkMode: boolean): Theme => {
   if (!isDarkMode) {
@@ -104,10 +116,25 @@ export const useCunninghamTheme = create<ThemeStore>()((set) => ({
 
 // Sync theme when isDarkModePreference changes (e.g. persist rehydration)
 useChatPreferencesStore.subscribe?.((state, prev) => {
-  if (state.isDarkModePreference !== prev.isDarkModePreference) {
+  if (
+    state.themeModePreference !== prev.themeModePreference ||
+    state.isDarkModePreference !== prev.isDarkModePreference
+  ) {
     const { baseTheme } = useCunninghamTheme.getState();
-    useCunninghamTheme.setState(
-      computeThemeState(baseTheme, state.isDarkModePreference),
-    );
+    useCunninghamTheme.setState(computeThemeState(baseTheme, getIsDarkMode()));
   }
 });
+
+if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+  window
+    .matchMedia('(prefers-color-scheme: dark)')
+    .addEventListener('change', () => {
+      if (useChatPreferencesStore.getState().themeModePreference !== 'system') {
+        return;
+      }
+      const { baseTheme } = useCunninghamTheme.getState();
+      useCunninghamTheme.setState(
+        computeThemeState(baseTheme, getSystemPrefersDark()),
+      );
+    });
+}

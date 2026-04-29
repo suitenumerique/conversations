@@ -53,6 +53,7 @@ const StyledButton = styled(Button)<StyledButtonProps>`
 export interface DropButtonProps {
   button: ReactNode;
   buttonCss?: BoxProps['$css'];
+  buttonColor?: string;
   isOpen?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
   label?: string;
@@ -62,6 +63,7 @@ export interface DropButtonProps {
 export const DropButton = ({
   button,
   buttonCss,
+  buttonColor: _buttonColor,
   isOpen = false,
   onOpenChange,
   children,

@@ -19,6 +19,7 @@ and this project adheres to
 
 ### Changed
 
+- ✨(settings) new settings modal
 - 🐛(fix) source links should open a new tab
 - 💄(ui) codeblock light mode
 - ✨(front) allow typing while LLM is generating a response

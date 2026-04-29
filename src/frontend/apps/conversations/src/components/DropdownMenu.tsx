@@ -19,6 +19,7 @@ export type DropdownMenuProps = {
   options: DropdownMenuOption[];
   showArrow?: boolean;
   label?: string;
+  buttonColor?: string;
   buttonCss?: BoxProps['$css'];
   disabled?: boolean;
   topMessage?: string;
@@ -29,6 +30,7 @@ export const DropdownMenu = ({
   children,
   disabled = false,
   showArrow = false,
+  buttonColor = 'neutral',
   buttonCss,
   label,
   topMessage,
@@ -58,6 +60,7 @@ export const DropdownMenu = ({
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       label={label}
+      buttonColor={buttonColor}
       buttonCss={buttonCss}
       button={
         showArrow ? (
@@ -71,7 +74,7 @@ export const DropdownMenu = ({
             $position="relative"
             aria-controls="menu"
           >
-            <Box>{children}</Box>
+            <Box $color={buttonColor}>{children}</Box>
             <Icon
               $css={css`
                 color: var(
