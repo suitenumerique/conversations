@@ -32,7 +32,7 @@ const labelCss = css`
 `;
 
 type LeftPanelMenuItemProps = {
-  icon: ReactNode;
+  icon?: ReactNode;
   label: string;
   onClick: () => void;
   'aria-label': string;

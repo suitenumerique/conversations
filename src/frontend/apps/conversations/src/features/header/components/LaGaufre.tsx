@@ -1,5 +1,4 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import '@gouvfr-lasuite/integration/dist/css/gaufre.css';
 import Script from 'next/script';
 import { useCallback, useEffect, useRef } from 'react';
 
