@@ -388,16 +388,24 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   </Text>
                 </Box>
               )}
-            {toolInvocationParts.map((part, partIndex) =>
-              isCurrentlyStreaming && isLastAssistantMessage ? (
+            {toolInvocationParts.map((part, partIndex) => {
+              const isErrorResult =
+                part.toolInvocation.state === 'result' &&
+                (
+                  part.toolInvocation.result as { state?: string } | undefined
+                )?.state === 'error';
+              const showDuringStream =
+                isCurrentlyStreaming && isLastAssistantMessage;
+              if (!showDuringStream && !isErrorResult) return null;
+              return (
                 <ToolInvocationItem
                   key={`tool-invocation-${partIndex}`}
                   toolInvocation={part.toolInvocation}
                   status={status}
                   hideSearchLoader={true}
                 />
-              ) : null,
-            )}
+              );
+            })}
           </Box>
 
           {message.role === 'assistant' &&
@@ -504,10 +512,15 @@ const arePropsEqual = (
   }
 
   // Check parts changes (for streaming tool invocations and sources)
-  const prevPartsLength = prevProps.message.parts?.length ?? 0;
-  const nextPartsLength = nextProps.message.parts?.length ?? 0;
-  if (prevPartsLength !== nextPartsLength) {
+  const prevParts = prevProps.message.parts ?? [];
+  const nextParts = nextProps.message.parts ?? [];
+  if (prevParts.length !== nextParts.length) {
     return false;
+  }
+  for (let i = 0; i < prevParts.length; i++) {
+    if (prevParts[i] !== nextParts[i]) {
+      return false;
+    }
   }
 
   // Check attachments

@@ -34,6 +34,7 @@ and this project adheres to
 - 💄(ui) little fix margin top
 - 💄(ui) review ui for part of the project
 - 🐛(fix) Fix streaming crash with OpenAI-compatible APIs
+- ✨(dev) setup Tilt for local development
 
 ## [0.0.15] - 2026-03-31
 

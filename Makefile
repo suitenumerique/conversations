@@ -169,6 +169,10 @@ stop: ## stop the development server using Docker
 	@$(COMPOSE_E2E) stop
 .PHONY: stop
 
+restart: ## restart the development server using Docker
+	@$(COMPOSE_E2E) restart
+.PHONY: restart
+
 # -- Backend
 
 demo: ## flush db then create a demo for load testing purpose
@@ -368,9 +372,13 @@ build-k8s-cluster: ## build the kubernetes cluster using kind
 	./bin/start-kind.sh
 .PHONY: build-k8s-cluster
 
-start-tilt: ## start the kubernetes cluster using kind
-	tilt up -f ./bin/Tiltfile
-.PHONY: build-k8s-cluster
+start-tilt: ## start Tilt against the conversations kind cluster
+	tilt up --namespace=conversations -f ./bin/Tiltfile
+.PHONY: start-tilt
+
+stop-tilt: ## stop Tilt and leave the kind cluster running
+	tilt down --namespace=conversations -f ./bin/Tiltfile
+.PHONY: stop-tilt
 
 bump-packages-version: VERSION_TYPE ?= minor
 bump-packages-version: ## bump the version of the project - VERSION_TYPE can be "major", "minor", "patch"
@@ -381,3 +389,4 @@ bump-packages-version: ## bump the version of the project - VERSION_TYPE can be 
 	cd ./src/frontend/packages/eslint-config-conversations/ && yarn version --no-git-tag-version --$(VERSION_TYPE)
 	cd ./src/frontend/packages/i18n/ && yarn version --no-git-tag-version --$(VERSION_TYPE)
 .PHONY: bump-packages-version
+

@@ -123,6 +123,7 @@ from pydantic_ai.messages import (
 )
 
 from core.feature_flags.helpers import is_feature_enabled
+from core.file_upload.utils import is_audio_content_type
 
 from chat import models
 from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
@@ -152,6 +153,7 @@ from chat.tools.document_generic_search_rag import add_document_rag_search_tool_
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize
 from chat.tools.self_documentation import build_self_documentation_payload
+from chat.transcription import wait_for_transcript
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
 
@@ -274,6 +276,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
         self._web_search_tool_registered = False
         self._self_documentation_tool_registered = False
+        self._audio_document_names: list[str] = []
 
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
@@ -383,6 +386,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         It can be used to release resources or perform any necessary cleanup.
         """
         self._last_stop_check = 0
+        self._audio_document_names = []
         await cache.adelete(self._stop_cache_key)
 
     # --------------------------------------------------------------------- #
@@ -540,7 +544,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 logger.debug("v: %s", dataclasses.asdict(node))
                 yield self._handle_end_node(node, langfuse, state)
 
-    async def _parse_input_documents(self, documents: List[BinaryContent | DocumentUrl]):
+    async def _parse_input_documents(self, documents: List[BinaryContent | DocumentUrl]):  # pylint: disable=too-many-branches
         """
         Parse and store input documents in the conversation's document store.
 
@@ -599,17 +603,24 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     # Security check: ensure the document belongs to the conversation
                     if not key.startswith(f"{self.conversation.pk}/"):
                         raise ValueError("Document URL does not belong to the conversation.")
-                    # Retrieve the document data
-                    with default_storage.open(key, "rb") as file:
-                        document_data = file.read()
-                    # Run in thread to avoid blocking the event loop during parsing
-                    parsed_content = await asyncio.to_thread(
-                        document_store.parse_and_store_document,
-                        name=document.identifier,
-                        content_type=document.media_type,
-                        content=document_data,
-                        user_sub=self.user.sub,
-                    )
+                    if is_audio_content_type(document.media_type):
+                        parsed_content = await wait_for_transcript(key, self.conversation)
+                        await document_store.astore_document(
+                            name=document.identifier, content=parsed_content
+                        )
+                        self._audio_document_names.append(document.identifier)
+                    else:
+                        # Retrieve the document data
+                        with default_storage.open(key, "rb") as file:
+                            document_data = file.read()
+                        # Run in thread to avoid blocking the event loop during parsing
+                        parsed_content = await asyncio.to_thread(
+                            document_store.parse_and_store_document,
+                            name=document.identifier,
+                            content_type=document.media_type,
+                            content=document_data,
+                            user_sub=self.user.sub,
+                        )
                 else:
                     # Remote URL
                     raise ValueError("External document URL are not accepted yet.")
@@ -623,7 +634,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     user_sub=self.user.sub,
                 )
 
-            if not document.media_type.startswith("text/"):
+            if not document.media_type.startswith("text/") and not is_audio_content_type(
+                document.media_type
+            ):
                 md_attachment = await models.ChatConversationAttachment.objects.acreate(
                     conversation=self.conversation,
                     uploaded_by=self.user,
@@ -673,8 +686,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 raise ValueError(f"Unsupported UserContent type: {type(content)}")
 
         if attachment_audio:
-            # Should be handled by the frontend, but just in case
-            raise ValueError("Audio attachments are not supported in the current implementation.")
+            # Inline audio data (base64 data URLs) not supported — uploaded audio
+            # files are handled as DocumentUrl and processed via transcript.
+            raise ValueError(
+                "Inline audio binary content is not supported. Upload audio files as attachments."
+            )
         if attachment_video:
             # Should be handled by the frontend, but just in case
             raise ValueError("Video attachments are not supported in the current implementation.")
@@ -702,6 +718,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 "[Internal context] User documents are attached to this conversation. "
                 "Do not request re-upload of documents; consider them already available "
                 "via the internal store."
+            )
+
+        @self.conversation_agent.instructions
+        def audio_transcripts_note() -> str:
+            if not self._audio_document_names:
+                return ""
+            names = ", ".join(self._audio_document_names)
+            return (
+                f"[Internal context] The following audio file(s) have been transcribed "
+                f"and their transcripts are available in the document store: {names}. "
+                "Use the search tool to retrieve the transcript "
+                "before answering questions about them."
             )
 
         @self.conversation_agent.tool(
@@ -803,11 +831,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             yield DocumentParsingResult(success=True, has_documents=conversation_has_documents)
             return
 
+        has_audio = any(
+            isinstance(doc, DocumentUrl) and is_audio_content_type(doc.media_type)
+            for doc in input_documents
+        )
         _tool_call_id = str(uuid.uuid4())
         yield events_v4.ToolCallPart(
             tool_call_id=_tool_call_id,
             tool_name="document_parsing",
-            args={"documents": [{"identifier": doc.identifier} for doc in input_documents]},
+            args={
+                "documents": [{"identifier": doc.identifier} for doc in input_documents],
+                "has_audio": has_audio,
+            },
         )
 
         try:
