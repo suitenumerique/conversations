@@ -121,6 +121,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
+from pydantic_ai.models import Model, infer_model_profile
 
 from core.feature_flags.helpers import is_feature_enabled
 
@@ -213,6 +214,38 @@ def get_model_configuration(model_hrid: str):
         return settings.LLM_CONFIGURATIONS[model_hrid]
     except KeyError as exc:
         raise ImproperlyConfigured(f"LLM model configuration '{model_hrid}' not found.") from exc
+
+
+def _strip_thinking_parts(history: list[ModelMessage]) -> list[ModelMessage]:
+    """Remove ThinkingPart from ModelResponse history for models that don't support it.
+
+    Some models (e.g. mistral-medium) reject requests when previous assistant
+    messages contain ThinkingPart. This strips those parts before the history
+    is passed to the agent.
+
+    Only called when the current model's pydantic-ai ModelProfile.supports_thinking is False.
+    (no thinking_tags and no openai_supports_encrypted_reasoning_content).
+    """
+    has_thinking = any(
+        isinstance(p, ThinkingPart)
+        for msg in history
+        if isinstance(msg, ModelResponse)
+        for p in msg.parts
+    )
+    if not has_thinking:
+        return history
+
+    result = []
+    for original_message in history:
+        message = original_message
+        if isinstance(message, ModelResponse) and any(
+            isinstance(p, ThinkingPart) for p in message.parts
+        ):
+            message = dataclasses.replace(
+                message, parts=[p for p in message.parts if not isinstance(p, ThinkingPart)]
+            )
+        result.append(message)
+    return result
 
 
 def _extract_co2_from_usage(usage: RunUsage) -> float:
@@ -398,10 +431,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         This method handles the setup phase before the agent iteration loop:
         1. Loads and validates conversation history from pydantic_messages
         2. Pre-signs URLs for any local images in history (S3 signed URLs)
-        3. Extracts user prompt, images, and documents from the last message
-        4. Pre-signs URLs for input images
-        5. Updates Langfuse trace with input (if analytics enabled)
-        6. Checks if conversation already has documents in the vector store
+        3. Infers whether the model supports thinking and strips ThinkingPart if not
+        4. Extracts user prompt, images, and documents from the last message
+        5. Pre-signs URLs for input images
+        6. Updates Langfuse trace with input (if analytics enabled)
+        7. Checks if conversation already has documents in the vector store
 
         Returns:
             Tuple containing:
@@ -417,6 +451,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         history = update_history_local_urls(
             self.conversation, history
         )  # presign URLs for local images
+
+        model = self.conversation_agent.model
+        if isinstance(model, Model):
+            model_supports_thinking = model.profile.supports_thinking
+        else:
+            model_supports_thinking = infer_model_profile(model).supports_thinking
+        if not model_supports_thinking:
+            history = _strip_thinking_parts(history)
 
         user_prompt, input_images, input_documents = self._prepare_prompt(messages[-1])
 
