@@ -20,8 +20,8 @@ The query must contain all information to find accurate results.
 When `document_id` is provided, search is filtered to a single
 text attachment by UUID from the context documents list.
 Example:
-user : "Based on the X, answer the question"
-query : "question"
+user : "Based on the report, what is the deadline?"
+query : "what is the deadline?"
 document_id : id_from_context
 """
 

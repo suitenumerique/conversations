@@ -34,8 +34,9 @@ without routing the file data through the backend server.
 Note about documents: The system uses a tool called **MarkItDown** to convert various document formats 
 (Word, Excel, PowerPoint, text files, etc.) into Markdown text for processing by LLMs. When at least 
 one non-PDF/image document is attached, the system enables:
- - a **Retrieval-Augmented Generation (RAG)** search tool to allow the LLM to query relevant sections of the documents.
- - a **summarization tool** to provide document summaries on user request.
+ - a **hybrid context delivery** that inlines small documents directly into the LLM's system instructions (`full-context`) and exposes the rest via tools (`tool_call_only`). The split is driven by the model's context window size and a configurable budget ratio. See [Other Document Types](#other-document-types).
+ - a **Retrieval-Augmented Generation (RAG)** search tool (`document_search_rag`) to query relevant sections of any attached document. Supports an optional `document_id` argument to target a single attachment.
+ - a **summarization tool** (`summarize`) to provide document summaries on user request, also supporting `document_id` targeting.
    ⚠️ naive implementation at the moment, needs improvement before being used in production.
 
 ## Supported Attachment Types
@@ -279,12 +280,90 @@ When a user sends a message with attachments, the system processes them differen
 
 2. **Conversion to Markdown**: Documents are converted using **MarkItDown** library or using the "Albert API" for PDFs.
 
-3. **RAG (Retrieval-Augmented Generation)**:
-   - Converted text is indexed in a vector database
-   - The LLM uses a `document_rag_search` tool to query relevant sections
-   - Only relevant chunks are sent to the LLM to fit context windows
+3. **Hybrid context delivery**: On every chat turn, each text attachment is exposed to the LLM in one of two modes (described in detail below):
+   - **`full-context`**: small enough documents are inlined directly into the system instructions so the LLM can read them without calling a tool.
+   - **`tool_call_only`**: oversized or evicted documents stay reachable via the `document_search_rag` and `summarize` tools.
 
-4. **Summarization tool** if needed.
+4. **RAG (Retrieval-Augmented Generation)**:
+   - Converted text is indexed in a vector database (Albert collection or Find index).
+   - The LLM uses the `document_search_rag` tool to query relevant chunks. The tool accepts an optional `document_id` argument to target a single attachment.
+
+5. **Summarization tool** if needed (also accepts `document_id`).
+
+#### Documents listing in system instructions
+
+When at least one text attachment exists, the assembled system instruction includes a JSON listing of the attached documents. This is the LLM's "table of contents" — it tells the model which documents are present, which are inlined as full content, and which can only be reached via tools.
+
+Listing shape (sent on every turn):
+
+```json
+{
+  "documents_order": "newest_to_oldest",
+  "documents": [
+    {
+      "document_id": "<UUID>",
+      "title": "report.pdf",
+      "access": "full-context",
+      "content": "<full markdown of the document>",
+      "info": "last_uploaded_document"
+    },
+    {
+      "document_id": "<UUID>",
+      "title": "big_dataset.csv",
+      "access": "tool_call_only",
+      "content": "available via tools",
+      "info": null
+    }
+  ],
+  "note": "Documents marked 'tool_call_only' are accessible through tools like RAG search or summary. Documents marked 'full-context' can be directly manipulated by you, ..."
+}
+```
+
+Notes:
+- `document_id` is the attachment's UUID and is the value the model passes back to `document_search_rag(document_id=...)` or `summarize(document_id=...)` to target a specific document.
+- `info` flags the first and last uploaded documents to help the LLM reason about temporal context.
+- `access` is the per-doc decision made by the inlining policy described below.
+
+#### Inlining policy and FIFO eviction
+
+The decision of which documents are inlined as `full-context` vs left as `tool_call_only` is made by `chat/document_context_builder.py:build_document_context_instruction` on each turn:
+
+1. Compute the `document_budget` in tokens:
+   ```text
+   document_budget = max(int(model.max_token_context * DOCUMENT_CONTEXT_BUDGET_RATIO)
+                         - DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS, 0)
+   ```
+2. Iterate documents oldest-first. For each document:
+   - If its token count exceeds the whole budget alone → keep `tool_call_only`.
+   - Otherwise, while adding it would overflow the budget, **evict the oldest currently-inlined document** (FIFO): demote it to `tool_call_only`, free its tokens.
+   - Once it fits, mark it `full-context` and inline its content.
+3. Edge cases:
+   - If the model has no `max_token_context` configured → all documents stay `tool_call_only` (warning logged).
+   - If `DOCUMENT_CONTEXT_BUDGET_RATIO` is `0` → all documents stay `tool_call_only`.
+   - If reading an attachment from object storage fails → that document stays `tool_call_only` and the failure is logged; other documents are not affected.
+
+Token estimation uses `tiktoken` with the `cl100k_base` encoding (GPT-4 tokenizer). For non-OpenAI models (Mistral, Llama, Anthropic) actual usage may run 5-15% higher; the security buffer absorbs that drift.
+
+The assembled instruction is **cached** per turn keyed on:
+`conversation_id`, `user_id`, `model_hrid`, `model.max_token_context`, `DOCUMENT_CONTEXT_BUDGET_RATIO`, `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`, and a fingerprint of `(attachment.id, attachment.updated_at)` for every text attachment. Any attachment add / remove / edit, or any settings change, invalidates the cache. TTL is 30 minutes (`CACHE_TIMEOUT`).
+
+#### Targeted document operations (`document_id`)
+
+Both RAG-related tools accept an optional `document_id` argument:
+
+- `document_search_rag(query, document_id=None)`
+- `summarize(instructions=None, document_id=None)`
+
+When the model includes `document_id`, the tool:
+1. Validates the value is a UUID.
+2. Looks it up against the conversation's text attachments. **If the UUID does not belong to the current conversation, the tool raises `ModelRetry` ("not found")** — this is the IDOR boundary.
+3. Resolves the attachment's actual `document_name` (stripping a `.md` suffix if the attachment was converted, e.g. `report.pdf.md` → `report.pdf`) and forwards it to the backend.
+
+The Albert backend uses this name as a `metadata_filters` clause on `/v1/search`. The Find backend currently ignores `document_name` filtering — this is a known gap.
+
+#### Empty filtered RAG result → `ModelRetry`
+
+If the model targeted a document via `document_id` and the backend returned no results, `document_search_rag` raises `ModelRetry` with explicit guidance: either retry without `document_id` (and explicitly tell the user the search was broadened) or stop and tell the user the targeted document does not contain the requested information. This replaces an earlier silent fallback that quietly widened scope without informing the model. See `chat/tools/document_search_rag.py` for the exact text.
 
 ### Processing Strategy Decision Tree
 
@@ -292,7 +371,7 @@ When a user sends a message with attachments, the system processes them differen
 - **No documents**: Standard conversation
 - **Images**: Send as direct (presigned) URLs to the LLM
 - **Only PDFs**: Send as direct (presigned) URLs to the LLM
-- **Other documents present**: Enable RAG search tool + convert to Markdown
+- **Other documents present**: Convert to Markdown, build the documents listing for the system instruction, inline what fits the budget as `full-context`, expose the rest via the `document_search_rag` and `summarize` tools (with optional `document_id` targeting).
 
 ---
 
@@ -310,6 +389,8 @@ When a user sends a message with attachments, the system processes them differen
 | `MALWARE_DETECTION_BACKEND`                  | `DummyBackend` | Malware scanning backend class                             |
 | `MALWARE_DETECTION_PARAMETERS`               | `{}`           | Backend-specific configuration                             |
 | `RAG_FILES_ACCEPTED_FORMATS`                 | See below      | List of MIME types accepted for file uploads               |
+| `DOCUMENT_CONTEXT_BUDGET_RATIO`              | `0.5`          | Fraction of `model.max_token_context` reserved for inlined documents (0 disables full-context inlining; everything stays `tool_call_only`) |
+| `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`    | `1000`         | Tokens subtracted from the inlining budget to absorb tokenizer drift on non-OpenAI models |
 
 #### RAG_FILES_ACCEPTED_FORMATS
 
@@ -354,6 +435,12 @@ RAG_FILES_ACCEPTED_FORMATS = [
 
  - This setting controls frontend validation only. Backend validation should also be implemented for security.
  - Future improvements may include per-model file type restrictions.
+
+### Per-model setting: `max_token_context`
+
+Each entry in `LLM_CONFIGURATIONS` accepts a `max_token_context` integer field declaring the model's context window size. When set, it drives the inlining budget for the documents listing (`document_budget = max_token_context * DOCUMENT_CONTEXT_BUDGET_RATIO - DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`).
+
+If a model has no `max_token_context`, all of its documents are kept `tool_call_only` regardless of size and a warning is logged on every chat turn. Setting the field accurately matters: too low and small documents get pushed to RAG-only when they could be inlined; too high and the LLM may exceed its real window.
 
 ### Storage Configuration
 

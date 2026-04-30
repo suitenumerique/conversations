@@ -180,6 +180,10 @@ class LLModel(BaseModel):
         """Accept integer-like values from JSON for model context size."""
         if value is None or value == "":
             return None
+        if isinstance(value, bool):
+            # bool is an int subclass in Python, reject explicitly so True/False
+            # don't become 1/0.
+            raise ValueError("max_token_context must be an integer value.")
         if isinstance(value, int):
             parsed_value = value
         elif isinstance(value, str):

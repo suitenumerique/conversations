@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import uuid
 
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -14,8 +13,9 @@ from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
 from chat.agents.summarize import SummarizationAgent
+from chat.constants import TEXT_MIME_PREFIX
 from chat.tools.exceptions import ModelCannotRetry
-from chat.tools.utils import last_model_retry_soft_fail
+from chat.tools.utils import last_model_retry_soft_fail, resolve_attachment_by_id
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,72 @@ def read_document_content(doc):
     """Read document content asynchronously."""
     with default_storage.open(doc.key) as f:
         return doc.file_name, f.read().decode("utf-8")
+
+
+async def _read_documents_safely(text_attachment, document_id):
+    """
+    Read each attachment from object storage individually so that one
+    unreadable file (missing key, transient S3 error, decoding failure)
+    does not abort the whole summarization. Behavior depends on whether
+    the user targeted a specific document:
+      - document_id set  -> the failure is fatal for THIS request: surface a
+        doc-specific ModelCannotRetry instead of letting the outer except wrap
+        it into a generic "unexpected error" message.
+      - document_id None -> degrade gracefully: log the failure and skip the
+        bad doc; keep summarizing the others.
+    """
+    documents = []
+    for doc in text_attachment:
+        try:
+            documents.append(await read_document_content(doc))
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "Failed to read attachment %s (%s): %s",
+                doc.id,
+                doc.file_name,
+                exc,
+                exc_info=True,
+            )
+            if document_id is not None:
+                # Targeted summarization: there is no other document to fall
+                # back to, so report this specific failure clearly.
+                raise ModelCannotRetry(
+                    f"Could not read the requested document '{doc.file_name}'. "
+                    "You must explain this to the user and ask them to retry "
+                    "or provide the document again."
+                ) from exc
+            # All-docs summarization: skip this one and keep going.
+    return documents
+
+
+async def _summarize_documents_chunks(documents_chunks, summarization_agent, ctx):
+    """
+    Run chunk summarization for every document concurrently (bounded by a
+    semaphore) and return per-document lists of chunk summaries.
+    """
+    semaphore = asyncio.Semaphore(settings.SUMMARIZATION_CONCURRENT_REQUESTS)
+
+    async def summarize_chunk_with_semaphore(idx, chunk, total_chunks):
+        """Summarize a chunk with semaphore-controlled concurrency."""
+        async with semaphore:
+            return await summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx)
+
+    doc_chunk_summaries = []
+    try:
+        for doc_chunks in documents_chunks:
+            summarization_tasks = [
+                summarize_chunk_with_semaphore(idx, chunk, len(doc_chunks))
+                for idx, chunk in enumerate(doc_chunks, start=1)
+            ]
+            chunk_summaries = await asyncio.gather(*summarization_tasks)
+            doc_chunk_summaries.append(chunk_summaries)
+    except ModelRetry as exc:
+        logger.warning("Retryable error during chunk summarization: %s", exc, exc_info=True)
+        raise
+    except Exception as exc:
+        logger.warning("Error during chunk summarization: %s", exc, exc_info=True)
+        raise ModelRetry("An error occurred while processing document chunks.") from exc
+    return doc_chunk_summaries
 
 
 async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
@@ -52,7 +118,7 @@ async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
 
 
 @last_model_retry_soft_fail
-async def document_summarize(  # pylint: disable=too-many-locals, too-many-statements  # noqa: PLR0915
+async def document_summarize(
     ctx: RunContext,
     *,
     instructions: str | None = None,
@@ -87,7 +153,7 @@ async def document_summarize(  # pylint: disable=too-many-locals, too-many-state
 
         # Collect documents content
         text_attachment_qs = ctx.deps.conversation.attachments.filter(
-            content_type__startswith="text/"
+            content_type__startswith=TEXT_MIME_PREFIX
         ).order_by("created_at", "id")
         text_attachment = await sync_to_async(list)(text_attachment_qs)
 
@@ -98,25 +164,19 @@ async def document_summarize(  # pylint: disable=too-many-locals, too-many-state
             )
 
         if document_id is not None:
-            try:
-                parsed_document_id = uuid.UUID(document_id)
-            except ValueError as exc:
-                raise ModelRetry("Invalid document_id. Expected a valid UUID.") from exc
+            text_attachment = [resolve_attachment_by_id(text_attachment, document_id)]
 
-            selected_attachment = next(
-                (
-                    attachment
-                    for attachment in text_attachment
-                    if getattr(attachment, "id", None) == parsed_document_id
-                    or str(getattr(attachment, "id", "")) == document_id
-                ),
-                None,
+        documents = await _read_documents_safely(text_attachment, document_id)
+
+        # If every attachment failed to read we have nothing to summarize.
+        # Stop here with a clear message rather than feeding an empty list to
+        # the chunker &  merge prompt downstream.
+        if not documents:
+            raise ModelCannotRetry(
+                "None of the attached documents could be read. "
+                "You must explain this to the user and ask them to retry "
+                "or provide the documents again."
             )
-            if selected_attachment is None:
-                raise ModelRetry("document_id was not found among attached text documents.")
-            text_attachment = [selected_attachment]
-
-        documents = [await read_document_content(doc) for doc in text_attachment]
 
         # Chunk documents and summarize each chunk
         chunk_size = settings.SUMMARIZATION_CHUNK_SIZE
@@ -136,30 +196,12 @@ async def document_summarize(  # pylint: disable=too-many-locals, too-many-state
             instructions_hint,
         )
 
-        # Parallelize the chunk summarization with a semaphore to limit concurrent tasks
-        # because it can be very resource intensive on the LLM backend
-        semaphore = asyncio.Semaphore(settings.SUMMARIZATION_CONCURRENT_REQUESTS)
-
-        async def summarize_chunk_with_semaphore(idx, chunk, total_chunks):
-            """Summarize a chunk with semaphore-controlled concurrency."""
-            async with semaphore:
-                return await summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx)
-
-        doc_chunk_summaries = []
-        try:
-            for doc_chunks in documents_chunks:
-                summarization_tasks = [
-                    summarize_chunk_with_semaphore(idx, chunk, len(doc_chunks))
-                    for idx, chunk in enumerate(doc_chunks, start=1)
-                ]
-                chunk_summaries = await asyncio.gather(*summarization_tasks)
-                doc_chunk_summaries.append(chunk_summaries)
-        except ModelRetry as exc:
-            logger.warning("Retryable error during chunk summarization: %s", exc, exc_info=True)
-            raise
-        except Exception as exc:
-            logger.warning("Error during chunk summarization: %s", exc, exc_info=True)
-            raise ModelRetry("An error occurred while processing document chunks.") from exc
+        # Parallelize the chunk summarization with a semaphore (inside the
+        # helper) to limit concurrent tasks - it can be very resource intensive
+        # on the LLM backend.
+        doc_chunk_summaries = await _summarize_documents_chunks(
+            documents_chunks, summarization_agent, ctx
+        )
 
         context = "\n\n".join(
             doc_name + "\n\n" + "\n\n".join(summaries)

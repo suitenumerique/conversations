@@ -34,6 +34,7 @@ from chat.ai_sdk_types import (
     ToolInvocationUIPart,
     UIMessage,
 )
+from chat.constants import ACCESS_TOOL_CALL_ONLY
 from chat.factories import ChatConversationFactory
 from chat.tests.utils import replace_uuids_with_placeholder
 
@@ -66,7 +67,7 @@ def _assert_document_instructions(
     doc = payload["documents"][0]
     assert doc["document_id"]
     assert doc["title"] == expected_title
-    assert doc["access"] == "tool_call_only"
+    assert doc["access"] == ACCESS_TOOL_CALL_ONLY
     assert doc["content"] is None
     assert doc["info"] == expected_info
 
@@ -179,24 +180,32 @@ def fixture_mock_document_api():
         status=status.HTTP_201_CREATED,
     )
 
-    # Mock document search
+    # Mock document search.
+    # Two clients use this endpoint:
+    # - AlbertRagBackend.asearch via httpx -> intercepted by respx
+    # - FindRagBackend (sync search via base-class fallback) via requests
+    #   -> intercepted by responses
+    search_response_body = {
+        "data": [
+            {
+                "method": search_method,
+                "chunk": {
+                    "id": 123,
+                    "content": document_content,
+                    "metadata": {"document_name": document_name},
+                },
+                "score": search_score,
+            }
+        ],
+        "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
+    }
     responses.post(
         "https://albert.api.etalab.gouv.fr/v1/search",
-        json={
-            "data": [
-                {
-                    "method": search_method,
-                    "chunk": {
-                        "id": 123,
-                        "content": document_content,
-                        "metadata": {"document_name": document_name},
-                    },
-                    "score": search_score,
-                }
-            ],
-            "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
-        },
+        json=search_response_body,
         status=status.HTTP_200_OK,
+    )
+    respx.post("https://albert.api.etalab.gouv.fr/v1/search").mock(
+        return_value=httpx.Response(status.HTTP_200_OK, json=search_response_body)
     )
 
     # Mock document indexing (Find API)
@@ -262,24 +271,28 @@ def fixture_mock_odt_document_api():
         status=status.HTTP_201_CREATED,
     )
 
-    # Mock document search
+    # Mock document search (sync via responses, async via respx).
+    search_response_body = {
+        "data": [
+            {
+                "method": search_method,
+                "chunk": {
+                    "id": 123,
+                    "content": document_content,
+                    "metadata": {"document_name": document_name},
+                },
+                "score": search_score,
+            }
+        ],
+        "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
+    }
     responses.post(
         "https://albert.api.etalab.gouv.fr/v1/search",
-        json={
-            "data": [
-                {
-                    "method": search_method,
-                    "chunk": {
-                        "id": 123,
-                        "content": document_content,
-                        "metadata": {"document_name": document_name},
-                    },
-                    "score": search_score,
-                }
-            ],
-            "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
-        },
+        json=search_response_body,
         status=status.HTTP_200_OK,
+    )
+    respx.post("https://albert.api.etalab.gouv.fr/v1/search").mock(
+        return_value=httpx.Response(status.HTTP_200_OK, json=search_response_body)
     )
 
     # Mock document indexing (Find API)

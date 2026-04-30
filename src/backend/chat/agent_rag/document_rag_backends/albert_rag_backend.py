@@ -165,42 +165,62 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             logger.debug(response.json())
             response.raise_for_status()
 
-    def search(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
-        """
-        Perform a search using the Albert API based on the provided query.
-
-        Args:
-            query (str): The search query.
-            results_count (int): The number of results to return.
-            document_name (str, optional): If provided, only return search results from
-            the document whose name exactly matches this value.
-            **kwargs: Additional arguments.
-
-        Returns:
-            RAGWebResults: The search results.
-        """
-        collection_ids = self.get_all_collection_ids()  # might raise RuntimeError
-
-        # Optional : document_names filter
-        document_name = kwargs.get("document_name", None)
+    def _build_search_payload(
+        self,
+        query: str,
+        results_count: int,
+        document_name: Optional[str],
+    ) -> dict:
+        """Assemble the /v1/search request body shared by sync and async paths."""
+        payload: dict = {
+            "collections": self.get_all_collection_ids(),  # might raise RuntimeError
+            "prompt": query,
+            "score_threshold": 0.6,
+            "k": results_count,
+        }
         if document_name:
-            metadata_filter = {
+            payload["metadata_filters"] = {
                 "key": "document_name",
                 "value": document_name,
                 "type": "eq",
             }
-        else:
-            metadata_filter = None
+        return payload
 
-        payload = {
-            "collections": collection_ids,
-            "prompt": query,
-            "score_threshold": 0.6,
-            "k": results_count,  # Number of chunks to return from the search
-        }
-        if metadata_filter is not None:
-            payload["metadata_filters"] = metadata_filter
+    @staticmethod
+    def _parse_search_response(json_body: dict, document_name: Optional[str]) -> RAGWebResults:
+        """Map an Albert /v1/search response into our RAGWebResults shape."""
+        searches = Searches(**json_body)
 
+        if not searches.data and document_name:
+            logger.info(
+                "RAG search with document_name=%r returned no results.",
+                document_name,
+            )
+
+        return RAGWebResults(
+            data=[
+                RAGWebResult(
+                    url=result.chunk.metadata["document_name"],
+                    content=result.chunk.content,
+                    score=result.score,
+                )
+                for result in searches.data
+            ],
+            usage=RAGWebUsage(
+                prompt_tokens=searches.usage.prompt_tokens,
+                completion_tokens=searches.usage.completion_tokens,
+            ),
+        )
+
+    def search(
+        self,
+        query: str,
+        results_count: int = 4,
+        document_name: Optional[str] = None,
+        **kwargs,
+    ) -> RAGWebResults:
+        """Perform a search using the Albert API based on the provided query."""
+        payload = self._build_search_payload(query, results_count, document_name)
         response = requests.post(
             urljoin(self._base_url, self._search_endpoint),
             headers=self._headers,
@@ -208,70 +228,17 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             timeout=settings.ALBERT_API_TIMEOUT,
         )
         response.raise_for_status()
+        return self._parse_search_response(response.json(), document_name)
 
-        searches = Searches(**response.json())
-
-        if not searches.data and metadata_filter:
-            logger.debug(
-                "No result with document_name filter=%s. Retrying search without filter.",
-                document_name,
-            )
-            kwargs_without_document_name = {
-                key: value for key, value in kwargs.items() if key != "document_name"
-            }
-            return self.search(query, results_count=results_count, **kwargs_without_document_name)
-
-        return RAGWebResults(
-            data=[
-                RAGWebResult(
-                    url=result.chunk.metadata["document_name"],
-                    content=result.chunk.content,
-                    score=result.score,
-                )
-                for result in searches.data
-            ],
-            usage=RAGWebUsage(
-                prompt_tokens=searches.usage.prompt_tokens,
-                completion_tokens=searches.usage.completion_tokens,
-            ),
-        )
-
-    async def asearch(self, query, results_count: int = 4, **kwargs) -> RAGWebResults:
-        """
-        Perform an asynchronous search using the Albert API based on the provided query.
-
-        Args:
-            query (str): The search query.
-            results_count (int): The number of results to return.
-            document_name (str, optional): If provided, only return search results from
-            the document whose name exactly matches this value.
-            **kwargs: Additional arguments.
-
-        Returns:
-            RAGWebResults: The search results.
-        """
-        collection_ids = self.get_all_collection_ids()  # might raise RuntimeError
-
-        # Optional : document_names filter
-        document_name = kwargs.get("document_name", None)
-        if document_name:
-            metadata_filter = {
-                "key": "document_name",
-                "value": document_name,
-                "type": "eq",
-            }
-        else:
-            metadata_filter = None
-
-        payload = {
-            "collections": collection_ids,
-            "prompt": query,
-            "score_threshold": 0.6,
-            "k": results_count,  # Number of chunks to return from the search
-        }
-        if metadata_filter is not None:
-            payload["metadata_filters"] = metadata_filter
-
+    async def asearch(
+        self,
+        query: str,
+        results_count: int = 4,
+        document_name: Optional[str] = None,
+        **kwargs,
+    ) -> RAGWebResults:
+        """Perform an asynchronous search using the Albert API based on the provided query."""
+        payload = self._build_search_payload(query, results_count, document_name)
         async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
             response = await client.post(
                 urljoin(self._base_url, self._search_endpoint),
@@ -279,36 +246,6 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
                 json=payload,
                 timeout=settings.ALBERT_API_TIMEOUT,
             )
-
             logger.debug("Search response: %s %s", response.text, response.status_code)
-
             response.raise_for_status()
-
-        searches = Searches(**response.json())
-
-        if not searches.data and metadata_filter:
-            logger.debug(
-                "No result with document_name filter=%s. Retrying search without filter.",
-                document_name,
-            )
-            kwargs_without_document_name = {
-                key: value for key, value in kwargs.items() if key != "document_name"
-            }
-            return await self.asearch(
-                query, results_count=results_count, **kwargs_without_document_name
-            )
-
-        return RAGWebResults(
-            data=[
-                RAGWebResult(
-                    url=result.chunk.metadata["document_name"],
-                    content=result.chunk.content,
-                    score=result.score,
-                )
-                for result in searches.data
-            ],
-            usage=RAGWebUsage(
-                prompt_tokens=searches.usage.prompt_tokens,
-                completion_tokens=searches.usage.completion_tokens,
-            ),
-        )
+        return self._parse_search_response(response.json(), document_name)

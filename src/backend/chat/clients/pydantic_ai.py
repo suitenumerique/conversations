@@ -77,6 +77,7 @@ and raises `StreamCancelException` to abort the generator.
 import asyncio
 import dataclasses
 import functools
+import hashlib
 import json
 import logging
 import os
@@ -95,7 +96,6 @@ from django.db.models import Q
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
-import tiktoken
 from asgiref.sync import sync_to_async
 from langfuse import get_client
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
@@ -143,6 +143,7 @@ from chat.clients.pydantic_ui_message_converter import (
     model_message_to_ui_message,
     ui_message_to_user_content,
 )
+from chat.constants import TEXT_MIME_PREFIX
 from chat.document_context_builder import build_document_context_instruction
 from chat.mcp_servers import get_mcp_servers
 from chat.tools.descriptions import (
@@ -167,30 +168,6 @@ User = get_user_model()
 
 CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
 DOCUMENT_URL_PREFIX = "/media-key/"
-TOKEN_ENCODING = tiktoken.get_encoding("cl100k_base")
-
-
-def count_approx_tokens(text: str) -> int:
-    """Estimate token count using tiktoken."""
-    if not text:
-        return 0
-    try:
-        tiktoken_len = len(TOKEN_ENCODING.encode(text))
-        logger.debug("Tiktoken length: %s", tiktoken_len)
-        return tiktoken_len
-    except Exception:  # pylint: disable=broad-except #noqa: BLE001
-        logger.warning("Failed to estimate tokens with tiktoken, falling back to heuristic.")
-        non_space_chars = len("".join(text.split()))
-        if non_space_chars == 0:
-            return 0
-        return non_space_chars // 3 + (1 if non_space_chars % 3 else 0)
-
-
-@sync_to_async
-def read_attachment_content(attachment: models.ChatConversationAttachment) -> tuple[str, str]:
-    """Read text attachment content from object storage."""
-    with default_storage.open(attachment.key) as file:
-        return attachment.file_name, file.read().decode("utf-8")
 
 
 @dataclasses.dataclass
@@ -508,7 +485,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             or bool(
                 await models.ChatConversationAttachment.objects.filter(
                     conversation=self.conversation,
-                    content_type__startswith="text/",
+                    content_type__startswith=TEXT_MIME_PREFIX,
                 ).aexists()
             )
         )
@@ -691,7 +668,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     user_sub=self.user.sub,
                 )
 
-            if not document.media_type.startswith("text/"):
+            if not document.media_type.startswith(TEXT_MIME_PREFIX):
                 md_attachment = await models.ChatConversationAttachment.objects.acreate(
                     conversation=self.conversation,
                     uploaded_by=self.user,
@@ -755,36 +732,47 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         return user_prompt[0], attachment_images, attachment_documents
 
-    def _get_document_context_budget_ratio(self) -> float:
-        """Return a validated document-context ratio from settings."""
-        budget_ratio = getattr(settings, "DOCUMENT_CONTEXT_BUDGET_RATIO", 0.5)
-        if budget_ratio < 0 or budget_ratio > 1:
-            logger.warning(
-                "Invalid DOCUMENT_CONTEXT_BUDGET_RATIO=%s, falling back to 0.5",
-                budget_ratio,
-            )
-            return 0.5
-        return budget_ratio
-
     async def _build_document_context_instruction(self) -> str:
-        budget_ratio = self._get_document_context_budget_ratio()
-        security_buffer_tokens = getattr(settings, "DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS", 1000)
+        budget_ratio = settings.DOCUMENT_CONTEXT_BUDGET_RATIO
+        security_buffer_tokens = settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS
         text_attachments = await sync_to_async(list)(
-            self.conversation.attachments.filter(content_type__startswith="text/").order_by(
-                "created_at", "id"
-            )
+            self.conversation.attachments.filter(
+                content_type__startswith=TEXT_MIME_PREFIX
+            ).order_by("created_at", "id")
         )
-        model_max_context = self.conversation_agent.configuration.max_token_context
-        return await build_document_context_instruction(
+        max_token_context = self.conversation_agent.configuration.max_token_context
+
+        # Cache the assembled instruction: building it requires reading every text
+        # attachment from object storage and tokenizing it. The fingerprint includes
+        # each attachment's updated_at so any edit invalidates the cache.
+        fingerprint_parts = [
+            f"conv={self.conversation.id}",
+            f"user={getattr(self.user, 'id', None)}",
+            f"model={self.model_hrid}",
+            f"max_ctx={max_token_context}",
+            f"ratio={budget_ratio}",
+            f"buffer={security_buffer_tokens}",
+            *(f"{att.id}:{att.updated_at.isoformat()}" for att in text_attachments),
+        ]
+        cache_key = (
+            "doc_ctx_instr:"
+            + hashlib.sha256("|".join(fingerprint_parts).encode("utf-8")).hexdigest()
+        )
+
+        cached = await sync_to_async(cache.get)(cache_key)
+        if cached is not None:
+            return cached
+
+        instruction = await build_document_context_instruction(
+            conversation_id=str(self.conversation.id),
             text_attachments=text_attachments,
             model_hrid=self.model_hrid,
-            model_max_context=model_max_context,
+            max_token_context=max_token_context,
             budget_ratio=budget_ratio,
             security_buffer_tokens=security_buffer_tokens,
-            read_attachment_content=read_attachment_content,
-            count_approx_tokens=count_approx_tokens,
-            logger=logger,
         )
+        await sync_to_async(cache.set)(cache_key, instruction, CACHE_TIMEOUT)
+        return instruction
 
     def _setup_rag_tools(self, document_context_instruction: str = "") -> None:
         """Register RAG-related tools and instructions on the conversation agent."""

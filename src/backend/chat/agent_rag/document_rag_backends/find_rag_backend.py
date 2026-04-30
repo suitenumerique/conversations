@@ -105,7 +105,9 @@ class FindRagBackend(BaseRagBackend):
         response.raise_for_status()
 
     @with_fresh_access_token
-    def search(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
+    def search(  # pylint: disable=arguments-differ
+        self, query: str, results_count: int = 4, **kwargs
+    ) -> RAGWebResults:
         """
         Perform a search using the Find API.
         Uses the user's OIDC token from the request session.

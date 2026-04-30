@@ -29,6 +29,7 @@ from chat.ai_sdk_types import (
     TextUIPart,
     UIMessage,
 )
+from chat.constants import ACCESS_TOOL_CALL_ONLY
 from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
 from chat.tests.utils import replace_uuids_with_placeholder
 from chat.tools.descriptions import (
@@ -73,13 +74,13 @@ def _expected_document_instructions(
             {
                 "document_id": document_id,
                 "title": normalized_title,
-                "access": "tool_call_only",
+                "access": ACCESS_TOOL_CALL_ONLY,
                 "content": None,
                 "info": info,
             }
         ],
         "note": (
-            "Documents marked 'tool_call_only' are accessible through "
+            f"Documents marked '{ACCESS_TOOL_CALL_ONLY}' are accessible through "
             "tools like RAG search or summary. "
         ),
     }
@@ -110,7 +111,7 @@ def _assert_document_instructions(
     document = payload["documents"][0]
     assert document["document_id"]
     assert document["title"] == expected_title
-    assert document["access"] == "tool_call_only"
+    assert document["access"] == ACCESS_TOOL_CALL_ONLY
     assert document["content"] is None
     assert document["info"] == expected_info
 

@@ -161,27 +161,48 @@ class BaseRagBackend(ABC):
         return await sync_to_async(self.delete_collection)(**kwargs)
 
     @abstractmethod
-    def search(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
+    def search(
+        self,
+        query: str,
+        results_count: int = 4,
+        document_name: Optional[str] = None,
+        **kwargs,
+    ) -> RAGWebResults:
         """
         Search the collection for the given query.
 
         Args:
             query: The search query string.
             results_count: Number of results to return.
+            document_name: If set, restrict results to the document with this exact name.
+                Backends that don't support per-document filtering may ignore it.
             **kwargs: Additional arguments. ex: 'session' for OIDC authentication.
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
-    async def asearch(self, query: str, results_count: int = 4, **kwargs) -> RAGWebResults:
+    async def asearch(
+        self,
+        query: str,
+        results_count: int = 4,
+        document_name: Optional[str] = None,
+        **kwargs,
+    ) -> RAGWebResults:
         """
         Search the collection for the given query asynchronously.
 
         Args:
             query: The search query string.
             results_count: Number of results to return.
+            document_name: If set, restrict results to the document with this exact name.
+                Backends that don't support per-document filtering may ignore it.
             **kwargs: Additional arguments. ex: 'session' for OIDC authentication.
         """
-        return await sync_to_async(self.search)(query=query, results_count=results_count, **kwargs)
+        return await sync_to_async(self.search)(
+            query=query,
+            results_count=results_count,
+            document_name=document_name,
+            **kwargs,
+        )
 
     @classmethod
     @contextmanager

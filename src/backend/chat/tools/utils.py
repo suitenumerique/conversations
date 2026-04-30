@@ -2,13 +2,37 @@
 
 import functools
 import logging
-from typing import Any, Callable
+import uuid
+from typing import Any, Callable, Iterable
 
 from pydantic_ai import ModelRetry, RunContext
 
+from chat import models
 from chat.tools.exceptions import ModelCannotRetry
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_attachment_by_id(
+    attachments: Iterable[models.ChatConversationAttachment],
+    document_id: str,
+) -> models.ChatConversationAttachment:
+    """
+    Resolve a model-supplied ``document_id`` string to one of the listed attachments.
+
+    Raises ``ModelRetry`` on invalid UUID or missing attachment so the model can
+    correct itself within the tool-retry budget.
+    """
+    try:
+        parsed_document_id = uuid.UUID(document_id)
+    except ValueError as exc:
+        raise ModelRetry("Invalid document_id. Expected a valid UUID.") from exc
+
+    for attachment in attachments:
+        if attachment.id == parsed_document_id:
+            return attachment
+
+    raise ModelRetry("document_id was not found among attached text documents.")
 
 
 def last_model_retry_soft_fail(

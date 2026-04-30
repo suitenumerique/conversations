@@ -894,6 +894,9 @@ USER QUESTION:
         environ_name="SUMMARIZATION_CONCURRENT_REQUESTS",
         environ_prefix=None,
     )
+    # Token estimation uses cl100k_base (GPT-4 tokenizer); non-OpenAI models
+    # (Mistral, Llama, Anthropic) may tokenize 5-15% higher for the same text.
+    # The security buffer below absorbs that drift.
     DOCUMENT_CONTEXT_BUDGET_RATIO = values.FloatValue(
         default=0.5,
         environ_name="DOCUMENT_CONTEXT_BUDGET_RATIO",
@@ -1185,6 +1188,14 @@ USER QUESTION:
             raise ValueError(
                 f"{cls.RAG_DOCUMENT_SEARCH_BACKEND} requires FIND_API_KEY, FIND_API_URL, "
                 "OIDC_STORE_ACCESS_TOKEN and OIDC_STORE_REFRESH_TOKEN to be set."
+            )
+
+        # Document context budget ratio must be a fraction (0 disables full inlining,
+        # 1 dedicates the entire model context to documents).
+        if not 0 <= cls.DOCUMENT_CONTEXT_BUDGET_RATIO <= 1:
+            raise ValueError(
+                "DOCUMENT_CONTEXT_BUDGET_RATIO must be between 0 and 1, "
+                f"got {cls.DOCUMENT_CONTEXT_BUDGET_RATIO}."
             )
 
         # OCR configuration validation
