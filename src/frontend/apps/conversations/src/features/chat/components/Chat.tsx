@@ -120,7 +120,7 @@ export const Chat = ({
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [chatErrorModal, setChatErrorModal] = useState<{
     title: string;
-    message: string;
+    message: React.ReactNode;
   } | null>(null);
 
   const { setIsAtTop } = useScrollStore();
@@ -351,6 +351,43 @@ export const Chat = ({
       }
     }
   }, [messages]);
+
+  const lastResumeErrorMessageIdRef = useRef<string | null>(null);
+
+  // Show error modal when conversation resume fails to re-index some documents
+  useEffect(() => {
+    if (status === 'streaming' || status === 'submitted') return;
+    const lastAssistant = messages.filter((m) => m.role === 'assistant').pop();
+    if (!lastAssistant?.parts) return;
+    if (lastAssistant.id === lastResumeErrorMessageIdRef.current) return;
+    const resumePart = lastAssistant.parts.find(
+      (p) =>
+        p.type === 'tool-invocation' &&
+        p.toolInvocation.toolName === 'conversation_resume' &&
+        p.toolInvocation.state === 'result',
+    );
+    if (!resumePart || resumePart.type !== 'tool-invocation') return;
+    if (resumePart.toolInvocation.state !== 'result') return;
+    const result = resumePart.toolInvocation.result as {
+      state: string;
+      failed_documents?: string[];
+    };
+    if (!result?.failed_documents?.length) return;
+    lastResumeErrorMessageIdRef.current = lastAssistant.id;
+    setChatErrorModal({
+      title: t('Re-indexing Error'),
+      message: (
+        <>
+          <Text>{t('Some documents could not be re-indexed, please re-upload them:')}</Text>
+          <ul>
+            {result.failed_documents.map((doc) => (
+              <li key={doc}>{doc}</li>
+            ))}
+          </ul>
+        </>
+      ),
+    });
+  }, [messages, status, t]);
 
   // Clear "reading instructions" once streaming begins or on error, with minimum display time
   useEffect(() => {

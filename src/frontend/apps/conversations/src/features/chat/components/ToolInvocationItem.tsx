@@ -17,6 +17,29 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
 }) => {
   const { t } = useTranslation();
 
+  if (toolInvocation.toolName === 'conversation_resume') {
+    if (toolInvocation.state !== 'result') {
+      return (
+        <Box
+          $direction="row"
+          $align="center"
+          $gap="6px"
+          key={toolInvocation.toolCallId}
+          $width="100%"
+          $maxWidth="750px"
+          $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
+        >
+          <Loader />
+          <Text $variation="600" $size="md">
+            {t('Resuming conversation & your documents')}
+          </Text>
+        </Box>
+      );
+    }
+
+    return null;
+  }
+
   if (toolInvocation.toolName === 'document_parsing') {
     if (
       toolInvocation.state === 'partial-call' ||
