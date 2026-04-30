@@ -781,6 +781,27 @@ class Base(BraveSettings, Configuration):
         environ_name="RAG_DOCUMENT_PARSER",
         environ_prefix=None,
     )
+    RAG_COLLECTION_INACTIVITY_DAYS = values.PositiveIntegerValue(
+        default=30,
+        environ_name="RAG_COLLECTION_INACTIVITY_DAYS",
+        environ_prefix=None,
+    )
+    # 10 min: reindex iterates over attachments (storage read + HTTP per doc); 120 s is too tight.
+    REINDEX_CLAIM_TIMEOUT_SECONDS = values.PositiveIntegerValue(
+        default=600,
+        environ_name="REINDEX_CLAIM_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
+    DEINDEX_MAX_PER_RUN = values.PositiveIntegerValue(
+        default=100,
+        environ_name="DEINDEX_MAX_PER_RUN",
+        environ_prefix=None,
+    )
+    DEINDEX_PARALLEL_REQUESTS = values.PositiveIntegerValue(
+        default=10,
+        environ_name="DEINDEX_PARALLEL_REQUESTS",
+        environ_prefix=None,
+    )
     SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS = values.DictValue(
         default={},
         environ_name="SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS",

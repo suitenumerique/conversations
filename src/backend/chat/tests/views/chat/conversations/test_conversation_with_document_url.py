@@ -893,7 +893,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
         status=200,
     )
 
-    chat_conversation = ChatConversationFactory(owner__language="en-us")
+    chat_conversation = ChatConversationFactory(owner__language="en-us", collection_id="123")
     api_client.force_authenticate(user=chat_conversation.owner)
 
     file_path = f"{chat_conversation.pk}/sample.pdf"

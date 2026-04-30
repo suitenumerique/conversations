@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(back) add cron job to poll Albert models health
+- ✨(back) de-index inactive collections and reindex in conversation
 
 ### Changed
 
@@ -20,7 +21,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(helm) stop job pods from matching the backend disruption budget
- 
+
 ## [0.0.17] - 2026-06-02
 
 ### Added
