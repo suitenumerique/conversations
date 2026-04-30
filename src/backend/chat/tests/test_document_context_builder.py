@@ -18,7 +18,13 @@ import pytest
 from asgiref.sync import sync_to_async
 
 from chat.constants import ACCESS_FULL_CONTEXT, ACCESS_TOOL_CALL_ONLY
-from chat.document_context_builder import build_document_context_instruction
+from chat.document_context_builder import (
+    DocumentInfo,
+    DocumentsListing,
+    _render_listing,
+    build_document_context_instruction,
+    extract_listing_from_instruction,
+)
 from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
 from chat.models import ChatConversationAttachment
 
@@ -308,3 +314,46 @@ async def test_doc_exactly_filling_budget_is_inlined():
     assert doc["document_id"] == str(attachment.id)
     assert doc["access"] == ACCESS_FULL_CONTEXT
     assert doc["content"] == "word " * 50
+
+
+# ---------------------------------------------------------------------------
+# extract_listing_from_instruction
+# ---------------------------------------------------------------------------
+
+
+def test_extract_listing_round_trips_render_listing():
+    """Round-trip: _render_listing → extract_listing_from_instruction yields the original."""
+    original = DocumentsListing(
+        documents=[
+            DocumentInfo(document_id="abc", title="Doc A", access="full-context", content="hello"),
+            DocumentInfo(document_id="def", title="Doc B", access="tool_call_only", content=None),
+        ],
+        note="some note",
+        project_documents=None,
+    )
+    instruction = _render_listing(original)
+    result = extract_listing_from_instruction(instruction)
+    assert result == original
+
+
+def test_extract_listing_with_project_documents():
+    """project_documents are parsed into DocumentInfo objects when present."""
+    original = DocumentsListing(
+        documents=[DocumentInfo(document_id="x", title="Conv", access="full-context", content="c")],
+        note="",
+        project_documents=[
+            DocumentInfo(document_id="p1", title="Proj", access="tool_call_only", content=None),
+        ],
+    )
+    result = extract_listing_from_instruction(_render_listing(original))
+    assert result.project_documents is not None
+    assert len(result.project_documents) == 1
+    assert result.project_documents[0].document_id == "p1"
+
+
+def test_extract_listing_empty_documents():
+    """Empty documents list round-trips cleanly; project_documents stays None."""
+    original = DocumentsListing(documents=[], note="nothing here", project_documents=None)
+    result = extract_listing_from_instruction(_render_listing(original))
+    assert not result.documents
+    assert result.project_documents is None

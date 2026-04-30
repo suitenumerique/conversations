@@ -20,6 +20,9 @@ Both share the same model, same storage, same RAG backend, and the same retrieva
   - [Project RAG collection](#project-rag-collection)
   - [Markdown companion attachment](#markdown-companion-attachment)
   - [Deletion lifecycle](#deletion-lifecycle)
+- [RAG Collection Lifecycle](#rag-collection-lifecycle)
+  - [De-indexing inactive conversations](#de-indexing-inactive-conversations)
+  - [Transparent re-indexing on resume](#transparent-re-indexing-on-resume)
 - [Security & Validation](#security--validation)
   - [Malware Detection](#malware-detection)
 - [Document Processing for LLMs](#document-processing-for-llms)
@@ -269,6 +272,40 @@ Three paths drop project attachments and each one cleans up the side effects in 
 | Project delete (`DELETE /projects/{p}/`) | Child-conversation RAG collections → collect S3 keys → bulk conversation delete → project RAG collection → S3 blobs (deduped) → DB cascade | `ChatConversation.project` uses `on_delete=SET_NULL`, so child conversations are explicitly deleted here. Bulk `QuerySet.delete()` bypasses `ChatViewSet.perform_destroy`, which is why child collections are dropped above before the bulk delete fires. The S3-key set must be assembled **before** the bulk conversation delete so the queries still resolve to live attachment rows. |
 
 The trade-off accepted on every path: a transient backend hiccup may strand orphaned RAG/S3 storage rather than strand a DB row the user cannot remove. Cleanup deduplicates S3 keys into a `set` before calling `default_storage.delete`, so conversation companions (which share the original's key) cost one `DELETE` while project companions (distinct `<original.key>.md`) cost two.
+
+---
+
+## RAG Collection Lifecycle
+
+Every conversation that has indexed text attachments owns a RAG collection in the vector store, identified by `ChatConversation.collection_id`. Long-lived deployments accumulate many idle collections that consume storage and quota. This section describes the two-phase lifecycle: scheduled de-indexing of inactive conversations, and transparent re-indexing when a user resumes one.
+
+### De-indexing inactive conversations
+
+The `deindex_inactive_collections` management command identifies conversations that have been inactive for more than `RAG_COLLECTION_INACTIVITY_DAYS` days and removes their vector store collection.
+
+**What "inactive" means**: `ChatConversation.updated_at < now() - RAG_COLLECTION_INACTIVITY_DAYS days`. Because `_reindex_conversation` writes `update_fields=["collection_id", "updated_at"]` on success, a recent re-index resets the inactivity clock — a conversation is not de-indexed again immediately after it was just re-indexed.
+
+**Scheduling**: Run this as a periodic job. A Helm CronJob template is provided (`backend.deindexCronJob`) with `concurrencyPolicy: Forbid` to prevent overlapping runs.
+
+**What is NOT de-indexed**: Project collections are managed separately (their lifecycle is tied to project/attachment delete). Only conversation collections controlled by `ChatConversation.collection_id` are affected.
+
+### Transparent re-indexing on resume
+
+When a user sends a message to a conversation whose `collection_id` is `None` but which has `READY` text attachments, the backend automatically rebuilds the collection before running the agent. This is handled by `reindex_conversation` in `chat/clients/conversation_reindexer.py`.
+
+**What gets re-indexed**: Only attachments that are both READY **and** not already inlined as `full-context` in the current LLM context window. Small documents that fit the inlining budget are already readable by the model directly from the system prompt — putting them in the vector store too would be redundant. Only `tool_call_only` attachments (too large to inline) are re-indexed.
+
+**Error states**:
+
+| `result.state` | Meaning | User-visible outcome |
+|---|---|---|
+| `"done"` | All attachments re-indexed | Silent — loader disappears, conversation continues |
+| `"partial"` | Some attachments failed | Error modal listing failed filenames — user can re-upload them |
+| `"error"` | Collection creation failed | Error modal with backend message — RAG tools unavailable for this turn |
+
+**Frontend**: While re-indexing is in progress, `ToolInvocationItem` renders a `ConversationResumeLoader` with a chat-bubble illustration and the copy "Picking up where you left off". Once the `ToolResultPart` arrives, the loader disappears. Errors surface via `setChatErrorModal`.
+
+**Binary attachments** (PDF, images): never re-indexed — `reindex_conversation` only processes `text/*` content types. PDFs are sent directly to the LLM as document URLs; images as presigned `ImageUrl` objects. Neither needs a vector store entry.
 
 ---
 
@@ -524,6 +561,7 @@ A `READY` attachment whose `rag_document_id` is null (e.g. parse succeeded but t
 | `PROJECT_IMAGES_MAX_COUNT`                   | `3`            | Max image attachments per project. Enforced at upload-time. Bounds per-turn vision token cost - every project image is pinned to every turn alongside conversation-message images, and provider request-level image caps (Anthropic ~20/request) clip the trailing entries first. |
 | `DOCUMENT_CONTEXT_BUDGET_RATIO`              | `0.5`          | Fraction of `model.max_token_context` reserved for inlined documents (0 disables full-context inlining; everything stays `tool_call_only`) |
 | `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`    | `1000`         | Tokens subtracted from the inlining budget to absorb tokenizer drift on non-OpenAI models |
+| `RAG_COLLECTION_INACTIVITY_DAYS`             | `30`           | Conversations inactive for this many days have their RAG collection de-indexed by `deindex_inactive_collections`. Resets on re-index. |
 
 #### RAG_FILES_ACCEPTED_FORMATS
 

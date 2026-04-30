@@ -138,6 +138,7 @@ from chat.ai_sdk_types import (
     UIMessage,
 )
 from chat.clients.async_to_sync import convert_async_generator_to_sync
+from chat.clients.conversation_reindexer import reindex_conversation
 from chat.clients.exceptions import StreamCancelException
 from chat.clients.pydantic_ui_message_converter import (
     model_message_to_ui_message,
@@ -150,7 +151,10 @@ from chat.clients.schema import (
     StreamingState,
 )
 from chat.constants import TEXT_MIME_PREFIX
-from chat.document_context_builder import build_document_context_instruction
+from chat.document_context_builder import (
+    build_document_context_instruction,
+    extract_listing_from_instruction,
+)
 from chat.mcp_servers import get_mcp_servers
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
@@ -1184,7 +1188,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    async def _run_agent(  # pylint: disable=too-many-locals
+    async def _run_agent(  # pylint: disable=too-many-locals,too-many-branches  # noqa: PLR0912
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
@@ -1215,6 +1219,24 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             history,
             conversation_has_documents,
         ) = await self._prepare_agent_run(messages)
+
+        # Re-index conversation if it was de-indexed and has READY attachments
+        is_conversation_deindexed = bool(
+            self._is_document_upload_enabled
+            and not self.conversation.collection_id
+            and conversation_has_documents
+        )
+        if is_conversation_deindexed:
+            document_context_instruction = await self._build_document_context_instruction()
+            try:
+                listing = extract_listing_from_instruction(document_context_instruction)
+                in_context_ids = {
+                    doc.document_id for doc in listing.documents if doc.access == "full-context"
+                }
+            except (ValueError, IndexError):
+                in_context_ids = set()
+            async for event in reindex_conversation(self.conversation, in_context_ids):
+                yield event
 
         doc_result = None
         async for item in self._handle_input_documents(

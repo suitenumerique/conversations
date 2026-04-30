@@ -170,6 +170,21 @@ def _render_listing(listing: DocumentsListing) -> str:
     )
 
 
+def extract_listing_from_instruction(document_context_instruction: str) -> DocumentsListing:
+    """Parse the JSON listing out of the instruction string produced by _render_listing."""
+    data = json.loads(document_context_instruction[document_context_instruction.index("{") :])
+    return DocumentsListing(
+        documents=[DocumentInfo(**doc) for doc in data.get("documents", [])],
+        note=data.get("note", ""),
+        project_documents=(
+            [DocumentInfo(**doc) for doc in data["project_documents"]]
+            if data.get("project_documents")
+            else None
+        ),
+        documents_order=data.get("documents_order", "newest_to_oldest"),
+    )
+
+
 def _info_label_for(index: int, total: int) -> DocumentInfoLabel | None:
     """Position label - first wins when there is a single document."""
     if index == 1:
