@@ -1,0 +1,128 @@
+{{- if .Values.backend.deindexCronJob.enabled }}
+{{- $envVars := include "conversations.common.env" (list . .Values.backend) -}}
+{{- $fullName := include "conversations.backend.fullname" . -}}
+{{- $component := "backend" -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $fullName }}-deindex-collections
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "conversations.common.labels" (list . $component) | nindent 4 }}
+spec:
+  schedule: {{ .Values.backend.deindexCronJob.schedule | quote }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: {{ .Values.backend.jobs.ttlSecondsAfterFinished }}
+      backoffLimit: {{ .Values.backend.jobs.backoffLimit }}
+      template:
+        metadata:
+          annotations:
+            {{- with .Values.backend.podAnnotations }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          labels:
+            {{- include "conversations.common.selectorLabels" (list . $component) | nindent 12 }}
+        spec:
+          {{- if $.Values.image.credentials }}
+          imagePullSecrets:
+            - name: {{ include "conversations.secret.dockerconfigjson.name" (dict "fullname" (include "conversations.fullname" .) "imageCredentials" $.Values.image.credentials) }}
+          {{- end}}
+          shareProcessNamespace: {{ .Values.backend.shareProcessNamespace }}
+          containers:
+            - name: {{ .Chart.Name }}
+              image: "{{ (.Values.backend.image | default dict).repository | default .Values.image.repository }}:{{ (.Values.backend.image | default dict).tag | default .Values.image.tag }}"
+              imagePullPolicy: {{ (.Values.backend.image | default dict).pullPolicy | default .Values.image.pullPolicy }}
+              command:
+                - python
+                - manage.py
+                - deindex_inactive_collections
+              env:
+                {{- if $envVars}}
+                {{- $envVars | indent 16 }}
+                {{- end }}
+              {{- with .Values.backend.securityContext }}
+              securityContext:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- with .Values.backend.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                {{- range $index, $value := .Values.mountFiles }}
+                - name: "files-{{ $index }}"
+                  mountPath: {{ $value.path }}
+                  subPath: content
+                {{- end }}
+                {{- range $name, $volume := .Values.backend.persistence }}
+                - name: "{{ $name }}"
+                  mountPath: "{{ $volume.mountPath }}"
+                {{- end }}
+                {{- range .Values.backend.extraVolumeMounts }}
+                - name: {{ .name }}
+                  mountPath: {{ .mountPath }}
+                  subPath: {{ .subPath | default "" }}
+                  readOnly: {{ .readOnly }}
+                {{- end }}
+                {{- if .Values.backend.llmConfiguration.enabled }}
+                - name: llm-configuration
+                  mountPath: {{ .Values.backend.llmConfiguration.mount_path }}
+                  readOnly: true
+                {{- end }}
+          {{- with .Values.backend.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backend.affinity }}
+          affinity:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.backend.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          restartPolicy: Never
+          volumes:
+            {{- range $index, $value := .Values.mountFiles }}
+            - name: "files-{{ $index }}"
+              configMap:
+                name: "{{ include "conversations.fullname" $ }}-files-{{ $index }}"
+            {{- end }}
+            {{- range $name, $volume := .Values.backend.persistence }}
+            - name: "{{ $name }}"
+              {{- if eq $volume.type "emptyDir" }}
+              emptyDir: {}
+              {{- else }}
+              persistentVolumeClaim:
+                claimName: "{{ $fullName }}-{{ $name }}"
+              {{- end }}
+            {{- end }}
+            {{- range .Values.backend.extraVolumes }}
+            - name: {{ .name }}
+              {{- if .existingClaim }}
+              persistentVolumeClaim:
+                claimName: {{ .existingClaim }}
+              {{- else if .hostPath }}
+              hostPath:
+                {{ toYaml .hostPath | nindent 16 }}
+              {{- else if .csi }}
+              csi:
+                {{- toYaml .csi | nindent 16 }}
+              {{- else if .configMap }}
+              configMap:
+                {{- toYaml .configMap | nindent 16 }}
+              {{- else if .emptyDir }}
+              emptyDir:
+                {{- toYaml .emptyDir | nindent 16 }}
+              {{- else }}
+              emptyDir: {}
+              {{- end }}
+            {{- end }}
+            {{- if .Values.backend.llmConfiguration.enabled }}
+            - name: llm-configuration
+              configMap:
+                name: conversations-llm-configuration
+            {{- end }}
+{{- end }}

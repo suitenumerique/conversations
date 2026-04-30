@@ -207,6 +207,12 @@ backend:
         python manage.py createsuperuser --email $DJANGO_SUPERUSER_EMAIL --password $DJANGO_SUPERUSER_PASSWORD
     restartPolicy: Never
 
+ ## @param backend.deindexCronJob.enabled Whether to enable the de-index CronJob
+ ## @param backend.deindexCronJob.schedule Cron schedule for the de-index job
+  deindexCronJob:
+    enabled: false
+    schedule: "0 2 * * *"
+
   ## @extra backend.job job dedicated to run a random management command, for example after a deployment
   ## @param backend.job.name The name to use to describe this job
   ## @param backend.job.command The management command to execute
