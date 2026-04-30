@@ -2,21 +2,18 @@ import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useResponsiveStore } from '@/stores';
-
-import SettingsIcon from '../assets/settings.svg';
+import SettingsIcon from '@/assets/icons/uikit-custom/gear-rounded.svg';
 
 import { SettingsModal } from './SettingsModal';
 
 export const SettingsButton = () => {
   const { t } = useTranslation();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const { isDesktop } = useResponsiveStore();
 
   return (
     <>
       <Button
-        color={isDesktop ? 'neutral' : 'brand'}
+        color="neutral"
         variant="tertiary"
         size="small"
         onClick={() => setIsSettingsOpen(true)}

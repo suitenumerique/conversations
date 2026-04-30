@@ -689,7 +689,7 @@ export const Chat = ({
       <Box
         ref={chatContainerRef}
         $gap="1rem"
-        $padding={{ all: 'base', left: '13px', bottom: '0', right: '0' }}
+        $padding={{ all: 'lg', left: '13px', bottom: '0', right: '0' }}
         $width="100%"
         $flex={1}
         $overflow="auto"

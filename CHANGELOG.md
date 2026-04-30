@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+- ✨(onboarding) add onboarding modal
+
 ### Added
 
 - ✨(back) add ODT parsing support

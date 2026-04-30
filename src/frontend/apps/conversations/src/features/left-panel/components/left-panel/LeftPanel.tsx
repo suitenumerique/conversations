@@ -6,6 +6,7 @@ import { Box, SeparatedSection } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { LaGaufre } from '@/features/header/components/LaGaufre';
+import { OnboardingButton } from '@/features/onboarding';
 import { SettingsButton } from '@/features/settings';
 import { useResponsiveStore } from '@/stores';
 
@@ -61,7 +62,12 @@ export const LeftPanel = () => {
           </Box>
           <LeftPanelContent />
           <SeparatedSection showSeparator={true} />
-          <Box $padding={{ all: 'sm' }}>
+          <Box
+            $padding={{ all: 'sm' }}
+            $direction="row"
+            $gap={spacingsTokens.xxs}
+          >
+            <OnboardingButton />
             <SettingsButton />
           </Box>
         </Box>
@@ -118,7 +124,10 @@ export const LeftPanel = () => {
                 $padding={{ horizontal: 'sm' }}
                 $gap={spacingsTokens['sm']}
               >
-                <SettingsButton />
+                <Box $direction="row" $gap={spacingsTokens.sm} $align="center">
+                  <OnboardingButton />
+                  <SettingsButton />
+                </Box>
                 <Box
                   $direction="row"
                   $gap={spacingsTokens['sm']}
