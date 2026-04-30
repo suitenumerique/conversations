@@ -123,6 +123,7 @@ from pydantic_ai.messages import (
 )
 
 from core.feature_flags.helpers import is_feature_enabled
+from core.file_upload.enums import AttachmentStatus
 
 from chat import models
 from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
@@ -636,6 +637,84 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 md_attachment.upload_state = models.AttachmentStatus.READY
                 await md_attachment.asave(update_fields=["upload_state", "updated_at"])
 
+    async def _reindex_conversation(
+        self,
+    ) -> AsyncGenerator[events_v4.Event, None]:
+        """
+        Re-index all READY attachments for a de-indexed conversation.
+
+        Emits a ToolCallPart/ToolResultPart pair so the UI shows progress.
+        On collection creation failure: logs and returns without RAG (conversation continues).
+        On individual attachment failure: logs and continues with remaining attachments.
+        """
+        ready_attachments = [
+            attachment
+            async for attachment in models.ChatConversationAttachment.objects.filter(
+                conversation=self.conversation,
+                upload_state=AttachmentStatus.READY,
+            )
+        ]
+
+        if not ready_attachments:
+            return
+
+        _tool_call_id = str(uuid.uuid4())
+        yield events_v4.ToolCallPart(
+            tool_call_id=_tool_call_id,
+            tool_name="conversation_resume",
+            args={},
+        )
+
+        try:
+            document_store = document_store_backend(collection_id=None)
+            await document_store.acreate_collection(
+                name=f"conversation-{self.conversation.pk}",
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.exception(
+                "Failed to create collection for conversation %s", self.conversation.pk
+            )
+            yield events_v4.ToolResultPart(
+                tool_call_id=_tool_call_id,
+                result={"state": "error", "error": str(exc)},
+            )
+            return
+
+        failed_documents = []
+        for attachment in ready_attachments:
+            if not attachment.content_type.startswith("text/"):
+                # Binary file (PDF, docx, etc.) — has a text/markdown READY sibling;
+                # skip to avoid re-calling Albert parse API
+                continue
+            try:
+                with default_storage.open(attachment.key, "rb") as file:
+                    content = file.read()
+                await asyncio.to_thread(
+                    document_store.store_document,
+                    name=attachment.file_name.removesuffix(".md"),
+                    content=content.decode("utf-8"),
+                )
+            except Exception:  # pylint: disable=broad-except
+                failed_documents.append(attachment.file_name)
+                logger.exception(
+                    "Failed to re-index attachment %s for conversation %s",
+                    attachment.pk,
+                    self.conversation.pk,
+                )
+
+        self.conversation.collection_id = str(document_store.collection_id)
+        await self.conversation.asave(update_fields=["collection_id"])
+
+        result = (
+            {"state": "partial", "failed_documents": failed_documents}
+            if failed_documents
+            else {"state": "done"}
+        )
+        yield events_v4.ToolResultPart(
+            tool_call_id=_tool_call_id,
+            result=result,
+        )
+
     def _prepare_prompt(  # noqa: PLR0912  # pylint: disable=too-many-branches
         self, message: UIMessage
     ) -> Tuple[str, List[BinaryContent | ImageUrl], List[BinaryContent]]:
@@ -1042,7 +1121,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    async def _run_agent(  # pylint: disable=too-many-locals
+    async def _run_agent(  # pylint: disable=too-many-locals,disable=too-many-branches   # noqa: PLR0912
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
@@ -1073,6 +1152,19 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             history,
             conversation_has_documents,
         ) = await self._prepare_agent_run(messages)
+
+        # Re-index conversation if it was de-indexed and has READY attachments
+        is_conversation_deindexed = (
+            self._is_document_upload_enabled
+            and not self.conversation.collection_id
+            and conversation_has_documents
+        )
+        if is_conversation_deindexed:
+            async for event in self._reindex_conversation():
+                yield event
+            # If re-indexing restored the collection, mark conversation as having documents
+            if not conversation_has_documents and self.conversation.collection_id:
+                conversation_has_documents = True
 
         doc_result = None
         async for item in self._handle_input_documents(

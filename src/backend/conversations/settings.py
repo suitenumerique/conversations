@@ -760,6 +760,11 @@ class Base(BraveSettings, Configuration):
         environ_name="RAG_DOCUMENT_PARSER",
         environ_prefix=None,
     )
+    RAG_COLLECTION_INACTIVITY_DAYS = values.PositiveIntegerValue(
+        default=30,
+        environ_name="RAG_COLLECTION_INACTIVITY_DAYS",
+        environ_prefix=None,
+    )
     SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS = values.DictValue(
         default={},
         environ_name="SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS",
