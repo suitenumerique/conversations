@@ -149,11 +149,6 @@ class ChatConversation(BaseModel):
         blank=True,
         help_text="Agent usage for the chat conversation, provided by OpenAI API",
     )
-    history_summary = models.TextField(
-        blank=True,
-        default="",
-        help_text="Rolling summary of the conversation history used to compress context.",
-    )
 
     collection_id = models.CharField(
         blank=True,

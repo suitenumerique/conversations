@@ -108,6 +108,12 @@ Examples of queries that do NOT need web_search tool:
 - "Explique-moi comment fonctionne une boucle for"
 - "Écris-moi un poème sur l'automne"
 - "Résume ce texte"
+
+If you call the web_search tool, you must cite the snippet IDs returned by that tool in your answer. 
+For each sentence that uses information from web_search, append the exact inline citation tag in this format: 
+<ref id=\"web_i_j\"/> where web_i_j is one of the IDs present in the tool output. 
+Never invent IDs, never cite an ID that is not in the returned snippets, and do not add a separate references section. 
+Citations must be placed directly inline in the relevant sentences.
 """
 
 SELF_DOCUMENTATION_SYSTEM_PROMPT = (

@@ -1133,14 +1133,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             """Wrap the web_search tool to provide context and add the tool."""
             return await web_search_impl(ctx, *args, **kwargs)
 
-        @self.conversation_agent.instructions
-        def web_search_citation_instruction() -> str:
-            """Constrain citations to the web chunks IDs returned by the tool."""
-            return (
-                "When you use information from web_search snippets, end the corresponding sentence "
-                "with the exact citation id with this format: <ref id=\"web_i_j\"/> found in those snippets. "
-                "Never invent citation IDs. Be sure to output the ref div in the response. Never end the response with a reference section, reference sources directly within the response."
-            )
+
 
         self._web_search_tool_registered = True
 
