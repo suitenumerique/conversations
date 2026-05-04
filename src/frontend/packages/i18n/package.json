@@ -12,12 +12,12 @@
     "test": "jest"
   },
   "dependencies": {
-    "@types/jest": "29.5.14",
+    "@types/jest": "30.0.0",
     "@types/node": "*",
     "eslint-config-conversations": "*",
-    "i18next-parser": "9.3.0",
-    "jest": "29.7.0",
-    "ts-jest": "29.3.4",
+    "i18next-parser": "9.4.0",
+    "jest": "30.3.0",
+    "ts-jest": "29.4.9",
     "typescript": "*",
     "yargs": "18.0.0"
   }

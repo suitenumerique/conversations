@@ -14,7 +14,7 @@
     "test:ui::chromium": "yarn test:ui --project=chromium"
   },
   "devDependencies": {
-    "@playwright/test": "1.56.0",
+    "@playwright/test": "1.59.1",
     "@types/node": "*",
     "eslint-config-conversations": "*",
     "typescript": "*"
