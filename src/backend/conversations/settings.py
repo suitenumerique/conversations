@@ -1000,6 +1000,41 @@ USER QUESTION:
         environ_name="DEFAULT_MAX_TOKEN_CONTEXT",
         environ_prefix=None,
     )
+    CITATION_ATTRIBUTION_ENABLED = values.BooleanValue(
+        default=True,
+        environ_name="CITATION_ATTRIBUTION_ENABLED",
+        environ_prefix=None,
+    )
+    CITATION_MIN_SCORE = values.FloatValue(
+        default=0.25,
+        environ_name="CITATION_MIN_SCORE",
+        environ_prefix=None,
+    )
+    CITATION_TOP_K_PER_SENTENCE = values.PositiveIntegerValue(
+        default=5,
+        environ_name="CITATION_TOP_K_PER_SENTENCE",
+        environ_prefix=None,
+    )
+    CITATION_MAX_SOURCES_PER_SENTENCE = values.PositiveIntegerValue(
+        default=2,
+        environ_name="CITATION_MAX_SOURCES_PER_SENTENCE",
+        environ_prefix=None,
+    )
+    CITATION_EMBEDDING_WEIGHT = values.FloatValue(
+        default=0.7,
+        environ_name="CITATION_EMBEDDING_WEIGHT",
+        environ_prefix=None,
+    )
+    CITATION_ROUGE_WEIGHT = values.FloatValue(
+        default=0.3,
+        environ_name="CITATION_ROUGE_WEIGHT",
+        environ_prefix=None,
+    )
+    CITATION_DEBUG_LOGGING = values.BooleanValue(
+        default=False,
+        environ_name="CITATION_DEBUG_LOGGING",
+        environ_prefix=None,
+    )
 
     # Tavily API
     TAVILY_API_KEY = values.Value(

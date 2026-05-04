@@ -144,6 +144,12 @@ from chat.ai_sdk_types import (
     SourceUIPart,
     UIMessage,
 )
+from chat.citation_attribution import (
+    AttributionConfig,
+    CitationStreamAttributor,
+    attribute_citations,
+    extract_citation_candidates,
+)
 from chat.clients.async_to_sync import convert_async_generator_to_sync
 from chat.clients.conversation_reindexer import reindex_conversation
 from chat.clients.error_classification import (
@@ -219,6 +225,25 @@ def _strip_invalid_web_citations(text: str, allowed_ids: set[str]) -> str:
         return match.group(0) if citation_id in allowed_ids else ""
 
     return REF_CITATION_REGEX.sub(_replace, text)
+
+
+def _drain_streaming_text_delta(
+    text_delta: str,
+    state: StreamingState,
+) -> list[str]:
+    """Buffer text deltas and return completed attributed sentence chunks."""
+    if not settings.CITATION_ATTRIBUTION_ENABLED or state.citation_stream_attributor is None:
+        return [text_delta]
+    chunks = state.citation_stream_attributor.drain(text_delta)
+    for chunk in chunks:
+        state.allowed_web_citation_ids.update(chunk.selected_web_citation_ids)
+        if settings.CITATION_DEBUG_LOGGING:
+            logger.debug(
+                "Streaming citation attribution chunk_len=%s selected_refs=%s",
+                len(chunk.text),
+                sorted(chunk.selected_web_citation_ids),
+            )
+    return [chunk.text for chunk in chunks]
 
 
 def get_model_configuration(model_hrid: str):
@@ -1133,15 +1158,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             """Wrap the web_search tool to provide context and add the tool."""
             return await web_search_impl(ctx, *args, **kwargs)
 
-        @self.conversation_agent.instructions
-        def web_search_citation_instruction() -> str:
-            """Constrain citations to the web chunks IDs returned by the tool."""
-            return (
-                "When you use information from web_search snippets, end the corresponding sentence "
-                "with the exact citation id with this format: <ref id=\"web_i_j\"/> found in those snippets. "
-                "Never invent citation IDs. Be sure to output the ref div in the response. Never end the response with a reference section, reference sources directly within the response."
-            )
-
         self._web_search_tool_registered = True
 
     def _setup_self_documentation_tool(self) -> None:
@@ -1276,7 +1292,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 await self._agent_stop_streaming()
                 if isinstance(event, PartStartEvent):
                     if isinstance(event.part, TextPart):
-                        yield events_v4.TextPart(text=event.part.content)
+                        for chunk in _drain_streaming_text_delta(event.part.content, state):
+                            yield events_v4.TextPart(text=chunk)
                     elif isinstance(event.part, ToolCallPart):
                         yield events_v4.ToolCallStreamingStartPart(
                             tool_call_id=event.part.tool_call_id,
@@ -1286,7 +1303,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         yield events_v4.ReasoningPart(reasoning=event.part.content)
                 elif isinstance(event, PartDeltaEvent):
                     if isinstance(event.delta, TextPartDelta):
-                        yield events_v4.TextPart(text=event.delta.content_delta)
+                        for chunk in _drain_streaming_text_delta(event.delta.content_delta, state):
+                            yield events_v4.TextPart(text=chunk)
                     elif isinstance(event.delta, ToolCallPartDelta):
                         state.tool_is_streaming = True
                         yield events_v4.ToolCallDeltaPart(
@@ -1295,6 +1313,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         )
                     elif isinstance(event.delta, ThinkingPartDelta):
                         yield events_v4.ReasoningPart(reasoning=event.delta.content_delta)
+
+        if settings.CITATION_ATTRIBUTION_ENABLED and state.citation_stream_attributor is not None:
+            trailing = state.citation_stream_attributor.flush()
+            if trailing is not None:
+                state.allowed_web_citation_ids.update(trailing.selected_web_citation_ids)
+                yield events_v4.TextPart(text=trailing.text)
 
     async def _handle_model_request_node(
         self, node, run_ctx, state: StreamingState
@@ -1320,6 +1344,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     dataclasses.asdict(event),
                 )
                 if isinstance(event, FunctionToolCallEvent):
+                    state.tool_names_by_call_id[event.tool_call_id] = event.part.tool_name
                     if not state.tool_is_streaming:
                         yield events_v4.ToolCallPart(
                             tool_call_id=event.tool_call_id,
@@ -1327,7 +1352,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                             args=json.loads(event.part.args) if event.part.args else {},
                         )
                 elif isinstance(event, FunctionToolResultEvent):
+                    tool_name = state.tool_names_by_call_id.get(event.tool_call_id, "")
+                    if not tool_name:
+                        tool_name = getattr(event, "tool_name", "") or getattr(
+                            event.part, "tool_name", ""
+                        )
                     if isinstance(event.part, ToolReturnPart):
+                        if state.citation_stream_attributor is not None:
+                            state.citation_stream_attributor.add_candidates(
+                                extract_citation_candidates(tool_name, event.part.content)
+                            )
                         if event.part.metadata and (
                             citation_ids := event.part.metadata.get("citation_ids")
                         ):
@@ -1418,6 +1452,33 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             FinishMessagePart: Always emitted last to signal completion
         """
         await self._agent_stop_streaming(force_cache_check=True)
+
+        selected_urls: set[str] = set()
+        if (
+            settings.CITATION_ATTRIBUTION_ENABLED
+            and state.citation_stream_attributor is not None
+            and state.citation_stream_attributor.candidates
+        ):
+            for message in new_messages:
+                if isinstance(message, ModelResponse):
+                    for part in message.parts:
+                        if isinstance(part, TextPart):
+                            attribution = attribute_citations(
+                                part.content,
+                                state.citation_stream_attributor.candidates,
+                                state.citation_stream_attributor.config,
+                            )
+                            part.content = attribution.text
+                            selected_urls.update(attribution.selected_urls)
+                            state.allowed_web_citation_ids.update(
+                                attribution.selected_web_citation_ids
+                            )
+            if selected_urls:
+                state.ui_sources = [
+                    source
+                    for source in state.ui_sources
+                    if source.source.url in selected_urls
+                ]
 
         if state.allowed_web_citation_ids:
             for message in new_messages:
@@ -1584,6 +1645,17 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 toolsets=mcp_servers,
             ) as run:
                 state = StreamingState()
+                if settings.CITATION_ATTRIBUTION_ENABLED:
+                    state.citation_stream_attributor = CitationStreamAttributor(
+                        config=AttributionConfig(
+                            min_score=settings.CITATION_MIN_SCORE,
+                            top_k_per_sentence=settings.CITATION_TOP_K_PER_SENTENCE,
+                            max_sources_per_sentence=settings.CITATION_MAX_SOURCES_PER_SENTENCE,
+                            embedding_weight=settings.CITATION_EMBEDDING_WEIGHT,
+                            rouge_weight=settings.CITATION_ROUGE_WEIGHT,
+                            debug_logging=settings.CITATION_DEBUG_LOGGING,
+                        )
+                    )
                 async for event in self._process_agent_nodes(run, state, langfuse):
                     yield event
 
