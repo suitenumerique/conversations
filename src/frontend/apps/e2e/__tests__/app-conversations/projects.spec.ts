@@ -129,10 +129,16 @@ test.describe('Projects', () => {
 
     // Should invert state after first click
     const toggledExpanded = initialExpanded === 'true' ? 'false' : 'true';
-    await expect(projectHeader).toHaveAttribute('aria-expanded', toggledExpanded);
+    await expect(projectHeader).toHaveAttribute(
+      'aria-expanded',
+      toggledExpanded,
+    );
 
     // Click again to collapse
     await projectHeader.click();
-    await expect(projectHeader).toHaveAttribute('aria-expanded', initialExpanded);
+    await expect(projectHeader).toHaveAttribute(
+      'aria-expanded',
+      initialExpanded,
+    );
   });
 });

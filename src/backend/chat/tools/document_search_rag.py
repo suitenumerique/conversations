@@ -20,8 +20,9 @@ def add_document_rag_search_tool(agent: Agent) -> None:
         """
         Search indexed conversation documents using the configured RAG backend.
 
-        This function queries the conversation collection associated with
-        ``ctx.deps.conversation.collection_id`` and returns retrieved chunks.
+        Searches the conversation's own collection and, when the conversation
+        belongs to a project, the project's collection (read-only) so files
+        shared at the project level are visible to every conversation.
         The query should be self-contained to maximize retrieval quality.
 
         Side effects:
@@ -37,7 +38,16 @@ def add_document_rag_search_tool(agent: Agent) -> None:
         """
         document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
-        document_store = document_store_backend(ctx.deps.conversation.collection_id)
+        conversation = ctx.deps.conversation
+        project = getattr(conversation, "project", None)
+        read_only_collection_id = (
+            [project.collection_id] if project and project.collection_id else None
+        )
+
+        document_store = document_store_backend(
+            conversation.collection_id,
+            read_only_collection_id=read_only_collection_id,
+        )
 
         rag_results = document_store.search(query, session=ctx.deps.session)
 

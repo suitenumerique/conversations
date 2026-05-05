@@ -66,7 +66,15 @@ class FindRagBackend(BaseRagBackend):
         )
         response.raise_for_status()
 
-    def store_document(self, name: str, content: str, **kwargs) -> None:
+    def delete_document(self, document_id: str, **kwargs) -> None:
+        """No-op: per-document deletion is not yet wired for Find.
+
+        Wiring it requires (1) tagging each document with `document-{id}` at
+        index time and (2) plumbing an OIDC session through to the deleting
+        endpoint. See project memory `project_find_per_attachment_delete`.
+        """
+
+    def store_document(self, name: str, content: str, **kwargs) -> Optional[str]:
         """
         index document in Find
 
@@ -74,6 +82,11 @@ class FindRagBackend(BaseRagBackend):
             name (str): The name of the document.
             content (str): The content of the document in Markdown format.
             user_sub (str): The user subject identifier for access control.
+
+        Returns:
+            Optional[str]: Always None - per-document deletion is not yet wired
+            for the Find backend (would need both a document-id tag at index time
+            and an OIDC session at delete time).
         """
         logger.debug("index document '%s' in Find", name)
 

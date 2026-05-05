@@ -38,9 +38,9 @@ test.describe.serial('Language', () => {
     await waitForLanguageSwitch(page, TestLanguage.French);
 
     const pickerAfterFrench = await getLanguagePickerTrigger(page);
-    await expect(pickerAfterFrench.locator('.c__language-picker__label')).toHaveText(
-      /^FR$/i,
-    );
+    await expect(
+      pickerAfterFrench.locator('.c__language-picker__label'),
+    ).toHaveText(/^FR$/i);
 
     // Switch back to English (including backend PATCH)
     await waitForLanguageSwitch(page, TestLanguage.English);
