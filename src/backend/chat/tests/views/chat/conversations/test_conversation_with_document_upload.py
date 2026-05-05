@@ -24,6 +24,7 @@ from rest_framework import status
 
 from core.feature_flags.flags import FeatureToggle
 
+from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.agents.summarize import SummarizationAgent
 from chat.ai_sdk_types import (
     Attachment,
@@ -53,6 +54,7 @@ def _assert_document_instructions(
 ) -> None:
     """Assert document instruction format and payload fields."""
     assert f"{today_prompt_date}\n\nAnswer in english." in instructions
+    assert PREVENT_URL_HALLUCINATION_INSTRUCTION in instructions
     assert "User documents are attached to this conversation." in instructions
     assert "consider them already available" in instructions
     assert "List of documents attached to this conversation:\n" in instructions

@@ -7,6 +7,7 @@ import respx
 from freezegun import freeze_time
 from rest_framework import status
 
+from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.tests.utils import replace_uuids_with_placeholder
 from chat.tools.descriptions import SELF_DOCUMENTATION_TOOL_DESCRIPTION
@@ -64,6 +65,7 @@ def project_hello_data_fixture():
                 "You are a helpful test assistant :)",
                 "Today is Friday 25/07/2025.",
                 "Answer in english.",
+                PREVENT_URL_HALLUCINATION_INSTRUCTION,
                 "Always reply in bullet points.",
                 SELF_DOCUMENTATION_TOOL_DESCRIPTION,
             ],
@@ -74,6 +76,7 @@ def project_hello_data_fixture():
                 "You are a helpful test assistant :)",
                 "Today is Friday 25/07/2025.",
                 "Answer in english.",
+                PREVENT_URL_HALLUCINATION_INSTRUCTION,
                 SELF_DOCUMENTATION_TOOL_DESCRIPTION,
             ],
         ],

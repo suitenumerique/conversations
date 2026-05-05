@@ -17,6 +17,7 @@ from rest_framework import status
 
 from core.factories import UserFactory
 
+from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.ai_sdk_types import (
     Attachment,
     TextUIPart,
@@ -41,6 +42,7 @@ pytestmark = pytest.mark.django_db(transaction=True)
 FROZEN_TIMESTAMP = "2025-07-25T10:36:35.297675Z"
 ENGLISH_INSTRUCTIONS = (
     "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
+    f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
     f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
 )
 
@@ -129,16 +131,34 @@ def _make_pydantic_text_response(  # pylint: disable=too-many-arguments,too-many
     }
 
 
+def _system_messages(language="english"):
+    return [
+        {"content": "You are a helpful test assistant :)", "role": "system"},
+        {"content": "Today is Friday 25/07/2025.", "role": "system"},
+        {"content": f"Answer in {language}.", "role": "system"},
+        {"content": PREVENT_URL_HALLUCINATION_INSTRUCTION, "role": "system"},
+        {"content": SELF_DOCUMENTATION_TOOL_DESCRIPTION, "role": "system"},
+    ]
+
+
 def _assert_english_system_prompts(last_request_payload):
     system_messages = [
         m["content"] for m in last_request_payload["messages"] if m["role"] == "system"
     ]
-    assert system_messages == [
-        "You are a helpful test assistant :)",
-        "Today is Friday 25/07/2025.",
-        "Answer in english.",
-        SELF_DOCUMENTATION_TOOL_DESCRIPTION,
-    ]
+    assert system_messages == [m["content"] for m in _system_messages()]
+
+
+def _decode_stream(response):
+    return replace_uuids_with_placeholder(b"".join(response.streaming_content).decode("utf-8"))
+
+
+HELLO_STREAM_CONTENT = (
+    '0:"Hello"\n'
+    '0:" there"\n'
+    'f:{"messageId":"<mocked_uuid>"}\n'
+    'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
+    ',"co2Impact":0.0}}\n'
+)
 
 
 @pytest.fixture(autouse=True)
@@ -210,17 +230,9 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, hello_c
 
     assert_data_stream_response(response)
 
-    response_content = replace_uuids_with_placeholder(
-        b"".join(response.streaming_content).decode("utf-8")
-    )
+    response_content = _decode_stream(response)
 
-    assert response_content == (
-        '0:"Hello"\n'
-        '0:" there"\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
-        ',"co2Impact":0.0}}\n'
-    )
+    assert response_content == HELLO_STREAM_CONTENT
 
     assert mock_openai_stream.called
 
@@ -253,9 +265,7 @@ def test_post_conversation_data_protocol_triggers_keepalives(
 
     assert_data_stream_response(response)
 
-    response_content = replace_uuids_with_placeholder(
-        b"".join(response.streaming_content).decode("utf-8")
-    )
+    response_content = _decode_stream(response)
 
     assert response_content == (
         '0:"Hello"\n'
@@ -346,9 +356,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
 
     assert_data_stream_response(response)
 
-    response_content = replace_uuids_with_placeholder(
-        b"".join(response.streaming_content).decode("utf-8")
-    )
+    response_content = _decode_stream(response)
 
     assert response_content == (
         '0:"I see a cat"\n'
@@ -363,23 +371,7 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
     body = json.loads(request_sent.content)
 
     # Check the exact structure expected by the AI service
-    assert body["messages"] == [
-        {
-            "content": ("You are a helpful test assistant :)"),
-            "role": "system",
-        },
-        {
-            "content": ("Today is Friday 25/07/2025."),
-            "role": "system",
-        },
-        {
-            "content": ("Answer in english."),
-            "role": "system",
-        },
-        {
-            "content": SELF_DOCUMENTATION_TOOL_DESCRIPTION,
-            "role": "system",
-        },
+    assert body["messages"] == _system_messages() + [
         {
             "content": [
                 {"text": "Hello, what do you see on this picture?", "type": "text"},
@@ -510,9 +502,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
 
     assert_data_stream_response(response)
 
-    response_content = replace_uuids_with_placeholder(
-        b"".join(response.streaming_content).decode("utf-8")
-    )
+    response_content = _decode_stream(response)
 
     assert response_content == (
         'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":'
@@ -531,23 +521,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
     request_sent = mock_openai_stream_tool.calls[0].request
     body = json.loads(request_sent.content)
 
-    assert body["messages"] == [
-        {
-            "content": "You are a helpful test assistant :)",
-            "role": "system",
-        },
-        {
-            "content": "Today is Friday 25/07/2025.",
-            "role": "system",
-        },
-        {
-            "content": "Answer in english.",
-            "role": "system",
-        },
-        {
-            "content": SELF_DOCUMENTATION_TOOL_DESCRIPTION,
-            "role": "system",
-        },
+    assert body["messages"] == _system_messages() + [
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
     ]
 
@@ -684,9 +658,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
 
     assert_data_stream_response(response)
 
-    response_content = replace_uuids_with_placeholder(
-        b"".join(response.streaming_content).decode("utf-8")
-    )
+    response_content = _decode_stream(response)
 
     assert response_content == (
         'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":"get_current_weather"}\n'
@@ -704,23 +676,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
     request_sent = mock_openai_stream_tool.calls[0].request
     body = json.loads(request_sent.content)
 
-    assert body["messages"] == [
-        {
-            "content": "You are a helpful test assistant :)",
-            "role": "system",
-        },
-        {
-            "content": "Today is Friday 25/07/2025.",
-            "role": "system",
-        },
-        {
-            "content": "Answer in french.",
-            "role": "system",
-        },
-        {
-            "content": SELF_DOCUMENTATION_TOOL_DESCRIPTION,
-            "role": "system",
-        },
+    assert body["messages"] == _system_messages("french") + [
         {"content": [{"text": "Weather in Paris?", "type": "text"}], "role": "user"},
     ]
 
@@ -777,6 +733,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
 
     french_instructions = (
         "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in french."
+        f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
         f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
     )
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
@@ -891,17 +848,9 @@ def test_post_conversation_model_selection_new(
 
     assert_data_stream_response(response)
 
-    response_content = replace_uuids_with_placeholder(
-        b"".join(response.streaming_content).decode("utf-8")
-    )
+    response_content = _decode_stream(response)
 
-    assert response_content == (
-        '0:"Hello"\n'
-        '0:" there"\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
-        ',"co2Impact":0.0}}\n'
-    )
+    assert response_content == HELLO_STREAM_CONTENT
 
     # We check the model used in the outgoing request to the AI service
     assert json.loads(mock_openai_stream.calls.last.request.content)["model"] == "plop-model"
@@ -958,9 +907,7 @@ def test_post_conversation_data_protocol_no_stream(
 
     assert_data_stream_response(response)
 
-    response_content = replace_uuids_with_placeholder(
-        b"".join(response.streaming_content).decode("utf-8")
-    )
+    response_content = _decode_stream(response)
 
     if stream_delay:
         assert response_content == (
@@ -1045,6 +992,7 @@ def test_post_conversation_data_protocol_no_stream(
             _run_id,
             (
                 "You are an amazing assistant.\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
+                f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
                 f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
             ),
             ["Why the sky is blue?"],
@@ -1107,13 +1055,7 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
 
     response_content = replace_uuids_with_placeholder(response_content)
 
-    assert response_content == (
-        '0:"Hello"\n'
-        '0:" there"\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
-        ',"co2Impact":0.0}}\n'
-    )
+    assert response_content == HELLO_STREAM_CONTENT
 
     assert mock_openai_stream.called
 
@@ -1299,17 +1241,9 @@ def test_post_conversation_oidc_refresh_enabled(  # pylint: disable=unused-argum
 
     assert_data_stream_response(response)
 
-    response_content = replace_uuids_with_placeholder(
-        b"".join(response.streaming_content).decode("utf-8")
-    )
+    response_content = _decode_stream(response)
 
-    assert response_content == (
-        '0:"Hello"\n'
-        '0:" there"\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
-        ',"co2Impact":0.0}}\n'
-    )
+    assert response_content == HELLO_STREAM_CONTENT
 
     assert mock_openai_stream.called
 

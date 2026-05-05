@@ -6,6 +6,7 @@ import pytest
 import respx
 from freezegun import freeze_time
 
+from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.llm_configuration import LLModel, LLMProvider
 from chat.tests.utils import assert_data_stream_response
@@ -48,6 +49,7 @@ def settings_with_concatenation(settings):
             False,
             (
                 "base system prompt\n\nToday is Friday 25/07/2025.\n\nAnswer in english.\n\n"
+                f"{PREVENT_URL_HALLUCINATION_INSTRUCTION}\n\n"
                 f"{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
             ),
         ],
@@ -55,6 +57,7 @@ def settings_with_concatenation(settings):
             True,
             (
                 "base system prompt\n\nToday is Friday 25/07/2025.\n\nAnswer in english.\n\n"
+                f"{PREVENT_URL_HALLUCINATION_INSTRUCTION}\n\n"
                 "Custom project instructions.\n\n"
                 f"{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
             ),
