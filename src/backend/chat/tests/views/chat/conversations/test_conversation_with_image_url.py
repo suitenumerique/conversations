@@ -18,6 +18,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from rest_framework import status
 
+from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.ai_sdk_types import (
     Attachment,
     TextUIPart,
@@ -111,6 +112,7 @@ def test_post_conversation_with_local_image_url(
                 ],
                 instructions="You are a helpful test assistant :)\n\nToday is "
                 f"{formatted_date}.\n\nAnswer in english."
+                f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
                 f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}",
                 run_id=messages[0].run_id,
                 timestamp=timezone.now(),
@@ -186,6 +188,7 @@ def test_post_conversation_with_local_image_url(
             "instructions": (
                 "You are a helpful test assistant :)\n\nToday is Saturday 18/10/2025."
                 "\n\nAnswer in english."
+                f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
                 f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
             ),
             "kind": "request",
@@ -297,6 +300,7 @@ def test_post_conversation_with_local_image_wrong_url(
                 instructions=(
                     f"You are a helpful test assistant :)\n\n{today_prompt_date}"
                     "\n\nAnswer in english."
+                    f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
                     f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
                 ),
                 run_id=messages[0].run_id,
@@ -386,6 +390,7 @@ def test_post_conversation_with_remote_image_url(
                 instructions=(
                     "You are a helpful test assistant :)\n\n"
                     f"{today_prompt_date}\n\nAnswer in english."
+                    f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
                     f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
                 ),
                 run_id=messages[0].run_id,
@@ -506,6 +511,7 @@ def test_post_conversation_with_local_image_url_in_history(
                 "instructions": (
                     "You are a helpful test assistant :)\n\n"
                     f"{today_prompt_date}\n\nAnswer in english."
+                    f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
                     f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
                 ),
                 "kind": "request",
@@ -598,6 +604,7 @@ def test_post_conversation_with_local_image_url_in_history(
                 instructions=(
                     "You are a helpful test assistant :)\n\n"
                     f"{today_prompt_date}\n\nAnswer in english."
+                    f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
                     f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
                 ),
             ),
@@ -619,6 +626,7 @@ def test_post_conversation_with_local_image_url_in_history(
                 run_id=messages[2].run_id,
                 instructions="You are a helpful test assistant :)\n\n"
                 "Today is Saturday 18/10/2025.\n\nAnswer in english."
+                f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
                 f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}",
                 timestamp=timestamp_now,
             ),
@@ -722,6 +730,7 @@ def test_post_conversation_with_local_image_url_in_history(
         {
             "instructions": f"You are a helpful test assistant :)\n\n{today_prompt_date}"
             "\n\nAnswer in english."
+            f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
             f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}",
             "kind": "request",
             "parts": [
@@ -767,6 +776,7 @@ def test_post_conversation_with_local_image_url_in_history(
         {
             "instructions": "You are a helpful test assistant :)\n\nToday is Saturday 18/10/2025."
             "\n\nAnswer in english."
+            f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
             f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}",
             "kind": "request",
             "metadata": None,

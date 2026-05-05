@@ -13,6 +13,19 @@ from chat.agents.conversation import ConversationAgent
 from chat.llm_configuration import LLModel, LLMProvider
 
 
+def assert_base_instructions(instructions, date_str=None, language_str=""):
+    """Assert the standard set of ConversationAgent instructions are registered."""
+    assert len(instructions) == 4
+    assert instructions[0] == "You are a helpful assistant"
+    assert instructions[1].__name__ == "add_the_date"
+    if date_str is not None:
+        assert instructions[1]() == date_str
+    assert instructions[2].__name__ == "enforce_response_language"
+    assert instructions[2]() == language_str
+    assert instructions[3].__name__ == "prevent_url_hallucination"
+    assert "Never invent or guess URLs" in instructions[3]()
+
+
 @pytest.fixture(autouse=True)
 def base_settings(settings):
     """Set up base settings for the tests."""
@@ -29,11 +42,7 @@ def test_build_pydantic_agent_success_no_tools():
     assert isinstance(agent, Agent)
     assert agent._system_prompts == ()
 
-    instructions = agent._instructions
-    assert len(instructions) == 3
-    assert instructions[0] == "You are a helpful assistant"
-    assert instructions[1].__name__ == "add_the_date"
-    assert instructions[2].__name__ == "enforce_response_language"
+    assert_base_instructions(agent._instructions)
 
     assert isinstance(agent.model, OpenAIChatModel)
     assert agent.model.model_name == "model-123"
@@ -50,13 +59,7 @@ def test_build_pydantic_agent_with_tools(settings):
     agent = ConversationAgent(model_hrid="default-model")
     assert isinstance(agent, Agent)
 
-    instructions = agent._instructions
-    assert len(instructions) == 3
-    assert instructions[0] == "You are a helpful assistant"
-    assert instructions[1].__name__ == "add_the_date"
-    assert instructions[1]() == "Today is Friday 25/07/2025."
-    assert instructions[2].__name__ == "enforce_response_language"
-    assert instructions[2]() == ""
+    assert_base_instructions(agent._instructions, date_str="Today is Friday 25/07/2025.")
 
     assert isinstance(agent.model, OpenAIChatModel)
     assert agent.model.model_name == "model-123"
@@ -75,13 +78,7 @@ def test_add_dynamic_system_prompt():
 
     assert len(agent._system_prompt_functions) == 0
 
-    instructions = agent._instructions
-    assert len(instructions) == 3
-    assert instructions[0] == "You are a helpful assistant"
-    assert instructions[1].__name__ == "add_the_date"
-    assert instructions[1]() == "Today is Friday 25/07/2025."
-    assert instructions[2].__name__ == "enforce_response_language"
-    assert instructions[2]() == ""
+    assert_base_instructions(agent._instructions, date_str="Today is Friday 25/07/2025.")
 
     agent = ConversationAgent(model_hrid="default-model", language="fr-fr")
     assert agent._instructions[2]() == "Answer in french."
@@ -134,13 +131,7 @@ def test_build_pydantic_agent_with_legacy_tools(settings, caplog, legacy_tool):
     assert "Ignoring legacy tool(s)" in caplog.text
     assert isinstance(agent, Agent)
 
-    instructions = agent._instructions
-    assert len(instructions) == 3
-    assert instructions[0] == "You are a helpful assistant"
-    assert instructions[1].__name__ == "add_the_date"
-    assert instructions[1]() == "Today is Friday 25/07/2025."
-    assert instructions[2].__name__ == "enforce_response_language"
-    assert instructions[2]() == ""
+    assert_base_instructions(agent._instructions, date_str="Today is Friday 25/07/2025.")
 
     assert isinstance(agent.model, OpenAIChatModel)
     assert agent.model.model_name == "model-123"

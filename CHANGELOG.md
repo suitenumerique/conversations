@@ -14,6 +14,7 @@ and this project adheres to
 - ✨(back) add ODT parsing support
 - ✨(back) add self-documentation tool
 - ✅(front) add tests for SourceItem component
+- 🐛(fix) add prevent_url_hallucination instruction to ConversationAgent
 
 ### Changed
 
