@@ -20,7 +20,7 @@
 | `ingress.host`                                                               | Host for the Ingress                                      | `conversations.example.com`                                      |
 | `ingress.path`                                                               | Path to use for the Ingress                               | `/`                                                              |
 | `ingress.hosts`                                                              | Additional host to configure for the Ingress              | `[]`                                                             |
-| `ingress.tls.enabled`                                                        | Weather to enable TLS for the Ingress                     | `true`                                                           |
+| `ingress.tls.enabled`                                                        | Whether to enable TLS for the Ingress                     | `true`                                                           |
 | `ingress.tls.secretName`                                                     | Secret name for TLS config                                | `nil`                                                            |
 | `ingress.tls.additional[].secretName`                                        | Secret name for additional TLS config                     |                                                                  |
 | `ingress.tls.additional[].hosts[]`                                           | Hosts for additional TLS config                           |                                                                  |
@@ -30,7 +30,7 @@
 | `ingressAdmin.host`                                                          | Host for the Ingress                                      | `conversations.example.com`                                      |
 | `ingressAdmin.path`                                                          | Path to use for the Ingress                               | `/admin`                                                         |
 | `ingressAdmin.hosts`                                                         | Additional host to configure for the Ingress              | `[]`                                                             |
-| `ingressAdmin.tls.enabled`                                                   | Weather to enable TLS for the Ingress                     | `true`                                                           |
+| `ingressAdmin.tls.enabled`                                                   | Whether to enable TLS for the Ingress                     | `true`                                                           |
 | `ingressAdmin.tls.secretName`                                                | Secret name for TLS config                                | `nil`                                                            |
 | `ingressAdmin.tls.additional[].secretName`                                   | Secret name for additional TLS config                     |                                                                  |
 | `ingressAdmin.tls.additional[].hosts[]`                                      | Hosts for additional TLS config                           |                                                                  |
