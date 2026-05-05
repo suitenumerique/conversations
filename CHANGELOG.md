@@ -8,10 +8,9 @@ and this project adheres to
 
 ## [Unreleased]
 
-- ✨(onboarding) add onboarding modal
-
 ### Added
 
+- ✨(onboarding) add onboarding modal
 - ✨(back) add ODT parsing support
 - ✨(back) add self-documentation tool
 - ✅(front) add tests for SourceItem component
@@ -34,6 +33,7 @@ and this project adheres to
 
 ### Fixed
 
+- 💬(onboarding) fix wording step 1 img
 - 🐛(fix) new conversation in project button max size
 - 💄(ui) little fix margin top
 - 💄(ui) review ui for part of the project
