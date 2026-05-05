@@ -17,6 +17,7 @@ from rest_framework import status
 
 from core.factories import UserFactory
 
+from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.ai_sdk_types import (
     Attachment,
     TextUIPart,
@@ -41,6 +42,7 @@ pytestmark = pytest.mark.django_db(transaction=True)
 FROZEN_TIMESTAMP = "2025-07-25T10:36:35.297675Z"
 ENGLISH_INSTRUCTIONS = (
     "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
+    f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
     f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
 )
 
@@ -137,6 +139,7 @@ def _assert_english_system_prompts(last_request_payload):
         "You are a helpful test assistant :)",
         "Today is Friday 25/07/2025.",
         "Answer in english.",
+        PREVENT_URL_HALLUCINATION_INSTRUCTION,
         SELF_DOCUMENTATION_TOOL_DESCRIPTION,
     ]
 
@@ -377,6 +380,10 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
             "role": "system",
         },
         {
+            "content": PREVENT_URL_HALLUCINATION_INSTRUCTION,
+            "role": "system",
+        },
+        {
             "content": SELF_DOCUMENTATION_TOOL_DESCRIPTION,
             "role": "system",
         },
@@ -542,6 +549,10 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
         },
         {
             "content": "Answer in english.",
+            "role": "system",
+        },
+        {
+            "content": PREVENT_URL_HALLUCINATION_INSTRUCTION,
             "role": "system",
         },
         {
@@ -718,6 +729,10 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
             "role": "system",
         },
         {
+            "content": PREVENT_URL_HALLUCINATION_INSTRUCTION,
+            "role": "system",
+        },
+        {
             "content": SELF_DOCUMENTATION_TOOL_DESCRIPTION,
             "role": "system",
         },
@@ -777,6 +792,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
 
     french_instructions = (
         "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in french."
+        f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
         f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
     )
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
@@ -1045,6 +1061,7 @@ def test_post_conversation_data_protocol_no_stream(
             _run_id,
             (
                 "You are an amazing assistant.\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
+                f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
                 f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
             ),
             ["Why the sky is blue?"],

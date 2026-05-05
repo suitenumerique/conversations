@@ -12,7 +12,7 @@ from dirty_equals import IsUUID
 from freezegun import freeze_time
 from rest_framework import status
 
-from chat.agents.conversation import TitleGenerationAgent
+from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION, TitleGenerationAgent
 from chat.ai_sdk_types import (
     Attachment,
     TextUIPart,
@@ -1492,6 +1492,7 @@ def test_post_conversation_with_existing_tool_history(
         "instructions": (
             "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025."
             "\n\nAnswer in dutch."
+            f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
             f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
         ),
         "kind": "request",
@@ -1548,6 +1549,7 @@ def test_post_conversation_with_existing_tool_history(
         "instructions": (
             "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025."
             "\n\nAnswer in dutch."
+            f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
             f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
         ),
         "kind": "request",

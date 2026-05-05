@@ -23,6 +23,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from rest_framework import status
 
+from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.ai_sdk_types import (
     Attachment,
     TextUIPart,
@@ -48,6 +49,7 @@ def _expected_document_instructions(today_prompt_date: str) -> str:
         "You are a helpful test assistant :)\n\n"
         f"{today_prompt_date}\n\n"
         "Answer in english.\n\n"
+        f"{PREVENT_URL_HALLUCINATION_INSTRUCTION}\n\n"
         f"{SELF_DOCUMENTATION_TOOL_DESCRIPTION}\n\n"
         f"{DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT}\n\n"
         f"{DOCUMENT_SUMMARIZE_SYSTEM_PROMPT}\n\n"
@@ -437,6 +439,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         "You are a helpful test assistant :)\n\n"
         f"Today is {formatted_date}.\n\n"
         "Answer in english.\n\n"
+        f"{PREVENT_URL_HALLUCINATION_INSTRUCTION}\n\n"
         f"{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
     )
 

@@ -16,6 +16,14 @@ from .base import BaseAgent
 
 logger = logging.getLogger(__name__)
 
+PREVENT_URL_HALLUCINATION_INSTRUCTION = (
+    "Never invent or guess URLs. "
+    "Only include URLs that were explicitly provided in tool results "
+    "(e.g., web search results). "
+    "If you need to reference a web page that was not returned by a tool, "
+    "use a descriptive placeholder such as [official link] instead of a URL."
+)
+
 MOCKED_RESPONSE = """
 # **Ode to the AI Assistant** 🤖✨
 
@@ -116,6 +124,11 @@ class ConversationAgent(BaseAgent):
         def enforce_response_language() -> str:
             """Dynamic instruction function to set the expected language to use."""
             return f"Answer in {get_language_name(language).lower()}." if language else ""
+
+        @self.instructions
+        def prevent_url_hallucination() -> str:
+            """Prevent the LLM from generating hallucinated URLs."""
+            return PREVENT_URL_HALLUCINATION_INSTRUCTION
 
     def is_web_search_configured(self) -> bool:
         """

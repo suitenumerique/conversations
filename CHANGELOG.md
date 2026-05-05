@@ -13,6 +13,7 @@ and this project adheres to
 - ✨(back) add ODT parsing support
 - ✨(back) add self-documentation tool
 - ✅(front) add tests for SourceItem component
+- 🐛(fix) add prevent_url_hallucination instruction to ConversationAgent
 
 ### Changed
 
@@ -28,6 +29,7 @@ and this project adheres to
 - ✨(auth) add silent OIDC login
 - ⬆️(back) upgrade lxml and pypdf
 - ✨(back) set allow_smart_web_search to False for all users
+- ✨(back) make allow_conversation_analytics user setting readonly in admin
 
 ### Fixed
 
