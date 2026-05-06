@@ -27,14 +27,15 @@ def add_document_rag_search_tool(agent: Agent) -> None:
     ) -> ToolReturn:
         # pylint: disable=line-too-long
         """
-        Search indexed conversation documents using the configured RAG backend.
+        Search indexed documents using the configured RAG backend.
 
-        This function queries the conversation collection associated with
-        ``ctx.deps.conversation.collection_id`` and returns retrieved chunks.
-        The query should be self-contained to maximize retrieval quality.
+        Searches the conversation's own collection and, when the conversation
+        belongs to a project, the project's collection (read-only) so files
+        shared at the project level are visible to every conversation in it.
 
-        When ``document_id`` is provided, search is filtered to a single
-        text attachment by UUID.
+        When ``document_id`` is provided, the search is scoped to a single
+        attachment - resolved against this conversation's text attachments
+        and, when applicable, the parent project's text attachments.
 
         Args:
             ctx (RunContext): The run context containing the conversation.
@@ -49,15 +50,34 @@ def add_document_rag_search_tool(agent: Agent) -> None:
         # pylint: enable=line-too-long
         document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
-        document_store = document_store_backend(ctx.deps.conversation.collection_id)
-        document_name = None
+        conversation = ctx.deps.conversation
+        project = getattr(conversation, "project", None)
+        read_only_collection_id = (
+            [project.collection_id] if project and project.collection_id else None
+        )
+        document_store = document_store_backend(
+            conversation.collection_id,
+            read_only_collection_id=read_only_collection_id,
+        )
+
+        document_name: str | None = None
+        rag_document_id: str | None = None
         if document_id is not None:
-            text_attachments = await sync_to_async(list)(
-                ctx.deps.conversation.attachments.filter(
-                    content_type__startswith=TEXT_MIME_PREFIX
-                ).order_by("created_at", "id")
+            conv_attachments = await sync_to_async(list)(
+                conversation.attachments.filter(content_type__startswith=TEXT_MIME_PREFIX).order_by(
+                    "created_at", "id"
+                )
             )
-            selected_attachment = resolve_attachment_by_id(text_attachments, document_id)
+            project_attachments: list = []
+            if project is not None:
+                project_attachments = await sync_to_async(list)(
+                    project.attachments.filter(content_type__startswith=TEXT_MIME_PREFIX).order_by(
+                        "created_at", "id"
+                    )
+                )
+            selected_attachment = resolve_attachment_by_id(
+                conv_attachments + project_attachments, document_id
+            )
 
             # Converted attachments are stored as markdown blobs (e.g. "report.pdf.md")
             # while RAG metadata keeps the original file name (e.g. "report.pdf").
@@ -66,10 +86,16 @@ def add_document_rag_search_tool(agent: Agent) -> None:
             else:
                 document_name = selected_attachment.file_name
 
+            # Albert prefers `document_id` over `document_name` when both are sent.
+            # Find lacks per-document filtering and raises FindFilterUnsupportedError
+            # on either field, so document-scoped search is Albert-only today.
+            rag_document_id = selected_attachment.rag_document_id
+
         rag_results = await document_store.asearch(
             query,
             session=ctx.deps.session,
             document_name=document_name,
+            document_id=rag_document_id,
         )
 
         ctx.usage += RunUsage(
@@ -77,7 +103,7 @@ def add_document_rag_search_tool(agent: Agent) -> None:
             output_tokens=rag_results.usage.completion_tokens,
         )
 
-        if document_name is not None and not rag_results.data:
+        if document_id is not None and not rag_results.data:
             raise ModelRetry(
                 f"No results found in document filtered by document_id={document_id!r}. "
                 "If the user's question was not specific to this document, retry "

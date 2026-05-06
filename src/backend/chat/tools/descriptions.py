@@ -32,7 +32,11 @@ You may translate it if needed, but preserve all information / copy it verbatim.
 """
 
 DOCUMENT_SUMMARIZE_TOOL_DESCRIPTION = """
-Generate a complete, ready-to-use summary of the documents already attached in context.
+Generate a complete, ready-to-use summary of documents attached to the
+current conversation (the entries listed under `documents` in the system
+context). For files in the project library (entries under
+`project_documents`), call `summarize_project` instead.
+
 Do not request the documents to the user, this tool can access them directly.
 Return this summary directly to the user WITHOUT any modification,
 or additional summarization.
@@ -46,6 +50,32 @@ Examples:
 "Summarize this doc in English" -> instructions = "In English", document_id=None
 "Summarize this doc" -> instructions = "" (default), document_id=None
 "Summarize this specific doc" -> instructions = "", document_id=id_from_context
+
+The `document_id` argument MUST be a UUID picked from the `documents` array.
+If the user is referring to a project library file, call `summarize_project`
+with an id picked from `project_documents` instead.
+"""
+
+DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION = """
+Generate a complete, ready-to-use summary of files in the project library
+(the entries listed under `project_documents` in the system context). These
+files are shared across every conversation in the project.
+
+Use this tool only when the user is referring to project files. For files
+attached to the current conversation only (entries under `documents`), use
+`summarize` instead.
+
+Do not request the documents to the user, this tool can access them directly.
+Return this summary directly to the user WITHOUT any modification,
+or additional summarization.
+
+Examples:
+"Summarize the team handbook" (a project file) -> instructions = "", document_id=id_from_project_documents
+"Summarize all our project docs" -> instructions = "", document_id=None
+"Summarize the project brief in 3 bullets" -> instructions = "3 bullets", document_id=id_from_project_documents
+
+The `document_id` argument MUST be a UUID picked from the `project_documents`
+array. Passing a UUID from the `documents` array will be rejected.
 """
 
 WEB_SEARCH_TOOL_DESCRIPTION = """

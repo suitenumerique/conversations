@@ -47,6 +47,8 @@ export const CONFIG = {
     'image/gif,' +
     'image/webp,' +
     'application/vnd.oasis.opendocument.text',
+  project_files_max_count: 10,
+  project_images_max_count: 3,
 } as const;
 
 export const overrideConfig = async (

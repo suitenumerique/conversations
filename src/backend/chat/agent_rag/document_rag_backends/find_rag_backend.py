@@ -22,6 +22,17 @@ logger = logging.getLogger(__name__)
 SUPPORTED_LANGUAGE_CODES = ["en", "fr", "de", "nl"]
 
 
+class FindFilterUnsupportedError(ValueError):
+    """Raised when ``FindRagBackend.search`` is asked to apply a per-document filter.
+
+    Find has no per-document identifier and does not index document names, so
+    filtered queries cannot be honored. Raising fast (instead of returning the
+    full collection silently) lets callers surface the capability gap rather
+    than presenting unrelated results as if they came from the targeted
+    document.
+    """
+
+
 class FindRagBackend(BaseRagBackend):
     """
     This class is a placeholder for the Find API implementation.
@@ -30,6 +41,25 @@ class FindRagBackend(BaseRagBackend):
     It provides methods to:
     - Store parsed documents in the Find index.
     - Perform a search operation using the Find API.
+
+    Known limitations vs. ``AlbertRagBackend`` (operators selecting this backend
+    via ``RAG_DOCUMENT_SEARCH_BACKEND`` should be aware):
+
+    - ``store_document`` does not return a per-document id, so attachments
+      indexed via Find have ``rag_document_id = NULL``. Per-document features
+      that depend on it degrade:
+      * Per-attachment delete: ``delete_document`` falls through to the base
+        no-op. Chunks remain searchable in the Find index until the parent
+        conversation/project is deleted and the whole collection is dropped.
+      * Targeted RAG search: ``search`` raises ``FindFilterUnsupportedError``
+        when ``document_id`` or ``document_name`` is provided, so callers can
+        surface the gap to the user instead of silently broadening the query.
+      * **RAG enable-gate**: ``AIAgentService._check_should_enable_rag`` uses
+        ``rag_document_id`` as the "actually indexed" signal. Because Find
+        never populates it, the gate never fires for Find-only deployments
+        and the agent runs without RAG tools registered. Selecting Find is
+        therefore a deliberate "no RAG tooling" choice until per-document
+        ids are wired in.
     """
 
     def __init__(
@@ -66,7 +96,7 @@ class FindRagBackend(BaseRagBackend):
         )
         response.raise_for_status()
 
-    def store_document(self, name: str, content: str, **kwargs) -> None:
+    def store_document(self, name: str, content: str, **kwargs) -> Optional[str]:
         """
         index document in Find
 
@@ -74,6 +104,10 @@ class FindRagBackend(BaseRagBackend):
             name (str): The name of the document.
             content (str): The content of the document in Markdown format.
             user_sub (str): The user subject identifier for access control.
+
+        Returns:
+            Optional[str]: Always None; Find does not expose a per-document
+            identifier we can later use as a search filter or delete target.
         """
         logger.debug("index document '%s' in Find", name)
 
@@ -106,20 +140,52 @@ class FindRagBackend(BaseRagBackend):
 
     @with_fresh_access_token
     def search(  # pylint: disable=arguments-differ
-        self, query: str, results_count: int = 4, **kwargs
+        self,
+        query: str,
+        results_count: int = 4,
+        document_name: Optional[str] = None,
+        document_id: Optional[str] = None,
+        **kwargs,
     ) -> RAGWebResults:
         """
         Perform a search using the Find API.
         Uses the user's OIDC token from the request session.
 
+        Find does not support per-document filtering (no per-doc identifiers,
+        no name-based metadata filter on the index). When ``document_name`` or
+        ``document_id`` is provided, the call fails fast with
+        ``FindFilterUnsupportedError`` so callers can surface the capability
+        gap instead of silently presenting full-collection hits as if scoped
+        to the targeted document.
+
         Args:
             query: The search query.
             results_count: Number of results to return.
+            document_name: Must be ``None`` on Find. Otherwise raises
+                ``FindFilterUnsupportedError``.
+            document_id: Must be ``None`` on Find. Otherwise raises
+                ``FindFilterUnsupportedError``.
             **kwargs: Additional arguments. Expected: 'session' containing OIDC tokens,
 
         Returns:
             RAGWebResults: The search results.
+
+        Raises:
+            FindFilterUnsupportedError: when ``document_id`` or
+                ``document_name`` is not ``None``.
         """
+        if document_id is not None:
+            raise FindFilterUnsupportedError(
+                "FindRagBackend cannot filter search by 'document_id': the Find "
+                "backend exposes no per-document identifier. Either omit "
+                "document_id or use a backend that supports per-document search."
+            )
+        if document_name is not None:
+            raise FindFilterUnsupportedError(
+                "FindRagBackend cannot filter search by 'document_name': the Find "
+                "backend does not index document names. Either omit document_name "
+                "or use a backend that supports per-document search."
+            )
         logger.debug("search documents in Find with query '%s'", query)
         response = requests.post(
             urljoin(settings.FIND_API_URL, self.search_endpoint),

@@ -68,10 +68,17 @@ class DocumentInfo:
 
 @dataclasses.dataclass
 class DocumentsListing:
-    """LLM-visible shape for the full attached-documents listing."""
+    """LLM-visible shape for the full attached-documents listing.
+
+    `project_documents` is None (and absent from the rendered JSON) when the
+    conversation does not belong to a project, or its project has no indexable
+    files. When present, every entry is `tool_call_only` - project files are
+    never inlined.
+    """
 
     documents: list[DocumentInfo]
     note: str
+    project_documents: list[DocumentInfo] | None = None
     documents_order: Literal["newest_to_oldest"] = "newest_to_oldest"
 
 
@@ -111,8 +118,14 @@ def _display_title_from_name(file_name: str | None, is_converted: bool) -> str:
 def _build_documents_listing(
     docs: list[_DocumentEntry],
     force_tool_call_only: bool,
+    project_docs: list[_DocumentEntry] | None = None,
 ) -> DocumentsListing:
-    """Build the ordered documents listing (with access note) for the model."""
+    """Build the ordered documents listing (with access note) for the model.
+
+    `project_docs` are surfaced under the separate `project_documents` array
+    on the listing and are always rendered `tool_call_only` (the inlining
+    budget is reserved for the conversation's own attachments).
+    """
     note = (
         f"Documents marked '{ACCESS_TOOL_CALL_ONLY}' are accessible through tools like "
         "RAG search or summary. "
@@ -124,19 +137,36 @@ def _build_documents_listing(
             f"Do not use a tool to access a document marked '{ACCESS_FULL_CONTEXT}', this is "
             "counterproductive as the content is already available here."
         )
+    project_documents: list[DocumentInfo] | None = None
+    if project_docs:
+        note += (
+            " Entries listed under 'project_documents' come from the user's project library "
+            "and are shared across every conversation in this project."
+        )
+        project_documents = [
+            doc.to_info(force_tool_call_only=True) for doc in reversed(project_docs)
+        ]
     return DocumentsListing(
         documents=[
             doc.to_info(force_tool_call_only=force_tool_call_only) for doc in reversed(docs)
         ],
         note=note,
+        project_documents=project_documents,
     )
 
 
 def _render_listing(listing: DocumentsListing) -> str:
-    """Serialize the listing as the JSON-prefixed instruction snippet."""
+    """Serialize the listing as the JSON-prefixed instruction snippet.
+
+    `project_documents=None` is dropped so the LLM doesn't see an empty/null
+    array when the conversation has no project library to draw from.
+    """
+    payload = dataclasses.asdict(listing)
+    if payload.get("project_documents") is None:
+        payload.pop("project_documents", None)
     return (
         "List of documents attached to this conversation:\n"
-        f"{json.dumps(dataclasses.asdict(listing), ensure_ascii=False, indent=2)}"
+        f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
     )
 
 
@@ -210,6 +240,26 @@ def _apply_fifo_inlining(
     return result
 
 
+def _project_placeholder_docs(
+    project_text_attachments: Sequence["models.ChatConversationAttachment"],
+) -> list[_DocumentEntry]:
+    """Build tool-call-only entries for project files (never inlined)."""
+    total = len(project_text_attachments)
+    return [
+        _DocumentEntry(
+            document_id=str(attachment.id),
+            title=_display_title_from_name(
+                attachment.file_name, bool(getattr(attachment, "conversion_from", None))
+            ),
+            content=TOOL_CALL_ONLY_CONTENT,
+            token_count=0,
+            inlineable=False,
+            info=_info_label_for(index, total),
+        )
+        for index, attachment in enumerate(project_text_attachments, start=1)
+    ]
+
+
 async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-locals
     *,
     conversation_id: str,
@@ -218,6 +268,7 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
     max_token_context: int | None,
     budget_ratio: float,
     security_buffer_tokens: int,
+    project_text_attachments: Sequence[models.ChatConversationAttachment] = (),
 ) -> str:
     """
     Build document instructions with a rolling full-context FIFO window.
@@ -226,9 +277,14 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
     - Reserve a ratio of max model context for full document inclusion.
     - Keep all documents listed with an explicit accessibility status.
     - Apply FIFO eviction on inlined documents when budget is exceeded.
+    - Project files (`project_text_attachments`) are surfaced under
+      `project_documents` and are always tool_call_only - they do not compete
+      for the inlining budget and have their own per-array `info` ordering.
     """
-    if not text_attachments:
+    if not text_attachments and not project_text_attachments:
         return ""
+
+    project_docs = _project_placeholder_docs(project_text_attachments)
 
     placeholder_docs = [
         _DocumentEntry(
@@ -250,7 +306,11 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
             model_hrid,
         )
         return _render_listing(
-            _build_documents_listing(docs=placeholder_docs, force_tool_call_only=True)
+            _build_documents_listing(
+                docs=placeholder_docs,
+                force_tool_call_only=True,
+                project_docs=project_docs,
+            )
         )
 
     if budget_ratio == 0:
@@ -261,7 +321,11 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
             model_hrid,
         )
         return _render_listing(
-            _build_documents_listing(docs=placeholder_docs, force_tool_call_only=True)
+            _build_documents_listing(
+                docs=placeholder_docs,
+                force_tool_call_only=True,
+                project_docs=project_docs,
+            )
         )
 
     document_budget = max(int(max_token_context * budget_ratio) - security_buffer_tokens, 0)
@@ -326,4 +390,6 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
         inlined_count,
     )
 
-    return _render_listing(_build_documents_listing(docs=docs, force_tool_call_only=False))
+    return _render_listing(
+        _build_documents_listing(docs=docs, force_tool_call_only=False, project_docs=project_docs)
+    )

@@ -225,6 +225,8 @@ class ConfigView(drf.views.APIView):
         dict_settings["theme_customization"] = self._load_theme_customization()
 
         dict_settings["chat_upload_accept"] = ",".join(settings.RAG_FILES_ACCEPTED_FORMATS)
+        dict_settings["project_files_max_count"] = settings.PROJECT_FILES_MAX_COUNT
+        dict_settings["project_images_max_count"] = settings.PROJECT_IMAGES_MAX_COUNT
 
         return drf.response.Response(dict_settings)
 

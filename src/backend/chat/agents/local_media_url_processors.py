@@ -10,18 +10,20 @@ import base64
 import logging
 import mimetypes
 import secrets
-from typing import Dict, Iterable
+from typing import Dict, Iterable, List
 
 from django.conf import settings
 from django.core.cache import cache
 from django.core.files.storage import default_storage
 
+from asgiref.sync import sync_to_async
 from pydantic_ai import DocumentUrl, ImageUrl, ModelMessage, ModelRequest, UserPromptPart
 
-from core.file_upload.enums import FileToLLMMode
+from core.file_upload.enums import AttachmentStatus, FileToLLMMode
 from core.file_upload.utils import generate_retrieve_policy
 
-from chat.models import ChatConversation
+from chat.constants import IMAGE_MIME_PREFIX
+from chat.models import ChatConversation, ChatConversationAttachment
 
 logger = logging.getLogger(__name__)
 
@@ -185,3 +187,36 @@ def update_history_local_urls(
             update_local_urls(conversation, part.content)
 
     return messages
+
+
+@sync_to_async
+def _project_image_keys(project_id: str) -> List[tuple]:
+    """Return ordered (key, id) for every READY image attachment in the project."""
+    return list(
+        ChatConversationAttachment.objects.filter(
+            project_id=project_id,
+            content_type__startswith=IMAGE_MIME_PREFIX,
+            upload_state=AttachmentStatus.READY,
+        )
+        .order_by("created_at", "id")
+        .values_list("key", "id")
+    )
+
+
+async def build_project_image_urls(project_id) -> List[ImageUrl]:
+    """Build pinned ``ImageUrl`` parts for every READY image in the project.
+
+    Project images are pinned to every chat turn the same way conversation
+    images are attached to the user message - vision-capable models see them
+    inline in the prompt. The URL form is the same presigned/temporary/base64
+    output produced by ``update_local_urls`` for conversation images, so the
+    LLM-side handling is identical.
+    """
+    if not project_id:
+        return []
+    rows = await _project_image_keys(project_id)
+    upload_mode = settings.FILE_TO_LLM_MODE
+    return [
+        ImageUrl(url=_get_file_url_for_llm(key, upload_mode), identifier=str(att_id))
+        for key, att_id in rows
+    ]

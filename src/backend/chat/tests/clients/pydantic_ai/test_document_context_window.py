@@ -10,9 +10,17 @@ from django.core.files.storage import default_storage
 import pytest
 from asgiref.sync import async_to_sync
 
+from core.file_upload.enums import AttachmentStatus
+
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import ACCESS_FULL_CONTEXT, ACCESS_TOOL_CALL_ONLY
-from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory, UserFactory
+from chat.factories import (
+    ChatConversationAttachmentFactory,
+    ChatConversationFactory,
+    ChatProjectAttachmentFactory,
+    ChatProjectFactory,
+    UserFactory,
+)
 from chat.llm_configuration import LLModel, LLMProvider
 
 pytestmark = pytest.mark.django_db()
@@ -64,6 +72,7 @@ def test_document_context_marks_oversized_docs_as_rag_only(_llm_config_with_cont
         file_name="big.md",
         content_type="text/markdown",
         conversion_from="markdown",
+        upload_state=AttachmentStatus.READY,
     )
 
     async def fake_read_attachment_content(_attachment):  # NOSONAR
@@ -99,6 +108,7 @@ def test_document_context_uses_fifo_rolling_window(_llm_config_with_context, mon
         file_name="doc-1.md",
         content_type="text/markdown",
         conversion_from="markdown",
+        upload_state=AttachmentStatus.READY,
     )
     ChatConversationAttachmentFactory(
         conversation=conversation,
@@ -106,6 +116,7 @@ def test_document_context_uses_fifo_rolling_window(_llm_config_with_context, mon
         file_name="doc-2.md",
         content_type="text/markdown",
         conversion_from="markdown",
+        upload_state=AttachmentStatus.READY,
     )
     ChatConversationAttachmentFactory(
         conversation=conversation,
@@ -113,6 +124,7 @@ def test_document_context_uses_fifo_rolling_window(_llm_config_with_context, mon
         file_name="doc-3.md",
         content_type="text/markdown",
         conversion_from="markdown",
+        upload_state=AttachmentStatus.READY,
     )
 
     content_by_name = {
@@ -148,6 +160,159 @@ def test_document_context_uses_fifo_rolling_window(_llm_config_with_context, mon
     assert by_title["doc-3"]["access"] == ACCESS_FULL_CONTEXT
 
 
+def test_document_context_lists_project_files_separately_from_conversation(
+    _llm_config_with_context, monkeypatch
+):
+    """Project files surface under `project_documents` (tool-call-only) while
+    conversation-owned docs still get inlined into `documents`.
+
+    Hybrid context inlines the conversation's own text attachments only;
+    project files are reachable via the RAG search tool but must still be
+    visible to the model under `project_documents` so it knows they exist.
+    """
+    user = UserFactory()
+    project = ChatProjectFactory(owner=user, collection_id="22")
+    conversation = ChatConversationFactory(owner=user, project=project)
+    service = AIAgentService(conversation, user=user)
+
+    ChatProjectAttachmentFactory(
+        project=project,
+        uploaded_by=user,
+        file_name="project-doc.md",
+        content_type="text/markdown",
+        conversion_from=None,
+        upload_state=AttachmentStatus.READY,
+    )
+    ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=user,
+        file_name="convo-doc.md",
+        content_type="text/markdown",
+        conversion_from=None,
+        upload_state=AttachmentStatus.READY,
+    )
+
+    async def fake_read_attachment_content(attachment):  # NOSONAR
+        return attachment.file_name, "x" * 6  # 2 tokens; well within budget
+
+    monkeypatch.setattr(
+        "chat.document_context_builder.read_attachment_content",
+        fake_read_attachment_content,
+    )
+    monkeypatch.setattr(
+        "chat.document_context_builder.count_approx_tokens",
+        lambda _text: 10,
+    )
+
+    instruction = async_to_sync(service._build_document_context_instruction)()  # pylint: disable=protected-access
+    listing = _parse_listing(instruction)
+
+    assert [d["title"] for d in listing["documents"]] == ["convo-doc.md"]
+    assert listing["documents"][0]["access"] == ACCESS_FULL_CONTEXT
+
+    assert [d["title"] for d in listing["project_documents"]] == ["project-doc.md"]
+    assert listing["project_documents"][0]["access"] == ACCESS_TOOL_CALL_ONLY
+    assert listing["project_documents"][0]["content"] is None
+
+
+def test_project_documents_key_absent_when_no_project_files(_llm_config_with_context, monkeypatch):
+    """Conversations without project text files must not emit `project_documents`."""
+    user = UserFactory()
+    conversation = ChatConversationFactory(owner=user)
+    service = AIAgentService(conversation, user=user)
+
+    ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=user,
+        file_name="convo-doc.md",
+        content_type="text/markdown",
+        conversion_from=None,
+        upload_state=AttachmentStatus.READY,
+    )
+
+    async def fake_read_attachment_content(attachment):  # NOSONAR
+        return attachment.file_name, "x" * 6
+
+    monkeypatch.setattr(
+        "chat.document_context_builder.read_attachment_content",
+        fake_read_attachment_content,
+    )
+    monkeypatch.setattr(
+        "chat.document_context_builder.count_approx_tokens",
+        lambda _text: 10,
+    )
+
+    instruction = async_to_sync(service._build_document_context_instruction)()  # pylint: disable=protected-access
+    listing = _parse_listing(instruction)
+
+    assert "project_documents" not in listing
+
+
+def test_project_documents_have_independent_info_ordering(_llm_config_with_context, monkeypatch):
+    """`info` labels are computed per array - project docs and conv docs each get
+    their own first/last markers, independent of the other array's contents."""
+    user = UserFactory()
+    project = ChatProjectFactory(owner=user, collection_id="22")
+    conversation = ChatConversationFactory(owner=user, project=project)
+    service = AIAgentService(conversation, user=user)
+
+    ChatProjectAttachmentFactory(
+        project=project,
+        uploaded_by=user,
+        file_name="proj-1.md",
+        content_type="text/markdown",
+        conversion_from=None,
+        upload_state=AttachmentStatus.READY,
+    )
+    ChatProjectAttachmentFactory(
+        project=project,
+        uploaded_by=user,
+        file_name="proj-2.md",
+        content_type="text/markdown",
+        conversion_from=None,
+        upload_state=AttachmentStatus.READY,
+    )
+    ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=user,
+        file_name="conv-1.md",
+        content_type="text/markdown",
+        conversion_from=None,
+        upload_state=AttachmentStatus.READY,
+    )
+    ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=user,
+        file_name="conv-2.md",
+        content_type="text/markdown",
+        conversion_from=None,
+        upload_state=AttachmentStatus.READY,
+    )
+
+    async def fake_read_attachment_content(attachment):  # NOSONAR
+        return attachment.file_name, "x" * 6
+
+    monkeypatch.setattr(
+        "chat.document_context_builder.read_attachment_content",
+        fake_read_attachment_content,
+    )
+    monkeypatch.setattr(
+        "chat.document_context_builder.count_approx_tokens",
+        lambda _text: 10,
+    )
+
+    instruction = async_to_sync(service._build_document_context_instruction)()  # pylint: disable=protected-access
+    listing = _parse_listing(instruction)
+
+    conv_by_title = {d["title"]: d for d in listing["documents"]}
+    assert conv_by_title["conv-1.md"]["info"] == "first_uploaded_document"
+    assert conv_by_title["conv-2.md"]["info"] == "last_uploaded_document"
+
+    proj_by_title = {d["title"]: d for d in listing["project_documents"]}
+    assert proj_by_title["proj-1.md"]["info"] == "first_uploaded_document"
+    assert proj_by_title["proj-2.md"]["info"] == "last_uploaded_document"
+
+
 def test_document_context_uses_configurable_ratio(_llm_config_with_context, monkeypatch, settings):
     """Budget ratio comes from Django settings and changes inlining behavior."""
     settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.3  # max_token_context=4000 => budget=200
@@ -162,6 +327,7 @@ def test_document_context_uses_configurable_ratio(_llm_config_with_context, monk
         file_name="doc-1.md",
         content_type="text/markdown",
         conversion_from="markdown",
+        upload_state=AttachmentStatus.READY,
     )
     ChatConversationAttachmentFactory(
         conversation=conversation,
@@ -169,6 +335,7 @@ def test_document_context_uses_configurable_ratio(_llm_config_with_context, monk
         file_name="doc-2.md",
         content_type="text/markdown",
         conversion_from="markdown",
+        upload_state=AttachmentStatus.READY,
     )
 
     content_by_name = {
@@ -247,13 +414,19 @@ def _clear_cache():
 
 
 def _make_text_attachment(*, conversation, user, file_name, content):
-    """Create an attachment and persist content under default_storage."""
+    """Create an attachment and persist content under default_storage.
+
+    Marked READY so the conversation-arm listing fetch (which now filters on
+    `upload_state=READY` to keep PENDING/ANALYZING rows out of the model's
+    system prompt) returns it.
+    """
     attachment = ChatConversationAttachmentFactory(
         conversation=conversation,
         uploaded_by=user,
         file_name=file_name,
         content_type="text/markdown",
         conversion_from=None,
+        upload_state=AttachmentStatus.READY,
     )
     default_storage.save(attachment.key, ContentFile(content.encode("utf-8")))
     return attachment
@@ -382,3 +555,131 @@ def test_different_user_uses_different_cache_entry(_llm_config_two_models):
         _build(service_other)
 
     assert spy.call_count == 1
+
+
+def _make_project_text_attachment(*, project, user, file_name, content):
+    """Create a project-scoped attachment with content under default_storage.
+
+    Marked READY so it is eligible for the project-arm listing fetch (which
+    filters on `upload_state=READY` to keep PENDING/ANALYZING rows out of the
+    model's system prompt).
+    """
+    attachment = ChatProjectAttachmentFactory(
+        project=project,
+        uploaded_by=user,
+        file_name=file_name,
+        content_type="text/markdown",
+        conversion_from=None,
+        upload_state=AttachmentStatus.READY,
+    )
+    default_storage.save(attachment.key, ContentFile(content.encode("utf-8")))
+    return attachment
+
+
+def test_new_project_attachment_invalidates_cache(_llm_config_two_models):
+    """B#8: adding a project attachment must invalidate the cache for every
+    conversation in that project."""
+    user = UserFactory()
+    project = ChatProjectFactory(owner=user, collection_id="22")
+    conversation = ChatConversationFactory(owner=user, project=project)
+    _make_text_attachment(
+        conversation=conversation, user=user, file_name="conv.md", content="alpha"
+    )
+    service = AIAgentService(conversation, user=user)
+    _build(service)  # warm
+
+    _make_project_text_attachment(project=project, user=user, file_name="proj.md", content="beta")
+    with _spy_storage_open() as spy:
+        instruction = _build(service)
+
+    # Cache miss: only the conv attachment is opened (project files are
+    # placeholder-only, never read from storage), but the new instruction
+    # must list the new project file - proving the cache was invalidated.
+    assert spy.call_count == 1
+    listing = _parse_listing(instruction)
+    assert [d["title"] for d in listing["project_documents"]] == ["proj.md"]
+
+
+def test_project_attachment_updated_at_invalidates_cache(_llm_config_two_models):
+    """B#9: bumping a project attachment's updated_at must invalidate the cache.
+
+    Use a conversation attachment so the spy can witness the rebuild - project
+    files are never read from storage (they are listed tool-call-only).
+    """
+    user = UserFactory()
+    project = ChatProjectFactory(owner=user, collection_id="22")
+    conversation = ChatConversationFactory(owner=user, project=project)
+    _make_text_attachment(
+        conversation=conversation, user=user, file_name="conv.md", content="alpha"
+    )
+    project_attachment = _make_project_text_attachment(
+        project=project, user=user, file_name="proj.md", content="beta"
+    )
+    service = AIAgentService(conversation, user=user)
+    _build(service)  # warm
+
+    project_attachment.save()  # auto_now=True bumps updated_at
+    with _spy_storage_open() as spy:
+        _build(service)
+
+    # Cache miss: conv attachment re-read because the project file's fingerprint changed.
+    assert spy.call_count == 1
+
+
+# End-to-end wiring: the JSON listing built by _build_document_context_instruction
+# must reach the agent's effective system prompt as a registered `@instructions`
+# callable named `attached_documents_note`.
+
+
+def _resolve_instruction(service, name):
+    """Find a registered Pydantic-AI instruction callable by name and invoke it."""
+    matches = [
+        fn
+        for fn in service.conversation_agent._instructions  # pylint: disable=protected-access
+        if callable(fn) and fn.__name__ == name
+    ]
+    assert matches, f"instruction '{name}' not registered on the agent"
+    return matches[0]()
+
+
+def test_project_documents_reach_agent_system_prompt(_llm_config_with_context):
+    """A project's READY text file must appear in the agent's `attached_documents_note`."""
+    user = UserFactory()
+    project = ChatProjectFactory(owner=user, collection_id="22")
+    conversation = ChatConversationFactory(owner=user, project=project)
+    ChatProjectAttachmentFactory(
+        project=project,
+        uploaded_by=user,
+        file_name="brief.md",
+        content_type="text/markdown",
+        conversion_from=None,
+        upload_state=AttachmentStatus.READY,
+        rag_document_id="42",
+    )
+    service = AIAgentService(conversation, user=user)
+
+    # Same call sequence as `post_conversation` when RAG is enabled.
+    assert async_to_sync(service._check_should_enable_rag)(False) is True  # pylint: disable=protected-access
+    instruction = async_to_sync(service._build_document_context_instruction)()  # pylint: disable=protected-access
+    service._setup_rag_tools(document_context_instruction=instruction)  # pylint: disable=protected-access
+
+    resolved = _resolve_instruction(service, "attached_documents_note")
+    assert LISTING_PREFIX in resolved
+    listing = _parse_listing(resolved)
+    assert [d["title"] for d in listing["project_documents"]] == ["brief.md"]
+
+
+def test_no_documents_keeps_agent_system_prompt_minimal(_llm_config_with_context):
+    """With no attachments anywhere, RAG is not enabled and no listing is injected."""
+    user = UserFactory()
+    conversation = ChatConversationFactory(owner=user)
+    service = AIAgentService(conversation, user=user)
+
+    # _check_should_enable_rag returns False -> _setup_rag_tools is never called
+    # in production; we still call it with an empty instruction to mirror the
+    # opt-in path (e.g. in-message documents) and confirm it stays minimal.
+    assert async_to_sync(service._check_should_enable_rag)(False) is False  # pylint: disable=protected-access
+    service._setup_rag_tools(document_context_instruction="")  # pylint: disable=protected-access
+
+    resolved = _resolve_instruction(service, "attached_documents_note")
+    assert LISTING_PREFIX not in resolved

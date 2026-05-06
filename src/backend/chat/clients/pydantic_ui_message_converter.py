@@ -38,6 +38,7 @@ from chat.ai_sdk_types import (
     UIMessage,
     UIPart,
 )
+from chat.constants import IMAGE_MIME_PREFIX
 
 
 def ui_message_to_user_content(message: UIMessage) -> List[UserContent]:
@@ -71,7 +72,7 @@ def ui_message_to_user_content(message: UIMessage) -> List[UserContent]:
                     identifier=experimental_attachment.name,
                 )
             )
-        elif experimental_attachment.contentType.startswith("image/"):
+        elif experimental_attachment.contentType.startswith(IMAGE_MIME_PREFIX):
             user_contents.append(
                 ImageUrl(
                     url=experimental_attachment.url,

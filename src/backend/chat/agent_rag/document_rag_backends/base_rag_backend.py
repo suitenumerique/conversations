@@ -102,7 +102,7 @@ class BaseRagBackend(ABC):
         return self.parser.parse_document(name, content_type, content)
 
     @abstractmethod
-    def store_document(self, name: str, content: str, **kwargs) -> None:
+    def store_document(self, name: str, content: str, **kwargs) -> Optional[str]:
         """
         Store the document content in the collection.
         This method should handle the logic to send the document content to the API.
@@ -111,10 +111,14 @@ class BaseRagBackend(ABC):
             name (str): The name of the document.
             content (str): The content of the document in Markdown format.
             **kwargs: Additional arguments. ex: "user_sub" for access control.
+
+        Returns:
+            Optional[str]: Backend-side document id if the backend supports per-doc
+            identifiers (Albert), else None (Find).
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
-    async def astore_document(self, name: str, content: str, **kwargs) -> None:
+    async def astore_document(self, name: str, content: str, **kwargs) -> Optional[str]:
         """
         Store the document content in the collection.
         This method should handle the logic to send the document content to the API.
@@ -123,27 +127,34 @@ class BaseRagBackend(ABC):
             name (str): The name of the document.
             content (str): The content of the document in Markdown format.
             **kwargs: Additional arguments. ex: "user_sub" for access control.
+
+        Returns:
+            Optional[str]: See `store_document`.
         """
         return await sync_to_async(self.store_document)(name=name, content=content, **kwargs)
 
     def parse_and_store_document(
         self, name: str, content_type: str, content: bytes, **kwargs
-    ) -> str:
+    ) -> tuple[str, Optional[str]]:
         """
-        Parse the document and store it in the Albert collection.
+        Parse the document and store it in the backend collection.
 
         Args:
             name (str): The name of the document.
             content_type (str): The MIME type of the document (e.g., "application/pdf").
             content (bytes): The content of the document as a bytes stream.
             **kwargs: Additional arguments. ex: "user_sub" for access control.
+
+        Returns:
+            tuple[str, Optional[str]]: `(parsed_markdown_content, backend_document_id)`.
+            `backend_document_id` is None for backends without per-doc identifiers.
         """
         if not self.collection_id:
             raise RuntimeError("The RAG backend requires collection_id")
 
         document_content = self.parse_document(name, content_type, content)
-        self.store_document(name, document_content, **kwargs)
-        return document_content
+        document_id = self.store_document(name, document_content, **kwargs)
+        return document_content, document_id
 
     @abstractmethod
     def delete_collection(self, **kwargs) -> None:
@@ -160,12 +171,38 @@ class BaseRagBackend(ABC):
         """
         return await sync_to_async(self.delete_collection)(**kwargs)
 
+    def delete_document(self, document_id: str, **kwargs) -> None:
+        """
+        Remove a single document from the collection.
+
+        Default implementation is a no-op for backends that lack per-document
+        deletion (e.g. Find): callers should still invoke it on per-attachment
+        delete - if the backend can't honor it, indexed chunks remain
+        searchable until the whole collection is dropped.
+
+        Args:
+            document_id: Backend-side document id (the value returned by
+                `store_document`).
+            **kwargs: Backend-specific extras (e.g. `session` for OIDC).
+        """
+        logger.info(
+            "delete_document not supported by %s; document_id=%s left in collection %s.",
+            type(self).__name__,
+            document_id,
+            self.collection_id,
+        )
+
+    async def adelete_document(self, document_id: str, **kwargs) -> None:
+        """Async variant of `delete_document`."""
+        return await sync_to_async(self.delete_document)(document_id=document_id, **kwargs)
+
     @abstractmethod
     def search(
         self,
         query: str,
         results_count: int = 4,
         document_name: Optional[str] = None,
+        document_id: Optional[str] = None,
         **kwargs,
     ) -> RAGWebResults:
         """
@@ -176,6 +213,11 @@ class BaseRagBackend(ABC):
             results_count: Number of results to return.
             document_name: If set, restrict results to the document with this exact name.
                 Backends that don't support per-document filtering may ignore it.
+            document_id: Backend-side document id (returned by `store_document`)
+                used to scope the search to a single document. Preferred over
+                `document_name` when supported, since name-based filtering
+                cannot disambiguate same-name docs across conversation and
+                project collections searched together.
             **kwargs: Additional arguments. ex: 'session' for OIDC authentication.
         """
         raise NotImplementedError("Must be implemented in subclass.")
@@ -185,6 +227,7 @@ class BaseRagBackend(ABC):
         query: str,
         results_count: int = 4,
         document_name: Optional[str] = None,
+        document_id: Optional[str] = None,
         **kwargs,
     ) -> RAGWebResults:
         """
@@ -195,12 +238,14 @@ class BaseRagBackend(ABC):
             results_count: Number of results to return.
             document_name: If set, restrict results to the document with this exact name.
                 Backends that don't support per-document filtering may ignore it.
+            document_id: See `search`.
             **kwargs: Additional arguments. ex: 'session' for OIDC authentication.
         """
         return await sync_to_async(self.search)(
             query=query,
             results_count=results_count,
             document_name=document_name,
+            document_id=document_id,
             **kwargs,
         )
 

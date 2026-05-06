@@ -1,10 +1,4 @@
-"""
-Tests for the document_search_rag tool.
-
-Real components: Django ORM (factory-built conversation + attachments), real
-AlbertRagBackend instance, RunContext built from a real ContextDeps.
-The Albert HTTP endpoint is mocked at the wire level via respx.
-"""
+"""Tests for the conversation document RAG search tool."""
 
 import json
 import uuid
@@ -18,10 +12,12 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.usage import RunUsage
 
-from chat.clients.pydantic_ai import ContextDeps
+from chat.clients.schema import ContextDeps
 from chat.factories import (
     ChatConversationAttachmentFactory,
     ChatConversationFactory,
+    ChatProjectAttachmentFactory,
+    ChatProjectFactory,
     UserFactory,
 )
 from chat.tools.document_search_rag import add_document_rag_search_tool
@@ -61,6 +57,19 @@ def albert_settings_fixture(settings):
 
 def _search_url(settings):
     return urljoin(settings.ALBERT_API_URL, "/v1/search")
+
+
+@sync_to_async
+def _make_project_conversation(*, project_collection_id, conversation_collection_id):
+    """Conversation belonging to a project, both with optional collection ids."""
+    user = UserFactory()
+    project = ChatProjectFactory(owner=user, collection_id=project_collection_id)
+    conversation = ChatConversationFactory(
+        owner=user,
+        project=project,
+        collection_id=conversation_collection_id,
+    )
+    return user, conversation
 
 
 @sync_to_async
@@ -273,4 +282,171 @@ async def test_unknown_document_id_raises_model_retry(albert_settings):  # pylin
             _run_context(conversation, conversation.owner),
             query="q",
             document_id=str(uuid.uuid4()),
+        )
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_search_uses_only_conversation_collection_when_no_project(albert_settings):
+    """Conversation without a project: only conversation.collection_id is sent."""
+    user = await sync_to_async(UserFactory)()
+    conversation = await sync_to_async(ChatConversationFactory)(owner=user, collection_id="11")
+    route = respx.post(_search_url(albert_settings)).mock(
+        return_value=Response(200, json=_albert_response(data=[_albert_chunk()]))
+    )
+
+    await _tool_function()(_run_context(conversation, user), query="q")
+
+    payload = json.loads(route.calls[0].request.content)
+    assert payload["collections"] == [11]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_search_includes_project_collection_when_set(albert_settings):
+    """When the conversation belongs to a project with a collection, both are searched."""
+    user, conversation = await _make_project_conversation(
+        project_collection_id="22",
+        conversation_collection_id="11",
+    )
+    route = respx.post(_search_url(albert_settings)).mock(
+        return_value=Response(200, json=_albert_response(data=[_albert_chunk()]))
+    )
+
+    await _tool_function()(_run_context(conversation, user), query="q")
+
+    payload = json.loads(route.calls[0].request.content)
+    # Both collection ids land in the search payload (Albert casts to int).
+    assert sorted(payload["collections"]) == [11, 22]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_search_skips_project_collection_when_project_has_none(albert_settings):
+    """A project without a collection_id (e.g. only images uploaded) is ignored."""
+    user, conversation = await _make_project_conversation(
+        project_collection_id=None,
+        conversation_collection_id="11",
+    )
+    route = respx.post(_search_url(albert_settings)).mock(
+        return_value=Response(200, json=_albert_response(data=[_albert_chunk()]))
+    )
+
+    await _tool_function()(_run_context(conversation, user), query="q")
+
+    payload = json.loads(route.calls[0].request.content)
+    assert payload["collections"] == [11]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_search_uses_only_project_collection_when_conversation_has_none(albert_settings):
+    """A project-only conversation (no own collection yet) still searches the project."""
+    user, conversation = await _make_project_conversation(
+        project_collection_id="22",
+        conversation_collection_id=None,
+    )
+    route = respx.post(_search_url(albert_settings)).mock(
+        return_value=Response(200, json=_albert_response(data=[_albert_chunk()]))
+    )
+
+    await _tool_function()(_run_context(conversation, user), query="q")
+
+    payload = json.loads(route.calls[0].request.content)
+    assert payload["collections"] == [22]
+
+
+@sync_to_async
+def _make_indexed_attachment(rag_document_id="987"):
+    """Conversation with one attachment that already carries a RAG document id."""
+    user = UserFactory()
+    conversation = ChatConversationFactory(owner=user, collection_id="123")
+    attachment = ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=user,
+        file_name="report.pdf.md",
+        content_type="text/markdown",
+        conversion_from="123/attachments/report.pdf",
+        rag_document_id=rag_document_id,
+    )
+    return user, conversation, attachment
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_forwards_document_ids_when_rag_document_id_set(albert_settings):
+    """An indexed attachment must produce a document_ids filter, not metadata_filters."""
+    _, conversation, attachment = await _make_indexed_attachment(rag_document_id="987")
+    route = respx.post(_search_url(albert_settings)).mock(
+        return_value=Response(200, json=_albert_response(data=[_albert_chunk()]))
+    )
+
+    await _tool_function()(
+        _run_context(conversation, conversation.owner),
+        query="q",
+        document_id=str(attachment.id),
+    )
+
+    payload = json.loads(route.calls[0].request.content)
+    assert payload["document_ids"] == [987]
+    assert "metadata_filters" not in payload
+
+
+@sync_to_async
+def _make_project_with_indexed_attachment(rag_document_id="555"):
+    """Conversation in a project; the project owns one indexed attachment."""
+    user = UserFactory()
+    project = ChatProjectFactory(owner=user, collection_id="22")
+    conversation = ChatConversationFactory(owner=user, project=project, collection_id="11")
+    project_attachment = ChatProjectAttachmentFactory(
+        project=project,
+        uploaded_by=user,
+        file_name="brief.pdf.md",
+        content_type="text/markdown",
+        conversion_from=f"{project.pk}/attachments/brief.pdf",
+        rag_document_id=rag_document_id,
+    )
+    return user, conversation, project_attachment
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_document_id_resolves_against_project_attachments(albert_settings):
+    """document_id may reference a project-scoped attachment (IDOR widening)."""
+    _, conversation, project_attachment = await _make_project_with_indexed_attachment(
+        rag_document_id="555"
+    )
+    route = respx.post(_search_url(albert_settings)).mock(
+        return_value=Response(200, json=_albert_response(data=[_albert_chunk()]))
+    )
+
+    await _tool_function()(
+        _run_context(conversation, conversation.owner),
+        query="q",
+        document_id=str(project_attachment.id),
+    )
+
+    payload = json.loads(route.calls[0].request.content)
+    assert payload["document_ids"] == [555]
+    assert sorted(payload["collections"]) == [11, 22]
+
+
+@pytest.mark.asyncio
+async def test_document_id_does_not_resolve_other_project_attachment(albert_settings):  # pylint: disable=unused-argument
+    """An attachment owned by a different project must not be resolvable as document_id."""
+    user = await sync_to_async(UserFactory)()
+    conversation = await sync_to_async(ChatConversationFactory)(owner=user, collection_id="11")
+    other_project_attachment = await sync_to_async(ChatProjectAttachmentFactory)(
+        uploaded_by=user,
+        file_name="leak.pdf.md",
+        content_type="text/markdown",
+        conversion_from="x/attachments/leak.pdf",
+        rag_document_id="999",
+    )
+
+    with pytest.raises(ModelRetry, match="not found"):
+        await _tool_function()(
+            _run_context(conversation, user),
+            query="q",
+            document_id=str(other_project_attachment.id),
         )

@@ -65,6 +65,8 @@ def test_api_config(is_authenticated):
         "SENTRY_DSN": "https://sentry.test/123",
         "theme_customization": {},
         "chat_upload_accept": "application/pdf,text/plain",
+        "project_files_max_count": 10,
+        "project_images_max_count": 3,
     }
 
 
@@ -209,4 +211,6 @@ async def test_api_config_async(is_authenticated):
         "SENTRY_DSN": "https://sentry.test/123",
         "theme_customization": {},
         "chat_upload_accept": "application/pdf,text/plain",
+        "project_files_max_count": 10,
+        "project_images_max_count": 3,
     }

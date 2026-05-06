@@ -18,6 +18,8 @@ from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 from rest_framework import status
 
+from core.file_upload.enums import AttachmentStatus
+
 from chat.ai_sdk_types import TextUIPart, UIMessage
 from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
 
@@ -72,6 +74,8 @@ def test_post_conversation_search_with_document_id_filters_albert_request(
         file_name="alpha.pdf.md",
         content_type="text/markdown",
         conversion_from="123/attachments/alpha.pdf",
+        rag_document_id="101",
+        upload_state=AttachmentStatus.READY,
     )
     beta = ChatConversationAttachmentFactory(
         conversation=chat_conversation,
@@ -79,6 +83,8 @@ def test_post_conversation_search_with_document_id_filters_albert_request(
         file_name="beta.pdf.md",
         content_type="text/markdown",
         conversion_from="123/attachments/beta.pdf",
+        rag_document_id="202",
+        upload_state=AttachmentStatus.READY,
     )
     default_storage.save(alpha.key, ContentFile(b"alpha document content"))
     default_storage.save(beta.key, ContentFile(b"beta document content"))
@@ -149,13 +155,12 @@ def test_post_conversation_search_with_document_id_filters_albert_request(
     # Drain the stream so side effects complete.
     _ = b"".join(response.streaming_content)  # NOSONAR
 
-    # The Albert search endpoint was called exactly once, with metadata_filters
-    # carrying the targeted document's name (beta = newest = listing[0]).
+    # The Albert search endpoint was called exactly once, with `document_ids`
+    # carrying the targeted document's per-doc id (beta = newest = listing[0],
+    # rag_document_id="202"). When `rag_document_id` is set on the targeted
+    # attachment, it is preferred over `metadata_filters: document_name`.
     assert albert_search_route.call_count == 1
     payload = json.loads(albert_search_route.calls[0].request.content)
-    assert payload["metadata_filters"] == {
-        "key": "document_name",
-        "value": "beta.pdf",  # ".md" suffix stripped because alpha/beta are converted
-        "type": "eq",
-    }
+    assert payload["document_ids"] == [202]
+    assert "metadata_filters" not in payload
     assert payload["prompt"] == "what is in the document?"

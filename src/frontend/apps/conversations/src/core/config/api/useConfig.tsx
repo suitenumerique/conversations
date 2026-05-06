@@ -38,6 +38,8 @@ export interface ConfigResponse {
   FRONTEND_SILENT_LOGIN_ENABLED?: boolean;
   theme_customization?: ThemeCustomization;
   chat_upload_accept?: string;
+  project_files_max_count?: number;
+  project_images_max_count?: number;
 }
 
 const LOCAL_STORAGE_KEY = 'conversations_config';

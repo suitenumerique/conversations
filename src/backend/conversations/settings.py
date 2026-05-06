@@ -744,6 +744,22 @@ class Base(BraveSettings, Configuration):
         environ_prefix=None,
     )
 
+    # Project attachment caps - enforced at upload time to bound per-turn token
+    # cost. Every project file contributes a system-prompt listing entry on
+    # every conversation turn; every project image is pinned to every turn.
+    # Both caps are deliberately conservative; raise via env vars for projects
+    # that legitimately need more (e.g. a regulation library).
+    PROJECT_FILES_MAX_COUNT = values.PositiveIntegerValue(
+        default=10,
+        environ_name="PROJECT_FILES_MAX_COUNT",
+        environ_prefix=None,
+    )
+    PROJECT_IMAGES_MAX_COUNT = values.PositiveIntegerValue(
+        default=3,
+        environ_name="PROJECT_IMAGES_MAX_COUNT",
+        environ_prefix=None,
+    )
+
     # Documents
     ALBERT_API_PARSE_TIMEOUT = values.PositiveIntegerValue(
         default=120,  # seconds

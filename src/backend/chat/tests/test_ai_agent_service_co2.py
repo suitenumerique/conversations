@@ -6,7 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic_ai.messages import ModelResponse, TextPart
 
-from chat.clients.pydantic_ai import AIAgentService, StreamingState
+from chat.clients.pydantic_ai import AIAgentService
+from chat.clients.schema import ImagePostRunActions, StreamingState
 from chat.vercel_ai_sdk.core import events_v4
 
 
@@ -140,7 +141,11 @@ async def test_finalize_emits_finish_message_with_co2(service, co2_impact):
         events = [
             event
             async for event in service._finalize_conversation(
-                new_messages=[], run_output="Hello", usage=usage, state=state, image_key_mapping={}
+                new_messages=[],
+                run_output="Hello",
+                usage=usage,
+                state=state,
+                image_actions=ImagePostRunActions(),
             )
         ]
 

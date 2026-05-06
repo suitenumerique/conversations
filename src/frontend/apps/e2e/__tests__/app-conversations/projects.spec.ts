@@ -9,6 +9,26 @@ test.describe('Projects', () => {
     await page.goto('/');
   });
 
+  // Delete every project this browser's e2e tests have created so the next
+  // test (and the next in-band run) starts from a clean panel. The dev DB is
+  // shared across runs; without this, the projects list paginates and a
+  // freshly-created project can land past the first page.
+  //
+  // `title` is an icontains filter (TitleSearchFilter), and storageState is
+  // per-browser, so only this browser-user's e2e artifacts are touched.
+  test.afterEach(async ({ request, browserName }) => {
+    const response = await request.get('/api/v1.0/projects/', {
+      params: { title: `${browserName}-`, page_size: 200 },
+    });
+    if (!response.ok()) return;
+    const body = (await response.json()) as { results?: Array<{ id: string; title: string }> };
+    const prefix = new RegExp(`^${browserName}-\\d+-\\d+-`);
+    for (const project of body.results ?? []) {
+      if (!prefix.test(project.title)) continue;
+      await request.delete(`/api/v1.0/projects/${project.id}/`);
+    }
+  });
+
   test('checks the create project button is visible', async ({ page }) => {
     const createButton = page.getByRole('button', {
       name: /New project|Nouveau projet/,
@@ -21,7 +41,12 @@ test.describe('Projects', () => {
     await createProject(page, projectName);
 
     // Project should appear in the left panel
-    await expect(page.getByText(projectName)).toBeVisible();
+    await expect(
+      page.getByRole('button', {
+        name: `Start new conversation in ${projectName}`,
+        exact: true,
+      }),
+    ).toBeVisible();
   });
 
   test('it edits a project', async ({ page, browserName }) => {
@@ -129,10 +154,16 @@ test.describe('Projects', () => {
 
     // Should invert state after first click
     const toggledExpanded = initialExpanded === 'true' ? 'false' : 'true';
-    await expect(projectHeader).toHaveAttribute('aria-expanded', toggledExpanded);
+    await expect(projectHeader).toHaveAttribute(
+      'aria-expanded',
+      toggledExpanded,
+    );
 
     // Click again to collapse
     await projectHeader.click();
-    await expect(projectHeader).toHaveAttribute('aria-expanded', initialExpanded);
+    await expect(projectHeader).toHaveAttribute(
+      'aria-expanded',
+      initialExpanded,
+    );
   });
 });

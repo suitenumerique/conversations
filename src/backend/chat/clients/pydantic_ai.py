@@ -92,7 +92,6 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
-from django.db.models import Q
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
@@ -129,6 +128,7 @@ from core.feature_flags.helpers import is_feature_enabled
 from chat import models
 from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
 from chat.agents.local_media_url_processors import (
+    build_project_image_urls,
     update_history_local_urls,
     update_local_urls,
 )
@@ -143,10 +143,17 @@ from chat.clients.pydantic_ui_message_converter import (
     model_message_to_ui_message,
     ui_message_to_user_content,
 )
+from chat.clients.schema import (
+    ContextDeps,
+    DocumentParsingResult,
+    ImagePostRunActions,
+    StreamingState,
+)
 from chat.constants import TEXT_MIME_PREFIX
 from chat.document_context_builder import build_document_context_instruction
 from chat.mcp_servers import get_mcp_servers
 from chat.tools.descriptions import (
+    DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
     DOCUMENT_SUMMARIZE_TOOL_DESCRIPTION,
     SELF_DOCUMENTATION_TOOL_DESCRIPTION,
@@ -154,7 +161,7 @@ from chat.tools.descriptions import (
 )
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
 from chat.tools.document_search_rag import add_document_rag_search_tool
-from chat.tools.document_summarize import document_summarize
+from chat.tools.document_summarize import document_summarize, document_summarize_project
 from chat.tools.self_documentation import build_self_documentation_payload
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
@@ -168,47 +175,6 @@ User = get_user_model()
 
 CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
 DOCUMENT_URL_PREFIX = "/media-key/"
-
-
-@dataclasses.dataclass
-class DocumentParsingResult:
-    """Result marker for document parsing completion."""
-
-    success: bool
-    has_documents: bool
-
-
-@dataclasses.dataclass
-class StreamingState:
-    """
-    Mutable state shared across stream processing handlers.
-
-    This dataclass is passed through the node handlers to track state that
-    needs to persist across multiple yield points in the streaming process.
-
-    Attributes:
-        tool_is_streaming: Set to True when we receive ToolCallPartDelta events.
-            When True, we skip emitting ToolCallPart in _handle_call_tools_node
-            since the tool call was already streamed incrementally.
-        ui_sources: Accumulates source citations from tool results (e.g., URLs
-            from web search or RAG). These are appended to the final UI message.
-        model_response_message_id: Set when the agent reaches the end node.
-            Used to link the UI message to the Langfuse trace for scoring.
-    """
-
-    tool_is_streaming: bool = False
-    ui_sources: List[SourceUIPart] = dataclasses.field(default_factory=list)
-    model_response_message_id: Optional[str] = None
-
-
-@dataclasses.dataclass
-class ContextDeps:
-    """Dependencies for context management."""
-
-    conversation: models.ChatConversation
-    user: User
-    session: Optional[Dict] = None
-    web_search_enabled: bool = False
 
 
 def get_model_configuration(model_hrid: str):
@@ -465,12 +431,26 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         user_prompt, input_images, input_documents = self._prepare_prompt(messages[-1])
 
-        image_key_mapping = {}
+        image_actions = ImagePostRunActions()
         if input_images:
             # presign URLs for local images
             input_images = update_local_urls(
-                self.conversation, input_images, updated_url=image_key_mapping
+                self.conversation, input_images, updated_url=image_actions.rewrite
             )
+
+        # Pin every project image to the prompt so vision-capable models see them
+        # on every turn, the same way conversation-attached images do. Project
+        # images go AFTER conversation-message images: provider hard caps
+        # (Anthropic ~20 images/request, OpenAI varies) clip the trailing entries
+        # first, so a pinned-library overflow never displaces a user's in-message
+        # image. Their presigned URLs land in `image_actions.drop` so the
+        # finalize/persistence path strips them from `new_messages` before
+        # writing to history - otherwise every turn would accumulate them in
+        # `pydantic_messages` and replay them on every reload.
+        project_image_urls = await build_project_image_urls(self.conversation.project_id)
+        if project_image_urls:
+            input_images = list(input_images) + project_image_urls
+            image_actions.drop.update(img.url for img in project_image_urls)
 
         if self._langfuse_available:
             langfuse = get_client()
@@ -493,7 +473,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             user_prompt,
             input_images,
             input_documents,
-            image_key_mapping,
+            image_actions,
             usage,
             history,
             conversation_has_documents,
@@ -522,21 +502,46 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         return True
 
     async def _check_should_enable_rag(self, conversation_has_documents: bool) -> bool:
-        """Check if RAG should be enabled based on existing documents."""
+        """Check if RAG should be enabled based on actually-indexed documents.
+
+        The tool is registered when any of the following holds:
+        - The current user message carries documents (in-message uploads).
+        - The conversation has at least one attachment with a populated
+          ``rag_document_id`` (i.e. ``parse_and_store_document`` succeeded
+          end-to-end against the RAG backend).
+        - The conversation belongs to a project that has at least one such
+          attachment.
+
+        ``rag_document_id`` is the strongest available "this attachment is
+        actually searchable" signal: it is written only after a successful
+        round-trip through the configured RAG backend (parse + store), which
+        means a transient store-side failure that left the parsed markdown
+        companion behind no longer trips the gate.
+
+        The Find backend currently never returns a per-document id even on a
+        successful index call, so Find-only deployments will see RAG disabled
+        until per-document ids are wired in. This is documented as a known
+        limitation alongside Find's other per-document gaps.
+        """
 
         if not self._is_document_upload_enabled:
             return False
 
-        # Check for existing documents (any non-image attachment for this conversation)
-        has_documents = await (
-            models.ChatConversationAttachment.objects.filter(
-                Q(conversion_from__isnull=True) | Q(conversion_from=""),
-                conversation=self.conversation,
-            )
-            .exclude(content_type__startswith="image/")
-            .aexists()
-        )
-        return conversation_has_documents or has_documents
+        if conversation_has_documents:
+            return True
+
+        indexed_qs = models.ChatConversationAttachment.objects.filter(
+            rag_document_id__isnull=False,
+        ).exclude(rag_document_id="")
+
+        has_documents = await indexed_qs.filter(conversation=self.conversation).aexists()
+        if has_documents:
+            return True
+
+        if self.conversation.project_id:
+            return await indexed_qs.filter(project_id=self.conversation.project_id).aexists()
+
+        return False
 
     async def _process_agent_nodes(
         self, run, state: StreamingState, langfuse
@@ -648,7 +653,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     with default_storage.open(key, "rb") as file:
                         document_data = file.read()
                     # Run in thread to avoid blocking the event loop during parsing
-                    parsed_content = await asyncio.to_thread(
+                    parsed_content, rag_document_id = await asyncio.to_thread(
                         document_store.parse_and_store_document,
                         name=document.identifier,
                         content_type=document.media_type,
@@ -660,13 +665,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     raise ValueError("External document URL are not accepted yet.")
             else:
                 # Run in thread to avoid blocking the event loop during parsing
-                parsed_content = await asyncio.to_thread(
+                parsed_content, rag_document_id = await asyncio.to_thread(
                     document_store.parse_and_store_document,
                     name=document.identifier,
                     content_type=document.media_type,
                     content=document.data,
                     user_sub=self.user.sub,
                 )
+
+            # Persist the backend-side document id on the original attachment row
+            # (only for files uploaded via presigned URL — BinaryContent inlines
+            # have no row to update; their id falls through to the md companion).
+            if key and rag_document_id:
+                await models.ChatConversationAttachment.objects.filter(
+                    conversation_id=self.conversation.pk, key=key
+                ).aupdate(rag_document_id=rag_document_id)
 
             if not document.media_type.startswith(TEXT_MIME_PREFIX):
                 md_attachment = await models.ChatConversationAttachment.objects.acreate(
@@ -676,6 +689,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     file_name=f"{document.identifier}.md",
                     content_type="text/markdown",
                     conversion_from=key,  # might be None
+                    # No row exists for inline BinaryContent; carry the id here.
+                    rag_document_id=rag_document_id if not key else None,
                 )
                 default_storage.save(md_attachment.key, BytesIO(parsed_content.encode("utf8")))
                 md_attachment.upload_state = models.AttachmentStatus.READY
@@ -735,16 +750,31 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     async def _build_document_context_instruction(self) -> str:
         budget_ratio = settings.DOCUMENT_CONTEXT_BUDGET_RATIO
         security_buffer_tokens = settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS
+        # Restrict to READY uploads on both arms: PENDING / ANALYZING /
+        # SUSPICIOUS rows are not yet usable (still being malware-scanned, or
+        # quarantined), and surfacing their UUID in the system-prompt listing
+        # would let the model target attachments it cannot actually read.
         text_attachments = await sync_to_async(list)(
             self.conversation.attachments.filter(
-                content_type__startswith=TEXT_MIME_PREFIX
+                content_type__startswith=TEXT_MIME_PREFIX,
+                upload_state=models.AttachmentStatus.READY,
             ).order_by("created_at", "id")
         )
+        project_text_attachments: list = []
+        if self.conversation.project_id:
+            project_text_attachments = await sync_to_async(list)(
+                models.ChatConversationAttachment.objects.filter(
+                    project_id=self.conversation.project_id,
+                    content_type__startswith=TEXT_MIME_PREFIX,
+                    upload_state=models.AttachmentStatus.READY,
+                ).order_by("created_at", "id")
+            )
         max_token_context = self.conversation_agent.configuration.max_token_context
 
         # Cache the assembled instruction: building it requires reading every text
         # attachment from object storage and tokenizing it. The fingerprint includes
-        # each attachment's updated_at so any edit invalidates the cache.
+        # each attachment's updated_at (conversation + project) so any edit
+        # invalidates the cache.
         fingerprint_parts = [
             f"conv={self.conversation.id}",
             f"user={getattr(self.user, 'id', None)}",
@@ -753,6 +783,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             f"ratio={budget_ratio}",
             f"buffer={security_buffer_tokens}",
             *(f"{att.id}:{att.updated_at.isoformat()}" for att in text_attachments),
+            *(f"proj:{att.id}:{att.updated_at.isoformat()}" for att in project_text_attachments),
         ]
         cache_key = (
             "doc_ctx_instr:"
@@ -766,6 +797,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         instruction = await build_document_context_instruction(
             conversation_id=str(self.conversation.id),
             text_attachments=text_attachments,
+            project_text_attachments=project_text_attachments,
             model_hrid=self.model_hrid,
             max_token_context=max_token_context,
             budget_ratio=budget_ratio,
@@ -803,6 +835,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         async def summarize(ctx: RunContext, *args, **kwargs) -> ToolReturn:
             """Wrap the document_summarize tool to provide context and add the tool."""
             return await document_summarize(ctx, *args, **kwargs)
+
+        # `summarize_project` is only useful when the conversation belongs to a
+        # project. Registering it unconditionally would clutter the toolset for
+        # standalone conversations and let the LLM call a tool that always errors.
+        if self.conversation.project_id:
+
+            @self.conversation_agent.tool(
+                name="summarize_project",
+                retries=2,
+                description=DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
+            )
+            @functools.wraps(document_summarize_project)
+            async def summarize_project(ctx: RunContext, *args, **kwargs) -> ToolReturn:
+                """Wrap the document_summarize_project tool."""
+                return await document_summarize_project(ctx, *args, **kwargs)
 
     def _setup_web_search_tool(self) -> None:
         """Register model-specific web search tool when configured."""
@@ -1075,7 +1122,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         run_output,
         usage: Dict[str, Union[int, float]],
         state: StreamingState,
-        image_key_mapping: Dict[str, str],
+        image_actions: ImagePostRunActions,
     ) -> AsyncGenerator[events_v4.Event, None]:
         """
         Finalize the conversation after the agent run completes.
@@ -1104,7 +1151,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             usage=usage,
             ui_sources=state.ui_sources,
             model_response_message_id=state.model_response_message_id,
-            image_key_mapping=image_key_mapping or None,
+            image_actions=image_actions,
         )
 
         generated_title = await self._generate_title_if_needed()
@@ -1158,7 +1205,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             user_prompt,
             input_images,
             input_documents,
-            image_key_mapping,
+            image_actions,
             usage,
             history,
             conversation_has_documents,
@@ -1215,9 +1262,41 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 usage["co2_impact"] = _extract_co2_from_usage(final_usage)
 
         async for event in self._finalize_conversation(
-            new_messages, run_output, usage, state, image_key_mapping
+            new_messages, run_output, usage, state, image_actions
         ):
             yield event
+
+    @staticmethod
+    def _apply_image_actions(
+        final_output: List[ModelRequest | ModelMessage],
+        image_actions: Optional[ImagePostRunActions],
+    ) -> None:
+        """Rewrite or drop image URLs in every ``UserPromptPart`` of ``final_output``.
+
+        Mutates in place: the merged views, the UI-message conversion, and
+        the ``pydantic_messages`` JSON dump downstream all read from
+        ``final_output``'s parts, so a single in-place pass covers every
+        persistence path. Replacing ``part.content`` with a new list (rather
+        than mutating it during iteration) keeps Pydantic-AI's validation
+        happy.
+        """
+        if not image_actions or not (image_actions.rewrite or image_actions.drop):
+            return
+        for msg in final_output:
+            if not isinstance(msg, ModelRequest):
+                continue
+            for part in msg.parts:
+                if not isinstance(part, UserPromptPart):
+                    continue
+                new_content = []
+                for content in part.content:
+                    if isinstance(content, (ImageUrl, DocumentUrl)):
+                        if content.url in image_actions.drop:
+                            continue
+                        if rewritten := image_actions.rewrite.get(content.url):
+                            content.url = rewritten
+                    new_content.append(content)
+                part.content = new_content
 
     def _prepare_update_conversation(
         self,
@@ -1226,7 +1305,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         usage: Dict[str, Union[int, float]],
         ui_sources: Optional[List[SourceUIPart]] = None,
         model_response_message_id: str | None = None,
-        image_key_mapping: Optional[Dict[str, str]] = None,
+        image_actions: Optional[ImagePostRunActions] = None,
     ):  # pylint: disable=too-many-arguments
         """
         Save everything related to the conversation.
@@ -1239,9 +1318,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             usage (Dict[str, Union[int, float]]): Token and CO2 usage statistics
             (mutated in-place to accumulate across turns).
             model_response_message_id (str | None): Message ID
-            image_key_mapping (Dict[str, str] | None): Mapping of image id and S3 urls
             ui_sources (List[SourceUIPart]): Optional UI sources to include in the conversation.
+            image_actions (ImagePostRunActions | None): Per-turn image-URL
+            surgery to apply before persistence (rewrite presigned URLs back
+            to durable form for in-message images, drop pinned project
+            images outright). See ``ImagePostRunActions`` for details.
         """
+        self._apply_image_actions(final_output, image_actions)
+
         _merged_final_output_request = ModelRequest(
             parts=[
                 part for msg in final_output if isinstance(msg, ModelRequest) for part in msg.parts
@@ -1254,15 +1338,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ],
             kind="response",
         )
-
-        if image_key_mapping:
-            for part in _merged_final_output_request.parts:
-                if isinstance(part, UserPromptPart):
-                    for content in part.content:
-                        if isinstance(content, (ImageUrl, DocumentUrl)) and (
-                            unsigned_url := image_key_mapping.get(content.url)
-                        ):
-                            content.url = unsigned_url
 
         _output_ui_message = model_message_to_ui_message(_merged_final_output_message)
         if ui_sources:

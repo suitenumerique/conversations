@@ -5,6 +5,10 @@
 # the LLM consumes through different channels.
 TEXT_MIME_PREFIX = "text/"
 
+# MIME prefix for image attachments - excluded from RAG indexing and routed
+# through the LLM's vision channel instead.
+IMAGE_MIME_PREFIX = "image/"
+
 # Access values exposed to the model in the documents listing. Keep in sync
 # with the `Access` Literal in chat.document_context_builder (Python's Literal
 # can't reference module-level constants).

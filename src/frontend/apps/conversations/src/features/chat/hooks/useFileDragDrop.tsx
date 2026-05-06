@@ -100,8 +100,12 @@ export const useFileDragDrop = ({
       return;
     }
 
+    const isModalOpen = () =>
+      document.querySelector('.c__modals--opened') !== null;
+
     const handleDragEnter = (e: DragEvent) => {
       e.preventDefault();
+      if (isModalOpen()) return;
       // Only activate for file drags (not text selections, etc.)
       if (e.dataTransfer?.types.includes('Files')) {
         setIsDragActive(true);
@@ -118,13 +122,16 @@ export const useFileDragDrop = ({
     };
 
     const handleDragOver = (e: DragEvent) => {
-      // Required to allow drop
+      // Always preventDefault: without it the browser navigates to the
+      // dropped file's URL natively, even when the modal is open. Drop
+      // routing (modal open => skip processing) is handled in handleDrop.
       e.preventDefault();
     };
 
     const handleDrop = (e: DragEvent) => {
       e.preventDefault();
       setIsDragActive(false);
+      if (isModalOpen()) return;
 
       const droppedFiles = e.dataTransfer?.files;
       if (droppedFiles && droppedFiles.length > 0) {

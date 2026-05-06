@@ -26,6 +26,8 @@ from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 from rest_framework import status
 
+from core.file_upload.enums import AttachmentStatus
+
 from chat.ai_sdk_types import TextUIPart, UIMessage
 from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
 
@@ -79,6 +81,8 @@ def test_post_conversation_filtered_empty_triggers_model_retry_then_unfiltered(
         file_name="other.pdf.md",
         content_type="text/markdown",
         conversion_from="123/attachments/other.pdf",
+        rag_document_id="301",
+        upload_state=AttachmentStatus.READY,
     )
     target = ChatConversationAttachmentFactory(
         conversation=chat_conversation,
@@ -86,14 +90,18 @@ def test_post_conversation_filtered_empty_triggers_model_retry_then_unfiltered(
         file_name="targeted.pdf.md",
         content_type="text/markdown",
         conversion_from="123/attachments/targeted.pdf",
+        rag_document_id="302",
+        upload_state=AttachmentStatus.READY,
     )
     default_storage.save(other.key, ContentFile(b"other content"))
     default_storage.save(target.key, ContentFile(b"targeted content"))
 
-    # Albert handler: empty for filtered queries, results for unfiltered.
+    # Albert handler: empty for filtered queries (document_ids set), results
+    # for unfiltered. The targeted attachments now carry `rag_document_id` so
+    # the tool sends `document_ids` instead of `metadata_filters: document_name`.
     def search_handler(request):
         body = json.loads(request.content)
-        if "metadata_filters" in body:
+        if "document_ids" in body:
             return httpx.Response(
                 status.HTTP_200_OK,
                 json={
@@ -198,8 +206,10 @@ def test_post_conversation_filtered_empty_triggers_model_retry_then_unfiltered(
 
     first_payload = json.loads(albert_search_route.calls[0].request.content)
     second_payload = json.loads(albert_search_route.calls[1].request.content)
-    assert first_payload["metadata_filters"]["value"] == "targeted.pdf"
-    assert "metadata_filters" not in second_payload
+    # Targeted attachment carries rag_document_id="302" -> first call uses
+    # `document_ids: [302]`. The retry without document_id drops the filter.
+    assert first_payload["document_ids"] == [302]
+    assert "document_ids" not in second_payload
 
     # The user-facing stream contains the final answer (sourced from the unfiltered
     # results) - not an empty/confusing response from the filtered miss.

@@ -9,6 +9,26 @@ test.describe('Left panel desktop', () => {
     await page.goto('/');
   });
 
+  // Delete every project this browser's e2e tests have created so the next
+  // test (and the next in-band run) starts from a clean panel. The dev DB is
+  // shared across runs; without this, the projects list paginates and a
+  // freshly-created project can land past the first page.
+  //
+  // `title` is an icontains filter (TitleSearchFilter), and storageState is
+  // per-browser, so only this browser-user's e2e artifacts are touched.
+  test.afterEach(async ({ request, browserName }) => {
+    const response = await request.get('/api/v1.0/projects/', {
+      params: { title: `${browserName}-`, page_size: 200 },
+    });
+    if (!response.ok()) return;
+    const body = (await response.json()) as { results?: Array<{ id: string; title: string }> };
+    const prefix = new RegExp(`^${browserName}-\\d+-\\d+-`);
+    for (const project of body.results ?? []) {
+      if (!prefix.test(project.title)) continue;
+      await request.delete(`/api/v1.0/projects/${project.id}/`);
+    }
+  });
+
   test('checks all the elements are visible', async ({ page }) => {
     await expect(page.getByTestId('left-panel-desktop')).toBeVisible();
     await expect(page.getByTestId('left-panel-mobile')).toBeHidden();

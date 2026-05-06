@@ -5,11 +5,12 @@ import {
 } from '@gouvfr-lasuite/ui-kit';
 import Image, { type StaticImageData } from 'next/image';
 import { useMemo } from 'react';
-import DocIcon from '@/assets/icons/uikit-custom/doc.svg';
-import NewChatBoldIcon from '@/assets/icons/new-message-bold.svg';
-import FolderIcon from '@/assets/icons/uikit-custom/folder.svg';
-import { createGlobalStyle } from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { createGlobalStyle } from 'styled-components';
+
+import NewChatBoldIcon from '@/assets/icons/new-message-bold.svg';
+import DocIcon from '@/assets/icons/uikit-custom/doc.svg';
+import FolderIcon from '@/assets/icons/uikit-custom/folder.svg';
 
 import step1En from '../assets/step1-en.png';
 import step1Fr from '../assets/step1-fr.png';

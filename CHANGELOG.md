@@ -16,6 +16,7 @@ and this project adheres to
 - ✅(front) add tests for SourceItem component
 - ✨(documents) make document context hybrid
 - 🐛(fix) add prevent_url_hallucination instruction to ConversationAgent
+- ✨(projects) handle project files for RAG search
 
 ### Changed
 

@@ -22,14 +22,20 @@ from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.usage import RunUsage
 
 from chat.agents.summarize import SummarizationAgent
-from chat.clients.pydantic_ai import ContextDeps
+from chat.clients.schema import ContextDeps
 from chat.factories import (
     ChatConversationAttachmentFactory,
     ChatConversationFactory,
+    ChatProjectAttachmentFactory,
+    ChatProjectFactory,
     UserFactory,
 )
 from chat.llm_configuration import LLModel, LLMProvider
-from chat.tools.document_summarize import document_summarize, summarize_chunk
+from chat.tools.document_summarize import (
+    document_summarize,
+    document_summarize_project,
+    summarize_chunk,
+)
 
 # transaction=True is required so writes done via sync_to_async (which run on
 # threadpool connections distinct from the test's wrapping transaction) commit
@@ -376,3 +382,158 @@ async def test_document_summarize_large_document_multiple_chunks(
 
     assert "Final summary of" in result.return_value
     assert chunk_count["n"] > 1
+
+
+# document_summarize_project: same chunk/merge core as document_summarize, but
+# scoped to project-library files. Tests focus on the scope-specific contracts:
+# the no-project guard, the no-project-files message, the project IDOR
+# boundary, and a happy path proving the shared core is exercised.
+
+
+@sync_to_async
+def _setup_project_conversation(*, project_specs=None, conversation_specs=None):
+    """Build a conversation in a project, optionally with attachments on each side.
+
+    `project_specs` and `conversation_specs` follow the same shape as
+    `_setup_conversation`'s spec list. Returns
+    `(ctx, project_attachments, conversation_attachments)`.
+    """
+    project_specs = project_specs or []
+    conversation_specs = conversation_specs or []
+
+    user = UserFactory()
+    project = ChatProjectFactory(owner=user)
+    conversation = ChatConversationFactory(owner=user, project=project)
+
+    project_attachments = []
+    for spec in project_specs:
+        attachment = ChatProjectAttachmentFactory(
+            project=project,
+            uploaded_by=user,
+            file_name=spec["file_name"],
+            content_type="text/plain",
+        )
+        if spec.get("write", True):
+            default_storage.save(attachment.key, ContentFile(spec["content"].encode("utf-8")))
+        project_attachments.append(attachment)
+
+    conversation_attachments = []
+    for spec in conversation_specs:
+        attachment = ChatConversationAttachmentFactory(
+            conversation=conversation,
+            uploaded_by=user,
+            file_name=spec["file_name"],
+            content_type="text/plain",
+        )
+        if spec.get("write", True):
+            default_storage.save(attachment.key, ContentFile(spec["content"].encode("utf-8")))
+        conversation_attachments.append(attachment)
+
+    ctx = RunContext(
+        model="test",
+        usage=RunUsage(input_tokens=0, output_tokens=0),
+        deps=ContextDeps(conversation=conversation, user=user),
+        max_retries=2,
+        retries={},
+        tool_name="document_summarize_project",
+    )
+    return ctx, project_attachments, conversation_attachments
+
+
+@pytest.mark.asyncio
+async def test_summarize_project_no_project_returns_soft_fail(mock_summarization_agent):
+    """A standalone conversation (no project) yields a soft-fail message."""
+    ctx, _ = await _setup_conversation([])
+
+    with mock_summarization_agent(FunctionModel(mocked_summary)):
+        result = await document_summarize_project(ctx, instructions=None)
+
+    assert "does not belong to a project" in result
+
+
+@pytest.mark.asyncio
+async def test_summarize_project_no_project_files_returns_soft_fail(mock_summarization_agent):
+    """A project with zero text attachments yields a clear no-files message."""
+    ctx, _, _ = await _setup_project_conversation()
+
+    with mock_summarization_agent(FunctionModel(mocked_summary)):
+        result = await document_summarize_project(ctx, instructions=None)
+
+    assert "No text documents found in the project library" in result
+
+
+@pytest.mark.asyncio
+async def test_summarize_project_summarizes_all_project_files(mock_summarization_agent):
+    """Without document_id, every project text attachment is summarized."""
+    ctx, _, _ = await _setup_project_conversation(
+        project_specs=[
+            {"file_name": "brief.txt", "content": "alpha " * 30},
+            {"file_name": "handbook.txt", "content": "beta " * 30},
+        ],
+    )
+
+    def mocked(messages, _info=None):
+        prompt = messages[0].parts[-1].content
+        if "Produce a coherent synthesis" in prompt:
+            return ModelResponse(parts=[TextPart(content="Project library summary")])
+        return ModelResponse(parts=[TextPart(content="chunk")])
+
+    with mock_summarization_agent(FunctionModel(mocked)):
+        result = await document_summarize_project(ctx, instructions=None)
+
+    assert result.return_value == "Project library summary"
+    assert result.metadata["sources"] == {"brief.txt", "handbook.txt"}
+
+
+@pytest.mark.asyncio
+async def test_summarize_project_targets_one_project_file(mock_summarization_agent):
+    """document_id restricts summarization to a single project attachment."""
+    ctx, project_attachments, _ = await _setup_project_conversation(
+        project_specs=[
+            {"file_name": "brief.txt", "content": "alpha " * 30},
+            {"file_name": "handbook.txt", "content": "beta " * 30},
+        ],
+    )
+    target = project_attachments[1]
+
+    def mocked(messages, _info=None):
+        prompt = messages[0].parts[-1].content
+        if "Produce a coherent synthesis" in prompt:
+            return ModelResponse(parts=[TextPart(content="Targeted summary")])
+        return ModelResponse(parts=[TextPart(content="chunk")])
+
+    with mock_summarization_agent(FunctionModel(mocked)):
+        result = await document_summarize_project(
+            ctx, instructions=None, document_id=str(target.id)
+        )
+
+    assert result.return_value == "Targeted summary"
+    assert result.metadata["sources"] == {"handbook.txt"}
+
+
+@pytest.mark.asyncio
+async def test_summarize_project_rejects_conversation_attachment_id(mock_summarization_agent):
+    """document_id pointing at a conversation attachment is rejected (IDOR boundary)."""
+    ctx, _, conversation_attachments = await _setup_project_conversation(
+        project_specs=[{"file_name": "brief.txt", "content": "alpha " * 30}],
+        conversation_specs=[{"file_name": "convo.txt", "content": "convo " * 30}],
+    )
+    convo_attachment_id = str(conversation_attachments[0].id)
+
+    with mock_summarization_agent(FunctionModel(mocked_summary)):
+        with pytest.raises(ModelRetry, match="not found"):
+            await document_summarize_project(
+                ctx, instructions=None, document_id=convo_attachment_id
+            )
+
+
+@pytest.mark.asyncio
+async def test_summarize_project_invalid_document_id(mock_summarization_agent):
+    """A non-UUID document_id raises ModelRetry before any chunking begins."""
+    ctx, _, _ = await _setup_project_conversation(
+        project_specs=[{"file_name": "brief.txt", "content": "alpha " * 30}],
+    )
+
+    with mock_summarization_agent(FunctionModel(mocked_summary)):
+        with pytest.raises(ModelRetry, match="Expected a valid UUID"):
+            await document_summarize_project(ctx, instructions=None, document_id="not-a-uuid")

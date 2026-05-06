@@ -24,6 +24,8 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from rest_framework import status
 
+from core.file_upload.enums import AttachmentStatus
+
 from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.ai_sdk_types import (
     Attachment,
@@ -892,6 +894,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
         key=file_path,
         file_name=file_name,
         content_type=content_type,
+        upload_state=AttachmentStatus.READY,
     )
     default_storage.save(f"{chat_conversation.pk}/{file_name}", BytesIO(b"Just some text content."))
     document_url = f"/media-key/{chat_conversation.pk}/{file_name}"

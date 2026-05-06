@@ -79,6 +79,14 @@ class ChatProject(BaseModel):
         help_text="Custom user instructions to be sent to the llm",
     )
 
+    collection_id = models.CharField(
+        blank=True,
+        null=True,
+        help_text=(
+            "Collection ID for the project, used for RAG document search across project files"
+        ),
+    )
+
     def __str__(self):
         return self.title
 
@@ -167,23 +175,26 @@ class ChatConversation(BaseModel):
 
 class ChatConversationAttachment(BaseModel):
     """
-    Model representing an attachment associated with a chat conversation.
+    Model representing a file attachment.
 
-    This model stores the details of an attachment:
-    - `conversation`: The conversation this attachment belongs to.
-    - `uploaded_by`: The user who uploaded the attachment.
-    - `key`: The file path of the attachment in the object storage.
-    - `file_name`: The original name of the attachment file.
-    - `content_type`: The MIME type of the attachment file.
-
+    An attachment belongs to exactly one of: a conversation or a project.
+    - Conversation attachments are scoped to a single chat.
+    - Project attachments are shared across all conversations in that project.
     """
 
     conversation = models.ForeignKey(
         ChatConversation,
         related_name="attachments",
         on_delete=models.CASCADE,
-        null=False,
-        blank=False,
+        null=True,
+        blank=True,
+    )
+    project = models.ForeignKey(
+        ChatProject,
+        related_name="attachments",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
     )
     uploaded_by = models.ForeignKey(
         User,
@@ -221,3 +232,22 @@ class ChatConversationAttachment(BaseModel):
         null=True,
         help_text="Original file key if the Markdown from another file",
     )
+    rag_document_id = models.CharField(
+        blank=True,
+        null=True,
+        help_text=(
+            "Per-document id returned by the RAG backend at indexing time, "
+            "used to remove the document from its collection on attachment delete"
+        ),
+    )
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        constraints = [
+            models.CheckConstraint(
+                name="attachment_owner_exactly_one",
+                condition=(
+                    models.Q(conversation__isnull=False, project__isnull=True)
+                    | models.Q(conversation__isnull=True, project__isnull=False)
+                ),
+            ),
+        ]

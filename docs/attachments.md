@@ -2,6 +2,12 @@
 
 This document describes how conversation attachments work in the Conversations application, including the upload process, security measures, and how documents are processed for use with Large Language Models (LLMs).
 
+Two attachment scopes coexist:
+- **Conversation attachments** (`ChatConversationAttachment.conversation` set): scoped to a single chat. Indexed on the first chat turn that needs them.
+- **Project attachments** (`ChatConversationAttachment.project` set): scoped to a project, shared by every conversation in that project. Indexed at upload time so they are searchable from the very first turn of every conversation in the project.
+
+Both share the same model, same storage, same RAG backend, and the same retrieval tools - they only differ in scope, when indexing happens, and how they appear in the LLM's context (see [Hybrid context delivery](#documents-listing-in-system-instructions)).
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -9,13 +15,18 @@ This document describes how conversation attachments work in the Conversations a
 - [Architecture & Flow](#architecture--flow)
   - [High-Level Overview](#high-level-overview)
   - [Detailed Technical Flow](#detailed-technical-flow)
+- [Project Attachments](#project-attachments)
+  - [Indexing at upload time](#indexing-at-upload-time)
+  - [Project RAG collection](#project-rag-collection)
+  - [Markdown companion attachment](#markdown-companion-attachment)
+  - [Deletion lifecycle](#deletion-lifecycle)
 - [Security & Validation](#security--validation)
-  - [MIME Type Validation](#mime-type-validation)
   - [Malware Detection](#malware-detection)
 - [Document Processing for LLMs](#document-processing-for-llms)
   - [Image Attachments](#image-attachments)
   - [PDF Documents](#pdf-documents)
   - [Other Document Types](#other-document-types)
+  - [Find backend: known limitations](#find-backend-known-limitations)
 - [Configuration](#configuration)
 
 ---
@@ -33,10 +44,11 @@ without routing the file data through the backend server.
 
 Note about documents: The system uses a tool called **MarkItDown** to convert various document formats 
 (Word, Excel, PowerPoint, text files, etc.) into Markdown text for processing by LLMs. When at least 
-one non-PDF/image document is attached, the system enables:
- - a **hybrid context delivery** that inlines small documents directly into the LLM's system instructions (`full-context`) and exposes the rest via tools (`tool_call_only`). The split is driven by the model's context window size and a configurable budget ratio. See [Other Document Types](#other-document-types).
- - a **Retrieval-Augmented Generation (RAG)** search tool (`document_search_rag`) to query relevant sections of any attached document. Supports an optional `document_id` argument to target a single attachment.
- - a **summarization tool** (`summarize`) to provide document summaries on user request, also supporting `document_id` targeting.
+one non-image document is attached **either to the current conversation or to its project**, the system enables:
+ - a **hybrid context delivery** that inlines small conversation documents directly into the LLM's system instructions (`full-context`) and exposes the rest via tools (`tool_call_only`). Project documents are listed separately under `project_documents` and are always `tool_call_only` - they do not compete for the inlining budget. See [Other Document Types](#other-document-types).
+ - a **Retrieval-Augmented Generation (RAG)** search tool (`document_search_rag`) to query relevant sections of any attached document. The search payload covers the conversation's collection and, when applicable, the parent project's collection in a single call. Supports an optional `document_id` argument to target a single attachment (conversation- or project-scoped).
+ - a **summarization tool** (`summarize`) to provide document summaries of files attached to the **current conversation**, also supporting `document_id` targeting.
+ - a **project-scoped summarization tool** (`summarize_project`) for files in the **project library**, registered only when the conversation belongs to a project.
    ⚠️ naive implementation at the moment, needs improvement before being used in production.
 
 ## Supported Attachment Types
@@ -196,6 +208,70 @@ The malware detection service (configurable via `MALWARE_DETECTION_BACKEND`) sca
 
 ---
 
+## Project Attachments
+
+Project attachments live on `ChatProject` rather than on a single `ChatConversation`. They are uploaded through a parallel viewset (`ChatProjectAttachmentViewSet`, `POST /api/v1.0/projects/{project_id}/attachments/`) and reuse the same upload pipeline (presigned URL → upload-ended → MIME detection → malware scan). Three things differ from the conversation flow.
+
+### Indexing at upload time
+
+Conversation attachments are indexed lazily when a chat turn first builds RAG context. Project attachments cannot follow that pattern - any conversation in the project may be the first to ask about a file, and we want them searchable immediately.
+
+The malware safe callback for projects (`chat.malware_detection.project_safe_attachment_callback`) does two things in sequence after marking the attachment `READY`:
+
+1. Fetches the attachment with `select_related("project", "uploaded_by")`.
+2. Calls `chat.agent_rag.indexing.index_project_attachment(attachment)`.
+
+`index_project_attachment` is a one-shot, idempotent indexer: it skips images, skips markdown companion rows (`conversion_from` set), skips attachments already carrying a `rag_document_id`, parses the file via `RAG_DOCUMENT_PARSER`, and stores the result in the project's RAG collection. Failures are logged and swallowed - the file stays `READY` and downloadable but won't surface in RAG search until a future re-index.
+
+### Project RAG collection
+
+Each project lazily creates its own RAG collection on the first indexable upload. `ChatProject.
+collection_id` starts NULL; `_ensure_project_collection(project)` runs the creation under 
+`select_for_update` + `transaction.atomic` so two concurrent first-uploads on a fresh project cannot each create a competing collection at the backend (race condition).
+
+At search time, when a conversation belongs to a project, the project's collection is added to the search payload alongside the conversation's own collection (`read_only_collection_id=[project.collection_id]`). The model can therefore pull chunks from both scopes in a single tool call.
+
+The Albert backend records a per-document id (`rag_document_id`) at index time. The search tool prefers it over name-based filtering (`document_ids: [<int>]` instead of `metadata_filters: document_name`) - this is collection-aware and unambiguous, whereas a name match could collide across the conversation and project collections. The Find backend currently does not return per-document ids; both id-based and name-based filters fall back to a plain query.
+
+### Markdown companion attachment
+
+Parsing a non-text input (PDF, DOCX, ODT, ...) is expensive: it can call Albert's parser endpoint, run MarkItDown, or shell out to `odfdo`. We do not want to pay that cost on every chat turn that reads the document. The companion attachment is the **parsed-content cache** that solves this:
+
+| | Original row | Companion row |
+|---|---|---|
+| `file_name` | `report.pdf` | `report.pdf.md` |
+| `content_type` | `application/pdf` | `text/markdown` |
+| `conversion_from` | `NULL` | `<original.key>` (the marker that distinguishes a companion from a real markdown upload) |
+| `upload_state` | `READY` | `READY` |
+| `rag_document_id` | populated (Albert) | `NULL` |
+| S3 key | **Conversation**: shared - one blob backs both rows (companion overwrites the original on upload). **Project**: distinct - companion stored at `<original.key>.md` so the original binary stays intact for direct retrieval. |
+
+What reads it:
+- **Hybrid context delivery** (`build_document_context_instruction`): when a conversation attachment is small enough to inline as `full-context`, the builder reads the companion's markdown from S3 and embeds it in the system prompt. Without the companion, every turn would have to re-parse the original.
+- **System-prompt listing**: every turn lists every text attachment by `id` and `title`. The companion gives the listing a stable markdown title (`report.pdf` after stripping `.md`) and a `document_id` that maps to the original through `conversion_from`.
+- **`summarize` tool**: pulls the parsed markdown directly from the companion's S3 blob.
+- **RAG `document_id` resolution**: searches text attachments, which means companions are filtered out (`conversion_from` set) - the model targets the **original** UUID, and the search uses the original's `rag_document_id`. The companion exists only as a parsed-content cache; it is never the search target.
+
+What writes it:
+- **Conversation attachments**: created lazily by `_parse_input_documents` on the first chat turn that needs RAG context, after the parser runs.
+- **Project attachments**: created at index time inside `index_project_attachment`, so the companion is in place before the very first chat turn that asks about the file.
+
+Cleanup is set-based: the per-attachment delete path collects every key scheduled for removal (original + companion) into a `set` and hands it to `_bulk_delete_s3_blobs`, which issues one `DELETE` per unique blob. For project attachments this means **two** `DELETE` calls (original + `<original.key>.md`); for conversation attachments where the companion shares the original's key, set semantics dedup it down to one. The companion DB row is dropped explicitly on per-attachment delete (filter on `conversion_from = original.key`); on conversation/project cascade delete, both rows are dropped by the same DB cascade.
+
+### Deletion lifecycle
+
+Three paths drop project attachments and each one cleans up the side effects in a defined order:
+
+| Path | Order | Notes |
+|---|---|---|
+| Per-attachment delete (`DELETE /projects/{p}/attachments/{a}/`) | RAG document → S3 blob → companion row → original row | Each step is best-effort; failures are logged but never block the user-facing delete. Companion is matched by `(project_id, conversion_from = original.key)`. |
+| Conversation delete (`DELETE /chats/{c}/`) | RAG collection → S3 blobs (deduped) → DB cascade | Collection drop covers all per-doc state in one call, so per-attachment `delete_document` is not iterated. S3 keys are collected before cascade since CASCADE drops attachment rows but never touches storage. |
+| Project delete (`DELETE /projects/{p}/`) | Child-conversation RAG collections → collect S3 keys → bulk conversation delete → project RAG collection → S3 blobs (deduped) → DB cascade | `ChatConversation.project` uses `on_delete=SET_NULL`, so child conversations are explicitly deleted here. Bulk `QuerySet.delete()` bypasses `ChatViewSet.perform_destroy`, which is why child collections are dropped above before the bulk delete fires. The S3-key set must be assembled **before** the bulk conversation delete so the queries still resolve to live attachment rows. |
+
+The trade-off accepted on every path: a transient backend hiccup may strand orphaned RAG/S3 storage rather than strand a DB row the user cannot remove. Cleanup deduplicates S3 keys into a `set` before calling `default_storage.delete`, so conversation companions (which share the original's key) cost one `DELETE` while project companions (distinct `<original.key>.md`) cost two.
+
+---
+
 ## Security & Validation
 
 For now, the system is not intended to host user-uploaded files for public download.
@@ -276,17 +352,28 @@ When a user sends a message with attachments, the system processes them differen
 
 **Processing flow**:
 
-1. **Document parsing**: When a document is uploaded, it's parsed using the `AlbertRagBackend` class.
+1. **Document parsing**: Two pluggable settings drive parsing and storage:
+   - `RAG_DOCUMENT_PARSER` (default `chat.agent_rag.document_converter.parser.AlbertParser`): converts the source bytes to Markdown. Routes by content type - ODT files always use `odfdo`, everything other than PDF/ODT goes through **MarkItDown**, PDFs depend on which parser is configured (see below).
+   - `RAG_DOCUMENT_SEARCH_BACKEND` (`AlbertRagBackend` or `FindRagBackend`): stores the converted markdown in the configured vector index and serves search queries.
 
-2. **Conversion to Markdown**: Documents are converted using **MarkItDown** library or using the "Albert API" for PDFs.
+   **PDF parsing strategies** (per `RAG_DOCUMENT_PARSER`):
+   - `AlbertParser`: every PDF is sent unconditionally to the Albert `/v1/parse-beta` endpoint.
+   - `AdaptivePdfParser`: runs a `pypdf`-based heuristic on the upload first (see `analyze_pdf` in `parser.py`):
+     - Counts pages with extractable text and the average characters per page.
+     - If `avg_chars_per_page > MIN_AVG_CHARS_FOR_TEXT_EXTRACTION` AND `text_coverage > MIN_TEXT_COVERAGE_FOR_TEXT_EXTRACTION`, the PDF is treated as a born-digital text PDF and converted **locally** via MarkItDown - no external API call.
+     - Otherwise (scanned, image-only, or low-text-density PDF), the parser falls back to the configured OCR endpoint (`OCR_HRID` provider's `/v1/ocr`, default Mistral OCR), processing the document in `OCR_BATCH_PAGES`-sized batches with `OCR_MAX_RETRIES` retry attempts.
+
+     The point of the heuristic is to avoid the latency/cost of OCR when `pypdf` can already pull clean text out of the PDF.
+
+2. **Conversion artifacts**: For non-text inputs (PDF, DOCX, etc.) a hidden markdown companion attachment is created (`content_type=text/markdown`, `conversion_from=<original.key>`). Conversation attachments create the companion lazily on the first chat turn that needs RAG; project attachments create it at upload time (see [Project Attachments](#project-attachments)). Conversation companions reuse the original's S3 key (the companion overwrites the original blob); project companions are stored at a distinct `<original.key>.md` blob so the original binary remains available for direct retrieval.
 
 3. **Hybrid context delivery**: On every chat turn, each text attachment is exposed to the LLM in one of two modes (described in detail below):
-   - **`full-context`**: small enough documents are inlined directly into the system instructions so the LLM can read them without calling a tool.
-   - **`tool_call_only`**: oversized or evicted documents stay reachable via the `document_search_rag` and `summarize` tools.
+   - **`full-context`**: small enough conversation documents are inlined directly into the system instructions so the LLM can read them without calling a tool.
+   - **`tool_call_only`**: oversized or evicted conversation documents, **and every project document**, stay reachable via the `document_search_rag` tool, plus `summarize` for conversation files or `summarize_project` for project-library files.
 
 4. **RAG (Retrieval-Augmented Generation)**:
-   - Converted text is indexed in a vector database (Albert collection or Find index).
-   - The LLM uses the `document_search_rag` tool to query relevant chunks. The tool accepts an optional `document_id` argument to target a single attachment.
+   - Converted text is indexed in a vector database (Albert collection or Find index). Conversations and projects each have their own collection.
+   - The LLM uses the `document_search_rag` tool to query relevant chunks. When the conversation belongs to a project, both the conversation collection and the project collection are searched in a single call. The tool accepts an optional `document_id` argument to target a single attachment from either scope.
 
 5. **Summarization tool** if needed (also accepts `document_id`).
 
@@ -315,14 +402,24 @@ Listing shape (sent on every turn):
       "info": null
     }
   ],
-  "note": "Documents marked 'tool_call_only' are accessible through tools like RAG search or summary. Documents marked 'full-context' can be directly manipulated by you, ..."
+  "project_documents": [
+    {
+      "document_id": "<UUID>",
+      "title": "team-handbook.pdf",
+      "access": "tool_call_only",
+      "content": null,
+      "info": "first_uploaded_document"
+    }
+  ],
+  "note": "Documents marked 'tool_call_only' are accessible through tools like RAG search or summary. Documents marked 'full-context' can be directly manipulated by you, ... Entries listed under 'project_documents' come from the user's project library and are shared across every conversation in this project."
 }
 ```
 
 Notes:
-- `document_id` is the attachment's UUID and is the value the model passes back to `document_search_rag(document_id=...)` or `summarize(document_id=...)` to target a specific document.
-- `info` flags the first and last uploaded documents to help the LLM reason about temporal context.
+- `document_id` is the attachment's UUID and is the value the model passes back to `document_search_rag(document_id=...)`, `summarize(document_id=...)`, or `summarize_project(document_id=...)` to target a specific document. The id MUST come from the matching array (`documents` ↔ `summarize`, `project_documents` ↔ `summarize_project`); cross-array ids are rejected as IDOR violations.
+- `info` flags the first and last uploaded documents to help the LLM reason about temporal context. `documents` and `project_documents` carry their own independent `info` ordering.
 - `access` is the per-doc decision made by the inlining policy described below.
+- `project_documents` is present **only** when the conversation belongs to a project that has at least one indexable file. Every entry under `project_documents` is `tool_call_only` - project files do not compete for the inlining budget. The key is dropped from the JSON entirely (not rendered as `null` or `[]`) when no project files exist.
 
 #### Inlining policy and FIFO eviction
 
@@ -345,33 +442,65 @@ The decision of which documents are inlined as `full-context` vs left as `tool_c
 Token estimation uses `tiktoken` with the `cl100k_base` encoding (GPT-4 tokenizer). For non-OpenAI models (Mistral, Llama, Anthropic) actual usage may run 5-15% higher; the security buffer absorbs that drift.
 
 The assembled instruction is **cached** per turn keyed on:
-`conversation_id`, `user_id`, `model_hrid`, `model.max_token_context`, `DOCUMENT_CONTEXT_BUDGET_RATIO`, `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`, and a fingerprint of `(attachment.id, attachment.updated_at)` for every text attachment. Any attachment add / remove / edit, or any settings change, invalidates the cache. TTL is 30 minutes (`CACHE_TIMEOUT`).
+`conversation_id`, `user_id`, `model_hrid`, `model.max_token_context`, `DOCUMENT_CONTEXT_BUDGET_RATIO`, `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`, and a fingerprint of `(attachment.id, attachment.updated_at)` for every text attachment - **conversation and project text attachments both contribute to the fingerprint**. Any attachment add / remove / edit (including project files), or any settings change, invalidates the cache. TTL is 30 minutes (`CACHE_TIMEOUT`).
 
 #### Targeted document operations (`document_id`)
 
-Both RAG-related tools accept an optional `document_id` argument:
+Three tools accept an optional `document_id` argument, each with its own IDOR boundary:
 
-- `document_search_rag(query, document_id=None)`
-- `summarize(instructions=None, document_id=None)`
+| Tool | Default scope (no `document_id`) | `document_id` resolves against |
+|---|---|---|
+| `document_search_rag(query, document_id=None)` | Conversation collection + project collection (when applicable) | Conversation text attachments + project text attachments. |
+| `summarize(instructions=None, document_id=None)` | Every conversation text attachment | Conversation text attachments only. |
+| `summarize_project(instructions=None, document_id=None)` (registered only when the conversation belongs to a project) | Every project text attachment | Project text attachments only. |
 
-When the model includes `document_id`, the tool:
-1. Validates the value is a UUID.
-2. Looks it up against the conversation's text attachments. **If the UUID does not belong to the current conversation, the tool raises `ModelRetry` ("not found")** — this is the IDOR boundary.
-3. Resolves the attachment's actual `document_name` (stripping a `.md` suffix if the attachment was converted, e.g. `report.pdf.md` → `report.pdf`) and forwards it to the backend.
+For all three tools, the resolution is:
+1. Validate the value is a UUID.
+2. Look it up against the tool-specific attachment set (see table). **If the UUID is not in that set, the tool raises `ModelRetry` ("not found")** - this is the IDOR boundary. The boundaries are deliberately strict per-tool: `summarize` rejects a project-attachment id (the LLM should call `summarize_project` instead), `summarize_project` rejects a conversation-attachment id, and `document_search_rag` is the only widening tool because the model cannot tell from the question alone which scope to prefer.
+3. For `document_search_rag`, forward the resolved attachment to the backend, preferring the per-document id (`rag_document_id`) recorded at index time over the file name:
+   - **Albert**: sends `document_ids: [<int>]` on `/v1/search`. This is collection-aware and unambiguous, which matters when conversation and project collections both carry a file with the same name.
+   - **Find**: per-document id is not available; the backend currently ignores both `document_id` and `document_name` filters and runs a plain query (known gap, follow-up work).
+   - When `rag_document_id` is missing (e.g. older attachment, Find backend), Albert falls back to a `metadata_filters: { key: "document_name", value: ..., type: "eq" }` clause; the file name is `report.pdf.md` stripped to `report.pdf` if the attachment is a converted markdown copy.
 
-The Albert backend uses this name as a `metadata_filters` clause on `/v1/search`. The Find backend currently ignores `document_name` filtering — this is a known gap.
+The two `summarize*` tools share the same chunk-and-merge pipeline (`_summarize_text_attachments` in `chat/tools/document_summarize.py`) - they only differ in which attachment set they fetch and which scope-specific soft-fail message they emit ("no docs in this conversation" vs. "no project files").
 
 #### Empty filtered RAG result → `ModelRetry`
 
 If the model targeted a document via `document_id` and the backend returned no results, `document_search_rag` raises `ModelRetry` with explicit guidance: either retry without `document_id` (and explicitly tell the user the search was broadened) or stop and tell the user the targeted document does not contain the requested information. This replaces an earlier silent fallback that quietly widened scope without informing the model. See `chat/tools/document_search_rag.py` for the exact text.
 
+#### Find backend: known limitations
+
+`FindRagBackend` does not have feature parity with `AlbertRagBackend`. Operators selecting `RAG_DOCUMENT_SEARCH_BACKEND` should account for the following gaps:
+
+| Capability | Albert | Find |
+|---|---|---|
+| Per-document id captured at index time (`rag_document_id`) | ✅ | ❌ |
+| Per-attachment delete (`DELETE /v1/documents/{id}`) | ✅ removes chunks immediately | ❌ no-op; chunks remain searchable until the parent conversation/project is deleted and the whole collection is dropped |
+| `document_id`-targeted RAG search | ✅ filtered to one document | ❌ raises `FindFilterUnsupportedError` instead of silently returning full-collection hits |
+| `document_name`-targeted fallback | ✅ `metadata_filters` clause | ❌ raises `FindFilterUnsupportedError` |
+| RAG enable-gate (`_check_should_enable_rag`) | ✅ fires once any attachment has `rag_document_id` set | ❌ never fires - Find never populates `rag_document_id`, so the agent runs without RAG tools registered |
+
+User-visible consequences when running Find:
+- Deleting a sensitive attachment from a project does **not** remove its chunks from the search index. They keep surfacing in RAG searches until the project itself is deleted.
+- A `document_id`-targeted search fails fast with `FindFilterUnsupportedError` rather than silently returning unrelated hits. Callers (e.g. the `document_search_rag` tool) need to catch this and surface a clear "this backend cannot scope to one document; retry without document_id or switch backend" message.
+- **The agent does not register any RAG tools.** Because the enable-gate uses `rag_document_id` as the "actually indexed" signal and Find never sets it, even successful Find indexing is invisible to the gate. The model answers from training data alone unless documents arrive in the current message. Selecting Find is therefore a deliberate "no per-document features, no RAG tools" choice until per-document ids are wired in.
+
+The Albert backend is the recommended choice for any deployment that needs per-document control or RAG tooling. Wiring per-document operations into Find is a known follow-up.
+
 ### Processing Strategy Decision Tree
 
 **Decision logic**:
-- **No documents**: Standard conversation
-- **Images**: Send as direct (presigned) URLs to the LLM
-- **Only PDFs**: Send as direct (presigned) URLs to the LLM
-- **Other documents present**: Convert to Markdown, build the documents listing for the system instruction, inline what fits the budget as `full-context`, expose the rest via the `document_search_rag` and `summarize` tools (with optional `document_id` targeting).
+- **No documents anywhere**: Standard conversation, no RAG tools registered.
+- **Images on this turn**: Send as direct (presigned) URLs to the LLM.
+- **PDFs on this turn**: Send as direct (presigned) URLs to the LLM.
+- **Other documents present** (this turn, the conversation, **or** the parent project): Convert to Markdown, build the documents listing (and `project_documents` listing if applicable) for the system instruction, inline what fits the budget as `full-context`, expose the rest via the `document_search_rag`, `summarize`, and (when in a project) `summarize_project` tools (with optional `document_id` targeting). RAG search covers the conversation collection and the project collection together.
+
+The RAG-tool gate (`AIAgentService._check_should_enable_rag`) keys off `rag_document_id` - the "actually indexed" signal written only after `parse_and_store_document` round-trips successfully through the RAG backend - not raw `READY` upload state. It returns true when any of:
+- the user message carries an in-message document upload,
+- the conversation owns at least one attachment with a non-empty `rag_document_id`,
+- the conversation belongs to a project that owns at least one such attachment.
+
+A `READY` attachment whose `rag_document_id` is null (e.g. parse succeeded but the backend store call failed, or the backend simply never returns ids) does not trip the gate. This is why the Find backend - which never returns a per-document id - leaves RAG disabled even when its index call succeeds, as called out in the Find section above.
 
 ---
 
@@ -389,6 +518,10 @@ If the model targeted a document via `document_id` and the backend returned no r
 | `MALWARE_DETECTION_BACKEND`                  | `DummyBackend` | Malware scanning backend class                             |
 | `MALWARE_DETECTION_PARAMETERS`               | `{}`           | Backend-specific configuration                             |
 | `RAG_FILES_ACCEPTED_FORMATS`                 | See below      | List of MIME types accepted for file uploads               |
+| `RAG_DOCUMENT_PARSER`                        | `AlbertParser` | Import path of the parser that converts uploads to Markdown (PDF -> Albert API, ODT -> odfdo, others -> MarkItDown) |
+| `RAG_DOCUMENT_SEARCH_BACKEND`                | `AlbertRagBackend` | Import path of the vector-search backend used for indexing and search (Albert or Find) |
+| `PROJECT_FILES_MAX_COUNT`                    | `10`           | Max non-image attachments per project (excludes hidden markdown companions). Enforced at upload-time in `ChatProjectAttachmentViewSet`. Bounds per-turn system-prompt token cost (every entry contributes to `project_documents` on every conversation turn). |
+| `PROJECT_IMAGES_MAX_COUNT`                   | `3`            | Max image attachments per project. Enforced at upload-time. Bounds per-turn vision token cost - every project image is pinned to every turn alongside conversation-message images, and provider request-level image caps (Anthropic ~20/request) clip the trailing entries first. |
 | `DOCUMENT_CONTEXT_BUDGET_RATIO`              | `0.5`          | Fraction of `model.max_token_context` reserved for inlined documents (0 disables full-context inlining; everything stays `tool_call_only`) |
 | `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`    | `1000`         | Tokens subtracted from the inlining budget to absorb tokenizer drift on non-OpenAI models |
 
