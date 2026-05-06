@@ -29,6 +29,7 @@ from core.feature_flags.flags import FeatureFlags, FeatureToggle
 
 from chat.llm_configuration import cached_load_llm_configuration, load_llm_configuration
 from conversations.brave_settings import BraveSettings
+from conversations.url_fetch_settings import UrlFetchSettings
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -47,7 +48,7 @@ def get_release():
         return "NA"  # Default: not available
 
 
-class Base(BraveSettings, Configuration):
+class Base(BraveSettings, UrlFetchSettings, Configuration):
     """
     This is the base configuration every configuration (aka environment) should inherit from. It
     is recommended to configure third-party applications by creating a configuration mixins in

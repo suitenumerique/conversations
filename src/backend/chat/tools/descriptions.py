@@ -86,3 +86,20 @@ SELF_DOCUMENTATION_TOOL_DESCRIPTION = (
     "internet access, accepted files, or hosting, call the "
     "self_documentation tool before answering."
 )
+
+URL_FETCH_TOOL_DESCRIPTION = """
+Fetch and read the content of a specific URL provided by the user.
+
+Use this tool ONLY when the user's message contains an explicit URL (starting with https://).
+Do NOT use this tool for general searches — use web_search for that.
+Do NOT call this tool for a URL that was mentioned in a previous turn unless the user explicitly asks again.
+
+The tool fetches the page and indexes it into the conversation's document store.
+Once indexed, use the document search tool to retrieve relevant excerpts and answer the user's question.
+"""
+
+URL_FETCH_SYSTEM_PROMPT = (
+    "The user's message contains the following URLs you must fetch using url_fetch: `{urls}`. "
+    "Only fetch URLs from this list. "
+    "Do NOT call url_fetch for any URL not explicitly listed here."
+)
