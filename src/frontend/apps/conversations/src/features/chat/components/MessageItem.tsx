@@ -153,11 +153,48 @@ export const splitStreamingContent = (content: string): StreamingContent => {
   return { completedBlocks, pending: pendingContent };
 };
 
-const WEB_REF_REGEX = /<ref id="(web_\d+_\d+)"\s*\/>/g;
-const DUPLICATED_INLINE_PILLS_REGEX =
-  /(\s\[(\d+)\]\([^)]+\))(?:\s*\[\2\]\([^)]+\))+/g;
+const INLINE_REF_REGEX = /<ref id="((?:web|rag)_\d+_\d+)"\s*\/>/g;
+const DUPLICATED_INLINE_PILLS_REGEX = /(\s\[[^\]]+\]\([^)]+\))(?:\s*\1)+/g;
 
-const replaceWebRefsWithLinks = (
+type SourceProviderMetadata = {
+  citationIndex?: number;
+  citationIds?: string[];
+};
+
+const resolveSourceUrl = (
+  citationId: string,
+  sourceParts: SourceUIPart[],
+): string | undefined => {
+  const byCitationId = sourceParts.find((part) => {
+    const metadata = part.source.providerMetadata as
+      | SourceProviderMetadata
+      | undefined;
+    return metadata?.citationIds?.includes(citationId);
+  });
+  if (byCitationId?.source.url) {
+    return byCitationId.source.url;
+  }
+
+  const refMatch = /^(?:web|rag)_(\d+)_\d+$/.exec(citationId);
+  if (!refMatch) {
+    return undefined;
+  }
+  const citationIndex = Number.parseInt(refMatch[1], 10);
+
+  const byMetadataIndex = sourceParts.find((part) => {
+    const metadata = part.source.providerMetadata as
+      | SourceProviderMetadata
+      | undefined;
+    return metadata?.citationIndex === citationIndex;
+  });
+  if (byMetadataIndex?.source.url) {
+    return byMetadataIndex.source.url;
+  }
+
+  return sourceParts[citationIndex]?.source.url;
+};
+
+const replaceInlineRefsWithLinks = (
   content: string,
   sourceParts: SourceUIPart[],
 ): string => {
@@ -165,17 +202,24 @@ const replaceWebRefsWithLinks = (
     return content;
   }
 
+  // Deduplicate by URL so multi-search streams cannot double-bind the same host.
+  const uniqueSourceParts: SourceUIPart[] = [];
+  const seenUrls = new Set<string>();
+  for (const part of sourceParts) {
+    const url = part.source.url;
+    if (!url || seenUrls.has(url)) {
+      continue;
+    }
+    seenUrls.add(url);
+    uniqueSourceParts.push(part);
+  }
+
   const urlToIndex = new Map<string, number>();
   let nextIndex = 1;
 
   return content
-    .replace(WEB_REF_REGEX, (_fullMatch, citationId: string) => {
-      const webRefMatch = /^web_(\d+)_\d+$/.exec(citationId);
-      if (!webRefMatch) {
-        return '';
-      }
-      const sourceIndex = Number.parseInt(webRefMatch[1], 10);
-      const url = sourceParts[sourceIndex]?.source.url;
+    .replace(INLINE_REF_REGEX, (_fullMatch, citationId: string) => {
+      const url = resolveSourceUrl(citationId, uniqueSourceParts);
       if (!url) {
         return '';
       }
@@ -184,8 +228,14 @@ const replaceWebRefsWithLinks = (
         nextIndex += 1;
       }
       const refNumber = urlToIndex.get(url);
+      let domainLabel = `${refNumber}`;
+      try {
+        domainLabel = new URL(url).hostname.replace(/^www\./, '');
+      } catch {
+        domainLabel = `${refNumber}`;
+      }
       // Render as inline markdown link, then styled by markdown link styles.
-      return ` [${refNumber}](${url})`;
+      return ` [${domainLabel}](${url})`;
     })
     .replace(DUPLICATED_INLINE_PILLS_REGEX, '$1')
     .replace(/\s+([.,;:!?])/g, '$1')
@@ -270,9 +320,21 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     if (!message.parts) {
       return [];
     }
-    return message.parts.filter(
+    const parts = message.parts.filter(
       (part): part is SourceUIPart => part.type === 'source',
     );
+    // Multiple web_search calls can stream the same URL more than once.
+    const deduped: SourceUIPart[] = [];
+    const seenUrls = new Set<string>();
+    for (const part of parts) {
+      const url = part.source.url;
+      if (!url || seenUrls.has(url)) {
+        continue;
+      }
+      seenUrls.add(url);
+      deduped.push(part);
+    }
+    return deduped;
   }, [message.parts]);
 
   const toolInvocationParts = React.useMemo(() => {
@@ -316,7 +378,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     if (message.role !== 'assistant') {
       return message.content;
     }
-    return replaceWebRefsWithLinks(message.content, sourceParts);
+    return replaceInlineRefsWithLinks(message.content, sourceParts);
   }, [message.content, message.role, sourceParts]);
 
   // Memoize the streaming content split to avoid recreating components in JSX

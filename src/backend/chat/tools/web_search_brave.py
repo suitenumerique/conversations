@@ -270,13 +270,18 @@ def format_tool_return(raw_search_results: List[dict]) -> ToolReturn:
 
     Keep only sources that have non-empty snippets and prefer `snippets` over
     `extra_snippets` when both are present.
+
+    Citation IDs use a contiguous source index (``web_{source_idx}_{snippet_idx}``)
+    over results that actually produced snippets — not the raw Brave hit index —
+    so frontend source lists stay aligned with refs.
     """
     formatted_results = {}
     sources: list[str] = []
     seen_sources: set[str] = set()
     citation_ids = set()
+    source_idx = 0
 
-    for idx, result in enumerate(raw_search_results):
+    for result in raw_search_results:
         logger.debug("Formatting result: %s", result)
         snippets = result.get("snippets") or result.get("extra_snippets") or []
         if not snippets:
@@ -284,11 +289,11 @@ def format_tool_return(raw_search_results: List[dict]) -> ToolReturn:
 
         tagged_snippets = []
         for snippet_idx, snippet in enumerate(snippets):
-            citation_id = f"web_{idx}_{snippet_idx}"
+            citation_id = f"web_{source_idx}_{snippet_idx}"
             citation_ids.add(citation_id)
             tagged_snippets.append(f"[ref:{citation_id}] {snippet}")
 
-        formatted_results[str(idx)] = {
+        formatted_results[str(source_idx)] = {
             "url": result["url"],
             "title": result["title"],
             "snippets": tagged_snippets,
@@ -296,6 +301,7 @@ def format_tool_return(raw_search_results: List[dict]) -> ToolReturn:
         if result["url"] not in seen_sources:
             seen_sources.add(result["url"])
             sources.append(result["url"])
+        source_idx += 1
 
     return ToolReturn(
         return_value=formatted_results,

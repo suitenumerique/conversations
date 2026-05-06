@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic_ai.messages import ModelResponse, TextPart
 
-from chat.clients.pydantic_ai import AIAgentService, _strip_invalid_web_citations
+from chat.clients.pydantic_ai import AIAgentService, _strip_invalid_citations
 from chat.clients.schema import ImagePostRunActions, StreamingState
 from chat.llm_configuration import LLModel
 from chat.vercel_ai_sdk.core import events_v4
@@ -172,12 +172,12 @@ async def test_finalize_emits_finish_message_with_co2(service, co2_impact):
     assert finish_events[0].usage.co2_impact == co2_impact
 
 
-def test_strip_invalid_web_citations():
+def test_strip_invalid_citations():
     """Unknown citation IDs are removed from assistant text."""
     text = (
         'Paris est la capitale de la France <ref id="web_0_0"/>. '
         'Population: ~2.1M <ref id="web_9_9"/>.'
     )
-    cleaned = _strip_invalid_web_citations(text, {"web_0_0"})
+    cleaned = _strip_invalid_citations(text, {"web_0_0"})
     assert '<ref id="web_0_0"/>' in cleaned
     assert '<ref id="web_9_9"/>' not in cleaned

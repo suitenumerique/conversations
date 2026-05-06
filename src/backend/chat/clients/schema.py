@@ -38,7 +38,7 @@ class StreamingState:
             from web search or RAG). These are appended to the final UI message.
         model_response_message_id: Set when the agent reaches the end node.
             Used to link the UI message to the Langfuse trace for scoring.
-        allowed_web_citation_ids: Citation IDs returned by web-search tools.
+        allowed_citation_ids: Citation IDs returned by web/RAG tools.
             Used to strip hallucinated inline ``<ref>`` tags before persist.
         tool_names_by_call_id: Maps tool_call_id -> tool name for result handling.
         citation_stream_attributor: Optional streaming attribution helper.
@@ -47,7 +47,7 @@ class StreamingState:
     tool_is_streaming: bool = False
     ui_sources: List[SourceUIPart] = dataclasses.field(default_factory=list)
     model_response_message_id: Optional[str] = None
-    allowed_web_citation_ids: set[str] = dataclasses.field(default_factory=set)
+    allowed_citation_ids: set[str] = dataclasses.field(default_factory=set)
     tool_names_by_call_id: Dict[str, str] = dataclasses.field(default_factory=dict)
     citation_stream_attributor: Optional[CitationStreamAttributor] = None
 

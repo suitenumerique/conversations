@@ -146,8 +146,9 @@ from chat.ai_sdk_types import (
 )
 from chat.citation_attribution import (
     AttributionConfig,
+    CitationCandidate,
     CitationStreamAttributor,
-    attribute_citations,
+    attribute_citations_by_paragraph,
     extract_citation_candidates,
 )
 from chat.clients.async_to_sync import convert_async_generator_to_sync
@@ -207,7 +208,7 @@ User = get_user_model()
 
 CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
 DOCUMENT_URL_PREFIX = "/media-key/"
-REF_CITATION_REGEX = re.compile(r'<ref id="(web_\d+_\d+)"\s*/>')
+REF_CITATION_REGEX = re.compile(r'<ref id="((?:web|rag)_\d+_\d+)"\s*/>')
 
 # Stream-protocol contract with the frontend. Mirrored in
 # ``useChat.tsx`` (``IMAGES_SKIPPED_EVENT_TYPE`` /
@@ -217,8 +218,8 @@ IMAGES_SKIPPED_EVENT_TYPE = "images_skipped"
 IMAGE_SKIP_REASON_TEXT_ONLY = "model_text_only"
 
 
-def _strip_invalid_web_citations(text: str, allowed_ids: set[str]) -> str:
-    """Remove inline web citations that are not present in returned chunks."""
+def _strip_invalid_citations(text: str, allowed_ids: set[str]) -> str:
+    """Remove inline citations that are not present in returned chunks."""
 
     def _replace(match: re.Match[str]) -> str:
         citation_id = match.group(1)
@@ -227,22 +228,56 @@ def _strip_invalid_web_citations(text: str, allowed_ids: set[str]) -> str:
     return REF_CITATION_REGEX.sub(_replace, text)
 
 
-def _drain_streaming_text_delta(
-    text_delta: str,
-    state: StreamingState,
-) -> list[str]:
-    """Buffer text deltas and return completed attributed sentence chunks."""
+def _citation_id_to_url(candidates: list[CitationCandidate]) -> dict[str, str]:
+    """Map citation IDs to their source URL (last write wins for duplicates)."""
+    return {
+        candidate.citation_id: candidate.source_url
+        for candidate in candidates
+        if candidate.citation_id and candidate.source_url
+    }
+
+
+def _build_ui_sources_for_citations(
+    citation_ids: set[str],
+    citation_to_url: dict[str, str],
+) -> list[SourceUIPart]:
+    """Build deduped UI sources with explicit citationId→URL metadata.
+
+    Sources are ordered by first appearance of their URL among ``citation_ids``
+    sorted for stability. Each source carries every citation ID that points at
+    it, so the frontend does not depend on array position.
+    """
+    url_to_citation_ids: dict[str, list[str]] = {}
+    for citation_id in sorted(citation_ids):
+        url = citation_to_url.get(citation_id)
+        if not url:
+            continue
+        url_to_citation_ids.setdefault(url, [])
+        if citation_id not in url_to_citation_ids[url]:
+            url_to_citation_ids[url].append(citation_id)
+
+    ui_sources: list[SourceUIPart] = []
+    for index, (url, ids) in enumerate(url_to_citation_ids.items()):
+        url_source = LanguageModelV1Source(
+            sourceType="url",
+            id=str(uuid.uuid4()),
+            url=url,
+            providerMetadata={
+                "citationIndex": index,
+                "citationIds": ids,
+            },
+        )
+        ui_sources.append(SourceUIPart(type="source", source=url_source))
+    return ui_sources
+
+
+def _drain_streaming_text_delta(text_delta: str, state: StreamingState) -> list[str]:
+    """Apply paragraph citation attribution incrementally during streaming."""
     if not settings.CITATION_ATTRIBUTION_ENABLED or state.citation_stream_attributor is None:
         return [text_delta]
     chunks = state.citation_stream_attributor.drain(text_delta)
     for chunk in chunks:
-        state.allowed_web_citation_ids.update(chunk.selected_web_citation_ids)
-        if settings.CITATION_DEBUG_LOGGING:
-            logger.debug(
-                "Streaming citation attribution chunk_len=%s selected_refs=%s",
-                len(chunk.text),
-                sorted(chunk.selected_web_citation_ids),
-            )
+        state.allowed_citation_ids.update(chunk.selected_citation_ids)
     return [chunk.text for chunk in chunks]
 
 
@@ -1259,22 +1294,35 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         yield events_v4.ToolResultPart(tool_call_id=_tool_call_id, result={"state": "done"})
         yield DocumentParsingResult(success=True, has_documents=True)
 
-    async def _handle_non_streaming_response(self, node, run_ctx):
+    async def _handle_non_streaming_response(self, node, run_ctx, state: StreamingState):
         result = await node.run(run_ctx)
         logger.debug("node.run result: %s", result)
         for part in result.model_response.parts:
             if isinstance(part, TextPart):
+                content = part.content
+                if (
+                    settings.CITATION_ATTRIBUTION_ENABLED
+                    and state.citation_stream_attributor is not None
+                    and state.citation_stream_attributor.candidates
+                ):
+                    attribution = attribute_citations_by_paragraph(
+                        content,
+                        state.citation_stream_attributor.candidates,
+                        state.citation_stream_attributor.config,
+                    )
+                    content = attribution.text
+                    state.allowed_citation_ids.update(attribution.selected_citation_ids)
                 if self._fake_streaming_delay:
-                    for i in range(0, len(part.content), 4):
+                    for i in range(0, len(content), 4):
                         await self._agent_stop_streaming()
-                        yield events_v4.TextPart(text=part.content[i : i + 4])
+                        yield events_v4.TextPart(text=content[i : i + 4])
                         if os.environ.get("PYTHON_SERVER_MODE") == "async":
                             await asyncio.sleep(self._fake_streaming_delay)
                         else:
                             # sync mode needed for tests time manipulation
                             time.sleep(self._fake_streaming_delay)
                 else:
-                    yield events_v4.TextPart(text=part.content)
+                    yield events_v4.TextPart(text=content)
             elif isinstance(part, ToolCallPart):
                 yield events_v4.ToolCallPart(
                     tool_call_id=part.tool_call_id,
@@ -1317,7 +1365,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if settings.CITATION_ATTRIBUTION_ENABLED and state.citation_stream_attributor is not None:
             trailing = state.citation_stream_attributor.flush()
             if trailing is not None:
-                state.allowed_web_citation_ids.update(trailing.selected_web_citation_ids)
+                state.allowed_citation_ids.update(trailing.selected_citation_ids)
                 yield events_v4.TextPart(text=trailing.text)
 
     async def _handle_model_request_node(
@@ -1326,7 +1374,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """Handle model request node - streaming or non-streaming."""
         state.tool_is_streaming = False
         if not self._support_streaming:
-            async for event in self._handle_non_streaming_response(node, run_ctx):
+            async for event in self._handle_non_streaming_response(node, run_ctx, state):
                 yield event
         else:
             async for event in self._handle_streaming_response(node, run_ctx, state):
@@ -1352,31 +1400,77 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                             args=json.loads(event.part.args) if event.part.args else {},
                         )
                 elif isinstance(event, FunctionToolResultEvent):
-                    tool_name = state.tool_names_by_call_id.get(event.tool_call_id, "")
-                    if not tool_name:
-                        tool_name = getattr(event, "tool_name", "") or getattr(
-                            event.part, "tool_name", ""
-                        )
                     if isinstance(event.part, ToolReturnPart):
+                        tool_name = state.tool_names_by_call_id.get(event.tool_call_id, "")
+                        extracted_candidates = extract_citation_candidates(
+                            tool_name, event.part.content
+                        )
+                        remapped: list[CitationCandidate] = []
                         if state.citation_stream_attributor is not None:
-                            state.citation_stream_attributor.add_candidates(
-                                extract_citation_candidates(tool_name, event.part.content)
+                            remapped = state.citation_stream_attributor.add_candidates(
+                                extracted_candidates
                             )
-                        if event.part.metadata and (
+                            state.allowed_citation_ids.update(
+                                candidate.citation_id
+                                for candidate in remapped
+                                if candidate.citation_id
+                            )
+                        elif event.part.metadata and (
                             citation_ids := event.part.metadata.get("citation_ids")
                         ):
-                            state.allowed_web_citation_ids.update(citation_ids)
-                        if event.part.metadata and (sources := event.part.metadata.get("sources")):
-                            for source_url in sources:
-                                url_source = LanguageModelV1Source(
-                                    sourceType="url",
-                                    id=str(uuid.uuid4()),
-                                    url=source_url,
-                                    providerMetadata={},
+                            # Attribution off: keep tool-provided IDs for strip-only path.
+                            state.allowed_citation_ids.update(citation_ids)
+
+                        # Emit only URLs introduced by this tool result, with explicit
+                        # citationIds so multi-search refs never collide on array index.
+                        existing_by_url = {
+                            source.source.url: source for source in state.ui_sources
+                        }
+                        urls_in_batch: list[str] = []
+                        if remapped:
+                            for candidate in remapped:
+                                if candidate.source_url and candidate.source_url not in urls_in_batch:
+                                    urls_in_batch.append(candidate.source_url)
+                        elif event.part.metadata and (
+                            sources := event.part.metadata.get("sources")
+                        ):
+                            urls_in_batch = list(sources)
+
+                        citation_to_url = _citation_id_to_url(remapped) if remapped else {}
+                        for source_url in urls_in_batch:
+                            if not source_url:
+                                continue
+                            batch_ids = sorted(
+                                citation_id
+                                for citation_id, url in citation_to_url.items()
+                                if url == source_url
+                            )
+                            if source_url in existing_by_url:
+                                existing = existing_by_url[source_url]
+                                metadata = dict(existing.source.providerMetadata or {})
+                                merged_ids = list(
+                                    dict.fromkeys(
+                                        list(metadata.get("citationIds") or []) + batch_ids
+                                    )
                                 )
-                                _new_source_ui = SourceUIPart(type="source", source=url_source)
-                                state.ui_sources.append(_new_source_ui)
-                                yield events_v4.SourcePart(**_new_source_ui.source.model_dump())
+                                metadata["citationIds"] = merged_ids
+                                existing.source.providerMetadata = metadata
+                                continue
+
+                            citation_index = len(state.ui_sources)
+                            url_source = LanguageModelV1Source(
+                                sourceType="url",
+                                id=str(uuid.uuid4()),
+                                url=source_url,
+                                providerMetadata={
+                                    "citationIndex": citation_index,
+                                    "citationIds": batch_ids,
+                                },
+                            )
+                            _new_source_ui = SourceUIPart(type="source", source=url_source)
+                            state.ui_sources.append(_new_source_ui)
+                            existing_by_url[source_url] = _new_source_ui
+                            yield events_v4.SourcePart(**_new_source_ui.source.model_dump())
                         yield events_v4.ToolResultPart(
                             tool_call_id=event.tool_call_id, result=event.part.content
                         )
@@ -1453,40 +1547,44 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         await self._agent_stop_streaming(force_cache_check=True)
 
-        selected_urls: set[str] = set()
         if (
             settings.CITATION_ATTRIBUTION_ENABLED
             and state.citation_stream_attributor is not None
             and state.citation_stream_attributor.candidates
         ):
+            selected_urls: set[str] = set()
+            selected_ids: set[str] = set()
             for message in new_messages:
                 if isinstance(message, ModelResponse):
                     for part in message.parts:
                         if isinstance(part, TextPart):
-                            attribution = attribute_citations(
+                            attribution = attribute_citations_by_paragraph(
                                 part.content,
                                 state.citation_stream_attributor.candidates,
                                 state.citation_stream_attributor.config,
                             )
                             part.content = attribution.text
                             selected_urls.update(attribution.selected_urls)
-                            state.allowed_web_citation_ids.update(
-                                attribution.selected_web_citation_ids
-                            )
-            if selected_urls:
+                            selected_ids.update(attribution.selected_citation_ids)
+            # Persist/stream should only keep refs that attribution actually selected.
+            state.allowed_citation_ids = selected_ids
+            if selected_ids and state.citation_stream_attributor is not None:
+                state.ui_sources = _build_ui_sources_for_citations(
+                    selected_ids,
+                    _citation_id_to_url(state.citation_stream_attributor.candidates),
+                )
+            elif selected_urls:
                 state.ui_sources = [
-                    source
-                    for source in state.ui_sources
-                    if source.source.url in selected_urls
+                    source for source in state.ui_sources if source.source.url in selected_urls
                 ]
 
-        if state.allowed_web_citation_ids:
+        if state.allowed_citation_ids:
             for message in new_messages:
                 if isinstance(message, ModelResponse):
                     for part in message.parts:
                         if isinstance(part, TextPart):
-                            part.content = _strip_invalid_web_citations(
-                                part.content, state.allowed_web_citation_ids
+                            part.content = _strip_invalid_citations(
+                                part.content, state.allowed_citation_ids
                             )
 
         # Total tokens the model processed for this request, across every
@@ -1653,6 +1751,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                             max_sources_per_sentence=settings.CITATION_MAX_SOURCES_PER_SENTENCE,
                             embedding_weight=settings.CITATION_EMBEDDING_WEIGHT,
                             rouge_weight=settings.CITATION_ROUGE_WEIGHT,
+                            min_sentences_per_paragraph=settings.CITATION_MIN_SENTENCES_PER_PARAGRAPH,
                             debug_logging=settings.CITATION_DEBUG_LOGGING,
                         )
                     )

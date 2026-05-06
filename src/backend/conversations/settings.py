@@ -1006,7 +1006,7 @@ USER QUESTION:
         environ_prefix=None,
     )
     CITATION_MIN_SCORE = values.FloatValue(
-        default=0.25,
+        default=0.2,
         environ_name="CITATION_MIN_SCORE",
         environ_prefix=None,
     )
@@ -1028,6 +1028,11 @@ USER QUESTION:
     CITATION_ROUGE_WEIGHT = values.FloatValue(
         default=0.3,
         environ_name="CITATION_ROUGE_WEIGHT",
+        environ_prefix=None,
+    )
+    CITATION_MIN_SENTENCES_PER_PARAGRAPH = values.PositiveIntegerValue(
+        default=1,
+        environ_name="CITATION_MIN_SENTENCES_PER_PARAGRAPH",
         environ_prefix=None,
     )
     CITATION_DEBUG_LOGGING = values.BooleanValue(
