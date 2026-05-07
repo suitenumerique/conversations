@@ -161,7 +161,10 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
                 ),
             )
         case "openai":
-            from pydantic_ai.models.openai import OpenAIChatModel  # noqa: PLC0415
+            from pydantic_ai.models.openai import (  # noqa: PLC0415
+                OpenAIChatModel,
+                OpenAIChatModelSettings,
+            )
             from pydantic_ai.profiles.openai import OpenAIModelProfile  # noqa: PLC0415
             from pydantic_ai.providers.openai import OpenAIProvider  # noqa: PLC0415
 
@@ -186,10 +189,19 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
             else:
                 profile = None
 
+            # OpenAI's `max_completion_tokens` (what pydantic-ai sends for `max_tokens`)
+            # is ignored by OpenAI-compatible servers that only honour the legacy
+            # `max_tokens` field (e.g. Albert/Mistral, vLLM, LM Studio). Send it via
+            # `extra_body` so the output token limit is actually enforced.
+            _model_settings = OpenAIChatModelSettings(
+                extra_body={"max_tokens": settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE},
+            )
+
             if configuration.provider.co2_handling == "albert":
                 return AlbertOpenAIChatModel(
                     model_name=configuration.model_name,
                     profile=profile,
+                    settings=_model_settings,
                     provider=AlbertOpenAIProvider(
                         base_url=configuration.provider.base_url,
                         api_key=configuration.provider.api_key,
@@ -199,6 +211,7 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
             return OpenAIChatModel(
                 model_name=configuration.model_name,
                 profile=profile,
+                settings=_model_settings,
                 provider=OpenAIProvider(
                     base_url=configuration.provider.base_url,
                     api_key=configuration.provider.api_key,

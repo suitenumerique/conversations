@@ -99,11 +99,12 @@ from asgiref.sync import sync_to_async
 from langfuse import get_client, propagate_attributes
 from mistralai.client.errors import HTTPValidationError, SDKError
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
-from pydantic_ai.capabilities import Instrumentation
+from pydantic_ai.capabilities import Hooks, Instrumentation
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import (
     BinaryContent,
     DocumentUrl,
+    FinishReason,
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     ImageUrl,
@@ -125,6 +126,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import Model, infer_model_profile
+from pydantic_ai.settings import ModelSettings
 
 from core.feature_flags.helpers import is_feature_enabled
 
@@ -277,6 +279,19 @@ def _extract_co2_from_usage(usage: RunUsage) -> float:
     return 0
 
 
+# The finish_reason pydantic-ai reports when generation was cut off by the output
+# token limit (one of the pydantic_ai.messages.FinishReason literal values).
+LENGTH_FINISH_REASON: FinishReason = "length"
+
+
+def _truncation_annotation() -> dict[str, bool]:
+    """The annotation marking a response cut off at the output token limit.
+
+    One source of truth so the streamed event and the persisted message never drift.
+    """
+    return {"truncated": True}
+
+
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
@@ -320,6 +335,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._is_smart_search_enabled = user.allow_smart_web_search
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
+        self._last_finish_reason: FinishReason | None = None
+
+        self._truncation_hooks = Hooks()
+
+        @self._truncation_hooks.on.after_model_request
+        async def _detect_truncation(_ctx, *, request_context, response):  # pylint: disable=unused-argument
+            self._last_finish_reason = response.finish_reason
+            return response
+
         self._context_deps = ContextDeps(
             conversation=conversation,
             user=user,
@@ -344,7 +368,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
             language=self.language,
-            capabilities=_capabilities,
+            capabilities=_capabilities + [self._truncation_hooks],
             deps_type=ContextDeps,
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
@@ -552,8 +576,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         It can be used to release resources or perform any necessary cleanup.
         """
         self._last_stop_check = 0
+        self._last_finish_reason = None
         self._pre_stream_events = []
         await cache.adelete(self._stop_cache_key)
+
+    @property
+    def _is_truncated(self) -> bool:
+        """True when the last model response stopped at the output token limit."""
+        return self._last_finish_reason == LENGTH_FINISH_REASON
 
     # --------------------------------------------------------------------- #
     # Core agent runner
@@ -1405,6 +1435,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 ]
             )
         self._update_langfuse_trace(run_output)
+
+        if self._is_truncated:
+            yield events_v4.MessageAnnotationPart(annotations=[_truncation_annotation()])
+
         # Vercel finish message
         yield events_v4.FinishMessagePart(
             finish_reason=events_v4.FinishReason.STOP,
@@ -1510,11 +1544,22 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 if history[-1].parts and history[-1].parts[-1].part_kind == "tool-return":
                     history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
 
+            # Run-level, model-agnostic output cap. This is the canonical limit:
+            # MistralModel sends it as a native `max_tokens`, OpenAIChatModel as
+            # `max_completion_tokens`. The `openai`-kind models ALSO carry the limit
+            # via `extra_body={"max_tokens": ...}` (see prepare_custom_model in
+            # agents/base.py) because OpenAI-compat servers (Albert/vLLM/LM Studio)
+            # ignore `max_completion_tokens`. Different request fields, merged
+            # shallowly by pydantic-ai — they don't collide, and both are required:
+            # this line is what caps the Mistral path.
+            model_settings = ModelSettings(max_tokens=settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE)
+
             async with self.conversation_agent.iter(
                 [user_prompt] + input_images,
                 message_history=history,  # history will pass through agent's history_processors
                 deps=self._context_deps,
                 toolsets=mcp_servers,
+                model_settings=model_settings,
             ) as run:
                 state = StreamingState()
                 async for event in self._process_agent_nodes(run, state, langfuse):
@@ -1619,6 +1664,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if _output_ui_message.annotations is None:
                 _output_ui_message.annotations = []
             _output_ui_message.annotations.append({"co2_impact": co2_impact})
+
+        if self._is_truncated:
+            if _output_ui_message.annotations is None:
+                _output_ui_message.annotations = []
+            _output_ui_message.annotations.append(_truncation_annotation())
 
         usage["co2_impact"] += self.conversation.agent_usage.get("co2_impact", 0)
         usage["promptTokens"] += self.conversation.agent_usage.get("promptTokens", 0)
