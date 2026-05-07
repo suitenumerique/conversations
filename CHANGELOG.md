@@ -40,6 +40,8 @@ and this project adheres to
 - 💄(ui) review ui for part of the project
 - 🐛(fix) Fix streaming crash with OpenAI-compatible APIs
 - 🐛(fix) strip thinking part for models without reasoning support
+- ✨(dev) setup Tilt for local development
+
 
 ## [0.0.15] - 2026-03-31
 

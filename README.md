@@ -168,6 +168,8 @@ $ make superuser
 
 To run the app locally with breakpoints, read: [Debug Mode](docs/debug_mode.md).
 
+To run the app locally with Tilt instead of docker compose, read: [Running with Tilt](docs/tilt.md).
+
 ## Documentation 📚
 
 Additional documentation is available in the `docs/` directory:

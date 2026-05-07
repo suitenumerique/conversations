@@ -16,6 +16,7 @@ from chat.views import (
     ChatViewSet,
     FileStreamView,
     LLMConfigurationView,
+    TranscriptionWebhookView,
 )
 
 # - Main endpoints
@@ -39,6 +40,11 @@ urlpatterns = [
                 *oidc_urls,
                 path(
                     "llm-configuration/", LLMConfigurationView.as_view(), name="llm-configuration"
+                ),
+                path(
+                    "transcription-webhook/",
+                    TranscriptionWebhookView.as_view(),
+                    name="transcription-webhook",
                 ),
                 path(
                     "chats/<uuid:conversation_pk>/",

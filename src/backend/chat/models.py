@@ -221,3 +221,11 @@ class ChatConversationAttachment(BaseModel):
         null=True,
         help_text="Original file key if the Markdown from another file",
     )
+
+    transcription_job_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="Job ID returned by meet/summary transcription service",
+    )
