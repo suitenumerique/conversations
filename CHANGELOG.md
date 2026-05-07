@@ -8,16 +8,20 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(back) add opt-in output token limit per message
+
 ## [0.0.27] - 2026-10-28
-
-### Fixed
-
-- 🐛(back) add socket timeouts to the Redis cache and Celery clients
 
 ### Changed
 
 - 🔒️(front) upgrade undici and zod to fix CVE-2026-109869 and CVE-2023-54404
 - 🔒️(back) upgrade pypdf to 6.21.2 to fix DoS CVEs
+
+### Fixed
+
+- 🐛(back) add socket timeouts to the Redis cache and Celery clients
 
 ## [0.0.26] - 2026-10-22
 

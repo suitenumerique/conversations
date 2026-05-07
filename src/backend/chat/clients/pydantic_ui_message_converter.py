@@ -4,7 +4,6 @@ and UserContent/ModelMessage (pydantic_ai.messages.py).
 """
 
 import base64
-import json
 import uuid
 from typing import List, Optional
 
@@ -232,7 +231,7 @@ def _response_part_to_ui_parts(part: ModelResponsePart) -> List[UIPart]:
                 type=f"{TOOL_PART_PREFIX}{part.tool_name}",
                 toolCallId=part.tool_call_id,
                 state="input-available",
-                input=json.loads(part.args) if isinstance(part.args, str) else part.args or {},
+                input=part.args_as_dict(),
             )
         ]
 

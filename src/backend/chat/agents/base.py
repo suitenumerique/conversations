@@ -63,6 +63,17 @@ def _patch_openai_streaming_list_content():
     openai_models.__safe_text_delta_patched__ = True
 
 
+def get_max_output_tokens(configuration: "chat.llm_configuration.LLModel") -> int | None:
+    """The output token cap for a model, or None for no cap.
+
+    A `max_tokens` declared in the LLM configuration wins, so operators keep a
+    per-model knob; otherwise the global LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE applies,
+    where 0 disables the cap.
+    """
+    _configured = configuration.settings.max_tokens if configuration.settings else None
+    return _configured or settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE or None
+
+
 def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
     """
     Prepare a custom model instance based on the provided configuration.

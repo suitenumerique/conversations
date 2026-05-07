@@ -95,6 +95,7 @@ class LLMProfile(BaseModel):
     openai_system_prompt_role: str | None = None
     openai_chat_supports_web_search: bool | None = None
     openai_supports_encrypted_reasoning_content: bool | None = None
+    openai_chat_supports_max_completion_tokens: bool | None = None
 
     @field_validator("json_schema_transformer", mode="after")
     @classmethod

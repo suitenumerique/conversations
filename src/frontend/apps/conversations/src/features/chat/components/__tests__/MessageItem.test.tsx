@@ -79,6 +79,12 @@ vi.mock('../ToolInvocationItem', () => ({
   ToolInvocationItem: () => <div data-testid="tool-invocation-item" />,
 }));
 
+vi.mock('../TruncatedResponseMessage', () => ({
+  TruncatedResponseMessage: () => (
+    <div data-testid="truncated-response-message" />
+  ),
+}));
+
 describe('splitIntoBlocks', () => {
   describe('basic splitting', () => {
     it('returns empty array for empty content', () => {
@@ -1033,5 +1039,72 @@ describe('MessageItem', () => {
         screen.queryByTestId('summarization-error'),
       ).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('truncated response metadata', () => {
+  const baseProps = {
+    isLastMessage: true,
+    isLastAssistantMessage: true,
+    isFirstConversationMessage: false,
+    streamingMessageHeight: null,
+    status: 'ready' as const,
+    conversationId: 'conv-1',
+    isSourceOpen: null,
+    isMobile: false,
+    onCopyToClipboard: vi.fn(),
+    onOpenSources: vi.fn(),
+    getMetadata: vi.fn(),
+  };
+
+  const renderMessage = (
+    message: Parameters<typeof MessageItem>[0]['message'],
+  ) =>
+    render(
+      <CunninghamProvider>
+        <Suspense fallback={null}>
+          <ToastProvider>
+            <MessageItem message={message} {...baseProps} />
+          </ToastProvider>
+        </Suspense>
+      </CunninghamProvider>,
+    );
+
+  it('renders TruncatedResponseMessage when metadata has truncated:true', () => {
+    renderMessage({
+      id: 'msg-1',
+      role: 'assistant' as const,
+      metadata: { truncated: true },
+      parts: [],
+    });
+
+    expect(
+      screen.getByTestId('truncated-response-message'),
+    ).toBeInTheDocument();
+  });
+
+  it('does not render TruncatedResponseMessage when metadata is absent', () => {
+    renderMessage({
+      id: 'msg-1',
+      role: 'assistant' as const,
+      parts: [],
+    });
+
+    expect(
+      screen.queryByTestId('truncated-response-message'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not render TruncatedResponseMessage when metadata lacks truncated:true', () => {
+    renderMessage({
+      id: 'msg-1',
+      role: 'assistant' as const,
+      metadata: { co2_impact: 0.001 },
+      parts: [],
+    });
+
+    expect(
+      screen.queryByTestId('truncated-response-message'),
+    ).not.toBeInTheDocument();
   });
 });

@@ -102,10 +102,11 @@ from celery.exceptions import TimeoutError as CeleryTimeoutError
 from langfuse import get_client, propagate_attributes
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
 from pydantic_ai.capabilities import Hooks, Instrumentation, ProcessHistory
-from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UnexpectedModelBehavior
 from pydantic_ai.messages import (
     BinaryContent,
     DocumentUrl,
+    FinishReason,
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     ImageUrl,
@@ -127,12 +128,14 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import Model, infer_model_profile
+from pydantic_ai.settings import ModelSettings
 
 from core import instrumentation
 from core.analytics import acapture_event
 from core.feature_flags.helpers import is_feature_enabled
 
 from chat import models
+from chat.agents.base import get_max_output_tokens
 from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
 from chat.agents.history_processors import (
     SUMMARY_SYSTEM_PREFIX,
@@ -327,8 +330,50 @@ def _extract_co2_from_usage(usage: RunUsage) -> float:
     return 0
 
 
+# The finish_reason pydantic-ai reports when generation was cut off by the output
+# token limit (one of the pydantic_ai.messages.FinishReason literal values).
+LENGTH_FINISH_REASON: FinishReason = "length"
+
+# Stands in for the answer a turn cut off at the output token limit never wrote, so
+# the question it was asked is not replayed as a second user message in a row.
+TRUNCATED_TURN_FILLER = "[cut off: output token limit reached]"
+
+
+def _truncation_annotation() -> dict[str, bool]:
+    """The flag marking a response cut off at the output token limit.
+
+    Streamed as a v4 message annotation, which the v4->v5 encoder folds into the
+    `finish` message metadata, and persisted directly in the message metadata.
+    One source of truth so the two never drift.
+    """
+    return {"truncated": True}
+
+
+def _keep_truncated_text(messages: list[ModelMessage]) -> list[ModelMessage]:
+    """Strip the response cut off at the token limit down to the text it wrote.
+
+    Its tool calls never ran (one has incomplete arguments) and a thinking-only
+    response carries nothing to show. Sending either back in the next turn's
+    history would leave a tool call without its return, or an empty assistant
+    message, both of which providers reject. Dropped entirely when no text is left.
+    Pydantic AI may leave an empty request after it, from the retry it gave up on.
+    """
+    while messages and isinstance(messages[-1], ModelRequest) and not messages[-1].parts:
+        messages = messages[:-1]
+    *_earlier, _truncated = messages
+    if not isinstance(_truncated, ModelResponse):
+        return messages
+    _text_parts = [part for part in _truncated.parts if isinstance(part, TextPart) and part.content]
+    if not _text_parts:
+        return _earlier
+    return [*_earlier, dataclasses.replace(_truncated, parts=_text_parts)]
+
+
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
+
+    # Finish reason of the last model response, recorded by the truncation hook.
+    _last_finish_reason: FinishReason | None = None
 
     def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
@@ -423,7 +468,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
             language=self.language,
-            capabilities=_capabilities,
+            capabilities=_capabilities + [self._build_truncation_hooks()],
             deps_type=ContextDeps,
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
@@ -1012,6 +1057,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         It can be used to release resources or perform any necessary cleanup.
         """
         self._last_stop_check = 0
+        self._last_finish_reason = None
         self._pre_stream_events = []
         self._chunk_seq = itertools.count()
         self._pending_text = ""
@@ -1029,6 +1075,27 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._question_stored = False
         self._tool_step_pending = False
         await cache.adelete(self._stop_cache_key)
+
+    def _build_truncation_hooks(self) -> Hooks:
+        """Record each model response's finish reason, so `_is_truncated` can read it."""
+        _hooks = Hooks()
+
+        @_hooks.on.after_model_request
+        async def _detect_truncation(_ctx, *, request_context, response):  # pylint: disable=unused-argument
+            self._last_finish_reason = response.finish_reason
+            return response
+
+        return _hooks
+
+    @property
+    def _is_truncated(self) -> bool:
+        """True when the last model response stopped at the output token limit.
+
+        The last round decides: in a tool loop, a round cut off at the limit whose
+        tool call still parsed lets the run continue, and the answer the user reads
+        is the final round's.
+        """
+        return self._last_finish_reason == LENGTH_FINISH_REASON
 
     # --------------------------------------------------------------------- #
     # Core agent runner
@@ -1961,7 +2028,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 yield events_v4.ToolCallPart(
                     tool_call_id=part.tool_call_id,
                     tool_name=part.tool_name,
-                    args=json.loads(part.args) if part.args else {},
+                    args=part.args_as_dict(),
                 )
             elif isinstance(part, ThinkingPart):
                 yield events_v4.ReasoningPart(reasoning=part.content)
@@ -2030,7 +2097,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         yield events_v4.ToolCallPart(
                             tool_call_id=event.tool_call_id,
                             tool_name=event.part.tool_name,
-                            args=json.loads(event.part.args) if event.part.args else {},
+                            args=event.part.args_as_dict(),
                         )
                 elif isinstance(event, FunctionToolResultEvent):
                     # An outage reaches the model as a failed ToolReturnPart.
@@ -2189,9 +2256,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # the usage in the finish frame below is streamed but never persisted.
         if message_co2_impact:
             yield events_v4.MessageAnnotationPart(annotations=[{"co2_impact": message_co2_impact}])
+
+        if self._is_truncated:
+            yield events_v4.MessageAnnotationPart(annotations=[_truncation_annotation()])
+
         # Vercel finish message
         yield events_v4.FinishMessagePart(
-            finish_reason=events_v4.FinishReason.STOP,
+            finish_reason=(
+                events_v4.FinishReason.LENGTH if self._is_truncated else events_v4.FinishReason.STOP
+            ),
             usage=events_v4.Usage(
                 prompt_tokens=usage["promptTokens"],
                 completion_tokens=usage["completionTokens"],
@@ -2264,11 +2337,23 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             self._setup_rag_tools(document_context_instruction=document_context_instruction)
 
     @staticmethod
-    def _append_filler_after_tool_return(history: list[ModelMessage]) -> None:
-        """Help Mistral to prevent `Unexpected role 'user' after role 'tool'` error."""
-        if history and history[-1].kind == "request":
-            if history[-1].parts and history[-1].parts[-1].part_kind == "tool-return":
-                history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
+    def _append_filler_after_dangling_request(history: list[ModelMessage]) -> None:
+        """Keep replayed history alternating: Mistral rejects the same role twice.
+
+        A stored turn can end on a request with no response after it, and the next
+        turn's prompt would then follow it as a second message in the same role:
+        a tool return (`Unexpected role 'user' after role 'tool'`), or a question
+        a turn cut off at the output token limit never got to answer.
+        """
+        if not (history and history[-1].kind == "request" and history[-1].parts):
+            return
+        _last_part_kind = history[-1].parts[-1].part_kind
+        if _last_part_kind == "tool-return":
+            history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
+        elif _last_part_kind == "user-prompt":
+            history.append(
+                ModelResponse(parts=[TextPart(content=TRUNCATED_TURN_FILLER)], kind="response")
+            )
 
     async def _snapshot_closed_tool_step(self, run) -> None:
         """Snapshot the tool cycle that just closed, if one is waiting for it."""
@@ -2381,8 +2466,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             async for event in self._settle_datagouv(connected=bool(mcp_toolsets)):
                 yield event
 
-            self._append_filler_after_tool_return(history)
+            self._append_filler_after_dangling_request(history)
             message_history = history if history else None
+            _max_tokens = get_max_output_tokens(self.conversation_agent.configuration)
+            model_settings = ModelSettings(max_tokens=_max_tokens) if _max_tokens else None
 
             async def snapshot_closed_tool_step(_ctx, request_context):
                 """Snapshot the tool cycle once its returns are in the run.
@@ -2401,14 +2488,29 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 deps=self._context_deps,
                 toolsets=mcp_toolsets,
                 capabilities=[Hooks(before_model_request=snapshot_closed_tool_step)],
+                model_settings=model_settings,
             ) as run:
                 state = StreamingState()
-                async for event in self._process_agent_nodes(run, state):
-                    yield event
-
-                # Extract values from run before exiting the context manager
-                new_messages = run.result.new_messages()
-                run_output = run.result.output
+                try:
+                    async for event in self._process_agent_nodes(run, state):
+                        yield event
+                except UnexpectedModelBehavior:
+                    # Pydantic AI raises when the token limit cuts a response before
+                    # any text or mid-tool-call. Store what was written and show the
+                    # truncation notice rather than an error.
+                    if not self._is_truncated:
+                        raise
+                    self._turn_log("token limit reached before a usable response")
+                    # The run never reached its End node, so carry the streamed
+                    # message id over by hand: the stored message must keep the
+                    # id the client already has.
+                    self._handle_end_node(state)
+                    new_messages = _keep_truncated_text(run.new_messages())
+                    run_output = None
+                else:
+                    # Extract values from run before exiting the context manager
+                    new_messages = run.result.new_messages()
+                    run_output = run.result.output
                 final_usage = run.usage
                 usage["promptTokens"] = final_usage.input_tokens
                 usage["completionTokens"] = final_usage.output_tokens
@@ -2494,6 +2596,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             _output_ui_message.metadata = {
                 **(_output_ui_message.metadata or {}),
                 "co2_impact": co2_impact,
+            }
+
+        if self._is_truncated:
+            _output_ui_message.metadata = {
+                **(_output_ui_message.metadata or {}),
+                **_truncation_annotation(),
             }
 
         usage["co2_impact"] += self.conversation.agent_usage.get("co2_impact", 0)

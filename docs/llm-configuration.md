@@ -349,6 +349,8 @@ The `profile` object defines model capabilities:
 }
 ```
 
+OpenAI-compatible models receive the output token limit as `max_completion_tokens`. Some servers ignore it and only enforce `max_tokens` (e.g. Albert serving Mistral models): set `"openai_chat_supports_max_completion_tokens": false` in their profile, or the limit has no effect.
+
 ### Available Tools
 
 Tools can be specified in the `tools` array. Common tools include:
