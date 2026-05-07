@@ -678,6 +678,11 @@ class Base(BraveSettings, Configuration):
         environ_name="DEFAULT_ALLOW_CONVERSATION_ANALYTICS",
         environ_prefix=None,
     )
+    LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE = values.IntegerValue(
+        8192,
+        environ_name="LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE",
+        environ_prefix=None,
+    )
     DEFAULT_ALLOW_SMART_WEB_SEARCH = values.BooleanValue(
         default=False,
         environ_name="DEFAULT_ALLOW_SMART_WEB_SEARCH",
