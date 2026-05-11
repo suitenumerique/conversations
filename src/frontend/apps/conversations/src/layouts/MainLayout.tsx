@@ -2,6 +2,7 @@ import { PropsWithChildren } from 'react';
 import { css } from 'styled-components';
 
 import { Box } from '@/components';
+import { StatusBanner } from '@/features/banner';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { Header } from '@/features/header';
 import { LeftPanel } from '@/features/left-panel';
@@ -47,6 +48,23 @@ export function MainLayout({
         `}
       >
         <Header />
+        <Box
+          $align="center"
+          $width="100%"
+          $padding={{ horizontal: 'base' }}
+          $css={css`
+            position: absolute;
+            top: 12px;
+            left: 0;
+            z-index: 1001;
+            pointer-events: none;
+            & > * {
+              pointer-events: auto;
+            }
+          `}
+        >
+          <StatusBanner />
+        </Box>
         <Box $direction="row" $width="100%">
           <Box
             as="main"

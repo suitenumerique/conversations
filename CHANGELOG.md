@@ -17,6 +17,7 @@ and this project adheres to
 - ✨(documents) make document context hybrid
 - 🐛(fix) add prevent_url_hallucination instruction to ConversationAgent
 - ✨(projects) handle project files for RAG search
+- ✨(banner) configurable banner with level, title, content and start/end
 
 ### Changed
 
@@ -34,6 +35,7 @@ and this project adheres to
 - ⬆️(back) upgrade lxml and pypdf
 - ✨(back) set allow_smart_web_search to False for all users
 - ✨(back) make allow_conversation_analytics user setting readonly in admin
+- 🚸(front) switch to new conversation when creating a project
 
 ### Fixed
 
