@@ -2,18 +2,20 @@
 Test config API endpoints in the Conversations core app.
 """
 
+import datetime
 import json
 
 from django.test import AsyncClient, override_settings
 
 import pytest
 from asgiref.sync import sync_to_async
+from freezegun import freeze_time
 from rest_framework.status import (
     HTTP_200_OK,
 )
 from rest_framework.test import APIClient
 
-from core import factories
+from core import factories, models
 
 pytestmark = pytest.mark.django_db
 
@@ -67,6 +69,7 @@ def test_api_config(is_authenticated):
         "chat_upload_accept": "application/pdf,text/plain",
         "project_files_max_count": 10,
         "project_images_max_count": 3,
+        "status_banner": None,
     }
 
 
@@ -213,4 +216,134 @@ async def test_api_config_async(is_authenticated):
         "chat_upload_accept": "application/pdf,text/plain",
         "project_files_max_count": 10,
         "project_images_max_count": 3,
+        "status_banner": None,
     }
+
+
+def _set_banner(**fields):
+    config = models.SiteConfiguration.get_solo()
+    for field, value in fields.items():
+        setattr(config, field, value)
+    config.save()
+    return config
+
+
+def test_api_config_status_banner_not_configured():
+    """Empty title means no banner is returned."""
+    _set_banner(
+        status_banner_level=models.BannerLevelChoice.WARNING,
+        status_banner_title="",
+        status_banner_content="abcd",
+    )
+    response = APIClient().get("/api/v1.0/config/")
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["status_banner"] is None
+
+
+def test_api_config_status_banner_configured_without_window():
+    """A configured banner with no time window is always returned."""
+    _set_banner(
+        status_banner_level=models.BannerLevelChoice.WARNING,
+        status_banner_title="Ongoing technical issue",
+        status_banner_content="We are working on it.",
+    )
+    response = APIClient().get("/api/v1.0/config/")
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["status_banner"] == {
+        "level": "warning",
+        "title": "Ongoing technical issue",
+        "content": "We are working on it.",
+    }
+
+
+def test_api_config_status_banner_title_only():
+    """Title alone is enough to enable the banner."""
+    _set_banner(
+        status_banner_level=models.BannerLevelChoice.INFO,
+        status_banner_title="Heads up",
+        status_banner_content="",
+    )
+    response = APIClient().get("/api/v1.0/config/")
+    assert response.json()["status_banner"] == {
+        "level": "info",
+        "title": "Heads up",
+        "content": "",
+    }
+
+
+@freeze_time("2026-05-11T12:00:00Z")
+def test_api_config_status_banner_hidden_before_start():
+    """starts_at in the future hides the banner."""
+    _set_banner(
+        status_banner_level=models.BannerLevelChoice.WARNING,
+        status_banner_title="Scheduled maintenance",
+        status_banner_content="Coming up.",
+        status_banner_starts_at=datetime.datetime(2026, 5, 11, 13, 0, tzinfo=datetime.timezone.utc),
+    )
+    response = APIClient().get("/api/v1.0/config/")
+    assert response.json()["status_banner"] is None
+
+
+@freeze_time("2026-05-11T12:00:00Z")
+def test_api_config_status_banner_visible_after_start():
+    """starts_at in the past keeps the banner visible."""
+    _set_banner(
+        status_banner_level=models.BannerLevelChoice.WARNING,
+        status_banner_title="Ongoing",
+        status_banner_content="lorem ipsum",
+        status_banner_starts_at=datetime.datetime(2026, 5, 11, 11, 0, tzinfo=datetime.timezone.utc),
+    )
+    response = APIClient().get("/api/v1.0/config/")
+    assert response.json()["status_banner"] is not None
+
+
+@freeze_time("2026-05-11T12:00:00Z")
+def test_api_config_status_banner_hidden_after_end():
+    """ends_at in the past hides the banner."""
+    _set_banner(
+        status_banner_level=models.BannerLevelChoice.WARNING,
+        status_banner_title="Old",
+        status_banner_content="lorem ipsum",
+        status_banner_ends_at=datetime.datetime(2026, 5, 11, 11, 0, tzinfo=datetime.timezone.utc),
+    )
+    response = APIClient().get("/api/v1.0/config/")
+    assert response.json()["status_banner"] is None
+
+
+@freeze_time("2026-05-11T12:00:00Z")
+def test_api_config_status_banner_visible_before_end():
+    """ends_at in the future keeps the banner visible."""
+    _set_banner(
+        status_banner_level=models.BannerLevelChoice.WARNING,
+        status_banner_title="Still on",
+        status_banner_content="lorem ipsum",
+        status_banner_ends_at=datetime.datetime(2026, 5, 11, 13, 0, tzinfo=datetime.timezone.utc),
+    )
+    response = APIClient().get("/api/v1.0/config/")
+    assert response.json()["status_banner"] is not None
+
+
+@pytest.mark.parametrize(
+    "now_offset_hours,expected_visible",
+    [
+        (-2, False),  # before window
+        (0, True),  # inside window
+        (+4, False),  # after window
+    ],
+)
+def test_api_config_status_banner_window(now_offset_hours, expected_visible):
+    """Both bounds set: visible only inside the window."""
+    base = datetime.datetime(2026, 5, 11, 12, 0, tzinfo=datetime.timezone.utc)
+    _set_banner(
+        status_banner_level=models.BannerLevelChoice.ALERT,
+        status_banner_title="Window",
+        status_banner_content="lorem ipsum",
+        status_banner_starts_at=base + datetime.timedelta(hours=-1),
+        status_banner_ends_at=base + datetime.timedelta(hours=+1),
+    )
+    with freeze_time(base + datetime.timedelta(hours=now_offset_hours)):
+        response = APIClient().get("/api/v1.0/config/")
+    if expected_visible:
+        assert response.json()["status_banner"] is not None
+    else:
+        assert response.json()["status_banner"] is None

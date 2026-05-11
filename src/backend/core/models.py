@@ -10,6 +10,7 @@ from django.contrib.auth import models as auth_models
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.core import mail, validators
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from solo.models import SingletonModel
@@ -194,6 +195,14 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         mail.send_mail(subject, message, from_email, [self.email], **kwargs)
 
 
+class BannerLevelChoice(models.TextChoices):
+    """Banner level info"""
+
+    INFO = "info", _("Info")
+    WARNING = "warning", _("Warning")
+    ALERT = "alert", _("Alert")
+
+
 class SiteConfiguration(SingletonModel):
     """Singleton model for site configuration"""
 
@@ -202,6 +211,46 @@ class SiteConfiguration(SingletonModel):
         blank=True,
         default="",
     )
+
+    # Status/incident banner
+    status_banner_level = models.CharField(
+        verbose_name=_("Status banner - level"),
+        max_length=20,
+        choices=BannerLevelChoice.choices,
+        default=BannerLevelChoice.INFO,
+    )
+    status_banner_title = models.CharField(
+        blank=True,
+        verbose_name=_("Status banner - title"),
+    )
+    status_banner_content = models.TextField(
+        blank=True,
+        verbose_name=_("Status banner - content"),
+    )
+    status_banner_starts_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("Status banner - starts at"),
+        help_text=_("If set, the banner is hidden before this date."),
+    )
+    status_banner_ends_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("Status banner - ends at"),
+        help_text=_("If set, the banner is hidden after this date."),
+    )
+
+    @property
+    def status_banner_visible(self):
+        """Is the banner visible?"""
+        if not self.status_banner_title:
+            return False
+        now = timezone.now()
+        if self.status_banner_starts_at and now < self.status_banner_starts_at:
+            return False
+        if self.status_banner_ends_at and now > self.status_banner_ends_at:
+            return False
+        return True
 
     class Meta:
         verbose_name = _("Site Configuration")

@@ -49,6 +49,7 @@ export const CONFIG = {
     'application/vnd.oasis.opendocument.text',
   project_files_max_count: 10,
   project_images_max_count: 3,
+  status_banner: null,
 } as const;
 
 export const overrideConfig = async (

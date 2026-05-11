@@ -120,10 +120,30 @@ class SiteConfigurationAdmin(SingletonModelAdmin):
 
     fieldsets = (
         (
-            None,
+            _("Self documentation"),
             {
-                "description": _("Text content with self documentation"),
+                "description": _(
+                    "Markdown documentation about this service. Exposed to "
+                    "the conversation agent so it can answer questions "
+                    "users ask about the app itself."
+                ),
                 "fields": ("self_documentation",),
+            },
+        ),
+        (
+            _("Status banner"),
+            {
+                "description": _(
+                    "Shown to all users at the top of the app. "
+                    "Leave title and content empty to disable."
+                ),
+                "fields": (
+                    "status_banner_level",
+                    "status_banner_title",
+                    "status_banner_content",
+                    "status_banner_starts_at",
+                    "status_banner_ends_at",
+                ),
             },
         ),
     )

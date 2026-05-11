@@ -228,6 +228,8 @@ class ConfigView(drf.views.APIView):
         dict_settings["project_files_max_count"] = settings.PROJECT_FILES_MAX_COUNT
         dict_settings["project_images_max_count"] = settings.PROJECT_IMAGES_MAX_COUNT
 
+        dict_settings["status_banner"] = self._get_banner()
+
         return drf.response.Response(dict_settings)
 
     def _load_theme_customization(self):
@@ -260,3 +262,16 @@ class ConfigView(drf.views.APIView):
             )
 
         return theme_customization
+
+    def _get_banner(self):
+        """Return status banner from SiteConfiguration."""
+        config = models.SiteConfiguration.get_solo()
+
+        if not config.status_banner_visible:
+            return None
+
+        return {
+            "level": config.status_banner_level,
+            "title": config.status_banner_title,
+            "content": config.status_banner_content,
+        }

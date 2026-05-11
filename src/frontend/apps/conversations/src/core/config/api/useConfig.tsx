@@ -20,6 +20,13 @@ export enum FeatureFlagState {
 interface FeatureFlags {
   [key: string]: FeatureFlagState;
 }
+export type BannerLevel = 'info' | 'warning' | 'alert';
+
+export interface StatusBanner {
+  level: BannerLevel;
+  title: string;
+  content: string;
+}
 
 export interface ConfigResponse {
   ACTIVATION_REQUIRED: boolean;
@@ -37,6 +44,7 @@ export interface ConfigResponse {
   FILE_UPLOAD_MODE?: string;
   FRONTEND_SILENT_LOGIN_ENABLED?: boolean;
   theme_customization?: ThemeCustomization;
+  status_banner?: StatusBanner;
   chat_upload_accept?: string;
   project_files_max_count?: number;
   project_images_max_count?: number;
@@ -44,7 +52,7 @@ export interface ConfigResponse {
 
 const LOCAL_STORAGE_KEY = 'conversations_config';
 
-function getCachedTranslation() {
+function getCachedConfig() {
   try {
     const jsonString = localStorage.getItem(LOCAL_STORAGE_KEY);
     return jsonString ? (JSON.parse(jsonString) as ConfigResponse) : undefined;
@@ -53,8 +61,8 @@ function getCachedTranslation() {
   }
 }
 
-function setCachedTranslation(translations: ConfigResponse) {
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(translations));
+function setCachedConfig(config: ConfigResponse) {
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(config));
 }
 
 export const getConfig = async (): Promise<ConfigResponse> => {
@@ -65,7 +73,7 @@ export const getConfig = async (): Promise<ConfigResponse> => {
   }
 
   const config = response.json() as Promise<ConfigResponse>;
-  setCachedTranslation(await config);
+  setCachedConfig(await config);
 
   return config;
 };
@@ -73,8 +81,9 @@ export const getConfig = async (): Promise<ConfigResponse> => {
 export const KEY_CONFIG = 'config';
 
 export function useConfig() {
-  const cachedData = getCachedTranslation();
+  const cachedData = getCachedConfig();
   const oneHour = 1000 * 60 * 60;
+  const fiveMinutes = 1000 * 60 * 5;
 
   return useQuery<ConfigResponse, APIError, ConfigResponse>({
     queryKey: [KEY_CONFIG],
@@ -82,5 +91,6 @@ export function useConfig() {
     initialData: cachedData,
     staleTime: oneHour,
     initialDataUpdatedAt: Date.now() - oneHour, // Force initial data to be considered stale
+    refetchInterval: fiveMinutes,
   });
 }

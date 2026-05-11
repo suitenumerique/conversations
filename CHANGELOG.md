@@ -17,6 +17,7 @@ and this project adheres to
 - ✨(documents) make document context hybrid
 - 🐛(fix) add prevent_url_hallucination instruction to ConversationAgent
 - ✨(projects) handle project files for RAG search
+- ✨(banner) configurable banner with level, title, content and start/end
 
 ### Changed
 
