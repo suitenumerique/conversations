@@ -156,6 +156,7 @@ from chat.tools.document_generic_search_rag import add_document_rag_search_tool_
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize
 from chat.tools.self_documentation import build_self_documentation_payload
+from chat.tools.url_fetch import add_url_fetch_tool, detect_urls, is_url_allowed
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
 
@@ -310,6 +311,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
         self._web_search_tool_registered = False
         self._self_documentation_tool_registered = False
+        self._url_fetch_tool_registered = False
+        self._rag_tools_registered = False
 
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
@@ -521,11 +524,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         return True
 
-    async def _check_should_enable_rag(self, conversation_has_documents: bool) -> bool:
-        """Check if RAG should be enabled based on existing documents."""
+    async def _check_should_enable_rag(
+        self, conversation_has_documents: bool, user_prompt: str = ""
+    ) -> bool:
+        """Check if RAG should be enabled based on existing documents or URLs in the prompt."""
 
         if not self._is_document_upload_enabled:
             return False
+
+        if user_prompt and any(is_url_allowed(u) for u in detect_urls(user_prompt)):
+            return True
 
         # Check for existing documents (any non-image attachment for this conversation)
         has_documents = await (
@@ -776,6 +784,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
     def _setup_rag_tools(self, document_context_instruction: str = "") -> None:
         """Register RAG-related tools and instructions on the conversation agent."""
+        if self._rag_tools_registered:
+            return
+        self._rag_tools_registered = True
         add_document_rag_search_tool(self.conversation_agent)
 
         @self.conversation_agent.instructions
@@ -803,6 +814,17 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         async def summarize(ctx: RunContext, *args, **kwargs) -> ToolReturn:
             """Wrap the document_summarize tool to provide context and add the tool."""
             return await document_summarize(ctx, *args, **kwargs)
+
+    def _setup_url_fetch_tool(self) -> None:
+        """Register url_fetch tool when RAG backend is configured."""
+        if self._url_fetch_tool_registered:
+            return
+        if not self._is_document_upload_enabled:
+            return
+        if not getattr(settings, "RAG_DOCUMENT_SEARCH_BACKEND", None):
+            return
+        add_url_fetch_tool(self.conversation_agent)
+        self._url_fetch_tool_registered = True
 
     def _setup_web_search_tool(self) -> None:
         """Register model-specific web search tool when configured."""
@@ -1182,8 +1204,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._setup_self_documentation_tool()
         self._setup_web_search_tool()
         self._setup_web_search(force_web_search)
+        self._setup_url_fetch_tool()
 
-        if await self._check_should_enable_rag(conversation_has_documents):
+        if await self._check_should_enable_rag(conversation_has_documents, user_prompt):
             document_context_instruction = await self._build_document_context_instruction()
             self._setup_rag_tools(document_context_instruction=document_context_instruction)
 
