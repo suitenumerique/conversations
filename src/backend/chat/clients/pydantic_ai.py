@@ -99,6 +99,7 @@ from django.utils.translation import gettext_lazy as _
 from asgiref.sync import sync_to_async
 from langfuse import get_client
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
+from pydantic_ai.capabilities import Hooks
 from pydantic_ai.messages import (
     BinaryContent,
     DocumentUrl,
@@ -123,6 +124,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import Model, infer_model_profile
+from pydantic_ai.settings import ModelSettings
 
 from core.feature_flags.helpers import is_feature_enabled
 
@@ -302,6 +304,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._is_smart_search_enabled = user.allow_smart_web_search
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
+        self._last_finish_reason: str | None = None
+
+        self._truncation_hooks = Hooks()
+
+        @self._truncation_hooks.on.after_model_request
+        async def _detect_truncation(_ctx, *, request_context, response):  # pylint: disable=unused-argument
+            self._last_finish_reason = response.finish_reason
+            return response
+
         self._context_deps = ContextDeps(
             conversation=conversation,
             user=user,
@@ -321,6 +332,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if self._langfuse_available
             else False,
             deps_type=ContextDeps,
+            capabilities=[self._truncation_hooks],
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
 
@@ -419,6 +431,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         It can be used to release resources or perform any necessary cleanup.
         """
         self._last_stop_check = 0
+        self._last_finish_reason = None
         await cache.adelete(self._stop_cache_key)
 
     # --------------------------------------------------------------------- #
@@ -1122,6 +1135,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 ]
             )
         self._update_langfuse_trace(run_output)
+
+        if self._last_finish_reason == "length":
+            yield events_v4.MessageAnnotationPart(annotations=[{"truncated": True}])
+
         # Vercel finish message
         yield events_v4.FinishMessagePart(
             finish_reason=events_v4.FinishReason.STOP,
@@ -1196,11 +1213,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 if history[-1].parts and history[-1].parts[-1].part_kind == "tool-return":
                     history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
 
+            model_settings = ModelSettings(max_tokens=settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE)
+
             async with self.conversation_agent.iter(
                 [user_prompt] + input_images,
                 message_history=history,  # history will pass through agent's history_processors
                 deps=self._context_deps,
                 toolsets=mcp_servers,
+                model_settings=model_settings,
             ) as run:
                 state = StreamingState()
                 async for event in self._process_agent_nodes(run, state, langfuse):
@@ -1277,6 +1297,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if _output_ui_message.annotations is None:
                 _output_ui_message.annotations = []
             _output_ui_message.annotations.append({"co2_impact": co2_impact})
+
+        if self._last_finish_reason == "length":
+            if _output_ui_message.annotations is None:
+                _output_ui_message.annotations = []
+            _output_ui_message.annotations.append({"truncated": True})
 
         usage["co2_impact"] += self.conversation.agent_usage.get("co2_impact", 0)
         usage["promptTokens"] += self.conversation.agent_usage.get("promptTokens", 0)

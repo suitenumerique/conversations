@@ -12,6 +12,7 @@ import {
 } from '@/features/chat/components/MessageBlock';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
+import { TruncatedResponseMessage } from '@/features/chat/components/TruncatedResponseMessage';
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
 const BlocksList = React.memo(
@@ -241,6 +242,19 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
       (part) => part.toolInvocation.toolName !== 'document_parsing',
     );
   }, [toolInvocationParts]);
+
+  const isTruncated = React.useMemo(() => {
+    return (
+      message.role === 'assistant' &&
+      Array.isArray(message.annotations) &&
+      message.annotations.some(
+        (a) =>
+          typeof a === 'object' &&
+          a !== null &&
+          (a as Record<string, unknown>).truncated === true,
+      )
+    );
+  }, [message.annotations, message.role]);
 
   const activeToolInvocation = React.useMemo(() => {
     const tool = toolInvocationParts.find(
@@ -478,6 +492,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
               <SourceItemList parts={sourceParts} getMetadata={getMetadata} />
             </Box>
           )}
+          {isTruncated && <TruncatedResponseMessage />}
         </Box>
       </Box>
     </Box>
@@ -507,6 +522,23 @@ const arePropsEqual = (
   const prevPartsLength = prevProps.message.parts?.length ?? 0;
   const nextPartsLength = nextProps.message.parts?.length ?? 0;
   if (prevPartsLength !== nextPartsLength) {
+    return false;
+  }
+
+  // Check annotations changes (for truncation and other metadata)
+  const prevAnnotationsLength = prevProps.message.annotations?.length ?? 0;
+  const nextAnnotationsLength = nextProps.message.annotations?.length ?? 0;
+  if (prevAnnotationsLength !== nextAnnotationsLength) {
+    return false;
+  }
+  const isTruncated = (annotations: typeof prevProps.message.annotations) =>
+    annotations?.some(
+      (a) =>
+        typeof a === 'object' &&
+        a !== null &&
+        (a as Record<string, unknown>).truncated === true,
+    ) ?? false;
+  if (isTruncated(prevProps.message.annotations) !== isTruncated(nextProps.message.annotations)) {
     return false;
   }
 

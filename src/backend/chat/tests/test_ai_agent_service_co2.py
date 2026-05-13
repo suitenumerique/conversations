@@ -35,6 +35,7 @@ def service_fixture(conversation):
     """Instantiate AIAgentService without __init__, injecting only the conversation."""
     s = object.__new__(AIAgentService)
     s.conversation = conversation
+    s._last_finish_reason = None
     return s
 
 
