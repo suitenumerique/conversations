@@ -182,4 +182,7 @@ python_files = [
     "test_*.py",
     "tests.py",
 ]
+markers = [
+    "eval: behavioural eval tests that call a real LLM (requires RUN_EVAL_TESTS=1)",
+]
 
