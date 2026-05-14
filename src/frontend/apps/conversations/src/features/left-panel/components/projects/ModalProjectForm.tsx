@@ -16,7 +16,7 @@ import FileGenericIcon from '@/assets/icons/uikit-custom/file-filled.svg';
 import FileImageIcon from '@/assets/icons/uikit-custom/file-image.svg';
 import FilePdfIcon from '@/assets/icons/uikit-custom/file-pdf.svg';
 import { Box, DropButton, Icon, Text, useToast } from '@/components';
-import { FeatureFlagState, useConfig } from '@/core';
+import { useConfig, useFeatureEnabled } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
 import { uploadProjectFiles } from '@/features/attachments/api/uploadProjectFiles';
 import { useDeleteProjectAttachment } from '@/features/attachments/api/useDeleteProjectAttachment';
@@ -153,8 +153,7 @@ export const ModalProjectForm = ({
   const { colorsTokens } = useCunninghamTheme();
 
   const { data: conf } = useConfig();
-  const fileUploadEnabled =
-    conf?.FEATURE_FLAGS?.['document-upload'] === FeatureFlagState.ENABLED;
+  const fileUploadEnabled = useFeatureEnabled('document-upload');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: existingAttachments } = useProjectAttachments(project?.id);

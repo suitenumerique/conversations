@@ -24,16 +24,7 @@ jest.mock('@/core', () => ({
       chat_upload_accept: '.pdf,.txt',
     },
   }),
-  FeatureFlagState: {
-    ENABLED: 'enabled',
-    DISABLED: 'disabled',
-  },
-}));
-
-jest.mock('@/libs', () => ({
-  useAnalytics: () => ({
-    isFeatureFlagActivated: jest.fn(() => true),
-  }),
+  useFeatureEnabled: () => true,
 }));
 
 jest.mock('@/components/ToastProvider', () => ({

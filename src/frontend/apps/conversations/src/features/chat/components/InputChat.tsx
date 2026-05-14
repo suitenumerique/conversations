@@ -1,15 +1,9 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Box, Text } from '@/components';
 import { useToast } from '@/components/ToastProvider';
-import { FeatureFlagState, useConfig } from '@/core';
+import { useConfig, useFeatureEnabled } from '@/core';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 import { InputChatActions } from '@/features/chat/components/InputChatAction';
 import { ProjectWelcomeMessage } from '@/features/chat/components/ProjectWelcomeMessage';
@@ -17,7 +11,6 @@ import { SuggestionCarousel } from '@/features/chat/components/SuggestionCarouse
 import { WelcomeMessage } from '@/features/chat/components/WelcomeMessage';
 import { useFileDragDrop } from '@/features/chat/hooks/useFileDragDrop';
 import { useFileUrls } from '@/features/chat/hooks/useFileUrls';
-import { useAnalytics } from '@/libs';
 import { useResponsiveStore } from '@/stores';
 
 import FilesIcon from '../assets/files.svg';
@@ -138,9 +131,8 @@ export const InputChat = ({
   const { isDesktop, isMobile } = useResponsiveStore();
 
   const { data: conf } = useConfig();
-  const { isFeatureFlagActivated } = useAnalytics();
-  const [fileUploadEnabled, setFileUploadEnabled] = useState(false);
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const fileUploadEnabled = useFeatureEnabled('document-upload');
+  const webSearchEnabled = useFeatureEnabled('web-search');
 
   const isFileAccepted = useCallback(
     (file: File): boolean => {
@@ -178,29 +170,6 @@ export const InputChat = ({
       },
     );
   }, [showToast, t]);
-
-  useEffect(() => {
-    if (!conf?.FEATURE_FLAGS) {
-      setWebSearchEnabled(false);
-      setFileUploadEnabled(false);
-      return;
-    }
-    const isFeatureEnabled = (featureKey: string): boolean => {
-      const configValue = conf.FEATURE_FLAGS[featureKey];
-      if (!configValue) {
-        return false;
-      } else if (configValue === FeatureFlagState.DISABLED) {
-        return false;
-      } else if (configValue === FeatureFlagState.ENABLED) {
-        return true;
-      } else {
-        return isFeatureFlagActivated(featureKey);
-      }
-    };
-
-    setWebSearchEnabled(isFeatureEnabled('web-search'));
-    setFileUploadEnabled(isFeatureEnabled('document-upload'));
-  }, [conf, isFeatureFlagActivated]);
 
   useEffect(() => {
     if (textareaRef.current && messagesLength === 0 && status === 'ready') {

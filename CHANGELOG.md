@@ -44,6 +44,7 @@ and this project adheres to
 - 🐛(fix) Fix streaming crash with OpenAI-compatible APIs
 - 🐛(fix) strip thinking part for models without reasoning support
 - ✨(dev) setup Tilt for local development
+ - 🐛(front) project modal now respects document-upload feature flag
 
 ## [0.0.15] - 2026-03-31
 
