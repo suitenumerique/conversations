@@ -9,6 +9,12 @@ import { ChatProject } from '@/features/chat/types';
 
 import { ModalProjectForm } from '../ModalProjectForm';
 
+const mockPush = jest.fn();
+jest.mock('next/router', () => ({
+  ...jest.requireActual('next/router'),
+  useRouter: () => ({ push: mockPush }),
+}));
+
 jest.mock('@/components', () => ({
   ...jest.requireActual('@/components'),
   useToast: jest.fn(),
@@ -178,6 +184,7 @@ describe('ModalProjectForm', () => {
       );
     });
     expect(mockOnClose).toHaveBeenCalled();
+    expect(mockPush).toHaveBeenCalledWith('/chat/');
   });
 
   it('shows API error message on failed create', async () => {

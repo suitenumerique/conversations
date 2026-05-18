@@ -56,7 +56,10 @@ test.describe('Projects', () => {
     await createProject(page, projectName);
 
     // Hover the project item to reveal actions
-    const projectItem = page.getByText(projectName);
+    const projectItem = page.getByRole('button', {
+      name: `Start new conversation in ${projectName}`,
+      exact: true,
+    });
     await projectItem.hover();
 
     // Open the actions menu
@@ -86,7 +89,12 @@ test.describe('Projects', () => {
     await expect(page.getByText('The project has been updated.')).toBeVisible();
 
     // Updated name should appear
-    await expect(page.getByText(updatedName)).toBeVisible();
+    await expect(
+      page.getByRole('button', {
+        name: `Start new conversation in ${updatedName}`,
+        exact: true,
+      }),
+    ).toBeVisible();
   });
 
   test('it deletes a project', async ({ page, browserName }) => {
@@ -95,7 +103,12 @@ test.describe('Projects', () => {
     await createProject(page, projectName);
 
     // Hover and open actions
-    await page.getByText(projectName).hover();
+    await page
+      .getByRole('button', {
+        name: `Start new conversation in ${projectName}`,
+        exact: true,
+      })
+      .hover();
     await page.getByLabel(`Actions list for project ${projectName}`).click();
 
     // Click delete
@@ -117,7 +130,12 @@ test.describe('Projects', () => {
     await expect(page.getByText('The project has been deleted.')).toBeVisible();
 
     // Project should no longer be visible
-    await expect(page.getByText(projectName)).toBeHidden();
+    await expect(
+      page.getByRole('button', {
+        name: `Start new conversation in ${projectName}`,
+        exact: true,
+      }),
+    ).toBeHidden();
   });
 
   test('it expands and collapses a project', async ({ page, browserName }) => {
