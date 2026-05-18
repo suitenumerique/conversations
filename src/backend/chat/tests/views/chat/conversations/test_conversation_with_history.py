@@ -22,7 +22,7 @@ from chat.ai_sdk_types import (
 )
 from chat.factories import ChatConversationFactory
 from chat.tests.utils import replace_uuids_with_placeholder
-from chat.tools.descriptions import SELF_DOCUMENTATION_TOOL_DESCRIPTION
+from chat.tools.descriptions import SELF_DOCUMENTATION_SYSTEM_PROMPT
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -1493,7 +1493,7 @@ def test_post_conversation_with_existing_tool_history(
             "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025."
             "\n\nAnswer in dutch."
             f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
-            f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+            f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
         ),
         "kind": "request",
         "metadata": None,
@@ -1550,7 +1550,7 @@ def test_post_conversation_with_existing_tool_history(
             "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025."
             "\n\nAnswer in dutch."
             f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
-            f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+            f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
         ),
         "kind": "request",
         "metadata": None,

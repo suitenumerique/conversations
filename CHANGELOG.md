@@ -45,7 +45,8 @@ and this project adheres to
 - 🐛(fix) Fix streaming crash with OpenAI-compatible APIs
 - 🐛(fix) strip thinking part for models without reasoning support
 - ✨(dev) setup Tilt for local development
- - 🐛(front) project modal now respects document-upload feature flag
+- 🐛(front) project modal now respects document-upload feature flag
+- 🐛(back) self-doc tool no longer triggers on generic or document questions
 
 ## [0.0.15] - 2026-03-31
 
