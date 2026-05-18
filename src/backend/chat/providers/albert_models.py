@@ -2,7 +2,13 @@
 
 from typing import Any
 
-from pydantic_ai.models.openai import ChatCompletionChunk, OpenAIChatModel, OpenAIStreamedResponse
+from openai.types import chat
+from pydantic_ai.models.openai import (
+    ChatCompletionChunk,
+    OpenAIChatModel,
+    OpenAIStreamedResponse,
+    _ChatCompletion,
+)
 from pydantic_ai.providers.openai import OpenAIProvider
 
 
@@ -68,3 +74,30 @@ class AlbertOpenAIChatModel(OpenAIChatModel):
     @property
     def _streamed_response_cls(self) -> type[OpenAIStreamedResponse]:
         return AlbertOpenAIStreamedResponse
+
+    def _validate_completion(self, response: chat.ChatCompletion) -> _ChatCompletion:
+        """Normalize Albert API quirks before validation.
+
+        Albert's OpenAI-compatible API has two known non-conformances:
+        1. tool_calls[].type may not be 'function' — normalized to 'function'.
+        2. On multi-turn tool-call conversations, the second response sometimes
+           returns a non-standard `object` value and a non-list `choices` field.
+           Both are normalized before passing to _ChatCompletion.model_validate().
+        """
+        data = response.model_dump()
+
+        if data.get("object") != "chat.completion":
+            data["object"] = "chat.completion"
+
+        if not isinstance(data.get("choices"), list):
+            data["choices"] = []
+
+        for choice in data.get("choices") or []:
+            for tool_call in (choice.get("message") or {}).get("tool_calls") or []:
+                if isinstance(tool_call, dict) and tool_call.get("type") not in (
+                    "function",
+                    "custom",
+                ):
+                    tool_call["type"] = "function"
+
+        return _ChatCompletion.model_validate(data)

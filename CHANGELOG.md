@@ -299,6 +299,7 @@ and this project adheres to
 - ✨(langfuse) allow user to score messages from LLM #6
 - ✨(onboarding) add activation code logic for launch #62
 - 💄(chat) add code highlighting for LLM responses #67
+- 🔧(evals) add run_eval management command
 
 [unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.15...main
 [0.0.15]: https://github.com/suitenumerique/conversations/releases/v0.0.15
