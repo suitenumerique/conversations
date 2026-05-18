@@ -4,6 +4,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from openai.types.chat import ChatCompletion
 from pydantic_ai.models.openai import OpenAIStreamedResponse
 from pydantic_ai.usage import RequestUsage
 
@@ -130,3 +131,126 @@ def test_albert_chat_model_uses_albert_streamed_response_cls():
         ),
     )
     assert model._streamed_response_cls is AlbertOpenAIStreamedResponse
+
+
+# ---------------------------------------------------------------------------
+# AlbertOpenAIChatModel._validate_completion
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(name="albert_model")
+def albert_model_fixture() -> AlbertOpenAIChatModel:
+    """Minimal AlbertOpenAIChatModel instance for unit tests."""
+    return AlbertOpenAIChatModel(
+        model_name="test-model",
+        profile=None,
+        provider=AlbertOpenAIProvider(
+            base_url="https://test-albert-api.com",
+            api_key="test-api-key",
+        ),
+    )
+
+
+def _make_chat_completion(tool_call_type) -> ChatCompletion:
+    """Build a ChatCompletion via model_construct with a tool call of the given type."""
+    tool_call = MagicMock()
+    tool_call.id = "call_123"
+    tool_call.type = tool_call_type
+    tool_call.function = MagicMock()
+    tool_call.function.name = "final_result"
+    tool_call.function.arguments = '{"reason": "ok", "pass": true, "score": 1.0}'
+
+    message = MagicMock()
+    message.role = "assistant"
+    message.content = None
+    message.refusal = None
+    message.tool_calls = [tool_call]
+    message.model_dump = lambda **_: {
+        "role": "assistant",
+        "content": None,
+        "refusal": None,
+        "tool_calls": [
+            {
+                "id": "call_123",
+                "type": tool_call_type,
+                "function": {
+                    "name": "final_result",
+                    "arguments": '{"reason": "ok", "pass": true, "score": 1.0}',
+                },
+            }
+        ],
+    }
+
+    choice = MagicMock()
+    choice.index = 0
+    choice.finish_reason = "tool_calls"
+    choice.message = message
+    choice.model_dump = lambda **_: {
+        "index": 0,
+        "finish_reason": "tool_calls",
+        "message": message.model_dump(),
+    }
+
+    response = MagicMock(spec=ChatCompletion)
+    response.id = "chatcmpl-abc"
+    response.object = "chat.completion"
+    response.created = 1700000000
+    response.model = "test-model"
+    response.choices = [choice]
+    response.usage = None
+    response.service_tier = None
+    response.model_dump = lambda **_: {
+        "id": "chatcmpl-abc",
+        "object": "chat.completion",
+        "created": 1700000000,
+        "model": "test-model",
+        "service_tier": None,
+        "choices": [choice.model_dump()],
+        "usage": None,
+    }
+    return response
+
+
+def test_validate_completion_normalizes_none_tool_call_type(albert_model):
+    """Tool calls with type=None are normalized to 'function' before validation."""
+    response = _make_chat_completion(tool_call_type=None)
+    result = albert_model._validate_completion(response)
+    tool_call = result.choices[0].message.tool_calls[0]
+    assert tool_call.type == "function"
+    assert tool_call.function.name == "final_result"
+
+
+def test_validate_completion_preserves_function_tool_call_type(albert_model):
+    """Tool calls already typed as 'function' pass through unchanged."""
+    response = _make_chat_completion(tool_call_type="function")
+    result = albert_model._validate_completion(response)
+    assert result.choices[0].message.tool_calls[0].type == "function"
+
+
+def _make_malformed_chat_completion(object_value: str, choices_value) -> MagicMock:
+    """Build a ChatCompletion mock with non-standard object/choices fields."""
+    response = MagicMock(spec=ChatCompletion)
+    response.model_dump = lambda **_: {
+        "id": "chatcmpl-abc",
+        "object": object_value,
+        "created": 1700000000,
+        "model": "test-model",
+        "service_tier": None,
+        "choices": choices_value,
+        "usage": None,
+    }
+    return response
+
+
+def test_validate_completion_normalizes_non_standard_object(albert_model):
+    """Non-standard object values are normalized to 'chat.completion'."""
+    response = _make_malformed_chat_completion(object_value="list", choices_value=[])
+    result = albert_model._validate_completion(response)
+    assert result.choices == []
+
+
+def test_validate_completion_normalizes_null_choices(albert_model):
+    """null choices are normalized to an empty list."""
+    response = _make_malformed_chat_completion(object_value="chat.completion", choices_value=None)
+    result = albert_model._validate_completion(response)
+    assert result.choices == []

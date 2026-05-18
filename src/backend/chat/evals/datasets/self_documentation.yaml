@@ -1,0 +1,186 @@
+cases:
+  # ── Easy — about the assistant itself ────────────────────────────────────────
+  # Clear questions about the assistant's identity/capabilities. Tool must be called.
+
+  - name: about_capabilities
+    inputs:
+      user_message: "What can you do?"
+    metadata:
+      difficulty: easy
+      category: about_self
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            name_equals: "running tool"
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: about_identity
+    inputs:
+      user_message: "Who are you?"
+    metadata:
+      difficulty: easy
+      category: about_self
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            name_equals: "running tool"
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: about_internet_access
+    inputs:
+      user_message: "Can you access the internet?"
+    metadata:
+      difficulty: easy
+      category: about_self
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            name_equals: "running tool"
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  # ── Easy — about something else ───────────────────────────────────────────────
+  # Unambiguous questions about the world. Tool must NOT be called.
+
+  - name: capital_of_france
+    inputs:
+      user_message: "What is the capital of France?"
+    metadata:
+      difficulty: easy
+      category: about_other
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            not_:
+              name_equals: "running tool"
+              has_attributes:
+                gen_ai.tool.name: "self_documentation"
+          evaluation_name: did_not_call_self_documentation
+
+  - name: python_sort_function
+    inputs:
+      user_message: "Write a Python function to sort a list"
+    metadata:
+      difficulty: easy
+      category: about_other
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            not_:
+              name_equals: "running tool"
+              has_attributes:
+                gen_ai.tool.name: "self_documentation"
+          evaluation_name: did_not_call_self_documentation
+
+  # ── Medium — about the assistant itself ───────────────────────────────────────
+
+  - name: about_file_types
+    inputs:
+      user_message: "What types of files can you handle?"
+    metadata:
+      difficulty: medium
+      category: about_self
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            name_equals: "running tool"
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: about_model
+    inputs:
+      user_message: "What model are you based on?"
+    metadata:
+      difficulty: medium
+      category: about_self
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            name_equals: "running tool"
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: about_privacy
+    inputs:
+      user_message: "Are my conversations private? Where is my data stored?"
+    metadata:
+      difficulty: medium
+      category: about_self
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            name_equals: "running tool"
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  # ── Medium — about something else ─────────────────────────────────────────────
+
+  - name: president_capabilities
+    inputs:
+      user_message: "What can the president do about unemployment?"
+    metadata:
+      difficulty: medium
+      category: about_other
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            not_:
+              name_equals: "running tool"
+              has_attributes:
+                gen_ai.tool.name: "self_documentation"
+          evaluation_name: did_not_call_self_documentation
+
+  - name: python_features
+    inputs:
+      user_message: "What are Python's main capabilities?"
+    metadata:
+      difficulty: medium
+      category: about_other
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            not_:
+              name_equals: "running tool"
+              has_attributes:
+                gen_ai.tool.name: "self_documentation"
+          evaluation_name: did_not_call_self_documentation
+
+  # ── Hard ─────────────────────────────────────────────────────────────────────
+  # Adversarial: "you" used to ask about the world, or model comparison phrasing.
+
+  - name: model_comparison
+    inputs:
+      user_message: "Are you like ChatGPT? What's the difference?"
+    metadata:
+      difficulty: hard
+      category: about_self
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            name_equals: "running tool"
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: tell_me_about_climate
+    inputs:
+      user_message: "What can you tell me about climate change?"
+    metadata:
+      difficulty: hard
+      category: about_other
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            not_:
+              name_equals: "running tool"
+              has_attributes:
+                gen_ai.tool.name: "self_documentation"
+          evaluation_name: did_not_call_self_documentation
