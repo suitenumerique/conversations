@@ -17,11 +17,17 @@ from .base import BaseAgent
 logger = logging.getLogger(__name__)
 
 PREVENT_URL_HALLUCINATION_INSTRUCTION = (
-    "Never invent or guess URLs. "
-    "Only include URLs explicitly found in tool outputs (e.g., web search results) "
-    "or in provided documents when available. Do not introduce new URLs."
-    "If you need to reference a web page that was not returned by a tool, "
-    "use a descriptive placeholder such as [official link] instead of a URL."
+    "URL POLICY (STRICT): Only include a URL if it appears verbatim in a tool result "
+    "or the user's current message. "
+    "Never write a URL in any other context — not in direct answers, "
+    "suggestions, examples, templates, "
+    "code blocks, or resource recommendations. "
+    "Never write a URL to well-known websites you know from training. "
+    "When no verified URL is available, refer to resources "
+    "by plain text name only (e.g., 'the ANSSI website'). "
+    "When you cannot access a linked document, do not generate "
+    "fictional templates or mock examples of "
+    "its content — ask the user to share the relevant content directly."
 )
 
 MOCKED_RESPONSE = """

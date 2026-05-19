@@ -48,6 +48,7 @@ and this project adheres to
 - ✨(dev) setup Tilt for local development
 - 🐛(front) project modal now respects document-upload feature flag
 - 🐛(back) self-doc tool no longer triggers on generic or document questions
+- 🐛(backend) improve url hallucination instruction
 
 ## [0.0.15] - 2026-03-31
 

@@ -23,7 +23,7 @@ def assert_base_instructions(instructions, date_str=None, language_str=""):
     assert instructions[2].__name__ == "enforce_response_language"
     assert instructions[2]() == language_str
     assert instructions[3].__name__ == "prevent_url_hallucination"
-    assert "Never invent or guess URLs" in instructions[3]()
+    assert "URL POLICY" in instructions[3]()
 
 
 @pytest.fixture(autouse=True)
