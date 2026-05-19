@@ -10,17 +10,6 @@ declare module '*.svg' {
   export default ReactComponent;
 }
 
-declare module '*.svg?url' {
-  const content: {
-    src: string;
-    width: number;
-    height: number;
-    blurWidth: number;
-    blurHeight: number;
-  };
-  export default content;
-}
-
 namespace NodeJS {
   interface ProcessEnv {
     NEXT_PUBLIC_PRODUCT_NAME?: string;
