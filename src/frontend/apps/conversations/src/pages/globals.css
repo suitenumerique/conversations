@@ -222,6 +222,16 @@ ul a:hover {
   color: var(--c--contextuals--semantic--primary-800) !important;
 }
 
+.action-chat-button-icon {
+  color: var(
+    --c--contextuals--content--semantic--neutral--secondary
+  ) !important;
+}
+
+.action-chat-button-icon svg {
+  fill: var(--c--contextuals--content--semantic--neutral--secondary) !important;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

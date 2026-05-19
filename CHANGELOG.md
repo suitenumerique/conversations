@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(sources) add source panel
 - ✨(onboarding) add onboarding modal
 - ✨(back) add ODT parsing support
 - ✨(back) add self-documentation tool

@@ -24,19 +24,10 @@ const SourceItemListComponent: React.FC<SourceItemListProps> = ({
     return null;
   }
   return (
-    <Box
-      $direction="column"
-      $padding={{ all: 'sm' }}
-      $gap="4px"
-      $css={`
-       border: 1px solid var(--c--contextuals--border--surface--primary);
-       border-radius: 8px;
-       margin-top: 0.5rem;
-       overflow: hidden;
-     `}
-    >
-      {parts.map((part) => (
+    <Box $direction="column" $padding={{ all: 'xs' }} $gap="4px">
+      {parts.map((part, index) => (
         <SourceItem
+          index={index + 1}
           key={part.source.url}
           url={part.source.url}
           metadata={getMetadata(part.source.url)}

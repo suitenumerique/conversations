@@ -3,15 +3,29 @@ import { Button } from '@gouvfr-lasuite/cunningham-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Icon, Loader, Text } from '@/components';
+import CheckmarkIcon from '@/assets/icons/uikit-custom/checkmark.svg';
+import ClipboardIcon from '@/assets/icons/uikit-custom/clipboard.svg';
+import SourcesIcon from '@/assets/icons/uikit-custom/sources.svg';
+import { Box, Loader, Text } from '@/components';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import {
   CompletedMarkdownBlock,
   RawTextBlock,
 } from '@/features/chat/components/MessageBlock';
-import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
+
+const chatActionIconProps = {
+  width: 16,
+  height: 16,
+  color: 'var(--c--contextuals--content--semantic--neutral--secondary)',
+  className: 'action-chat-button-icon',
+  style: {
+    display: 'block',
+    fill: 'var(--c--contextuals--content--semantic--neutral--secondary)',
+  } as const,
+  'aria-hidden': true,
+};
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
 const BlocksList = React.memo(
@@ -418,13 +432,11 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                     onClick={handleCopy}
                     aria-label={isCopied ? t('Copied') : t('Copy')}
                     icon={
-                      <Icon
-                        iconName={isCopied ? 'check' : 'content_copy'}
-                        $theme="neutral"
-                        $variation="550"
-                        $size="16px"
-                        className="action-chat-button-icon"
-                      />
+                      isCopied ? (
+                        <CheckmarkIcon {...chatActionIconProps} />
+                      ) : (
+                        <ClipboardIcon {...chatActionIconProps} />
+                      )
                     }
                     className="c__button--neutral action-chat-button"
                   ></Button>
@@ -434,23 +446,18 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                       variant="tertiary"
                       color="neutral"
                       onClick={handleOpenSources}
-                      icon={
-                        <Icon
-                          iconName="book"
-                          $theme="neutral"
-                          $variation="550"
-                          $size="16px"
-                          className="action-chat-button-icon"
-                        />
-                      }
+                      icon={<SourcesIcon {...chatActionIconProps} />}
                       className={`c__button--neutral action-chat-button ${
                         isSourceOpen === message.id
                           ? 'action-chat-button--open'
                           : ''
                       }`}
                     >
-                      <Text>
-                        {t('Show')} {sourceParts.length}{' '}
+                      <Text $theme="neutral" $variation="tertiary">
+                        {isSourceOpen !== message.id ? t('Show') : t('Hidden')}{' '}
+                        {isSourceOpen !== message.id
+                          ? `${sourceParts.length} `
+                          : ''}
                         {sourceParts.length !== 1 ? t('sources') : t('source')}
                       </Text>
                     </Button>
@@ -468,16 +475,6 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 </Box>
               </Box>
             )}
-
-          {isSourceOpen === message.id && sourceParts.length > 0 && (
-            <Box
-              $css={`
-                animation: fade-in 0.2s ease-out;
-              `}
-            >
-              <SourceItemList parts={sourceParts} getMetadata={getMetadata} />
-            </Box>
-          )}
         </Box>
       </Box>
     </Box>

@@ -1,16 +1,21 @@
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
-import { Box, StyledLink } from '@/components';
+import { Box, Icon, StyledLink, Text } from '@/components';
 
 const styles: Record<string, React.CSSProperties> = {
   title: {
-    color: 'var(--c--contextuals--content--semantic--neutral--primary)',
+    color: 'var(--c--contextuals--content--semantic--neutral--secondary)',
     fontWeight: '500',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    display: 'block',
+    marginBottom: '4px',
+  },
+  description: {
+    color: 'var(--c--contextuals--content--semantic--neutral--primary)',
+    fontWeight: '500',
   },
 };
 
@@ -22,17 +27,23 @@ interface SourceMetadata {
 }
 
 interface SourceItemProps {
+  index: number;
   url: string;
   metadata?: SourceMetadata;
 }
 
-export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
+export const SourceItem: React.FC<SourceItemProps> = ({
+  index,
+  url,
+  metadata,
+}) => {
   const [title, setTitle] = useState<string | null>(metadata?.title || null);
   const [favicon, setFavicon] = useState<string | null>(
     metadata?.favicon || null,
   );
   const [loading, setLoading] = useState(metadata ? metadata.loading : true);
   const [error, setError] = useState(metadata ? metadata.error : false);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (metadata) {
@@ -126,9 +137,20 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
   }, [url, metadata]);
 
   // Fallback for favicon if none is found or if there's an error
-  const renderFavicon = () => {
+  const renderType = () => {
     if (loading || error || !favicon) {
-      return <Box>🔗</Box>;
+      return (
+        <>
+          <Icon
+            iconName="language"
+            $theme="neutral"
+            $variation="secondary"
+            $size="md"
+            $margin={{ horizontal: 'xxxs' }}
+          />
+          {t('Website')}
+        </>
+      );
     }
     if (favicon === '📄') {
       return <Box>📄</Box>;
@@ -138,7 +160,7 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
       <Box>
         <Image
           src={favicon}
-          alt="Favicon"
+          alt="favicon"
           width={16}
           height={16}
           onError={() => setFavicon(null)}
@@ -151,7 +173,7 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
     <Box $direction="row" $gap="4px" $align="center">
       <Box
         $direction="row"
-        $align="start"
+        $align="center"
         $css="font-size: 14px;"
         $width="100%"
       >
@@ -161,11 +183,11 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
             target="_blank"
             rel="noopener noreferrer"
             $css={`
-                display: flex;
+                display: block;
                 align-items: center;
                 gap: 0.4rem;
                 border-radius: 4px;
-                padding: 4px;
+                padding: var(--c--globals--spacings--xs);
                 width: 100%;
                 text-decoration: none;
                 white-space: nowrap;
@@ -175,22 +197,20 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
                 transition: background-color 0.3s;
                 color: var(--c--contextuals--content--semantic--neutral--tertiary);
                 &:hover {
-                  color: var(--c--contextuals--content--semantic--neutral--tertiary);
-                  background-color: var(--c--contextuals--background--semantic--neutral--tertiary);
+                  background-color: var(--c--contextuals--background--semantic--overlay--primary);
                 }
             `}
           >
-            {renderFavicon()}
-
-            {new URL(url).hostname}
-
             <Box
               $padding={{ right: '4px' }}
               $align="center"
+              $direction="row"
               style={styles.title}
             >
-              {title}
+              {index} · {renderType()}{' '}
+              {new URL(url).hostname ? `| ${new URL(url).hostname}` : ''}
             </Box>
+            <Text style={styles.description}>{title}</Text>
           </StyledLink>
         ) : (
           <Box>{url}</Box>
