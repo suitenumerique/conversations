@@ -3,7 +3,10 @@ import { Button } from '@gouvfr-lasuite/cunningham-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Icon, Loader, Text } from '@/components';
+import CheckmarkIcon from '@/assets/icons/uikit-custom/checkmark.svg?react';
+import ClipboardIcon from '@/assets/icons/uikit-custom/clipboard.svg?react';
+import SourcesIcon from '@/assets/icons/uikit-custom/sources.svg?react';
+import { Box, Loader, Text } from '@/components';
 import { useConfig } from '@/core/config';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
@@ -13,13 +16,24 @@ import {
 } from '@/features/chat/components/MessageBlock';
 import { MessageEnergyIndicator } from '@/features/chat/components/MessageEnergyIndicator';
 import { MoreActionsButton } from '@/features/chat/components/MoreActionsButton';
-import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { SummarizationError } from '@/features/chat/components/SummarizationError';
 import { SummarizationProgress } from '@/features/chat/components/SummarizationProgress';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
 import { getMessageCo2Impact } from '@/features/chat/utils/getMessageCo2Impact';
 
 import { ChatErrorType } from './ChatError';
+
+const chatActionIconProps = {
+  width: 16,
+  height: 16,
+  color: 'var(--c--contextuals--content--semantic--neutral--secondary)',
+  className: 'action-chat-button-icon',
+  style: {
+    display: 'block',
+    fill: 'var(--c--contextuals--content--semantic--neutral--secondary)',
+  } as const,
+  'aria-hidden': true,
+};
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
 const BlocksList = React.memo(
@@ -157,13 +171,6 @@ export const splitStreamingContent = (content: string): StreamingContent => {
   return { completedBlocks, pending: pendingContent };
 };
 
-interface SourceMetadata {
-  title: string | null;
-  favicon: string | null;
-  loading: boolean;
-  error: boolean;
-}
-
 export interface MessageItemProps {
   message: Message;
   isLastMessage: boolean;
@@ -178,7 +185,6 @@ export interface MessageItemProps {
   isMobile: boolean;
   onCopyToClipboard: (content: string) => void;
   onOpenSources: (messageId: string) => void;
-  getMetadata: (url: string) => SourceMetadata | undefined;
 }
 
 const MessageItemComponent: React.FC<MessageItemProps> = ({
@@ -194,7 +200,6 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   isSourceOpen,
   onCopyToClipboard,
   onOpenSources,
-  getMetadata,
 }) => {
   const { t } = useTranslation();
   const { data: config } = useConfig();
@@ -543,13 +548,11 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                     onClick={handleCopy}
                     aria-label={isCopied ? t('Copied') : t('Copy')}
                     icon={
-                      <Icon
-                        iconName={isCopied ? 'check' : 'content_copy'}
-                        $theme="neutral"
-                        $variation="550"
-                        $size="16px"
-                        className="action-chat-button-icon"
-                      />
+                      isCopied ? (
+                        <CheckmarkIcon {...chatActionIconProps} />
+                      ) : (
+                        <ClipboardIcon {...chatActionIconProps} />
+                      )
                     }
                     className="c__button--neutral action-chat-button"
                   ></Button>
@@ -568,23 +571,18 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                       variant="tertiary"
                       color="neutral"
                       onClick={handleOpenSources}
-                      icon={
-                        <Icon
-                          iconName="book"
-                          $theme="neutral"
-                          $variation="550"
-                          $size="16px"
-                          className="action-chat-button-icon"
-                        />
-                      }
+                      icon={<SourcesIcon {...chatActionIconProps} />}
                       className={`c__button--neutral action-chat-button ${
                         isSourceOpen === message.id
                           ? 'action-chat-button--open'
                           : ''
                       }`}
                     >
-                      <Text>
-                        {t('Show')} {sourceParts.length}{' '}
+                      <Text $theme="neutral" $variation="tertiary">
+                        {isSourceOpen !== message.id ? t('Show') : t('Hidden')}{' '}
+                        {isSourceOpen !== message.id
+                          ? `${sourceParts.length} `
+                          : ''}
                         {sourceParts.length !== 1 ? t('sources') : t('source')}
                       </Text>
                     </Button>
@@ -603,16 +601,6 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 </Box>
               </Box>
             )}
-
-          {isSourceOpen === message.id && sourceParts.length > 0 && (
-            <Box
-              $css={`
-                animation: fade-in 0.2s ease-out;
-              `}
-            >
-              <SourceItemList parts={sourceParts} getMetadata={getMetadata} />
-            </Box>
-          )}
         </Box>
       </Box>
     </Box>
@@ -631,6 +619,9 @@ const getToolInvocationStates = (message: Message): string =>
     )
     .map((part) => part.toolInvocation.state)
     .join(',');
+
+const getSourcePartsCount = (message: Message): number =>
+  (message.parts ?? []).filter((part) => part.type === 'source').length;
 
 // Custom comparison function for React.memo
 // Only re-render when props that affect rendering change
@@ -665,6 +656,12 @@ const arePropsEqual = (
   if (
     getToolInvocationStates(prevProps.message) !==
     getToolInvocationStates(nextProps.message)
+  ) {
+    return false;
+  }
+  if (
+    getSourcePartsCount(prevProps.message) !==
+    getSourcePartsCount(nextProps.message)
   ) {
     return false;
   }

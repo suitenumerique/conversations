@@ -8,6 +8,12 @@ vi.mock('react-router', async (importOriginal) => ({
   useNavigate: () => vi.fn(),
 }));
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+  }),
+}));
+
 describe('SourceItem', () => {
   let consoleSpy: MockInstance;
 
@@ -23,16 +29,16 @@ describe('SourceItem', () => {
   });
 
   describe('non-http URL', () => {
-    it('renders as plain text without a link', () => {
-      render(<SourceItem url="local-file.txt" />);
+    it('renders attached document label and filename without a link', () => {
+      render(<SourceItem index={1} url="local-file.txt" />);
+      expect(screen.getByText(/Attached document/)).toBeInTheDocument();
       expect(screen.getByText('local-file.txt')).toBeInTheDocument();
       expect(screen.queryByRole('link')).not.toBeInTheDocument();
     });
 
-    it('only shows the URL text, no favicon emoji', () => {
-      render(<SourceItem url="local-file.txt" />);
-      expect(screen.queryByText('🔗')).not.toBeInTheDocument();
-      expect(screen.queryByText('📄')).not.toBeInTheDocument();
+    it('strips .md suffix from converted document sources', () => {
+      render(<SourceItem index={1} url="report.pdf.md" />);
+      expect(screen.getByText('report.pdf')).toBeInTheDocument();
     });
   });
 
@@ -46,7 +52,11 @@ describe('SourceItem', () => {
 
     it('renders a link to the URL', () => {
       render(
-        <SourceItem url="https://example.com/page" metadata={loadedMetadata} />,
+        <SourceItem
+          index={1}
+          url="https://example.com/page"
+          metadata={loadedMetadata}
+        />,
       );
       expect(screen.getByRole('link')).toHaveAttribute(
         'href',
@@ -56,7 +66,11 @@ describe('SourceItem', () => {
 
     it('opens link in a new tab with security attributes', () => {
       render(
-        <SourceItem url="https://example.com" metadata={loadedMetadata} />,
+        <SourceItem
+          index={1}
+          url="https://example.com"
+          metadata={loadedMetadata}
+        />,
       );
       const link = screen.getByRole('link');
       expect(link).toHaveAttribute('target', '_blank');
@@ -65,43 +79,54 @@ describe('SourceItem', () => {
 
     it('shows the hostname', () => {
       render(
-        <SourceItem url="https://example.com/page" metadata={loadedMetadata} />,
+        <SourceItem
+          index={1}
+          url="https://example.com/page"
+          metadata={loadedMetadata}
+        />,
       );
-      expect(screen.getByText('example.com')).toBeInTheDocument();
+      expect(screen.getByRole('link')).toHaveTextContent(/example\.com/);
     });
 
     it('shows the title from metadata', () => {
       render(
-        <SourceItem url="https://example.com" metadata={loadedMetadata} />,
+        <SourceItem
+          index={1}
+          url="https://example.com"
+          metadata={loadedMetadata}
+        />,
       );
       expect(screen.getByText('Example Page')).toBeInTheDocument();
     });
   });
 
   describe('favicon rendering', () => {
-    it('shows 🔗 while loading', () => {
+    it('shows Website label while loading', () => {
       render(
         <SourceItem
+          index={1}
           url="https://example.com"
           metadata={{ title: null, favicon: null, loading: true, error: false }}
         />,
       );
-      expect(screen.getByText('🔗')).toBeInTheDocument();
+      expect(screen.getByRole('link')).toHaveTextContent(/Website/);
     });
 
-    it('shows 🔗 on error', () => {
+    it('shows Website label on error', () => {
       render(
         <SourceItem
+          index={1}
           url="https://example.com"
           metadata={{ title: null, favicon: null, loading: false, error: true }}
         />,
       );
-      expect(screen.getByText('🔗')).toBeInTheDocument();
+      expect(screen.getByRole('link')).toHaveTextContent(/Website/);
     });
 
-    it('shows 🔗 when favicon is null', () => {
+    it('shows Website label when favicon is null', () => {
       render(
         <SourceItem
+          index={1}
           url="https://example.com"
           metadata={{
             title: 'Example',
@@ -111,12 +136,13 @@ describe('SourceItem', () => {
           }}
         />,
       );
-      expect(screen.getByText('🔗')).toBeInTheDocument();
+      expect(screen.getByRole('link')).toHaveTextContent(/Website/);
     });
 
     it('shows favicon image when a favicon URL is provided', () => {
       render(
         <SourceItem
+          index={1}
           url="https://example.com"
           metadata={{
             title: 'Example',
@@ -126,27 +152,13 @@ describe('SourceItem', () => {
           }}
         />,
       );
-      expect(screen.getByAltText('Favicon')).toBeInTheDocument();
+      expect(screen.getByAltText('favicon')).toBeInTheDocument();
     });
 
-    it('shows 📄 when favicon is 📄', () => {
+    it('falls back to Website label when favicon image fails to load', () => {
       render(
         <SourceItem
-          url="https://example.com"
-          metadata={{
-            title: 'Local',
-            favicon: '📄',
-            loading: false,
-            error: false,
-          }}
-        />,
-      );
-      expect(screen.getByText('📄')).toBeInTheDocument();
-    });
-
-    it('falls back to 🔗 when favicon image fails to load', () => {
-      render(
-        <SourceItem
+          index={1}
           url="https://example.com"
           metadata={{
             title: 'Example',
@@ -157,10 +169,10 @@ describe('SourceItem', () => {
         />,
       );
 
-      fireEvent.error(screen.getByAltText('Favicon'));
+      fireEvent.error(screen.getByAltText('favicon'));
 
-      expect(screen.queryByAltText('Favicon')).not.toBeInTheDocument();
-      expect(screen.getByText('🔗')).toBeInTheDocument();
+      expect(screen.queryByAltText('favicon')).not.toBeInTheDocument();
+      expect(screen.getByRole('link')).toHaveTextContent(/Website/);
     });
   });
 
@@ -168,15 +180,17 @@ describe('SourceItem', () => {
     it('updates state when metadata changes from loading to loaded', () => {
       const { rerender } = render(
         <SourceItem
+          index={1}
           url="https://example.com"
           metadata={{ title: null, favicon: null, loading: true, error: false }}
         />,
       );
 
-      expect(screen.getByText('🔗')).toBeInTheDocument();
+      expect(screen.getByRole('link')).toHaveTextContent(/Website/);
 
       rerender(
         <SourceItem
+          index={1}
           url="https://example.com"
           metadata={{
             title: 'Loaded Title',
@@ -188,20 +202,20 @@ describe('SourceItem', () => {
       );
 
       expect(screen.getByText('Loaded Title')).toBeInTheDocument();
-      expect(screen.getByAltText('Favicon')).toBeInTheDocument();
+      expect(screen.getByAltText('favicon')).toBeInTheDocument();
     });
   });
 
   describe('fetch behavior (no metadata)', () => {
-    it('shows 🔗 while fetching', () => {
-      render(<SourceItem url="https://example.com" />);
-      expect(screen.getByText('🔗')).toBeInTheDocument();
+    it('shows Website label while fetching', () => {
+      render(<SourceItem index={1} url="https://example.com" />);
+      expect(screen.getByRole('link')).toHaveTextContent(/Website/);
     });
 
     it('uses hostname as title when CORS fetch fails', async () => {
       (globalThis.fetch as Mock).mockRejectedValue(new Error('CORS error'));
 
-      render(<SourceItem url="https://example.com/page" />);
+      render(<SourceItem index={1} url="https://example.com/page" />);
 
       await waitFor(() =>
         expect(screen.getByRole('link')).toHaveTextContent('example.com'),
@@ -215,7 +229,7 @@ describe('SourceItem', () => {
           Promise.resolve('<html><head><title>My Page</title></head></html>'),
       });
 
-      render(<SourceItem url="https://example.com/page" />);
+      render(<SourceItem index={1} url="https://example.com/page" />);
 
       expect(await screen.findByText('My Page')).toBeInTheDocument();
     });
@@ -226,7 +240,7 @@ describe('SourceItem', () => {
         status: 404,
       });
 
-      render(<SourceItem url="https://example.com/page" />);
+      render(<SourceItem index={1} url="https://example.com/page" />);
 
       await waitFor(() =>
         expect(screen.getByRole('link')).toHaveTextContent('example.com'),
@@ -238,6 +252,7 @@ describe('SourceItem', () => {
 
       render(
         <SourceItem
+          index={1}
           url="https://example.com"
           metadata={{
             title: 'Cached',

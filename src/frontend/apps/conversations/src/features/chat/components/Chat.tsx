@@ -1,5 +1,5 @@
 import { Message, SourceUIPart } from '@ai-sdk/ui-utils';
-import { Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
+import { Button, Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import React, {
@@ -10,11 +10,12 @@ import React, {
   useState,
 } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
-import { Box, Icon, Loader, Text } from '@/components';
+import { Box, HorizontalSeparator, Icon, Loader, Text } from '@/components';
 import { useConfig } from '@/core';
 import { useProjectAttachments } from '@/features/attachments/api/useProjectAttachments';
 import { useReindexProjectAttachment } from '@/features/attachments/api/useReindexProjectAttachment';
@@ -42,7 +43,9 @@ import {
   STATUS_LINK_KINDS,
   getReindexErrorMessage,
 } from '@/features/chat/components/reindexErrorMessages';
+import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { useClipboard } from '@/hook';
+import { useSourcePanelAnchor } from '@/features/sources-panel';
 import { useResponsiveStore } from '@/stores';
 
 import { useSourceMetadataCache } from '../hooks';
@@ -82,7 +85,8 @@ export const Chat = ({
   const { data: config } = useConfig();
   const statusPageUrl = config?.STATUS_PAGE_URL;
   const copyToClipboard = useClipboard();
-  const { isMobile } = useResponsiveStore();
+  const { isMobile, isDesktop } = useResponsiveStore();
+  const sourcesPanelAnchorEl = useSourcePanelAnchor();
 
   const streamProtocol = 'data'; // or 'text'
 
@@ -91,6 +95,7 @@ export const Chat = ({
     toggleForceWebSearch,
     selectedModelHrid,
     setSelectedModelHrid,
+    setSourcesPanelOpen,
   } = useChatPreferencesStore();
 
   const { data: llmConfig } = useLLMConfiguration();
@@ -386,11 +391,84 @@ export const Chat = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
-  const openSources = useCallback((messageId: string) => {
-    // Source-parts guard is handled at the call site (MessageItem only shows the button when sourceParts.length > 0),
-    // so we just toggle it here.
-    setIsSourceOpen((prev) => (prev === messageId ? null : messageId));
-  }, []);
+  const openSources = useCallback(
+    (messageId: string) => {
+      setIsSourceOpen((prev) => {
+        const next = prev === messageId ? null : messageId;
+        setSourcesPanelOpen(next !== null);
+        return next;
+      });
+    },
+    [setSourcesPanelOpen],
+  );
+
+  useEffect(() => {
+    setIsSourceOpen(null);
+    setSourcesPanelOpen(false);
+  }, [initialConversationId, setSourcesPanelOpen]);
+
+  const selectedSourceParts = useMemo(() => {
+    if (!isSourceOpen) {
+      return [];
+    }
+    const sourceMessage = messages.find(
+      (message) => message.id === isSourceOpen,
+    );
+    if (!sourceMessage?.parts) {
+      return [];
+    }
+    return sourceMessage.parts.filter(
+      (part): part is SourceUIPart => part.type === 'source',
+    );
+  }, [isSourceOpen, messages]);
+
+  const isSourcesPanelOpen =
+    Boolean(isSourceOpen) && selectedSourceParts.length > 0;
+
+  const sourcesPanelContent = isSourcesPanelOpen ? (
+    <Box
+      $direction="column"
+      $height="100%"
+      $css={`
+          background: var(--c--contextuals--background--surface--secondary);
+          border-left: 1px solid
+            var(--c--contextuals--border--surface--primary);
+          overflow-y: auto;
+          ${!isDesktop ? 'border-left: none;' : ''}
+        `}
+    >
+      <Box
+        $direction="row"
+        $justify="space-between"
+        $align="center"
+        $margin={{ all: 'xs', left: 'sm' }}
+      >
+        <Text as="h2" $size="lg" $weight="700">
+          {selectedSourceParts.length}{' '}
+          {selectedSourceParts.length > 1 ? t('Sources') : t('Source')}
+        </Text>
+        <Button
+          color="neutral"
+          variant="tertiary"
+          onClick={() => {
+            setIsSourceOpen(null);
+            setSourcesPanelOpen(false);
+          }}
+          aria-label={t('Close sources panel')}
+          icon={
+            <Icon
+              iconName="close"
+              $theme="neutral"
+              $variation="550"
+              $size="18px"
+            />
+          }
+        />
+      </Box>
+      <HorizontalSeparator $withPadding={false} />
+      <SourceItemList parts={selectedSourceParts} getMetadata={getMetadata} />
+    </Box>
+  ) : null;
 
   // Memoize the last assistant message index to avoid recalculating in render
   const lastAssistantMessageIndex = useMemo(() => {
@@ -926,6 +1004,7 @@ export const Chat = ({
           height: 100%;
           flex-grow: 1;
           z-index: 1;
+          position: relative;
         `}
     >
       <Box
@@ -973,7 +1052,6 @@ export const Chat = ({
                       isMobile={isMobile}
                       onCopyToClipboard={copyToClipboard}
                       onOpenSources={openSources}
-                      getMetadata={getMetadata}
                     />
                   )}
                   {/* Inject the prank right after the last user message */}
@@ -1091,6 +1169,9 @@ export const Chat = ({
       >
         {chatErrorModal?.message}
       </Modal>
+      {sourcesPanelContent &&
+        sourcesPanelAnchorEl &&
+        createPortal(sourcesPanelContent, sourcesPanelAnchorEl)}
     </Box>
   );
 };

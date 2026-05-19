@@ -378,7 +378,6 @@ describe('MessageItem', () => {
     isMobile: false,
     onCopyToClipboard: vi.fn(),
     onOpenSources: vi.fn(),
-    getMetadata: vi.fn(),
   };
 
   const withProviders = (ui: React.ReactNode) => (
