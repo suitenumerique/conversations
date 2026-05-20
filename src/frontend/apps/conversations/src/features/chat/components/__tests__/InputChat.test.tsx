@@ -155,24 +155,24 @@ describe('InputChat', () => {
     ).toBeDisabled();
   });
 
-  it('should disable textarea when status is streaming', () => {
+  it('should keep textarea enabled when status is streaming', () => {
     render(<InputChat {...defaultProps} status="streaming" />, {
       wrapper: AppWrapper,
     });
 
     expect(
       screen.getByRole('textbox', { name: 'Enter your message or a question' }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 
-  it('should disable textarea when status is submitted', () => {
+  it('should keep textarea enabled when status is submitted', () => {
     render(<InputChat {...defaultProps} status="submitted" />, {
       wrapper: AppWrapper,
     });
 
     expect(
       screen.getByRole('textbox', { name: 'Enter your message or a question' }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 
   it('should not submit form when pressing Enter and status is streaming', async () => {
