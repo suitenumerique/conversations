@@ -33,6 +33,7 @@ import { MessageItem } from '@/features/chat/components/MessageItem';
 import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
 
+import { fakeCo2TestMessages } from '../fixtures/fakeCo2Message';
 import { useSourceMetadataCache } from '../hooks';
 import { useAprilFools } from '../hooks/useAprilFools';
 import { useChatPreferencesStore } from '../stores/useChatPreferencesStore';
@@ -56,6 +57,9 @@ export const Chat = ({
   const { isMobile } = useResponsiveStore();
 
   const streamProtocol = 'data'; // or 'text'
+  const useFakeCo2Annotations =
+    process.env.NEXT_PUBLIC_FAKE_CO2_ANNOTATIONS === 'true' &&
+    !initialConversationId;
 
   const {
     forceWebSearch,
@@ -147,7 +151,9 @@ export const Chat = ({
   const { prefetchMetadata, getMetadata } = useSourceMetadataCache();
 
   const [initialConversationMessages, setInitialConversationMessages] =
-    useState<Message[] | undefined>(undefined);
+    useState<Message[] | undefined>(
+      useFakeCo2Annotations ? fakeCo2TestMessages : undefined,
+    );
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
     event: FormEvent<HTMLFormElement>;
     attachments?: Attachment[];
@@ -157,7 +163,7 @@ export const Chat = ({
   const [shouldRetry, setShouldRetry] = useState(false);
   const retryOriginalInputRef = useRef<string>('');
   const retryOriginalFilesRef = useRef<FileList | null>(null);
-  const [hasInitialized, setHasInitialized] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(useFakeCo2Annotations);
   const [streamingMessageHeight, setStreamingMessageHeight] = useState<
     number | null
   >(null);
