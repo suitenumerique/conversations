@@ -110,9 +110,35 @@ Examples of queries that do NOT need web_search tool:
 - "Résume ce texte"
 """
 
-SELF_DOCUMENTATION_TOOL_DESCRIPTION = (
-    "For questions about your "
-    "identity, model, capabilities, limitations, privacy, "
-    "internet access, accepted files, or hosting, call the "
-    "self_documentation tool before answering."
+SELF_DOCUMENTATION_SYSTEM_PROMPT = (
+    "For meta questions about this assistant itself (identity, model, "
+    "capabilities, limitations, privacy, internet access, accepted files, "
+    "or hosting), call the self_documentation tool before answering. "
+    "Do not call it for questions about attached documents, web search "
+    "or general knowledge."
 )
+
+SELF_DOCUMENTATION_TOOL_DESCRIPTION = """
+Call self_documentation ONLY for meta questions where the user asks about
+THIS assistant itself: its identity, the underlying model, its capabilities
+or limitations, privacy and data handling, internet access, which file types
+it accepts, attachment size limits, or how and where it is hosted.
+
+Do NOT use this tool for:
+- General knowledge questions or normal conversation
+- Questions about the content of attached documents (use the document search
+  or summarize tools instead)
+- Coding, writing, translation, or any other task-oriented request
+
+Examples that MUST trigger self_documentation:
+- "Which model are you?"
+- "What can you do?"
+- "Do you have internet access?"
+- "What file types can I upload?"
+- "Where is my data stored?"
+
+Examples that must NOT trigger self_documentation:
+- "Summarize this document"
+- "Explain how a for loop works"
+- "What does this report say about Q3 revenue?"
+"""

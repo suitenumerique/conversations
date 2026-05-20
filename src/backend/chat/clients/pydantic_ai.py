@@ -156,6 +156,7 @@ from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
     DOCUMENT_SUMMARIZE_TOOL_DESCRIPTION,
+    SELF_DOCUMENTATION_SYSTEM_PROMPT,
     SELF_DOCUMENTATION_TOOL_DESCRIPTION,
     WEB_SEARCH_TOOL_DESCRIPTION,
 )
@@ -885,9 +886,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         @self.conversation_agent.instructions
         def self_documentation_instruction() -> str:
-            return SELF_DOCUMENTATION_TOOL_DESCRIPTION
+            return SELF_DOCUMENTATION_SYSTEM_PROMPT
 
-        @self.conversation_agent.tool(name="self_documentation", retries=2)
+        @self.conversation_agent.tool(
+            name="self_documentation",
+            retries=2,
+            description=SELF_DOCUMENTATION_TOOL_DESCRIPTION,
+        )
         async def self_documentation(_ctx: RunContext) -> ToolReturn:
             """Return a single payload with static and runtime assistant metadata."""
             return ToolReturn(

@@ -35,6 +35,7 @@ and this project adheres to
 - ⬆️(back) upgrade lxml and pypdf
 - ✨(back) set allow_smart_web_search to False for all users
 - ✨(back) make allow_conversation_analytics user setting readonly in admin
+- 🚸(front) switch to new conversation when creating a project
 
 ### Fixed
 
@@ -45,7 +46,8 @@ and this project adheres to
 - 🐛(fix) Fix streaming crash with OpenAI-compatible APIs
 - 🐛(fix) strip thinking part for models without reasoning support
 - ✨(dev) setup Tilt for local development
- - 🐛(front) project modal now respects document-upload feature flag
+- 🐛(front) project modal now respects document-upload feature flag
+- 🐛(back) self-doc tool no longer triggers on generic or document questions
 
 ## [0.0.15] - 2026-03-31
 

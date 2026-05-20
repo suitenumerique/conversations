@@ -10,7 +10,7 @@ from rest_framework import status
 from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.tests.utils import replace_uuids_with_placeholder
-from chat.tools.descriptions import SELF_DOCUMENTATION_TOOL_DESCRIPTION
+from chat.tools.descriptions import SELF_DOCUMENTATION_SYSTEM_PROMPT
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -67,7 +67,7 @@ def project_hello_data_fixture():
                 "Answer in english.",
                 PREVENT_URL_HALLUCINATION_INSTRUCTION,
                 "Always reply in bullet points.",
-                SELF_DOCUMENTATION_TOOL_DESCRIPTION,
+                SELF_DOCUMENTATION_SYSTEM_PROMPT,
             ],
         ],
         [
@@ -77,7 +77,7 @@ def project_hello_data_fixture():
                 "Today is Friday 25/07/2025.",
                 "Answer in english.",
                 PREVENT_URL_HALLUCINATION_INSTRUCTION,
-                SELF_DOCUMENTATION_TOOL_DESCRIPTION,
+                SELF_DOCUMENTATION_SYSTEM_PROMPT,
             ],
         ],
     ),

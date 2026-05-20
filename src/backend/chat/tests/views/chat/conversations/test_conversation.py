@@ -32,7 +32,7 @@ from chat.tests.utils import (
     assert_data_stream_response,
     replace_uuids_with_placeholder,
 )
-from chat.tools.descriptions import SELF_DOCUMENTATION_TOOL_DESCRIPTION
+from chat.tools.descriptions import SELF_DOCUMENTATION_SYSTEM_PROMPT
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -43,7 +43,7 @@ FROZEN_TIMESTAMP = "2025-07-25T10:36:35.297675Z"
 ENGLISH_INSTRUCTIONS = (
     "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
     f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
-    f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+    f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
 )
 
 
@@ -137,7 +137,7 @@ def _system_messages(language="english"):
         {"content": "Today is Friday 25/07/2025.", "role": "system"},
         {"content": f"Answer in {language}.", "role": "system"},
         {"content": PREVENT_URL_HALLUCINATION_INSTRUCTION, "role": "system"},
-        {"content": SELF_DOCUMENTATION_TOOL_DESCRIPTION, "role": "system"},
+        {"content": SELF_DOCUMENTATION_SYSTEM_PROMPT, "role": "system"},
     ]
 
 
@@ -734,7 +734,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
     french_instructions = (
         "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in french."
         f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
-        f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+        f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
     )
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
@@ -993,7 +993,7 @@ def test_post_conversation_data_protocol_no_stream(
             (
                 "You are an amazing assistant.\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
                 f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
-                f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+                f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
             ),
             ["Why the sky is blue?"],
         ),

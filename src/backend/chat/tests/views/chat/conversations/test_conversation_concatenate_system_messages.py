@@ -10,7 +10,7 @@ from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.llm_configuration import LLModel, LLMProvider
 from chat.tests.utils import assert_data_stream_response
-from chat.tools.descriptions import SELF_DOCUMENTATION_TOOL_DESCRIPTION
+from chat.tools.descriptions import SELF_DOCUMENTATION_SYSTEM_PROMPT
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -50,7 +50,7 @@ def settings_with_concatenation(settings):
             (
                 "base system prompt\n\nToday is Friday 25/07/2025.\n\nAnswer in english.\n\n"
                 f"{PREVENT_URL_HALLUCINATION_INSTRUCTION}\n\n"
-                f"{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+                f"{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
             ),
         ],
         [
@@ -59,7 +59,7 @@ def settings_with_concatenation(settings):
                 "base system prompt\n\nToday is Friday 25/07/2025.\n\nAnswer in english.\n\n"
                 f"{PREVENT_URL_HALLUCINATION_INSTRUCTION}\n\n"
                 "Custom project instructions.\n\n"
-                f"{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+                f"{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
             ),
         ],
     ),
