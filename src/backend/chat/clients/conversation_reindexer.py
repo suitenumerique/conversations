@@ -32,6 +32,13 @@ async def reindex_conversation(
     On collection creation failure: logs and returns without RAG (conversation continues).
     On individual attachment failure: logs and continues with remaining attachments.
     """
+    claimed = await models.ChatConversation.objects.filter(
+        pk=conversation.pk,
+        collection_id__isnull=True,
+    ).aupdate(collection_id="reindexing")
+    if not claimed:
+        return
+
     ready_attachments = [
         attachment
         async for attachment in models.ChatConversationAttachment.objects.filter(
@@ -66,6 +73,9 @@ async def reindex_conversation(
         )
     except Exception as exc:  # pylint: disable=broad-except
         logger.exception("Failed to create collection for conversation %s", conversation.pk)
+        # Reset the sentinel so the next request can retry instead of staying stuck.
+        conversation.collection_id = None
+        await conversation.asave(update_fields=["collection_id", "updated_at"])
         yield events_v4.ToolResultPart(
             tool_call_id=_tool_call_id,
             result={"state": "error", "error": str(exc)},

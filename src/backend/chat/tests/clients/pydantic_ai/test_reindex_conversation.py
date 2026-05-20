@@ -1,5 +1,6 @@
 """Tests for reindex_conversation."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -281,3 +282,53 @@ async def test_reindex_only_reindexes_out_of_context_attachments():
 
     await conversation.arefresh_from_db()
     assert conversation.collection_id == "col-xyz"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_reindex_only_creates_one_collection():
+    """Two concurrent resumes on the same de-indexed conversation create only one collection.
+
+    asyncio.Barrier forces both coroutines to the claim step simultaneously so the
+    race window is deterministic.
+    """
+    conversation = await sync_to_async(ChatConversationFactory)(collection_id=None)
+    await sync_to_async(ChatConversationAttachmentFactory)(
+        conversation=conversation,
+        upload_state=AttachmentStatus.READY,
+        content_type="text/markdown",
+    )
+
+    create_calls = 0
+
+    async def counting_create(*args, **kwargs):
+        nonlocal create_calls
+        create_calls += 1
+
+    mock_store = MagicMock()
+    mock_store.collection_id = "col-123"
+    mock_store.acreate_collection = counting_create
+
+    fake_file = MagicMock()
+    fake_file.__enter__ = MagicMock(return_value=MagicMock(read=MagicMock(return_value=b"data")))
+    fake_file.__exit__ = MagicMock(return_value=False)
+
+    barrier = asyncio.Barrier(2)
+
+    async def attempt():
+        await barrier.wait()  # both tasks reach the claim step simultaneously
+        async for _ in reindex_conversation(conversation, set()):
+            pass
+
+    with (
+        patch(
+            "chat.clients.conversation_reindexer.document_store_backend",
+            MagicMock(return_value=mock_store),
+        ),
+        patch("django.core.files.storage.default_storage.open", return_value=fake_file),
+        patch("asyncio.to_thread", new=AsyncMock()),
+    ):
+        await asyncio.gather(attempt(), attempt())
+
+    assert create_calls == 1
+    await conversation.arefresh_from_db()
+    assert conversation.collection_id == "col-123"
