@@ -66,6 +66,10 @@ class EventEncoder:
         Returns:
             str | None: The encoded event as a string,
             or None if the event type is not adapted to the SDK version.
+
+        Note: Only TextPart/TextDeltaEvent are handled. ErrorPart events are silently
+        dropped on the text protocol path — the `data` protocol (encode()) is the only
+        supported path for surfacing provider errors to the frontend.
         """
         if self.version == EventEncoderVersion.V4 and isinstance(event, TextPart):
             return event.text

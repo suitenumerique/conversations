@@ -12,6 +12,9 @@ and this project adheres to
 
 - 🔒️(front) disable yarn install scripts in docker build
 
+### Added
+- ✨(frontend): display specific error when LLM provider is down
+
 ## [0.0.16] - 2026-05-21
 
 ### Added

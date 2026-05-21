@@ -200,6 +200,7 @@ class ConfigView(drf.views.APIView):
         """
         array_settings = [
             "ACTIVATION_REQUIRED",
+            "STATUS_PAGE_URL",
             "CRISP_WEBSITE_ID",
             "ENVIRONMENT",
             "FRONTEND_CSS_URL",

@@ -21,6 +21,7 @@ pytestmark = pytest.mark.django_db
 
 
 @override_settings(
+    STATUS_PAGE_URL="https://status.example.com",
     CRISP_WEBSITE_ID="123",
     FRONTEND_CSS_URL="http://testcss/",
     FRONTEND_THEME="test-theme",
@@ -46,6 +47,7 @@ def test_api_config(is_authenticated):
     assert response.status_code == HTTP_200_OK
     assert response.json() == {
         "ACTIVATION_REQUIRED": False,
+        "STATUS_PAGE_URL": "https://status.example.com",
         "CRISP_WEBSITE_ID": "123",
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},
@@ -167,6 +169,7 @@ def test_api_config_with_original_theme_customization(is_authenticated, settings
 
 
 @override_settings(
+    STATUS_PAGE_URL="https://status.example.com",
     CRISP_WEBSITE_ID="123",
     FRONTEND_CSS_URL="http://testcss/",
     FRONTEND_THEME="test-theme",
@@ -193,6 +196,7 @@ async def test_api_config_async(is_authenticated):
     assert response.status_code == HTTP_200_OK
     assert response.json() == {
         "ACTIVATION_REQUIRED": False,
+        "STATUS_PAGE_URL": "https://status.example.com",
         "CRISP_WEBSITE_ID": "123",
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},
@@ -218,6 +222,19 @@ async def test_api_config_async(is_authenticated):
         "project_images_max_count": 3,
         "status_banner": None,
     }
+
+
+@override_settings(
+    STATUS_PAGE_URL=None,
+    THEME_CUSTOMIZATION_FILE_PATH="",
+    RAG_FILES_ACCEPTED_FORMATS=["application/pdf"],
+)
+def test_api_config_albert_status_page_url_none():
+    """STATUS_PAGE_URL defaults to None and is included in config."""
+    client = APIClient()
+    response = client.get("/api/v1.0/config/")
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["STATUS_PAGE_URL"] is None
 
 
 def _set_banner(**fields):
