@@ -26,6 +26,7 @@ and this project adheres to
 
 - 🐛(helm) stop job pods from matching the backend disruption budget
 - 🐛(front) use the browser language for the default UI on first load
+- 💄(settings modal) updated the settings modal size
 
 ## [0.0.17] - 2026-06-02
 
