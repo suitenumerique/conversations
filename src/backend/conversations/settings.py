@@ -510,6 +510,8 @@ class Base(BraveSettings, Configuration):
         default=False, environ_name="POSTHOG_MW_CAPTURE_EXCEPTIONS", environ_prefix=None
     )
 
+    STATUS_PAGE_URL = values.Value(None, environ_name="STATUS_PAGE_URL", environ_prefix=None)
+
     # Easy thumbnails
     THUMBNAIL_EXTENSION = "webp"
     THUMBNAIL_TRANSPARENCY_EXTENSION = "webp"

@@ -97,8 +97,10 @@ from django.utils.translation import gettext_lazy as _
 
 from asgiref.sync import sync_to_async
 from langfuse import get_client
+from mistralai.client.errors import HTTPValidationError, SDKError
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
 from pydantic_ai.capabilities import Instrumentation
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import (
     BinaryContent,
     DocumentUrl,
@@ -183,6 +185,27 @@ User = get_user_model()
 
 CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
 DOCUMENT_URL_PREFIX = "/media-key/"
+
+_HTTP_STATUS_TO_ERROR_CODE = {
+    429: "model_rate_limited",
+    503: "model_busy",
+    404: "model_not_found",
+    422: "model_wrong_type",
+}
+
+# Expected operational errors that should not trigger ERROR-level logging or Sentry alerts.
+_EXPECTED_STATUS_CODES = {429, 503}
+
+
+def _resolve_http_error_code(status_code: int | None) -> str | None:
+    """Map an HTTP status code to an error code string, or None to re-raise."""
+    if status_code is None:
+        return None
+    if status_code in _HTTP_STATUS_TO_ERROR_CODE:
+        return _HTTP_STATUS_TO_ERROR_CODE[status_code]
+    if status_code >= 500:
+        return "model_unavailable"
+    return None
 
 
 def get_model_configuration(model_hrid: str):
@@ -346,6 +369,19 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # Async internals
     # --------------------------------------------------------------------- #
 
+    async def _persist_user_message_on_error(self, user_message: UIMessage) -> None:
+        """Persist the user message when an LLM error prevents normal finalization.
+
+        In normal flow, _prepare_update_conversation saves both user and assistant
+        messages after a successful LLM response. On error that path is never reached,
+        so we save the user message here to keep it visible on page reload.
+        Role-based guard prevents double-appending on repeated errors.
+        """
+        if self.conversation.messages and self.conversation.messages[-1].role == "user":
+            return
+        self.conversation.messages = list(self.conversation.messages) + [user_message]
+        await sync_to_async(self.conversation.save)(update_fields=["messages"])
+
     async def _stream_content(
         self, messages: List[UIMessage], force_web_search: bool = False, encoder_fn: Callable = None
     ):
@@ -356,9 +392,43 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
                 span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
 
-            async for event in self._run_agent(messages, force_web_search):
-                if stream_text := encoder_fn(event):
-                    yield stream_text
+            try:
+                async for event in self._run_agent(messages, force_web_search):
+                    if stream_text := encoder_fn(event):
+                        yield stream_text
+            except (ModelHTTPError, HTTPValidationError, SDKError) as exc:
+                # HTTPValidationError and SDKError are mistral-specific exceptions not
+                # wrapped by pydantic_ai into ModelHTTPError.
+                error_code = _resolve_http_error_code(exc.status_code)
+                if error_code is None:
+                    raise
+                log = logger.warning if exc.status_code in _EXPECTED_STATUS_CODES else logger.error
+                log(
+                    "LLM provider HTTP error (status=%s) for conversation %s: %s",
+                    exc.status_code,
+                    self.conversation.pk,
+                    exc,
+                )
+                if messages:
+                    await self._persist_user_message_on_error(messages[-1])
+                error_event = events_v4.ErrorPart(error=error_code)
+                if encoded := encoder_fn(error_event):
+                    yield encoded
+                else:
+                    raise
+            except ModelAPIError as exc:
+                logger.warning(
+                    "LLM provider connection error for conversation %s: %s",
+                    self.conversation.pk,
+                    exc,
+                )
+                if messages:
+                    await self._persist_user_message_on_error(messages[-1])
+                error_event = events_v4.ErrorPart(error="model_connection_error")
+                if encoded := encoder_fn(error_event):
+                    yield encoded
+                else:
+                    raise
 
     async def stream_text_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return only the assistant text deltas (legacy text mode)."""
@@ -1414,10 +1484,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self.conversation.agent_usage = usage
 
-        self.conversation.messages += [
-            model_message_to_ui_message(_merged_final_output_request),
-            _output_ui_message,
-        ]
+        if not (self.conversation.messages and self.conversation.messages[-1].role == "user"):
+            self.conversation.messages += [
+                model_message_to_ui_message(_merged_final_output_request)
+            ]
+        self.conversation.messages += [_output_ui_message]
 
         final_output_json = json.loads(
             ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")

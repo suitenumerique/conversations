@@ -35,6 +35,7 @@ export interface MaintenanceConfig {
 
 export interface ConfigResponse {
   ACTIVATION_REQUIRED: boolean;
+  STATUS_PAGE_URL?: string | null;
   ENVIRONMENT: string;
   FEATURE_FLAGS: FeatureFlags;
   FRONTEND_CSS_URL?: string;

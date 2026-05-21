@@ -47,6 +47,8 @@ const MOBILE_WEB_BUTTON_CSS = `
   }
 `;
 
+const ACTIONS_OPACITY_CSS = 'opacity: 1;';
+
 const ACTIVE_WEB_BUTTON_CSS = `
   .research-web-button {
     background-color: var(--c--contextuals--background--semantic--brand--secondary) !important;
@@ -96,12 +98,6 @@ export const InputChatActions = memo(
   }: InputChatActionsProps) => {
     const { t } = useTranslation();
 
-    // Memoized dynamic styles
-    const actionsOpacityCss = useMemo(
-      () => `opacity: ${status === 'error' ? '0.5' : '1'};`,
-      [status],
-    );
-
     const webSearchWrapperCss = useMemo(() => {
       let css = '';
       if (isMobile) {
@@ -119,7 +115,7 @@ export const InputChatActions = memo(
         $gap="sm"
         $padding={STYLES.actionsGap}
         $align="space-between"
-        $css={actionsOpacityCss}
+        $css={ACTIONS_OPACITY_CSS}
       >
         {/* Left side: Attach + Web Search */}
         <Box

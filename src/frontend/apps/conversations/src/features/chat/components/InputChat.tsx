@@ -5,6 +5,7 @@ import { Box, Text } from '@/components';
 import { useToast } from '@/components/ToastProvider';
 import { useConfig, useFeatureEnabled } from '@/core';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
+import { ChatErrorType } from '@/features/chat/components/ChatError';
 import { InputChatActions } from '@/features/chat/components/InputChatAction';
 import { ProjectWelcomeMessage } from '@/features/chat/components/ProjectWelcomeMessage';
 import { SuggestionCarousel } from '@/features/chat/components/SuggestionCarousel';
@@ -17,6 +18,14 @@ import FilesIcon from '../assets/files.svg';
 
 import { AttachmentList } from './AttachmentList';
 import { ScrollDown } from './ScrollDown';
+import { getChatErrorMessage } from './chatErrorMessages';
+
+const INPUT_ENABLED_STATUSES = [
+  'ready',
+  'streaming',
+  'submitted',
+  'error',
+] as const;
 
 interface InputChatProps {
   messagesLength: number;
@@ -34,6 +43,7 @@ interface InputChatProps {
   selectedModel?: LLMModel | null;
   onModelSelect?: (model: LLMModel) => void;
   isUploadingFiles?: boolean;
+  errorType?: ChatErrorType;
 }
 
 const STYLES = {
@@ -122,6 +132,7 @@ export const InputChat = ({
   selectedModel,
   onModelSelect,
   isUploadingFiles = false,
+  errorType,
 }: InputChatProps) => {
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -237,8 +248,16 @@ export const InputChat = ({
   });
 
   const isInputDisabled =
-    (status !== 'ready' && status !== 'streaming' && status !== 'submitted') ||
-    isUploadingFiles;
+    !INPUT_ENABLED_STATUSES.includes(
+      status as (typeof INPUT_ENABLED_STATUSES)[number],
+    ) ||
+    isUploadingFiles ||
+    (!!errorType && errorType !== 'generic');
+
+  const textareaPlaceholder =
+    errorType && errorType !== 'generic'
+      ? getChatErrorMessage(t, errorType)
+      : undefined;
 
   const containerCss = useMemo(
     () => `
@@ -248,13 +267,10 @@ export const InputChat = ({
     [isDesktop],
   );
 
-  const textareaStyle = useMemo(
-    () => ({
-      ...TEXTAREA_STYLE,
-      opacity: status === 'error' ? '0.5' : '1',
-    }),
-    [status],
-  );
+  const textareaStyle = {
+    ...TEXTAREA_STYLE,
+    opacity: '1',
+  };
 
   const formPadding = isDesktop ? STYLES.formPadding : STYLES.formPaddingMobile;
 
@@ -430,6 +446,7 @@ export const InputChat = ({
               <textarea
                 ref={textareaRef}
                 aria-label={t('Enter your message or a question')}
+                placeholder={textareaPlaceholder}
                 value={input ?? ''}
                 name="inputchat-textarea"
                 onChange={handleTextareaChange}
@@ -440,7 +457,9 @@ export const InputChat = ({
                 style={textareaStyle}
               />
 
-              {!input && <SuggestionCarousel messagesLength={messagesLength} />}
+              {!input && !textareaPlaceholder && (
+                <SuggestionCarousel messagesLength={messagesLength} />
+              )}
 
               <input
                 accept={conf?.chat_upload_accept}

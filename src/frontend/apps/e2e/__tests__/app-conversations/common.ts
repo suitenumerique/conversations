@@ -26,6 +26,7 @@ export const CONFIG = {
   LANGUAGE_CODE: 'en-us',
   POSTHOG_KEY: {},
   SENTRY_DSN: null,
+  STATUS_PAGE_URL: null,
   theme_customization: {},
   chat_upload_accept:
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document,' +

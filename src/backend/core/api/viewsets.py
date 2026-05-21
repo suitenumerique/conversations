@@ -141,6 +141,7 @@ class ConfigView(drf.views.APIView):
         """
         array_settings = [
             "ACTIVATION_REQUIRED",
+            "STATUS_PAGE_URL",
             "ENVIRONMENT",
             "FRONTEND_CSS_URL",
             "FRONTEND_CONTACT_EMAIL",

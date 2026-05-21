@@ -40,6 +40,9 @@ and this project adheres to
 
 - 🐛(backend) remove user list endpoint
 
+### Added
+- ✨(frontend): display specific error when LLM provider is down
+
 ## [0.0.16] - 2026-05-21
 
 ### Added
