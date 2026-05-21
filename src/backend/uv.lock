@@ -405,7 +405,7 @@ wheels = [
 
 [[package]]
 name = "conversations"
-version = "0.0.15"
+version = "0.0.16"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
