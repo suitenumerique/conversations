@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-02-26 21:42+0000\n"
-"PO-Revision-Date: 2026-03-31 14:31\n"
+"POT-Creation-Date: 2026-05-20 12:55+0000\n"
+"PO-Revision-Date: 2026-05-21 08:44\n"
 "Last-Translator: \n"
 "Language-Team: Russian\n"
 "Language: ru_RU\n"
@@ -129,7 +129,7 @@ msgstr "использовано"
 msgid "Number of times this code has been used"
 msgstr "Сколько раз этот код был использован"
 
-#: activation_codes/models.py:65 core/models.py:154
+#: activation_codes/models.py:65 core/models.py:156
 msgid "active"
 msgstr "активный"
 
@@ -166,7 +166,7 @@ msgid "You have already activated your account"
 msgstr "Вы уже активировали свою учётную запись"
 
 #: activation_codes/models.py:170 activation_codes/models.py:202
-#: core/models.py:182
+#: core/models.py:184
 msgid "user"
 msgstr "пользователь"
 
@@ -210,129 +210,212 @@ msgstr "Код активации для проверки"
 msgid "Your account has been successfully activated"
 msgstr "Ваша учётная запись успешно активирована"
 
+#: chat/agent_rag/document_converter/odt.py:30
+#, python-format
+msgid "Failed to parse ODT document: %(error)s"
+msgstr "Не удалось разобрать ODT документ: %(error)s"
+
 #: chat/apps.py:12
 msgid "chat application"
 msgstr "приложение чата"
 
-#: core/admin.py:26
+#: chat/clients/pydantic_ai.py:909
+msgid "Internal Documentation of the AI Assistant"
+msgstr "Внутренняя документация ИИ помощника"
+
+#: chat/views.py:755
+#, python-format
+msgid "This project already has the maximum of %(cap)d images. Remove one before uploading another."
+msgstr "В этом проекте уже больше %(cap)d изображений. Удалите одно перед загрузкой другого."
+
+#: chat/views.py:771
+#, python-format
+msgid "This project already has the maximum of %(cap)d files. Remove one before uploading another."
+msgstr "В этом проекте уже больше %(cap)d файлов. Удалите один перед загрузкой другого."
+
+#: core/admin.py:28
 msgid "Personal info"
 msgstr "Личные данные"
 
-#: core/admin.py:40
+#: core/admin.py:43
 msgid "Permissions"
 msgstr "Разрешения"
 
-#: core/admin.py:52
+#: core/admin.py:55
 msgid "Important dates"
 msgstr "Важные даты"
 
-#: core/models.py:39
+#: core/admin.py:123
+msgid "Self documentation"
+msgstr "Встроенная документация"
+
+#: core/admin.py:126
+msgid "Markdown documentation about this service. Exposed to the conversation agent so it can answer questions users ask about the app itself."
+msgstr "Документация в формате Markdown об этой службе. Введена в состав агента, чтобы он мог ответить на вопросы пользователей о самом приложении."
+
+#: core/admin.py:134
+msgid "Status banner"
+msgstr "Индикатор состояния"
+
+#: core/admin.py:137
+msgid "Shown to all users at the top of the app. Leave title and content empty to disable."
+msgstr "Показывается всем пользователям в верхней части приложения. Для отключения оставьте заголовок и содержимое пустыми."
+
+#: core/models.py:41
 msgid "id"
 msgstr "id"
 
-#: core/models.py:40
+#: core/models.py:42
 msgid "primary key for the record as UUID"
 msgstr "первичный ключ для записи как UUID"
 
-#: core/models.py:46
+#: core/models.py:48
 msgid "created on"
 msgstr "создано"
 
-#: core/models.py:47
+#: core/models.py:49
 msgid "date and time at which a record was created"
 msgstr "дата и время создания записи"
 
-#: core/models.py:52
+#: core/models.py:54
 msgid "updated on"
 msgstr "обновлено"
 
-#: core/models.py:53
+#: core/models.py:55
 msgid "date and time at which a record was last updated"
 msgstr "дата и время последнего обновления записи"
 
-#: core/models.py:89
+#: core/models.py:91
 msgid "We couldn't find a user with this sub but the email is already associated with a registered user."
 msgstr "Мы не смогли найти пользователя с этими данными, но этот адрес уже связан с зарегистрированным пользователем."
 
-#: core/models.py:102
+#: core/models.py:104
 msgid "Enter a valid sub. This value may contain only letters, numbers, and @/./+/-/_/: characters."
 msgstr "Введите правильный префикс. Он может содержать только буквы, цифры и символы @/./+/-/_/."
 
-#: core/models.py:108
+#: core/models.py:110
 msgid "sub"
 msgstr "префикс"
 
-#: core/models.py:110
+#: core/models.py:112
 msgid "Required. 255 characters or fewer. Letters, numbers, and @/./+/-/_/: characters only."
 msgstr "Обязательно. 255 символов или меньше. Только буквы, цифры и @/./+/-/_/: /."
 
-#: core/models.py:119
+#: core/models.py:121
 msgid "full name"
 msgstr "полное имя"
 
-#: core/models.py:120
+#: core/models.py:122
 msgid "short name"
 msgstr "короткое имя"
 
-#: core/models.py:122
+#: core/models.py:124
 msgid "identity email address"
 msgstr "личный адрес электронной почты"
 
-#: core/models.py:126
+#: core/models.py:128
 msgid "admin email address"
 msgstr "e-mail администратора"
 
-#: core/models.py:132
+#: core/models.py:134
 msgid "language"
 msgstr "язык"
 
-#: core/models.py:133
+#: core/models.py:135
 msgid "The language in which the user wants to see the interface."
 msgstr "Язык, на котором пользователь хочет видеть интерфейс."
 
-#: core/models.py:141
+#: core/models.py:143
 msgid "The timezone in which the user wants to see times."
 msgstr "Часовой пояс, в котором пользователь хочет видеть время."
 
-#: core/models.py:144
+#: core/models.py:146
 msgid "device"
 msgstr "устройство"
 
-#: core/models.py:146
+#: core/models.py:148
 msgid "Whether the user is a device or a real user."
 msgstr "Пользователь является устройством или человеком."
 
-#: core/models.py:149
+#: core/models.py:151
 msgid "staff status"
 msgstr "статус сотрудника"
 
-#: core/models.py:151
+#: core/models.py:153
 msgid "Whether the user can log into this admin site."
 msgstr "Может ли пользователь войти на этот административный сайт."
 
-#: core/models.py:157
+#: core/models.py:159
 msgid "Whether this user should be treated as active. Unselect this instead of deleting accounts."
 msgstr "Должен ли пользователь рассматриваться как активный. Альтернатива удалению учётных записей."
 
-#: core/models.py:164
+#: core/models.py:166
 msgid "allow conversation analytics"
 msgstr "разрешить аналитику для беседы"
 
-#: core/models.py:166
+#: core/models.py:168
 msgid "Whether the user allows to use their conversations for analytics."
 msgstr "Разрешает ли пользователь использовать свои беседы для аналитики."
 
-#: core/models.py:170
+#: core/models.py:172
 msgid "allow smart web search"
 msgstr "разрешить умный поиск в Интернете"
 
-#: core/models.py:172
+#: core/models.py:174
 msgid "Whether the user allows to use smart web search features."
 msgstr "Разрешает ли пользователь использовать умный поиск в Интернете."
 
-#: core/models.py:183
+#: core/models.py:185
 msgid "users"
 msgstr "пользователи"
+
+#: core/models.py:201
+msgid "Info"
+msgstr "Информация"
+
+#: core/models.py:202
+msgid "Warning"
+msgstr "Внимание"
+
+#: core/models.py:203
+msgid "Alert"
+msgstr "Предупреждение"
+
+#: core/models.py:210
+msgid "Self documentation content. Must be valid markdown."
+msgstr "Встроенная документация. Должна содержать корректную разметку."
+
+#: core/models.py:217
+msgid "Status banner - level"
+msgstr "Индикатор состояния - уровень"
+
+#: core/models.py:224
+msgid "Status banner - title"
+msgstr "Индикатор состояния - заголовок"
+
+#: core/models.py:228
+msgid "Status banner - content"
+msgstr "Индикатор состояния - содержимое"
+
+#: core/models.py:233
+msgid "Status banner - starts at"
+msgstr "Индикатор состояния - с"
+
+#: core/models.py:234
+msgid "If set, the banner is hidden before this date."
+msgstr "Если установлено, индикатор будет скрыт до этой даты."
+
+#: core/models.py:239
+msgid "Status banner - ends at"
+msgstr "Индикатор состояния - до"
+
+#: core/models.py:240
+msgid "If set, the banner is hidden after this date."
+msgstr "Если установлено, индикатор будет скрыт после этой даты."
+
+#: core/models.py:256
+msgid "Site Configuration"
+msgstr "Конфигурация сайта"
 
 #: core/templates/mail/html/invitation.html:162
 #: core/templates/mail/text/invitation.txt:3
