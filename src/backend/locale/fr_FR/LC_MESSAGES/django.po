@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-02-26 21:42+0000\n"
-"PO-Revision-Date: 2026-03-31 14:31\n"
+"POT-Creation-Date: 2026-05-20 12:55+0000\n"
+"PO-Revision-Date: 2026-05-21 08:44\n"
 "Last-Translator: \n"
 "Language-Team: French\n"
 "Language: fr_FR\n"
@@ -129,7 +129,7 @@ msgstr "utilisations actuelles"
 msgid "Number of times this code has been used"
 msgstr "Nombre de fois où ce code a été utilisé"
 
-#: activation_codes/models.py:65 core/models.py:154
+#: activation_codes/models.py:65 core/models.py:156
 msgid "active"
 msgstr "actif"
 
@@ -166,7 +166,7 @@ msgid "You have already activated your account"
 msgstr "Vous avez déjà activé votre compte"
 
 #: activation_codes/models.py:170 activation_codes/models.py:202
-#: core/models.py:182
+#: core/models.py:184
 msgid "user"
 msgstr "utilisateur"
 
@@ -210,129 +210,212 @@ msgstr "Le code d'activation à valider"
 msgid "Your account has been successfully activated"
 msgstr "Votre compte a été activé avec succès"
 
+#: chat/agent_rag/document_converter/odt.py:30
+#, python-format
+msgid "Failed to parse ODT document: %(error)s"
+msgstr "Impossible d'analyser le document ODT : %(error)s"
+
 #: chat/apps.py:12
 msgid "chat application"
 msgstr "application de chat"
 
-#: core/admin.py:26
+#: chat/clients/pydantic_ai.py:909
+msgid "Internal Documentation of the AI Assistant"
+msgstr "Documentation interne de l'Assistant IA"
+
+#: chat/views.py:755
+#, python-format
+msgid "This project already has the maximum of %(cap)d images. Remove one before uploading another."
+msgstr "Ce projet contient déjà le nombre maximal de %(cap)d images. Supprimez-en une avant d'en ajouter une autre."
+
+#: chat/views.py:771
+#, python-format
+msgid "This project already has the maximum of %(cap)d files. Remove one before uploading another."
+msgstr "Ce projet contient déjà le nombre maximal de %(cap)d fichiers. Supprimez-en un avant d'en télécharger un autre."
+
+#: core/admin.py:28
 msgid "Personal info"
 msgstr "Informations personnelles"
 
-#: core/admin.py:40
+#: core/admin.py:43
 msgid "Permissions"
 msgstr "Permissions"
 
-#: core/admin.py:52
+#: core/admin.py:55
 msgid "Important dates"
 msgstr "Dates importantes"
 
-#: core/models.py:39
+#: core/admin.py:123
+msgid "Self documentation"
+msgstr "Auto-documentation"
+
+#: core/admin.py:126
+msgid "Markdown documentation about this service. Exposed to the conversation agent so it can answer questions users ask about the app itself."
+msgstr "Documentation de Markdown sur ce service. Exposé à l'agent de conversation afin qu'il puisse répondre aux questions posées par les utilisateurs à propos de l'application elle-même."
+
+#: core/admin.py:134
+msgid "Status banner"
+msgstr "Bannière de statut"
+
+#: core/admin.py:137
+msgid "Shown to all users at the top of the app. Leave title and content empty to disable."
+msgstr "Affiché à tous les utilisateurs en haut de l'application. Laissez le titre et le contenu vides pour désactiver."
+
+#: core/models.py:41
 msgid "id"
 msgstr "id"
 
-#: core/models.py:40
+#: core/models.py:42
 msgid "primary key for the record as UUID"
 msgstr "clé primaire pour l'enregistrement en tant que UUID"
 
-#: core/models.py:46
+#: core/models.py:48
 msgid "created on"
 msgstr "créé le"
 
-#: core/models.py:47
+#: core/models.py:49
 msgid "date and time at which a record was created"
 msgstr "date et heure de création de l'enregistrement"
 
-#: core/models.py:52
+#: core/models.py:54
 msgid "updated on"
 msgstr "mis à jour le"
 
-#: core/models.py:53
+#: core/models.py:55
 msgid "date and time at which a record was last updated"
 msgstr "date et heure de la dernière mise à jour de l'enregistrement"
 
-#: core/models.py:89
+#: core/models.py:91
 msgid "We couldn't find a user with this sub but the email is already associated with a registered user."
 msgstr "Nous n'avons pas pu trouver un utilisateur avec ce sous-groupe mais l'e-mail est déjà associé à un utilisateur enregistré."
 
-#: core/models.py:102
+#: core/models.py:104
 msgid "Enter a valid sub. This value may contain only letters, numbers, and @/./+/-/_/: characters."
 msgstr "Saisissez un 'sub' valide. Cette valeur ne peut contenir que des lettres, des chiffres et les caractères @/./+/-/_/: uniquement."
 
-#: core/models.py:108
+#: core/models.py:110
 msgid "sub"
 msgstr "sub"
 
-#: core/models.py:110
+#: core/models.py:112
 msgid "Required. 255 characters or fewer. Letters, numbers, and @/./+/-/_/: characters only."
 msgstr "Obligatoire. 255 caractères ou moins. Lettres, chiffres et caractères @/./+/-/_/: uniquement."
 
-#: core/models.py:119
+#: core/models.py:121
 msgid "full name"
 msgstr "nom complet"
 
-#: core/models.py:120
+#: core/models.py:122
 msgid "short name"
 msgstr "nom court"
 
-#: core/models.py:122
+#: core/models.py:124
 msgid "identity email address"
 msgstr "adresse e-mail d'identité"
 
-#: core/models.py:126
+#: core/models.py:128
 msgid "admin email address"
 msgstr "adresse e-mail de l'administrateur"
 
-#: core/models.py:132
+#: core/models.py:134
 msgid "language"
 msgstr "langue"
 
-#: core/models.py:133
+#: core/models.py:135
 msgid "The language in which the user wants to see the interface."
 msgstr "La langue dans laquelle l'utilisateur veut voir l'interface."
 
-#: core/models.py:141
+#: core/models.py:143
 msgid "The timezone in which the user wants to see times."
 msgstr "Le fuseau horaire dans lequel l'utilisateur souhaite voir les heures."
 
-#: core/models.py:144
+#: core/models.py:146
 msgid "device"
 msgstr "appareil"
 
-#: core/models.py:146
+#: core/models.py:148
 msgid "Whether the user is a device or a real user."
 msgstr "Si l'utilisateur est un appareil ou un utilisateur réel."
 
-#: core/models.py:149
+#: core/models.py:151
 msgid "staff status"
 msgstr "statut d'équipe"
 
-#: core/models.py:151
+#: core/models.py:153
 msgid "Whether the user can log into this admin site."
 msgstr "Si l'utilisateur peut se connecter à ce site d'administration."
 
-#: core/models.py:157
+#: core/models.py:159
 msgid "Whether this user should be treated as active. Unselect this instead of deleting accounts."
 msgstr "Si cet utilisateur doit être traité comme actif. Désélectionnez ceci au lieu de supprimer des comptes."
 
-#: core/models.py:164
+#: core/models.py:166
 msgid "allow conversation analytics"
 msgstr "autoriser les analyses de conversation"
 
-#: core/models.py:166
+#: core/models.py:168
 msgid "Whether the user allows to use their conversations for analytics."
 msgstr "Si l'utilisateur autorise l'utilisation de ses conversations pour des analyses."
 
-#: core/models.py:170
+#: core/models.py:172
 msgid "allow smart web search"
 msgstr "autoriser la recherche intelligente sur le web"
 
-#: core/models.py:172
+#: core/models.py:174
 msgid "Whether the user allows to use smart web search features."
 msgstr "Si l'utilisateur autorise l'utilisation de fonctions de recherche intelligente sur le Web."
 
-#: core/models.py:183
+#: core/models.py:185
 msgid "users"
 msgstr "utilisateurs"
+
+#: core/models.py:201
+msgid "Info"
+msgstr "Information"
+
+#: core/models.py:202
+msgid "Warning"
+msgstr "Attention"
+
+#: core/models.py:203
+msgid "Alert"
+msgstr "Alerte"
+
+#: core/models.py:210
+msgid "Self documentation content. Must be valid markdown."
+msgstr "Contenu de l'autodocumentation. Doit être un markdown valide."
+
+#: core/models.py:217
+msgid "Status banner - level"
+msgstr "Bannière de statut - niveau"
+
+#: core/models.py:224
+msgid "Status banner - title"
+msgstr "Bannière de statut - titre"
+
+#: core/models.py:228
+msgid "Status banner - content"
+msgstr "Bannière de statut - contenu"
+
+#: core/models.py:233
+msgid "Status banner - starts at"
+msgstr "Bannière de statut - commence à"
+
+#: core/models.py:234
+msgid "If set, the banner is hidden before this date."
+msgstr "Si défini, la bannière est cachée avant cette date."
+
+#: core/models.py:239
+msgid "Status banner - ends at"
+msgstr "Bannière de statut - se termine à"
+
+#: core/models.py:240
+msgid "If set, the banner is hidden after this date."
+msgstr "Si défini, la bannière est cachée après cette date."
+
+#: core/models.py:256
+msgid "Site Configuration"
+msgstr "Configuration du site"
 
 #: core/templates/mail/html/invitation.html:162
 #: core/templates/mail/text/invitation.txt:3
