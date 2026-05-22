@@ -5,6 +5,7 @@ import { Box, Text } from '@/components';
 import { useToast } from '@/components/ToastProvider';
 import { useConfig, useFeatureEnabled } from '@/core';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
+import { ChatErrorType } from '@/features/chat/components/ChatError';
 import { InputChatActions } from '@/features/chat/components/InputChatAction';
 import { ProjectWelcomeMessage } from '@/features/chat/components/ProjectWelcomeMessage';
 import { SuggestionCarousel } from '@/features/chat/components/SuggestionCarousel';
@@ -34,6 +35,7 @@ interface InputChatProps {
   selectedModel?: LLMModel | null;
   onModelSelect?: (model: LLMModel) => void;
   isUploadingFiles?: boolean;
+  errorType?: ChatErrorType;
 }
 
 const STYLES = {
@@ -122,6 +124,7 @@ export const InputChat = ({
   selectedModel,
   onModelSelect,
   isUploadingFiles = false,
+  errorType,
 }: InputChatProps) => {
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -237,8 +240,31 @@ export const InputChat = ({
   });
 
   const isInputDisabled =
-    (status !== 'ready' && status !== 'streaming' && status !== 'submitted') ||
-    isUploadingFiles;
+    (status !== 'ready' &&
+      status !== 'streaming' &&
+      status !== 'submitted' &&
+      status !== 'error') ||
+    isUploadingFiles ||
+    (!!errorType && errorType !== 'generic');
+
+  const PROVIDER_ERROR_PLACEHOLDERS: Partial<Record<ChatErrorType, string>> = {
+    model_unavailable: t(
+      'The assistant is temporarily unavailable. Please try again later.',
+    ),
+    model_rate_limited: t(
+      'The assistant is overloaded. Please try again in a few minutes.',
+    ),
+    model_connection_error: t(
+      'Unable to reach the assistant. Please check your connection or try again later.',
+    ),
+    model_not_found: t('Model not found.'),
+    model_wrong_type: t('Wrong model type.'),
+    model_busy: t('The assistant is too busy. Please try again later.'),
+  };
+  const textareaPlaceholder =
+    errorType && errorType in PROVIDER_ERROR_PLACEHOLDERS
+      ? PROVIDER_ERROR_PLACEHOLDERS[errorType]
+      : undefined;
 
   const containerCss = useMemo(
     () => `
@@ -248,13 +274,10 @@ export const InputChat = ({
     [isDesktop],
   );
 
-  const textareaStyle = useMemo(
-    () => ({
-      ...TEXTAREA_STYLE,
-      opacity: status === 'error' ? '0.5' : '1',
-    }),
-    [status],
-  );
+  const textareaStyle = {
+    ...TEXTAREA_STYLE,
+    opacity: '1',
+  };
 
   const formPadding = isDesktop ? STYLES.formPadding : STYLES.formPaddingMobile;
 
@@ -430,6 +453,7 @@ export const InputChat = ({
               <textarea
                 ref={textareaRef}
                 aria-label={t('Enter your message or a question')}
+                placeholder={textareaPlaceholder}
                 value={input ?? ''}
                 name="inputchat-textarea"
                 onChange={handleTextareaChange}
@@ -440,7 +464,9 @@ export const InputChat = ({
                 style={textareaStyle}
               />
 
-              {!input && <SuggestionCarousel messagesLength={messagesLength} />}
+              {!input && !textareaPlaceholder && (
+                <SuggestionCarousel messagesLength={messagesLength} />
+              )}
 
               <input
                 accept={conf?.chat_upload_accept}

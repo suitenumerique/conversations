@@ -96,11 +96,7 @@ export const InputChatActions = memo(
   }: InputChatActionsProps) => {
     const { t } = useTranslation();
 
-    // Memoized dynamic styles
-    const actionsOpacityCss = useMemo(
-      () => `opacity: ${status === 'error' ? '0.5' : '1'};`,
-      [status],
-    );
+    const actionsOpacityCss = 'opacity: 1;';
 
     const webSearchWrapperCss = useMemo(() => {
       let css = '';

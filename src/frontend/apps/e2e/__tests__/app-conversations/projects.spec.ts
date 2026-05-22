@@ -21,7 +21,9 @@ test.describe('Projects', () => {
       params: { title: `${browserName}-`, page_size: 200 },
     });
     if (!response.ok()) return;
-    const body = (await response.json()) as { results?: Array<{ id: string; title: string }> };
+    const body = (await response.json()) as {
+      results?: Array<{ id: string; title: string }>;
+    };
     const prefix = new RegExp(`^${browserName}-\\d+-\\d+-`);
     for (const project of body.results ?? []) {
       if (!prefix.test(project.title)) continue;

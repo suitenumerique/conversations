@@ -5,8 +5,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 from asgiref.sync import sync_to_async
-from mistralai.client.errors import HTTPValidationError, SDKError
-from mistralai.client.errors.httpvalidationerror import HTTPValidationErrorData
+from mistralai.client.errors import HTTPValidationError, HTTPValidationErrorData, SDKError
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 
 from chat.ai_sdk_types import UIMessage

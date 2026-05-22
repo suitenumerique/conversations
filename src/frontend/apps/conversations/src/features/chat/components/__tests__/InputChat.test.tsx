@@ -145,14 +145,14 @@ describe('InputChat', () => {
     expect(handleInputChange).toHaveBeenCalled();
   });
 
-  it('should disable textarea when status is error', () => {
+  it('should keep textarea enabled when status is error', () => {
     render(<InputChat {...defaultProps} status="error" />, {
       wrapper: AppWrapper,
     });
 
     expect(
       screen.getByRole('textbox', { name: 'Enter your message or a question' }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 
   it('should keep textarea enabled when status is streaming', () => {

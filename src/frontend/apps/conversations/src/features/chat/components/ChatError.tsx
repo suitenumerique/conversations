@@ -3,15 +3,46 @@ import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
 
 import { Box, Icon, Text } from '@/components';
+import { useConfig } from '@/core';
+
+export type ChatErrorType =
+  | 'generic'
+  | 'model_unavailable'
+  | 'model_rate_limited'
+  | 'model_connection_error'
+  | 'model_not_found'
+  | 'model_wrong_type'
+  | 'model_busy';
 
 interface ChatErrorProps {
+  errorType: ChatErrorType;
   hasLastSubmission: boolean;
   onRetry: () => void;
 }
 
-export const ChatError = ({ hasLastSubmission, onRetry }: ChatErrorProps) => {
+const ERROR_MESSAGES: Record<ChatErrorType, string> = {
+  generic: 'Sorry, an error occurred. Please try again.',
+  model_unavailable:
+    'The assistant is temporarily unavailable. Please try again later.',
+  model_rate_limited:
+    'The assistant is overloaded. Please try again in a few minutes.',
+  model_connection_error:
+    'Unable to reach the assistant. Please check your connection or try again later.',
+  model_not_found: 'Model not found.',
+  model_wrong_type: 'Wrong model type.',
+  model_busy: 'The assistant is too busy. Please try again later.',
+};
+
+export const ChatError = ({
+  errorType,
+  hasLastSubmission,
+  onRetry,
+}: ChatErrorProps) => {
   const { t } = useTranslation();
   const router = useRouter();
+  const { data: config } = useConfig();
+  const statusPageUrl = config?.STATUS_PAGE_URL;
+  const isProviderError = errorType !== 'generic';
 
   return (
     <Box
@@ -22,16 +53,34 @@ export const ChatError = ({ hasLastSubmission, onRetry }: ChatErrorProps) => {
       $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
       $padding={{ left: '13px' }}
     >
-      <Text $variation="550" $theme="greyscale">
-        {t('Sorry, an error occurred. Please try again.')}
-      </Text>
+      {isProviderError ? (
+        <Box $direction="row" $gap="12px" $align="center">
+          <Text $variation="700" $size="1.375rem" $theme="greyscale">
+            {t(ERROR_MESSAGES[errorType])}
+          </Text>
+          {statusPageUrl && (
+            <a
+              href={statusPageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t('Check service status')}
+            >
+              <Icon iconName="info" $size="1.375rem" $color="greyscale" />
+            </a>
+          )}
+        </Box>
+      ) : (
+        <Text $variation="550" $theme="greyscale">
+          {t(ERROR_MESSAGES[errorType])}
+        </Text>
+      )}
       <Box
         $direction="row"
         $gap="6px"
         $align="center"
         $margin={{ top: '10px' }}
       >
-        {hasLastSubmission ? (
+        {!isProviderError && hasLastSubmission && (
           <Button
             size="nano"
             color="neutral"
@@ -54,7 +103,8 @@ export const ChatError = ({ hasLastSubmission, onRetry }: ChatErrorProps) => {
           >
             {t('Retry')}
           </Button>
-        ) : (
+        )}
+        {!isProviderError && !hasLastSubmission && (
           <Button
             size="nano"
             color="brand"

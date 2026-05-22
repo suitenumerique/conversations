@@ -27,7 +27,7 @@ import {
   KEY_LIST_PROJECT,
   ProjectsResponse,
 } from '@/features/chat/api/useProjects';
-import { ChatError } from '@/features/chat/components/ChatError';
+import { ChatError, ChatErrorType } from '@/features/chat/components/ChatError';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { MessageItem } from '@/features/chat/components/MessageItem';
 import { useClipboard } from '@/hook';
@@ -38,6 +38,15 @@ import { useAprilFools } from '../hooks/useAprilFools';
 import { useChatPreferencesStore } from '../stores/useChatPreferencesStore';
 import { usePendingChatStore } from '../stores/usePendingChatStore';
 import { useScrollStore } from '../stores/useScrollStore';
+
+const PROVIDER_ERROR_CODES: ChatErrorType[] = [
+  'model_unavailable',
+  'model_rate_limited',
+  'model_connection_error',
+  'model_not_found',
+  'model_wrong_type',
+  'model_busy',
+];
 
 // Define Attachment type locally (mirroring backend structure)
 export interface Attachment {
@@ -122,6 +131,7 @@ export const Chat = ({
     title: string;
     message: string;
   } | null>(null);
+  const [chatErrorType, setChatErrorType] = useState<ChatErrorType>('generic');
 
   const { setIsAtTop } = useScrollStore();
 
@@ -214,7 +224,15 @@ export const Chat = ({
         title: t('Attachment summary not supported'),
         message: t('The summary feature is not supported yet.'),
       });
+      return;
     }
+
+    if (PROVIDER_ERROR_CODES.includes(error.message as ChatErrorType)) {
+      setChatErrorType(error.message as ChatErrorType);
+    } else {
+      setChatErrorType('generic');
+    }
+
     console.error('Chat error:', error);
   };
 
@@ -654,6 +672,7 @@ export const Chat = ({
       options.experimental_attachments = attachments;
     }
 
+    setChatErrorType('generic');
     lastSubmissionRef.current = {
       input,
       files,
@@ -786,6 +805,7 @@ export const Chat = ({
         ) : null}
         {status === 'error' && !isUploadingFiles && (
           <ChatError
+            errorType={chatErrorType}
             hasLastSubmission={!!lastSubmissionRef.current}
             onRetry={handleRetry}
           />
@@ -820,6 +840,7 @@ export const Chat = ({
           selectedModel={selectedModel}
           onModelSelect={handleModelSelect}
           isUploadingFiles={isUploadingFiles}
+          errorType={status === 'error' ? chatErrorType : undefined}
         />
       </Box>
       <Modal

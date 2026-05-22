@@ -19,7 +19,7 @@ When the LLM provider fails, the backend emits a typed error code in the Vercel 
 Set `STATUS_PAGE_URL` to display a "Check service status" link alongside any non-`generic` provider error (`model_unavailable`, `model_busy`, `model_rate_limited`, `model_not_found`, `model_wrong_type`, `model_connection_error`).
 
 ```bash
-ALBERT_STATUS_PAGE_URL=https://albert.sites.beta.gouv.fr/about/status/
+STATUS_PAGE_URL=https://albert.sites.beta.gouv.fr/about/status/
 ```
 
 The link is omitted when the variable is unset.
@@ -28,4 +28,4 @@ The link is omitted when the variable is unset.
 
 - **Backend:** `src/backend/chat/clients/pydantic_ai.py` — `_stream_content` catches provider exceptions and emits `ErrorPart` events.
 - **Frontend:** `src/frontend/apps/conversations/src/features/chat/components/ChatError.tsx` — renders the message based on `errorType` prop.
-- **Config:** `src/backend/conversations/settings.py` and `src/backend/core/api/viewsets.py` — `ALBERT_STATUS_PAGE_URL` is exposed via the `config/` API.
+- **Config:** `src/backend/conversations/settings.py` and `src/backend/core/api/viewsets.py` — `STATUS_PAGE_URL` is exposed via the `config/` API.
