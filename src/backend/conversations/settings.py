@@ -683,6 +683,22 @@ class Base(BraveSettings, Configuration):
         environ_name="DEFAULT_ALLOW_SMART_WEB_SEARCH",
         environ_prefix=None,
     )
+    # Conversation summary: at the start of a new user turn (before agent.iter), when the
+    # active slice of stored pydantic_messages (previous turns only; the current user
+    # prompt is not in that list yet) exceeds the message token budget
+    # (usable_context * (1 - DOCUMENT_CONTEXT_BUDGET_RATIO)). That history usually ends
+    # on an assistant ModelResponse. After a summary, keep the last N ModelMessage
+    # entries before the checkpoint. Use an even N so the window starts on a user message.
+    CONVERSATION_SUMMARY_CONTEXT_MESSAGES = values.PositiveIntegerValue(
+        default=10,
+        environ_name="CONVERSATION_SUMMARY_CONTEXT_MESSAGES",
+        environ_prefix=None,
+    )
+    CONVERSATION_SUMMARY_MAX_TOKENS = values.PositiveIntegerValue(
+        default=2048,
+        environ_name="CONVERSATION_SUMMARY_MAX_TOKENS",
+        environ_prefix=None,
+    )
 
     # These settings are default values used in the default LLM_CONFIGURATIONS
     # They allow a deployment with only one model without a specific configuration file
@@ -919,7 +935,7 @@ USER QUESTION:
         environ_prefix=None,
     )
     DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = values.PositiveIntegerValue(
-        default=1000,
+        default=10000,
         environ_name="DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS",
         environ_prefix=None,
     )
