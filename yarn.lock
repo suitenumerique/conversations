@@ -3,9 +3,9 @@
 
 
 "@fontsource-variable/material-symbols-outlined@^5.2.39":
-  version "5.2.39"
-  resolved "https://registry.yarnpkg.com/@fontsource-variable/material-symbols-outlined/-/material-symbols-outlined-5.2.39.tgz#214efcceb7a350ee69da7b1b48a9717f9435120d"
-  integrity sha512-bv0K84v5xyRJORvP9cFje/uVX+vTMY5DaA9r1f5EJSMnDwPsWHs9qKaZfTlgLtRl7OgY4E/HfDeW+1U9mOnPxg==
+  version "5.2.45"
+  resolved "https://registry.yarnpkg.com/@fontsource-variable/material-symbols-outlined/-/material-symbols-outlined-5.2.45.tgz#32910a0e8ad9a60b8ad1db02481f873c147b3d33"
+  integrity sha512-Hx6KX6W3rtMWEte72lTmV/4dJIpcAOi/tappR19Tz2dbvlWpboGqu0m7sJu7uIlLlDNuHjr/QComLCap6gSCug==
 
 "@fontsource/material-icons-outlined@^5.2.6":
   version "5.2.6"
