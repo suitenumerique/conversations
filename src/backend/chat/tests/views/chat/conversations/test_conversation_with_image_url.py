@@ -1,6 +1,7 @@
 """Unit tests for chat conversation actions with image URL."""
 
 import uuid
+from unittest.mock import ANY
 
 from django.utils import formats, timezone
 
@@ -115,6 +116,7 @@ def test_post_conversation_with_local_image_url(
                 f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
                 f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}",
                 run_id=messages[0].run_id,
+                conversation_id=messages[0].conversation_id,
                 timestamp=timezone.now(),
             )
         ]
@@ -185,6 +187,7 @@ def test_post_conversation_with_local_image_url(
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         {
+            "conversation_id": ANY,
             "instructions": (
                 "You are a helpful test assistant :)\n\nToday is Saturday 18/10/2025."
                 "\n\nAnswer in english."
@@ -214,6 +217,7 @@ def test_post_conversation_with_local_image_url(
             "timestamp": "2025-10-18T20:48:20.286204Z",
         },
         {
+            "conversation_id": ANY,
             "finish_reason": None,
             "kind": "response",
             "metadata": None,
@@ -231,6 +235,7 @@ def test_post_conversation_with_local_image_url(
             "provider_name": None,
             "provider_response_id": None,
             "provider_url": None,
+            "state": "complete",
             "timestamp": "2025-10-18T20:48:20.286204Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -304,6 +309,7 @@ def test_post_conversation_with_local_image_wrong_url(
                     f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
                 ),
                 run_id=messages[0].run_id,
+                conversation_id=messages[0].conversation_id,
             )
         ]
         yield "cannot read image."  # IRL a 400 error would be raised by the LLM
@@ -394,6 +400,7 @@ def test_post_conversation_with_remote_image_url(
                     f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
                 ),
                 run_id=messages[0].run_id,
+                conversation_id=messages[0].conversation_id,
                 timestamp=timezone.now(),
             )
         ]
@@ -624,6 +631,7 @@ def test_post_conversation_with_local_image_url_in_history(
                     )
                 ],
                 run_id=messages[2].run_id,
+                conversation_id=messages[2].conversation_id,
                 instructions="You are a helpful test assistant :)\n\n"
                 "Today is Saturday 18/10/2025.\n\nAnswer in english."
                 f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
@@ -774,6 +782,7 @@ def test_post_conversation_with_local_image_url_in_history(
             },
         },
         {
+            "conversation_id": ANY,
             "instructions": "You are a helpful test assistant :)\n\nToday is Saturday 18/10/2025."
             "\n\nAnswer in english."
             f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
@@ -791,6 +800,7 @@ def test_post_conversation_with_local_image_url_in_history(
             "timestamp": "2025-10-18T20:48:20.286204Z",
         },
         {
+            "conversation_id": ANY,
             "finish_reason": None,
             "kind": "response",
             "metadata": None,
@@ -808,6 +818,7 @@ def test_post_conversation_with_local_image_url_in_history(
             "provider_name": None,
             "provider_response_id": None,
             "provider_url": None,
+            "state": "complete",
             "timestamp": "2025-10-18T20:48:20.286204Z",
             "usage": {
                 "cache_audio_read_tokens": 0,

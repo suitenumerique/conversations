@@ -11,6 +11,7 @@ and this project adheres to
 ### Changed
 
 - 🔒️(front) disable yarn install scripts in docker build
+- ⬆️(dependencies) update back and front dependencies
 
 ## [0.0.16] - 2026-05-21
 

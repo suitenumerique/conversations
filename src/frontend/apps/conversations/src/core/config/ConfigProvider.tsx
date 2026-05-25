@@ -11,7 +11,7 @@ import {
   useSynchronizedLanguage,
 } from '@/features/language';
 import { useAnalytics } from '@/libs';
-import { CrispProvider, PostHogAnalytic } from '@/services';
+import { PostHogAnalytic } from '@/services';
 import { useSentryStore } from '@/stores/useSentryStore';
 
 import { useConfig } from './api/useConfig';
@@ -102,11 +102,7 @@ export const ConfigProvider = ({ children }: PropsWithChildren) => {
           <link rel="stylesheet" href={conf?.FRONTEND_CSS_URL} />
         </Head>
       )}
-      <AnalyticsProvider>
-        <CrispProvider websiteId={conf?.CRISP_WEBSITE_ID}>
-          {children}
-        </CrispProvider>
-      </AnalyticsProvider>
+      <AnalyticsProvider>{children}</AnalyticsProvider>
     </>
   );
 };

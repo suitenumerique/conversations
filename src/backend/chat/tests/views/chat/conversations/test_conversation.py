@@ -87,8 +87,11 @@ def _assert_hello_messages(chat_conversation, frozen_now):
     )
 
 
-def _make_pydantic_request(run_id, instructions, content, timestamp=FROZEN_TIMESTAMP):
+def _make_pydantic_request(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    run_id, instructions, content, timestamp=FROZEN_TIMESTAMP, conversation_id=ANY
+):
     return {
+        "conversation_id": conversation_id,
         "instructions": instructions,
         "kind": "request",
         "metadata": None,
@@ -106,8 +109,10 @@ def _make_pydantic_text_response(  # pylint: disable=too-many-arguments,too-many
     provider_response_id="chatcmpl-1234567890",
     provider_url="https://www.external-ai-service.com/",
     usage=None,
+    conversation_id=ANY,
 ):
     return {
+        "conversation_id": conversation_id,
         "finish_reason": "stop",
         "kind": "response",
         "metadata": None,
@@ -125,6 +130,7 @@ def _make_pydantic_text_response(  # pylint: disable=too-many-arguments,too-many
         "provider_name": "openai",
         "provider_response_id": provider_response_id,
         "provider_url": provider_url,
+        "state": "complete",
         "timestamp": timestamp,
         "usage": usage if usage is not None else ZERO_USAGE,
         "run_id": run_id,
@@ -580,6 +586,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
     assert chat_conversation.pydantic_messages == [
         _make_pydantic_request(_run_id, ENGLISH_INSTRUCTIONS, ["Weather in Paris?"]),
         {
+            "conversation_id": ANY,
             "finish_reason": "tool_call",
             "kind": "response",
             "metadata": None,
@@ -592,6 +599,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                     "provider_details": None,
                     "provider_name": None,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    "tool_kind": None,
                     "tool_name": "get_current_weather",
                 }
             ],
@@ -602,11 +610,13 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-tool-call",
             "provider_url": "https://www.external-ai-service.com/",
+            "state": "complete",
             "timestamp": FROZEN_TIMESTAMP,
             "usage": ZERO_USAGE,
             "run_id": _run_id,
         },
         {
+            "conversation_id": ANY,
             "instructions": ENGLISH_INSTRUCTIONS,
             "kind": "request",
             "metadata": None,
@@ -618,6 +628,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                     "part_kind": "tool-return",
                     "timestamp": FROZEN_TIMESTAMP,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    "tool_kind": None,
                     "tool_name": "get_current_weather",
                 }
             ],
@@ -740,6 +751,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
     assert chat_conversation.pydantic_messages == [
         _make_pydantic_request(_run_id, french_instructions, ["Weather in Paris?"]),
         {
+            "conversation_id": ANY,
             "finish_reason": "tool_call",
             "kind": "response",
             "metadata": None,
@@ -752,6 +764,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
                     "provider_details": None,
                     "provider_name": None,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    "tool_kind": None,
                     "tool_name": "get_current_weather",
                 }
             ],
@@ -762,11 +775,13 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-tool-call",
             "provider_url": "https://www.external-ai-service.com/",
+            "state": "complete",
             "timestamp": FROZEN_TIMESTAMP,
             "usage": ZERO_USAGE,
             "run_id": _run_id,
         },
         {
+            "conversation_id": ANY,
             "instructions": french_instructions,
             "kind": "request",
             "metadata": None,

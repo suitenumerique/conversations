@@ -98,6 +98,7 @@ from django.utils.translation import gettext_lazy as _
 from asgiref.sync import sync_to_async
 from langfuse import get_client
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
+from pydantic_ai.capabilities import Instrumentation
 from pydantic_ai.messages import (
     BinaryContent,
     DocumentUrl,
@@ -278,15 +279,22 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._web_search_tool_registered = False
         self._self_documentation_tool_registered = False
 
+        _capabilities = (
+            [
+                Instrumentation(
+                    settings=InstrumentationSettings(
+                        include_binary_content=self._store_analytics,
+                        include_content=self._store_analytics,
+                    )
+                )
+            ]
+            if self._langfuse_available
+            else []
+        )
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
             language=self.language,
-            instrument=InstrumentationSettings(
-                include_binary_content=self._store_analytics,
-                include_content=self._store_analytics,
-            )
-            if self._langfuse_available
-            else False,
+            capabilities=_capabilities,
             deps_type=ContextDeps,
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
@@ -1061,10 +1069,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                             args=json.loads(event.part.args) if event.part.args else {},
                         )
                 elif isinstance(event, FunctionToolResultEvent):
-                    if isinstance(event.result, ToolReturnPart):
-                        if event.result.metadata and (
-                            sources := event.result.metadata.get("sources")
-                        ):
+                    if isinstance(event.part, ToolReturnPart):
+                        if event.part.metadata and (sources := event.part.metadata.get("sources")):
                             for source_url in sources:
                                 url_source = LanguageModelV1Source(
                                     sourceType="url",
@@ -1076,18 +1082,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                                 state.ui_sources.append(_new_source_ui)
                                 yield events_v4.SourcePart(**_new_source_ui.source.model_dump())
                         yield events_v4.ToolResultPart(
-                            tool_call_id=event.tool_call_id, result=event.result.content
+                            tool_call_id=event.tool_call_id, result=event.part.content
                         )
 
-                    elif isinstance(event.result, RetryPromptPart):
+                    elif isinstance(event.part, RetryPromptPart):
                         yield events_v4.ToolResultPart(
-                            tool_call_id=event.tool_call_id, result=event.result.content
+                            tool_call_id=event.tool_call_id, result=event.part.content
                         )
                     else:
                         logger.warning(
                             "Unexpected tool result type: %s %s",
-                            type(event.result),
-                            dataclasses.asdict(event.result),
+                            type(event.part),
+                            dataclasses.asdict(event.part),
                         )
 
     def _handle_end_node(self, node, langfuse, state: StreamingState) -> events_v4.StartStepPart:
@@ -1261,7 +1267,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # Extract values from run before exiting the context manager
                 new_messages = run.result.new_messages()
                 run_output = run.result.output
-                final_usage = run.usage()
+                final_usage = run.usage
                 usage["promptTokens"] = final_usage.input_tokens
                 usage["completionTokens"] = final_usage.output_tokens
                 usage["co2_impact"] = _extract_co2_from_usage(final_usage)

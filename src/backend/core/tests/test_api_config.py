@@ -21,7 +21,6 @@ pytestmark = pytest.mark.django_db
 
 
 @override_settings(
-    CRISP_WEBSITE_ID="123",
     FRONTEND_CSS_URL="http://testcss/",
     FRONTEND_THEME="test-theme",
     MEDIA_BASE_URL="http://testserver/",
@@ -46,7 +45,6 @@ def test_api_config(is_authenticated):
     assert response.status_code == HTTP_200_OK
     assert response.json() == {
         "ACTIVATION_REQUIRED": False,
-        "CRISP_WEBSITE_ID": "123",
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},
         "FILE_UPLOAD_MODE": "presigned_url",
@@ -167,7 +165,6 @@ def test_api_config_with_original_theme_customization(is_authenticated, settings
 
 
 @override_settings(
-    CRISP_WEBSITE_ID="123",
     FRONTEND_CSS_URL="http://testcss/",
     FRONTEND_THEME="test-theme",
     MEDIA_BASE_URL="http://testserver/",
@@ -193,7 +190,6 @@ async def test_api_config_async(is_authenticated):
     assert response.status_code == HTTP_200_OK
     assert response.json() == {
         "ACTIVATION_REQUIRED": False,
-        "CRISP_WEBSITE_ID": "123",
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},
         "FILE_UPLOAD_MODE": "presigned_url",

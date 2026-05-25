@@ -40,6 +40,10 @@ export const useAPIInfiniteQuery = <T, Q extends { next?: APIList<Q>['next'] }>(
   param: T,
   queryConfig?: DefinedInitialDataInfiniteOptionsAPI<Q>,
 ) => {
+  // `api` is intentionally excluded from queryKey: the `key` arg already
+  // identifies the query, and a function reference isn't a stable/serializable
+  // cache key.
+  // eslint-disable-next-line @tanstack/query/exhaustive-deps
   return useInfiniteQuery<Q, APIError, InfiniteData<Q>, QueryKey, number>({
     initialPageParam: 1,
     queryKey: [key, param],

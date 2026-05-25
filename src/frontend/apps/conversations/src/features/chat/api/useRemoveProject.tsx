@@ -38,17 +38,17 @@ export const useRemoveProject = (options?: UseRemoveProjectOptions) => {
   return useMutation<void, APIError, RemoveProjectProps>({
     mutationFn: removeProject,
     ...options,
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       void queryClient.invalidateQueries({
         queryKey: [KEY_LIST_PROJECT],
       });
       if (options?.onSuccess) {
-        void options.onSuccess(data, variables, context);
+        void options.onSuccess(data, variables, onMutateResult, context);
       }
     },
-    onError: (error, variables, context) => {
+    onError: (error, variables, onMutateResult, context) => {
       if (options?.onError) {
-        void options.onError(error, variables, context);
+        void options.onError(error, variables, onMutateResult, context);
       }
     },
   });

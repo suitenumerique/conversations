@@ -46,7 +46,7 @@ describe('ModalRenameConversation', () => {
     messages: [],
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  } as ChatConversation;
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();

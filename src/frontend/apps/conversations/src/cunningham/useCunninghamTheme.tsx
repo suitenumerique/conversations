@@ -59,7 +59,7 @@ const initialState: ThemeStore = {
   colorsTokens: defaultTokens.globals.colors,
   componentTokens: getComponentTokens(defaultTokens),
   contextualTokens: defaultTokens.contextuals,
-  currentTokens: tokens.themes[DEFAULT_THEME] as Partial<Tokens>,
+  currentTokens: tokens.themes[DEFAULT_THEME],
   fontSizesTokens: defaultTokens.globals.font.sizes,
   setTheme: () => {},
   spacingsTokens: defaultTokens.globals.spacings,

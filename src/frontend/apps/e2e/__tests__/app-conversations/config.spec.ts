@@ -21,19 +21,7 @@ test.describe('Config', () => {
     expect((await consoleMessage).text()).toContain(invalidMsg);
   });
 
-  test('it checks that Crisp is trying to init from config endpoint', async ({
-    page,
-  }) => {
-    await overrideConfig(page, {
-      CRISP_WEBSITE_ID: '1234',
-    });
 
-    await page.goto('/');
-
-    await expect(
-      page.locator('#crisp-chatbox').getByText('Invalid website'),
-    ).toBeVisible();
-  });
 
   test('it checks FRONTEND_CSS_URL config', async ({ page }) => {
     await overrideConfig(page, {

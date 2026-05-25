@@ -27,21 +27,19 @@
   },
   "resolutions": {
     "@types/node": "22.15.29",
-    "@types/react": "19.2.14",
+    "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
-    "@typescript-eslint/eslint-plugin": "8.33.1",
-    "@typescript-eslint/parser": "8.33.1",
-    "eslint": "^9.0.0",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "@typescript-eslint/eslint-plugin": "8.59.4",
+    "@typescript-eslint/parser": "8.59.4",
+    "typescript-eslint": "8.59.4",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
     "typescript": "5.8.3",
     "minimatch": ">=10.2.1",
     "flatted": ">=3.4.0",
     "rollup": ">=4.59.0",
-    "undici": ">=7.24.0",
-    "**/anymatch/picomatch": "4.0.4",
-    "**/readdirp/picomatch": "4.0.4",
-    "**/jest-util/picomatch": "4.0.4",
-    "**/micromatch/picomatch": "4.0.4"
+    "undici": "^7.24.0",
+    "uuid": ">=11.1.1",
+    "brace-expansion": ">=5.0.5"
   }
 }
