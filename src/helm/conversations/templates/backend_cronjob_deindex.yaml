@@ -28,7 +28,7 @@ spec:
           {{- if $.Values.image.credentials }}
           imagePullSecrets:
             - name: {{ include "conversations.secret.dockerconfigjson.name" (dict "fullname" (include "conversations.fullname" .) "imageCredentials" $.Values.image.credentials) }}
-          {{- end}}
+          {{- end }}
           shareProcessNamespace: {{ .Values.backend.shareProcessNamespace }}
           containers:
             - name: {{ .Chart.Name }}
@@ -39,7 +39,7 @@ spec:
                 - manage.py
                 - deindex_inactive_collections
               env:
-                {{- if $envVars}}
+                {{- if $envVars }}
                 {{- $envVars | indent 16 }}
                 {{- end }}
               {{- with .Values.backend.securityContext }}

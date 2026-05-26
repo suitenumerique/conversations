@@ -155,7 +155,7 @@ def _build_documents_listing(
     )
 
 
-def _render_listing(listing: DocumentsListing) -> str:
+def render_listing(listing: DocumentsListing) -> str:
     """Serialize the listing as the JSON-prefixed instruction snippet.
 
     `project_documents=None` is dropped so the LLM doesn't see an empty/null
@@ -167,21 +167,6 @@ def _render_listing(listing: DocumentsListing) -> str:
     return (
         "List of documents attached to this conversation:\n"
         f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
-    )
-
-
-def extract_listing_from_instruction(document_context_instruction: str) -> DocumentsListing:
-    """Parse the JSON listing out of the instruction string produced by _render_listing."""
-    data = json.loads(document_context_instruction[document_context_instruction.index("{") :])
-    return DocumentsListing(
-        documents=[DocumentInfo(**doc) for doc in data.get("documents", [])],
-        note=data.get("note", ""),
-        project_documents=(
-            [DocumentInfo(**doc) for doc in data["project_documents"]]
-            if data.get("project_documents")
-            else None
-        ),
-        documents_order=data.get("documents_order", "newest_to_oldest"),
     )
 
 
@@ -275,7 +260,7 @@ def _project_placeholder_docs(
     ]
 
 
-async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-locals
+async def build_documents_listing(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-locals
     *,
     conversation_id: str,
     text_attachments: Sequence[models.ChatConversationAttachment],
@@ -284,9 +269,12 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
     budget_ratio: float,
     security_buffer_tokens: int,
     project_text_attachments: Sequence[models.ChatConversationAttachment] = (),
-) -> str:
+) -> DocumentsListing | None:
     """
-    Build document instructions with a rolling full-context FIFO window.
+    Build the documents listing with a rolling full-context FIFO window.
+
+    Returns None when there are no attachments to list. Use render_listing() to
+    serialise the result into the instruction string for the model.
 
     Rules:
     - Reserve a ratio of max model context for full document inclusion.
@@ -297,7 +285,7 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
       for the inlining budget and have their own per-array `info` ordering.
     """
     if not text_attachments and not project_text_attachments:
-        return ""
+        return None
 
     project_docs = _project_placeholder_docs(project_text_attachments)
 
@@ -320,12 +308,10 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
             conversation_id,
             model_hrid,
         )
-        return _render_listing(
-            _build_documents_listing(
-                docs=placeholder_docs,
-                force_tool_call_only=True,
-                project_docs=project_docs,
-            )
+        return _build_documents_listing(
+            docs=placeholder_docs,
+            force_tool_call_only=True,
+            project_docs=project_docs,
         )
 
     if budget_ratio == 0:
@@ -335,12 +321,10 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
             conversation_id,
             model_hrid,
         )
-        return _render_listing(
-            _build_documents_listing(
-                docs=placeholder_docs,
-                force_tool_call_only=True,
-                project_docs=project_docs,
-            )
+        return _build_documents_listing(
+            docs=placeholder_docs,
+            force_tool_call_only=True,
+            project_docs=project_docs,
         )
 
     document_budget = max(int(max_token_context * budget_ratio) - security_buffer_tokens, 0)
@@ -405,6 +389,6 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
         inlined_count,
     )
 
-    return _render_listing(
-        _build_documents_listing(docs=docs, force_tool_call_only=False, project_docs=project_docs)
+    return _build_documents_listing(
+        docs=docs, force_tool_call_only=False, project_docs=project_docs
     )

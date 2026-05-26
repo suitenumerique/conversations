@@ -3,19 +3,31 @@
 import asyncio
 import logging
 import uuid
+from datetime import timedelta
 from typing import AsyncGenerator
 
 from django.conf import settings
 from django.core.files.storage import default_storage
+from django.db.models import Q
+from django.utils import timezone
 from django.utils.module_loading import import_string
 
 from core.file_upload.enums import AttachmentStatus
 
 from chat import models
+from chat.enums import CollectionIndexState
 from chat.vercel_ai_sdk.core import events_v4
 
 logger = logging.getLogger(__name__)
 document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+
+
+async def _read_attachment_bytes(key: str) -> bytes:
+    def _read():
+        with default_storage.open(key, "rb") as f:
+            return f.read()
+
+    return await asyncio.to_thread(_read)
 
 
 async def reindex_conversation(
@@ -32,10 +44,21 @@ async def reindex_conversation(
     On collection creation failure: logs and returns without RAG (conversation continues).
     On individual attachment failure: logs and continues with remaining attachments.
     """
+    timeout = timedelta(seconds=settings.REINDEX_CLAIM_TIMEOUT_SECONDS)
     claimed = await models.ChatConversation.objects.filter(
-        pk=conversation.pk,
-        collection_id__isnull=True,
-    ).aupdate(collection_id="reindexing")
+        Q(
+            pk=conversation.pk,
+            index_state__in=[
+                CollectionIndexState.DEINDEXED,
+                CollectionIndexState.ERROR,
+            ],
+        )
+        | Q(
+            pk=conversation.pk,
+            index_state=CollectionIndexState.INDEXING,
+            updated_at__lt=timezone.now() - timeout,
+        )
+    ).aupdate(index_state=CollectionIndexState.INDEXING, updated_at=timezone.now())
     if not claimed:
         return
 
@@ -48,15 +71,30 @@ async def reindex_conversation(
     ]
 
     if not ready_attachments:
+        await models.ChatConversation.objects.filter(pk=conversation.pk).aupdate(
+            index_state=CollectionIndexState.UNINDEXED,
+            updated_at=timezone.now(),
+        )
         return
 
     text_attachments_to_reindex = [
         a
         for a in ready_attachments
-        if a.content_type.startswith("text/") and str(a.id) not in in_context_ids
+        if a.content_type.startswith("text/")
+        and str(a.id) not in in_context_ids
+        and not a.is_indexed
     ]
 
     if not text_attachments_to_reindex:
+        new_state = (
+            CollectionIndexState.INDEXED
+            if conversation.collection_id
+            else CollectionIndexState.UNINDEXED
+        )
+        await models.ChatConversation.objects.filter(pk=conversation.pk).aupdate(
+            index_state=new_state,
+            updated_at=timezone.now(),
+        )
         return
 
     _tool_call_id = str(uuid.uuid4())
@@ -66,31 +104,43 @@ async def reindex_conversation(
         args={},
     )
 
-    try:
-        document_store = document_store_backend(collection_id=None)
-        await document_store.acreate_collection(
-            name=f"conversation-{conversation.pk}",
-        )
-    except Exception as exc:  # pylint: disable=broad-except
-        logger.exception("Failed to create collection for conversation %s", conversation.pk)
-        # Reset the sentinel so the next request can retry instead of staying stuck.
-        conversation.collection_id = None
-        await conversation.asave(update_fields=["collection_id", "updated_at"])
-        yield events_v4.ToolResultPart(
-            tool_call_id=_tool_call_id,
-            result={"state": "error", "error": str(exc)},
-        )
-        return
+    # Reuse existing collection if available so partial-failure retries add only
+    # the missing documents rather than rebuilding from scratch.
+    existing_collection_id = conversation.collection_id
+    document_store = document_store_backend(collection_id=existing_collection_id)
+    if not existing_collection_id:
+        try:
+            await document_store.acreate_collection(
+                name=f"conversation-{conversation.pk}",
+            )
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("Failed to create collection for conversation %s", conversation.pk)
+            await models.ChatConversation.objects.filter(pk=conversation.pk).aupdate(
+                index_state=CollectionIndexState.ERROR,
+                collection_id=None,
+                updated_at=timezone.now(),
+            )
+            await models.ChatConversationAttachment.objects.filter(
+                conversation=conversation,
+            ).aupdate(is_indexed=False)
+            yield events_v4.ToolResultPart(
+                tool_call_id=_tool_call_id,
+                result={"state": "error", "error": "Documents could not be re-indexed."},
+            )
+            return
 
     failed_documents = []
     for attachment in text_attachments_to_reindex:
         try:
-            with default_storage.open(attachment.key, "rb") as file:
-                content = file.read()
-            await asyncio.to_thread(
+            content = await _read_attachment_bytes(attachment.key)
+            rag_document_id = await asyncio.to_thread(
                 document_store.store_document,
                 name=attachment.file_name.removesuffix(".md"),
                 content=content.decode("utf-8"),
+            )
+            await models.ChatConversationAttachment.objects.filter(pk=attachment.pk).aupdate(
+                is_indexed=True,
+                rag_document_id=rag_document_id or None,
             )
         except Exception:  # pylint: disable=broad-except
             failed_documents.append(attachment.file_name)
@@ -100,14 +150,25 @@ async def reindex_conversation(
                 conversation.pk,
             )
 
-    conversation.collection_id = str(document_store.collection_id)
-    await conversation.asave(update_fields=["collection_id", "updated_at"])
+    any_failed = bool(failed_documents)
+    all_failed = len(failed_documents) == len(text_attachments_to_reindex)
 
-    result = (
-        {"state": "partial", "failed_documents": failed_documents}
-        if failed_documents
-        else {"state": "done"}
-    )
+    update_fields = {
+        "index_state": CollectionIndexState.ERROR if any_failed else CollectionIndexState.INDEXED,
+        "updated_at": timezone.now(),
+    }
+
+    update_fields["collection_id"] = str(document_store.collection_id)
+    if all_failed:
+        result = {"state": "error", "error": "Documents could not be re-indexed."}
+    else:
+        result = (
+            {"state": "partial", "failed_documents": failed_documents}
+            if failed_documents
+            else {"state": "done"}
+        )
+
+    await models.ChatConversation.objects.filter(pk=conversation.pk).aupdate(**update_fields)
     yield events_v4.ToolResultPart(
         tool_call_id=_tool_call_id,
         result=result,

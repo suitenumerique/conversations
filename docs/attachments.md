@@ -283,7 +283,8 @@ Every conversation that has indexed text attachments owns a RAG collection in th
 
 The `deindex_inactive_collections` management command identifies conversations that have been inactive for more than `RAG_COLLECTION_INACTIVITY_DAYS` days and removes their vector store collection.
 
-**What "inactive" means**: `ChatConversation.updated_at < now() - RAG_COLLECTION_INACTIVITY_DAYS days`. Because `_reindex_conversation` writes `update_fields=["collection_id", "updated_at"]` on success, a recent re-index resets the inactivity clock — a conversation is not de-indexed again immediately after it was just re-indexed.
+
+**What "inactive" means**: `ChatConversation.updated_at < now() - RAG_COLLECTION_INACTIVITY_DAYS days`. Because `reindex_conversation` writes `update_fields=["collection_id", "updated_at"]` on success, a recent re-index resets the inactivity clock — a conversation is not de-indexed again immediately after it was just re-indexed.
 
 **Scheduling**: Run this as a periodic job. A Helm CronJob template is provided (`backend.deindexCronJob`) with `concurrencyPolicy: Forbid` to prevent overlapping runs.
 
@@ -291,7 +292,42 @@ The `deindex_inactive_collections` management command identifies conversations t
 
 ### Transparent re-indexing on resume
 
-When a user sends a message to a conversation whose `collection_id` is `None` but which has `READY` text attachments, the backend automatically rebuilds the collection before running the agent. This is handled by `reindex_conversation` in `chat/clients/conversation_reindexer.py`.
+When a user sends a message to a conversation whose `index_state` is `DEINDEXED` or `ERROR` but which has `READY` text attachments, the backend automatically rebuilds the collection before running the agent. This is handled by `reindex_conversation` in `chat/clients/conversation_reindexer.py`.
+
+#### `reindex_conversation` — behaviour summary
+
+An async generator that brings a conversation's RAG collection up to date before the agent runs. It emits a `conversation_resume`
+tool-call/result pair so the UI can show progress.
+
+**Claim (concurrency guard)**
+
+Before doing any work it atomically sets `index_state = INDEXING` on the row, but only if the conversation is in a claimable state:
+
+- `DEINDEXED` or `ERROR` → always claimable
+- `INDEXING` with `updated_at` older than `REINDEX_CLAIM_TIMEOUT_SECONDS` → stale lock, also claimable
+
+If the row is not updated (another process holds a fresh claim), the generator returns immediately with **no events**.
+
+**Early exits (no events emitted)**
+
+| Condition | New state |
+|-----------|-----------|
+| No READY attachments | `UNINDEXED` |
+| All text attachments are already indexed or in-context | `INDEXED` (if collection exists) / `UNINDEXED` |
+
+**Main path**
+
+1. **Collection**: reuses `conversation.collection_id` if set (so partial-failure retries add only the missing docs to the existing
+collection). Creates a new collection otherwise; on creation failure → `ERROR`, error event, return.
+2. **Per-attachment loop**: reads the file asynchronously (`asyncio.to_thread`), stores it in the document backend, marks `is_indexed =
+True`. Individual failures are caught and collected; the loop always continues.
+3. **Final state transition**:
+    - Zero failures → `index_state = INDEXED`, `collection_id` updated, `{state: "done"}`
+    - Partial failure → `index_state = ERROR`, `collection_id` updated, `{state: "partial", failed_documents: [...]}`
+    - Total failure → `index_state = ERROR`, `collection_id` **not** updated (collection is empty), `{state: "error"}`
+
+`ERROR` always triggers a retry on the next request, and because successful attachments have `is_indexed = True`, only the failed ones are
+  attempted again.
 
 **What gets re-indexed**: Only attachments that are both READY **and** not already inlined as `full-context` in the current LLM context window. Small documents that fit the inlining budget are already readable by the model directly from the system prompt — putting them in the vector store too would be redundant. Only `tool_call_only` attachments (too large to inline) are re-indexed.
 
@@ -300,8 +336,8 @@ When a user sends a message to a conversation whose `collection_id` is `None` bu
 | `result.state` | Meaning | User-visible outcome |
 |---|---|---|
 | `"done"` | All attachments re-indexed | Silent — loader disappears, conversation continues |
-| `"partial"` | Some attachments failed | Error modal listing failed filenames — user can re-upload them |
-| `"error"` | Collection creation failed | Error modal with backend message — RAG tools unavailable for this turn |
+| `"partial"` | Some attachments indexed, some failed | Error modal listing failed filenames — user can re-upload them |
+| `"error"` | Collection creation failed **or** all attachments failed | Error modal — RAG tools unavailable for this turn |
 
 **Frontend**: While re-indexing is in progress, `ToolInvocationItem` renders a `ConversationResumeLoader` with a chat-bubble illustration and the copy "Picking up where you left off". Once the `ToolResultPart` arrives, the loader disappears. Errors surface via `setChatErrorModal`.
 
@@ -460,26 +496,26 @@ Notes:
 
 #### Inlining policy and FIFO eviction
 
-The decision of which documents are inlined as `full-context` vs left as `tool_call_only` is made by `chat/document_context_builder.py:build_document_context_instruction` on each turn:
+The decision of which documents are inlined as `full-context` vs left as `tool_call_only` is made by `chat/document_context_builder.py:build_documents_listing` on each turn (called via `_build_document_context_instruction` in `chat/clients/pydantic_ai.py`):
 
 1. Compute the `document_budget` in tokens:
    ```text
    document_budget = max(int(model.max_token_context * DOCUMENT_CONTEXT_BUDGET_RATIO)
                          - DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS, 0)
    ```
-2. Iterate documents oldest-first. For each document:
+2. Load all text attachments from object storage **in parallel** (`asyncio.gather`). Attachments that fail to load are marked `tool_call_only` with their failure logged; other documents are not affected.
+3. Iterate documents oldest-first (`order_by("created_at", "id")`). For each document:
    - If its token count exceeds the whole budget alone → keep `tool_call_only`.
    - Otherwise, while adding it would overflow the budget, **evict the oldest currently-inlined document** (FIFO): demote it to `tool_call_only`, free its tokens.
    - Once it fits, mark it `full-context` and inline its content.
-3. Edge cases:
+4. Edge cases:
    - If the model has no `max_token_context` configured → all documents stay `tool_call_only` (warning logged).
    - If `DOCUMENT_CONTEXT_BUDGET_RATIO` is `0` → all documents stay `tool_call_only`.
-   - If reading an attachment from object storage fails → that document stays `tool_call_only` and the failure is logged; other documents are not affected.
 
 Token estimation uses `tiktoken` with the `cl100k_base` encoding (GPT-4 tokenizer). For non-OpenAI models (Mistral, Llama, Anthropic) actual usage may run 5-15% higher; the security buffer absorbs that drift.
 
-The assembled instruction is **cached** per turn keyed on:
-`conversation_id`, `user_id`, `model_hrid`, `model.max_token_context`, `DOCUMENT_CONTEXT_BUDGET_RATIO`, `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`, and a fingerprint of `(attachment.id, attachment.updated_at)` for every text attachment - **conversation and project text attachments both contribute to the fingerprint**. Any attachment add / remove / edit (including project files), or any settings change, invalidates the cache. TTL is 30 minutes (`CACHE_TIMEOUT`).
+The assembled listing is **cached** per turn (in `_build_documents_listing`, `pydantic_ai.py`) keyed on:
+`conversation_id`, `user_id`, `model_hrid`, `model.max_token_context`, `DOCUMENT_CONTEXT_BUDGET_RATIO`, `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`, and a fingerprint of `(attachment.id, attachment.updated_at)` for every text attachment — **conversation and project text attachments both contribute to the fingerprint**. Any attachment add / remove / edit (including project files), or any settings change, invalidates the cache. TTL is 30 minutes (`CACHE_TIMEOUT`).
 
 #### Targeted document operations (`document_id`)
 

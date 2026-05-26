@@ -8,7 +8,9 @@ from asgiref.sync import sync_to_async
 
 from core.file_upload.enums import AttachmentStatus
 
+from chat import models
 from chat.clients.conversation_reindexer import reindex_conversation
+from chat.enums import CollectionIndexState
 from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
 from chat.vercel_ai_sdk.core import events_v4
 
@@ -21,7 +23,9 @@ pytestmark = pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
 async def test_reindex_emits_events_and_saves_collection_id():
     """Re-indexing emits ToolCallPart + ToolResultPart and saves collection_id."""
-    conversation = await sync_to_async(ChatConversationFactory)(collection_id=None)
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
     await sync_to_async(ChatConversationAttachmentFactory)(
         conversation=conversation,
         upload_state=AttachmentStatus.READY,
@@ -39,10 +43,6 @@ async def test_reindex_emits_events_and_saves_collection_id():
 
     mock_backend = MagicMock(return_value=mock_store)
 
-    fake_file = MagicMock()
-    fake_file.__enter__ = MagicMock(return_value=MagicMock(read=MagicMock(return_value=b"data")))
-    fake_file.__exit__ = MagicMock(return_value=False)
-
     to_thread_calls = []
 
     async def capture_to_thread(func, *args, **kwargs):
@@ -50,7 +50,10 @@ async def test_reindex_emits_events_and_saves_collection_id():
 
     with (
         patch("chat.clients.conversation_reindexer.document_store_backend", mock_backend),
-        patch("django.core.files.storage.default_storage.open", return_value=fake_file),
+        patch(
+            "chat.clients.conversation_reindexer._read_attachment_bytes",
+            new=AsyncMock(return_value=b"data"),
+        ),
         patch("asyncio.to_thread", side_effect=capture_to_thread),
     ):
         events = []
@@ -74,7 +77,9 @@ async def test_reindex_emits_events_and_saves_collection_id():
 @pytest.mark.asyncio
 async def test_reindex_yields_nothing_when_no_ready_attachments():
     """No events yielded and collection_id stays None when no READY attachments."""
-    conversation = await sync_to_async(ChatConversationFactory)(collection_id=None)
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
     await sync_to_async(ChatConversationAttachmentFactory)(
         conversation=conversation,
         upload_state=AttachmentStatus.PENDING,
@@ -91,7 +96,9 @@ async def test_reindex_yields_nothing_when_no_ready_attachments():
 @pytest.mark.asyncio
 async def test_reindex_yields_error_event_on_collection_creation_failure():
     """Error event is yielded when acreate_collection raises, collection_id stays None."""
-    conversation = await sync_to_async(ChatConversationFactory)(collection_id=None)
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
     await sync_to_async(ChatConversationAttachmentFactory)(
         conversation=conversation,
         upload_state=AttachmentStatus.READY,
@@ -120,7 +127,9 @@ async def test_reindex_yields_error_event_on_collection_creation_failure():
 @pytest.mark.asyncio
 async def test_reindex_continues_on_individual_attachment_failure():
     """Failure on one attachment doesn't abort the loop; collection_id is saved."""
-    conversation = await sync_to_async(ChatConversationFactory)(collection_id=None)
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
     await sync_to_async(ChatConversationAttachmentFactory)(
         conversation=conversation,
         upload_state=AttachmentStatus.READY,
@@ -140,15 +149,14 @@ async def test_reindex_continues_on_individual_attachment_failure():
 
     mock_to_thread = AsyncMock(side_effect=[RuntimeError("store_document failed"), None])
 
-    fake_file = MagicMock()
-    fake_file.__enter__ = MagicMock(return_value=MagicMock(read=MagicMock(return_value=b"data")))
-    fake_file.__exit__ = MagicMock(return_value=False)
-
     mock_backend = MagicMock(return_value=mock_store)
 
     with (
         patch("chat.clients.conversation_reindexer.document_store_backend", mock_backend),
-        patch("django.core.files.storage.default_storage.open", return_value=fake_file),
+        patch(
+            "chat.clients.conversation_reindexer._read_attachment_bytes",
+            new=AsyncMock(return_value=b"data"),
+        ),
         patch("asyncio.to_thread", side_effect=mock_to_thread),
     ):
         events = []
@@ -162,12 +170,15 @@ async def test_reindex_continues_on_individual_attachment_failure():
 
     await conversation.arefresh_from_db()
     assert conversation.collection_id == "col-789"
+    assert conversation.index_state == CollectionIndexState.ERROR
 
 
 @pytest.mark.asyncio
 async def test_reindex_skips_binary_attachments():
     """Binary attachments (PDF, etc.) are filtered out; only text/* attachments are stored."""
-    conversation = await sync_to_async(ChatConversationFactory)(collection_id=None)
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
     await sync_to_async(ChatConversationAttachmentFactory)(
         conversation=conversation,
         upload_state=AttachmentStatus.READY,
@@ -187,10 +198,6 @@ async def test_reindex_skips_binary_attachments():
 
     mock_backend = MagicMock(return_value=mock_store)
 
-    fake_file = MagicMock()
-    fake_file.__enter__ = MagicMock(return_value=MagicMock(read=MagicMock(return_value=b"data")))
-    fake_file.__exit__ = MagicMock(return_value=False)
-
     to_thread_calls = []
 
     async def capture_to_thread(func, *args, **kwargs):
@@ -198,7 +205,10 @@ async def test_reindex_skips_binary_attachments():
 
     with (
         patch("chat.clients.conversation_reindexer.document_store_backend", mock_backend),
-        patch("django.core.files.storage.default_storage.open", return_value=fake_file),
+        patch(
+            "chat.clients.conversation_reindexer._read_attachment_bytes",
+            new=AsyncMock(return_value=b"data"),
+        ),
         patch("asyncio.to_thread", side_effect=capture_to_thread),
     ):
         events = []
@@ -217,7 +227,9 @@ async def test_reindex_skips_binary_attachments():
 @pytest.mark.asyncio
 async def test_reindex_skips_in_context_attachments():
     """Attachments whose IDs are in in_context_ids (full-context) are not reindexed."""
-    conversation = await sync_to_async(ChatConversationFactory)(collection_id=None)
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
     att = await sync_to_async(ChatConversationAttachmentFactory)(
         conversation=conversation,
         upload_state=AttachmentStatus.READY,
@@ -235,7 +247,9 @@ async def test_reindex_skips_in_context_attachments():
 @pytest.mark.asyncio
 async def test_reindex_only_reindexes_out_of_context_attachments():
     """Only attachments absent from in_context_ids are stored."""
-    conversation = await sync_to_async(ChatConversationFactory)(collection_id=None)
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
     in_ctx_att = await sync_to_async(ChatConversationAttachmentFactory)(
         conversation=conversation,
         upload_state=AttachmentStatus.READY,
@@ -255,10 +269,6 @@ async def test_reindex_only_reindexes_out_of_context_attachments():
 
     mock_backend = MagicMock(return_value=mock_store)
 
-    fake_file = MagicMock()
-    fake_file.__enter__ = MagicMock(return_value=MagicMock(read=MagicMock(return_value=b"data")))
-    fake_file.__exit__ = MagicMock(return_value=False)
-
     to_thread_calls = []
 
     async def capture_to_thread(func, *args, **kwargs):
@@ -266,7 +276,10 @@ async def test_reindex_only_reindexes_out_of_context_attachments():
 
     with (
         patch("chat.clients.conversation_reindexer.document_store_backend", mock_backend),
-        patch("django.core.files.storage.default_storage.open", return_value=fake_file),
+        patch(
+            "chat.clients.conversation_reindexer._read_attachment_bytes",
+            new=AsyncMock(return_value=b"data"),
+        ),
         patch("asyncio.to_thread", side_effect=capture_to_thread),
     ):
         events = []
@@ -291,7 +304,9 @@ async def test_concurrent_reindex_only_creates_one_collection():
     asyncio.Barrier forces both coroutines to the claim step simultaneously so the
     race window is deterministic.
     """
-    conversation = await sync_to_async(ChatConversationFactory)(collection_id=None)
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
     await sync_to_async(ChatConversationAttachmentFactory)(
         conversation=conversation,
         upload_state=AttachmentStatus.READY,
@@ -308,10 +323,6 @@ async def test_concurrent_reindex_only_creates_one_collection():
     mock_store.collection_id = "col-123"
     mock_store.acreate_collection = counting_create
 
-    fake_file = MagicMock()
-    fake_file.__enter__ = MagicMock(return_value=MagicMock(read=MagicMock(return_value=b"data")))
-    fake_file.__exit__ = MagicMock(return_value=False)
-
     barrier = asyncio.Barrier(2)
 
     async def attempt():
@@ -324,7 +335,10 @@ async def test_concurrent_reindex_only_creates_one_collection():
             "chat.clients.conversation_reindexer.document_store_backend",
             MagicMock(return_value=mock_store),
         ),
-        patch("django.core.files.storage.default_storage.open", return_value=fake_file),
+        patch(
+            "chat.clients.conversation_reindexer._read_attachment_bytes",
+            new=AsyncMock(return_value=b"data"),
+        ),
         patch("asyncio.to_thread", new=AsyncMock()),
     ):
         await asyncio.gather(attempt(), attempt())
@@ -332,3 +346,134 @@ async def test_concurrent_reindex_only_creates_one_collection():
     assert create_calls == 1
     await conversation.arefresh_from_db()
     assert conversation.collection_id == "col-123"
+
+
+@pytest.mark.asyncio
+async def test_reindex_existing_and_new_attachment_creates_single_collection():
+    """New file added on resume is indexed in the same collection as existing deindexed files."""
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
+    # Two existing attachments reset by the deindex command
+    await sync_to_async(ChatConversationAttachmentFactory)(
+        conversation=conversation,
+        upload_state=AttachmentStatus.READY,
+        content_type="text/markdown",
+        file_name="existing1.md",
+        is_indexed=False,
+    )
+    await sync_to_async(ChatConversationAttachmentFactory)(
+        conversation=conversation,
+        upload_state=AttachmentStatus.READY,
+        content_type="text/markdown",
+        file_name="existing2.md",
+        is_indexed=False,
+    )
+    # New file added by the user when resuming (never indexed)
+    await sync_to_async(ChatConversationAttachmentFactory)(
+        conversation=conversation,
+        upload_state=AttachmentStatus.READY,
+        content_type="text/markdown",
+        file_name="new.md",
+        is_indexed=False,
+    )
+
+    mock_store = MagicMock()
+    mock_store.collection_id = "col-resume"
+    mock_store.acreate_collection = AsyncMock()
+
+    mock_backend = MagicMock(return_value=mock_store)
+
+    to_thread_calls = []
+
+    async def capture_to_thread(func, *args, **kwargs):
+        to_thread_calls.append(func)
+
+    with (
+        patch("chat.clients.conversation_reindexer.document_store_backend", mock_backend),
+        patch(
+            "chat.clients.conversation_reindexer._read_attachment_bytes",
+            new=AsyncMock(return_value=b"data"),
+        ),
+        patch("asyncio.to_thread", side_effect=capture_to_thread),
+    ):
+        events = []
+        async for event in reindex_conversation(conversation, in_context_ids=set()):
+            events.append(event)
+
+    # Exactly one collection created for all three files
+    mock_store.acreate_collection.assert_called_once()
+    # All three attachments stored in that collection
+    assert len(to_thread_calls) == 3
+    assert all(func == mock_store.store_document for func in to_thread_calls)
+
+    assert isinstance(events[-1], events_v4.ToolResultPart)
+    assert events[-1].result == {"state": "done"}
+
+    await conversation.arefresh_from_db()
+    assert conversation.collection_id == "col-resume"
+    assert conversation.index_state == CollectionIndexState.INDEXED
+
+
+@pytest.mark.asyncio
+async def test_reindex_yields_nothing_when_indexing_in_progress():
+    """No events yielded when another process holds a fresh INDEXING claim."""
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
+    await models.ChatConversation.objects.filter(pk=conversation.pk).aupdate(
+        index_state=CollectionIndexState.INDEXING,
+    )
+    await conversation.arefresh_from_db()
+    await sync_to_async(ChatConversationAttachmentFactory)(
+        conversation=conversation,
+        upload_state=AttachmentStatus.READY,
+        content_type="text/markdown",
+    )
+
+    events = []
+    async for event in reindex_conversation(conversation, in_context_ids=set()):
+        events.append(event)
+
+    assert not events
+    await conversation.arefresh_from_db()
+    assert conversation.index_state == CollectionIndexState.INDEXING
+
+
+@pytest.mark.asyncio
+async def test_reindex_all_failures_sets_error_and_saves_collection_id():
+    """When all attachments fail, index_state=ERROR and collection_id is saved (for retry reuse)."""
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
+    await sync_to_async(ChatConversationAttachmentFactory)(
+        conversation=conversation,
+        upload_state=AttachmentStatus.READY,
+        content_type="text/markdown",
+        file_name="fail.md",
+    )
+
+    mock_store = MagicMock()
+    mock_store.collection_id = "col-new"
+    mock_store.acreate_collection = AsyncMock()
+    mock_backend = MagicMock(return_value=mock_store)
+
+    with (
+        patch("chat.clients.conversation_reindexer.document_store_backend", mock_backend),
+        patch(
+            "chat.clients.conversation_reindexer._read_attachment_bytes",
+            new=AsyncMock(return_value=b"data"),
+        ),
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=RuntimeError("backend down"))),
+    ):
+        events = []
+        async for event in reindex_conversation(conversation, in_context_ids=set()):
+            events.append(event)
+
+    assert len(events) == 2
+    assert isinstance(events[-1], events_v4.ToolResultPart)
+    assert events[-1].result["state"] == "error"
+
+    await conversation.arefresh_from_db()
+    assert conversation.index_state == CollectionIndexState.ERROR
+    assert conversation.collection_id == "col-new"

@@ -8,6 +8,7 @@ from core.feature_flags.flags import FeatureToggle
 from core.file_upload.enums import AttachmentStatus
 
 from chat.clients.pydantic_ai import AIAgentService
+from chat.enums import CollectionIndexState
 from chat.factories import (
     ChatConversationAttachmentFactory,
     ChatConversationFactory,
@@ -49,8 +50,15 @@ def test_returns_false_when_feature_disabled(feature_flags):
 
 
 def test_returns_true_when_conversation_has_documents_arg():
-    """Caller-provided in-message-document signal is enough."""
-    conversation = ChatConversationFactory()
+    """Caller-provided in-message-document signal enables RAG once documents are indexed.
+
+    In practice _parse_input_documents always runs before this check and sets
+    index_state=INDEXED, so the conversation must reflect that post-parse state.
+    """
+    conversation = ChatConversationFactory(
+        index_state=CollectionIndexState.INDEXED,
+        collection_id="col-abc",
+    )
 
     assert _check(conversation, conversation_has_documents=True) is True
 

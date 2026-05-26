@@ -781,6 +781,12 @@ class Base(BraveSettings, Configuration):
         environ_name="RAG_COLLECTION_INACTIVITY_DAYS",
         environ_prefix=None,
     )
+    REINDEX_CLAIM_TIMEOUT_SECONDS = values.PositiveIntegerValue(120, environ_prefix=None)
+    DEINDEX_MAX_PER_RUN = values.PositiveIntegerValue(
+        default=100,
+        environ_name="DEINDEX_MAX_PER_RUN",
+        environ_prefix=None,
+    )
     SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS = values.DictValue(
         default={},
         environ_name="SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS",

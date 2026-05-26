@@ -152,9 +152,11 @@ from chat.clients.schema import (
 )
 from chat.constants import TEXT_MIME_PREFIX
 from chat.document_context_builder import (
-    build_document_context_instruction,
-    extract_listing_from_instruction,
+    DocumentsListing,
+    build_documents_listing,
+    render_listing,
 )
+from chat.enums import CollectionIndexState
 from chat.mcp_servers import get_mcp_servers
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
@@ -419,7 +421,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             - image_key_mapping: Maps signed URLs back to storage keys (for saving)
             - usage: Token usage dict (initialized to zero)
             - history: Validated message history for the agent
-            - conversation_has_documents: Whether RAG should be enabled
+            - conversation_has_own_documents: Whether this
+            conversation has its own (non-project) text attachments
         """
         history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
         history = update_history_local_urls(
@@ -465,12 +468,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
 
-        conversation_has_documents = self._is_document_upload_enabled and (
+        conversation_has_own_documents = self._is_document_upload_enabled and (
             bool(self.conversation.collection_id)
             or bool(
                 await models.ChatConversationAttachment.objects.filter(
                     conversation=self.conversation,
                     content_type__startswith=TEXT_MIME_PREFIX,
+                    upload_state=models.AttachmentStatus.READY,
                 ).aexists()
             )
         )
@@ -481,7 +485,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             image_actions,
             usage,
             history,
-            conversation_has_documents,
+            conversation_has_own_documents,
         )
 
     def _setup_web_search(self, force_web_search: bool) -> bool:
@@ -506,7 +510,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         return True
 
-    async def _check_should_enable_rag(self, conversation_has_documents: bool) -> bool:
+    async def _check_should_enable_rag(self, conversation_has_own_documents: bool) -> bool:
         """Check if RAG should be enabled based on actually-indexed documents.
 
         The tool is registered when any of the following holds:
@@ -532,7 +536,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if not self._is_document_upload_enabled:
             return False
 
-        if conversation_has_documents:
+        if (
+            conversation_has_own_documents
+            and self.conversation.index_state == CollectionIndexState.INDEXED
+        ):
             return True
 
         indexed_qs = models.ChatConversationAttachment.objects.filter(
@@ -684,7 +691,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if key and rag_document_id:
                 await models.ChatConversationAttachment.objects.filter(
                     conversation_id=self.conversation.pk, key=key
-                ).aupdate(rag_document_id=rag_document_id)
+                ).aupdate(rag_document_id=rag_document_id, is_indexed=True)
 
             if not document.media_type.startswith(TEXT_MIME_PREFIX):
                 md_attachment = await models.ChatConversationAttachment.objects.acreate(
@@ -700,6 +707,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 default_storage.save(md_attachment.key, BytesIO(parsed_content.encode("utf8")))
                 md_attachment.upload_state = models.AttachmentStatus.READY
                 await md_attachment.asave(update_fields=["upload_state", "updated_at"])
+
+        self.conversation.index_state = CollectionIndexState.INDEXED
+        await self.conversation.asave(update_fields=["index_state", "updated_at"])
 
     def _prepare_prompt(  # noqa: PLR0912  # pylint: disable=too-many-branches
         self, message: UIMessage
@@ -752,7 +762,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         return user_prompt[0], attachment_images, attachment_documents
 
-    async def _build_document_context_instruction(self) -> str:
+    async def _build_documents_listing(self) -> DocumentsListing | None:
         budget_ratio = settings.DOCUMENT_CONTEXT_BUDGET_RATIO
         security_buffer_tokens = settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS
         # Restrict to READY uploads on both arms: PENDING / ANALYZING /
@@ -776,7 +786,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             )
         max_token_context = self.conversation_agent.configuration.max_token_context
 
-        # Cache the assembled instruction: building it requires reading every text
+        # Cache the DocumentsListing: building it requires reading every text
         # attachment from object storage and tokenizing it. The fingerprint includes
         # each attachment's updated_at (conversation + project) so any edit
         # invalidates the cache.
@@ -799,7 +809,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if cached is not None:
             return cached
 
-        instruction = await build_document_context_instruction(
+        listing = await build_documents_listing(
             conversation_id=str(self.conversation.id),
             text_attachments=text_attachments,
             project_text_attachments=project_text_attachments,
@@ -808,8 +818,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             budget_ratio=budget_ratio,
             security_buffer_tokens=security_buffer_tokens,
         )
-        await sync_to_async(cache.set)(cache_key, instruction, CACHE_TIMEOUT)
-        return instruction
+        await sync_to_async(cache.set)(cache_key, listing, CACHE_TIMEOUT)
+        return listing
+
+    async def _build_document_context_instruction(self) -> str:
+        listing = await self._build_documents_listing()
+        return render_listing(listing) if listing is not None else ""
 
     def _setup_rag_tools(self, document_context_instruction: str = "") -> None:
         """Register RAG-related tools and instructions on the conversation agent."""
@@ -918,7 +932,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     async def _handle_input_documents(
         self,
         input_documents: List[BinaryContent | DocumentUrl],
-        conversation_has_documents: bool,
+        conversation_has_own_documents: bool,
         usage: Dict[str, Union[int, float]],
     ) -> AsyncGenerator[events_v4.Event | DocumentParsingResult, None]:
         """
@@ -946,7 +960,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             input_documents = []
 
         if not input_documents:
-            yield DocumentParsingResult(success=True, has_documents=conversation_has_documents)
+            yield DocumentParsingResult(success=True, has_documents=conversation_has_own_documents)
             return
 
         _tool_call_id = str(uuid.uuid4())
@@ -976,7 +990,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     ),
                 )
             )
-            yield DocumentParsingResult(success=False, has_documents=conversation_has_documents)
+            yield DocumentParsingResult(success=False, has_documents=conversation_has_own_documents)
             return
         yield events_v4.ToolResultPart(tool_call_id=_tool_call_id, result={"state": "done"})
         yield DocumentParsingResult(success=True, has_documents=True)
@@ -1188,7 +1202,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    async def _run_agent(  # pylint: disable=too-many-locals,too-many-branches  # noqa: PLR0912
+    async def _run_agent(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # noqa: PLR0912
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
@@ -1217,30 +1231,33 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             image_actions,
             usage,
             history,
-            conversation_has_documents,
+            conversation_has_own_documents,
         ) = await self._prepare_agent_run(messages)
 
         # Re-index conversation if it was de-indexed and has READY attachments
         is_conversation_deindexed = bool(
             self._is_document_upload_enabled
-            and not self.conversation.collection_id
-            and conversation_has_documents
+            and self.conversation.index_state
+            in (
+                CollectionIndexState.DEINDEXED,
+                CollectionIndexState.ERROR,
+            )
+            and conversation_has_own_documents
         )
         if is_conversation_deindexed:
-            document_context_instruction = await self._build_document_context_instruction()
-            try:
-                listing = extract_listing_from_instruction(document_context_instruction)
-                in_context_ids = {
-                    doc.document_id for doc in listing.documents if doc.access == "full-context"
-                }
-            except (ValueError, IndexError):
-                in_context_ids = set()
+            listing = await self._build_documents_listing()
+            in_context_ids = (
+                {doc.document_id for doc in listing.documents if doc.access == "full-context"}
+                if listing
+                else set()
+            )
             async for event in reindex_conversation(self.conversation, in_context_ids):
                 yield event
+            await self.conversation.arefresh_from_db(fields=["collection_id", "index_state"])
 
         doc_result = None
         async for item in self._handle_input_documents(
-            input_documents, conversation_has_documents, usage
+            input_documents, conversation_has_own_documents, usage
         ):
             if isinstance(item, DocumentParsingResult):
                 doc_result = item
@@ -1250,14 +1267,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if doc_result is None or not doc_result.success:
             return
 
-        conversation_has_documents = doc_result.has_documents
+        conversation_has_own_documents = doc_result.has_documents
 
         await self._agent_stop_streaming(force_cache_check=True)
         self._setup_self_documentation_tool()
         self._setup_web_search_tool()
         self._setup_web_search(force_web_search)
 
-        if await self._check_should_enable_rag(conversation_has_documents):
+        if await self._check_should_enable_rag(conversation_has_own_documents):
             document_context_instruction = await self._build_document_context_instruction()
             self._setup_rag_tools(document_context_instruction=document_context_instruction)
 
