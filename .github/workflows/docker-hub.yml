@@ -11,7 +11,7 @@ on:
   pull_request:
     branches:
       - 'main'
-      - 'ci/trivy-fails'
+      - 'ci/grype-fails'
 
 env:
   DOCKER_USER: 1001:127
@@ -40,11 +40,14 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USER }}
           password: ${{ secrets.DOCKER_HUB_PASSWORD }}
       -
-        name: Run trivy scan
-        uses: numerique-gouv/action-trivy-cache@main
+        name: Build backend image for scanning
+        run: docker build --target backend-production -f Dockerfile -t conversations-backend:scan .
+      -
+        name: Run Grype scan
+        uses: anchore/scan-action@v6
         with:
-          docker-build-args: '--target backend-production -f Dockerfile'
-          docker-image-name: 'docker.io/lasuite/conversations-backend:${{ github.sha }}'
+          image: conversations-backend:scan
+          fail-build: false
       -
         name: Build and push
         if: always()
@@ -80,11 +83,14 @@ jobs:
           username: ${{ secrets.DOCKER_HUB_USER }}
           password: ${{ secrets.DOCKER_HUB_PASSWORD }}
       -
-        name: Run trivy scan
-        uses: numerique-gouv/action-trivy-cache@main
+        name: Build frontend image for scanning
+        run: docker build -f src/frontend/Dockerfile --target frontend-production -t conversations-frontend:scan .
+      -
+        name: Run Grype scan
+        uses: anchore/scan-action@v6
         with:
-          docker-build-args: '-f src/frontend/Dockerfile --target frontend-production'
-          docker-image-name: 'docker.io/lasuite/conversations-frontend:${{ github.sha }}'
+          image: conversations-frontend:scan
+          fail-build: false
       -
         name: Build and push
         if: always()

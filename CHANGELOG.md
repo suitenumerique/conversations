@@ -37,6 +37,10 @@ and this project adheres to
 - ✨(back) make allow_conversation_analytics user setting readonly in admin
 - 🚸(front) switch to new conversation when creating a project
 
+### Changed
+
+- 👷(ci) replace trivy by grype for vulnerability scanning
+
 ### Fixed
 
 - 💬(onboarding) fix wording step 1 img
