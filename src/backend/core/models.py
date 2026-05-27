@@ -254,3 +254,73 @@ class SiteConfiguration(SingletonModel):
 
     class Meta:
         verbose_name = _("Site Configuration")
+
+
+class MaintenanceMode(SingletonModel):
+    """Singleton holding the live maintenance-mode state.
+
+    When active, non-exempt requests are short-circuited with HTTP 503 by
+    `MaintenanceMiddleware`. Always OR'd with `settings.MAINTENANCE_MODE`
+    (env-var escape hatch).
+    """
+
+    enabled = models.BooleanField(
+        default=False,
+        verbose_name=_("Enabled"),
+        help_text=_("When checked, the app is in maintenance mode for end-users."),
+    )
+    message = models.TextField(
+        blank=True,
+        default="",
+        verbose_name=_("Message"),
+        help_text=_("Shown on the maintenance page. Leave blank for the default message."),
+    )
+    starts_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("Starts at"),
+        help_text=_("If set, maintenance is inactive before this date."),
+    )
+    ends_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("Ends at"),
+        help_text=_("If set, maintenance is inactive after this date."),
+    )
+    updated_at = models.DateTimeField(auto_now=True, editable=False)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        editable=False,
+        related_name="+",
+    )
+
+    def is_active_now(self) -> bool:
+        """Whether the DB-driven maintenance window is currently active."""
+        if not self.enabled:
+            return False
+        now = timezone.now()
+        if self.starts_at and now < self.starts_at:
+            return False
+        if self.ends_at and now > self.ends_at:
+            return False
+        return True
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            previous = (
+                type(self).objects.filter(pk=self.pk).values_list("enabled", flat=True).first()
+            )
+        else:
+            previous = None
+        super().save(*args, **kwargs)
+        if previous != self.enabled:
+            logger.warning(
+                "maintenance mode %s (singleton)",
+                "ENABLED" if self.enabled else "DISABLED",
+            )
+
+    class Meta:
+        verbose_name = _("Maintenance Mode")

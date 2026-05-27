@@ -5,6 +5,10 @@ from unittest import mock
 
 from django.core.cache import cache
 
+import pytest
+
+pytestmark = pytest.mark.django_db
+
 
 def test_file_stream_invalid_key(api_client):
     """Test that invalid temporary keys return 404."""

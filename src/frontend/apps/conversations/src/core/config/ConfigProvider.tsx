@@ -10,6 +10,7 @@ import {
   useCustomTranslations,
   useSynchronizedLanguage,
 } from '@/features/language';
+import { MaintenancePage } from '@/features/maintenance';
 import { useAnalytics } from '@/libs';
 import { CrispProvider, PostHogAnalytic } from '@/services';
 import { useSentryStore } from '@/stores/useSentryStore';
@@ -93,6 +94,10 @@ export const ConfigProvider = ({ children }: PropsWithChildren) => {
         <Loader />
       </Box>
     );
+  }
+
+  if (conf.maintenance?.enabled) {
+    return <MaintenancePage maintenance={conf.maintenance} />;
   }
 
   return (

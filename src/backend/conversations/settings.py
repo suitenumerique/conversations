@@ -326,6 +326,7 @@ class Base(BraveSettings, Configuration):
     MIDDLEWARE = [
         "django.middleware.security.SecurityMiddleware",
         "whitenoise.middleware.WhiteNoiseMiddleware",
+        "core.middleware.MaintenanceMiddleware",
         "django.contrib.sessions.middleware.SessionMiddleware",
         "django.middleware.locale.LocaleMiddleware",
         "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -483,6 +484,19 @@ class Base(BraveSettings, Configuration):
     FRONTEND_SILENT_LOGIN_ENABLED = values.BooleanValue(
         default=True, environ_name="FRONTEND_SILENT_LOGIN_ENABLED", environ_prefix=None
     )
+
+    # Maintenance mode. When true, the app returns 503 to end-users for every
+    # non-exempt request. Always OR'd with the DB-backed `MaintenanceMode` singleton.
+    MAINTENANCE_MODE = values.BooleanValue(
+        default=False, environ_name="MAINTENANCE_MODE", environ_prefix=None
+    )
+
+    # django-solo cache: avoids a DB hit per request for singleton lookups
+    # (MaintenanceMode, SiteConfiguration). save() invalidates the cache key
+    # instantly; the timeout is a safety net.
+    SOLO_CACHE = "default"
+    SOLO_CACHE_TIMEOUT = 60 * 5
+    SOLO_CACHE_PREFIX = "solo"
     THEME_CUSTOMIZATION_FILE_PATH = values.Value(
         os.path.join(BASE_DIR, "conversations/configuration/theme/default.json"),
         environ_name="THEME_CUSTOMIZATION_FILE_PATH",
