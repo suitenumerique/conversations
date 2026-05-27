@@ -46,6 +46,7 @@ export const CONFIG = {
     'image/gif,' +
     'image/webp,' +
     'application/vnd.oasis.opendocument.text',
+  maintenance: null,
   project_files_max_count: 10,
   project_images_max_count: 3,
   status_banner: null,

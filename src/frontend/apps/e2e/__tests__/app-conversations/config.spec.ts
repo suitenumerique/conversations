@@ -21,8 +21,6 @@ test.describe('Config', () => {
     expect((await consoleMessage).text()).toContain(invalidMsg);
   });
 
-
-
   test('it checks FRONTEND_CSS_URL config', async ({ page }) => {
     await overrideConfig(page, {
       FRONTEND_CSS_URL: 'http://localhost:123465/css/style.css',

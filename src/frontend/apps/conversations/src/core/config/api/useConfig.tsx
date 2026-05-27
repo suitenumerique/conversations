@@ -28,6 +28,11 @@ export interface StatusBanner {
   content: string;
 }
 
+export interface MaintenanceConfig {
+  enabled: boolean;
+  message?: string | null;
+}
+
 export interface ConfigResponse {
   ACTIVATION_REQUIRED: boolean;
   ENVIRONMENT: string;
@@ -44,6 +49,7 @@ export interface ConfigResponse {
   FRONTEND_SILENT_LOGIN_ENABLED?: boolean;
   theme_customization?: ThemeCustomization;
   status_banner?: StatusBanner;
+  maintenance?: MaintenanceConfig | null;
   chat_upload_accept?: string;
   project_files_max_count?: number;
   project_images_max_count?: number;

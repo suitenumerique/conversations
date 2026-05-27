@@ -1,6 +1,7 @@
 """Admin classes and registrations for core app."""
 
-from django.contrib import admin
+from django.conf import settings
+from django.contrib import admin, messages
 from django.contrib.auth import admin as auth_admin
 from django.utils.translation import gettext_lazy as _
 
@@ -147,3 +148,26 @@ class SiteConfigurationAdmin(SingletonModelAdmin):
             },
         ),
     )
+
+
+@admin.register(models.MaintenanceMode)
+class MaintenanceModeAdmin(SingletonModelAdmin):
+    """Admin class for the MaintenanceMode singleton."""
+
+    fields = ("enabled", "message", "starts_at", "ends_at", "updated_at", "updated_by")
+    readonly_fields = ("updated_at", "updated_by")
+
+    def save_model(self, request, obj, form, change):
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        if settings.MAINTENANCE_MODE:
+            messages.warning(
+                request,
+                _(
+                    "The MAINTENANCE_MODE environment variable is set: maintenance is "
+                    "forced ON regardless of the value below."
+                ),
+            )
+        return super().changeform_view(request, object_id, form_url, extra_context)
