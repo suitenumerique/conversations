@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [unreleased] - 2026-05-21
 
+### Added
+
+- ✨(maintenance) add maintenance mode
+
 ### Changed
 
 - 🔒️(front) disable yarn install scripts in docker build

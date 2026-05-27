@@ -16,6 +16,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.throttling import UserRateThrottle
 
 from core import models, permissions
+from core.middleware import is_maintenance_active
 
 from . import serializers
 
@@ -229,6 +230,7 @@ class ConfigView(drf.views.APIView):
         dict_settings["project_images_max_count"] = settings.PROJECT_IMAGES_MAX_COUNT
 
         dict_settings["status_banner"] = self._get_banner()
+        dict_settings["maintenance"] = self._get_maintenance()
 
         return drf.response.Response(dict_settings)
 
@@ -274,4 +276,16 @@ class ConfigView(drf.views.APIView):
             "level": config.status_banner_level,
             "title": config.status_banner_title,
             "content": config.status_banner_content,
+        }
+
+    def _get_maintenance(self):
+        """Return maintenance state for the SPA, or None if inactive."""
+        if not is_maintenance_active():
+            return None
+
+        config = models.MaintenanceMode.get_solo()
+        return {
+            "enabled": True,
+            "message": config.message,
+            "ends_at": config.ends_at,
         }
