@@ -238,13 +238,17 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
 
   const hasNonDocumentParsingTool = React.useMemo(() => {
     return toolInvocationParts.some(
-      (part) => part.toolInvocation.toolName !== 'document_parsing',
+      (part) =>
+        part.toolInvocation.toolName !== 'document_parsing' &&
+        part.toolInvocation.toolName !== 'conversation_resume',
     );
   }, [toolInvocationParts]);
 
   const activeToolInvocation = React.useMemo(() => {
     const tool = toolInvocationParts.find(
-      (part) => part.toolInvocation.toolName !== 'document_parsing',
+      (part) =>
+        part.toolInvocation.toolName !== 'document_parsing' &&
+        part.toolInvocation.toolName !== 'conversation_resume',
     );
     return tool?.toolInvocation;
   }, [toolInvocationParts]);

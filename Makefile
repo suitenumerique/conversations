@@ -240,7 +240,11 @@ back-i18n-generate: ## create the .pot files used for i18n
 
 shell: ## connect to database shell
 	@$(MANAGE) shell #_plus
-.PHONY: dbshell
+.PHONY: shell
+
+deindex_inactive_collections: ## run the deindex_inactive_collections management command
+	@$(MANAGE) deindex_inactive_collections
+.PHONY: deindex_inactive_collections
 
 # -- Database
 

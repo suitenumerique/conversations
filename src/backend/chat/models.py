@@ -11,6 +11,7 @@ from core.file_upload.enums import AttachmentStatus
 from core.models import BaseModel
 
 from chat.ai_sdk_types import UIMessage
+from chat.enums import CollectionIndexState
 
 User = get_user_model()
 
@@ -155,6 +156,13 @@ class ChatConversation(BaseModel):
         help_text="Collection ID for the conversation, used for RAG document search",
     )
 
+    index_state = models.CharField(
+        max_length=20,
+        choices=CollectionIndexState.choices(),
+        default=CollectionIndexState.UNINDEXED,
+        help_text="Current indexing state of this conversation's RAG collection",
+    )
+
     project = models.ForeignKey(
         ChatProject,
         related_name="conversations",
@@ -239,6 +247,11 @@ class ChatConversationAttachment(BaseModel):
             "Per-document id returned by the RAG backend at indexing time, "
             "used to remove the document from its collection on attachment delete"
         ),
+    )
+
+    is_indexed = models.BooleanField(
+        default=False,
+        help_text="Whether this attachment has been indexed in the RAG backend",
     )
 
     class Meta:  # pylint: disable=missing-class-docstring
