@@ -12,6 +12,10 @@ and this project adheres to
 
 - 🔒️(front) disable yarn install scripts in docker build
 
+### Fixed
+
+- 🐛(backend) remove user list endpoint
+
 ## [0.0.16] - 2026-05-21
 
 ### Added

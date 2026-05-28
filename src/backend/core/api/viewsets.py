@@ -4,16 +4,13 @@ import json
 import logging
 
 from django.conf import settings
-from django.contrib.postgres.search import TrigramSimilarity
 from django.core.cache import cache
-from django.db.models.expressions import RawSQL
 from django.utils.text import slugify
 
 import rest_framework as drf
 from pydantic import BaseModel
 from rest_framework import viewsets
 from rest_framework.permissions import AllowAny
-from rest_framework.throttling import UserRateThrottle
 
 from core import models, permissions
 
@@ -107,70 +104,13 @@ class Pagination(drf.pagination.PageNumberPagination):
     page_size_query_param = "page_size"
 
 
-class UserListThrottleBurst(UserRateThrottle):
-    """Throttle for the user list endpoint."""
-
-    scope = "user_list_burst"
-
-
-class UserListThrottleSustained(UserRateThrottle):
-    """Throttle for the user list endpoint."""
-
-    scope = "user_list_sustained"
-
-
-class UserViewSet(drf.mixins.UpdateModelMixin, viewsets.GenericViewSet, drf.mixins.ListModelMixin):
+class UserViewSet(drf.mixins.UpdateModelMixin, viewsets.GenericViewSet):
     """User ViewSet"""
 
     permission_classes = [permissions.IsSelf]
     queryset = models.User.objects.filter(is_active=True)
     serializer_class = serializers.UserSerializer
     pagination_class = None
-    throttle_classes = []
-
-    def get_throttles(self):
-        self.throttle_classes = []
-        if self.action == "list":
-            self.throttle_classes = [UserListThrottleBurst, UserListThrottleSustained]
-
-        return super().get_throttles()
-
-    def get_queryset(self):
-        """
-        Limit listed users by querying the email field with a trigram similarity
-        search if a query is provided.
-        Limit listed users by excluding users already in the document if a document_id
-        is provided.
-        """
-        queryset = self.queryset
-
-        if self.action != "list":
-            return queryset
-
-        # Exclude all users already in the given document
-        if document_id := self.request.query_params.get("document_id", ""):
-            queryset = queryset.exclude(documentaccess__document_id=document_id)
-
-        if not (query := self.request.query_params.get("q", "")) or len(query) < 5:
-            return queryset.none()
-
-        # For emails, match emails by Levenstein distance to prevent typing errors
-        if "@" in query:
-            return (
-                queryset.annotate(distance=RawSQL("levenshtein(email::text, %s::text)", (query,)))
-                .filter(distance__lte=3)
-                .order_by("distance", "email")[: settings.API_USERS_LIST_LIMIT]
-            )
-
-        # Use trigram similarity for non-email-like queries
-        # For performance reasons we filter first by similarity, which relies on an
-        # index, then only calculate precise similarity scores for sorting purposes
-        return (
-            queryset.filter(email__trigram_word_similar=query)
-            .annotate(similarity=TrigramSimilarity("email", query))
-            .filter(similarity__gt=0.2)
-            .order_by("-similarity", "email")[: settings.API_USERS_LIST_LIMIT]
-        )
 
     @drf.decorators.action(
         detail=False,
