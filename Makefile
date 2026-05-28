@@ -242,6 +242,14 @@ shell: ## connect to database shell
 	@$(MANAGE) shell #_plus
 .PHONY: dbshell
 
+eval: ## run behavioral evals (usage: make eval EVAL_ARGS="--dataset url_hallucination --verbose")
+	@$(MANAGE) run_evals $(EVAL_ARGS)
+.PHONY: eval
+
+eval-debug: ## run behavioral evals with debugpy on port 5678 (attach VS Code before the command runs)
+	@$(COMPOSE_RUN) -p 5678:5678 app-dev python -m debugpy --listen 0.0.0.0:5678 --wait-for-client manage.py run_evals $(EVAL_ARGS)
+.PHONY: eval-debug
+
 # -- Database
 
 dbshell: ## connect to database shell
