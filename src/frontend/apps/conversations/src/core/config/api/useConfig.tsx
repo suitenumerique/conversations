@@ -30,6 +30,7 @@ export interface StatusBanner {
 
 export interface ConfigResponse {
   ACTIVATION_REQUIRED: boolean;
+  STATUS_PAGE_URL?: string | null;
   CRISP_WEBSITE_ID?: string;
   ENVIRONMENT: string;
   FEATURE_FLAGS: FeatureFlags;
