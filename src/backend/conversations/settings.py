@@ -407,16 +407,6 @@ class Base(BraveSettings, Configuration):
                 environ_name="API_ATTACHMENT_AUTH_THROTTLE_RATE",
                 environ_prefix=None,
             ),
-            "user_list_sustained": values.Value(
-                default="180/hour",
-                environ_name="API_USERS_LIST_THROTTLE_RATE_SUSTAINED",
-                environ_prefix=None,
-            ),
-            "user_list_burst": values.Value(
-                default="30/minute",
-                environ_name="API_USERS_LIST_THROTTLE_RATE_BURST",
-                environ_prefix=None,
-            ),
             "file-stream": values.Value(
                 default="60/minute",
                 environ_name="API_FILE_STREAM_THROTTLE_RATE",
@@ -1031,12 +1021,6 @@ USER QUESTION:
             },
         },
     }
-
-    API_USERS_LIST_LIMIT = values.PositiveIntegerValue(
-        default=5,
-        environ_name="API_USERS_LIST_LIMIT",
-        environ_prefix=None,
-    )
 
     # LLM Instrumentation
     LANGFUSE_ENABLED = values.BooleanValue(

@@ -18,186 +18,22 @@ def reset_user_model():
 
 
 def test_api_users_list_anonymous():
-    """Anonymous users should not be allowed to list users."""
+    """The user list URL no longer exists — returns 404."""
     factories.UserFactory()
     client = APIClient()
     response = client.get("/api/v1.0/users/")
-    assert response.status_code == 401
-    assert response.json() == {"detail": "Authentication credentials were not provided."}
+    assert response.status_code == 404
 
 
 def test_api_users_list_authenticated():
-    """
-    Authenticated users should not be able to list users without a query.
-    """
+    """The user list URL no longer exists — returns 404."""
     user = factories.UserFactory()
 
     client = APIClient()
     client.force_login(user)
 
-    factories.UserFactory.create_batch(2)
-    response = client.get(
-        "/api/v1.0/users/",
-    )
-    assert response.status_code == 200
-    content = response.json()
-    assert content == []
-
-
-def test_api_users_list_query_email():
-    """
-    Authenticated users should be able to list users and filter by email.
-    Only results with a Levenstein distance less than 3 with the query should be returned.
-    We want to match by Levenstein distance because we want to prevent typing errors.
-    """
-    user = factories.UserFactory()
-
-    client = APIClient()
-    client.force_login(user)
-
-    dave = factories.UserFactory(email="david.bowman@work.com")
-    factories.UserFactory(email="nicole.bowman@work.com")
-
-    response = client.get(
-        "/api/v1.0/users/?q=david.bowman@work.com",
-    )
-    assert response.status_code == 200
-    user_ids = [user["id"] for user in response.json()]
-    assert user_ids == [str(dave.id)]
-
-    response = client.get(
-        "/api/v1.0/users/?q=davig.bovman@worm.com",
-    )
-    assert response.status_code == 200
-    user_ids = [user["id"] for user in response.json()]
-    assert user_ids == [str(dave.id)]
-
-    response = client.get(
-        "/api/v1.0/users/?q=davig.bovman@worm.cop",
-    )
-    assert response.status_code == 200
-    user_ids = [user["id"] for user in response.json()]
-    assert user_ids == []
-
-
-def test_api_users_list_limit(settings):
-    """
-    Authenticated users should be able to list users and the number of results
-    should be limited to 10.
-    """
-    user = factories.UserFactory()
-
-    client = APIClient()
-    client.force_login(user)
-
-    # Use a base name with a length equal 5 to test that the limit is applied
-    base_name = "alice"
-    for i in range(15):
-        factories.UserFactory(email=f"{base_name}.{i}@example.com")
-
-    response = client.get(
-        "/api/v1.0/users/?q=alice",
-    )
-    assert response.status_code == 200
-    assert len(response.json()) == 5
-
-    # if the limit is changed, all users should be returned
-    settings.API_USERS_LIST_LIMIT = 100
-    response = client.get(
-        "/api/v1.0/users/?q=alice",
-    )
-    assert response.status_code == 200
-    assert len(response.json()) == 15
-
-
-def test_api_users_list_throttling_authenticated(settings):
-    """
-    Authenticated users should be throttled.
-    """
-    user = factories.UserFactory()
-    client = APIClient()
-    client.force_login(user)
-
-    settings.REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["user_list_burst"] = "3/minute"
-
-    for _i in range(3):
-        response = client.get(
-            "/api/v1.0/users/?q=alice",
-        )
-        assert response.status_code == 200
-
-    response = client.get(
-        "/api/v1.0/users/?q=alice",
-    )
-    assert response.status_code == 429
-
-
-def test_api_users_list_query_email_matching():
-    """While filtering by email, results should be filtered and sorted by Levenstein distance."""
-    user = factories.UserFactory()
-
-    client = APIClient()
-    client.force_login(user)
-
-    user1 = factories.UserFactory(email="alice.johnson@example.gouv.fr")
-    user2 = factories.UserFactory(email="alice.johnnson@example.gouv.fr")
-    user3 = factories.UserFactory(email="alice.kohlson@example.gouv.fr")
-    user4 = factories.UserFactory(email="alicia.johnnson@example.gouv.fr")
-    user5 = factories.UserFactory(email="alicia.johnnson@example.gov.uk")
-    factories.UserFactory(email="alice.thomson@example.gouv.fr")
-
-    response = client.get(
-        "/api/v1.0/users/?q=alice.johnson@example.gouv.fr",
-    )
-    assert response.status_code == 200
-    user_ids = [user["id"] for user in response.json()]
-    assert user_ids == [str(user1.id), str(user2.id), str(user3.id), str(user4.id)]
-
-    response = client.get("/api/v1.0/users/?q=alicia.johnnson@example.gouv.fr")
-
-    assert response.status_code == 200
-    user_ids = [user["id"] for user in response.json()]
-    assert user_ids == [str(user4.id), str(user2.id), str(user1.id), str(user5.id)]
-
-
-def test_api_users_list_query_short_queries():
-    """
-    Queries shorter than 5 characters should return an empty result set.
-    """
-    user = factories.UserFactory()
-    client = APIClient()
-    client.force_login(user)
-
-    factories.UserFactory(email="john.doe@example.com")
-    factories.UserFactory(email="john.lennon@example.com")
-
-    response = client.get("/api/v1.0/users/?q=jo")
-    assert response.status_code == 200
-    assert response.json() == []
-
-    response = client.get("/api/v1.0/users/?q=john")
-    assert response.status_code == 200
-    assert response.json() == []
-
-    response = client.get("/api/v1.0/users/?q=john.")
-    assert response.status_code == 200
-    assert len(response.json()) == 2
-
-
-def test_api_users_list_query_inactive():
-    """Inactive users should not be listed."""
-    user = factories.UserFactory()
-    client = APIClient()
-    client.force_login(user)
-
-    factories.UserFactory(email="john.doe@example.com", is_active=False)
-    lennon = factories.UserFactory(email="john.lennon@example.com")
-
-    response = client.get("/api/v1.0/users/?q=john.")
-
-    assert response.status_code == 200
-    user_ids = [user["id"] for user in response.json()]
-    assert user_ids == [str(lennon.id)]
+    response = client.get("/api/v1.0/users/")
+    assert response.status_code == 404
 
 
 def test_api_users_retrieve_me_anonymous():
@@ -281,7 +117,7 @@ def test_api_users_retrieve_authenticated_other():
 
 
 def test_api_users_create_anonymous():
-    """Anonymous users should not be able to create users via the API."""
+    """The user list URL no longer exists — POST returns 404."""
     response = APIClient().post(
         "/api/v1.0/users/",
         {
@@ -289,13 +125,12 @@ def test_api_users_create_anonymous():
             "password": "mypassword",
         },
     )
-    assert response.status_code == 401
-    assert response.json() == {"detail": "Authentication credentials were not provided."}
+    assert response.status_code == 404
     assert models.User.objects.exists() is False
 
 
 def test_api_users_create_authenticated():
-    """Authenticated users should not be able to create users via the API."""
+    """The user list URL no longer exists — POST returns 404."""
     user = factories.UserFactory()
 
     client = APIClient()
@@ -309,8 +144,7 @@ def test_api_users_create_authenticated():
         },
         format="json",
     )
-    assert response.status_code == 405
-    assert response.json() == {"detail": 'Method "POST" not allowed.'}
+    assert response.status_code == 404
     assert models.User.objects.exclude(id=user.id).exists() is False
 
 
@@ -491,18 +325,18 @@ def test_api_users_patch_authenticated_other():
 
 
 def test_api_users_delete_list_anonymous():
-    """Anonymous users should not be allowed to delete a list of users."""
+    """The user list URL no longer exists — DELETE returns 404."""
     factories.UserFactory.create_batch(2)
 
     client = APIClient()
     response = client.delete("/api/v1.0/users/")
 
-    assert response.status_code == 401
+    assert response.status_code == 404
     assert models.User.objects.count() == 2
 
 
 def test_api_users_delete_list_authenticated():
-    """Authenticated users should not be allowed to delete a list of users."""
+    """The user list URL no longer exists — DELETE returns 404."""
     factories.UserFactory.create_batch(2)
     user = factories.UserFactory()
 
@@ -513,7 +347,7 @@ def test_api_users_delete_list_authenticated():
         "/api/v1.0/users/",
     )
 
-    assert response.status_code == 405
+    assert response.status_code == 404
     assert models.User.objects.count() == 3
 
 
