@@ -41,7 +41,7 @@ describe('SimpleConversationItem', () => {
       <SimpleConversationItem
         conversation={{
           ...mockConversation,
-          title: undefined as unknown as string,
+          title: undefined,
         }}
       />,
     );

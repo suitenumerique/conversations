@@ -51,7 +51,7 @@ def test_not_custom_model(monkeypatch, settings):
     settings.LLM_CONFIGURATIONS = {
         "gpt-4": LLModel(
             hrid="gpt-4",
-            model_name="openai:gpt-4",
+            model_name="openai-chat:gpt-4",
             human_readable_name="GPT-4",
             is_active=True,
             system_prompt="direct",
@@ -120,6 +120,40 @@ def test_custom_model_mistral(settings):
     import pydantic_ai.models.mistral as mistral_models  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
 
     assert mistral_models.__safe_map_patched__ is True  # pylint: disable=protected-access
+
+
+def test_custom_model_mistral_neutral_sampling_defaults(settings):
+    """Mistral models carry neutral sampling defaults so optional fields are never null.
+
+    pydantic-ai serializes presence_penalty/frequency_penalty/stop as explicit
+    null when unset, which strict Mistral-compatible platforms (e.g. Etalab)
+    reject. We set neutral model-level defaults to keep the request valid.
+    """
+    settings.LLM_CONFIGURATIONS = {
+        "mistral-model": LLModel(
+            hrid="mistral-model",
+            model_name="mistral-7b-instruct-v0.1",
+            human_readable_name="Mistral 7B Instruct",
+            profile=None,
+            provider=LLMProvider(
+                hrid="mistral",
+                kind="mistral",
+                base_url="https://api.mistral.ai/v1",
+                api_key="testkey",
+            ),
+            is_active=True,
+            system_prompt="direct",
+            tools=[],
+        ),
+    }
+
+    agent = BaseAgent(model_hrid="mistral-model")
+
+    model_settings = agent._model.settings
+    assert model_settings is not None
+    assert model_settings["presence_penalty"] == 0.0
+    assert model_settings["frequency_penalty"] == 0.0
+    assert model_settings["stop_sequences"] == []
 
 
 def test_custom_model_openai_profile(settings):

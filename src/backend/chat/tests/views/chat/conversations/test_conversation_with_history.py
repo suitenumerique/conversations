@@ -2,7 +2,7 @@
 # pylint: disable=too-many-lines
 
 import json
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from django.utils import timezone
 
@@ -1489,6 +1489,7 @@ def test_post_conversation_with_existing_tool_history(
 
     # Verify the new tool call request is included
     assert history_conversation_with_tool.pydantic_messages[8] == {
+        "conversation_id": ANY,
         "instructions": (
             "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025."
             "\n\nAnswer in dutch."
@@ -1509,6 +1510,7 @@ def test_post_conversation_with_existing_tool_history(
     }
 
     assert history_conversation_with_tool.pydantic_messages[9] == {
+        "conversation_id": ANY,
         "finish_reason": "tool_call",
         "kind": "response",
         "metadata": None,
@@ -1521,6 +1523,7 @@ def test_post_conversation_with_existing_tool_history(
                 "provider_details": None,
                 "provider_name": None,
                 "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                "tool_kind": None,
                 "tool_name": "get_current_weather",
             }
         ],
@@ -1531,6 +1534,7 @@ def test_post_conversation_with_existing_tool_history(
         "provider_name": "openai",
         "provider_response_id": "chatcmpl-tool-call",
         "provider_url": "https://www.external-ai-service.com/",
+        "state": "complete",
         "timestamp": "2025-07-25T10:36:35.297675Z",
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -1546,6 +1550,7 @@ def test_post_conversation_with_existing_tool_history(
     }
 
     assert history_conversation_with_tool.pydantic_messages[10] == {
+        "conversation_id": ANY,
         "instructions": (
             "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025."
             "\n\nAnswer in dutch."
@@ -1562,6 +1567,7 @@ def test_post_conversation_with_existing_tool_history(
                 "part_kind": "tool-return",
                 "timestamp": "2025-07-25T10:36:35.297675Z",
                 "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                "tool_kind": None,
                 "tool_name": "get_current_weather",
             }
         ],
@@ -1570,6 +1576,7 @@ def test_post_conversation_with_existing_tool_history(
     }
 
     assert history_conversation_with_tool.pydantic_messages[11] == {
+        "conversation_id": ANY,
         "finish_reason": "stop",
         "kind": "response",
         "metadata": None,
@@ -1590,6 +1597,7 @@ def test_post_conversation_with_existing_tool_history(
         "provider_name": "openai",
         "provider_response_id": "chatcmpl-final",
         "provider_url": "https://www.external-ai-service.com/",
+        "state": "complete",
         "timestamp": "2025-07-25T10:36:35.297675Z",
         "usage": {
             "cache_audio_read_tokens": 0,

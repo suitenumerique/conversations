@@ -355,8 +355,6 @@ class Base(BraveSettings, Configuration):
         "django_filters",
         "dockerflow.django",
         "rest_framework",
-        "parler",
-        "easy_thumbnails",
         "solo.apps.SoloAppConfig",
         # Django
         "django.contrib.admin",
@@ -501,9 +499,6 @@ class Base(BraveSettings, Configuration):
     POSTHOG_MW_CAPTURE_EXCEPTIONS = values.BooleanValue(
         default=False, environ_name="POSTHOG_MW_CAPTURE_EXCEPTIONS", environ_prefix=None
     )
-
-    # Crisp
-    CRISP_WEBSITE_ID = values.Value(None, environ_name="CRISP_WEBSITE_ID", environ_prefix=None)
 
     # Easy thumbnails
     THUMBNAIL_EXTENSION = "webp"
@@ -1077,20 +1072,6 @@ USER QUESTION:
         Delegate to the module function to enable easier testing.
         """
         return get_release()
-
-    # pylint: disable=invalid-name
-    @property
-    def PARLER_LANGUAGES(self):
-        """
-        Return languages for Parler computed from the LANGUAGES and LANGUAGE_CODE settings.
-        """
-        return {
-            self.SITE_ID: tuple({"code": code} for code, _name in self.LANGUAGES),
-            "default": {
-                "fallbacks": [self.LANGUAGE_CODE],
-                "hide_untranslated": False,
-            },
-        }
 
     @property
     def FEATURE_FLAGS(self) -> FeatureFlags:  # pylint: disable=invalid-name
