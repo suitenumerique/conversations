@@ -292,3 +292,19 @@ class ChatProjectSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+
+class ModelHealthItemSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Single model health record."""
+
+    provider = serializers.CharField()
+    model_id = serializers.CharField()
+    status = serializers.CharField()
+    created_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()
+
+
+class ModelHealthResponseSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Wrapper for the model-health list response."""
+
+    data = ModelHealthItemSerializer(many=True)

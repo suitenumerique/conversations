@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [unreleased] - 2026-05-21
 
+### Added
+
+- ✨(back) add cron job to poll Albert models health
+
 ### Changed
 
 - 🔒️(front) disable yarn install scripts in docker build
