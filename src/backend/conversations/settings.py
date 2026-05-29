@@ -959,6 +959,18 @@ USER QUESTION:
         environ_prefix=None,
     )
 
+    ALBERT_HEALTH_URL = values.Value(
+        "https://albert.api.etalab.gouv.fr/health/models",
+        environ_name="ALBERT_HEALTH_URL",
+        environ_prefix=None,
+    )
+
+    ALBERT_HEALTH_TIMEOUT = values.PositiveIntegerValue(
+        default=10,
+        environ_name="ALBERT_HEALTH_TIMEOUT",
+        environ_prefix=None,
+    )
+
     # Find
     FIND_API_KEY = values.Value(
         None,

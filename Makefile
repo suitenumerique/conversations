@@ -242,6 +242,10 @@ shell: ## connect to database shell
 	@$(MANAGE) shell #_plus
 .PHONY: dbshell
 
+fetch_model_health: ## check the health of the models (usage: make fetch_model_health FETCH_MODEL_HEALTH_ARGS="--provider albert")
+	@$(MANAGE) fetch_model_health $(FETCH_MODEL_HEALTH_ARGS)
+.PHONY: fetch_model_health
+
 # -- Database
 
 dbshell: ## connect to database shell

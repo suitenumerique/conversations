@@ -73,3 +73,15 @@ cmd_button('Migrate db',
            icon_name='developer_board',
            text='Run database migration',
 )
+
+fetch_model_health = '''
+set -eu
+POD_NAME="$(tilt get kubernetesdiscovery conversations-backend -ojsonpath='{.status.pods[0].name}')"
+kubectl -n conversations exec "$POD_NAME" -- python manage.py fetch_model_health --provider albert
+'''
+cmd_button('Fetch model health',
+           argv=['sh', '-c', fetch_model_health],
+           resource='conversations-backend',
+           icon_name='monitor_heart',
+           text='Fetch model health',
+)
