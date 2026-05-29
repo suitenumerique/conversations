@@ -9,6 +9,7 @@ import { InputChatActions } from '@/features/chat/components/InputChatAction';
 import { ProjectWelcomeMessage } from '@/features/chat/components/ProjectWelcomeMessage';
 import { SuggestionCarousel } from '@/features/chat/components/SuggestionCarousel';
 import { WelcomeMessage } from '@/features/chat/components/WelcomeMessage';
+import { useAssistantHealth } from '@/features/chat/api/useAssistantHealth';
 import { useFileDragDrop } from '@/features/chat/hooks/useFileDragDrop';
 import { useFileUrls } from '@/features/chat/hooks/useFileUrls';
 import { useResponsiveStore } from '@/stores';
@@ -236,9 +237,12 @@ export const InputChat = ({
     onFilesRejected: () => showToastError(),
   });
 
+  const { data: assistantHealth } = useAssistantHealth();
+
   const isInputDisabled =
     (status !== 'ready' && status !== 'streaming' && status !== 'submitted') ||
-    isUploadingFiles;
+    isUploadingFiles ||
+    (assistantHealth?.blocked ?? false);
 
   const containerCss = useMemo(
     () => `

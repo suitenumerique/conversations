@@ -2,8 +2,10 @@ import { PropsWithChildren } from 'react';
 import { css } from 'styled-components';
 
 import { Box } from '@/components';
-import { StatusBanner } from '@/features/banner';
+import { BannerStack } from '@/features/banner';
+import { useAssistantHealth } from '@/features/chat/api/useAssistantHealth';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
+import { useConfig } from '@/core/config';
 import { Header } from '@/features/header';
 import { LeftPanel } from '@/features/left-panel';
 import { MAIN_LAYOUT_ID } from '@/layouts/conf';
@@ -19,6 +21,8 @@ export function MainLayout({
 }: PropsWithChildren<MainLayoutProps>) {
   const { isDesktop } = useResponsiveStore();
   const { isPanelOpen } = useChatPreferencesStore();
+  const { data: config } = useConfig();
+  const { data: assistantHealth } = useAssistantHealth();
 
   return (
     <Box className="--docs--main-layout">
@@ -63,7 +67,10 @@ export function MainLayout({
             }
           `}
         >
-          <StatusBanner />
+          <BannerStack banners={[
+            ...(config?.status_banner ? [config.status_banner] : []),
+            ...(assistantHealth?.banners ?? []),
+          ]} />
         </Box>
         <Box $direction="row" $width="100%">
           <Box

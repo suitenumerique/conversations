@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(back) add cron job to poll Albert models health
+- ✨(banner) add dynamic health banners
 
 ### Changed
 
