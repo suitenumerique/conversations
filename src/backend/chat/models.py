@@ -251,3 +251,25 @@ class ChatConversationAttachment(BaseModel):
                 ),
             ),
         ]
+
+
+class ModelHealth(models.Model):
+    """Append-only health status record fetched from an external provider."""
+
+    class Status(models.TextChoices):  # pylint: disable=missing-class-docstring
+        GREEN = "green"
+        ORANGE = "orange"
+        RED = "red"
+
+    provider = models.CharField(max_length=50)
+    model_id = models.CharField(max_length=255)
+    status = models.CharField(max_length=10, choices=Status.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        indexes = [models.Index(fields=["provider", "model_id", "-updated_at"])]
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"{self.provider}/{self.model_id}: {self.status}"

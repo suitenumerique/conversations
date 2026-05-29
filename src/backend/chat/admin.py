@@ -1,6 +1,7 @@
 """Admin classes and registrations for chat application."""
 
 from django.contrib import admin
+from django.db.models import OuterRef, Subquery
 
 from . import models
 
@@ -56,6 +57,33 @@ class ChatConversationAttachmentAdmin(admin.ModelAdmin):
         "project",
         "uploaded_by",
     )
+
+
+@admin.register(models.ModelHealth)
+class ModelHealthAdmin(admin.ModelAdmin):
+    """Read-only admin showing the latest health status per (provider, model)."""
+
+    list_display = ("provider", "model_id", "status", "created_at", "updated_at")
+    list_filter = ("provider", "status")
+
+    def get_queryset(self, request):
+        latest_id = (
+            models.ModelHealth.objects.filter(
+                provider=OuterRef("provider"), model_id=OuterRef("model_id")
+            )
+            .order_by("-updated_at")
+            .values("id")[:1]
+        )
+        return super().get_queryset(request).filter(id=Subquery(latest_id))
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(models.ChatProject)

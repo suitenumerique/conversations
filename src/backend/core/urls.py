@@ -17,6 +17,7 @@ from chat.views import (
     ChatViewSet,
     FileStreamView,
     LLMConfigurationView,
+    ModelHealthView,
 )
 
 # - Main endpoints
@@ -44,6 +45,7 @@ urlpatterns = [
                 path(
                     "llm-configuration/", LLMConfigurationView.as_view(), name="llm-configuration"
                 ),
+                path("model-health/", ModelHealthView.as_view(), name="model-health"),
                 path(
                     "chats/<uuid:conversation_pk>/",
                     include(conversation_router.urls),
