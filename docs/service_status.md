@@ -1,13 +1,18 @@
 # Service Status
 
-Two admin-controlled mechanisms communicate service state to users:
+Three mechanisms communicate service state to users:
 
-- **Status banner** — non-blocking notice shown at the top of the SPA
-  (announcements, incidents, planned-but-not-started maintenance).
-- **Maintenance mode** — blocking; the app returns `503` and the SPA renders a
-  dedicated maintenance page.
+- **Status banner** — admin-controlled, non-blocking notice shown at the top of
+  the SPA (announcements, incidents, planned-but-not-started maintenance).
+- **Dynamic health banners** — automatically derived from live model health;
+  surface degradation or unavailability warnings without admin intervention, and
+  can block the chat input when all models are down.
+- **Maintenance mode** — admin-controlled, blocking; the app returns `503` and
+  the SPA renders a dedicated maintenance page.
 
-Both are exposed to the frontend through `/api/<version>/config/`.
+The status banner and maintenance state are exposed through
+`/api/<version>/config/`. Dynamic health banners are served by a dedicated
+endpoint, `/api/<version>/assistant-health/`.
 
 ---
 
@@ -34,6 +39,85 @@ The banner is visible when **all** of these hold:
 3. `ends_at` is unset or in the future.
 
 When hidden, `/config/` returns `status_banner: null`.
+
+---
+
+## Dynamic health banners
+
+Automatically surfaced banners driven by the Redis-cached model health data
+written by the model-health CronJob. No admin action is required; the system
+self-heals as models recover.
+
+### Configuration
+
+Two optional env vars extend the main model with a fallback chain:
+
+- `LLM_FALLBACK_MODEL_HRID_1` — HRID of the first fallback model (empty string
+  = not configured).
+- `LLM_FALLBACK_MODEL_HRID_2` — HRID of the second fallback model (empty string
+  = not configured).
+
+Only `fb1` can rescue the service to "slow" mode — `fb1=green` is the
+exclusive trigger for the slowdowns banner. "All down" (the condition that
+gates the unavailable / blocked state) means **both** fb1 and fb2 are
+explicitly `red` or not configured (empty HRID). A Redis cache miss (`null`)
+is treated optimistically — it does **not** count as down.
+
+### Admin toggle
+
+Edit at **Core > Site Configuration**:
+
+- `block_on_full_outage` (default `True`) — when all models are down, controls
+  whether the chat input is blocked or stays open with a degraded-service
+  warning.
+  - `True` (default): chat input is disabled; an **alert** banner is shown.
+  - `False`: chat input remains active; a **warning** banner is shown instead.
+
+### API endpoint
+
+`GET /api/<version>/assistant-health/` (authenticated)
+
+```json
+{
+  "banners": [
+    { "level": "warning" | "alert", "title": "...", "content": "..." }
+  ],
+  "blocked": false | true
+}
+```
+
+Returns an empty `banners` list and `"blocked": false` when the assistant is
+healthy or its health status is unknown (Redis miss).
+
+### Decision matrix
+
+`main` is the Redis health of `LLM_DEFAULT_MODEL_HRID`. `fb1` / `fb2` are the
+statuses of the two optional fallback models. `null` means the health key is
+absent from Redis — treated as healthy (optimistic) to avoid false positives
+when the CronJob has not run yet.
+
+| main            | fb1              | fb2           | `block_on_full_outage` | Banner shown                                   | `blocked`    |
+|-----------------|------------------|---------------|------------------------|------------------------------------------------|--------------|
+| `green` / `null`| any              | any           | any                    | none                                           | `false`      |
+| `yellow` / `red`| `green`          | any           | any                    | **warning** — high traffic, possible slowdowns | `false`      |
+| `red`           | `red` / empty    | `red` / empty | `True` (default)       | **alert** — service unavailable                | **`true`**   |
+| `red`           | `red` / empty    | `red` / empty | `False`                | **warning** — high traffic, degraded service   | `false`      |
+| `yellow` / `red`| other            | any           | any                    | **warning** — high traffic, degraded service   | `false`      |
+
+### Frontend behavior
+
+- `useAssistantHealth()` polls the endpoint every **60 s** and fails open
+  (empty banners, `blocked: false`) on any network or server error.
+- `BannerStack` renders a vertical stack: the static admin banner first,
+  followed by dynamic health banners below.
+- The `Banner` component shows an interactive details modal when `content` is
+  non-empty (warning/alert states with extended copy).
+- The `InputChat` textarea is **disabled** when `assistantHealth.blocked` is
+  `true`.
+- When `blocked` is `true`, the `SuggestionCarousel` placeholder switches from
+  rotating suggestions to a carousel of each active banner's `title` and
+  `content` fields (non-empty values only), so users see the reason the input
+  is unavailable.
 
 ---
 
@@ -107,9 +191,10 @@ the timeout is just a safety net.
 
 ## Choosing between them
 
-| Situation                                  | Use                |
-|--------------------------------------------|--------------------|
-| Heads-up about an upcoming change          | Status banner      |
-| Ongoing degraded service, app still usable | Status banner (`warning` or `alert`) |
-| Hard downtime — block all user traffic     | Maintenance mode   |
-| Emergency lockout (admin DB unreachable)   | `MAINTENANCE_MODE` env var |
+| Situation                                         | Use                                   |
+|---------------------------------------------------|---------------------------------------|
+| Heads-up about an upcoming change                 | Status banner                         |
+| Ongoing degraded service, app still usable        | Status banner (`warning` or `alert`)  |
+| Model slowness or downtime (detected by CronJob)  | Dynamic health banners (automatic)    |
+| Hard downtime — block all user traffic            | Maintenance mode                      |
+| Emergency lockout (admin DB unreachable)          | `MAINTENANCE_MODE` env var            |

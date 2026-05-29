@@ -40,8 +40,8 @@ from chat.constants import IMAGE_MIME_PREFIX
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.rate_limiting import ChatCooldownThrottle, get_cooldown_remaining
 from chat.serializers import ChatConversationRequestSerializer
+from chat.views.health import AssistantHealthView, ModelHealthView
 from chat.views.llm_config import LLMConfigurationView
-from chat.views.model_health import ModelHealthView
 
 logger = logging.getLogger(__name__)
 

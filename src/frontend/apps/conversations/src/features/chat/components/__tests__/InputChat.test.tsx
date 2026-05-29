@@ -49,9 +49,20 @@ jest.mock('../InputChatAction', () => ({
 }));
 
 jest.mock('../SuggestionCarousel', () => ({
-  SuggestionCarousel: () => (
-    <div data-testid="suggestion-carousel">Suggestions</div>
-  ),
+  SuggestionCarousel: ({
+    blocked,
+    banners,
+  }: {
+    blocked?: boolean;
+    banners?: Array<{ title: string; content: string; level: string }>;
+  }) =>
+    blocked && banners?.length ? (
+      <div data-testid="suggestion-carousel">
+        {banners.map((b) => b.title).join(' ')}
+      </div>
+    ) : (
+      <div data-testid="suggestion-carousel">Suggestions</div>
+    ),
 }));
 
 jest.mock('../WelcomeMessage', () => ({
@@ -70,6 +81,12 @@ jest.mock('../../assets/files.svg', () => () => (
   <svg data-testid="files-icon" />
 ));
 
+const mockUseAssistantHealth = jest.fn();
+
+jest.mock('@/features/chat/api/useAssistantHealth', () => ({
+  useAssistantHealth: () => mockUseAssistantHealth(),
+}));
+
 const defaultProps = {
   messagesLength: 0,
   input: '',
@@ -83,6 +100,9 @@ const defaultProps = {
 describe('InputChat', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseAssistantHealth.mockReturnValue({
+      data: { banners: [], blocked: false },
+    });
   });
 
   it('should render the textarea', () => {
@@ -316,5 +336,54 @@ describe('InputChat', () => {
     await user.type(textarea, '{Enter}');
 
     expect(handleSubmit).toHaveBeenCalled();
+  });
+
+  it('should disable textarea when assistantHealth.blocked is true', () => {
+    mockUseAssistantHealth.mockReturnValue({
+      data: { banners: [], blocked: true },
+    });
+    render(<InputChat {...defaultProps} status="ready" />, {
+      wrapper: AppWrapper,
+    });
+    expect(
+      screen.getByRole('textbox', { name: 'Enter your message or a question' }),
+    ).toBeDisabled();
+  });
+
+  it('should keep textarea enabled when assistantHealth.blocked is false', () => {
+    mockUseAssistantHealth.mockReturnValue({
+      data: { banners: [], blocked: false },
+    });
+    render(<InputChat {...defaultProps} status="ready" />, {
+      wrapper: AppWrapper,
+    });
+    expect(
+      screen.getByRole('textbox', { name: 'Enter your message or a question' }),
+    ).toBeEnabled();
+  });
+
+  it('should keep textarea enabled when assistantHealth data is undefined', () => {
+    mockUseAssistantHealth.mockReturnValue({ data: undefined });
+    render(<InputChat {...defaultProps} status="ready" />, {
+      wrapper: AppWrapper,
+    });
+    expect(
+      screen.getByRole('textbox', { name: 'Enter your message or a question' }),
+    ).toBeEnabled();
+  });
+
+  it('should show banner title in placeholder area when blocked is true', () => {
+    mockUseAssistantHealth.mockReturnValue({
+      data: {
+        banners: [
+          { level: 'alert', title: 'Service unavailable', content: '' },
+        ],
+        blocked: true,
+      },
+    });
+    render(<InputChat {...defaultProps} input="" status="ready" />, {
+      wrapper: AppWrapper,
+    });
+    expect(screen.getByText('Service unavailable')).toBeInTheDocument();
   });
 });

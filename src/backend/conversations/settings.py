@@ -680,6 +680,12 @@ class Base(BraveSettings, Configuration):
         environ_name="LLM_SUMMARIZATION_MODEL_HRID",
         environ_prefix=None,
     )
+    LLM_FALLBACK_MODEL_HRID_1 = values.Value(
+        "", environ_name="LLM_FALLBACK_MODEL_HRID_1", environ_prefix=None
+    )
+    LLM_FALLBACK_MODEL_HRID_2 = values.Value(
+        "", environ_name="LLM_FALLBACK_MODEL_HRID_2", environ_prefix=None
+    )
     FAKE_STREAMING_DELAY = values.FloatValue(
         default=0.0025,
         environ_name="FAKE_STREAMING_DELAY",

@@ -1,4 +1,4 @@
-"""Model health view."""
+"""Model and assistant health views."""
 
 from django.core.cache import cache
 
@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from chat import models, serializers
+from chat.assistant_health import compute_assistant_health_banners
 
 
 class ModelHealthView(APIView):
@@ -44,4 +45,16 @@ class ModelHealthView(APIView):
             )
 
         serializer = serializers.ModelHealthResponseSerializer({"data": items})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class AssistantHealthView(APIView):
+    """Return banners and blocked status based on live model health."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """Compute and return assistant health banners."""
+        data = compute_assistant_health_banners()
+        serializer = serializers.AssistantHealthSerializer(data)
         return Response(serializer.data, status=status.HTTP_200_OK)

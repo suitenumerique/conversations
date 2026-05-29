@@ -14,6 +14,7 @@ and this project adheres to
 - ✨(back) de-index inactive collections and reindex in conversation
 - ✨(back) rate-limit chat with a model-health-aware token cooldown
 - ✨(backend) add sliding window history processor
+- ✨(banner) add dynamic health banners
 
 ### Changed
 

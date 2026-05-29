@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Box } from '@/components';
-
-const SUGGESTIONS_COUNT = 4;
+import { StatusBanner } from '@/core/config/api/useConfig';
 
 const WRAPPER_CSS = `position: absolute;
                   top: 1rem;
@@ -17,24 +16,19 @@ const WRAPPER_CSS = `position: absolute;
                   line-height: 1.5;
                   overflow: hidden;`;
 
-const ITEM_CSS = `
-  height: calc(100% / ${SUGGESTIONS_COUNT + 1});
-  flex-shrink: 0;
-  white-space: nowrap;
-  color: var(--c--contextuals--content--semantic--neutral--tertiary) !important;
-  display: flex;
-  justify-content: flex-start;
-`;
-
 interface SuggestionCarouselProps {
   messagesLength: number;
+  blocked?: boolean;
+  banners?: StatusBanner[];
 }
 
 export const SuggestionCarousel = ({
   messagesLength,
+  blocked = false,
+  banners = [],
 }: SuggestionCarouselProps) => {
   const { t } = useTranslation();
-  const [currentSuggestionIndex, setCurrentSuggestionIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [isResetting, setIsResetting] = useState(false);
 
   const suggestions = useMemo(
@@ -46,53 +40,84 @@ export const SuggestionCarousel = ({
     ],
     [t],
   );
-  const carouselSuggestions = useMemo(
-    () => [...suggestions, suggestions[0]],
-    [suggestions],
+
+  const bannerItems = useMemo(
+    () =>
+      banners.flatMap((b) =>
+        ([b.title, b.content] as string[]).filter(Boolean),
+      ),
+    [banners],
+  );
+
+  const activeItems = useMemo(
+    () => (blocked ? bannerItems : suggestions),
+    [blocked, bannerItems, suggestions],
+  );
+
+  const carouselItems = useMemo(
+    () => (activeItems.length > 0 ? [...activeItems, activeItems[0]] : []),
+    [activeItems],
   );
 
   const carrouselCss = useMemo(
     () => `
     display: flex;
     flex-direction: column;
-    height: ${(SUGGESTIONS_COUNT + 1) * 100}%;
-    transform: translateY(-${currentSuggestionIndex * (100 / (SUGGESTIONS_COUNT + 1))}%);
+    height: ${(activeItems.length + 1) * 100}%;
+    transform: translateY(-${currentIndex * (100 / (activeItems.length + 1))}%);
     transition: ${isResetting ? 'none' : 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)'};
   `,
-    [currentSuggestionIndex, isResetting],
+    [currentIndex, isResetting, activeItems.length],
   );
 
+  const itemCss = useMemo(
+    () => `
+    height: calc(100% / ${activeItems.length + 1});
+    flex-shrink: 0;
+    white-space: nowrap;
+    color: var(--c--contextuals--content--semantic--neutral--tertiary) !important;
+    display: flex;
+    justify-content: flex-start;
+  `,
+    [activeItems.length],
+  );
+
+  // Reset position when switching between blocked/unblocked
   useEffect(() => {
-    if (messagesLength === 0) {
-      const interval = setInterval(() => {
-        setCurrentSuggestionIndex((prev) => {
-          if (prev === SUGGESTIONS_COUNT - 1) {
-            return SUGGESTIONS_COUNT;
-          }
-          return prev + 1;
-        });
-      }, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [messagesLength]);
+    setCurrentIndex(0);
+    setIsResetting(false);
+  }, [blocked]);
 
   useEffect(() => {
-    if (currentSuggestionIndex === suggestions.length) {
+    if (!blocked && messagesLength !== 0) return;
+    if (activeItems.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) =>
+        prev === activeItems.length - 1 ? activeItems.length : prev + 1,
+      );
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [blocked, messagesLength, activeItems.length]);
+
+  useEffect(() => {
+    if (currentIndex === activeItems.length) {
       const timeout = setTimeout(() => {
         setIsResetting(true);
-        setCurrentSuggestionIndex(0);
+        setCurrentIndex(0);
         setTimeout(() => setIsResetting(false), 50);
       }, 500);
       return () => clearTimeout(timeout);
     }
-  }, [currentSuggestionIndex, suggestions.length]);
+  }, [currentIndex, activeItems.length]);
+
+  if (activeItems.length === 0) return null;
 
   return (
     <Box $css={WRAPPER_CSS}>
       <Box $css={carrouselCss}>
-        {carouselSuggestions.map((suggestion, index) => (
-          <Box key={index} $css={ITEM_CSS}>
-            {suggestion}
+        {carouselItems.map((item, index) => (
+          <Box key={index} $css={itemCss}>
+            {item}
           </Box>
         ))}
       </Box>

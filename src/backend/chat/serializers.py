@@ -308,3 +308,18 @@ class ModelHealthResponseSerializer(serializers.Serializer):  # pylint: disable=
     """Wrapper for the model-health list response."""
 
     data = ModelHealthItemSerializer(many=True)
+
+
+class AssistantHealthBannerSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Single health banner item."""
+
+    level = serializers.ChoiceField(choices=["warning", "alert"])
+    title = serializers.CharField()
+    content = serializers.CharField()
+
+
+class AssistantHealthSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Response shape for the assistant-health endpoint."""
+
+    banners = AssistantHealthBannerSerializer(many=True)
+    blocked = serializers.BooleanField()

@@ -161,6 +161,12 @@ class SiteConfigurationAdmin(SingletonModelAdmin):
                 ),
             },
         ),
+        (
+            _("Assistant"),
+            {
+                "fields": ("block_on_full_outage",),
+            },
+        ),
     )
 
 

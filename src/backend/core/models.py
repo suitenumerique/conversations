@@ -251,6 +251,16 @@ class SiteConfiguration(SingletonModel):
         help_text=_("If set, the banner is hidden after this date."),
     )
 
+    # Assistant health
+    block_on_full_outage = models.BooleanField(
+        verbose_name=_("Block chat input on full outage"),
+        default=True,
+        help_text=_(
+            "When enabled, the chat input is disabled while all AI models are unavailable. "
+            "Disable to keep the input active and show a degraded-service warning instead."
+        ),
+    )
+
     @property
     def status_banner_visible(self):
         """Is the banner visible?"""

@@ -11,6 +11,7 @@ import WarningFilledIcon from '@/assets/icons/uikit-custom/warning-filled.svg';
 import { Box, Text } from '@/components';
 import { useToast } from '@/components/ToastProvider';
 import { useConfig, useFeatureEnabled } from '@/core';
+import { useAssistantHealth } from '@/features/chat/api/useAssistantHealth';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 import { ChatErrorType } from '@/features/chat/components/ChatError';
 import { InputChatActions } from '@/features/chat/components/InputChatAction';
@@ -264,6 +265,9 @@ export const InputChat = ({
     onFilesRejected: () => showToastError(),
   });
 
+  const { data: assistantHealth } = useAssistantHealth();
+  const isAssistantBlocked = assistantHealth?.blocked ?? false;
+
   // Inference-load cooldown: count down to the time the user may send again.
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   useEffect(() => {
@@ -292,6 +296,7 @@ export const InputChat = ({
       status as (typeof INPUT_ENABLED_STATUSES)[number],
     ) ||
     isUploadingFiles ||
+    isAssistantBlocked ||
     (!!errorType && errorType !== 'generic');
 
   const textareaPlaceholder =
@@ -330,6 +335,7 @@ export const InputChat = ({
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
         e.preventDefault();
+        if (isInputDisabled) return;
         if (status === 'streaming' || status === 'submitted') return;
         if (cooldownRemaining > 0) return;
         const textarea = e.target as HTMLTextAreaElement;
@@ -337,7 +343,18 @@ export const InputChat = ({
         e.currentTarget.form?.requestSubmit?.();
       }
     },
-    [status, cooldownRemaining],
+    [isInputDisabled, status, cooldownRemaining],
+  );
+
+  const handleFormSubmit = useCallback(
+    (e: React.FormEvent<HTMLFormElement>) => {
+      if (isAssistantBlocked) {
+        e.preventDefault();
+        return;
+      }
+      handleSubmit(e);
+    },
+    [handleSubmit, isAssistantBlocked],
   );
 
   const handlePaste = useCallback(
@@ -449,7 +466,7 @@ export const InputChat = ({
           <ProjectWelcomeMessage fallback={<WelcomeMessage />} />
         )}
 
-        <form onSubmit={handleSubmit} style={STYLES.form}>
+        <form onSubmit={handleFormSubmit} style={STYLES.form}>
           <Box $padding={formPadding}>
             <Box
               $flex={1}
@@ -521,7 +538,11 @@ export const InputChat = ({
               />
 
               {!input && !textareaPlaceholder && cooldownRemaining <= 0 && (
-                <SuggestionCarousel messagesLength={messagesLength} />
+                <SuggestionCarousel
+                  messagesLength={messagesLength}
+                  blocked={isAssistantBlocked}
+                  banners={assistantHealth?.banners ?? []}
+                />
               )}
 
               <input
