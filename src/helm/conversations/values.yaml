@@ -220,6 +220,14 @@ backend:
     annotations: 
       argocd.argoproj.io/hook: PostSync
 
+  ## @param backend.modelHealthCronJob.enabled Enable the model-health polling CronJob
+  ## @param backend.modelHealthCronJob.schedule Cron schedule for the model-health poller
+  ## @param backend.modelHealthCronJob.provider Provider to poll for model health
+  modelHealthCronJob:
+    enabled: true
+    schedule: "* * * * *"
+    provider: albert
+
   ## @param backend.probes.liveness.path [nullable] Configure path for backend HTTP liveness probe
   ## @param backend.probes.liveness.targetPort [nullable] Configure port for backend HTTP liveness probe
   ## @param backend.probes.liveness.initialDelaySeconds [nullable] Configure initial delay for backend liveness probe
