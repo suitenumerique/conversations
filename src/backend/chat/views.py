@@ -35,6 +35,7 @@ from core.filters import remove_accents
 
 from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
+from chat.assistant_health import compute_assistant_health_banners
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
@@ -516,6 +517,18 @@ class ModelHealthView(APIView):
             )
 
         serializer = serializers.ModelHealthResponseSerializer({"data": items})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class AssistantHealthView(APIView):
+    """Return banners and blocked status based on live model health."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """Compute and return assistant health banners."""
+        data = compute_assistant_health_banners()
+        serializer = serializers.AssistantHealthSerializer(data)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
