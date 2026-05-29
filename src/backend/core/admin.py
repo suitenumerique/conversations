@@ -115,6 +115,11 @@ class UserAdmin(auth_admin.UserAdmin):
     )
 
 
+@admin.register(models.ModelHealthSettings)
+class ModelHealthSettingsAdmin(SingletonModelAdmin):
+    """Admin for the ModelHealthSettings singleton."""
+
+
 @admin.register(models.SiteConfiguration)
 class SiteConfigurationAdmin(SingletonModelAdmin):
     """Admin class for the SiteConfiguration model"""

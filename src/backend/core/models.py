@@ -324,3 +324,20 @@ class MaintenanceMode(SingletonModel):
 
     class Meta:
         verbose_name = _("Maintenance Mode")
+
+
+class ModelHealthSettings(SingletonModel):
+    """Singleton controlling the model-health polling behaviour."""
+
+    poll_interval_minutes = models.PositiveIntegerField(
+        default=5,
+        help_text="Minimum minutes between two effective polling runs.",
+    )
+    last_run_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp of the last successful polling run.",
+    )
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        verbose_name = "Model Health Settings"

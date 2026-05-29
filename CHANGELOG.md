@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(maintenance) add maintenance mode
+- ✨(back) add cron job to poll Albert models health
 
 ### Changed
 
