@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-20 12:55+0000\n"
-"PO-Revision-Date: 2026-05-21 08:44\n"
+"POT-Creation-Date: 2026-06-01 12:54+0000\n"
+"PO-Revision-Date: 2026-06-02 13:53\n"
 "Last-Translator: \n"
 "Language-Team: German\n"
 "Language: de_DE\n"
@@ -219,7 +219,7 @@ msgstr ""
 msgid "chat application"
 msgstr ""
 
-#: chat/clients/pydantic_ai.py:909
+#: chat/clients/pydantic_ai.py:917
 msgid "Internal Documentation of the AI Assistant"
 msgstr ""
 
@@ -233,32 +233,36 @@ msgstr ""
 msgid "This project already has the maximum of %(cap)d files. Remove one before uploading another."
 msgstr ""
 
-#: core/admin.py:28
+#: core/admin.py:29
 msgid "Personal info"
 msgstr ""
 
-#: core/admin.py:43
+#: core/admin.py:44
 msgid "Permissions"
 msgstr ""
 
-#: core/admin.py:55
+#: core/admin.py:56
 msgid "Important dates"
 msgstr ""
 
-#: core/admin.py:123
+#: core/admin.py:124
 msgid "Self documentation"
 msgstr ""
 
-#: core/admin.py:126
+#: core/admin.py:127
 msgid "Markdown documentation about this service. Exposed to the conversation agent so it can answer questions users ask about the app itself."
 msgstr ""
 
-#: core/admin.py:134
+#: core/admin.py:135
 msgid "Status banner"
 msgstr ""
 
-#: core/admin.py:137
+#: core/admin.py:138
 msgid "Shown to all users at the top of the app. Leave title and content empty to disable."
+msgstr ""
+
+#: core/admin.py:169
+msgid "The MAINTENANCE_MODE environment variable is set: maintenance is forced ON regardless of the value below."
 msgstr ""
 
 #: core/models.py:41
@@ -415,6 +419,42 @@ msgstr ""
 
 #: core/models.py:256
 msgid "Site Configuration"
+msgstr ""
+
+#: core/models.py:269
+msgid "Enabled"
+msgstr ""
+
+#: core/models.py:270
+msgid "When checked, the app is in maintenance mode for end-users."
+msgstr ""
+
+#: core/models.py:275
+msgid "Message"
+msgstr ""
+
+#: core/models.py:276
+msgid "Shown on the maintenance page. Leave blank for the default message."
+msgstr ""
+
+#: core/models.py:281
+msgid "Starts at"
+msgstr ""
+
+#: core/models.py:282
+msgid "If set, maintenance is inactive before this date."
+msgstr ""
+
+#: core/models.py:287
+msgid "Ends at"
+msgstr ""
+
+#: core/models.py:288
+msgid "If set, maintenance is inactive after this date."
+msgstr ""
+
+#: core/models.py:326
+msgid "Maintenance Mode"
 msgstr ""
 
 #: core/templates/mail/html/invitation.html:162
