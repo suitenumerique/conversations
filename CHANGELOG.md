@@ -16,6 +16,7 @@ and this project adheres to
 
 - 🔒️(front) disable yarn install scripts in docker build
 - ⬆️(dependencies) update back and front dependencies
+- 🚸(back) improve chat admin filtering, search and display columns
 
 ### Fixed
 
