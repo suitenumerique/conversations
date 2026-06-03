@@ -33,6 +33,7 @@ class UserAdmin(auth_admin.UserAdmin):
                     "email",
                     "full_name",
                     "short_name",
+                    "organization_siret",
                     "language",
                     "timezone",
                     "allow_smart_web_search",
@@ -70,6 +71,7 @@ class UserAdmin(auth_admin.UserAdmin):
         "full_name",
         "admin_email",
         "email",
+        "organization_siret",
         "is_active",
         "allow_smart_web_search",
         "allow_conversation_analytics",
@@ -101,6 +103,7 @@ class UserAdmin(auth_admin.UserAdmin):
         "email",
         "full_name",
         "short_name",
+        "organization_siret",
         "created_at",
         "updated_at",
         "allow_smart_web_search",
@@ -112,6 +115,7 @@ class UserAdmin(auth_admin.UserAdmin):
         "admin_email",
         "email",
         "full_name",
+        "organization_siret",
     )
 
 
@@ -176,3 +180,15 @@ class MaintenanceModeAdmin(SingletonModelAdmin):
                 ),
             )
         return super().changeform_view(request, object_id, form_url, extra_context)
+
+
+@admin.register(models.AccessBypassEmail)
+class AccessBypassEmailAdmin(admin.ModelAdmin):
+    """Admin class for the access bypass email allow-list."""
+
+    list_display = ("email", "is_active", "expires_at", "created_at")
+    list_filter = ("is_active",)
+    search_fields = ("email", "note")
+    ordering = ("-created_at",)
+    readonly_fields = ("id", "created_at", "updated_at")
+    fields = ("email", "is_active", "note", "expires_at", "id", "created_at", "updated_at")

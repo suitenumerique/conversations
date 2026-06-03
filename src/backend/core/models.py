@@ -174,6 +174,17 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         help_text=_("Whether the user allows to use smart web search features."),
     )
 
+    # Organization SIRET from the OIDC "siret" claim, refreshed on every login.
+    # Empty string (not NULL) when absent or malformed, per Django's convention
+    # for optional string fields.
+    organization_siret = models.CharField(
+        _("organization SIRET"),
+        max_length=14,
+        blank=True,
+        db_index=True,
+        help_text=_("SIRET of the user's organization, as provided by the identity provider."),
+    )
+
     objects = UserManager()
 
     USERNAME_FIELD = "admin_email"
@@ -336,3 +347,61 @@ class ModelHealthSettings(SingletonModel):
 
     class Meta:  # pylint: disable=missing-class-docstring
         verbose_name = "Model Health Settings"
+
+
+class AccessBypassEmail(BaseModel):
+    """Allow-list of email addresses that may sign in even without the role
+    normally required by the OIDC access policy (see ``OIDC_ALLOWED_ROLES``).
+
+    Used as a fallback in the authentication backend: a user who lacks the
+    required role is still granted access if their email matches an active,
+    non-expired entry here.
+    """
+
+    email = models.EmailField(
+        _("email address"),
+        unique=True,
+        help_text=_("email address allowed to bypass the role requirement"),
+    )
+    is_active = models.BooleanField(
+        _("active"),
+        default=True,
+        help_text=_("inactive entries are ignored without being deleted"),
+    )
+    note = models.TextField(
+        _("note"),
+        blank=True,
+        help_text=_("optional reason for granting this bypass"),
+    )
+    expires_at = models.DateTimeField(
+        _("expires on"),
+        blank=True,
+        null=True,
+        help_text=_("optional date after which this bypass no longer applies"),
+    )
+
+    class Meta:
+        db_table = "conversations_access_bypass_email"
+        verbose_name = _("access bypass email")
+        verbose_name_plural = _("access bypass emails")
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return self.email
+
+    def save(self, *args, **kwargs):
+        """Store the email normalized (trimmed, lowercase) for case-insensitive matching."""
+        if self.email:
+            self.email = self.email.strip().lower()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def is_email_allowed(cls, email):
+        """Return True if ``email`` has an active, non-expired bypass entry."""
+        if not email:
+            return False
+        return (
+            cls.objects.filter(email__iexact=email.strip(), is_active=True)
+            .filter(models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now()))
+            .exists()
+        )

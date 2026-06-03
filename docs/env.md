@@ -99,6 +99,31 @@ These are the environment variables you can set for the `conversations-backend` 
 | FIND_API_KEY                                    | API key of Find                                                                                                                   |                                                         |
 | FIND_API_URL                                    | URL of Find                                                                                                                       | `https://app-find/api`                                  |
 | FIND_API_TIMEOUT                                | Find API timeout                                                                                                                  | 30                                                      |
+| ACTIVATION_REQUIRED                             | Require users to redeem an activation code before using the app (post-login gate). See "Access control modes" below.              | False                                                   |
+| OIDC_ALLOWED_ROLES                              | Comma-separated roles; restrict login to users whose OIDC `roles` claim contains one of them. Empty disables. See "Access control modes" below. | [] (empty, disabled)                                    |
+
+
+## Access control modes
+
+Access can be gated in two mutually exclusive ways. Enable **one** of them; leave the other off.
+
+- **Activation codes** (`ACTIVATION_REQUIRED=True`): any authenticated user can sign
+  in, but must redeem a valid activation code before using the app. Codes are managed
+  in the Django admin (`activation_codes`).
+- **OIDC role** (`OIDC_ALLOWED_ROLES=<role>`): only users whose OIDC `roles` claim
+  contains one of the listed roles can sign in; everyone else is redirected to the
+  access-denied page. As a fallback, addresses on the access-bypass email allow-list
+  (Django admin, *Access bypass emails*) are let in without the role. The role is
+  re-checked on every login, so revoking it in the IdP blocks the user immediately.
+
+| Mode             | `ACTIVATION_REQUIRED` | `OIDC_ALLOWED_ROLES`     |
+|------------------|-----------------------|--------------------------|
+| Activation codes | `True`                | empty                    |
+| OIDC role        | `False`               | e.g. `agent_public_etat` |
+| Open (no gate)   | `False`               | empty                    |
+
+Setting both at once is not a supported configuration: a user would need the role to
+sign in *and* a redeemed code to use the app.
 
 
 ## conversations-frontend image

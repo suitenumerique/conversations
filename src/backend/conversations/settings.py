@@ -556,12 +556,17 @@ class Base(BraveSettings, Configuration):
         None, environ_name="OIDC_OP_LOGOUT_ENDPOINT", environ_prefix=None
     )
     OIDC_AUTHENTICATE_CLASS = "lasuite.oidc_login.views.OIDCAuthenticationRequestView"
-    OIDC_CALLBACK_CLASS = "lasuite.oidc_login.views.OIDCAuthenticationCallbackView"
+    OIDC_CALLBACK_CLASS = "core.authentication.views.OIDCAuthenticationCallbackView"
     OIDC_AUTH_REQUEST_EXTRA_PARAMS = values.DictValue(
         {}, environ_name="OIDC_AUTH_REQUEST_EXTRA_PARAMS", environ_prefix=None
     )
     OIDC_RP_SCOPES = values.Value(
         "openid email", environ_name="OIDC_RP_SCOPES", environ_prefix=None
+    )
+    # Restrict login and account creation to users exposing one of these roles
+    # in their OIDC "roles" claim. Empty (default) disables the restriction.
+    OIDC_ALLOWED_ROLES = values.ListValue(
+        [], environ_name="OIDC_ALLOWED_ROLES", environ_prefix=None
     )
     LOGIN_REDIRECT_URL = values.Value(None, environ_name="LOGIN_REDIRECT_URL", environ_prefix=None)
     LOGIN_REDIRECT_URL_FAILURE = values.Value(
@@ -1333,6 +1338,11 @@ class Test(Base):
     AI_BASE_URL = None
     AI_API_KEY = None
     AI_MODEL = None
+
+    # Pin to no role restriction so tests are deterministic regardless of the
+    # developer's local env (which may set OIDC_ALLOWED_ROLES); tests that need
+    # the restriction set it explicitly via override_settings.
+    OIDC_ALLOWED_ROLES = []
 
     POSTHOG_KEY = None
 
