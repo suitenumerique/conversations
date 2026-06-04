@@ -299,7 +299,7 @@ class ModelHealthItemSerializer(serializers.Serializer):  # pylint: disable=abst
 
     provider = serializers.CharField()
     model_id = serializers.CharField()
-    status = serializers.CharField()
+    status = serializers.ChoiceField(choices=models.ModelHealth.Status.choices)
     created_at = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
 

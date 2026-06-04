@@ -5,8 +5,6 @@ import logging
 from django.conf import settings
 from django.core.cache import cache
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
-from django.utils import timezone
 
 import requests
 
@@ -43,7 +41,7 @@ class Command(BaseCommand):
         try:
             payload = response.json()
         except ValueError:
-            logger.error(
+            logger.exception(
                 "Invalid JSON from provider %s (HTTP %s): %s",
                 provider,
                 response.status_code,
@@ -66,76 +64,71 @@ class Command(BaseCommand):
 
         return data
 
-    def handle(self, *args, **options):
+    def handle(self, *args, **options):  # pylint: disable=too-many-locals
         provider = options["provider"]
 
-        # Ensure singleton exists before locking (idempotent, safe outside transaction)
-        ModelHealthSettings.get_solo()
-
-        with transaction.atomic():
-            cfg = ModelHealthSettings.objects.select_for_update().get()
-            if cfg.last_run_at is not None:
-                elapsed = (timezone.now() - cfg.last_run_at).total_seconds() / 60
-                if elapsed < cfg.poll_interval_minutes:
-                    self.stdout.write(
-                        f"Skipping: last run {elapsed:.1f}min ago "
-                        f"(interval={cfg.poll_interval_minutes}min)"
-                    )
-                    return
-            # Persist before the HTTP call so concurrent pods see the lock is taken
-            cfg.last_run_at = timezone.now()
-            cfg.save(update_fields=["last_run_at"])
-
-        url = PROVIDERS[provider]["url"]()
-        timeout = PROVIDERS[provider]["timeout"]()
-        api_key = PROVIDERS[provider]["api_key"]()
-        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        cfg = ModelHealthSettings.get_solo()
+        lock_key = f"model_health:poll_lock:{provider}"
+        ttl = cfg.poll_interval_minutes * 60
+        acquired = cache.add(lock_key, 1, timeout=ttl)
+        if not acquired:
+            self.stdout.write(f"Skipping: lock key present (TTL ≈ {ttl}s)")
+            return
 
         try:
-            response = requests.get(url, headers=headers, timeout=timeout)
-            response.raise_for_status()
-        except requests.RequestException as exc:
-            logger.error("Failed to fetch model health for provider %s: %s", provider, exc)
-            raise CommandError(str(exc)) from exc
+            url = PROVIDERS[provider]["url"]()
+            timeout = PROVIDERS[provider]["timeout"]()
+            api_key = PROVIDERS[provider]["api_key"]()
+            headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
-        data = self._parse_response(response, provider)
+            try:
+                response = requests.get(url, headers=headers, timeout=timeout)
+                response.raise_for_status()
+            except requests.RequestException as exc:
+                logger.exception("Failed to fetch model health for provider %s: %s", provider, exc)
+                raise CommandError(str(exc)) from exc
 
-        known_model_ids = set(
-            ModelHealth.objects.filter(provider=provider)
-            .values_list("model_id", flat=True)
-            .distinct()
-        )
+            data = self._parse_response(response, provider)
 
-        seen_model_ids = set()
-        for item in data:
-            model_id = item.get("id")
-            if not model_id:
-                logger.warning("Skipping malformed item (missing 'id'): %r", item)
-                continue
-            seen_model_ids.add(model_id)
-            status = item.get("status")
-
-            if status not in ModelHealth.Status.values:
-                logger.warning("Unknown status %r for model %s, skipping", status, model_id)
-                continue
-
-            latest = (
-                ModelHealth.objects.filter(provider=provider, model_id=model_id)
-                .order_by("-updated_at")
-                .first()
+            known_model_ids = set(
+                ModelHealth.objects.filter(provider=provider)
+                .values_list("model_id", flat=True)
+                .distinct()
             )
 
-            if latest is not None and latest.status == status:
-                latest.save()
-            else:
-                ModelHealth.objects.create(provider=provider, model_id=model_id, status=status)
+            seen_model_ids = set()
+            for item in data:
+                model_id = item.get("id")
+                if not model_id:
+                    logger.warning("Skipping malformed item (missing 'id'): %r", item)
+                    continue
+                seen_model_ids.add(model_id)
+                status = item.get("status")
 
-            cache.set(f"model_health:{provider}:{model_id}", status, timeout=None)
+                if status not in ModelHealth.Status.values:
+                    logger.warning("Unknown status %r for model %s, skipping", status, model_id)
+                    continue
 
-        gone_ids = known_model_ids - seen_model_ids
-        if gone_ids:
-            cache.delete_many([f"model_health:{provider}:{mid}" for mid in gone_ids])
+                latest = (
+                    ModelHealth.objects.filter(provider=provider, model_id=model_id)
+                    .order_by("-updated_at")
+                    .first()
+                )
 
-        self.stdout.write(
-            self.style.SUCCESS(f"Fetched health for {len(data)} models from {provider}")
-        )
+                if latest is not None and latest.status == status:
+                    latest.save()
+                else:
+                    ModelHealth.objects.create(provider=provider, model_id=model_id, status=status)
+
+                cache.set(f"model_health:{provider}:{model_id}", status, timeout=None)
+
+            gone_ids = known_model_ids - seen_model_ids
+            if gone_ids:
+                cache.delete_many([f"model_health:{provider}:{mid}" for mid in gone_ids])
+
+            self.stdout.write(
+                self.style.SUCCESS(f"Fetched health for {len(data)} models from {provider}")
+            )
+        except CommandError:
+            cache.delete(lock_key)
+            raise

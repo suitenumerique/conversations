@@ -20,7 +20,13 @@ class Migration(migrations.Migration):
                 ),
                 ("provider", models.CharField(max_length=50)),
                 ("model_id", models.CharField(max_length=255)),
-                ("status", models.CharField(max_length=10)),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[("green", "Green"), ("orange", "Orange"), ("red", "Red")],
+                        max_length=10,
+                    ),
+                ),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
             ],

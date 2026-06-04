@@ -333,11 +333,6 @@ class ModelHealthSettings(SingletonModel):
         default=5,
         help_text="Minimum minutes between two effective polling runs.",
     )
-    last_run_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="Timestamp of the last successful polling run.",
-    )
 
     class Meta:  # pylint: disable=missing-class-docstring
         verbose_name = "Model Health Settings"

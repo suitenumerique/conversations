@@ -1,4 +1,4 @@
-"""Chat API implementation."""  # pylint: disable=too-many-lines
+"""Chat API implementation."""
 
 import logging
 import os
@@ -39,6 +39,8 @@ from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.serializers import ChatConversationRequestSerializer
+from chat.views.llm_config import LLMConfigurationView
+from chat.views.model_health import ModelHealthView
 
 logger = logging.getLogger(__name__)
 
@@ -455,68 +457,6 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         )
 
         return Response({"status": "OK"}, status=status.HTTP_200_OK)
-
-
-class LLMConfigurationView(APIView):
-    """View for listing available LLM models."""
-
-    permission_classes = [
-        permissions.IsAuthenticated,
-    ]
-
-    def get(self, request):
-        """Handle GET requests to list available LLM models.
-
-        For now the results are not filtered by user, but in the future we will want to
-        filter the models based on user.
-
-        Returns:
-            Response: A response containing the list of available LLM models.
-        """
-        serializer = serializers.LLMConfigurationSerializer(
-            {
-                "models": settings.LLM_CONFIGURATIONS.values(),
-            },
-        )
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class ModelHealthView(APIView):
-    """Return the latest known health status for each model."""
-
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request):
-        """Return latest status per (provider, model_id), Redis status wins over DB."""
-        # Latest DB row per (provider, model_id) via DISTINCT ON (PostgreSQL).
-        latest_entries = list(
-            models.ModelHealth.objects.order_by("provider", "model_id", "-updated_at").distinct(
-                "provider", "model_id"
-            )
-        )
-
-        if not latest_entries:
-            serializer = serializers.ModelHealthResponseSerializer({"data": []})
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        keys = [f"model_health:{e.provider}:{e.model_id}" for e in latest_entries]
-        cached = cache.get_many(keys)
-
-        items = []
-        for entry in latest_entries:
-            key = f"model_health:{entry.provider}:{entry.model_id}"
-            items.append(
-                {
-                    "provider": entry.provider,
-                    "model_id": entry.model_id,
-                    "status": cached.get(key, entry.status),
-                    "created_at": entry.created_at,
-                    "updated_at": entry.updated_at,
-                }
-            )
-
-        serializer = serializers.ModelHealthResponseSerializer({"data": items})
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class BaseAttachmentViewSet(

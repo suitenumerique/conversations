@@ -5,6 +5,7 @@ from contextlib import ExitStack, contextmanager
 from importlib import reload
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.urls import clear_url_caches, set_urlconf
 from django.utils import formats, timezone
 
@@ -18,6 +19,14 @@ from chat.agents.summarize import SummarizationAgent
 from chat.clients.pydantic_ai import AIAgentService
 
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture()
+def clear_cache():
+    """Clear the Redis cache before/after each test to prevent key leakage."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 @pytest.fixture(name="today_prompt_date")

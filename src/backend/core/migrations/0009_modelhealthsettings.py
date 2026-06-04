@@ -3,7 +3,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("core", "0007_siteconfiguration_status_banner_content_and_more"),
+        ("core", "0008_maintenancemode"),
     ]
 
     operations = [
@@ -20,14 +20,6 @@ class Migration(migrations.Migration):
                     "poll_interval_minutes",
                     models.PositiveIntegerField(
                         default=5, help_text="Minimum minutes between two effective polling runs."
-                    ),
-                ),
-                (
-                    "last_run_at",
-                    models.DateTimeField(
-                        blank=True,
-                        help_text="Timestamp of the last successful polling run.",
-                        null=True,
                     ),
                 ),
             ],

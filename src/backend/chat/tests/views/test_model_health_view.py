@@ -9,13 +9,7 @@ from core.factories import UserFactory
 
 from chat.models import ModelHealth
 
-
-@pytest.fixture(autouse=True)
-def clear_cache():
-    """Clear cache before/after each test to avoid key leakage between tests."""
-    cache.clear()
-    yield
-    cache.clear()
+pytestmark = pytest.mark.usefixtures("clear_cache")
 
 
 @pytest.mark.django_db

@@ -3,7 +3,6 @@
 import json
 from unittest import mock
 
-from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
@@ -23,7 +22,7 @@ from chat.factories import (
 )
 from chat.llm_configuration import LLModel, LLMProvider
 
-pytestmark = pytest.mark.django_db()
+pytestmark = [pytest.mark.django_db(), pytest.mark.usefixtures("clear_cache")]
 
 LISTING_PREFIX = "List of documents attached to this conversation:\n"
 TOOL_CALL_ONLY_CONTENT = "available via tools"
@@ -403,14 +402,6 @@ def _llm_config_two_models(settings):
         ),
     }
     settings.LLM_DEFAULT_MODEL_HRID = "model-a"
-
-
-@pytest.fixture(autouse=True)
-def _clear_cache():
-    """Cache state must not leak between tests."""
-    cache.clear()
-    yield
-    cache.clear()
 
 
 def _make_text_attachment(*, conversation, user, file_name, content):
