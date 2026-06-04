@@ -9,6 +9,8 @@ export const CONFIG = {
     'web-search': 'enabled',
   },
   FILE_UPLOAD_MODE: 'presigned_url',
+  FRONTEND_CONTACT_EMAIL: null,
+  FRONTEND_DOCUMENTATION_URL: null,
   FRONTEND_CSS_URL: null,
   FRONTEND_HOMEPAGE_FEATURE_ENABLED: true,
   FRONTEND_SILENT_LOGIN_ENABLED: true,

@@ -21,7 +21,9 @@ pytestmark = pytest.mark.django_db
 
 
 @override_settings(
+    FRONTEND_CONTACT_EMAIL="contact@test.com",
     FRONTEND_CSS_URL="http://testcss/",
+    FRONTEND_DOCUMENTATION_URL="http://testdocs/",
     FRONTEND_THEME="test-theme",
     MEDIA_BASE_URL="http://testserver/",
     POSTHOG_KEY={"id": "132456", "host": "https://eu.i.posthog-test.com"},
@@ -48,7 +50,9 @@ def test_api_config(is_authenticated):
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},
         "FILE_UPLOAD_MODE": "presigned_url",
+        "FRONTEND_CONTACT_EMAIL": "contact@test.com",
         "FRONTEND_CSS_URL": "http://testcss/",
+        "FRONTEND_DOCUMENTATION_URL": "http://testdocs/",
         "FRONTEND_HOMEPAGE_FEATURE_ENABLED": True,
         "FRONTEND_SILENT_LOGIN_ENABLED": True,
         "FRONTEND_THEME": "test-theme",
@@ -70,6 +74,16 @@ def test_api_config(is_authenticated):
         "status_banner": None,
         "maintenance": None,
     }
+
+
+@override_settings(FRONTEND_CONTACT_EMAIL=None, FRONTEND_DOCUMENTATION_URL=None)
+def test_api_config_help_links_unset():
+    """Documentation URL and contact email are exposed as None when not configured."""
+    response = APIClient().get("/api/v1.0/config/")
+    assert response.status_code == HTTP_200_OK
+    content = response.json()
+    assert content["FRONTEND_CONTACT_EMAIL"] is None
+    assert content["FRONTEND_DOCUMENTATION_URL"] is None
 
 
 @override_settings(
@@ -166,7 +180,9 @@ def test_api_config_with_original_theme_customization(is_authenticated, settings
 
 
 @override_settings(
+    FRONTEND_CONTACT_EMAIL="contact@test.com",
     FRONTEND_CSS_URL="http://testcss/",
+    FRONTEND_DOCUMENTATION_URL="http://testdocs/",
     FRONTEND_THEME="test-theme",
     MEDIA_BASE_URL="http://testserver/",
     POSTHOG_KEY={"id": "132456", "host": "https://eu.i.posthog-test.com"},
@@ -194,7 +210,9 @@ async def test_api_config_async(is_authenticated):
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},
         "FILE_UPLOAD_MODE": "presigned_url",
+        "FRONTEND_CONTACT_EMAIL": "contact@test.com",
         "FRONTEND_CSS_URL": "http://testcss/",
+        "FRONTEND_DOCUMENTATION_URL": "http://testdocs/",
         "FRONTEND_HOMEPAGE_FEATURE_ENABLED": True,
         "FRONTEND_SILENT_LOGIN_ENABLED": True,
         "FRONTEND_THEME": "test-theme",

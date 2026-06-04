@@ -143,6 +143,8 @@ class ConfigView(drf.views.APIView):
             "ACTIVATION_REQUIRED",
             "ENVIRONMENT",
             "FRONTEND_CSS_URL",
+            "FRONTEND_CONTACT_EMAIL",
+            "FRONTEND_DOCUMENTATION_URL",
             "FRONTEND_HOMEPAGE_FEATURE_ENABLED",
             "FRONTEND_THEME",
             "MEDIA_BASE_URL",

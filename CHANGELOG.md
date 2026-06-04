@@ -15,11 +15,12 @@ and this project adheres to
 ### Changed
 
 - 🧱(helm) bump chart to v0.0.6
+- 🚸(front) replace help button with a dropdown menu
 
 ### Fixed
 
 - 🐛(helm) stop job pods from matching the backend disruption budget
-
+ 
 ## [0.0.17] - 2026-06-02
 
 ### Added

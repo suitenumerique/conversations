@@ -469,6 +469,12 @@ class Base(BraveSettings, Configuration):
         environ_prefix=None,
     )
     FRONTEND_CSS_URL = values.Value(None, environ_name="FRONTEND_CSS_URL", environ_prefix=None)
+    FRONTEND_DOCUMENTATION_URL = values.Value(
+        None, environ_name="FRONTEND_DOCUMENTATION_URL", environ_prefix=None
+    )
+    FRONTEND_CONTACT_EMAIL = values.EmailValue(
+        None, environ_name="FRONTEND_CONTACT_EMAIL", environ_prefix=None
+    )
     FRONTEND_SILENT_LOGIN_ENABLED = values.BooleanValue(
         default=True, environ_name="FRONTEND_SILENT_LOGIN_ENABLED", environ_prefix=None
     )

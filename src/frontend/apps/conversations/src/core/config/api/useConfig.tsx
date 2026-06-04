@@ -38,6 +38,8 @@ export interface ConfigResponse {
   ENVIRONMENT: string;
   FEATURE_FLAGS: FeatureFlags;
   FRONTEND_CSS_URL?: string;
+  FRONTEND_CONTACT_EMAIL?: string;
+  FRONTEND_DOCUMENTATION_URL?: string;
   FRONTEND_HOMEPAGE_FEATURE_ENABLED?: boolean;
   FRONTEND_THEME?: BaseTheme;
   LANGUAGES: [string, string][];
