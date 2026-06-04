@@ -17,6 +17,7 @@ spec:
   startingDeadlineSeconds: {{ .Values.backend.modelHealthCronJob.startingDeadlineSeconds | default 60 }}
   jobTemplate:
     spec:
+      activeDeadlineSeconds: {{ .Values.backend.modelHealthCronJob.activeDeadlineSeconds | default 55 }}
       backoffLimit: {{ .Values.backend.jobs.backoffLimit }}
       template:
         metadata:
@@ -69,7 +70,7 @@ spec:
                 - name: {{ .name }}
                   mountPath: {{ .mountPath }}
                   subPath: {{ .subPath | default "" }}
-                  readOnly: {{ .readOnly }}
+                  readOnly: {{ .readOnly | default false }}
                 {{- end }}
                 {{- if .Values.backend.llmConfiguration.enabled }}
                 - name: llm-configuration

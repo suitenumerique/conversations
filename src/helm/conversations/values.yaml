@@ -224,11 +224,13 @@ backend:
   ## @param backend.modelHealthCronJob.schedule Cron schedule for the model-health poller
   ## @param backend.modelHealthCronJob.provider Provider to poll for model health
   ## @param backend.modelHealthCronJob.startingDeadlineSeconds Seconds after a missed start time before the job is considered failed
+  ## @param backend.modelHealthCronJob.activeDeadlineSeconds Hard deadline in seconds for the job pod
   modelHealthCronJob:
-    enabled: true
+    enabled: false
     schedule: "* * * * *"
     provider: albert
     startingDeadlineSeconds: 60
+    activeDeadlineSeconds: 55
 
   ## @param backend.probes.liveness.path [nullable] Configure path for backend HTTP liveness probe
   ## @param backend.probes.liveness.targetPort [nullable] Configure port for backend HTTP liveness probe
