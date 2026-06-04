@@ -10,9 +10,13 @@ and this project adheres to
 
 ### Added
 
-## [0.0.17] - 2026-06-02
-
 - ✨(back) add cron job to poll Albert models health
+
+### Changed
+
+- 🧱(helm) bump chart to v0.0.6
+
+## [0.0.17] - 2026-06-02
 
 ### Added
 
