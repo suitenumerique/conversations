@@ -1,7 +1,7 @@
 {{- if .Values.backend.modelHealthCronJob.enabled -}}
 {{- $envVars := include "conversations.common.env" (list . .Values.backend) -}}
 {{- $fullName := include "conversations.backend.fullname" . -}}
-{{- $component := "backend" -}}
+{{- $component := "backend-model-health" -}}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
