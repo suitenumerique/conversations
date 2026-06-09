@@ -34,8 +34,7 @@ export const ConfigProvider = ({ children }: PropsWithChildren) => {
       return;
     }
 
-    const targetLanguage =
-      conf.LANGUAGE_CODE || i18n.resolvedLanguage || i18n.language;
+    const targetLanguage = i18n.resolvedLanguage || i18n.language;
 
     void changeLanguageSynchronized(targetLanguage).then(() => {
       hasSyncedInitialLanguage.current = true;

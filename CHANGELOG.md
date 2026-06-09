@@ -21,6 +21,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(helm) stop job pods from matching the backend disruption budget
+- 🐛(front) use the browser language for the default UI on first load
 
 ## [0.0.17] - 2026-06-02
 

@@ -492,7 +492,6 @@ export const Chat = ({
         }
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
   // Synchronize conversationId state with prop when it changes (e.g., after navigation)
