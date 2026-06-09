@@ -146,6 +146,10 @@ class LLModel(BaseModel):
     web_search: SettingEnvValue | None = None
     concatenate_instruction_messages: bool | None = None
     max_token_context: int | None = None
+    # Scales the inference-load cooldown for this model (seconds per token over
+    # the threshold). Smaller for models with more GPUs allocated. Falls back to
+    # the ChatCooldownSettings default_factor when unset. See chat/rate_limiting.py.
+    cooldown_factor: float | None = None
 
     @field_validator("tools", mode="before")
     @classmethod

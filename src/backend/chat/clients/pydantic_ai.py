@@ -161,6 +161,7 @@ from chat.document_context_builder import (
 )
 from chat.enums import CollectionIndexState
 from chat.mcp_servers import get_mcp_servers
+from chat.rate_limiting import record_and_compute_cooldown
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
@@ -1242,6 +1243,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         await self._agent_stop_streaming(force_cache_check=True)
 
+        # Total tokens the model processed for this request, across every
+        # tool-loop round-trip (RAG/web-search results fed back as input count
+        # too): that is the real inference load the cooldown should reflect.
+        # Captured before _prepare_update_conversation folds it into the
+        # conversation's cumulative total.
+        request_tokens = int(usage["promptTokens"]) + int(usage["completionTokens"])
+
         await sync_to_async(self._prepare_update_conversation)(
             final_output=new_messages,
             usage=usage,
@@ -1253,6 +1261,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         generated_title = await self._generate_title_if_needed()
 
         await sync_to_async(self.conversation.save)()
+
+        cooldown_seconds = await sync_to_async(record_and_compute_cooldown)(
+            self.user.pk, self.conversation_agent.configuration, request_tokens
+        )
+        if cooldown_seconds:
+            yield events_v4.DataPart(data=[{"type": "cooldown", "seconds": cooldown_seconds}])
 
         if generated_title:
             yield events_v4.DataPart(

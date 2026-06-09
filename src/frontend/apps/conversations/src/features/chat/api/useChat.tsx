@@ -1,6 +1,6 @@
 import { UseChatOptions, useChat as useAiSdkChat } from '@ai-sdk/react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 
 import { fetchAPI } from '@/api';
 import { KEY_LIST_CONVERSATION } from '@/features/chat/api/useConversations';
@@ -61,6 +61,31 @@ function isConversationMetadataEvent(
   );
 }
 
+interface CooldownEvent {
+  type: 'cooldown';
+  seconds: number;
+}
+// Inference-load cooldown emitted at the end of a response: the client should
+// wait `seconds` before sending the next message.
+function isCooldownEvent(item: unknown): item is CooldownEvent {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    'type' in item &&
+    item.type === 'cooldown' &&
+    'seconds' in item &&
+    typeof (item as CooldownEvent).seconds === 'number'
+  );
+}
+
+async function fetchChatCooldown(): Promise<{ cooldown_seconds: number }> {
+  const response = await fetchAPI('chat-cooldown/');
+  if (!response.ok) {
+    throw new Error('Failed to fetch chat cooldown');
+  }
+  return response.json() as Promise<{ cooldown_seconds: number }>;
+}
+
 export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
   const queryClient = useQueryClient();
 
@@ -70,19 +95,56 @@ export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
     fetch: fetchAPIAdapter,
   });
 
+  // Epoch ms until which the user must wait before sending a new message.
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  // Track how many data items we have already handled so each event is
+  // processed exactly once (the data stream grows append-only).
+  const processedCountRef = useRef(0);
+
+  // Restore the cooldown from the backend (the authoritative source) so it
+  // survives a refresh, a new tab, or switching conversations. react-query
+  // refetches on mount and on window focus, keeping tabs in sync.
+  const { data: cooldownData } = useQuery({
+    queryKey: ['chat-cooldown'],
+    queryFn: fetchChatCooldown,
+  });
+
   useEffect(() => {
-    if (result.data && Array.isArray(result.data)) {
-      for (const item of result.data) {
-        if (isConversationMetadataEvent(item)) {
-          void queryClient.invalidateQueries({
-            queryKey: [KEY_LIST_CONVERSATION],
-          });
-          void queryClient.invalidateQueries({
-            queryKey: [KEY_LIST_PROJECT],
-          });
-        }
+    if (!cooldownData) {
+      return;
+    }
+    setCooldownUntil(
+      cooldownData.cooldown_seconds > 0
+        ? Date.now() + cooldownData.cooldown_seconds * 1000
+        : null,
+    );
+  }, [cooldownData]);
+
+  useEffect(() => {
+    const data = result.data;
+    if (!Array.isArray(data)) {
+      processedCountRef.current = 0;
+      return;
+    }
+    // Stream reset (e.g. switching conversations): reprocess from the start.
+    if (data.length < processedCountRef.current) {
+      processedCountRef.current = 0;
+    }
+    for (let i = processedCountRef.current; i < data.length; i++) {
+      const item = data[i];
+      if (isConversationMetadataEvent(item)) {
+        void queryClient.invalidateQueries({
+          queryKey: [KEY_LIST_CONVERSATION],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: [KEY_LIST_PROJECT],
+        });
+      } else if (isCooldownEvent(item)) {
+        setCooldownUntil(Date.now() + item.seconds * 1000);
       }
     }
+    processedCountRef.current = data.length;
   }, [result.data, queryClient]);
-  return result;
+
+  return { ...result, cooldownUntil };
 }

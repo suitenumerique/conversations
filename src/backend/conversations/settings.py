@@ -685,6 +685,12 @@ class Base(BraveSettings, Configuration):
         environ_name="FAKE_STREAMING_DELAY",
         environ_prefix=None,  # 25ms
     )
+    # Inference-load cooldown: when a model is in degraded health, a user who has
+    # spent more than a token threshold over a trailing window is asked to wait
+    # before their next request. The wait grows with the overage, scaled by a
+    # per-model factor (see LLModel.cooldown_factor) that reflects the GPUs
+    # allocated to that model. The thresholds/window/floor are tuned at runtime
+    # via the ChatCooldownSettings singleton (core.models), not env vars.
     DEFAULT_ALLOW_CONVERSATION_ANALYTICS = values.BooleanValue(
         default=False,
         environ_name="DEFAULT_ALLOW_CONVERSATION_ANALYTICS",

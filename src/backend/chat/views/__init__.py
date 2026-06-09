@@ -38,6 +38,7 @@ from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
+from chat.rate_limiting import ChatCooldownThrottle, get_cooldown_remaining
 from chat.serializers import ChatConversationRequestSerializer
 from chat.views.llm_config import LLMConfigurationView
 from chat.views.model_health import ModelHealthView
@@ -248,6 +249,12 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             # Permission is checked in AttachmentMixin
             self.permission_classes = []
         return super().get_permissions()
+
+    def get_throttles(self):
+        """Enforce the model-load cooldown on the chat completion endpoint."""
+        if self.action == "post_conversation":
+            return [ChatCooldownThrottle()]
+        return super().get_throttles()
 
     def perform_destroy(self, instance):
         """Delete a conversation, its RAG collection, and S3-stored attachments.
@@ -823,6 +830,20 @@ class ChatProjectAttachmentViewSet(  # pylint: disable=too-many-ancestors
                 instance.key,
             )
         instance.delete()
+
+
+class ChatCooldownView(APIView):
+    """Return the remaining inference-load cooldown for the current user.
+
+    Lets the frontend restore the cooldown state after a refresh, in a new tab,
+    or when switching conversations, sourced from the authoritative cache value.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """Return the seconds the user must still wait before sending again."""
+        return Response({"cooldown_seconds": get_cooldown_remaining(request.user.pk)})
 
 
 class FileStreamView(APIView):

@@ -12,6 +12,7 @@ from core.file_upload.enums import FileToLLMMode
 from activation_codes import viewsets as activation_viewsets
 from chat.views import (
     ChatConversationAttachmentViewSet,
+    ChatCooldownView,
     ChatProjectAttachmentViewSet,
     ChatProjectViewSet,
     ChatViewSet,
@@ -46,6 +47,7 @@ urlpatterns = [
                     "llm-configuration/", LLMConfigurationView.as_view(), name="llm-configuration"
                 ),
                 path("model-health/", ModelHealthView.as_view(), name="model-health"),
+                path("chat-cooldown/", ChatCooldownView.as_view(), name="chat-cooldown"),
                 path(
                     "chats/<uuid:conversation_pk>/",
                     include(conversation_router.urls),

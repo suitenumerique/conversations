@@ -405,3 +405,36 @@ class AccessBypassEmail(BaseModel):
             .filter(models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now()))
             .exists()
         )
+
+
+class ChatCooldownSettings(SingletonModel):
+    """Singleton tuning the inference-load cooldown heuristic.
+
+    When a model is in degraded ("yellow"/"red") health, a user who has spent
+    more than ``token_threshold`` total tokens (input + output) over the
+    trailing ``window_seconds`` is asked to wait before their next request. The
+    wait grows with the overage, scaled by a per-model factor (see
+    ``LLModel.cooldown_factor``, which falls back to ``default_factor``), with
+    ``min_seconds`` as the floor once the threshold is crossed.
+    """
+
+    window_seconds = models.PositiveIntegerField(
+        default=20 * 60,
+        help_text="Length of the trailing token-usage window, in seconds.",
+    )
+    token_threshold = models.PositiveIntegerField(
+        default=650_000,
+        help_text="Tokens over the window above which a cooldown can apply.",
+    )
+    default_factor = models.FloatField(
+        default=0.0016,
+        help_text="Seconds of cooldown per token over the threshold, when a "
+        "model defines no cooldown_factor of its own.",
+    )
+    min_seconds = models.PositiveIntegerField(
+        default=30,
+        help_text="Minimum cooldown once the threshold is crossed, in seconds.",
+    )
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        verbose_name = "Chat Cooldown Settings"

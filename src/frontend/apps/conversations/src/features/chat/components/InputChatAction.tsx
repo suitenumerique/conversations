@@ -30,6 +30,8 @@ interface InputChatActionsProps {
   status: string | null;
   /** Whether input has content (for send button) */
   inputHasContent: boolean;
+  /** Whether sending is blocked (e.g. during an inference-load cooldown) */
+  sendDisabled?: boolean;
   /** Handler for stop button */
   onStop?: () => void;
 }
@@ -94,6 +96,7 @@ export const InputChatActions = memo(
     selectedModel,
     status,
     inputHasContent,
+    sendDisabled = false,
     onStop,
   }: InputChatActionsProps) => {
     const { t } = useTranslation();
@@ -225,7 +228,7 @@ export const InputChatActions = memo(
 
           <SendButton
             status={status}
-            disabled={!inputHasContent || isUploadingFiles}
+            disabled={!inputHasContent || isUploadingFiles || sendDisabled}
             onClick={onStop}
           />
         </Box>

@@ -124,6 +124,11 @@ class ModelHealthSettingsAdmin(SingletonModelAdmin):
     """Admin for the ModelHealthSettings singleton."""
 
 
+@admin.register(models.ChatCooldownSettings)
+class ChatCooldownSettingsAdmin(SingletonModelAdmin):
+    """Admin for the ChatCooldownSettings singleton."""
+
+
 @admin.register(models.SiteConfiguration)
 class SiteConfigurationAdmin(SingletonModelAdmin):
     """Admin class for the SiteConfiguration model"""

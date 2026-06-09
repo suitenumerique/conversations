@@ -244,6 +244,7 @@ export const Chat = ({
     status,
     stop: stopChat,
     setMessages,
+    cooldownUntil,
   } = useChat({
     id: conversationId,
     initialMessages: initialConversationMessages,
@@ -653,6 +654,11 @@ export const Chat = ({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    // Inference-load cooldown: block new messages until the wait elapses.
+    if (cooldownUntil && Date.now() < cooldownUntil) {
+      return;
+    }
+
     // April Fools' prank on the very first message of a new conversation.
     // Use triggerDeferred so the prank survives the router.push() remount.
     if (messages.length === 0) {
@@ -911,6 +917,7 @@ export const Chat = ({
           onModelSelect={handleModelSelect}
           isUploadingFiles={isUploadingFiles}
           errorType={status === 'error' ? chatErrorType : undefined}
+          cooldownUntil={cooldownUntil}
         />
       </Box>
       <Modal

@@ -254,4 +254,67 @@ describe('InputChat', () => {
 
     expect(handleSubmit).not.toHaveBeenCalled();
   });
+
+  it('should show a notice but keep the textarea typeable during an active cooldown', () => {
+    render(<InputChat {...defaultProps} cooldownUntil={Date.now() + 5000} />, {
+      wrapper: AppWrapper,
+    });
+
+    // The user can still draft a message during the cooldown; only sending is blocked.
+    expect(
+      screen.getByRole('textbox', { name: 'Enter your message or a question' }),
+    ).toBeEnabled();
+    expect(screen.getByText(/under heavy load/i)).toBeInTheDocument();
+  });
+
+  it('should keep textarea enabled when the cooldown is already past', () => {
+    render(<InputChat {...defaultProps} cooldownUntil={Date.now() - 1000} />, {
+      wrapper: AppWrapper,
+    });
+
+    expect(
+      screen.getByRole('textbox', { name: 'Enter your message or a question' }),
+    ).toBeEnabled();
+    expect(screen.queryByText(/under heavy load/i)).not.toBeInTheDocument();
+  });
+
+  it('should not submit form when pressing Enter during an active cooldown', async () => {
+    const user = userEvent.setup();
+    const handleSubmit = jest.fn((e) => e.preventDefault());
+    render(
+      <InputChat
+        {...defaultProps}
+        cooldownUntil={Date.now() + 5000}
+        handleSubmit={handleSubmit}
+      />,
+      { wrapper: AppWrapper },
+    );
+
+    const textarea = screen.getByRole('textbox', {
+      name: 'Enter your message or a question',
+    });
+    await user.type(textarea, '{Enter}');
+
+    expect(handleSubmit).not.toHaveBeenCalled();
+  });
+
+  it('should submit form when pressing Enter once the cooldown is past', async () => {
+    const user = userEvent.setup();
+    const handleSubmit = jest.fn((e) => e.preventDefault());
+    render(
+      <InputChat
+        {...defaultProps}
+        cooldownUntil={Date.now() - 1000}
+        handleSubmit={handleSubmit}
+      />,
+      { wrapper: AppWrapper },
+    );
+
+    const textarea = screen.getByRole('textbox', {
+      name: 'Enter your message or a question',
+    });
+    await user.type(textarea, '{Enter}');
+
+    expect(handleSubmit).toHaveBeenCalled();
+  });
 });
