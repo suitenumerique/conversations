@@ -22,6 +22,10 @@ PROVIDERS = {
     }
 }
 
+# Legacy provider statuses mapped to their current enum value, in case a provider
+# still emits the old "orange" label after the rename to "yellow".
+STATUS_ALIASES = {"orange": ModelHealth.Status.YELLOW.value}
+
 
 class Command(BaseCommand):
     """Fetch model health status from an external provider, store in DB and cache."""
@@ -104,6 +108,7 @@ class Command(BaseCommand):
                     continue
                 seen_model_ids.add(model_id)
                 status = item.get("status")
+                status = STATUS_ALIASES.get(status, status)
 
                 if status not in ModelHealth.Status.values:
                     logger.warning("Unknown status %r for model %s, skipping", status, model_id)

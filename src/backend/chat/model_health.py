@@ -4,5 +4,5 @@ from django.core.cache import cache
 
 
 def get_model_health(provider: str, model_id: str) -> str | None:
-    """Return 'green', 'orange', 'red', or None if no data is available yet."""
+    """Return 'green', 'yellow', 'red', or None if no data is available yet."""
     return cache.get(f"model_health:{provider}:{model_id}")

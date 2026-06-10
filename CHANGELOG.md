@@ -18,6 +18,7 @@ and this project adheres to
 - 🧱(helm) bump chart to v0.0.6
 - 🚸(front) replace help button with a dropdown menu
 - 🔒️(back) restrict sign-in to users with an allowed OIDC role
+- ♻️(back) rename model health status "orange" to "yellow"
 
 ### Fixed
 

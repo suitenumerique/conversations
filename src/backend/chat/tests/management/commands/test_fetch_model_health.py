@@ -226,7 +226,7 @@ def test_unknown_status_skipped_with_warning(settings, caplog):
         responses_lib.GET,
         ALBERT_HEALTH_URL,
         json={
-            "data": [{"id": "model-a", "status": "yellow"}, {"id": "model-b", "status": "green"}]
+            "data": [{"id": "model-a", "status": "purple"}, {"id": "model-b", "status": "green"}]
         },
     )
 
@@ -237,4 +237,22 @@ def test_unknown_status_skipped_with_warning(settings, caplog):
     assert ModelHealth.objects.get().model_id == "model-b"
     assert cache.get("model_health:albert:model-a") is None
     assert cache.get("model_health:albert:model-b") == "green"
-    assert "yellow" in caplog.text
+    assert "purple" in caplog.text
+
+
+@pytest.mark.django_db
+@responses_lib.activate
+def test_legacy_orange_status_mapped_to_yellow(settings):
+    """A provider still emitting the legacy 'orange' status is stored as 'yellow'."""
+    settings.ALBERT_API_KEY = None
+
+    responses_lib.add(
+        responses_lib.GET,
+        ALBERT_HEALTH_URL,
+        json={"data": [{"id": "model-a", "status": "orange"}]},
+    )
+
+    call_command("fetch_model_health", "--provider", "albert")
+
+    assert ModelHealth.objects.get(model_id="model-a").status == "yellow"
+    assert cache.get("model_health:albert:model-a") == "yellow"

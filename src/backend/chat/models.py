@@ -271,7 +271,7 @@ class ModelHealth(models.Model):
 
     class Status(models.TextChoices):  # pylint: disable=missing-class-docstring
         GREEN = "green"
-        ORANGE = "orange"
+        YELLOW = "yellow"
         RED = "red"
 
     provider = models.CharField(max_length=50)
