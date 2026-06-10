@@ -13,6 +13,7 @@ and this project adheres to
 - ✨(back) add cron job to poll Albert models health
 - ✨(back) de-index inactive collections and reindex in conversation
 - ✨(back) rate-limit chat with a model-health-aware token cooldown
+- ✨(backend) add sliding window history processor
 
 ### Changed
 

@@ -41,6 +41,15 @@ def base_settings(settings):
     settings.AI_AGENT_TOOLS = []
 
 
+@pytest.fixture(autouse=True)
+def mock_token_counter(monkeypatch):
+    """Prevent tiktoken from making network calls during sliding window token estimation."""
+    monkeypatch.setattr(
+        "chat.agents.history_processors.count_approx_tokens",
+        lambda _text: 10,
+    )
+
+
 @pytest.fixture(name="ui_messages")
 def ui_messages_fixture():
     """Fixture for test UI messages."""
@@ -68,7 +77,10 @@ def agent_model_fixture():
 @pytest.mark.asyncio
 @responses.activate
 async def test_langfuse_span_created_when_enabled_and_analytics_allowed(
-    agent_model, ui_messages, settings, langfuse_client
+    agent_model,
+    ui_messages,
+    settings,
+    langfuse_client,
 ):
     """Test Langfuse span is created when enabled and user allows analytics."""
     settings.LANGFUSE_ENABLED = True
@@ -109,7 +121,10 @@ async def test_langfuse_span_created_when_enabled_and_analytics_allowed(
 @pytest.mark.asyncio
 @responses.activate
 async def test_langfuse_span_created_when_enabled_and_analytics_disabled(
-    agent_model, ui_messages, settings, langfuse_client
+    agent_model,
+    ui_messages,
+    settings,
+    langfuse_client,
 ):
     """Test Langfuse span is created even when user disallows analytics."""
     settings.LANGFUSE_ENABLED = True

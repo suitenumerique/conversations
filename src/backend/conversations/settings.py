@@ -962,6 +962,15 @@ USER QUESTION:
         environ_name="DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS",
         environ_prefix=None,
     )
+    # Fallback context window for models that don't declare max_token_context.
+    # 8192 is the smallest modern standard (GPT-4 base, Llama 3, Gemma); after
+    # applying security buffer and budget ratio the conversation budget lands at
+    # ~3 600 tokens, safely within even a genuine 4K-context model.
+    DEFAULT_MAX_TOKEN_CONTEXT = values.PositiveIntegerValue(
+        default=8192,
+        environ_name="DEFAULT_MAX_TOKEN_CONTEXT",
+        environ_prefix=None,
+    )
 
     # Tavily API
     TAVILY_API_KEY = values.Value(

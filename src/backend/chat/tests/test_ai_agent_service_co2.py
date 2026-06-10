@@ -154,6 +154,7 @@ async def test_finalize_emits_finish_message_with_co2(service, co2_impact):
         patch.object(service, "_agent_stop_streaming", new=AsyncMock()),
         patch.object(service, "_prepare_update_conversation"),
         patch("chat.clients.pydantic_ai.sync_to_async", side_effect=_fake_sync_to_async),
+        patch("chat.clients.pydantic_ai.record_and_compute_cooldown", return_value=0),
     ):
         events = [
             event

@@ -16,7 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { APIError, errorCauses, fetchAPI } from '@/api';
 import { Box, Loader, Text } from '@/components';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
-import { useChat } from '@/features/chat/api/useChat';
+import { isContextTrimmedEvent, useChat } from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
 import { useCreateChatConversation } from '@/features/chat/api/useCreateConversation';
 import {
@@ -183,6 +183,7 @@ export const Chat = ({
   const { mutate: createChatConversation } = useCreateChatConversation();
   const queryClient = useQueryClient();
   const [isReadingInstructions, setIsReadingInstructions] = useState(false);
+  const [contextTrimmed, setContextTrimmed] = useState(false);
   const readingInstructionsStartRef = useRef<number>(0);
   const aprilFools = useAprilFools();
 
@@ -245,6 +246,7 @@ export const Chat = ({
     stop: stopChat,
     setMessages,
     cooldownUntil,
+    data,
   } = useChat({
     id: conversationId,
     initialMessages: initialConversationMessages,
@@ -586,6 +588,17 @@ export const Chat = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldRetry, input, files]);
 
+  useEffect(() => {
+    setContextTrimmed(false);
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!data || !Array.isArray(data)) return;
+    if (data.some(isContextTrimmedEvent)) {
+      setContextTrimmed(true);
+    }
+  }, [data]);
+
   // Fetch initial conversation messages if initialConversationId is provided and no pending input
   useEffect(() => {
     hasScrolledToBottomOnLoadRef.current = false; // Réinitialiser au début du chargement
@@ -851,6 +864,21 @@ export const Chat = ({
                 </React.Fragment>
               );
             })}
+          </Box>
+        )}
+        {contextTrimmed && (
+          <Box
+            $direction="row"
+            $align="center"
+            $gap="6px"
+            $width="100%"
+            $maxWidth="var(--chat-content-max-width, 750px)"
+            $margin={{ all: 'auto' }}
+            $padding={{ left: '13px', top: 'xs', bottom: 'xs' }}
+          >
+            <Text $theme="neutral" $variation="tertiary" $size="sm">
+              {t("Some older messages are no longer in the model's context.")}
+            </Text>
           </Box>
         )}
         {!aprilFools.isActive &&

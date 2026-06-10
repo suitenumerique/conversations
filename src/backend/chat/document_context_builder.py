@@ -2,7 +2,6 @@
 
 import asyncio
 import dataclasses
-import functools
 import json
 import logging
 from collections import deque
@@ -10,35 +9,13 @@ from typing import Literal, Sequence
 
 from django.core.files.storage import default_storage
 
-import tiktoken
 from asgiref.sync import sync_to_async
 
 from chat import models
 from chat.constants import ACCESS_FULL_CONTEXT, ACCESS_TOOL_CALL_ONLY
+from chat.tokens import compute_document_budget, count_approx_tokens
 
 logger = logging.getLogger(__name__)
-
-
-@functools.lru_cache(maxsize=1)
-def _get_token_encoding():
-    """Lazily load and cache the tiktoken encoding."""
-    return tiktoken.get_encoding("cl100k_base")
-
-
-def count_approx_tokens(text: str) -> int:
-    """Estimate token count using tiktoken."""
-    if not text:
-        return 0
-    try:
-        tiktoken_len = len(_get_token_encoding().encode(text))
-        logger.debug("Tiktoken length: %s", tiktoken_len)
-        return tiktoken_len
-    except Exception:  # pylint: disable=broad-except #noqa: BLE001
-        logger.warning("Failed to estimate tokens with tiktoken, falling back to heuristic.")
-        non_space_chars = len("".join(text.split()))
-        if non_space_chars == 0:
-            return 0
-        return non_space_chars // 3 + (1 if non_space_chars % 3 else 0)
 
 
 @sync_to_async
@@ -327,7 +304,9 @@ async def build_documents_listing(  # noqa: PLR0913 # pylint: disable=too-many-a
             project_docs=project_docs,
         )
 
-    document_budget = max(int(max_token_context * budget_ratio) - security_buffer_tokens, 0)
+    document_budget = compute_document_budget(
+        max_token_context, budget_ratio, security_buffer_tokens
+    )
 
     async def _load_document(
         index: int, attachment: models.ChatConversationAttachment

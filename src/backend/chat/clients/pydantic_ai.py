@@ -130,6 +130,7 @@ from core.feature_flags.helpers import is_feature_enabled
 
 from chat import models
 from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
+from chat.agents.history_processors import apply_sliding_window, resolve_conversation_budget
 from chat.agents.local_media_url_processors import (
     build_project_image_urls,
     update_history_local_urls,
@@ -1321,6 +1322,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             conversation_has_own_documents,
         ) = await self._prepare_agent_run(messages)
 
+        history, was_trimmed = apply_sliding_window(
+            history, resolve_conversation_budget(self.conversation_agent.configuration)
+        )
+
         # Re-index (or report busy) when the conversation has READY attachments and
         # its index is not current. INDEXING is included: reindex_conversation handles
         # the concurrent-claim case by yielding a busy error when it cannot claim the row.
@@ -1361,6 +1366,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         if doc_result is None or not doc_result.success:
             return
+
+        if was_trimmed:
+            yield events_v4.DataPart(data=[{"type": "context_trimmed"}])
 
         conversation_has_own_documents = doc_result.has_documents
 

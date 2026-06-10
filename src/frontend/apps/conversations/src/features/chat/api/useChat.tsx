@@ -86,6 +86,21 @@ async function fetchChatCooldown(): Promise<{ cooldown_seconds: number }> {
   return response.json() as Promise<{ cooldown_seconds: number }>;
 }
 
+interface ContextTrimmedEvent {
+  type: 'context_trimmed';
+}
+
+export function isContextTrimmedEvent(
+  item: unknown,
+): item is ContextTrimmedEvent {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    'type' in item &&
+    item.type === 'context_trimmed'
+  );
+}
+
 export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
   const queryClient = useQueryClient();
 

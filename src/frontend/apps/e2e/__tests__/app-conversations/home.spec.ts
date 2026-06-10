@@ -8,7 +8,6 @@ test.beforeEach(async ({ page }) => {
 
 test.describe('Home page', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
-
   test('checks all the elements are visible', async ({ page }) => {
     await page.goto('/home/');
 
