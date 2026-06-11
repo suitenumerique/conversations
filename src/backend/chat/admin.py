@@ -93,6 +93,7 @@ class ModelHealthAdmin(admin.ModelAdmin):
 
     list_display = ("provider", "model_id", "status", "created_at", "updated_at")
     list_filter = ("provider", "status")
+    readonly_fields = ("provider", "model_id", "created_at", "updated_at")
 
     def get_queryset(self, request):
         latest_id = (
@@ -105,9 +106,6 @@ class ModelHealthAdmin(admin.ModelAdmin):
         return super().get_queryset(request).filter(id=Subquery(latest_id))
 
     def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
         return False
 
     def has_delete_permission(self, request, obj=None):
