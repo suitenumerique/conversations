@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.db.models import OuterRef, Subquery
 
 from . import models
+from .model_health import set_model_health
 
 
 @admin.register(models.ChatConversation)
@@ -110,6 +111,11 @@ class ModelHealthAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    def save_model(self, request, obj, form, change):
+        """Persist the record and mirror the new status into the cache that readers use."""
+        super().save_model(request, obj, form, change)
+        set_model_health(obj.provider, obj.model_id, obj.status)
 
 
 @admin.register(models.ChatProject)

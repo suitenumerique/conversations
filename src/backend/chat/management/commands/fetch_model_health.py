@@ -10,6 +10,7 @@ import requests
 
 from core.models import ModelHealthSettings
 
+from chat.model_health import model_health_cache_key, set_model_health
 from chat.models import ModelHealth
 
 logger = logging.getLogger(__name__)
@@ -125,11 +126,11 @@ class Command(BaseCommand):
                 else:
                     ModelHealth.objects.create(provider=provider, model_id=model_id, status=status)
 
-                cache.set(f"model_health:{provider}:{model_id}", status, timeout=None)
+                set_model_health(provider, model_id, status)
 
             gone_ids = known_model_ids - seen_model_ids
             if gone_ids:
-                cache.delete_many([f"model_health:{provider}:{mid}" for mid in gone_ids])
+                cache.delete_many([model_health_cache_key(provider, mid) for mid in gone_ids])
 
             self.stdout.write(
                 self.style.SUCCESS(f"Fetched health for {len(data)} models from {provider}")

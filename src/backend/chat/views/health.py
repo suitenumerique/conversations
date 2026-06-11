@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 
 from chat import models, serializers
 from chat.assistant_health import compute_assistant_health_banners
+from chat.model_health import model_health_cache_key
 
 
 class ModelHealthView(APIView):
@@ -28,12 +29,12 @@ class ModelHealthView(APIView):
             serializer = serializers.ModelHealthResponseSerializer({"data": []})
             return Response(serializer.data, status=status.HTTP_200_OK)
 
-        keys = [f"model_health:{e.provider}:{e.model_id}" for e in latest_entries]
+        keys = [model_health_cache_key(e.provider, e.model_id) for e in latest_entries]
         cached = cache.get_many(keys)
 
         items = []
         for entry in latest_entries:
-            key = f"model_health:{entry.provider}:{entry.model_id}"
+            key = model_health_cache_key(entry.provider, entry.model_id)
             items.append(
                 {
                     "provider": entry.provider,
