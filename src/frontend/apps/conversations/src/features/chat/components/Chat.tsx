@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
 import { Box, Loader, Text } from '@/components';
+import { useConfig } from '@/core';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
 import { isContextTrimmedEvent, useChat } from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
@@ -61,6 +62,7 @@ export const Chat = ({
   initialConversationId: string | undefined;
 }) => {
   const { t } = useTranslation();
+  const { data: config } = useConfig();
   const copyToClipboard = useClipboard();
   const { isMobile } = useResponsiveStore();
 
@@ -211,12 +213,18 @@ export const Chat = ({
   // Show error modal for upload errors
   useEffect(() => {
     if (isErrorAttachment && errorAttachment) {
+      const maxSize = config?.attachment_max_size;
       setChatErrorModal({
         title: t('Upload Error'),
-        message: t('Failed to upload file'),
+        message: maxSize
+          ? t(
+              'Failed to upload file. It may be due to the attachment size. Max size: {{maxSize}} MB',
+              { maxSize },
+            )
+          : t('Failed to upload file. It may be due to the attachment size.'),
       });
     }
-  }, [isErrorAttachment, errorAttachment, t]);
+  }, [isErrorAttachment, errorAttachment, config?.attachment_max_size, t]);
 
   // Handle errors from the chat API
   const onErrorChat = (error: Error) => {

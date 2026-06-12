@@ -73,6 +73,7 @@ def test_api_config(is_authenticated):
         "chat_upload_accept": "application/pdf,text/plain",
         "project_files_max_count": 10,
         "project_images_max_count": 3,
+        "attachment_max_size": 10,
         "status_banner": None,
         "maintenance": None,
     }
@@ -235,6 +236,7 @@ async def test_api_config_async(is_authenticated):
         "chat_upload_accept": "application/pdf,text/plain",
         "project_files_max_count": 10,
         "project_images_max_count": 3,
+        "attachment_max_size": 10,
         "status_banner": None,
         "maintenance": None,
     }

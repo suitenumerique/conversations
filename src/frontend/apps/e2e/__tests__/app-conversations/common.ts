@@ -52,6 +52,7 @@ export const CONFIG = {
   maintenance: null,
   project_files_max_count: 10,
   project_images_max_count: 3,
+  attachment_max_size: 10,
   status_banner: null,
 } as const;
 

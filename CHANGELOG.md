@@ -22,6 +22,7 @@ and this project adheres to
 - 🚸(front) replace help button with a dropdown menu
 - 🔒️(back) restrict sign-in to users with an allowed OIDC role
 - ♻️(back) rename model health status "orange" to "yellow"
+- 🚸(front) explain the attachment size limit when an upload fails
 
 ### Fixed
 
