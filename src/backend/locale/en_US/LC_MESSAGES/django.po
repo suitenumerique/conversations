@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-20 12:55+0000\n"
-"PO-Revision-Date: 2026-05-21 08:44\n"
+"POT-Creation-Date: 2026-06-12 07:31+0000\n"
+"PO-Revision-Date: 2026-06-12 11:14\n"
 "Last-Translator: \n"
 "Language-Team: English\n"
 "Language: en_US\n"
@@ -129,7 +129,7 @@ msgstr ""
 msgid "Number of times this code has been used"
 msgstr ""
 
-#: activation_codes/models.py:65 core/models.py:156
+#: activation_codes/models.py:65 core/models.py:156 core/models.py:377
 msgid "active"
 msgstr ""
 
@@ -166,7 +166,7 @@ msgid "You have already activated your account"
 msgstr ""
 
 #: activation_codes/models.py:170 activation_codes/models.py:202
-#: core/models.py:184
+#: core/models.py:195
 msgid "user"
 msgstr ""
 
@@ -219,46 +219,78 @@ msgstr ""
 msgid "chat application"
 msgstr ""
 
-#: chat/clients/pydantic_ai.py:909
+#: chat/assistant_health.py:17
+msgid "High traffic - slowdowns"
+msgstr ""
+
+#: chat/assistant_health.py:19
+msgid "The Assistant IA service is currently experiencing high demand. The tool remains operational but may be slower, or you may experience delays between messages."
+msgstr ""
+
+#: chat/assistant_health.py:26
+msgid "High traffic - degraded service"
+msgstr ""
+
+#: chat/assistant_health.py:28
+msgid "The service is experiencing high demand, which is affecting service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
+msgstr ""
+
+#: chat/assistant_health.py:37
+msgid "Service unavailable"
+msgstr ""
+
+#: chat/assistant_health.py:39
+msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
+msgstr ""
+
+#: chat/clients/pydantic_ai.py:1004
 msgid "Internal Documentation of the AI Assistant"
 msgstr ""
 
-#: chat/views.py:755
+#: chat/views/__init__.py:740
 #, python-format
 msgid "This project already has the maximum of %(cap)d images. Remove one before uploading another."
 msgstr ""
 
-#: chat/views.py:771
+#: chat/views/__init__.py:756
 #, python-format
 msgid "This project already has the maximum of %(cap)d files. Remove one before uploading another."
 msgstr ""
 
-#: core/admin.py:28
+#: core/admin.py:29
 msgid "Personal info"
 msgstr ""
 
-#: core/admin.py:43
+#: core/admin.py:45
 msgid "Permissions"
 msgstr ""
 
-#: core/admin.py:55
+#: core/admin.py:57
 msgid "Important dates"
 msgstr ""
 
-#: core/admin.py:123
+#: core/admin.py:138
 msgid "Self documentation"
 msgstr ""
 
-#: core/admin.py:126
+#: core/admin.py:141
 msgid "Markdown documentation about this service. Exposed to the conversation agent so it can answer questions users ask about the app itself."
 msgstr ""
 
-#: core/admin.py:134
+#: core/admin.py:149
 msgid "Status banner"
 msgstr ""
 
-#: core/admin.py:137
+#: core/admin.py:152
 msgid "Shown to all users at the top of the app. Leave title and content empty to disable."
+msgstr ""
+
+#: core/admin.py:165
+msgid "Assistant"
+msgstr ""
+
+#: core/admin.py:189
+msgid "The MAINTENANCE_MODE environment variable is set: maintenance is forced ON regardless of the value below."
 msgstr ""
 
 #: core/models.py:41
@@ -365,56 +397,144 @@ msgstr ""
 msgid "Whether the user allows to use smart web search features."
 msgstr ""
 
+#: core/models.py:181
+msgid "organization SIRET"
+msgstr ""
+
 #: core/models.py:185
+msgid "SIRET of the user's organization, as provided by the identity provider."
+msgstr ""
+
+#: core/models.py:196
 msgid "users"
 msgstr ""
 
-#: core/models.py:201
+#: core/models.py:212
 msgid "Info"
 msgstr ""
 
-#: core/models.py:202
+#: core/models.py:213
 msgid "Warning"
 msgstr ""
 
-#: core/models.py:203
+#: core/models.py:214
 msgid "Alert"
 msgstr ""
 
-#: core/models.py:210
+#: core/models.py:221
 msgid "Self documentation content. Must be valid markdown."
 msgstr ""
 
-#: core/models.py:217
+#: core/models.py:228
 msgid "Status banner - level"
 msgstr ""
 
-#: core/models.py:224
+#: core/models.py:235
 msgid "Status banner - title"
 msgstr ""
 
-#: core/models.py:228
+#: core/models.py:239
 msgid "Status banner - content"
 msgstr ""
 
-#: core/models.py:233
+#: core/models.py:244
 msgid "Status banner - starts at"
 msgstr ""
 
-#: core/models.py:234
+#: core/models.py:245
 msgid "If set, the banner is hidden before this date."
 msgstr ""
 
-#: core/models.py:239
+#: core/models.py:250
 msgid "Status banner - ends at"
 msgstr ""
 
-#: core/models.py:240
+#: core/models.py:251
 msgid "If set, the banner is hidden after this date."
 msgstr ""
 
 #: core/models.py:256
+msgid "Block chat input on full outage"
+msgstr ""
+
+#: core/models.py:259
+msgid "When enabled, the chat input is disabled while all AI models are unavailable. Disable to keep the input active and show a degraded-service warning instead."
+msgstr ""
+
+#: core/models.py:277
 msgid "Site Configuration"
+msgstr ""
+
+#: core/models.py:290
+msgid "Enabled"
+msgstr ""
+
+#: core/models.py:291
+msgid "When checked, the app is in maintenance mode for end-users."
+msgstr ""
+
+#: core/models.py:296
+msgid "Message"
+msgstr ""
+
+#: core/models.py:297
+msgid "Shown on the maintenance page. Leave blank for the default message."
+msgstr ""
+
+#: core/models.py:302
+msgid "Starts at"
+msgstr ""
+
+#: core/models.py:303
+msgid "If set, maintenance is inactive before this date."
+msgstr ""
+
+#: core/models.py:308
+msgid "Ends at"
+msgstr ""
+
+#: core/models.py:309
+msgid "If set, maintenance is inactive after this date."
+msgstr ""
+
+#: core/models.py:347
+msgid "Maintenance Mode"
+msgstr ""
+
+#: core/models.py:372
+msgid "email address"
+msgstr ""
+
+#: core/models.py:374
+msgid "email address allowed to bypass the role requirement"
+msgstr ""
+
+#: core/models.py:379
+msgid "inactive entries are ignored without being deleted"
+msgstr ""
+
+#: core/models.py:382
+msgid "note"
+msgstr ""
+
+#: core/models.py:384
+msgid "optional reason for granting this bypass"
+msgstr ""
+
+#: core/models.py:387
+msgid "expires on"
+msgstr ""
+
+#: core/models.py:390
+msgid "optional date after which this bypass no longer applies"
+msgstr ""
+
+#: core/models.py:395
+msgid "access bypass email"
+msgstr ""
+
+#: core/models.py:396
+msgid "access bypass emails"
 msgstr ""
 
 #: core/templates/mail/html/invitation.html:162
