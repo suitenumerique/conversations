@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-20 12:55+0000\n"
-"PO-Revision-Date: 2026-05-21 08:44\n"
+"POT-Creation-Date: 2026-06-12 07:31+0000\n"
+"PO-Revision-Date: 2026-06-12 09:23\n"
 "Last-Translator: \n"
 "Language-Team: French\n"
 "Language: fr_FR\n"
@@ -129,7 +129,7 @@ msgstr "utilisations actuelles"
 msgid "Number of times this code has been used"
 msgstr "Nombre de fois où ce code a été utilisé"
 
-#: activation_codes/models.py:65 core/models.py:156
+#: activation_codes/models.py:65 core/models.py:156 core/models.py:377
 msgid "active"
 msgstr "actif"
 
@@ -166,7 +166,7 @@ msgid "You have already activated your account"
 msgstr "Vous avez déjà activé votre compte"
 
 #: activation_codes/models.py:170 activation_codes/models.py:202
-#: core/models.py:184
+#: core/models.py:195
 msgid "user"
 msgstr "utilisateur"
 
@@ -219,47 +219,79 @@ msgstr "Impossible d'analyser le document ODT : %(error)s"
 msgid "chat application"
 msgstr "application de chat"
 
-#: chat/clients/pydantic_ai.py:909
+#: chat/assistant_health.py:17
+msgid "High traffic - slowdowns"
+msgstr "Trafic élevé – ralentissements "
+
+#: chat/assistant_health.py:19
+msgid "The Assistant IA service is currently experiencing high demand. The tool remains operational but may be slower, or you may experience delays between messages."
+msgstr "L'assistant IA connaît actuellement une forte demande. L'outil reste opérationnel, mais peut être plus lent, ou vous pouvez rencontrer des délais entre les messages."
+
+#: chat/assistant_health.py:26
+msgid "High traffic - degraded service"
+msgstr "Trafic élevé – service dégradé "
+
+#: chat/assistant_health.py:28
+msgid "The service is experiencing high demand, which is affecting service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
+msgstr "Le service connaît une forte demande qui impacte la qualité de service. Certaines fonctionnalités peuvent être touchées. En cas d'erreur, veuillez essayer après disparition de ce bandeau d’erreur."
+
+#: chat/assistant_health.py:37
+msgid "Service unavailable"
+msgstr "Service indisponible"
+
+#: chat/assistant_health.py:39
+msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
+msgstr "Le service est actuellement indisponible en raison d'une charge excessive. L'équipe travaille à rétablir l'assistant dans les plus brefs délais."
+
+#: chat/clients/pydantic_ai.py:1004
 msgid "Internal Documentation of the AI Assistant"
 msgstr "Documentation interne de l'Assistant IA"
 
-#: chat/views.py:755
+#: chat/views/__init__.py:740
 #, python-format
 msgid "This project already has the maximum of %(cap)d images. Remove one before uploading another."
 msgstr "Ce projet contient déjà le nombre maximal de %(cap)d images. Supprimez-en une avant d'en ajouter une autre."
 
-#: chat/views.py:771
+#: chat/views/__init__.py:756
 #, python-format
 msgid "This project already has the maximum of %(cap)d files. Remove one before uploading another."
 msgstr "Ce projet contient déjà le nombre maximal de %(cap)d fichiers. Supprimez-en un avant d'en télécharger un autre."
 
-#: core/admin.py:28
+#: core/admin.py:29
 msgid "Personal info"
 msgstr "Informations personnelles"
 
-#: core/admin.py:43
+#: core/admin.py:45
 msgid "Permissions"
 msgstr "Permissions"
 
-#: core/admin.py:55
+#: core/admin.py:57
 msgid "Important dates"
 msgstr "Dates importantes"
 
-#: core/admin.py:123
+#: core/admin.py:138
 msgid "Self documentation"
 msgstr "Auto-documentation"
 
-#: core/admin.py:126
+#: core/admin.py:141
 msgid "Markdown documentation about this service. Exposed to the conversation agent so it can answer questions users ask about the app itself."
 msgstr "Documentation de Markdown sur ce service. Exposé à l'agent de conversation afin qu'il puisse répondre aux questions posées par les utilisateurs à propos de l'application elle-même."
 
-#: core/admin.py:134
+#: core/admin.py:149
 msgid "Status banner"
 msgstr "Bannière de statut"
 
-#: core/admin.py:137
+#: core/admin.py:152
 msgid "Shown to all users at the top of the app. Leave title and content empty to disable."
 msgstr "Affiché à tous les utilisateurs en haut de l'application. Laissez le titre et le contenu vides pour désactiver."
+
+#: core/admin.py:165
+msgid "Assistant"
+msgstr "Assistant"
+
+#: core/admin.py:189
+msgid "The MAINTENANCE_MODE environment variable is set: maintenance is forced ON regardless of the value below."
+msgstr "La variable d'environnement MAINTENANCE_MODE est définie : la maintenance est forcée à ON quelle que soit la valeur ci-dessous."
 
 #: core/models.py:41
 msgid "id"
@@ -365,57 +397,145 @@ msgstr "autoriser la recherche intelligente sur le web"
 msgid "Whether the user allows to use smart web search features."
 msgstr "Si l'utilisateur autorise l'utilisation de fonctions de recherche intelligente sur le Web."
 
+#: core/models.py:181
+msgid "organization SIRET"
+msgstr "SIRET de l'organisation"
+
 #: core/models.py:185
+msgid "SIRET of the user's organization, as provided by the identity provider."
+msgstr "SIRET de l'organisation de l'utilisateur, tel que fourni par le fournisseur d'identité."
+
+#: core/models.py:196
 msgid "users"
 msgstr "utilisateurs"
 
-#: core/models.py:201
+#: core/models.py:212
 msgid "Info"
 msgstr "Information"
 
-#: core/models.py:202
+#: core/models.py:213
 msgid "Warning"
 msgstr "Attention"
 
-#: core/models.py:203
+#: core/models.py:214
 msgid "Alert"
 msgstr "Alerte"
 
-#: core/models.py:210
+#: core/models.py:221
 msgid "Self documentation content. Must be valid markdown."
 msgstr "Contenu de l'autodocumentation. Doit être un markdown valide."
 
-#: core/models.py:217
+#: core/models.py:228
 msgid "Status banner - level"
 msgstr "Bannière de statut - niveau"
 
-#: core/models.py:224
+#: core/models.py:235
 msgid "Status banner - title"
 msgstr "Bannière de statut - titre"
 
-#: core/models.py:228
+#: core/models.py:239
 msgid "Status banner - content"
 msgstr "Bannière de statut - contenu"
 
-#: core/models.py:233
+#: core/models.py:244
 msgid "Status banner - starts at"
 msgstr "Bannière de statut - commence à"
 
-#: core/models.py:234
+#: core/models.py:245
 msgid "If set, the banner is hidden before this date."
 msgstr "Si défini, la bannière est cachée avant cette date."
 
-#: core/models.py:239
+#: core/models.py:250
 msgid "Status banner - ends at"
 msgstr "Bannière de statut - se termine à"
 
-#: core/models.py:240
+#: core/models.py:251
 msgid "If set, the banner is hidden after this date."
 msgstr "Si défini, la bannière est cachée après cette date."
 
 #: core/models.py:256
+msgid "Block chat input on full outage"
+msgstr "Bloquer la saisie du chat en cas de panne totale "
+
+#: core/models.py:259
+msgid "When enabled, the chat input is disabled while all AI models are unavailable. Disable to keep the input active and show a degraded-service warning instead."
+msgstr "Lorsque cette option est activée, la saisie du chat est désactivée tant que tous les modèles IA sont indisponibles. Désactivez-la pour garder la saisie active et afficher à la place un avertissement de service dégradé. "
+
+#: core/models.py:277
 msgid "Site Configuration"
 msgstr "Configuration du site"
+
+#: core/models.py:290
+msgid "Enabled"
+msgstr "Activé"
+
+#: core/models.py:291
+msgid "When checked, the app is in maintenance mode for end-users."
+msgstr "Si cochée, l'application est en mode maintenance pour les utilisateurs finaux."
+
+#: core/models.py:296
+msgid "Message"
+msgstr "Message"
+
+#: core/models.py:297
+msgid "Shown on the maintenance page. Leave blank for the default message."
+msgstr "Affiché sur la page de maintenance. Laissez vide pour le message par défaut."
+
+#: core/models.py:302
+msgid "Starts at"
+msgstr "Commence à"
+
+#: core/models.py:303
+msgid "If set, maintenance is inactive before this date."
+msgstr "Si défini, la maintenance est inactive avant cette date."
+
+#: core/models.py:308
+msgid "Ends at"
+msgstr "Finit à"
+
+#: core/models.py:309
+msgid "If set, maintenance is inactive after this date."
+msgstr "Si défini, la maintenance est inactive après cette date."
+
+#: core/models.py:347
+msgid "Maintenance Mode"
+msgstr "Mode de maintenance"
+
+#: core/models.py:372
+msgid "email address"
+msgstr "adresse e-mail"
+
+#: core/models.py:374
+msgid "email address allowed to bypass the role requirement"
+msgstr "adresse e-mail autorisée à contourner la condition de rôle"
+
+#: core/models.py:379
+msgid "inactive entries are ignored without being deleted"
+msgstr "les entrées inactives sont ignorées sans être supprimées"
+
+#: core/models.py:382
+msgid "note"
+msgstr "note"
+
+#: core/models.py:384
+msgid "optional reason for granting this bypass"
+msgstr "raison facultative pour accorder ce contournement"
+
+#: core/models.py:387
+msgid "expires on"
+msgstr "expire à"
+
+#: core/models.py:390
+msgid "optional date after which this bypass no longer applies"
+msgstr "date optionnelle après laquelle ce contournement ne s'applique plus"
+
+#: core/models.py:395
+msgid "access bypass email"
+msgstr "adresse e-mail pour contourner le contôle d'accès"
+
+#: core/models.py:396
+msgid "access bypass emails"
+msgstr "adresses e-mail pour contourner le contrôle d'accès"
 
 #: core/templates/mail/html/invitation.html:162
 #: core/templates/mail/text/invitation.txt:3
