@@ -24,6 +24,10 @@ and this project adheres to
 - ♻️(back) rename model health status "orange" to "yellow"
 - 🚸(front) explain the attachment size limit when an upload fails
 
+### Changed
+
+- 👷(ci) replace trivy by grype for vulnerability scanning
+
 ### Fixed
 
 - 🐛(helm) stop job pods from matching the backend disruption budget

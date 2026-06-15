@@ -208,25 +208,36 @@ jobs:
       - name: Run tests
         run: uv run pytest -n 2
 
-  security-trivy-critical:
+  security-grype-critical:
     permissions:
       contents: read
       security-events: write
     runs-on: ubuntu-latest
     steps:
-      - name: Run Trivy analysis for critical vulnerabilities
-        # We use main branch while we might still iterate on the action
-        uses: numerique-gouv/action-trivy-cache/security-trivy-critical@main
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Run Grype analysis for critical vulnerabilities
+        uses: anchore/scan-action@v6
+        id: scan
         with:
-          skip-files: src/mail/yarn.lock
+          path: "."
+          severity-cutoff: critical
+          fail-build: true
+      - name: Upload SARIF report
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif }}
 
-  security-trivy:
+  security-grype:
     permissions:
       contents: read
     runs-on: ubuntu-latest
     steps:
-      - name: Run Trivy analysis for vulnerabilities
-        # We use main branch while we might still iterate on the action
-        uses: numerique-gouv/action-trivy-cache/security-trivy@main
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Run Grype analysis for vulnerabilities
+        uses: anchore/scan-action@v6
         with:
-          skip-files: src/mail/yarn.lock
+          path: "."
+          fail-build: false
