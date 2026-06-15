@@ -143,6 +143,11 @@ from chat.ai_sdk_types import (
 )
 from chat.clients.async_to_sync import convert_async_generator_to_sync
 from chat.clients.conversation_reindexer import reindex_conversation
+from chat.clients.error_classification import (
+    EXPECTED_LLM_STATUS_CODES,
+    resolve_llm_error_code,
+    resolve_rag_error_code,
+)
 from chat.clients.exceptions import StreamCancelException
 from chat.clients.pydantic_ui_message_converter import (
     model_message_to_ui_message,
@@ -187,27 +192,6 @@ User = get_user_model()
 
 CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
 DOCUMENT_URL_PREFIX = "/media-key/"
-
-_HTTP_STATUS_TO_ERROR_CODE = {
-    429: "model_rate_limited",
-    503: "model_busy",
-    404: "model_not_found",
-    422: "model_wrong_type",
-}
-
-# Expected operational errors that should not trigger ERROR-level logging or Sentry alerts.
-_EXPECTED_STATUS_CODES = {429, 503}
-
-
-def _resolve_http_error_code(status_code: int | None) -> str | None:
-    """Map an HTTP status code to an error code string, or None to re-raise."""
-    if status_code is None:
-        return None
-    if status_code in _HTTP_STATUS_TO_ERROR_CODE:
-        return _HTTP_STATUS_TO_ERROR_CODE[status_code]
-    if status_code >= 500:
-        return "model_unavailable"
-    return None
 
 
 def get_model_configuration(model_hrid: str):
@@ -401,10 +385,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             except (ModelHTTPError, HTTPValidationError, SDKError) as exc:
                 # HTTPValidationError and SDKError are mistral-specific exceptions not
                 # wrapped by pydantic_ai into ModelHTTPError.
-                error_code = _resolve_http_error_code(exc.status_code)
+                error_code = resolve_llm_error_code(exc.status_code)
                 if error_code is None:
                     raise
-                log = logger.warning if exc.status_code in _EXPECTED_STATUS_CODES else logger.error
+                log = (
+                    logger.warning if exc.status_code in EXPECTED_LLM_STATUS_CODES else logger.error
+                )
                 log(
                     "LLM provider HTTP error (status=%s) for conversation %s: %s",
                     exc.status_code,
@@ -1050,11 +1036,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         try:
             await self._parse_input_documents(input_documents)
         except Exception as exc:  # pylint: disable=broad-except
-            logger.exception("Error parsing input documents: %s", exc)
+            error_kind = resolve_rag_error_code(exc)
+            logger.exception("Error parsing input documents (%s): %s", error_kind, exc)
             yield (
                 events_v4.ToolResultPart(
                     tool_call_id=_tool_call_id,
-                    result={"state": "error", "error": str(exc)},
+                    result={"state": "error", "kind": error_kind, "error": str(exc)},
                 )
             )
             yield (

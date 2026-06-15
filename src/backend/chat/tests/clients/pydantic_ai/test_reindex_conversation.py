@@ -1,9 +1,12 @@
 """Tests for reindex_conversation."""
 
 import asyncio
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
+import requests
 from asgiref.sync import sync_to_async
 
 from core.file_upload.enums import AttachmentStatus
@@ -13,6 +16,8 @@ from chat.clients.conversation_reindexer import reindex_conversation
 from chat.enums import CollectionIndexState
 from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
 from chat.vercel_ai_sdk.core import events_v4
+
+REINDEXER_LOGGER = "chat.clients.conversation_reindexer"
 
 # transaction=True is required so writes done via async threadpool connections
 # (asave, aupdate) commit and are flushed via TRUNCATE between tests instead of
@@ -95,7 +100,7 @@ async def test_reindex_yields_nothing_when_no_ready_attachments():
 
 
 @pytest.mark.asyncio
-async def test_reindex_yields_error_event_on_collection_creation_failure():
+async def test_reindex_yields_error_event_on_collection_creation_failure(caplog):
     """Error event yielded when acreate_collection raises; attachment metadata fully rolled back."""
     conversation = await sync_to_async(ChatConversationFactory)(
         collection_id=None, index_state=CollectionIndexState.DEINDEXED
@@ -113,6 +118,7 @@ async def test_reindex_yields_error_event_on_collection_creation_failure():
     mock_store.acreate_collection = AsyncMock(side_effect=RuntimeError("Albert down"))
     mock_backend = MagicMock(return_value=mock_store)
 
+    caplog.set_level(logging.ERROR, logger=REINDEXER_LOGGER)
     with patch("chat.clients.conversation_reindexer.document_store_backend", mock_backend):
         events = []
         async for event in reindex_conversation(conversation, in_context_ids=set()):
@@ -123,6 +129,14 @@ async def test_reindex_yields_error_event_on_collection_creation_failure():
     assert events[0].tool_name == "conversation_resume"
     assert isinstance(events[1], events_v4.ToolResultPart)
     assert events[1].result["state"] == "error"
+    assert events[1].result["kind"] == "rag_error"
+
+    create_failures = [r for r in caplog.records if "Failed to create collection" in r.getMessage()]
+    assert len(create_failures) == 1
+    assert create_failures[0].levelno == logging.ERROR
+    # logger.exception attaches exc_info — a plain logger.error would not.
+    assert create_failures[0].exc_info is not None
+    assert "rag_error" in create_failures[0].getMessage()
 
     await conversation.arefresh_from_db()
     assert conversation.collection_id is None
@@ -132,7 +146,7 @@ async def test_reindex_yields_error_event_on_collection_creation_failure():
 
 
 @pytest.mark.asyncio
-async def test_reindex_continues_on_individual_attachment_failure():
+async def test_reindex_continues_on_individual_attachment_failure(caplog):
     """Failure on one attachment doesn't abort the loop; collection_id is saved."""
     conversation = await sync_to_async(ChatConversationFactory)(
         collection_id=None, index_state=CollectionIndexState.DEINDEXED
@@ -158,6 +172,7 @@ async def test_reindex_continues_on_individual_attachment_failure():
 
     mock_backend = MagicMock(return_value=mock_store)
 
+    caplog.set_level(logging.ERROR, logger=REINDEXER_LOGGER)
     with (
         patch("chat.clients.conversation_reindexer.document_store_backend", mock_backend),
         patch(
@@ -174,6 +189,13 @@ async def test_reindex_continues_on_individual_attachment_failure():
     assert isinstance(events[-1], events_v4.ToolResultPart)
     assert events[-1].result["state"] == "partial"
     assert "first.md" in events[-1].result["failed_documents"]
+
+    attachment_failures = [
+        r for r in caplog.records if "Failed to re-index attachment" in r.getMessage()
+    ]
+    assert len(attachment_failures) == 1
+    assert attachment_failures[0].levelno == logging.ERROR
+    assert attachment_failures[0].exc_info is not None
 
     await conversation.arefresh_from_db()
     assert conversation.collection_id == "col-789"
@@ -489,7 +511,130 @@ async def test_reindex_all_failures_sets_error_and_saves_collection_id():
     assert len(events) == 2
     assert isinstance(events[-1], events_v4.ToolResultPart)
     assert events[-1].result["state"] == "error"
+    # RuntimeError is a non-HTTP exception → generic rag_error bucket
+    assert events[-1].result["kind"] == "rag_error"
 
     await conversation.arefresh_from_db()
     assert conversation.index_state == CollectionIndexState.ERROR
     assert conversation.collection_id == "col-new"
+
+
+def _http_error(status_code: int) -> requests.HTTPError:
+    """Build a requests.HTTPError whose response carries the given status code."""
+    response = requests.Response()
+    response.status_code = status_code
+    return requests.HTTPError(response=response)
+
+
+async def _run_reindex_with_collection_failure(conversation, exc):
+    """Drive reindex_conversation with acreate_collection patched to raise `exc`."""
+    mock_store = MagicMock()
+    mock_store.collection_id = None
+    mock_store.acreate_collection = AsyncMock(side_effect=exc)
+    mock_backend = MagicMock(return_value=mock_store)
+    with patch("chat.clients.conversation_reindexer.document_store_backend", mock_backend):
+        events = []
+        async for event in reindex_conversation(conversation, in_context_ids=set()):
+            events.append(event)
+    return events
+
+
+@pytest.mark.asyncio
+async def test_reindex_collection_create_500_emits_rag_unavailable():
+    """A 500 from acreate_collection surfaces as kind=rag_unavailable on the tool result."""
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
+    await sync_to_async(ChatConversationAttachmentFactory)(
+        conversation=conversation,
+        upload_state=AttachmentStatus.READY,
+        content_type="text/markdown",
+    )
+
+    events = await _run_reindex_with_collection_failure(conversation, _http_error(500))
+
+    tool_result = next(e for e in events if isinstance(e, events_v4.ToolResultPart))
+    assert tool_result.result["state"] == "error"
+    assert tool_result.result["kind"] == "rag_unavailable"
+
+    await conversation.arefresh_from_db()
+    assert conversation.index_state == CollectionIndexState.ERROR
+
+
+@pytest.mark.asyncio
+async def test_reindex_all_failures_uses_last_failure_kind_in_result(caplog):
+    """When every attachment fails with different errors, result.kind is the LAST kind."""
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
+    await sync_to_async(ChatConversationAttachmentFactory)(
+        conversation=conversation,
+        upload_state=AttachmentStatus.READY,
+        content_type="text/markdown",
+        file_name="first.md",
+    )
+    await sync_to_async(ChatConversationAttachmentFactory)(
+        conversation=conversation,
+        upload_state=AttachmentStatus.READY,
+        content_type="text/markdown",
+        file_name="second.md",
+    )
+
+    mock_store = MagicMock()
+    mock_store.collection_id = "col-mix"
+    mock_store.acreate_collection = AsyncMock()
+    mock_backend = MagicMock(return_value=mock_store)
+
+    # First attachment: generic RuntimeError → rag_error.
+    # Second attachment: httpx.ConnectError → rag_connection_error.
+    # The aggregate result must carry rag_connection_error (the LAST kind).
+    mock_to_thread = AsyncMock(side_effect=[RuntimeError("boom"), httpx.ConnectError("no route")])
+
+    caplog.set_level(logging.ERROR, logger=REINDEXER_LOGGER)
+    with (
+        patch("chat.clients.conversation_reindexer.document_store_backend", mock_backend),
+        patch(
+            "chat.clients.conversation_reindexer._read_attachment_bytes",
+            new=AsyncMock(return_value=b"data"),
+        ),
+        patch("asyncio.to_thread", side_effect=mock_to_thread),
+    ):
+        events = []
+        async for event in reindex_conversation(conversation, in_context_ids=set()):
+            events.append(event)
+
+    tool_result = next(e for e in events if isinstance(e, events_v4.ToolResultPart))
+    assert tool_result.result["state"] == "error"
+    assert tool_result.result["kind"] == "rag_connection_error"
+
+    attachment_failures = [
+        r for r in caplog.records if "Failed to re-index attachment" in r.getMessage()
+    ]
+    assert len(attachment_failures) == 2
+    assert all(r.levelno == logging.ERROR for r in attachment_failures)
+    assert all(r.exc_info is not None for r in attachment_failures)
+
+    await conversation.arefresh_from_db()
+    assert conversation.index_state == CollectionIndexState.ERROR
+    assert conversation.collection_id == "col-mix"
+
+
+@pytest.mark.asyncio
+async def test_reindex_collection_create_httpx_connect_emits_rag_connection_error():
+    """An httpx.ConnectError from acreate_collection surfaces as kind=rag_connection_error."""
+    conversation = await sync_to_async(ChatConversationFactory)(
+        collection_id=None, index_state=CollectionIndexState.DEINDEXED
+    )
+    await sync_to_async(ChatConversationAttachmentFactory)(
+        conversation=conversation,
+        upload_state=AttachmentStatus.READY,
+        content_type="text/markdown",
+    )
+
+    events = await _run_reindex_with_collection_failure(
+        conversation, httpx.ConnectError("no route")
+    )
+
+    tool_result = next(e for e in events if isinstance(e, events_v4.ToolResultPart))
+    assert tool_result.result["state"] == "error"
+    assert tool_result.result["kind"] == "rag_connection_error"

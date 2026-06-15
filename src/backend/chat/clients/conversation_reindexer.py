@@ -15,6 +15,7 @@ from django.utils.module_loading import import_string
 from core.file_upload.enums import AttachmentStatus
 
 from chat import models
+from chat.clients.error_classification import RAG_ERROR, resolve_rag_error_code
 from chat.constants import TEXT_MIME_PREFIX
 from chat.enums import CollectionIndexState
 from chat.vercel_ai_sdk.core import events_v4
@@ -31,7 +32,7 @@ async def _read_attachment_bytes(key: str) -> bytes:
     return await asyncio.to_thread(_read)
 
 
-async def reindex_conversation(
+async def reindex_conversation(  # pylint: disable=too-many-locals
     conversation: models.ChatConversation,
     in_context_ids: set[str],
 ) -> AsyncGenerator[events_v4.Event, None]:
@@ -137,8 +138,13 @@ async def reindex_conversation(
             await document_store.acreate_collection(
                 name=f"conversation-{conversation.pk}",
             )
-        except Exception:  # pylint: disable=broad-except
-            logger.exception("Failed to create collection for conversation %s", conversation.pk)
+        except Exception as exc:  # pylint: disable=broad-except
+            error_kind = resolve_rag_error_code(exc)
+            logger.exception(
+                "Failed to create collection for conversation %s (%s)",
+                conversation.pk,
+                error_kind,
+            )
             await models.ChatConversation.objects.filter(pk=conversation.pk).aupdate(
                 index_state=CollectionIndexState.ERROR,
                 collection_id=None,
@@ -149,11 +155,16 @@ async def reindex_conversation(
             ).aupdate(is_indexed=False, rag_document_id=None)
             yield events_v4.ToolResultPart(
                 tool_call_id=_tool_call_id,
-                result={"state": "error", "error": "Documents could not be re-indexed."},
+                result={
+                    "state": "error",
+                    "kind": error_kind,
+                    "error": str(exc),
+                },
             )
             return
 
     failed_documents = []
+    last_failure_kind: str | None = None
     for attachment in text_attachments_to_reindex:
         try:
             content = await _read_attachment_bytes(attachment.key)
@@ -166,12 +177,14 @@ async def reindex_conversation(
                 is_indexed=True,
                 rag_document_id=rag_document_id or None,
             )
-        except Exception:  # pylint: disable=broad-except
+        except Exception as exc:  # pylint: disable=broad-except
             failed_documents.append(attachment.file_name)
+            last_failure_kind = resolve_rag_error_code(exc)
             logger.exception(
-                "Failed to re-index attachment %s for conversation %s",
+                "Failed to re-index attachment %s for conversation %s (%s)",
                 attachment.pk,
                 conversation.pk,
+                last_failure_kind,
             )
 
     any_failed = bool(failed_documents)
@@ -184,8 +197,14 @@ async def reindex_conversation(
 
     update_fields["collection_id"] = str(document_store.collection_id)
     if all_failed:
-        result = {"state": "error", "error": "Documents could not be re-indexed."}
+        result = {
+            "state": "error",
+            "kind": last_failure_kind or RAG_ERROR,
+            "error": "Documents could not be re-indexed.",
+        }
     else:
+        # No aggregate kind on partial failures: different documents may have
+        # failed for different reasons; the modal shows the per-document list.
         result = (
             {"state": "partial", "failed_documents": failed_documents}
             if failed_documents

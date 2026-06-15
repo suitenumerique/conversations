@@ -6,8 +6,7 @@ import { Box, Loader, Text } from '@/components';
 
 import ChatBubblesIllustration from '../assets/chat-bubbles-illustration.svg';
 
-const REINDEX_BUSY_ERROR =
-  'Documents are currently being re-indexed. Please retry in a moment.';
+import { DocumentParsingErrorBox } from './DocumentParsingErrorBox';
 
 const ConversationResumeLoader = ({ t }: { t: (key: string) => string }) => {
   return (
@@ -77,22 +76,8 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
         kind?: string;
         error?: string;
       };
-      if (result?.state === 'error' && result.kind === 'concurrent_reindex') {
-        return (
-          <Box
-            $direction="row"
-            $align="center"
-            $gap="6px"
-            $width="100%"
-            $maxWidth="750px"
-            $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
-            $padding={{ left: '13px' }}
-          >
-            <Text $variation="550" $theme="greyscale">
-              {t(REINDEX_BUSY_ERROR)}
-            </Text>
-          </Box>
-        );
+      if (result?.state === 'error') {
+        return <DocumentParsingErrorBox kind={result.kind} />;
       }
       return null;
     }

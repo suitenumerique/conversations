@@ -15,6 +15,7 @@ and this project adheres to
 - ✨(back) rate-limit chat with a model-health-aware token cooldown
 - ✨(backend) add sliding window history processor
 - ✨(banner) add dynamic health banners
+- ✨(frontend) display specific error when document parsing fails
 
 ### Changed
 

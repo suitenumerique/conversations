@@ -14,7 +14,7 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
-import { Box, Loader, Text } from '@/components';
+import { Box, Icon, Loader, Text } from '@/components';
 import { useConfig } from '@/core';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
 import { isContextTrimmedEvent, useChat } from '@/features/chat/api/useChat';
@@ -31,6 +31,10 @@ import {
 import { ChatError, ChatErrorType } from '@/features/chat/components/ChatError';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { MessageItem } from '@/features/chat/components/MessageItem';
+import {
+  STATUS_LINK_KINDS,
+  getReindexErrorMessage,
+} from '@/features/chat/components/reindexErrorMessages';
 import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
 
@@ -63,6 +67,7 @@ export const Chat = ({
 }) => {
   const { t } = useTranslation();
   const { data: config } = useConfig();
+  const statusPageUrl = config?.STATUS_PAGE_URL;
   const copyToClipboard = useClipboard();
   const { isMobile } = useResponsiveStore();
 
@@ -216,12 +221,18 @@ export const Chat = ({
       const maxSize = config?.attachment_max_size;
       setChatErrorModal({
         title: t('Upload Error'),
-        message: maxSize
-          ? t(
+        message: maxSize ? (
+          <Text>
+            {t(
               'Failed to upload file. It may be due to the attachment size. Max size: {{maxSize}} MB',
               { maxSize },
-            )
-          : t('Failed to upload file. It may be due to the attachment size.'),
+            )}
+          </Text>
+        ) : (
+          <Text>
+            {t('Failed to upload file. It may be due to the attachment size.')}
+          </Text>
+        ),
       });
     }
   }, [isErrorAttachment, errorAttachment, config?.attachment_max_size, t]);
@@ -231,7 +242,7 @@ export const Chat = ({
     if (error.message === 'attachment_summary_not_supported') {
       setChatErrorModal({
         title: t('Attachment summary not supported'),
-        message: t('The summary feature is not supported yet.'),
+        message: <Text>{t('The summary feature is not supported yet.')}</Text>,
       });
       return;
     }
@@ -399,6 +410,7 @@ export const Chat = ({
     if (resumePart.toolInvocation.state !== 'result') return;
     const result = resumePart.toolInvocation.result as {
       state: string;
+      kind?: string;
       failed_documents?: string[];
       error?: string;
     };
@@ -406,18 +418,32 @@ export const Chat = ({
     const hasPartialFailures = Boolean(result?.failed_documents?.length);
     if (!isFullError && !hasPartialFailures) return;
     lastResumeErrorMessageIdRef.current = lastAssistant.id;
+    const showStatusLink =
+      isFullError &&
+      !!statusPageUrl &&
+      !!result.kind &&
+      STATUS_LINK_KINDS.has(result.kind);
     setChatErrorModal({
       title: t('Re-indexing Error'),
       message: isFullError ? (
-        <Text>
-          {result.error ??
-            t('Documents could not be re-indexed. Please try again.')}
-        </Text>
+        <Box $direction="row" $align="center" $gap="6px">
+          <Text>{getReindexErrorMessage(t, result.kind)}</Text>
+          {showStatusLink && (
+            <a
+              href={statusPageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t('Check service status')}
+            >
+              <Icon iconName="info" $size="1rem" $color="greyscale" />
+            </a>
+          )}
+        </Box>
       ) : (
         <>
           <Text>
             {t(
-              'Some documents could not be re-indexed, please re-upload them:',
+              "Couldn't restore some of this conversation's documents, so the assistant can't reference them. Please re-upload them to continue:",
             )}
           </Text>
           <ul>
@@ -428,7 +454,7 @@ export const Chat = ({
         </>
       ),
     });
-  }, [messages, status, t]);
+  }, [messages, status, statusPageUrl, t]);
 
   // Clear "reading instructions" once streaming begins or on error, with minimum display time
   useEffect(() => {
@@ -707,7 +733,9 @@ export const Chat = ({
         console.error('File upload error:', error);
         setChatErrorModal({
           title: t('Upload Error'),
-          message: t('Failed to upload files. Please try again.'),
+          message: (
+            <Text>{t('Failed to upload files. Please try again.')}</Text>
+          ),
         });
         return;
       }
@@ -967,7 +995,7 @@ export const Chat = ({
         closeOnEsc={true}
         size={ModalSize.MEDIUM}
       >
-        <Text>{chatErrorModal?.message}</Text>
+        {chatErrorModal?.message}
       </Modal>
     </Box>
   );

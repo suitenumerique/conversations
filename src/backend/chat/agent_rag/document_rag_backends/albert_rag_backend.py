@@ -159,9 +159,9 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             },
             timeout=settings.ALBERT_API_TIMEOUT,
         )
-        body = response.json()
-        logger.debug(body)
+        logger.debug(response.text)
         response.raise_for_status()
+        body = response.json()
         document_id = body.get("id")
         if document_id is None:
             raise AlbertMissingDocumentIdError(
@@ -195,9 +195,9 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
                 },
                 timeout=settings.ALBERT_API_TIMEOUT,
             )
-            body = response.json()
-            logger.debug(body)
+            logger.debug(response.text)
             response.raise_for_status()
+            body = response.json()
         document_id = body.get("id")
         if document_id is None:
             raise AlbertMissingDocumentIdError(
