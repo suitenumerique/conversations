@@ -17,6 +17,11 @@ import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { SummarizationError } from '@/features/chat/components/SummarizationError';
 import { SummarizationProgress } from '@/features/chat/components/SummarizationProgress';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
+import { ArtifactView } from '@/features/chat/components/artifacts/ArtifactView';
+import {
+  ArtifactSpec,
+  parseArtifactSpec,
+} from '@/features/chat/components/artifacts/artifactSchema';
 import { getMessageCo2Impact } from '@/features/chat/utils/getMessageCo2Impact';
 
 import { ChatErrorType } from './ChatError';
@@ -263,6 +268,37 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     [message.parts, message.content],
   );
 
+  // Artifacts are rendered from the model's `render_artifact` tool-call args.
+  // Depending on how Pydantic-AI serializes a single model parameter, the spec
+  // may arrive nested under `args.spec` or flattened directly into `args`
+  // (and occasionally as a JSON string). We accept all of these shapes. The
+  // args are persisted in the message parts and rehydrated on reload, so
+  // artifacts survive for every assistant message, not just the last one. The
+  // spec is untrusted model output, hence the client-side parse.
+  const artifactSpecs = React.useMemo(() => {
+    const coerce = (value: unknown): unknown => {
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return value;
+        }
+      }
+      return value;
+    };
+
+    return toolInvocationParts
+      .filter((part) => part.toolInvocation.toolName === 'render_artifact')
+      .map((part) => {
+        const args = coerce(part.toolInvocation.args) as
+          | { spec?: unknown }
+          | undefined;
+        const rawSpec = coerce(args?.spec ?? args);
+        return parseArtifactSpec(rawSpec);
+      })
+      .filter((spec): spec is ArtifactSpec => spec !== null);
+  }, [toolInvocationParts]);
+
   const hasNonDocumentParsingTool = React.useMemo(() => {
     return toolInvocationParts.some(
       (part) =>
@@ -487,6 +523,14 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
               ) : null,
             )}
           </Box>
+
+          {artifactSpecs.length > 0 && (
+            <Box $direction="column" $gap="16px">
+              {artifactSpecs.map((spec, artifactIndex) => (
+                <ArtifactView key={`artifact-${artifactIndex}`} spec={spec} />
+              ))}
+            </Box>
+          )}
 
           {message.role === 'assistant' &&
             !(isLastAssistantMessage && status === 'streaming') && (

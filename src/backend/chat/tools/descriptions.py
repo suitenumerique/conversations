@@ -118,6 +118,38 @@ SELF_DOCUMENTATION_SYSTEM_PROMPT = (
     "or general knowledge."
 )
 
+RENDER_ARTIFACT_TOOL_DESCRIPTION = """
+Render a visual artifact (charts, tables, headline metrics, callouts) shown
+beside the chat. Use this ONLY when a visual breakdown genuinely helps the
+user understand the answer better than plain text — for example:
+- Comparing several numeric values (bar chart)
+- Showing a trend over an ordered axis like time (line chart)
+- Presenting structured tabular data with multiple rows and columns (table)
+- Highlighting a few headline metrics (stat grid)
+
+Do NOT use this tool for:
+- Normal conversational answers, short factual replies, or single numbers
+- Code, prose, translations, or creative writing
+- Data that reads fine as a short markdown list
+
+You must provide a `spec` object describing the artifact declaratively. It has
+a `title` and an ordered list of `blocks`. Each block has a `type`:
+- "stat_grid": { items: [{ label, value, tone }] }
+- "bar_chart": { title, categories, series: [{ name, data, tone }], stacked }
+- "line_chart": { title, categories, series: [{ name, data, tone }] }
+- "table": { title, headers, rows }
+- "callout": { tone, title, text }
+
+Rules:
+- Each series' `data` array MUST have exactly one value per `categories` entry.
+- Each table `row` MUST have exactly one cell per `headers` entry.
+- `tone` is one of: neutral, success, danger, warning, info.
+- Keep it concise: artifacts summarize, they are not raw data dumps.
+
+After the artifact is rendered, briefly introduce it in your text reply
+(one sentence) instead of repeating all its content.
+"""
+
 SELF_DOCUMENTATION_TOOL_DESCRIPTION = """
 Call self_documentation ONLY for meta questions where the user asks about
 THIS assistant itself: its identity, the underlying model, its capabilities

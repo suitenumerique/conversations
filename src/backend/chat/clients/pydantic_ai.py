@@ -191,6 +191,7 @@ from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
     DOCUMENT_SUMMARIZE_TOOL_DESCRIPTION,
+    RENDER_ARTIFACT_TOOL_DESCRIPTION,
     SELF_DOCUMENTATION_SYSTEM_PROMPT,
     SELF_DOCUMENTATION_TOOL_DESCRIPTION,
     WEB_SEARCH_TOOL_DESCRIPTION,
@@ -198,6 +199,7 @@ from chat.tools.descriptions import (
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize, document_summarize_project
+from chat.tools.render_artifact import render_artifact
 from chat.tools.self_documentation import build_self_documentation_payload
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
@@ -334,6 +336,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
         self._web_search_tool_registered = False
         self._self_documentation_tool_registered = False
+        self._artifact_tool_registered = False
         self._history_summary = conversation.history_summary.strip() or None
         self._history_summary_checkpoint = max(conversation.history_summary_checkpoint, 0)
 
@@ -1321,6 +1324,28 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self._self_documentation_tool_registered = True
 
+    def _setup_artifact_tool(self) -> None:
+        """Register the tool that renders declarative visual artifacts.
+
+        The model fills a typed ``ArtifactSpec`` (validated by PydanticAI); the
+        validated spec is forwarded to the frontend via the tool result metadata
+        for rendering against a whitelist of components.
+        """
+        if self._artifact_tool_registered:
+            return
+
+        @self.conversation_agent.tool(
+            name="render_artifact",
+            retries=2,
+            description=RENDER_ARTIFACT_TOOL_DESCRIPTION,
+        )
+        @functools.wraps(render_artifact)
+        async def render_artifact_tool(ctx: RunContext, *args, **kwargs) -> ToolReturn:
+            """Wrap the render_artifact tool to register it on the agent."""
+            return await render_artifact(ctx, *args, **kwargs)
+
+        self._artifact_tool_registered = True
+
     async def _handle_input_documents(
         self,
         input_documents: List[BinaryContent | DocumentUrl],
@@ -1699,6 +1724,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         await self._agent_stop_streaming(force_cache_check=True)
         self._setup_self_documentation_tool()
         self._setup_web_search_tool()
+        self._setup_artifact_tool()
         self._setup_web_search(force_web_search)
 
         if await self._check_should_enable_rag(conversation_has_own_documents):
