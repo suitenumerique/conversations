@@ -1,4 +1,4 @@
-FROM python:3.13.3-alpine
+FROM python:3.14.6-alpine
 
 # Upgrade pip to its latest release to speed up dependencies installation
 RUN python -m pip install --upgrade pip setuptools lorem-text
