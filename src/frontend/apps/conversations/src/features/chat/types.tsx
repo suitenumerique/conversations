@@ -15,6 +15,9 @@ export interface ChatConversation {
   updated_at: string;
   title?: string;
   project?: ChatConversationProject | null;
+  // True when the conversation's pinned model can't read images and the parent
+  // project has at least one image attachment. Backend-computed on read.
+  project_images_skipped?: boolean;
 }
 export interface ChatProjectConversation {
   id: string;

@@ -1,4 +1,5 @@
 """Chat API implementation."""
+# pylint: disable=too-many-lines
 
 import logging
 import os
@@ -38,6 +39,7 @@ from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
+from chat.model_routing import resolve_effective_model_hrid
 from chat.rate_limiting import ChatCooldownThrottle, get_cooldown_remaining
 from chat.serializers import ChatConversationRequestSerializer
 from chat.views.health import AssistantHealthView, ModelHealthView
@@ -308,14 +310,11 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         query_params_serializer.is_valid(raise_exception=True)
         protocol = query_params_serializer.validated_data["protocol"]
         force_web_search = query_params_serializer.validated_data["force_web_search"]
-        model_hrid = query_params_serializer.validated_data["model_hrid"]
+        requested_model_hrid = query_params_serializer.validated_data["model_hrid"]
 
         logger.info("Received messages: %s", request.data.get("messages", []))
 
-        # Warning: the messages should be stored more securely in production
         conversation = self.get_object()
-        conversation.ui_messages = request.data.get("messages", [])
-        conversation.save()
 
         serializer = self.get_serializer(data=request.data)
         try:
@@ -334,11 +333,21 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         if not messages:
             return Response({"error": "No messages provided"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Warning: the messages should be stored more securely in production
+        conversation.ui_messages = request.data.get("messages", [])
+
+        # Pin the model the first time the conversation is exercised. Existing
+        # conversations keep their pinned model regardless of the request param
+        # so a recovered main model never moves a chat already in progress.
+        if not conversation.model_hrid:
+            conversation.model_hrid = resolve_effective_model_hrid(requested_model_hrid)
+        conversation.save()
+
         ai_service = AIAgentService(
             conversation=conversation,
             user=self.request.user,
             session=request.session,
-            model_hrid=model_hrid,
+            model_hrid=conversation.model_hrid,
             language=(
                 self.request.user.language
                 or self.request.LANGUAGE_CODE  # from the LocaleMiddleware

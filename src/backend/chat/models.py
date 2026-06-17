@@ -171,6 +171,17 @@ class ChatConversation(BaseModel):
         blank=True,
     )
 
+    model_hrid = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text=(
+            "HRID of the LLM pinned to this conversation. Set on the first message and"
+            " kept for the whole conversation so a recovered main model does not move"
+            " ongoing chats."
+        ),
+    )
+
     class Meta:  # pylint: disable=missing-class-docstring
         indexes = [
             models.Index(fields=["owner", "-created_at"]),

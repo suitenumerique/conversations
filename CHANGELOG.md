@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [0.0.19] - 2026-06-24
 
+### Fixed
+
+- 🐛(front) keep the app open when using the contact link
+- ✨(back) handle 404 during deletion as successful de-indexing 
+
+
 ### Changed
 
 - 🔧(dependencies) bump backend to Python 3.14 and update pinned dependencies
@@ -15,11 +21,8 @@ and this project adheres to
 - ♻️(front) source the home documentation link from config
 - 💄(front) use "L'Assistant" as the default product name
 
-### Fixed
-
+### Added
 - 🐛(front) keep the app open when using the contact link
-- 💄(front) use semantic warning color for banner icon
-- ✨(back) handle 404 during deletion as successful de-indexing 
 
 ## [0.0.18] - 2026-06-12
 

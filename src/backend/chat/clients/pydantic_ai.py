@@ -133,6 +133,7 @@ from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
 from chat.agents.history_processors import apply_sliding_window, resolve_conversation_budget
 from chat.agents.local_media_url_processors import (
     build_project_image_urls,
+    project_has_image_attachments,
     update_history_local_urls,
     update_local_urls,
 )
@@ -192,6 +193,13 @@ User = get_user_model()
 
 CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
 DOCUMENT_URL_PREFIX = "/media-key/"
+
+# Stream-protocol contract with the frontend. Mirrored in
+# ``useChat.tsx`` (``IMAGES_SKIPPED_EVENT_TYPE`` /
+# ``IMAGE_SKIP_REASON_TEXT_ONLY``). Keep both sides in sync when adding new
+# reasons or events.
+IMAGES_SKIPPED_EVENT_TYPE = "images_skipped"
+IMAGE_SKIP_REASON_TEXT_ONLY = "model_text_only"
 
 
 def get_model_configuration(model_hrid: str):
@@ -270,6 +278,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID  # HRID of the model to use
         self.language = language  # might be None
         self._last_stop_check = 0
+        # Events queued during _prepare_agent_run for _run_agent to yield before
+        # the model is actually called (e.g. images-skipped notices). The list is
+        # cleared at the start of every stream via _clean.
+        self._pre_stream_events: List[dict] = []
 
         self._langfuse_available = settings.LANGFUSE_ENABLED
         self._store_analytics = self._langfuse_available and user.allow_conversation_analytics
@@ -363,6 +375,39 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         messages after a successful LLM response. On error that path is never reached,
         so we save the user message here to keep it visible on page reload.
         Role-based guard prevents double-appending on repeated errors.
+        """
+        if self.conversation.messages and self.conversation.messages[-1].role == "user":
+            return
+        self.conversation.messages = list(self.conversation.messages) + [user_message]
+        await sync_to_async(self.conversation.save)(update_fields=["messages"])
+
+    @staticmethod
+    def _mark_image_attachments_skipped(user_message: UIMessage) -> bool:
+        """Stamp a ``skipped`` marker on every image-like attachment.
+
+        Returns True if at least one attachment was marked. The persisted user
+        bubble keeps the image attachments (filenames + URLs) so the frontend
+        can render a "removed: model can't read images" chip on reload; we just
+        flag each so renderers know not to fetch the image and to show the chip
+        instead of the thumbnail.
+        """
+        marked = False
+        for attachment in user_message.experimental_attachments or []:
+            content_type = attachment.contentType or ""
+            if content_type.startswith("image/") and attachment.skipped is None:
+                attachment.skipped = {"reason": IMAGE_SKIP_REASON_TEXT_ONLY}
+                marked = True
+        return marked
+
+    async def _persist_user_message_for_image_skip(self, user_message: UIMessage) -> None:
+        """Persist the inbound user message early so it carries the skipped marker.
+
+        ``_prepare_update_conversation`` normally rebuilds the user bubble from
+        the agent's final_output; that path silently drops attachments the agent
+        never saw (because we stripped them), losing the filenames the frontend
+        needs to render the "image removed" chip. By saving the original message
+        here (with markers already stamped), the rebuild step short-circuits via
+        the "last message is user" guard and the marked version stands.
         """
         if self.conversation.messages and self.conversation.messages[-1].role == "user":
             return
@@ -469,6 +514,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         It can be used to release resources or perform any necessary cleanup.
         """
         self._last_stop_check = 0
+        self._pre_stream_events = []
         await cache.adelete(self._stop_cache_key)
 
     # --------------------------------------------------------------------- #
@@ -516,6 +562,36 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         user_prompt, input_images, input_documents = self._prepare_prompt(messages[-1])
 
+        # If the resolved model can't accept images, drop them from
+        # the agent input (provider never sees them) but mark each image
+        # attachment on the persisted user message so the frontend can render
+        # an inline "image removed" chip naming the file. Bytes stay in S3,
+        # so a later turn on a vision-capable model can still pick them up.
+        model_supports_image = self.conversation_agent.configuration.supports_image
+        if input_images and not model_supports_image:
+            logger.warning(
+                "Dropping %d input image(s) for non-multimodal model %s on conversation %s",
+                len(input_images),
+                self.model_hrid,
+                self.conversation.pk,
+            )
+            skipped_names = [
+                a.name
+                for a in (messages[-1].experimental_attachments or [])
+                if (a.contentType or "").startswith("image/")
+            ]
+            input_images = []
+            if self._mark_image_attachments_skipped(messages[-1]):
+                await self._persist_user_message_for_image_skip(messages[-1])
+                self._pre_stream_events.append(
+                    {
+                        "type": IMAGES_SKIPPED_EVENT_TYPE,
+                        "kind": "user",
+                        "reason": IMAGE_SKIP_REASON_TEXT_ONLY,
+                        "names": skipped_names,
+                    }
+                )
+
         image_actions = ImagePostRunActions()
         if input_images:
             # presign URLs for local images
@@ -532,10 +608,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # finalize/persistence path strips them from `new_messages` before
         # writing to history - otherwise every turn would accumulate them in
         # `pydantic_messages` and replay them on every reload.
-        project_image_urls = await build_project_image_urls(self.conversation.project_id)
-        if project_image_urls:
-            input_images = list(input_images) + project_image_urls
-            image_actions.drop.update(img.url for img in project_image_urls)
+        if model_supports_image:
+            project_image_urls = await build_project_image_urls(self.conversation.project_id)
+            if project_image_urls:
+                input_images = list(input_images) + project_image_urls
+                image_actions.drop.update(img.url for img in project_image_urls)
+        elif await project_has_image_attachments(self.conversation.project_id):
+            # Project pinned images exist but the model can't read them; surface
+            # a live banner so the user knows they're being ignored this turn.
+            self._pre_stream_events.append(
+                {
+                    "type": IMAGES_SKIPPED_EVENT_TYPE,
+                    "kind": "project",
+                    "reason": IMAGE_SKIP_REASON_TEXT_ONLY,
+                }
+            )
 
         if self._langfuse_available and self._langfuse_span is not None:
             self._langfuse_span.update(
@@ -1309,6 +1396,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             history,
             conversation_has_own_documents,
         ) = await self._prepare_agent_run(messages)
+
+        for pre_event in self._pre_stream_events:
+            yield events_v4.DataPart(data=[pre_event])
+        self._pre_stream_events = []
 
         history, was_trimmed = apply_sliding_window(
             history, resolve_conversation_budget(self.conversation_agent.configuration)

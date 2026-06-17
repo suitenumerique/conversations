@@ -51,7 +51,7 @@ def _patch_health(main=None, fb1=None, fb2=None):
         "gpt-mini": fb2,
     }
     return patch(
-        "chat.assistant_health.get_model_health",
+        "chat.model_health.get_model_health",
         side_effect=lambda provider, model_id: mapping.get(model_id),
     )
 
@@ -273,7 +273,7 @@ def test_main_hrid_with_no_explicit_provider(settings):
     settings.LLM_DEFAULT_MODEL_HRID = "no-provider-model"
     settings.LLM_CONFIGURATIONS = {"no-provider-model": model}
 
-    with patch("chat.assistant_health.get_model_health", return_value="yellow") as mock_health:
+    with patch("chat.model_health.get_model_health", return_value="yellow") as mock_health:
         result = compute_assistant_health_banners()
 
     mock_health.assert_called_once_with("openai", "gpt-4o")
@@ -291,7 +291,7 @@ def test_main_hrid_with_no_explicit_provider_no_colon(settings):
     settings.LLM_DEFAULT_MODEL_HRID = "no-provider-model"
     settings.LLM_CONFIGURATIONS = {"no-provider-model": model}
 
-    with patch("chat.assistant_health.get_model_health") as mock_health:
+    with patch("chat.model_health.get_model_health") as mock_health:
         result = compute_assistant_health_banners()
 
     mock_health.assert_not_called()

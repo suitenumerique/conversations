@@ -22,11 +22,51 @@ class ChatConversationSerializer(serializers.ModelSerializer):
 
     owner = serializers.HiddenField(default=serializers.CurrentUserDefault())
     messages = SchemaField(schema=list[UIMessage], read_only=True)
+    project_images_skipped = serializers.SerializerMethodField(
+        help_text=(
+            "True when the conversation's pinned model can't read images and the"
+            " parent project has at least one image attachment. The frontend"
+            " surfaces a soft banner so the user knows project images are not"
+            " being used by the current model."
+        ),
+    )
 
     class Meta:  # pylint: disable=missing-class-docstring
         model = models.ChatConversation
-        fields = ["id", "title", "created_at", "updated_at", "messages", "owner", "project"]
-        read_only_fields = ["id", "created_at", "updated_at", "messages"]
+        fields = [
+            "id",
+            "title",
+            "created_at",
+            "updated_at",
+            "messages",
+            "owner",
+            "project",
+            "project_images_skipped",
+        ]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+            "messages",
+            "project_images_skipped",
+        ]
+
+    @staticmethod
+    @extend_schema_field(serializers.BooleanField)
+    def get_project_images_skipped(obj) -> bool:
+        """Compute whether project image attachments will be ignored by the pinned model."""
+        # Fast-fail in the common cases so the .exists() query only runs when
+        # the answer might actually be True.
+        if obj.project_id is None or not obj.model_hrid:
+            return False
+        model_config = settings.LLM_CONFIGURATIONS.get(obj.model_hrid)
+        if not model_config or model_config.supports_image:
+            return False
+        return models.ChatConversationAttachment.objects.filter(
+            project_id=obj.project_id,
+            content_type__startswith="image/",
+            upload_state=AttachmentStatus.READY,
+        ).exists()
 
     def validate_project(self, project):
         """Ensure the project belongs to the current user."""
@@ -137,6 +177,11 @@ class LLModelSerializer(serializers.Serializer):  # pylint: disable=abstract-met
         help_text="Indicates if the model is active and available for selection.",
         required=False,
         default=True,
+    )
+    supports_image = serializers.BooleanField(
+        help_text="Whether the model can accept image inputs (multimodal).",
+        required=False,
+        default=False,
     )
 
     # Computed field to indicate if the model is the default model

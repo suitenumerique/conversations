@@ -220,3 +220,19 @@ async def build_project_image_urls(project_id) -> List[ImageUrl]:
         ImageUrl(url=_get_file_url_for_llm(key, upload_mode), identifier=str(att_id))
         for key, att_id in rows
     ]
+
+
+async def project_has_image_attachments(project_id) -> bool:
+    """Return True if the project has at least one READY image attachment.
+
+    Mirrors the filter used by ``build_project_image_urls`` and the
+    serializer's ``project_images_skipped`` check. Existence-only so the cost
+    stays flat regardless of how many images the project has.
+    """
+    if not project_id:
+        return False
+    return await ChatConversationAttachment.objects.filter(
+        project_id=project_id,
+        content_type__startswith=IMAGE_MIME_PREFIX,
+        upload_state=AttachmentStatus.READY,
+    ).aexists()

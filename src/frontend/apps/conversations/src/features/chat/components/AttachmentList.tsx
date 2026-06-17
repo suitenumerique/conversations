@@ -8,6 +8,10 @@ export interface Attachment {
   name?: string;
   contentType?: string;
   url: string;
+  // Stamped by the backend when an attachment was kept on the persisted message
+  // but excluded from what the model saw (e.g. an image on a text-only model).
+  // The renderer surfaces an inline "removed" chip when this is set.
+  skipped?: { reason: string } | null;
 }
 
 interface AttachmentListProps {
@@ -40,6 +44,7 @@ export const AttachmentList = ({
     >
       {attachments.map((attachment, idx) => {
         const { name } = attachment;
+        const isSkipped = Boolean(attachment.skipped);
         const removeAttachment = () => {
           if (onRemove) {
             onRemove(idx);
@@ -48,14 +53,18 @@ export const AttachmentList = ({
         if (!name) {
           return null;
         }
+        const chipBackground = isSkipped
+          ? 'var(--c--contextuals--background--semantic--warning--tertiary)'
+          : 'var(--c--contextuals--background--semantic--neutral--tertiary)';
         return (
           <Box
             key={(name || 'attachment') + idx}
-            $direction={isReadOnly ? 'row' : 'column'}
-            $align={isReadOnly ? 'left' : 'center'}
+            $direction="column"
+            $align={isReadOnly ? 'flex-end' : 'center'}
+            $gap="2px"
           >
             <Box
-              $background="var(--c--contextuals--background--semantic--neutral--tertiary)"
+              $background={chipBackground}
               $width="200px"
               $direction="row"
               $gap="8px"
@@ -64,6 +73,7 @@ export const AttachmentList = ({
               $css={`
                 border-radius: 4px;
               `}
+              data-testid={isSkipped ? 'attachment-skipped-chip' : undefined}
             >
               {/* Extension du fichier */}
               <Box
@@ -101,6 +111,7 @@ export const AttachmentList = ({
                   -webkit-line-clamp: 1;
                   -webkit-box-orient: vertical;
                   flex: 1;
+                  text-decoration: ${isSkipped ? 'line-through' : 'none'};
                 `}
               >
                 {name}
@@ -125,6 +136,15 @@ export const AttachmentList = ({
                 </Button>
               )}
             </Box>
+            {isSkipped && (
+              <Text
+                $size="xs"
+                $color="var(--c--contextuals--content--semantic--warning--primary)"
+                $css="max-width: 200px; text-align: right;"
+              >
+                {t("Image not used: the current model can't read images.")}
+              </Text>
+            )}
           </Box>
         );
       })}

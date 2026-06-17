@@ -17,7 +17,13 @@ import { APIError, errorCauses, fetchAPI } from '@/api';
 import { Box, Icon, Loader, Text } from '@/components';
 import { useConfig } from '@/core';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
-import { isContextTrimmedEvent, useChat } from '@/features/chat/api/useChat';
+import { useAssistantHealth } from '@/features/chat/api/useAssistantHealth';
+import {
+  isContextTrimmedEvent,
+  isImagesSkippedEvent,
+  stampImagesSkippedOnLatestUserMessage,
+  useChat,
+} from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
 import { useCreateChatConversation } from '@/features/chat/api/useCreateConversation';
 import {
@@ -35,6 +41,7 @@ import {
   STATUS_LINK_KINDS,
   getReindexErrorMessage,
 } from '@/features/chat/components/reindexErrorMessages';
+import { ProjectImagesSkippedBanner } from '@/features/chat/components/ProjectImagesSkippedBanner';
 import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
 
@@ -53,6 +60,12 @@ const PROVIDER_ERROR_CODES = new Set<ChatErrorType>([
   'model_busy',
 ]);
 
+const PROJECT_IMAGES_BANNER_STORAGE_PREFIX =
+  'conversations:project-images-banner-dismissed:';
+
+const projectImagesBannerStorageKey = (conversationId: string) =>
+  `${PROJECT_IMAGES_BANNER_STORAGE_PREFIX}${conversationId}`;
+
 // Define Attachment type locally (mirroring backend structure)
 export interface Attachment {
   name?: string;
@@ -68,8 +81,19 @@ export const Chat = ({
   const { t } = useTranslation();
   const { data: config } = useConfig();
   const statusPageUrl = config?.STATUS_PAGE_URL;
+  const { data: assistantHealth } = useAssistantHealth();
   const copyToClipboard = useClipboard();
   const { isMobile } = useResponsiveStore();
+
+  // Total number of banners floating in the layout's overlay (MainLayout's
+  // BannerStack). Used to push the conversation-scoped project-images banner
+  // below them so they don't overlap.
+  const topBannerCount =
+    (config?.status_banner ? 1 : 0) + (assistantHealth?.banners?.length ?? 0);
+  const projectImagesBannerTopOffsetPx =
+    topBannerCount > 0
+      ? topBannerCount * 40 + (topBannerCount - 1) * 8 + 20
+      : 0;
 
   const streamProtocol = 'data'; // or 'text'
 
@@ -165,6 +189,13 @@ export const Chat = ({
 
   const [initialConversationMessages, setInitialConversationMessages] =
     useState<Message[] | undefined>(undefined);
+  // True when the backend signals that the conversation's pinned (text-only)
+  // model is going to ignore project image attachments. Surfaces a single
+  // conversation-scoped banner above the thread.
+  const [projectImagesSkipped, setProjectImagesSkipped] =
+    useState<boolean>(false);
+  const [projectBannerDismissed, setProjectBannerDismissed] =
+    useState<boolean>(false);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
     event: FormEvent<HTMLFormElement>;
     attachments?: Attachment[];
@@ -631,11 +662,34 @@ export const Chat = ({
     if (data.some(isContextTrimmedEvent)) {
       setContextTrimmed(true);
     }
-  }, [data]);
+    if (
+      data.some((item) => isImagesSkippedEvent(item) && item.kind === 'project')
+    ) {
+      setProjectImagesSkipped(true);
+    }
+    if (
+      data.some((item) => isImagesSkippedEvent(item) && item.kind === 'user')
+    ) {
+      setMessages(stampImagesSkippedOnLatestUserMessage);
+    }
+  }, [data, setMessages]);
 
   // Fetch initial conversation messages if initialConversationId is provided and no pending input
   useEffect(() => {
     hasScrolledToBottomOnLoadRef.current = false; // Réinitialiser au début du chargement
+    setProjectImagesSkipped(false);
+    let dismissedFromStorage = false;
+    if (initialConversationId && typeof window !== 'undefined') {
+      try {
+        dismissedFromStorage =
+          window.localStorage.getItem(
+            projectImagesBannerStorageKey(initialConversationId),
+          ) === '1';
+      } catch {
+        // localStorage unavailable (privacy mode, sandboxed iframe, etc.) — treat as not dismissed.
+      }
+    }
+    setProjectBannerDismissed(dismissedFromStorage);
     let ignore = false;
     async function fetchInitialMessages() {
       if (initialConversationId && !pendingInput) {
@@ -645,6 +699,9 @@ export const Chat = ({
           });
           if (!ignore) {
             setInitialConversationMessages(conversation.messages);
+            setProjectImagesSkipped(
+              conversation.project_images_skipped ?? false,
+            );
             setHasInitialized(true);
           }
         } catch {
@@ -662,6 +719,23 @@ export const Chat = ({
     };
     // Only run when initialConversationId or pendingInput changes
   }, [initialConversationId, pendingInput]);
+
+  const dismissProjectImagesBanner = useCallback(() => {
+    setProjectBannerDismissed(true);
+    if (typeof window !== 'undefined' && conversationId) {
+      try {
+        window.localStorage.setItem(
+          projectImagesBannerStorageKey(conversationId),
+          '1',
+        );
+      } catch {
+        // localStorage unavailable — in-memory dismissal still holds for this session.
+      }
+    }
+  }, [conversationId]);
+
+  const showProjectImagesBanner =
+    projectImagesSkipped && !projectBannerDismissed;
 
   useEffect(() => {
     if (
@@ -846,6 +920,12 @@ export const Chat = ({
           max-height: ${messages.length > 0 ? 'calc(100vh - 75px)' : '0'};
         `}
       >
+        {showProjectImagesBanner && (
+          <ProjectImagesSkippedBanner
+            onDismiss={dismissProjectImagesBanner}
+            topOffsetPx={projectImagesBannerTopOffsetPx}
+          />
+        )}
         {messages.length > 0 && (
           <Box>
             {messages.map((message, index) => {
