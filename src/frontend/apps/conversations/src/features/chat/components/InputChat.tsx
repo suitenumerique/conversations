@@ -163,6 +163,8 @@ export const InputChat = ({
   const fileUploadEnabled = useFeatureEnabled('document-upload');
   const webSearchEnabled = useFeatureEnabled('web-search');
 
+  const { data: assistantHealth } = useAssistantHealth();
+
   const isFileAccepted = useCallback(
     (file: File): boolean => {
       const acceptedConfig = conf?.chat_upload_accept;
@@ -265,7 +267,6 @@ export const InputChat = ({
     onFilesRejected: () => showToastError(),
   });
 
-  const { data: assistantHealth } = useAssistantHealth();
   const isAssistantBlocked = assistantHealth?.blocked ?? false;
 
   // Inference-load cooldown: count down to the time the user may send again.
@@ -550,6 +551,7 @@ export const InputChat = ({
                 type="file"
                 multiple
                 ref={fileInputRef}
+                data-testid="chat-file-input"
                 style={{ display: 'none' }}
                 onChange={handleFileChange}
               />

@@ -141,6 +141,7 @@ class LLModel(BaseModel):
     is_active: bool
     icon: LongStringAsListValue | None = None
     supports_streaming: bool | None = None
+    supports_image: bool = False
     system_prompt: SettingEnvValue
     tools: list[str]
     web_search: SettingEnvValue | None = None

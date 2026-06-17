@@ -14,16 +14,10 @@ jest.mock('@/stores', () => ({
   }),
 }));
 
+const mockUseConfig = jest.fn();
+
 jest.mock('@/core', () => ({
-  useConfig: () => ({
-    data: {
-      FEATURE_FLAGS: {
-        'web-search': 'enabled',
-        'document-upload': 'enabled',
-      },
-      chat_upload_accept: '.pdf,.txt',
-    },
-  }),
+  useConfig: () => mockUseConfig(),
   useFeatureEnabled: () => true,
 }));
 
@@ -101,7 +95,19 @@ describe('InputChat', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseAssistantHealth.mockReturnValue({
-      data: { banners: [], blocked: false },
+      data: {
+        banners: [],
+        blocked: false,
+      },
+    });
+    mockUseConfig.mockReturnValue({
+      data: {
+        FEATURE_FLAGS: {
+          'web-search': 'enabled',
+          'document-upload': 'enabled',
+        },
+        chat_upload_accept: '.pdf,.txt,image/*',
+      },
     });
   });
 
@@ -385,5 +391,11 @@ describe('InputChat', () => {
       wrapper: AppWrapper,
     });
     expect(screen.getByText('Service unavailable')).toBeInTheDocument();
+  });
+
+  it('uses the raw chat_upload_accept value on the file input', () => {
+    render(<InputChat {...defaultProps} />, { wrapper: AppWrapper });
+    const fileInput: HTMLInputElement = screen.getByTestId('chat-file-input');
+    expect(fileInput.accept).toBe('.pdf,.txt,image/*');
   });
 });
