@@ -1386,6 +1386,28 @@ class Test(Base):
     AI_API_KEY = None
     AI_MODEL = None
 
+    # Pin the LLM configuration file so tests are deterministic regardless of
+    # the developer's local env (which may set LLM_CONFIGURATION_FILE_PATH to a
+    # custom config whose `default-model` uses a different provider/kind).
+    # Tests that need a different config set it explicitly via override_settings.
+    _llm_configuration_file_path = os.path.join(
+        BASE_DIR, "conversations/configuration/llm/default.json"
+    )
+    # Pin OIDC token storage off by default. Some developer envs set these to
+    # True for the local app, which makes `chat.views.conditional_refresh_oidc_token`
+    # wrap `post_conversation` with mozilla-django-oidc's real refresh decorator.
+    # That decorator rejects `force_authenticate`'d requests (no OIDC session
+    # state) with 401. Tests that need the refresh flow opt in via the
+    # `oidc_refresh_token_enabled` fixture (chat/tests/conftest.py).
+    OIDC_STORE_ACCESS_TOKEN = False
+    OIDC_STORE_REFRESH_TOKEN = False
+
+    # Pin the document parser so tests are deterministic regardless of the
+    # developer's local env (which may set RAG_DOCUMENT_PARSER=AdaptivePdfParser
+    # for the local app). Tests that need a different parser set it explicitly
+    # via override_settings / settings fixture.
+    RAG_DOCUMENT_PARSER = "chat.agent_rag.document_converter.parser.AlbertParser"
+
     # Pin to no role restriction so tests are deterministic regardless of the
     # developer's local env (which may set OIDC_ALLOWED_ROLES); tests that need
     # the restriction set it explicitly via override_settings.
