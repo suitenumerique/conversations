@@ -96,7 +96,7 @@ from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
 from asgiref.sync import sync_to_async
-from langfuse import get_client
+from langfuse import get_client, propagate_attributes
 from mistralai.client.errors import HTTPValidationError, SDKError
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
 from pydantic_ai.capabilities import Instrumentation
@@ -273,6 +273,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self._langfuse_available = settings.LANGFUSE_ENABLED
         self._store_analytics = self._langfuse_available and user.allow_conversation_analytics
+        self._langfuse_span = None
         self.event_encoder = EventEncoder(CURRENT_EVENT_ENCODER_VERSION)  # We use v4 for now
 
         self._support_streaming = True
@@ -375,8 +376,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         await self._clean()
         with ExitStack() as stack:
             if self._langfuse_available:
-                span = stack.enter_context(get_client().start_as_current_span(name="conversation"))
-                span.update_trace(user_id=str(self.user.sub), session_id=str(self.conversation.pk))
+                stack.enter_context(
+                    propagate_attributes(
+                        user_id=str(self.user.sub),
+                        session_id=str(self.conversation.pk),
+                        metadata={
+                            "user_fqdn": self.user.email.split("@")[-1],
+                        },
+                    )
+                )
+                self._langfuse_span = stack.enter_context(
+                    get_client().start_as_current_observation(name="conversation", as_type="span")
+                )
 
             try:
                 async for event in self._run_agent(messages, force_web_search):
@@ -526,10 +537,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             input_images = list(input_images) + project_image_urls
             image_actions.drop.update(img.url for img in project_image_urls)
 
-        if self._langfuse_available:
-            langfuse = get_client()
-            langfuse.update_current_trace(
-                input=user_prompt if self._store_analytics else "REDACTED"
+        if self._langfuse_available and self._langfuse_span is not None:
+            self._langfuse_span.update(
+                input=user_prompt if self._store_analytics else "REDACTED",
             )
 
         usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
@@ -1196,10 +1206,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
     def _update_langfuse_trace(self, run_output) -> None:
         """Update the Langfuse trace with the final output, if analytics are enabled."""
-        if not self._langfuse_available:
+        if not self._langfuse_available or self._langfuse_span is None:
             return
         output = run_output if self._store_analytics else "REDACTED"
-        get_client().update_current_trace(output=output)
+        self._langfuse_span.update(output=output)
 
     async def _finalize_conversation(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
@@ -1286,18 +1296,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if not messages or messages[-1].role != "user":
             return
 
-        # Langfuse settings
-        if self._langfuse_available:
-            langfuse = get_client()
-            langfuse.update_current_trace(
-                session_id=str(self.conversation.pk),
-                user_id=str(self.user.sub),
-                metadata={
-                    "user_fqdn": self.user.email.split("@")[-1],  # no need for security here
-                },
-            )
-        else:
-            langfuse = None
+        # Trace-level attributes are propagated by `_stream_content` via
+        # `propagate_attributes`; `langfuse` is kept for downstream helpers.
+        langfuse = get_client() if self._langfuse_available else None
 
         (
             user_prompt,

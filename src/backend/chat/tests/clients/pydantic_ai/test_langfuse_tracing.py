@@ -4,6 +4,7 @@ import pytest
 import responses
 from asgiref.sync import sync_to_async
 from langfuse import Langfuse
+from langfuse._client.resource_manager import LangfuseResourceManager
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
@@ -16,9 +17,19 @@ from chat.factories import ChatConversationFactory
 pytestmark = pytest.mark.django_db()
 
 
-@pytest.fixture(name="langfuse_client", scope="function")
+@pytest.fixture(name="langfuse_client", scope="module")
 def langfuse_client_fixture():
-    """Fixture to init langfuse for tests."""
+    """Fixture to init langfuse for tests.
+
+    Module-scoped: LangfuseResourceManager is a process-wide singleton keyed
+    by public_key, and OpenTelemetry's global TracerProvider can only be set
+    once per process. Re-constructing Langfuse(public_key="pk-test-key") in
+    every test either resurrects a dead, shut-down singleton (hangs in
+    flush()'s queue.join()) or, if evicted, ends up adding a duplicate span
+    processor to the same global TracerProvider on each re-init (causing
+    duplicate exports). Building it once per module and only shutting it down
+    after the last test avoids both failure modes.
+    """
     langfuse_client = Langfuse(
         public_key="pk-test-key",
         secret_key="sk-test-key",
@@ -29,6 +40,7 @@ def langfuse_client_fixture():
     yield langfuse_client
     langfuse_client._resources.prompt_cache._task_manager.shutdown()  # pylint: disable=protected-access
     langfuse_client.shutdown()
+    LangfuseResourceManager._instances.pop("pk-test-key", None)  # pylint: disable=protected-access
 
 
 @pytest.fixture(autouse=True)
@@ -115,7 +127,14 @@ async def test_langfuse_span_created_when_enabled_and_analytics_allowed(
     )
 
     # quite complex to parse the full body, so just check that expected output is in there
-    assert b"Hello! I'm doing well, thank you for asking." in responses.calls[0].request.body
+    body = responses.calls[0].request.body
+    assert b"Hello! I'm doing well, thank you for asking." in body
+    # v4: trace-level attributes are propagated via `propagate_attributes`
+    assert str(user.sub).encode() in body
+    assert str(conversation.pk).encode() in body
+    assert user.email.split("@")[-1].encode() in body
+    # v4: the conversation span is created via `start_as_current_observation`
+    assert b"conversation" in body
 
 
 @pytest.mark.asyncio
@@ -208,6 +227,8 @@ async def test_instrumentation_settings_with_analytics_enabled(settings):
     # Verify that flags are set correctly
     assert service._langfuse_available is True
     assert service._store_analytics is True
+    # v4: span is created lazily inside `_stream_content`
+    assert service._langfuse_span is None
     # ConversationAgent should be created successfully
     assert service.conversation_agent is not None
 
@@ -225,6 +246,7 @@ async def test_instrumentation_settings_with_analytics_disabled(settings):
     # Verify that flags are set correctly
     assert service._langfuse_available is True
     assert service._store_analytics is False
+    assert service._langfuse_span is None
     # ConversationAgent should be created successfully
     assert service.conversation_agent is not None
 
@@ -242,6 +264,7 @@ async def test_instrumentation_disabled_when_langfuse_disabled(settings):
     # Verify that flags are set correctly
     assert service._langfuse_available is False
     assert service._store_analytics is False
+    assert service._langfuse_span is None
     # ConversationAgent should be created successfully
     assert service.conversation_agent is not None
 

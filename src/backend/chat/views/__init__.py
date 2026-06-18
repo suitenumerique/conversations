@@ -72,7 +72,7 @@ def _bulk_delete_s3_blobs(keys):
             continue
         try:
             default_storage.delete(key)
-        except (BotoCoreError, ClientError, OSError):
+        except BotoCoreError, ClientError, OSError:
             logger.exception("Failed to delete S3 object %s", key)
 
 
