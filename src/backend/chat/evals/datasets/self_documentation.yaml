@@ -11,7 +11,6 @@ cases:
     evaluators:
       - HasMatchingSpan:
           query:
-            name_equals: "running tool"
             has_attributes:
               gen_ai.tool.name: "self_documentation"
           evaluation_name: called_self_documentation
@@ -25,7 +24,6 @@ cases:
     evaluators:
       - HasMatchingSpan:
           query:
-            name_equals: "running tool"
             has_attributes:
               gen_ai.tool.name: "self_documentation"
           evaluation_name: called_self_documentation
@@ -39,7 +37,6 @@ cases:
     evaluators:
       - HasMatchingSpan:
           query:
-            name_equals: "running tool"
             has_attributes:
               gen_ai.tool.name: "self_documentation"
           evaluation_name: called_self_documentation
@@ -54,12 +51,10 @@ cases:
       difficulty: easy
       category: about_other
     evaluators:
-      - HasMatchingSpan:
+      - HasNoMatchingSpan:
           query:
-            not_:
-              name_equals: "running tool"
-              has_attributes:
-                gen_ai.tool.name: "self_documentation"
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
           evaluation_name: did_not_call_self_documentation
 
   - name: python_sort_function
@@ -69,12 +64,10 @@ cases:
       difficulty: easy
       category: about_other
     evaluators:
-      - HasMatchingSpan:
+      - HasNoMatchingSpan:
           query:
-            not_:
-              name_equals: "running tool"
-              has_attributes:
-                gen_ai.tool.name: "self_documentation"
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
           evaluation_name: did_not_call_self_documentation
 
   # ── Medium — about the assistant itself ───────────────────────────────────────
@@ -88,7 +81,6 @@ cases:
     evaluators:
       - HasMatchingSpan:
           query:
-            name_equals: "running tool"
             has_attributes:
               gen_ai.tool.name: "self_documentation"
           evaluation_name: called_self_documentation
@@ -102,7 +94,6 @@ cases:
     evaluators:
       - HasMatchingSpan:
           query:
-            name_equals: "running tool"
             has_attributes:
               gen_ai.tool.name: "self_documentation"
           evaluation_name: called_self_documentation
@@ -116,7 +107,6 @@ cases:
     evaluators:
       - HasMatchingSpan:
           query:
-            name_equals: "running tool"
             has_attributes:
               gen_ai.tool.name: "self_documentation"
           evaluation_name: called_self_documentation
@@ -130,12 +120,10 @@ cases:
       difficulty: medium
       category: about_other
     evaluators:
-      - HasMatchingSpan:
+      - HasNoMatchingSpan:
           query:
-            not_:
-              name_equals: "running tool"
-              has_attributes:
-                gen_ai.tool.name: "self_documentation"
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
           evaluation_name: did_not_call_self_documentation
 
   - name: python_features
@@ -145,12 +133,10 @@ cases:
       difficulty: medium
       category: about_other
     evaluators:
-      - HasMatchingSpan:
+      - HasNoMatchingSpan:
           query:
-            not_:
-              name_equals: "running tool"
-              has_attributes:
-                gen_ai.tool.name: "self_documentation"
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
           evaluation_name: did_not_call_self_documentation
 
   # ── Hard ─────────────────────────────────────────────────────────────────────
@@ -165,7 +151,6 @@ cases:
     evaluators:
       - HasMatchingSpan:
           query:
-            name_equals: "running tool"
             has_attributes:
               gen_ai.tool.name: "self_documentation"
           evaluation_name: called_self_documentation
@@ -177,10 +162,9 @@ cases:
       difficulty: hard
       category: about_other
     evaluators:
-      - HasMatchingSpan:
+      - HasNoMatchingSpan:
           query:
-            not_:
-              name_equals: "running tool"
-              has_attributes:
-                gen_ai.tool.name: "self_documentation"
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
           evaluation_name: did_not_call_self_documentation
+

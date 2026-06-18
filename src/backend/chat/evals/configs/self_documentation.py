@@ -4,9 +4,11 @@ import json
 from pathlib import Path
 
 from pydantic_ai import Tool
+from pydantic_evals.evaluators import HasMatchingSpan
 
 from chat.agents.conversation import ConversationAgent
 from chat.evals.configs.base import EvalConfig
+from chat.evals.evaluators import HasNoMatchingSpan
 from chat.tools.descriptions import SELF_DOCUMENTATION_TOOL_DESCRIPTION
 
 _DATASET_PATH = Path(__file__).resolve().parent.parent / "datasets" / "self_documentation.yaml"
@@ -44,6 +46,7 @@ SELF_DOCUMENTATION = EvalConfig(
     name="self_documentation",
     dataset_path=_DATASET_PATH,
     llm_judge_rubric=None,
+    dataset_evaluator_types=[HasMatchingSpan, HasNoMatchingSpan],
     enable_tools=True,
     agent_class=_SelfDocEvalAgent,
 )
