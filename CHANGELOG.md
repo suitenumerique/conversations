@@ -15,6 +15,7 @@ and this project adheres to
 ### Changed
 
 - 🔧(deps) bump backend to Python 3.14 and update pinned dependencies
+- ⬆️(dependencies) update front and mail dependencies
 
 ## [0.0.18] - 2026-06-12
 

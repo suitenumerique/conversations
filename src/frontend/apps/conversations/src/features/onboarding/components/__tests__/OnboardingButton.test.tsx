@@ -3,9 +3,17 @@ import userEvent from '@testing-library/user-event';
 
 import '@/i18n/initI18n';
 import { AppWrapper } from '@/tests/utils';
+import { navigate } from '@/utils/system';
 
 import packageJson from '../../../../../package.json';
 import { OnboardingButton } from '../OnboardingButton';
+
+jest.mock('@/utils/system', () => ({
+  ...jest.requireActual('@/utils/system'),
+  navigate: jest.fn(),
+}));
+
+const mockNavigate = jest.mocked(navigate);
 
 // Config is swapped per test through this mutable holder.
 let mockConfig: Record<string, unknown> | undefined;
@@ -69,21 +77,12 @@ jest.mock('@gouvfr-lasuite/ui-kit', () => ({
 
 const openSpy = jest.fn();
 
-beforeAll(() => {
-  Object.defineProperty(window, 'location', {
-    configurable: true,
-    writable: true,
-    value: { href: '' },
-  });
-});
-
 beforeEach(() => {
   mockConfig = {
     FRONTEND_DOCUMENTATION_URL: 'https://docs.test/',
     FRONTEND_CONTACT_EMAIL: 'help@test.com',
   };
   window.open = openSpy;
-  window.location.href = '';
   jest.clearAllMocks();
 });
 
@@ -129,7 +128,7 @@ describe('OnboardingButton', () => {
   it('builds a mailto link for contact and navigates the current tab', async () => {
     render(<OnboardingButton />, { wrapper: AppWrapper });
     await userEvent.click(screen.getByRole('button', { name: /Contact us/ }));
-    expect(window.location.href).toBe('mailto:help@test.com');
+    expect(mockNavigate).toHaveBeenCalledWith('mailto:help@test.com');
     expect(openSpy).not.toHaveBeenCalled();
   });
 

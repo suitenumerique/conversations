@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import QuestionMarkCircleIcon from '@/assets/icons/uikit-custom/question-mark-circle.svg';
 import { Icon } from '@/components';
 import { useConfig } from '@/core/config/api/useConfig';
+import { navigate } from '@/utils/system';
 
 import packageJson from '../../../../package.json';
 
@@ -15,7 +16,7 @@ const openUrl = (url: string) => {
   // mailto:/tel: must navigate the current context; window.open would leave a
   // blank tab behind before handing off to the mail/phone client.
   if (/^(mailto:|tel:)/i.test(url)) {
-    window.location.href = url;
+    navigate(url);
     return;
   }
   window.open(url, '_blank', 'noopener,noreferrer');
