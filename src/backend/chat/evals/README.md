@@ -12,13 +12,27 @@ chat/evals/
 │   ├── __init__.py          # REGISTRY — maps dataset name → EvalConfig
 │   ├── base.py              # EvalConfig dataclass
 │   ├── url_hallucination.py # Config for the URL hallucination dataset
-│   └── self_documentation.py# Config for the self_documentation dataset
+│   ├── self_documentation.py# Config for the self_documentation dataset
+│   ├── faithfulness_rag.py  # Config for the RAG faithfulness dataset
+│   └── incertitude.py       # Config for the uncertainty dataset
 ├── datasets/
 │   ├── url_hallucination.yaml
-│   └── self_documentation.yaml
+│   ├── self_documentation.yaml
+│   ├── faithfulness_rag.yaml
+│   └── incertitude.yaml
 ├── evaluators/
 │   ├── __init__.py
 │   └── url_regex.py         # UrlRegexEvaluator — deterministic URL check
+├── runs/
+│   ├── index.json           # catalogue of saved runs
+│   └── <timestamp>_<git>.json
+├── baselines/
+│   └── main.json            # pointer to the reference run
+├── dashboard/
+│   └── dashboard.html       # generated comparison UI
+├── compare.py               # diff two saved runs
+├── storage.py               # save/load runs and baselines
+├── report_builder.py        # aggregate pydantic_evals reports (incl. --runs avg)
 └── __init__.py              # EvalInputs, EvalMetadata Pydantic models
 ```
 
@@ -28,6 +42,8 @@ chat/evals/
 |---|---|---|
 | `url_hallucination` | The agent never invents `http(s)://` URLs; only uses URLs from tool output | `UrlRegexEvaluator` (regex) + `LLMJudge` (semantic) |
 | `self_documentation` | The `self_documentation` tool is called when and only when the user asks about the assistant itself | `HasMatchingSpan` per case (span-based) |
+| `faithfulness_rag` | Answers are grounded in the retrieved chunks and add no facts beyond them | `HasMatchingSpan` (RAG tool ran) + `LLMJudge` (faithfulness) |
+| `incertitude` | On high-stakes French service-public questions whose answer depends on the user's personal situation, the agent asks to clarify / defers to the competent body instead of guessing a figure, eligibility, or outcome | `LLMJudge` (uncertainty) |
 
 ## Running evals
 
@@ -52,7 +68,48 @@ make eval EVAL_ARGS="--dataset url_hallucination --verbose"
 
 # Skip the LLM judge (use when the model endpoint does not support structured output)
 make eval EVAL_ARGS="--no-llm-judge"
+
+# Save results to the repo for later comparison (with a note on what changed)
+make eval EVAL_ARGS='--save --comment "Prompt anti-hallucination URL"'
+
+# Run each case 3 times and save averaged scores / repeat pass rates
+make eval EVAL_ARGS="--dataset self_documentation --runs 3 --save"
 ```
+
+### Saving runs, baselines, and comparison
+
+Saved runs are JSON files under `chat/evals/runs/`. They store git metadata, model parameters, an optional **`--comment`**, dataset hashes, per-case **average scores**, and **repeat pass rates** when `--runs > 1`.
+
+```bash
+# 1. Run evals and save the result
+make eval EVAL_ARGS="--save --runs 3 --comment baseline mistral-medium juin 2026"
+
+# 2. Promote a saved run to the team baseline (commits baselines/main.json)
+make eval-baseline
+make eval-baseline EVAL_ARGS="--run 2026-06-17T14-30-00Z_a3f9c2b --label main juin 2026"
+
+# 3. Compare the latest run against the baseline
+make eval-compare
+make eval-compare EVAL_ARGS="--run latest --fail-on-regression"
+
+# 4. Compare two explicit runs
+make eval-compare EVAL_ARGS="--run RUN_A --against RUN_B"
+
+# 5. Generate / refresh the HTML dashboard
+make eval-dashboard
+# open src/backend/chat/evals/dashboard/dashboard.html in a browser
+```
+
+When `--runs N` is used:
+
+- each case is executed `N` times;
+- `avg_scores` stores the mean evaluator score across repeats;
+- `pass_rate` stores the fraction of repeats that passed;
+- `passed` is `true` only if **all** repeats passed (strict, useful for baselines).
+
+By default, saved runs do **not** include model outputs. Use `--include-outputs` only for local debugging.
+
+Local-only runs can be written as `runs/local_*.json` — they are gitignored.
 
 ### Debugging
 
@@ -97,7 +154,6 @@ cases:
     evaluators:
       - HasMatchingSpan:
           query:
-            name_equals: "running tool"
             has_attributes:
               gen_ai.tool.name: "my_tool"
           evaluation_name: called_my_tool
@@ -109,12 +165,10 @@ cases:
       difficulty: easy
       category: about_other
     evaluators:
-      - HasMatchingSpan:
+      - HasNoMatchingSpan:
           query:
-            not_:
-              name_equals: "running tool"
-              has_attributes:
-                gen_ai.tool.name: "my_tool"
+            has_attributes:
+              gen_ai.tool.name: "my_tool"
           evaluation_name: did_not_call_my_tool
 ```
 
@@ -166,9 +220,14 @@ class MyEvaluator(Evaluator):
         return EvaluationReason(value=passed, reason="explanation if failed")
 ```
 
-## `make_task_fn` — custom task functions
+## Custom agents and task functions
 
-By default the eval runner calls `agent.run(user_message)` and returns the text output. Use `make_task_fn` when you need a custom agent class — for example, `self_documentation` uses a stub agent that registers a no-DB version of the tool alongside its instruction:
+Two `EvalConfig` hooks let you control how the agent is built and invoked:
+
+- **`agent_class`** — instantiate a custom `ConversationAgent` subclass instead of the default. The runner still builds the prompt (injecting `tool_output` as context) and calls `agent.run(prompt)`. Used by `self_documentation`, which registers a no-DB stub tool alongside its instruction.
+- **`make_task_fn`** — fully replace the default run logic. When set, `agent_class`, `enable_tools`, and `tool_output` prompt injection are all ignored; your factory owns how the agent is invoked.
+
+Use `make_task_fn` when the model must *call a tool* to obtain per-case context (so a span check can confirm the tool ran) rather than receiving that context pre-injected in the prompt. `faithfulness_rag` does this: it stages each case's `tool_output` (the retrieved chunks) in a context variable so the stub `document_search_rag` tool returns them when the model calls it, while the chunks stay visible to the LLM judge via the case inputs.
 
 ```python
 def make_my_task_fn(model_hrid: str):

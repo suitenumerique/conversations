@@ -258,6 +258,18 @@ eval-debug: ## run behavioral evals with debugpy on port 5678 (attach VS Code be
 	@$(COMPOSE_RUN) -p 5678:5678 app-dev python -m debugpy --listen 0.0.0.0:5678 --wait-for-client manage.py run_evals $(EVAL_ARGS)
 .PHONY: eval-debug
 
+eval-baseline: ## mark a saved eval run as baseline (usage: make eval-baseline EVAL_ARGS="--run latest")
+	@$(MANAGE) create_eval_baseline $(EVAL_ARGS)
+.PHONY: eval-baseline
+
+eval-compare: ## compare saved eval runs (usage: make eval-compare EVAL_ARGS="--fail-on-regression")
+	@$(MANAGE) compare_evals $(EVAL_ARGS)
+.PHONY: eval-compare
+
+eval-dashboard: ## generate the HTML dashboard for saved eval runs
+	@$(MANAGE) generate_eval_dashboard
+.PHONY: eval-dashboard
+
 # -- Database
 
 dbshell: ## connect to database shell

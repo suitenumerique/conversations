@@ -1,0 +1,85 @@
+{
+  "runs": [
+    {
+      "run_id": "2026-06-18T14-38-04Z_nogit",
+      "file": "runs/2026-06-18T14-38-04Z_nogit.json",
+      "created_at": "2026-06-18T14:38:04.409966+00:00",
+      "comment": "add explicit never try to guess in system prompt",
+      "git_commit": null,
+      "git_branch": null,
+      "model_hrid": "etalab-plateform-mistral-medium-2508",
+      "llm_judge": true,
+      "runs_per_case": 3,
+      "datasets": [
+        "url_hallucination",
+        "self_documentation",
+        "faithfulness_rag",
+        "incertitude"
+      ],
+      "overall_pass_rate": 0.5833,
+      "is_baseline": false
+    },
+    {
+      "run_id": "2026-06-18T14-29-12Z_nogit",
+      "file": "runs/2026-06-18T14-29-12Z_nogit.json",
+      "created_at": "2026-06-18T14:29:12.376042+00:00",
+      "comment": "add explicit <never try to guess> in system prompt",
+      "git_commit": null,
+      "git_branch": null,
+      "model_hrid": "etalab-plateform-mistral-medium-2508",
+      "llm_judge": true,
+      "runs_per_case": 1,
+      "datasets": [
+        "incertitude"
+      ],
+      "overall_pass_rate": 0.6667,
+      "is_baseline": false
+    },
+    {
+      "run_id": "2026-06-17T15-00-29Z_nogit",
+      "file": "runs/2026-06-17T15-00-29Z_nogit.json",
+      "created_at": "2026-06-17T15:00:29.455906+00:00",
+      "label": null,
+      "git_commit": null,
+      "git_branch": null,
+      "model_hrid": "etalab-plateform-mistral-medium-2508",
+      "llm_judge": true,
+      "runs_per_case": 3,
+      "datasets": [
+        "incertitude"
+      ],
+      "overall_pass_rate": 0.6667,
+      "is_baseline": false
+    },
+    {
+      "run_id": "2026-06-17T14-56-06Z_nogit",
+      "file": "runs/2026-06-17T14-56-06Z_nogit.json",
+      "created_at": "2026-06-17T14:56:06.125374+00:00",
+      "label": null,
+      "git_commit": null,
+      "git_branch": null,
+      "model_hrid": "etalab-plateform-mistral-medium-2508",
+      "llm_judge": true,
+      "runs_per_case": 5,
+      "datasets": [
+        "url_hallucination",
+        "self_documentation",
+        "faithfulness_rag",
+        "incertitude"
+      ],
+      "overall_pass_rate": 0.3958,
+      "is_baseline": true
+    }
+  ],
+  "baselines": {
+    "main": {
+      "name": "main",
+      "label": "Baseline main",
+      "created_at": "2026-06-17T14:56:14.418677+00:00",
+      "run_id": "2026-06-17T14-56-06Z_nogit",
+      "run_file": "runs/2026-06-17T14-56-06Z_nogit.json",
+      "git_commit": null,
+      "model_hrid": "etalab-plateform-mistral-medium-2508"
+    }
+  }
+}

@@ -71,6 +71,9 @@ src/backend/core/templates/mail/
 db.sqlite3
 .mypy_cache
 
+# Local eval runs (not committed)
+src/backend/chat/evals/runs/local_*.json
+
 # Site media
 /data/
 
