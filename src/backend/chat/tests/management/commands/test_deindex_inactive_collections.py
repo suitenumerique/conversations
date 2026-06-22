@@ -7,6 +7,7 @@ from django.core.management import call_command
 from django.utils import timezone
 
 import pytest
+import requests
 
 from chat.enums import CollectionIndexState
 from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
@@ -152,6 +153,38 @@ def test_rollback_restores_exact_pre_deindex_state(settings):
     att_pending.refresh_from_db()
     assert att_pending.is_indexed is False
     assert att_pending.rag_document_id is None
+
+
+@pytest.mark.django_db(transaction=True)
+def test_treats_404_as_deindexed(settings):
+    """A 404 from delete_collection means the collection is already gone — keep cleared state."""
+    settings.RAG_COLLECTION_INACTIVITY_DAYS = 30
+    conv = ChatConversationFactory(
+        collection_id="albert-gone", index_state=CollectionIndexState.INDEXED
+    )
+    past = timezone.now() - timedelta(days=31)
+    ChatConversation.objects.filter(pk=conv.pk).update(updated_at=past)
+    attachment = ChatConversationAttachmentFactory(
+        conversation=conv, is_indexed=True, rag_document_id="doc-gone"
+    )
+
+    response = MagicMock(status_code=404)
+    error = requests.HTTPError("404 Not Found", response=response)
+    mock_instance = MagicMock()
+    mock_instance.delete_collection.side_effect = error
+    mock_backend_cls = MagicMock(return_value=mock_instance)
+    with patch(
+        "chat.management.commands.deindex_inactive_collections.import_string",
+        return_value=mock_backend_cls,
+    ):
+        call_command("deindex_inactive_collections")
+
+    conv.refresh_from_db()
+    assert conv.collection_id is None
+    assert conv.index_state == CollectionIndexState.DEINDEXED
+    attachment.refresh_from_db()
+    assert attachment.is_indexed is False
+    assert attachment.rag_document_id is None
 
 
 @pytest.mark.django_db(transaction=True)

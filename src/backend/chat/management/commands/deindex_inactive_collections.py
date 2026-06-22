@@ -10,6 +10,8 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.utils.module_loading import import_string
 
+import requests
+
 from chat.enums import CollectionIndexState
 from chat.models import ChatConversation, ChatConversationAttachment
 
@@ -42,7 +44,20 @@ def _deindex_one(conv, *, backend_cls, threshold):
 
     try:
         backend_cls(collection_id=conv.collection_id).delete_collection()
-    except Exception:  # pylint: disable=broad-except
+    except Exception as exc:  # pylint: disable=broad-except
+        if isinstance(exc, requests.HTTPError):
+            response = exc.response
+            if response is not None and response.status_code == 404:
+                # Collection already gone on the backend — the earlier
+                # .update() calls already cleared our state, so treat it as
+                # a successful de-index.
+                logger.info(
+                    "Collection %s for conversation %s already deleted (404), "
+                    "treating as de-indexed",
+                    conv.collection_id,
+                    conv.pk,
+                )
+                return True
         # Conditional restore: only write back if the row is still NULL so we
         # don't overwrite a collection_id set by a concurrent re-index.
         ChatConversation.objects.filter(pk=conv.pk, collection_id__isnull=True).update(
