@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
 import NewChatIcon from '@/assets/icons/new-message-bold.svg';
-import LogoAssistant from '@/assets/logo/logo-beta.svg';
+import LogoAssistant from '@/assets/logo/logomark.svg';
 import { Box } from '@/components/';
 import { useCunninghamTheme } from '@/cunningham';
 import { useChatScroll } from '@/features/chat/hooks';

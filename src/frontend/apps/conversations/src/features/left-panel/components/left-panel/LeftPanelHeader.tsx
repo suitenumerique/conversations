@@ -56,11 +56,7 @@ export const LeftPanelHeader = ({ children }: PropsWithChildren) => {
         $align="center"
       >
         <StyledLink href="/">
-          <Logo
-            aria-label="Assistant Logo"
-            width={139}
-            color="var(--c--globals--colors--logo-1-light)"
-          />
+          <Logo aria-label={t('Assistant Logo')} width={160} />
         </StyledLink>
         {!isDesktop && (
           <Button

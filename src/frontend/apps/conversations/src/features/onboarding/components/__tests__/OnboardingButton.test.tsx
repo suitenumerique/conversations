@@ -3,7 +3,6 @@ import userEvent from '@testing-library/user-event';
 
 import '@/i18n/initI18n';
 import { AppWrapper } from '@/tests/utils';
-import { navigate } from '@/utils/system';
 
 import packageJson from '../../../../../package.json';
 import { OnboardingButton } from '../OnboardingButton';
@@ -12,8 +11,6 @@ jest.mock('@/utils/system', () => ({
   ...jest.requireActual('@/utils/system'),
   navigate: jest.fn(),
 }));
-
-const mockNavigate = jest.mocked(navigate);
 
 // Config is swapped per test through this mutable holder.
 let mockConfig: Record<string, unknown> | undefined;
@@ -75,6 +72,7 @@ jest.mock('@gouvfr-lasuite/ui-kit', () => ({
   ),
 }));
 
+// Every link is opened in a new tab via window.open (see openUrl).
 const openSpy = jest.fn();
 
 beforeEach(() => {
@@ -118,18 +116,13 @@ describe('OnboardingButton', () => {
     await userEvent.click(
       screen.getByRole('button', { name: /Documentation/ }),
     );
-    expect(openSpy).toHaveBeenCalledWith(
-      'https://docs.test/',
-      '_blank',
-      'noopener,noreferrer',
-    );
+    expect(openSpy).toHaveBeenCalledWith('https://docs.test/', '_blank');
   });
 
-  it('builds a mailto link for contact and navigates the current tab', async () => {
+  it('opens a mailto link for contact in a new tab', async () => {
     render(<OnboardingButton />, { wrapper: AppWrapper });
     await userEvent.click(screen.getByRole('button', { name: /Contact us/ }));
-    expect(mockNavigate).toHaveBeenCalledWith('mailto:help@test.com');
-    expect(openSpy).not.toHaveBeenCalled();
+    expect(openSpy).toHaveBeenCalledWith('mailto:help@test.com', '_blank');
   });
 
   it('opens the onboarding modal when the onboarding item is clicked', async () => {

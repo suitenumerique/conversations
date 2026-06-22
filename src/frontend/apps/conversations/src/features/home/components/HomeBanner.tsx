@@ -2,7 +2,7 @@ import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import IconAssistant from '@/assets/logo/logo-beta.svg';
+import IconAssistant from '@/assets/logo/logomark.svg';
 import { Box, Icon, Text } from '@/components';
 import { productName, useConfig } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
