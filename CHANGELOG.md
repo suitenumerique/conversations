@@ -14,8 +14,14 @@ and this project adheres to
 
 ### Changed
 
-- 🔧(deps) bump backend to Python 3.14 and update pinned dependencies
+- 🔧(dependencies) bump backend to Python 3.14 and update pinned dependencies
 - ⬆️(dependencies) update front and mail dependencies
+- ♻️(front) source the home documentation link from config
+
+### Fixed
+
+- 🐛(front) keep the app open when using the contact link
+>>>>>>> 0064d5f (🐛(front) fix contact link target and home doc link)
 
 ## [0.0.18] - 2026-06-12
 

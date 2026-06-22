@@ -6,20 +6,23 @@ import { useTranslation } from 'react-i18next';
 import QuestionMarkCircleIcon from '@/assets/icons/uikit-custom/question-mark-circle.svg';
 import { Icon } from '@/components';
 import { useConfig } from '@/core/config/api/useConfig';
-import { navigate } from '@/utils/system';
 
 import packageJson from '../../../../package.json';
 
 import { OnboardingWelcomeModal } from './OnboardingModal';
 
 const openUrl = (url: string) => {
-  // mailto:/tel: must navigate the current context; window.open would leave a
-  // blank tab behind before handing off to the mail/phone client.
-  if (/^(mailto:|tel:)/i.test(url)) {
-    navigate(url);
-    return;
+  // Open in a new tab so the app stays put. window.open(url, '_blank') opens a
+  // real tab in Firefox for both https: and mailto: (the OS handler then takes
+  // over the throwaway tab). Note: no window features string - passing
+  // 'noopener,noreferrer' there made Firefox keep the link in the same tab.
+  // window.location.href is avoided because it unloads the current tab on some
+  // browsers (observed on Firefox in production).
+  const opened = window.open(url, '_blank');
+  // Sever the opener link to avoid reverse tabnabbing on http(s) targets.
+  if (opened) {
+    opened.opener = null;
   }
-  window.open(url, '_blank', 'noopener,noreferrer');
 };
 
 export const OnboardingButton = () => {
