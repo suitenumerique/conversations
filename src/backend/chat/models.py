@@ -174,11 +174,11 @@ class ChatConversation(BaseModel):
     model_hrid = models.CharField(
         max_length=100,
         blank=True,
-        null=True,
+        default="",
         help_text=(
             "HRID of the LLM pinned to this conversation. Set on the first message and"
             " kept for the whole conversation so a recovered main model does not move"
-            " ongoing chats."
+            " ongoing chats. Empty string means 'not yet pinned'."
         ),
     )
 

@@ -33,6 +33,23 @@ def patch_settings(settings, llm_configs):
     settings.LLM_CONFIGURATIONS = llm_configs
 
 
+@pytest.fixture(name="thresholds", autouse=True)
+def thresholds_fixture():
+    """Patch both eviction-threshold getters; defaults to 'yellow' (aggressive).
+
+    Returns ``(main, fallback)`` mocks so individual tests can override either.
+    The fallback patch targets ``chat.model_health`` because that's where
+    ``is_fallback_down`` consumes it from.
+    """
+    with (
+        patch("chat.model_routing.get_main_eviction_threshold", return_value="yellow") as main,
+        patch(
+            "chat.model_health.get_fallback_eviction_threshold", return_value="yellow"
+        ) as fallback,
+    ):
+        yield main, fallback
+
+
 def _patch_health(main=None, fb1=None, fb2=None):
     """Patch get_model_health to return given statuses by model_name."""
     mapping = {
@@ -112,3 +129,34 @@ def test_explicit_default_request_still_goes_through_cascade():
 def test_empty_string_request_treated_as_no_request():
     with _patch_health(main="red", fb1="green"):
         assert resolve_effective_model_hrid("") == "fallback-1"
+
+
+def test_main_threshold_red_keeps_yellow_main_on_main(thresholds):
+    # Operators may tolerate a slow (yellow) main; with the main threshold
+    # raised to red, yellow no longer triggers the cascade.
+    main, _fb = thresholds
+    main.return_value = "red"
+    with _patch_health(main="yellow", fb1="green"):
+        assert resolve_effective_model_hrid(None) == "main-model"
+
+
+def test_main_threshold_red_still_evicts_red_main(thresholds):
+    main, _fb = thresholds
+    main.return_value = "red"
+    with _patch_health(main="red", fb1="green"):
+        assert resolve_effective_model_hrid(None) == "fallback-1"
+
+
+def test_fallback_threshold_yellow_skips_yellow_fb1_to_fb2():
+    # Default both thresholds = yellow: a yellow fallback is "not good enough",
+    # so the cascade keeps walking instead of pinning a slow fallback.
+    with _patch_health(main="red", fb1="yellow", fb2="green"):
+        assert resolve_effective_model_hrid(None) == "fallback-2"
+
+
+def test_fallback_threshold_red_accepts_yellow_fb1(thresholds):
+    # Conservative fallback threshold: tolerate a slow fb1 rather than skipping.
+    _main, fallback = thresholds
+    fallback.return_value = "red"
+    with _patch_health(main="red", fb1="yellow", fb2="green"):
+        assert resolve_effective_model_hrid(None) == "fallback-1"

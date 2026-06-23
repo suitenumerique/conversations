@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from django.conf import settings
 from django.core.cache import cache
 from django.core.files.storage import default_storage
-from django.db.models import Prefetch, Q
+from django.db.models import Exists, OuterRef, Prefetch, Q
 from django.http import Http404, StreamingHttpResponse
 from django.utils.decorators import method_decorator
 from django.utils.module_loading import import_string
@@ -243,6 +243,19 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         # project.llm_instructions — prefetch to avoid extra queries
         if self.request.query_params.get("title") or self.action == "post_conversation":
             qs = qs.select_related("project")
+
+        # Avoid an N+1 on the project_images_skipped serializer field: pre-compute
+        # the existence check in a single EXISTS subquery for list/retrieve.
+        if self.action in ("list", "retrieve") and not self.request.query_params.get("title"):
+            qs = qs.annotate(
+                _has_project_image=Exists(
+                    models.ChatConversationAttachment.objects.filter(
+                        project_id=OuterRef("project_id"),
+                        content_type__startswith=IMAGE_MIME_PREFIX,
+                        upload_state=AttachmentStatus.READY,
+                    )
+                )
+            )
         return qs
 
     def get_permissions(self):
@@ -335,13 +348,17 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
 
         # Warning: the messages should be stored more securely in production
         conversation.ui_messages = request.data.get("messages", [])
+        # `updated_at` is auto_now; Django skips auto_now fields when
+        # update_fields is set, so list it explicitly to preserve the bump.
+        update_fields = ["ui_messages", "updated_at"]
 
         # Pin the model the first time the conversation is exercised. Existing
         # conversations keep their pinned model regardless of the request param
         # so a recovered main model never moves a chat already in progress.
         if not conversation.model_hrid:
             conversation.model_hrid = resolve_effective_model_hrid(requested_model_hrid)
-        conversation.save()
+            update_fields.append("model_hrid")
+        conversation.save(update_fields=update_fields)
 
         ai_service = AIAgentService(
             conversation=conversation,

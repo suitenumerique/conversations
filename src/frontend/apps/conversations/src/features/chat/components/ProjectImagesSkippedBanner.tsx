@@ -20,20 +20,20 @@ export const ProjectImagesSkippedBanner = ({
       $direction="row"
       $align="center"
       $justify="space-between"
-      $gap="8px"
-      $margin={{ horizontal: 'auto', bottom: 'sm' }}
-      $padding={{ all: 'sm' }}
+      $gap="6px"
+      $margin={{ horizontal: 'auto', bottom: 'xs' }}
+      $padding={{ vertical: '4px', horizontal: 'xs' }}
       $width="100%"
       $css={`
-        margin-top: ${topOffsetPx > 0 ? `${topOffsetPx}px` : 'var(--c--theme--spacings--sm, 8px)'};
+        margin-top: ${topOffsetPx > 0 ? `${topOffsetPx}px` : 'var(--c--theme--spacings--xs, 4px)'};
         max-width: var(--chat-content-max-width, 750px);
-        border-radius: 8px;
+        border-radius: 6px;
         background: var(--c--contextuals--background--semantic--warning--tertiary);
         border: 1px solid var(--c--contextuals--border--semantic--warning--primary);
       `}
     >
       <Text
-        $size="sm"
+        $size="xs"
         $color="var(--c--contextuals--content--semantic--warning--primary)"
       >
         {t(
@@ -48,7 +48,8 @@ export const ProjectImagesSkippedBanner = ({
           background: 'transparent',
           border: 'none',
           cursor: 'pointer',
-          padding: '4px 8px',
+          padding: '2px 6px',
+          fontSize: '0.75rem',
           color: 'var(--c--contextuals--content--semantic--warning--primary)',
         }}
       >

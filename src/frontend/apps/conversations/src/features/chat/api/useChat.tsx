@@ -111,7 +111,7 @@ export const IMAGE_SKIP_REASON_TEXT_ONLY = 'model_text_only' as const;
 
 export interface ImagesSkippedEvent {
   type: typeof IMAGES_SKIPPED_EVENT_TYPE;
-  kind: 'user' | 'project';
+  kind: 'user' | 'project' | 'conversation';
   reason: string;
   names?: string[];
 }
@@ -126,7 +126,8 @@ export function isImagesSkippedEvent(
     item.type === IMAGES_SKIPPED_EVENT_TYPE &&
     'kind' in item &&
     ((item as ImagesSkippedEvent).kind === 'user' ||
-      (item as ImagesSkippedEvent).kind === 'project')
+      (item as ImagesSkippedEvent).kind === 'project' ||
+      (item as ImagesSkippedEvent).kind === 'conversation')
   );
 }
 

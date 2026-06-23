@@ -160,7 +160,7 @@ from chat.clients.schema import (
     ImagePostRunActions,
     StreamingState,
 )
-from chat.constants import TEXT_MIME_PREFIX
+from chat.constants import IMAGE_MIME_PREFIX, TEXT_MIME_PREFIX
 from chat.document_context_builder import (
     DocumentsListing,
     build_documents_listing,
@@ -240,6 +240,23 @@ def _strip_thinking_parts(history: list[ModelMessage]) -> list[ModelMessage]:
             )
         result.append(message)
     return result
+
+
+def iter_image_attachments(messages: list[UIMessage]):
+    """Yield each image-like attachment across the given messages.
+
+    Single source of truth for the "is this attachment an image?" predicate
+    used by readers (``list_images``) and writers (``_mark_image_attachments_skipped``).
+    """
+    for message in messages:
+        for attachment in message.experimental_attachments or []:
+            if (attachment.contentType or "").startswith(IMAGE_MIME_PREFIX):
+                yield attachment
+
+
+def list_images(messages: list[UIMessage]) -> list[str]:
+    """Return names of every image attachment across the message history."""
+    return [a.name for a in iter_image_attachments(messages) if a.name is not None]
 
 
 def _extract_co2_from_usage(usage: RunUsage) -> float:
@@ -392,9 +409,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         instead of the thumbnail.
         """
         marked = False
-        for attachment in user_message.experimental_attachments or []:
-            content_type = attachment.contentType or ""
-            if content_type.startswith("image/") and attachment.skipped is None:
+        for attachment in iter_image_attachments([user_message]):
+            if attachment.skipped is None:
                 attachment.skipped = {"reason": IMAGE_SKIP_REASON_TEXT_ONLY}
                 marked = True
         return marked
@@ -413,6 +429,23 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             return
         self.conversation.messages = list(self.conversation.messages) + [user_message]
         await sync_to_async(self.conversation.save)(update_fields=["messages"])
+
+    def _add_unreadable_images_instruction(self, subject: Optional[str]) -> None:
+        """Tell a text-only model an image is present that it cannot read.
+
+        The model receives the image parts but ignores them; this instruction makes
+        it aware an image was provided so it can say it can't read images rather than
+        answer obliviously. ``subject`` names the image(s), e.g. ``"sample.png"`` or
+        ``"an image in the current project"``.
+        """
+
+        @self.conversation_agent.instructions
+        def acknowledge_unreadable_images() -> str:
+            return (
+                f"This conversation includes {subject or 'some images'}, but you cannot read or "
+                "process images. If a request depends on it, tell the user you "
+                "can't read images."
+            )
 
     async def _stream_content(
         self, messages: List[UIMessage], force_web_search: bool = False, encoder_fn: Callable = None
@@ -562,25 +595,48 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         user_prompt, input_images, input_documents = self._prepare_prompt(messages[-1])
 
-        # If the resolved model can't accept images, drop them from
-        # the agent input (provider never sees them) but mark each image
-        # attachment on the persisted user message so the frontend can render
-        # an inline "image removed" chip naming the file. Bytes stay in S3,
-        # so a later turn on a vision-capable model can still pick them up.
+        # If the resolved model can't accept images, the model still receives them
+        # but ignores them (these endpoints tolerate image parts), and we instruct
+        # it to say so. We keep the images in the payload so they persist to history
+        # and a later turn on a vision-capable model can read them. We also mark each
+        # image attachment on the persisted user message so the frontend can render
+        # an inline "image ignored" chip naming the file.
         model_supports_image = self.conversation_agent.configuration.supports_image
-        if input_images and not model_supports_image:
-            logger.warning(
-                "Dropping %d input image(s) for non-multimodal model %s on conversation %s",
-                len(input_images),
+        ignored_images = []
+        if not model_supports_image:
+            image_names = list_images(messages)
+            ignored_images += image_names
+            if image_names:
+                # Conversation-scoped banner: every uploaded image in the whole
+                # conversation (history + current turn) is ignored by this
+                # text-only model. `list_images` already spans all messages.
+                self._pre_stream_events.append(
+                    {
+                        "type": IMAGES_SKIPPED_EVENT_TYPE,
+                        "kind": "conversation",
+                        "reason": IMAGE_SKIP_REASON_TEXT_ONLY,
+                        "names": image_names,
+                    }
+                )
+            if await project_has_image_attachments(self.conversation.project_id):
+                ignored_images += ["images in the current project"]
+                self._pre_stream_events.append(
+                    {
+                        "type": IMAGES_SKIPPED_EVENT_TYPE,
+                        "kind": "project",
+                        "reason": IMAGE_SKIP_REASON_TEXT_ONLY,
+                    }
+                )
+
+        if ignored_images:
+            logger.info(
+                "Model %s cannot read images; instructing it to ignore %d image(s) "
+                "on conversation %s",
                 self.model_hrid,
+                len(input_images),
                 self.conversation.pk,
             )
-            skipped_names = [
-                a.name
-                for a in (messages[-1].experimental_attachments or [])
-                if (a.contentType or "").startswith("image/")
-            ]
-            input_images = []
+            self._add_unreadable_images_instruction(", ".join(ignored_images))
             if self._mark_image_attachments_skipped(messages[-1]):
                 await self._persist_user_message_for_image_skip(messages[-1])
                 self._pre_stream_events.append(
@@ -588,7 +644,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         "type": IMAGES_SKIPPED_EVENT_TYPE,
                         "kind": "user",
                         "reason": IMAGE_SKIP_REASON_TEXT_ONLY,
-                        "names": skipped_names,
+                        "names": ignored_images,
                     }
                 )
 
@@ -613,16 +669,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if project_image_urls:
                 input_images = list(input_images) + project_image_urls
                 image_actions.drop.update(img.url for img in project_image_urls)
-        elif await project_has_image_attachments(self.conversation.project_id):
-            # Project pinned images exist but the model can't read them; surface
-            # a live banner so the user knows they're being ignored this turn.
-            self._pre_stream_events.append(
-                {
-                    "type": IMAGES_SKIPPED_EVENT_TYPE,
-                    "kind": "project",
-                    "reason": IMAGE_SKIP_REASON_TEXT_ONLY,
-                }
-            )
 
         if self._langfuse_available and self._langfuse_span is not None:
             self._langfuse_span.update(

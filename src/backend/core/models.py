@@ -347,12 +347,43 @@ class MaintenanceMode(SingletonModel):
         verbose_name = _("Maintenance Mode")
 
 
+def eviction_threshold_choices():
+    """Selectable cascade-eviction thresholds, derived from chat.models.ModelHealth.Status."""
+    # Local import dodges the core -> chat import cycle at module load.
+    from chat.models import ModelHealth  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
+
+    return [(s.value, s.label) for s in ModelHealth.Status if s != ModelHealth.Status.GREEN]
+
+
 class ModelHealthSettings(SingletonModel):
-    """Singleton controlling the model-health polling behaviour."""
+    """Singleton controlling model-health polling and routing behaviour."""
 
     poll_interval_minutes = models.PositiveIntegerField(
         default=5,
         help_text="Minimum minutes between two effective polling runs.",
+    )
+
+    main_eviction_threshold = models.CharField(
+        max_length=10,
+        choices=eviction_threshold_choices,
+        default="red",
+        help_text=(
+            "Minimum main-model health that triggers cascade to a fallback. "
+            "'yellow' = cascade on yellow or red (aggressive). "
+            "'red' = tolerate yellow on main, only cascade on red."
+        ),
+    )
+
+    fallback_eviction_threshold = models.CharField(
+        max_length=10,
+        choices=eviction_threshold_choices,
+        default="red",
+        help_text=(
+            "Minimum fallback-model health to skip to the next fallback. "
+            "Applied uniformly to fallback 1 and fallback 2. "
+            "'yellow' = skip yellow fallbacks (aggressive). "
+            "'red' = accept yellow fallbacks, only skip on red."
+        ),
     )
 
     class Meta:  # pylint: disable=missing-class-docstring

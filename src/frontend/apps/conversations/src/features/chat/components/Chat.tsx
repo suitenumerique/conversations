@@ -17,7 +17,6 @@ import { APIError, errorCauses, fetchAPI } from '@/api';
 import { Box, Icon, Loader, Text } from '@/components';
 import { useConfig } from '@/core';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
-import { useAssistantHealth } from '@/features/chat/api/useAssistantHealth';
 import {
   isContextTrimmedEvent,
   isImagesSkippedEvent,
@@ -35,13 +34,14 @@ import {
   ProjectsResponse,
 } from '@/features/chat/api/useProjects';
 import { ChatError, ChatErrorType } from '@/features/chat/components/ChatError';
+import { ConversationImagesSkippedBanner } from '@/features/chat/components/ConversationImagesSkippedBanner';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { MessageItem } from '@/features/chat/components/MessageItem';
+import { ProjectImagesSkippedBanner } from '@/features/chat/components/ProjectImagesSkippedBanner';
 import {
   STATUS_LINK_KINDS,
   getReindexErrorMessage,
 } from '@/features/chat/components/reindexErrorMessages';
-import { ProjectImagesSkippedBanner } from '@/features/chat/components/ProjectImagesSkippedBanner';
 import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
 
@@ -66,6 +66,12 @@ const PROJECT_IMAGES_BANNER_STORAGE_PREFIX =
 const projectImagesBannerStorageKey = (conversationId: string) =>
   `${PROJECT_IMAGES_BANNER_STORAGE_PREFIX}${conversationId}`;
 
+const CONVERSATION_IMAGES_BANNER_STORAGE_PREFIX =
+  'conversations:conversation-images-banner-dismissed:';
+
+const conversationImagesBannerStorageKey = (conversationId: string) =>
+  `${CONVERSATION_IMAGES_BANNER_STORAGE_PREFIX}${conversationId}`;
+
 // Define Attachment type locally (mirroring backend structure)
 export interface Attachment {
   name?: string;
@@ -81,19 +87,8 @@ export const Chat = ({
   const { t } = useTranslation();
   const { data: config } = useConfig();
   const statusPageUrl = config?.STATUS_PAGE_URL;
-  const { data: assistantHealth } = useAssistantHealth();
   const copyToClipboard = useClipboard();
   const { isMobile } = useResponsiveStore();
-
-  // Total number of banners floating in the layout's overlay (MainLayout's
-  // BannerStack). Used to push the conversation-scoped project-images banner
-  // below them so they don't overlap.
-  const topBannerCount =
-    (config?.status_banner ? 1 : 0) + (assistantHealth?.banners?.length ?? 0);
-  const projectImagesBannerTopOffsetPx =
-    topBannerCount > 0
-      ? topBannerCount * 40 + (topBannerCount - 1) * 8 + 20
-      : 0;
 
   const streamProtocol = 'data'; // or 'text'
 
@@ -195,6 +190,14 @@ export const Chat = ({
   const [projectImagesSkipped, setProjectImagesSkipped] =
     useState<boolean>(false);
   const [projectBannerDismissed, setProjectBannerDismissed] =
+    useState<boolean>(false);
+  // Filenames of uploaded images across the whole conversation the pinned
+  // (text-only) model can't read. Drives a conversation-scoped banner whose
+  // "see details" modal lists them. Empty when the model is multimodal.
+  const [conversationImagesSkipped, setConversationImagesSkipped] = useState<
+    string[]
+  >([]);
+  const [conversationBannerDismissed, setConversationBannerDismissed] =
     useState<boolean>(false);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
     event: FormEvent<HTMLFormElement>;
@@ -667,6 +670,11 @@ export const Chat = ({
     ) {
       setProjectImagesSkipped(true);
     }
+    data.forEach((item) => {
+      if (isImagesSkippedEvent(item) && item.kind === 'conversation') {
+        setConversationImagesSkipped(item.names ?? []);
+      }
+    });
     if (
       data.some((item) => isImagesSkippedEvent(item) && item.kind === 'user')
     ) {
@@ -678,18 +686,25 @@ export const Chat = ({
   useEffect(() => {
     hasScrolledToBottomOnLoadRef.current = false; // Réinitialiser au début du chargement
     setProjectImagesSkipped(false);
+    setConversationImagesSkipped([]);
     let dismissedFromStorage = false;
+    let conversationDismissedFromStorage = false;
     if (initialConversationId && typeof window !== 'undefined') {
       try {
         dismissedFromStorage =
           window.localStorage.getItem(
             projectImagesBannerStorageKey(initialConversationId),
           ) === '1';
+        conversationDismissedFromStorage =
+          window.localStorage.getItem(
+            conversationImagesBannerStorageKey(initialConversationId),
+          ) === '1';
       } catch {
         // localStorage unavailable (privacy mode, sandboxed iframe, etc.) — treat as not dismissed.
       }
     }
     setProjectBannerDismissed(dismissedFromStorage);
+    setConversationBannerDismissed(conversationDismissedFromStorage);
     let ignore = false;
     async function fetchInitialMessages() {
       if (initialConversationId && !pendingInput) {
@@ -701,6 +716,9 @@ export const Chat = ({
             setInitialConversationMessages(conversation.messages);
             setProjectImagesSkipped(
               conversation.project_images_skipped ?? false,
+            );
+            setConversationImagesSkipped(
+              conversation.skipped_image_names ?? [],
             );
             setHasInitialized(true);
           }
@@ -736,6 +754,23 @@ export const Chat = ({
 
   const showProjectImagesBanner =
     projectImagesSkipped && !projectBannerDismissed;
+
+  const dismissConversationImagesBanner = useCallback(() => {
+    setConversationBannerDismissed(true);
+    if (typeof window !== 'undefined' && conversationId) {
+      try {
+        window.localStorage.setItem(
+          conversationImagesBannerStorageKey(conversationId),
+          '1',
+        );
+      } catch {
+        // localStorage unavailable — in-memory dismissal still holds for this session.
+      }
+    }
+  }, [conversationId]);
+
+  const showConversationImagesBanner =
+    conversationImagesSkipped.length > 0 && !conversationBannerDismissed;
 
   useEffect(() => {
     if (
@@ -920,12 +955,6 @@ export const Chat = ({
           max-height: ${messages.length > 0 ? 'calc(100vh - 75px)' : '0'};
         `}
       >
-        {showProjectImagesBanner && (
-          <ProjectImagesSkippedBanner
-            onDismiss={dismissProjectImagesBanner}
-            topOffsetPx={projectImagesBannerTopOffsetPx}
-          />
-        )}
         {messages.length > 0 && (
           <Box>
             {messages.map((message, index) => {
@@ -1044,6 +1073,15 @@ export const Chat = ({
         $width="100%"
         $margin={{ all: 'auto', top: 'base' }}
       >
+        {showProjectImagesBanner && (
+          <ProjectImagesSkippedBanner onDismiss={dismissProjectImagesBanner} />
+        )}
+        {showConversationImagesBanner && (
+          <ConversationImagesSkippedBanner
+            names={conversationImagesSkipped}
+            onDismiss={dismissConversationImagesBanner}
+          />
+        )}
         <InputChat
           messagesLength={messages.length}
           input={input}
