@@ -62,7 +62,7 @@ dependencies = [
     "trafilatura==2.1.0",
     "uvicorn==0.49.0",
     "whitenoise==6.12.0",
-    "pypdf==6.13.0",
+    "pypdf==6.13.3",
     "odfdo==3.22.8",
     "django-solo==2.5.1",
     "tiktoken==0.13.0",
