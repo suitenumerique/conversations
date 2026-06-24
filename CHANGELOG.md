@@ -22,6 +22,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(front) keep the app open when using the contact link
+- 💄(front) use semantic warning color for banner icon
 
 ## [0.0.18] - 2026-06-12
 
