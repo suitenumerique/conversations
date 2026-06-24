@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-12 07:31+0000\n"
-"PO-Revision-Date: 2026-06-12 11:14\n"
+"POT-Creation-Date: 2026-06-23 14:51+0000\n"
+"PO-Revision-Date: 2026-06-24 18:13\n"
 "Last-Translator: \n"
 "Language-Team: English\n"
 "Language: en_US\n"
@@ -243,7 +243,7 @@ msgstr ""
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
 msgstr ""
 
-#: chat/clients/pydantic_ai.py:1004
+#: chat/clients/pydantic_ai.py:1000
 msgid "Internal Documentation of the AI Assistant"
 msgstr ""
 
