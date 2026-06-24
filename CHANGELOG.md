@@ -17,11 +17,11 @@ and this project adheres to
 - 🔧(dependencies) bump backend to Python 3.14 and update pinned dependencies
 - ⬆️(dependencies) update front and mail dependencies
 - ♻️(front) source the home documentation link from config
+- 💄(front) use "L'Assistant" as the default product name
 
 ### Fixed
 
 - 🐛(front) keep the app open when using the contact link
->>>>>>> 0064d5f (🐛(front) fix contact link target and home doc link)
 
 ## [0.0.18] - 2026-06-12
 
