@@ -14,7 +14,7 @@ TaskFactory = Callable[[str], Callable[..., Awaitable[str]]]
 
 
 @dataclass
-class EvalConfig:
+class EvalConfig:  # pylint: disable=too-many-instance-attributes
     """Configuration for a behavioral eval on ConversationAgent."""
 
     name: str

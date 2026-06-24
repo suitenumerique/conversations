@@ -17,8 +17,9 @@ from chat.evals.configs.base import EvalConfig
 from chat.evals.storage import build_run_record, dataset_result_from_report, save_run
 from chat.evals.tool_output import capture_tool_output_from_run
 
-#settings.LLM_DEFAULT_MODEL_HRID = "etalab-plateform-mistral-medium-2508"
-#settings.LANGFUSE_ENABLED = False
+# settings.LLM_DEFAULT_MODEL_HRID = "etalab-plateform-mistral-medium-2508"
+# settings.LANGFUSE_ENABLED = False
+
 
 class _EvalAgent(ConversationAgent):
     """ConversationAgent with tools disabled for isolated eval runs."""

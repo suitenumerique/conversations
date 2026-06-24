@@ -50,7 +50,11 @@ class Command(BaseCommand):
 
         self.stdout.write(format_comparison(comparison))
 
-        if options["fail_on_regression"] and comparison.regressions:
-            raise CommandError(
-                f"{len(comparison.regressions)} regression(s) detected compared to reference run."
-            )
+        if options["fail_on_regression"] and comparison.has_regression_failures:
+            parts: list[str] = []
+            if comparison.regressions:
+                parts.append(f"{len(comparison.regressions)} regression(s)")
+            coverage_only = sum(1 for gap in comparison.coverage_gaps if not gap.before_passed)
+            if coverage_only > 0:
+                parts.append(f"{coverage_only} coverage gap(s)")
+            raise CommandError(f"{' and '.join(parts)} detected compared to reference run.")

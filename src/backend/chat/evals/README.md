@@ -29,6 +29,7 @@ chat/evals/
 ├── baselines/
 │   └── main.json            # pointer to the reference run
 ├── dashboard/
+│   ├── template.html        # dashboard source (HTML/CSS/JS)
 │   └── dashboard.html       # generated comparison UI
 ├── compare.py               # diff two saved runs
 ├── storage.py               # save/load runs and baselines

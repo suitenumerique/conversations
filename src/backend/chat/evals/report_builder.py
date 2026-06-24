@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from statistics import mean
 from typing import Any
@@ -39,10 +40,17 @@ def _case_evaluator_results(case: ReportCase) -> dict[str, tuple[float | None, s
     return results
 
 
+_PASS_SCORE_TOLERANCE = 1e-9
+
+
 def _repeat_passed(evaluator_results: dict[str, tuple[float | None, str | None]]) -> bool:
     if not evaluator_results:
         return True
-    return all(score == 1.0 for score, _ in evaluator_results.values() if score is not None)
+    return all(
+        math.isclose(score, 1.0, rel_tol=0.0, abs_tol=_PASS_SCORE_TOLERANCE)
+        for score, _ in evaluator_results.values()
+        if score is not None
+    )
 
 
 def aggregate_report_cases(
@@ -75,11 +83,7 @@ def aggregate_report_cases(
         avg_scores = {
             name: round(mean(values), 4) for name, values in sorted(evaluator_values.items())
         }
-        reasons = {
-            name: values[-1]
-            for name, values in sorted(evaluator_reasons.items())
-            if values
-        }
+        reasons = {name: values[-1] for name, values in sorted(evaluator_reasons.items()) if values}
         pass_rate = round(mean(1.0 if passed else 0.0 for passed in repeat_pass_flags), 4)
 
         entry: dict[str, Any] = {

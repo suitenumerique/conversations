@@ -719,7 +719,6 @@ class Base(BraveSettings, Configuration):
             "Wrap formulas or any math notation between `\\(...\\)` and `\\[...\\]`, "
             "like `\\(x^2 + y^2 = z^2\\)` for inline formula or `\\[C_l\\]` for display. "
             "You must use Markdown to format your answers except when asked otherwise. "
-            "Never try to guess the answer, if you don't know the answer or cannot find information, say so."
         ),
         environ_name="AI_AGENT_INSTRUCTIONS",
         environ_prefix=None,

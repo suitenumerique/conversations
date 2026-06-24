@@ -20,12 +20,12 @@ from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 from pydantic_evals.evaluators import HasMatchingSpan
 
-from chat.agents.conversation import ConversationAgent
 from chat.evals import EvalInputs
 from chat.evals.configs.base import EvalConfig
-from chat.tools.descriptions import (
-    DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT,
-    DOCUMENT_SEARCH_RAG_TOOL_DESCRIPTION,
+from chat.evals.production_agent import (
+    build_production_agent_service,
+    production_agent_deps,
+    stub_document_search_rag,
 )
 
 _DATASET_PATH = Path(__file__).resolve().parent.parent / "datasets" / "faithfulness_rag.yaml"
@@ -65,53 +65,23 @@ _RAN_RAG_TOOL = HasMatchingSpan(
 )
 
 
-class _FaithfulnessRagAgent(ConversationAgent):
-    """ConversationAgent with a stub ``document_search_rag`` tool (no DB).
-
-    The tool mimics the real RAG tool's name and shape so span checks match, and
-    returns the chunks staged in ``_CURRENT_CHUNKS`` for the current case.
-    """
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        @self.instructions
-        def document_search_rag_instruction() -> str:
-            return DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT
-
-        @self.instructions
-        def attached_documents_note() -> str:
-            return (
-                "[Internal context] User documents are attached to this conversation. "
-                "Use the document_search_rag tool to retrieve passages before answering "
-                "questions about their content. Do not request the documents from the user."
-            )
-
-        @self.tool(name="document_search_rag", description=DOCUMENT_SEARCH_RAG_TOOL_DESCRIPTION)
-        async def document_search_rag(  # pylint: disable=unused-argument
-            ctx: RunContext, query: str
-        ) -> ToolReturn:
-            """Stub RAG search returning the chunks staged for the current eval case.
-
-            Args:
-                ctx (RunContext): The run context.
-                query (str): The query to search the documents for.
-            """
-            chunks = _CURRENT_CHUNKS.get() or "No matching passages were found."
-            return ToolReturn(return_value=json.dumps({"chunks": chunks}))
-
-    def get_tools(self):
-        # Only the stub tool registered above; no DB-backed tools in evals.
-        return []
+async def _stub_document_search_rag(
+    _ctx: RunContext, _query: str, _document_id: str | None = None
+) -> ToolReturn:
+    chunks = _CURRENT_CHUNKS.get() or "No matching passages were found."
+    return ToolReturn(return_value=json.dumps({"chunks": chunks}))
 
 
 def make_faithfulness_rag_task_fn(model_hrid: str):
-    """Build the task function: stage the case's chunks, then run the agent."""
-    agent = _FaithfulnessRagAgent(model_hrid=model_hrid)
+    """Build the task function: production wiring + stub RAG implementation."""
+    service = build_production_agent_service(model_hrid, rag_tools=True)
+    stub_document_search_rag(service, _stub_document_search_rag)
+    agent = service.conversation_agent
+    deps = production_agent_deps(service)
 
     async def run_agent(inputs: EvalInputs) -> str:
         _CURRENT_CHUNKS.set(inputs.tool_output)
-        return (await agent.run(inputs.user_message)).output
+        return (await agent.run(inputs.user_message, deps=deps)).output
 
     return run_agent
 

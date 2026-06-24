@@ -1,45 +1,33 @@
 """Eval config: self_documentation tool call behaviour."""
 
-import json
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
-from pydantic_ai import Tool
 from pydantic_evals.evaluators import HasMatchingSpan
 
-from chat.agents.conversation import ConversationAgent
+from chat.evals import EvalInputs
 from chat.evals.configs.base import EvalConfig
 from chat.evals.evaluators import HasNoMatchingSpan
-from chat.tools.descriptions import SELF_DOCUMENTATION_TOOL_DESCRIPTION
+from chat.evals.production_agent import build_production_agent_service, production_agent_deps
 
 _DATASET_PATH = Path(__file__).resolve().parent.parent / "datasets" / "self_documentation.yaml"
 
 
-def _self_documentation() -> str:
-    """Get information about the AI assistant's identity and capabilities."""
-    return json.dumps(
-        {
-            "self_documentation": "AI assistant for productive work.",
-            "runtime": {
-                "model": {"hrid": "eval", "name": "Eval stub model"},
-                "tools": {"web_search_feature_enabled": False},
-                "attachments": {"max_size_mb": 10},
-            },
-        }
-    )
+def make_self_documentation_task_fn(model_hrid: str):
+    """Build the task function using production agent wiring (stub DB only)."""
+    service = build_production_agent_service(model_hrid)
+    agent = service.conversation_agent
+    deps = production_agent_deps(service)
 
+    async def run_agent(inputs: EvalInputs) -> str:
+        with patch(
+            "chat.tools.self_documentation.load_db_self_documentation",
+            new_callable=AsyncMock,
+            return_value="",
+        ):
+            return (await agent.run(inputs.user_message, deps=deps)).output
 
-class _SelfDocEvalAgent(ConversationAgent):
-    """ConversationAgent with self_documentation tool (no DB) and its instruction."""
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-        @self.instructions
-        def self_documentation_instruction() -> str:
-            return SELF_DOCUMENTATION_TOOL_DESCRIPTION
-
-    def get_tools(self):
-        return [Tool(_self_documentation, name="self_documentation", takes_ctx=False)]
+    return run_agent
 
 
 SELF_DOCUMENTATION = EvalConfig(
@@ -47,6 +35,5 @@ SELF_DOCUMENTATION = EvalConfig(
     dataset_path=_DATASET_PATH,
     llm_judge_rubric=None,
     dataset_evaluator_types=[HasMatchingSpan, HasNoMatchingSpan],
-    enable_tools=True,
-    agent_class=_SelfDocEvalAgent,
+    make_task_fn=make_self_documentation_task_fn,
 )
