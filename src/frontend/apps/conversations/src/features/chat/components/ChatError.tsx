@@ -59,8 +59,14 @@ export const ChatError = ({
               target="_blank"
               rel="noopener noreferrer"
               aria-label={t('Check service status')}
+              style={{
+                color:
+                  'var(--c--contextuals--content--semantic--greyscale--700)',
+                display: 'inline-flex',
+                textDecoration: 'none',
+              }}
             >
-              <Icon iconName="info" $size="1.375rem" $color="greyscale" />
+              <Icon iconName="info" $size="1.375rem" $withThemeInherited />
             </a>
           )}
         </Box>
