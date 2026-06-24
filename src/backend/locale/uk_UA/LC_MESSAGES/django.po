@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-12 07:31+0000\n"
-"PO-Revision-Date: 2026-06-12 11:14\n"
+"POT-Creation-Date: 2026-06-23 14:51+0000\n"
+"PO-Revision-Date: 2026-06-24 18:13\n"
 "Last-Translator: \n"
 "Language-Team: Ukrainian\n"
 "Language: uk_UA\n"
@@ -221,29 +221,29 @@ msgstr "чат-застосунок"
 
 #: chat/assistant_health.py:17
 msgid "High traffic - slowdowns"
-msgstr ""
+msgstr "Високий трафік - сповільнення"
 
 #: chat/assistant_health.py:19
 msgid "The Assistant IA service is currently experiencing high demand. The tool remains operational but may be slower, or you may experience delays between messages."
-msgstr ""
+msgstr "Сервіс Помічника ШІ зараз має високий попит. Інструмент продовжує працювати, але може працювати повільніше, або можуть виникати затримки між повідомленнями."
 
 #: chat/assistant_health.py:26
 msgid "High traffic - degraded service"
-msgstr ""
+msgstr "Високий трафік — погіршена служба"
 
 #: chat/assistant_health.py:28
 msgid "The service is experiencing high demand, which is affecting service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
-msgstr ""
+msgstr "Послуга має високий попит, що впливає на її якість. Деякі функції можуть працювати гірше. Якщо виникла помилка, спробуйте ще раз, щойно це повідомлення про помилку зникне."
 
 #: chat/assistant_health.py:37
 msgid "Service unavailable"
-msgstr ""
+msgstr "Служба недоступна"
 
 #: chat/assistant_health.py:39
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
-msgstr ""
+msgstr "Сервіс наразі недоступний через надмірне навантаження. Команда працює над якомога швидше відновлення роботи Помічника."
 
-#: chat/clients/pydantic_ai.py:1004
+#: chat/clients/pydantic_ai.py:1000
 msgid "Internal Documentation of the AI Assistant"
 msgstr "Внутрішня документація помічника ШІ"
 
@@ -287,7 +287,7 @@ msgstr "Показується всім користувачам зверху д
 
 #: core/admin.py:165
 msgid "Assistant"
-msgstr ""
+msgstr "Помічник"
 
 #: core/admin.py:189
 msgid "The MAINTENANCE_MODE environment variable is set: maintenance is forced ON regardless of the value below."
@@ -455,11 +455,11 @@ msgstr "Якщо встановлено, індикатор прихований
 
 #: core/models.py:256
 msgid "Block chat input on full outage"
-msgstr ""
+msgstr "Блокування вводу чату під час повного збою"
 
 #: core/models.py:259
 msgid "When enabled, the chat input is disabled while all AI models are unavailable. Disable to keep the input active and show a degraded-service warning instead."
-msgstr ""
+msgstr "Якщо ввімкнено, введення в чаті вимкнено, поки всі моделі штучного інтелекту недоступні. Вимкніть, щоб введення залишалося активним і натомість зображалося попередження про погіршення якості обслуговування."
 
 #: core/models.py:277
 msgid "Site Configuration"
