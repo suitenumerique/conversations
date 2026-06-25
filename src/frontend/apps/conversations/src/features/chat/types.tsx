@@ -15,13 +15,10 @@ export interface ChatConversation {
   updated_at: string;
   title?: string;
   project?: ChatConversationProject | null;
-  // True when the conversation's pinned model can't read images and the parent
-  // project has at least one image attachment. Backend-computed on read.
-  project_images_skipped?: boolean;
-  // Filenames of uploaded images across the whole conversation that the pinned
-  // (text-only) model can't read. Backend-computed on read; empty when the model
-  // is multimodal. Drives the conversation-scoped "images ignored" banner.
-  skipped_image_names?: string[];
+  // True when the pinned model can't read images and the conversation has any
+  // image (project or history). Backend-computed on read; drives the soft
+  // "image processing unavailable" banner.
+  images_skipped?: boolean;
 }
 export interface ChatProjectConversation {
   id: string;

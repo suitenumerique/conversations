@@ -109,11 +109,12 @@ export function isContextTrimmedEvent(
 export const IMAGES_SKIPPED_EVENT_TYPE = 'images_skipped' as const;
 export const IMAGE_SKIP_REASON_TEXT_ONLY = 'model_text_only' as const;
 
+export type ImagesSkippedEventKind = 'chat_notice' | 'last_message_marked';
+
 export interface ImagesSkippedEvent {
   type: typeof IMAGES_SKIPPED_EVENT_TYPE;
-  kind: 'user' | 'project' | 'conversation';
+  kind: ImagesSkippedEventKind;
   reason: string;
-  names?: string[];
 }
 
 export function isImagesSkippedEvent(
@@ -125,9 +126,8 @@ export function isImagesSkippedEvent(
     'type' in item &&
     item.type === IMAGES_SKIPPED_EVENT_TYPE &&
     'kind' in item &&
-    ((item as ImagesSkippedEvent).kind === 'user' ||
-      (item as ImagesSkippedEvent).kind === 'project' ||
-      (item as ImagesSkippedEvent).kind === 'conversation')
+    ((item as ImagesSkippedEvent).kind === 'chat_notice' ||
+      (item as ImagesSkippedEvent).kind === 'last_message_marked')
   );
 }
 

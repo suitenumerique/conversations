@@ -148,7 +148,7 @@ def test_explicit_non_default_model_in_request_is_pinned(
 
 @freeze_time(FROZEN)
 @respx.mock
-def test_main_yellow_routes_to_fallback_under_default_threshold(
+def test_main_yellow_stays_on_main_under_default_threshold(
     api_client, mock_openai_stream, hello_conversation_data, health_cache
 ):
     # Default main threshold = "red": a slow main stays on main.
@@ -192,10 +192,10 @@ def test_main_yellow_stays_on_main_when_threshold_raised_to_red(
 
 @freeze_time(FROZEN)
 @respx.mock
-def test_main_red_with_yellow_fb1_skips_to_fb2_under_default_fallback_threshold(
+def test_main_red_with_yellow_fb1_stays_on_fb1_under_default_fallback_threshold(
     api_client, mock_openai_stream, hello_conversation_data, health_cache, settings
 ):
-    # Default fallback threshold = "yellow": a slow fb1 is "good enough"
+    # Default fallback threshold = "red": a slow fb1 is tolerated, the flow stays on fb1.
     settings.LLM_CONFIGURATIONS = {
         **settings.LLM_CONFIGURATIONS,
         "fallback-2": _make_llm("fallback-2", "fb2-llm"),

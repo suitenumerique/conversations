@@ -244,7 +244,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         if self.request.query_params.get("title") or self.action == "post_conversation":
             qs = qs.select_related("project")
 
-        # Avoid an N+1 on the project_images_skipped serializer field: pre-compute
+        # Avoid an N+1 on the images_skipped serializer field: pre-compute
         # the existence check in a single EXISTS subquery for list/retrieve.
         if self.action in ("list", "retrieve") and not self.request.query_params.get("title"):
             qs = qs.annotate(

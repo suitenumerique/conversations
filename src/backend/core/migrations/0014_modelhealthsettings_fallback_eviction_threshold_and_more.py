@@ -2,8 +2,6 @@
 
 from django.db import migrations, models
 
-import core.models
-
 
 class Migration(migrations.Migration):
     dependencies = [
@@ -15,7 +13,7 @@ class Migration(migrations.Migration):
             model_name="modelhealthsettings",
             name="fallback_eviction_threshold",
             field=models.CharField(
-                choices=core.models.eviction_threshold_choices,
+                choices=[("yellow", "Yellow"), ("red", "Red")],
                 default="red",
                 help_text="Minimum fallback-model health to skip to the next fallback. Applied uniformly to fallback 1 and fallback 2. 'yellow' = skip yellow fallbacks (aggressive). 'red' = accept yellow fallbacks, only skip on red.",
                 max_length=10,
@@ -25,7 +23,7 @@ class Migration(migrations.Migration):
             model_name="modelhealthsettings",
             name="main_eviction_threshold",
             field=models.CharField(
-                choices=core.models.eviction_threshold_choices,
+                choices=[("yellow", "Yellow"), ("red", "Red")],
                 default="red",
                 help_text="Minimum main-model health that triggers cascade to a fallback. 'yellow' = cascade on yellow or red (aggressive). 'red' = tolerate yellow on main, only cascade on red.",
                 max_length=10,

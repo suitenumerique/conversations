@@ -6,22 +6,21 @@ import {
 } from '../useChat';
 
 describe('isImagesSkippedEvent', () => {
-  it('accepts a user-kind event', () => {
+  it('accepts a chat_notice event', () => {
     expect(
       isImagesSkippedEvent({
         type: 'images_skipped',
-        kind: 'user',
+        kind: 'chat_notice',
         reason: 'model_text_only',
-        names: ['photo.png'],
       }),
     ).toBe(true);
   });
 
-  it('accepts a project-kind event', () => {
+  it('accepts a last_message_marked event', () => {
     expect(
       isImagesSkippedEvent({
         type: 'images_skipped',
-        kind: 'project',
+        kind: 'last_message_marked',
         reason: 'model_text_only',
       }),
     ).toBe(true);

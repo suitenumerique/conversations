@@ -606,24 +606,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if not model_supports_image:
             image_names = list_images(messages)
             ignored_images += image_names
-            if image_names:
-                # Conversation-scoped banner: every uploaded image in the whole
-                # conversation (history + current turn) is ignored by this
-                # text-only model. `list_images` already spans all messages.
-                self._pre_stream_events.append(
-                    {
-                        "type": IMAGES_SKIPPED_EVENT_TYPE,
-                        "kind": "conversation",
-                        "reason": IMAGE_SKIP_REASON_TEXT_ONLY,
-                        "names": image_names,
-                    }
-                )
             if await project_has_image_attachments(self.conversation.project_id):
                 ignored_images += ["images in the current project"]
+            if ignored_images:
+                # Single chat-wide notice: any image (project or history) is
+                # ignored by this text-only model.
                 self._pre_stream_events.append(
                     {
                         "type": IMAGES_SKIPPED_EVENT_TYPE,
-                        "kind": "project",
+                        "kind": "chat_notice",
                         "reason": IMAGE_SKIP_REASON_TEXT_ONLY,
                     }
                 )
@@ -642,9 +633,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 self._pre_stream_events.append(
                     {
                         "type": IMAGES_SKIPPED_EVENT_TYPE,
-                        "kind": "user",
+                        "kind": "last_message_marked",
                         "reason": IMAGE_SKIP_REASON_TEXT_ONLY,
-                        "names": ignored_images,
                     }
                 )
 

@@ -42,7 +42,7 @@ describe('AttachmentList', () => {
     expect(screen.getByTestId('attachment-skipped-chip')).toBeInTheDocument();
     expect(screen.getByText('screenshot.png')).toBeInTheDocument();
     expect(
-      screen.getByText(/Image not used: the current model can't read images./),
+      screen.getByText(/Image not analyzed. Try again later./),
     ).toBeInTheDocument();
   });
 });

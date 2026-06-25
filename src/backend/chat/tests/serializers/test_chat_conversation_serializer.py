@@ -51,13 +51,13 @@ def llm_configs_fixture(settings):
     }
 
 
-def test_project_images_skipped_false_when_no_project():
+def test_images_skipped_false_when_no_images_and_no_project():
     conversation = ChatConversationFactory(model_hrid="text-only-model")
     data = serializers.ChatConversationSerializer(conversation).data
-    assert data["project_images_skipped"] is False
+    assert data["images_skipped"] is False
 
 
-def test_project_images_skipped_false_when_model_supports_image():
+def test_images_skipped_false_when_model_supports_image():
     project = ChatProjectFactory()
     ChatProjectAttachmentFactory(
         project=project,
@@ -66,13 +66,16 @@ def test_project_images_skipped_false_when_model_supports_image():
         upload_state=AttachmentStatus.READY,
     )
     conversation = ChatConversationFactory(
-        owner=project.owner, project=project, model_hrid="vision-model"
+        owner=project.owner,
+        project=project,
+        model_hrid="vision-model",
+        messages=[_image_message("sample.png")],
     )
     data = serializers.ChatConversationSerializer(conversation).data
-    assert data["project_images_skipped"] is False
+    assert data["images_skipped"] is False
 
 
-def test_project_images_skipped_false_when_no_pinned_model():
+def test_images_skipped_false_when_no_pinned_model():
     project = ChatProjectFactory()
     ChatProjectAttachmentFactory(
         project=project,
@@ -80,12 +83,17 @@ def test_project_images_skipped_false_when_no_pinned_model():
         content_type="image/png",
         upload_state=AttachmentStatus.READY,
     )
-    conversation = ChatConversationFactory(owner=project.owner, project=project, model_hrid="")
+    conversation = ChatConversationFactory(
+        owner=project.owner,
+        project=project,
+        model_hrid="",
+        messages=[_image_message("sample.png")],
+    )
     data = serializers.ChatConversationSerializer(conversation).data
-    assert data["project_images_skipped"] is False
+    assert data["images_skipped"] is False
 
 
-def test_project_images_skipped_true_for_text_model_with_project_images():
+def test_images_skipped_true_for_text_model_with_project_images():
     project = ChatProjectFactory()
     ChatProjectAttachmentFactory(
         project=project,
@@ -97,10 +105,19 @@ def test_project_images_skipped_true_for_text_model_with_project_images():
         owner=project.owner, project=project, model_hrid="text-only-model"
     )
     data = serializers.ChatConversationSerializer(conversation).data
-    assert data["project_images_skipped"] is True
+    assert data["images_skipped"] is True
 
 
-def test_project_images_skipped_false_for_text_model_with_only_text_attachments():
+def test_images_skipped_true_for_text_model_with_history_images_no_project():
+    conversation = ChatConversationFactory(
+        model_hrid="text-only-model",
+        messages=[_image_message("sample.png")],
+    )
+    data = serializers.ChatConversationSerializer(conversation).data
+    assert data["images_skipped"] is True
+
+
+def test_images_skipped_false_for_text_model_with_only_text_attachments():
     project = ChatProjectFactory()
     ChatProjectAttachmentFactory(
         project=project,
@@ -112,10 +129,10 @@ def test_project_images_skipped_false_for_text_model_with_only_text_attachments(
         owner=project.owner, project=project, model_hrid="text-only-model"
     )
     data = serializers.ChatConversationSerializer(conversation).data
-    assert data["project_images_skipped"] is False
+    assert data["images_skipped"] is False
 
 
-def test_project_images_skipped_ignores_non_ready_attachments():
+def test_images_skipped_ignores_non_ready_project_attachments():
     project = ChatProjectFactory()
     ChatProjectAttachmentFactory(
         project=project,
@@ -127,33 +144,4 @@ def test_project_images_skipped_ignores_non_ready_attachments():
         owner=project.owner, project=project, model_hrid="text-only-model"
     )
     data = serializers.ChatConversationSerializer(conversation).data
-    assert data["project_images_skipped"] is False
-
-
-def test_skipped_image_names_lists_images_for_text_only_model():
-    conversation = ChatConversationFactory(
-        model_hrid="text-only-model",
-        messages=[_image_message("sample.png"), _image_message("scan.jpg", msg_id="2")],
-    )
-    data = serializers.ChatConversationSerializer(conversation).data
-    assert data["skipped_image_names"] == ["sample.png", "scan.jpg"]
-
-
-def test_skipped_image_names_empty_for_vision_model():
-    conversation = ChatConversationFactory(
-        model_hrid="vision-model", messages=[_image_message("sample.png")]
-    )
-    data = serializers.ChatConversationSerializer(conversation).data
-    assert data["skipped_image_names"] == []
-
-
-def test_skipped_image_names_empty_without_pinned_model():
-    conversation = ChatConversationFactory(model_hrid="", messages=[_image_message("sample.png")])
-    data = serializers.ChatConversationSerializer(conversation).data
-    assert data["skipped_image_names"] == []
-
-
-def test_skipped_image_names_empty_without_images():
-    conversation = ChatConversationFactory(model_hrid="text-only-model")
-    data = serializers.ChatConversationSerializer(conversation).data
-    assert data["skipped_image_names"] == []
+    assert data["images_skipped"] is False

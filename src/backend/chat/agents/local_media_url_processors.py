@@ -226,7 +226,7 @@ async def project_has_image_attachments(project_id) -> bool:
     """Return True if the project has at least one READY image attachment.
 
     Mirrors the filter used by ``build_project_image_urls`` and the
-    serializer's ``project_images_skipped`` check. Existence-only so the cost
+    serializer's ``images_skipped`` check. Existence-only so the cost
     stays flat regardless of how many images the project has.
     """
     if not project_id:

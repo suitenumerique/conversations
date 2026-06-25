@@ -347,12 +347,10 @@ class MaintenanceMode(SingletonModel):
         verbose_name = _("Maintenance Mode")
 
 
-def eviction_threshold_choices():
-    """Selectable cascade-eviction thresholds, derived from chat.models.ModelHealth.Status."""
-    # Local import dodges the core -> chat import cycle at module load.
-    from chat.models import ModelHealth  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
-
-    return [(s.value, s.label) for s in ModelHealth.Status if s != ModelHealth.Status.GREEN]
+# Selectable cascade-eviction thresholds. Kept inline (rather than derived from
+# chat.models.ModelHealth.Status) to avoid a core -> chat import cycle and to
+# match the frozen choices in migration 0014.
+EVICTION_THRESHOLD_CHOICES = [("yellow", "Yellow"), ("red", "Red")]
 
 
 class ModelHealthSettings(SingletonModel):
@@ -365,7 +363,7 @@ class ModelHealthSettings(SingletonModel):
 
     main_eviction_threshold = models.CharField(
         max_length=10,
-        choices=eviction_threshold_choices,
+        choices=EVICTION_THRESHOLD_CHOICES,
         default="red",
         help_text=(
             "Minimum main-model health that triggers cascade to a fallback. "
@@ -376,7 +374,7 @@ class ModelHealthSettings(SingletonModel):
 
     fallback_eviction_threshold = models.CharField(
         max_length=10,
-        choices=eviction_threshold_choices,
+        choices=EVICTION_THRESHOLD_CHOICES,
         default="red",
         help_text=(
             "Minimum fallback-model health to skip to the next fallback. "

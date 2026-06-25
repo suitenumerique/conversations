@@ -142,7 +142,7 @@ export const AttachmentList = ({
                 $color="var(--c--contextuals--content--semantic--warning--primary)"
                 $css="max-width: 200px; text-align: right;"
               >
-                {t("Image not used: the current model can't read images.")}
+                {t('Image not analyzed. Try again later.')}
               </Text>
             )}
           </Box>

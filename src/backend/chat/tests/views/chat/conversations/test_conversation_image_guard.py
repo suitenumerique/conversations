@@ -121,7 +121,7 @@ def _run_turn(api_client, mock_ai_agent_service, conversation, message, model):
             format="json",
         )
     assert response.status_code == status.HTTP_200_OK
-    b"".join(response.streaming_content)  # drain
+    _ = b"".join(response.streaming_content)  # drain
     return response
 
 
@@ -360,10 +360,10 @@ def test_switch_text_only_to_vision_reads_project_image(
     assert UNREADABLE_MARKER not in captured2["instructions"]
 
 
-def test_conversation_event_lists_all_images_for_text_only_model(
+def test_chat_notice_event_emitted_for_text_only_model(
     api_client, mock_ai_agent_service, text_only_llm
 ):
-    """A text-only turn emits an images_skipped kind=conversation event naming every image."""
+    """A text-only turn emits a single images_skipped kind=chat_notice event."""
     chat_conversation = ChatConversationFactory(owner__language="en-us", model_hrid="default-model")
     api_client.force_login(chat_conversation.owner)
 
@@ -382,13 +382,13 @@ def test_conversation_event_lists_all_images_for_text_only_model(
     assert response.status_code == status.HTTP_200_OK
     content = b"".join(response.streaming_content)
 
-    events = _images_skipped_events(content, kind="conversation")
+    events = _images_skipped_events(content, kind="chat_notice")
     assert len(events) == 1
-    assert events[0]["names"] == ["sample.png"]
+    assert "names" not in events[0]
 
 
-def test_no_conversation_event_for_image_capable_model(api_client, mock_ai_agent_service, settings):
-    """A vision-capable model emits no images_skipped kind=conversation event."""
+def test_no_chat_notice_event_for_image_capable_model(api_client, mock_ai_agent_service, settings):
+    """A vision-capable model emits no images_skipped kind=chat_notice event."""
     _configure_model(settings, supports_image=True)
     chat_conversation = ChatConversationFactory(owner__language="en-us", model_hrid="default-model")
     api_client.force_login(chat_conversation.owner)
@@ -408,13 +408,13 @@ def test_no_conversation_event_for_image_capable_model(api_client, mock_ai_agent
     assert response.status_code == status.HTTP_200_OK
     content = b"".join(response.streaming_content)
 
-    assert not _images_skipped_events(content, kind="conversation")
+    assert not _images_skipped_events(content, kind="chat_notice")
 
 
-def test_user_skip_event_emitted_for_text_only_model(
+def test_last_message_marked_event_emitted_for_text_only_model(
     api_client, mock_ai_agent_service, text_only_llm
 ):
-    """A text-only turn emits the kind="user" strike event (named after the upload)."""
+    """A text-only turn emits kind=last_message_marked (no names payload)."""
     chat_conversation = ChatConversationFactory(owner__language="en-us", model_hrid="default-model")
     api_client.force_login(chat_conversation.owner)
 
@@ -433,13 +433,15 @@ def test_user_skip_event_emitted_for_text_only_model(
     assert response.status_code == status.HTTP_200_OK
     content = b"".join(response.streaming_content)
 
-    user_events = _images_skipped_events(content, kind="user")
+    user_events = _images_skipped_events(content, kind="last_message_marked")
     assert len(user_events) == 1
-    assert user_events[0]["names"] == ["sample.png"]
+    assert "names" not in user_events[0]
 
 
-def test_no_user_skip_event_for_image_capable_model(api_client, mock_ai_agent_service, settings):
-    """A vision-capable model emits no kind="user" strike event."""
+def test_no_last_message_marked_event_for_image_capable_model(
+    api_client, mock_ai_agent_service, settings
+):
+    """A vision-capable model emits no kind=last_message_marked event."""
     _configure_model(settings, supports_image=True)
     chat_conversation = ChatConversationFactory(owner__language="en-us", model_hrid="default-model")
     api_client.force_login(chat_conversation.owner)
@@ -459,4 +461,4 @@ def test_no_user_skip_event_for_image_capable_model(api_client, mock_ai_agent_se
     assert response.status_code == status.HTTP_200_OK
     content = b"".join(response.streaming_content)
 
-    assert not _images_skipped_events(content, kind="user")
+    assert not _images_skipped_events(content, kind="last_message_marked")
