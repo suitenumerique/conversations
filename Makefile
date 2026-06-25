@@ -138,8 +138,12 @@ logs: ## display app-dev logs (follow mode)
 .PHONY: logs
 
 run-backend: ## Start only the backend application and all needed services
-	@$(COMPOSE) up --force-recreate -d nginx app-dev
+	@$(COMPOSE) up --force-recreate -d nginx app-dev celery-dev
 .PHONY: run-backend
+
+run-celery: ## Start only the celery worker
+	@$(COMPOSE) up --force-recreate -d celery-dev
+.PHONY: run-celery
 
 run-frontend: ## Start only the frontend application
 	@$(COMPOSE) up --force-recreate -d frontend-development
