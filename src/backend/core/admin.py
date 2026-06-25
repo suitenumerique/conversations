@@ -3,6 +3,7 @@
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.auth import admin as auth_admin
+from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
 from solo.admin import SingletonModelAdmin
@@ -122,6 +123,22 @@ class UserAdmin(auth_admin.UserAdmin):
 @admin.register(models.ModelHealthSettings)
 class ModelHealthSettingsAdmin(SingletonModelAdmin):
     """Admin for the ModelHealthSettings singleton."""
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Local import: core -> chat would be a startup cycle.
+        from chat.model_health import (  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
+            set_fallback_eviction_threshold,
+            set_main_eviction_threshold,
+        )
+
+        # Defer cache writes until the admin's atomic block commits, so a
+        # later rollback in the same request can't leave the cache pointing
+        # at a value that was never durably saved.
+        main_value = obj.main_eviction_threshold
+        fallback_value = obj.fallback_eviction_threshold
+        transaction.on_commit(lambda: set_main_eviction_threshold(main_value))
+        transaction.on_commit(lambda: set_fallback_eviction_threshold(fallback_value))
 
 
 @admin.register(models.ChatCooldownSettings)

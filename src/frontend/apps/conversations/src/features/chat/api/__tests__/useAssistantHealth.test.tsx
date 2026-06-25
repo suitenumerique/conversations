@@ -48,7 +48,10 @@ describe('useAssistantHealth', () => {
     await waitFor(() => expect(result.current.data).toBeDefined());
 
     // fail-open: queryFn catches the error and returns FALLBACK
-    expect(result.current.data).toEqual({ banners: [], blocked: false });
+    expect(result.current.data).toEqual({
+      banners: [],
+      blocked: false,
+    });
   });
 
   it('returns empty banners and blocked=false on malformed JSON', async () => {
@@ -65,7 +68,10 @@ describe('useAssistantHealth', () => {
     await waitFor(() => expect(result.current.data).toBeDefined());
 
     // fail-open: JSON parse error is caught and falls back to FALLBACK
-    expect(result.current.data).toEqual({ banners: [], blocked: false });
+    expect(result.current.data).toEqual({
+      banners: [],
+      blocked: false,
+    });
   });
 
   it('returns blocked=true when API signals blocked', async () => {

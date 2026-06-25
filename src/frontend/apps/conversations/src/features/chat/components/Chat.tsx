@@ -17,7 +17,12 @@ import { APIError, errorCauses, fetchAPI } from '@/api';
 import { Box, Icon, Loader, Text } from '@/components';
 import { useConfig } from '@/core';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
-import { isContextTrimmedEvent, useChat } from '@/features/chat/api/useChat';
+import {
+  isContextTrimmedEvent,
+  isImagesSkippedEvent,
+  stampImagesSkippedOnLatestUserMessage,
+  useChat,
+} from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
 import { useCreateChatConversation } from '@/features/chat/api/useCreateConversation';
 import {
@@ -29,6 +34,7 @@ import {
   ProjectsResponse,
 } from '@/features/chat/api/useProjects';
 import { ChatError, ChatErrorType } from '@/features/chat/components/ChatError';
+import { ImageProcessingUnavailableBanner } from '@/features/chat/components/ImageProcessingUnavailableBanner';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { MessageItem } from '@/features/chat/components/MessageItem';
 import {
@@ -52,6 +58,11 @@ const PROVIDER_ERROR_CODES = new Set<ChatErrorType>([
   'model_wrong_type',
   'model_busy',
 ]);
+
+const IMAGES_BANNER_STORAGE_PREFIX = 'conversations:images-banner-dismissed:';
+
+const imagesBannerStorageKey = (conversationId: string) =>
+  `${IMAGES_BANNER_STORAGE_PREFIX}${conversationId}`;
 
 // Define Attachment type locally (mirroring backend structure)
 export interface Attachment {
@@ -165,6 +176,12 @@ export const Chat = ({
 
   const [initialConversationMessages, setInitialConversationMessages] =
     useState<Message[] | undefined>(undefined);
+  // True when the pinned model is text-only and any image exists in the
+  // conversation (project or history). Drives the "image processing
+  // unavailable" banner above the input box.
+  const [imagesSkipped, setImagesSkipped] = useState<boolean>(false);
+  const [imagesBannerDismissed, setImagesBannerDismissed] =
+    useState<boolean>(false);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
     event: FormEvent<HTMLFormElement>;
     attachments?: Attachment[];
@@ -631,11 +648,39 @@ export const Chat = ({
     if (data.some(isContextTrimmedEvent)) {
       setContextTrimmed(true);
     }
-  }, [data]);
+    if (
+      data.some(
+        (item) => isImagesSkippedEvent(item) && item.kind === 'chat_notice',
+      )
+    ) {
+      setImagesSkipped(true);
+    }
+    if (
+      data.some(
+        (item) =>
+          isImagesSkippedEvent(item) && item.kind === 'last_message_marked',
+      )
+    ) {
+      setMessages(stampImagesSkippedOnLatestUserMessage);
+    }
+  }, [data, setMessages]);
 
   // Fetch initial conversation messages if initialConversationId is provided and no pending input
   useEffect(() => {
     hasScrolledToBottomOnLoadRef.current = false; // Réinitialiser au début du chargement
+    setImagesSkipped(false);
+    let dismissedFromStorage = false;
+    if (initialConversationId && typeof window !== 'undefined') {
+      try {
+        dismissedFromStorage =
+          window.localStorage.getItem(
+            imagesBannerStorageKey(initialConversationId),
+          ) === '1';
+      } catch {
+        // localStorage unavailable (privacy mode, sandboxed iframe, etc.) — treat as not dismissed.
+      }
+    }
+    setImagesBannerDismissed(dismissedFromStorage);
     let ignore = false;
     async function fetchInitialMessages() {
       if (initialConversationId && !pendingInput) {
@@ -645,6 +690,7 @@ export const Chat = ({
           });
           if (!ignore) {
             setInitialConversationMessages(conversation.messages);
+            setImagesSkipped(conversation.images_skipped ?? false);
             setHasInitialized(true);
           }
         } catch {
@@ -662,6 +708,22 @@ export const Chat = ({
     };
     // Only run when initialConversationId or pendingInput changes
   }, [initialConversationId, pendingInput]);
+
+  const dismissImagesBanner = useCallback(() => {
+    setImagesBannerDismissed(true);
+    if (typeof window !== 'undefined' && conversationId) {
+      try {
+        window.localStorage.setItem(
+          imagesBannerStorageKey(conversationId),
+          '1',
+        );
+      } catch {
+        // localStorage unavailable — in-memory dismissal still holds for this session.
+      }
+    }
+  }, [conversationId]);
+
+  const showImagesBanner = imagesSkipped && !imagesBannerDismissed;
 
   useEffect(() => {
     if (
@@ -959,11 +1021,14 @@ export const Chat = ({
           background-color: var(--c--contextuals--background--surface--secondary);
           z-index: 1000;
         `}
-        $gap="6px"
+        $gap="0"
         $height="auto"
         $width="100%"
         $margin={{ all: 'auto', top: 'base' }}
       >
+        {showImagesBanner && (
+          <ImageProcessingUnavailableBanner onDismiss={dismissImagesBanner} />
+        )}
         <InputChat
           messagesLength={messages.length}
           input={input}

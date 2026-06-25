@@ -94,11 +94,16 @@ class Attachment(BaseModel):
         name: Optional name of the attachment, usually the filename.
         contentType: Optional MIME type of the attachment.
         url: The URL of the attachment, can be a hosted URL or Data URL.
+        skipped: Optional marker stamped by the backend when this attachment was
+            kept on the persisted message but excluded from what the model saw,
+            e.g. an image attached to a chat now pinned to a text-only model.
+            Shape: ``{"reason": "<short_code>"}``.
     """
 
     name: Optional[str] = None
     contentType: Optional[str] = None
     url: str
+    skipped: Optional[Dict[str, Any]] = None
 
 
 # Reasoning details

@@ -8,7 +8,10 @@ export interface AssistantHealthResponse {
   blocked: boolean;
 }
 
-const FALLBACK: AssistantHealthResponse = { banners: [], blocked: false };
+const FALLBACK: AssistantHealthResponse = {
+  banners: [],
+  blocked: false,
+};
 
 const getAssistantHealth = async (): Promise<AssistantHealthResponse> => {
   try {

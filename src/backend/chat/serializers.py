@@ -15,6 +15,7 @@ from core.file_upload.utils import generate_upload_policy
 
 from chat import models
 from chat.ai_sdk_types import UIMessage
+from chat.constants import IMAGE_MIME_PREFIX
 
 
 class ChatConversationSerializer(serializers.ModelSerializer):
@@ -22,11 +23,68 @@ class ChatConversationSerializer(serializers.ModelSerializer):
 
     owner = serializers.HiddenField(default=serializers.CurrentUserDefault())
     messages = SchemaField(schema=list[UIMessage], read_only=True)
+    images_skipped = serializers.SerializerMethodField(
+        help_text=(
+            "True when the conversation's pinned model can't read images and the"
+            " conversation has at least one image — either in the parent project"
+            " or anywhere in the message history. The frontend surfaces a soft"
+            " banner so the user knows uploaded images are not being used by the"
+            " current model."
+        ),
+    )
 
     class Meta:  # pylint: disable=missing-class-docstring
         model = models.ChatConversation
-        fields = ["id", "title", "created_at", "updated_at", "messages", "owner", "project"]
-        read_only_fields = ["id", "created_at", "updated_at", "messages"]
+        fields = [
+            "id",
+            "title",
+            "created_at",
+            "updated_at",
+            "messages",
+            "owner",
+            "project",
+            "images_skipped",
+        ]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+            "messages",
+            "images_skipped",
+        ]
+
+    @staticmethod
+    @extend_schema_field(serializers.BooleanField)
+    def get_images_skipped(obj) -> bool:
+        """True iff the pinned model is text-only and any image exists in the conversation."""
+        if not obj.model_hrid:
+            return False
+        model_config = settings.LLM_CONFIGURATIONS.get(obj.model_hrid)
+        if not model_config or model_config.supports_image:
+            return False
+        # Project side: list/retrieve views pre-compute this via an EXISTS
+        # annotation to avoid an N+1; fall back to a per-row query otherwise.
+        if obj.project_id is not None:
+            cached = getattr(obj, "_has_project_image", None)
+            has_project_image = (
+                cached
+                if cached is not None
+                else models.ChatConversationAttachment.objects.filter(
+                    project_id=obj.project_id,
+                    content_type__startswith=IMAGE_MIME_PREFIX,
+                    upload_state=AttachmentStatus.READY,
+                ).exists()
+            )
+            if has_project_image:
+                return True
+        # History side: short-circuit on the first image found in the messages.
+        # Local import: the client module pulls heavy LLM deps we don't want at
+        # serializer import time.
+        from chat.clients.pydantic_ai import (  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
+            iter_image_attachments,
+        )
+
+        return any(True for _ in iter_image_attachments(obj.messages))
 
     def validate_project(self, project):
         """Ensure the project belongs to the current user."""
@@ -137,6 +195,11 @@ class LLModelSerializer(serializers.Serializer):  # pylint: disable=abstract-met
         help_text="Indicates if the model is active and available for selection.",
         required=False,
         default=True,
+    )
+    supports_image = serializers.BooleanField(
+        help_text="Whether the model can accept image inputs (multimodal).",
+        required=False,
+        default=False,
     )
 
     # Computed field to indicate if the model is the default model

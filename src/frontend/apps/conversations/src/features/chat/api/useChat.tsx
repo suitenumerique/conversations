@@ -1,4 +1,5 @@
 import { UseChatOptions, useChat as useAiSdkChat } from '@ai-sdk/react';
+import { Message } from '@ai-sdk/ui-utils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
@@ -99,6 +100,69 @@ export function isContextTrimmedEvent(
     'type' in item &&
     item.type === 'context_trimmed'
   );
+}
+
+// Stream-protocol contract with the backend. Mirrored in
+// ``pydantic_ai.py`` (``IMAGES_SKIPPED_EVENT_TYPE`` /
+// ``IMAGE_SKIP_REASON_TEXT_ONLY``). Keep both sides in sync when adding new
+// reasons or events.
+export const IMAGES_SKIPPED_EVENT_TYPE = 'images_skipped' as const;
+export const IMAGE_SKIP_REASON_TEXT_ONLY = 'model_text_only' as const;
+
+export type ImagesSkippedEventKind = 'chat_notice' | 'last_message_marked';
+
+export interface ImagesSkippedEvent {
+  type: typeof IMAGES_SKIPPED_EVENT_TYPE;
+  kind: ImagesSkippedEventKind;
+  reason: string;
+}
+
+export function isImagesSkippedEvent(
+  item: unknown,
+): item is ImagesSkippedEvent {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    'type' in item &&
+    item.type === IMAGES_SKIPPED_EVENT_TYPE &&
+    'kind' in item &&
+    ((item as ImagesSkippedEvent).kind === 'chat_notice' ||
+      (item as ImagesSkippedEvent).kind === 'last_message_marked')
+  );
+}
+
+/**
+ * Stamp `skipped: { reason: <IMAGE_SKIP_REASON_TEXT_ONLY> }` on every image-like
+ * attachment of the latest user message, returning the same array reference
+ * when nothing changed. Used to mark optimistic attachments live when the
+ * backend signals it skipped them (mirroring the persisted-state behaviour).
+ */
+export function stampImagesSkippedOnLatestUserMessage(
+  prevMessages: Message[],
+): Message[] {
+  const lastUserIdx = prevMessages.findLastIndex((m) => m.role === 'user');
+  if (lastUserIdx === -1) return prevMessages;
+  const lastUser = prevMessages[lastUserIdx];
+  const attachments = lastUser.experimental_attachments;
+  if (!attachments || attachments.length === 0) return prevMessages;
+  let mutated = false;
+  const updated = attachments.map((att) => {
+    if (
+      att.contentType?.startsWith('image/') &&
+      !(att as { skipped?: unknown }).skipped
+    ) {
+      mutated = true;
+      return { ...att, skipped: { reason: IMAGE_SKIP_REASON_TEXT_ONLY } };
+    }
+    return att;
+  });
+  if (!mutated) return prevMessages;
+  const next = [...prevMessages];
+  next[lastUserIdx] = {
+    ...lastUser,
+    experimental_attachments: updated,
+  };
+  return next;
 }
 
 export function useChat(options: Omit<UseChatOptions, 'fetch'>) {

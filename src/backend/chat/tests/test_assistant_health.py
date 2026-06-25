@@ -51,7 +51,7 @@ def _patch_health(main=None, fb1=None, fb2=None):
         "gpt-mini": fb2,
     }
     return patch(
-        "chat.assistant_health.get_model_health",
+        "chat.model_health.get_model_health",
         side_effect=lambda provider, model_id: mapping.get(model_id),
     )
 
@@ -97,6 +97,7 @@ def test_main_red_fb1_green_slow_banner(settings, llm_configs):
 # --- main yellow → degraded (never blocked) ---------------------------------
 
 
+@pytest.mark.django_db
 def test_main_yellow_fb_yellow_degraded(settings, llm_configs):
     settings.LLM_FALLBACK_MODEL_HRID_1 = "fallback-1"
     with _patch_health(main="yellow", fb1="yellow"):
@@ -117,6 +118,7 @@ def test_main_yellow_no_fallback_degraded(settings):
     assert result["blocked"] is False
 
 
+@pytest.mark.django_db
 def test_main_yellow_fb1_none_degraded(settings, llm_configs):
     # Cache miss (None) on fb1 is optimistic: not down → degraded.
     settings.LLM_FALLBACK_MODEL_HRID_1 = "fallback-1"
@@ -131,6 +133,7 @@ def test_main_yellow_fb1_none_degraded(settings, llm_configs):
 # --- main red → degraded ----------------------------------------------------
 
 
+@pytest.mark.django_db
 def test_main_red_fb_yellow_degraded(settings, llm_configs):
     settings.LLM_FALLBACK_MODEL_HRID_1 = "fallback-1"
     with _patch_health(main="red", fb1="yellow"):
@@ -141,6 +144,7 @@ def test_main_red_fb_yellow_degraded(settings, llm_configs):
     assert result["blocked"] is False
 
 
+@pytest.mark.django_db
 def test_main_red_fb1_red_fb2_green_degraded(settings, llm_configs):
     # fb2=green does NOT trigger slow banner — only fb1=green does.
     settings.LLM_FALLBACK_MODEL_HRID_1 = "fallback-1"
@@ -153,6 +157,7 @@ def test_main_red_fb1_red_fb2_green_degraded(settings, llm_configs):
     assert result["blocked"] is False
 
 
+@pytest.mark.django_db
 def test_main_red_fb1_red_fb2_yellow_degraded(settings, llm_configs):
     settings.LLM_FALLBACK_MODEL_HRID_1 = "fallback-1"
     settings.LLM_FALLBACK_MODEL_HRID_2 = "fallback-2"
@@ -164,6 +169,7 @@ def test_main_red_fb1_red_fb2_yellow_degraded(settings, llm_configs):
     assert result["blocked"] is False
 
 
+@pytest.mark.django_db
 def test_main_red_fb1_none_degraded(settings, llm_configs):
     # Cache miss (None) on fb1 is optimistic: not down → degraded, not blocked.
     settings.LLM_FALLBACK_MODEL_HRID_1 = "fallback-1"
@@ -179,6 +185,7 @@ def test_main_red_fb1_none_degraded(settings, llm_configs):
 # --- main red + all fallbacks down → unavailable (blocked) ------------------
 
 
+@pytest.mark.django_db
 def test_main_red_fb1_red_unavailable(settings, llm_configs):
     # fb1=red, fb2="" (not configured) → all_down=True → unavailable.
     settings.LLM_FALLBACK_MODEL_HRID_1 = "fallback-1"
@@ -208,6 +215,7 @@ def test_main_red_no_fallback_degraded_when_block_disabled(settings, patch_site_
     assert "degraded" in result["banners"][0]["title"].lower()
 
 
+@pytest.mark.django_db
 def test_main_red_both_fallbacks_red_unavailable(settings, llm_configs):
     settings.LLM_FALLBACK_MODEL_HRID_1 = "fallback-1"
     settings.LLM_FALLBACK_MODEL_HRID_2 = "fallback-2"
@@ -273,7 +281,7 @@ def test_main_hrid_with_no_explicit_provider(settings):
     settings.LLM_DEFAULT_MODEL_HRID = "no-provider-model"
     settings.LLM_CONFIGURATIONS = {"no-provider-model": model}
 
-    with patch("chat.assistant_health.get_model_health", return_value="yellow") as mock_health:
+    with patch("chat.model_health.get_model_health", return_value="yellow") as mock_health:
         result = compute_assistant_health_banners()
 
     mock_health.assert_called_once_with("openai", "gpt-4o")
@@ -291,7 +299,7 @@ def test_main_hrid_with_no_explicit_provider_no_colon(settings):
     settings.LLM_DEFAULT_MODEL_HRID = "no-provider-model"
     settings.LLM_CONFIGURATIONS = {"no-provider-model": model}
 
-    with patch("chat.assistant_health.get_model_health") as mock_health:
+    with patch("chat.model_health.get_model_health") as mock_health:
         result = compute_assistant_health_banners()
 
     mock_health.assert_not_called()

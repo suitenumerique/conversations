@@ -58,7 +58,9 @@ def test_assistant_health_no_banners(authenticated_client):
     cache.set(MAIN_KEY, "green")
     response = authenticated_client.get(reverse("assistant-health"))
     assert response.status_code == 200
-    assert response.json() == {"banners": [], "blocked": False}
+    data = response.json()
+    assert data["banners"] == []
+    assert data["blocked"] is False
 
 
 @pytest.mark.django_db
@@ -93,7 +95,7 @@ def test_assistant_health_only_get_allowed(authenticated_client):
 
 @pytest.mark.django_db
 def test_assistant_health_response_schema(authenticated_client, settings):
-    # Unknown HRID → _get_status_for_hrid returns None → no banners, no cache needed
+    # Unknown HRID → get_status_for_hrid returns None → no banners, no cache needed
     settings.LLM_DEFAULT_MODEL_HRID = "nonexistent"
     settings.LLM_CONFIGURATIONS = {}
     response = authenticated_client.get(reverse("assistant-health"))
@@ -101,3 +103,4 @@ def test_assistant_health_response_schema(authenticated_client, settings):
     data = response.json()
     assert isinstance(data["banners"], list)
     assert isinstance(data["blocked"], bool)
+    assert set(data.keys()) == {"banners", "blocked"}
