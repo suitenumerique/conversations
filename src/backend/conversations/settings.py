@@ -1122,6 +1122,27 @@ USER QUESTION:
         default=55, environ_name="KEEPALIVE_INTERVAL", environ_prefix=None
     )
 
+    # Celery
+    # Broker uses Redis db 0 to avoid colliding with the cache (db 1 in production,
+    # db 2 in development).
+    CELERY_BROKER_URL = values.Value(
+        "redis://redis:6379/0", environ_name="CELERY_BROKER_URL", environ_prefix=None
+    )
+    # Broker-specific tuning passed through to the Redis transport (e.g. visibility_timeout).
+    # Empty means defaults; raise visibility_timeout if any task can run longer than 1h.
+    CELERY_BROKER_TRANSPORT_OPTIONS = values.DictValue(
+        {},
+        environ_name="CELERY_BROKER_TRANSPORT_OPTIONS",
+        environ_prefix=None,
+    )
+    # Maps task names to queues (e.g. {"chat.tasks.*": {"queue": "heavy"}}) so heavy and
+    # fast tasks can run on separate workers. Empty means everything uses the default queue.
+    CELERY_TASK_ROUTES = values.DictValue(
+        {},
+        environ_name="CELERY_TASK_ROUTES",
+        environ_prefix=None,
+    )
+
     # pylint: disable=invalid-name
     @property
     def ENVIRONMENT(self):
@@ -1355,6 +1376,9 @@ class Test(Base):
     # Static files are not used in the test environment
     # Tests are raising warnings because the /data/static directory does not exist
     STATIC_ROOT = None
+
+    # Run celery tasks synchronously in tests, without a broker.
+    CELERY_TASK_ALWAYS_EAGER = True
 
     os.environ["OPENAI_AGENTS_DISABLE_TRACING"] = "true"
 
