@@ -1142,6 +1142,20 @@ USER QUESTION:
         environ_name="CELERY_TASK_ROUTES",
         environ_prefix=None,
     )
+    # Per-task wall-clock budget. The soft limit raises SoftTimeLimitExceeded, which the
+    # parse path catches and records as a visible FAILED state; the hard limit SIGKILLs the
+    # worker child (prefork pool) so a runaway or malicious parse (zip bomb, entity blowup)
+    # can't pin a worker indefinitely or grow memory unbounded. Eager mode ignores both.
+    CELERY_TASK_SOFT_TIME_LIMIT = values.IntegerValue(
+        180,
+        environ_name="CELERY_TASK_SOFT_TIME_LIMIT",
+        environ_prefix=None,
+    )
+    CELERY_TASK_TIME_LIMIT = values.IntegerValue(
+        300,
+        environ_name="CELERY_TASK_TIME_LIMIT",
+        environ_prefix=None,
+    )
 
     # pylint: disable=invalid-name
     @property

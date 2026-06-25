@@ -38,6 +38,7 @@ from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX
+from chat.enums import AttachmentIndexState
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.model_routing import resolve_effective_model_hrid
 from chat.rate_limiting import ChatCooldownThrottle, get_cooldown_remaining
@@ -332,6 +333,21 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         )
 
         conversation = self.get_object()
+
+        # Backstop the frontend gate: a project file still indexing isn't in the
+        # RAG collection yet, so answering now would silently ignore it. Refuse
+        # the message until indexing settles (the frontend blocks send too).
+        if (
+            conversation.project_id
+            and models.ChatConversationAttachment.objects.filter(
+                project_id=conversation.project_id,
+                index_state=AttachmentIndexState.INDEXING,
+            ).exists()
+        ):
+            return Response(
+                {"error": "project_files_indexing"},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         serializer = self.get_serializer(data=request.data)
         try:

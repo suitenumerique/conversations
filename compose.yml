@@ -140,7 +140,7 @@ services:
 
   frontend-development:
     user: "${DOCKER_USER:-1000}"
-    build: 
+    build:
       context: .
       dockerfile: ./src/frontend/Dockerfile
       target: conversations-dev
@@ -167,7 +167,7 @@ services:
     image: node:22
     user: "${DOCKER_USER:-1000}"
     environment:
-      HOME: /tmp 
+      HOME: /tmp
     volumes:
       - ".:/app"
 

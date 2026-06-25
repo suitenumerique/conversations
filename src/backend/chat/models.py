@@ -11,7 +11,7 @@ from core.file_upload.enums import AttachmentStatus
 from core.models import BaseModel
 
 from chat.ai_sdk_types import UIMessage
-from chat.enums import CollectionIndexState
+from chat.enums import AttachmentIndexState, CollectionIndexState
 
 User = get_user_model()
 
@@ -263,6 +263,18 @@ class ChatConversationAttachment(BaseModel):
     is_indexed = models.BooleanField(
         default=False,
         help_text="Whether this attachment has been indexed in the RAG backend",
+    )
+
+    index_state = models.CharField(
+        max_length=20,
+        choices=AttachmentIndexState.choices(),
+        default=AttachmentIndexState.NOT_INDEXED,
+        help_text="Per-attachment RAG indexing lifecycle (set by the project indexing task)",
+    )
+    processing_error = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Human-readable reason the last indexing attempt failed, if any",
     )
 
     class Meta:  # pylint: disable=missing-class-docstring

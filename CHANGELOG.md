@@ -11,9 +11,10 @@ and this project adheres to
 ### Added
 
 - ✨(back) add model fallback mechanism
- - ✨(back) add celery for running background tasks
+- ✨(back) add celery for running background tasks
 - 🧱(helm) add celery worker and beat deployments
- 
+- ✨(back) process project files asynchronously with indexing state
+
 ## [0.0.19] - 2026-06-24
 
 ### Changed
