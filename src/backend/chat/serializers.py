@@ -238,8 +238,25 @@ class ChatConversationAttachmentSerializer(serializers.ModelSerializer):
 
     class Meta:  # pylint: disable=missing-class-docstring
         model = models.ChatConversationAttachment
-        fields = ["id", "key", "content_type", "file_name", "size", "upload_state", "url"]
-        read_only_fields = ["id", "key", "content_type", "file_name", "size", "upload_state"]
+        fields = [
+            "id",
+            "key",
+            "content_type",
+            "file_name",
+            "size",
+            "upload_state",
+            "index_state",
+            "url",
+        ]
+        read_only_fields = [
+            "id",
+            "key",
+            "content_type",
+            "file_name",
+            "size",
+            "upload_state",
+            "index_state",
+        ]
 
     def get_url(self, attachment) -> str | None:
         """Return the URL of the attachment."""

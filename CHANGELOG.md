@@ -17,7 +17,8 @@ and this project adheres to
 ### Changed
 
 - ♻️(back) split chat views and replace hardcoded strings with constants
- 
+- ✨(back) process project files asynchronously with indexing state
+
 ## [0.0.19] - 2026-06-24
 
 ### Changed
