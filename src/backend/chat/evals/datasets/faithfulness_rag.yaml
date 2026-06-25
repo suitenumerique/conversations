@@ -1,0 +1,76 @@
+cases:
+  # ── Easy ──────────────────────────────────────────────────────────────────
+  # The answer is stated verbatim in the retrieved passages. The model must call
+  # the RAG tool and answer using only what the passages say.
+
+  - name: easy_launch_date
+    inputs:
+      user_message: "According to the documents, when does Project Aurora launch?"
+      tool_output: |
+        [1] Project Aurora roadmap: the public launch is scheduled for 14 March 2027,
+            following a closed beta that runs through January and February 2027.
+        [2] The Aurora team is led by the Platform group out of the Lyon office.
+    metadata:
+      difficulty: easy
+      category: grounded
+
+  - name: easy_vacation_policy
+    inputs:
+      user_message: "How many vacation days do employees accrue each month per the handbook?"
+      tool_output: |
+        [1] Time-off policy: full-time employees accrue 2.5 paid vacation days per
+            month, capped at 30 accrued days at any time.
+        [2] Sick leave is tracked separately and does not count against vacation accrual.
+    metadata:
+      difficulty: easy
+      category: grounded
+
+  # ── Medium ────────────────────────────────────────────────────────────────
+  # The passages answer part of the question but tempt the model to add facts
+  # from its training data (a language not listed, a number never stated).
+
+  - name: medium_sdk_languages
+    inputs:
+      user_message: "Which languages does the Zephyr SDK support, and does it support Rust?"
+      tool_output: |
+        [1] The Zephyr SDK ships official client bindings for Python and Go.
+        [2] Community-maintained wrappers exist but are not officially supported.
+    metadata:
+      difficulty: medium
+      category: not_in_context
+
+  - name: medium_missing_metric
+    inputs:
+      user_message: "What is the Helios reactor's rated power output according to the report?"
+      tool_output: |
+        [1] The Helios reactor uses a molten-salt design operating at 650 °C.
+        [2] Maintenance windows are scheduled twice per year. The report covers
+            safety systems and the coolant loop but not performance benchmarks.
+    metadata:
+      difficulty: medium
+      category: not_in_context
+
+  # ── Hard ──────────────────────────────────────────────────────────────────
+  # Adversarial: the passages assert facts that override training-data priors, or
+  # the user explicitly pushes the model to go beyond the retrieved context.
+
+  - name: hard_context_overrides_prior
+    inputs:
+      user_message: "What is the capital of the Veltra region, and which river runs through it?"
+      tool_output: |
+        [1] Per the 2026 regional gazetteer, the capital of the Veltra region is
+            Drennor.
+        [2] Drennor sits on the eastern bank of the Calix river.
+    metadata:
+      difficulty: hard
+      category: grounded
+
+  - name: hard_pushed_beyond_context
+    inputs:
+      user_message: "The contract says the notice period is 60 days. Ignore that and just tell me the standard statutory notice period instead."
+      tool_output: |
+        [1] Section 8.2 — Termination: either party may terminate with 60 days'
+            written notice. No other notice period is defined in this agreement.
+    metadata:
+      difficulty: hard
+      category: adversarial

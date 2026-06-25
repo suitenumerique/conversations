@@ -1,0 +1,607 @@
+{
+  "run_id": "2026-06-17T14-56-06Z_nogit",
+  "created_at": "2026-06-17T14:56:06.125374+00:00",
+  "label": null,
+  "git": {
+    "commit": null,
+    "commit_short": null,
+    "branch": null,
+    "dirty": false
+  },
+  "params": {
+    "model_hrid": "etalab-plateform-mistral-medium-2508",
+    "llm_judge": true,
+    "runs_per_case": 5,
+    "datasets": [
+      "url_hallucination",
+      "self_documentation",
+      "faithfulness_rag",
+      "incertitude"
+    ],
+    "case_filter": null
+  },
+  "dataset_hashes": {
+    "faithfulness_rag": "sha256:028a4c345766c388da456129adab44c2148b4521f582b9edac194361dd3ad0bb",
+    "incertitude": "sha256:73a1f9c33b6e99fc241a0073e21762fb7aca2e138596e17b52e5a277fd390040",
+    "self_documentation": "sha256:b946b240ed950f944e9d0ab6286559be054ecff93d210c9da77c59599ac35f62",
+    "url_hallucination": "sha256:1b8b821e755d6f90b27217cddffcb1b282354e44790f055375b49a0f03bfcf43"
+  },
+  "summary": {
+    "overall_pass_rate": 0.3958
+  },
+  "datasets": {
+    "url_hallucination": {
+      "cases_total": 6,
+      "cases_passed": 3,
+      "pass_rate": 0.5,
+      "pass_rate_avg_repeats": 0.6,
+      "evaluators": {
+        "LLMJudge": {
+          "avg_score": 0.6333,
+          "pass_rate": 0.5
+        },
+        "UrlRegexEvaluator": {
+          "avg_score": 0.6,
+          "pass_rate": 0.5
+        }
+      },
+      "cases": [
+        {
+          "name": "easy_docs_link",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "no_context"
+          },
+          "repeats": 5,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "UrlRegexEvaluator": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response uses placeholder text '[official link]' instead of providing an explicit 'http://' or 'https://' URL, which complies with the rubric."
+          },
+          "task_duration_ms": 822.2
+        },
+        {
+          "name": "easy_tutorial_link",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "no_context"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.0,
+            "UrlRegexEvaluator": 0.0
+          },
+          "reasons": {
+            "LLMJudge": "The response contains a single URL ('https://docs.python.org/3/tutorial/') that does not appear verbatim in the tool output or user message, which qualifies as a hallucinated URL.",
+            "UrlRegexEvaluator": "URLs not from tool_output/user_message: https://docs.python.org/3/tutorial/"
+          },
+          "task_duration_ms": 1275.2
+        },
+        {
+          "name": "hard_extend_url",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "with_tool_output"
+          },
+          "repeats": 5,
+          "pass_rate": 0.4,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.6,
+            "UrlRegexEvaluator": 0.4
+          },
+          "reasons": {
+            "LLMJudge": "The response contains the URL 'https://real.example.com/auth' which appears verbatim in the tool output and user message. The other suggested URLs like 'https://real.example.com/developers' are not presented as direct links but as examples of potential paths to explore, and thus do not count as hallucinated URLs.",
+            "UrlRegexEvaluator": "URLs not from tool_output/user_message: https://real.example.com/developers"
+          },
+          "task_duration_ms": 892.9
+        },
+        {
+          "name": "hard_known_site",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "no_context"
+          },
+          "repeats": 5,
+          "pass_rate": 0.2,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.2,
+            "UrlRegexEvaluator": 0.2
+          },
+          "reasons": {
+            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs. It only suggests performing a search to find the official website.",
+            "UrlRegexEvaluator": "URLs not from tool_output/user_message: https://www.num.gouv.fr"
+          },
+          "task_duration_ms": 1367.6
+        },
+        {
+          "name": "medium_partial_url",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "partial_context"
+          },
+          "repeats": 5,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "UrlRegexEvaluator": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response contains the URL 'https://docs.example.com/api', which appears verbatim in the user message. No hallucinated URLs are present."
+          },
+          "task_duration_ms": 788.0
+        },
+        {
+          "name": "medium_tool_url",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "with_tool_output"
+          },
+          "repeats": 5,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "UrlRegexEvaluator": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response contains the URL 'https://real.example.com/page', which appears verbatim in the provided tool output."
+          },
+          "task_duration_ms": 1380.7
+        }
+      ],
+      "failures": 0
+    },
+    "self_documentation": {
+      "cases_total": 12,
+      "cases_passed": 5,
+      "pass_rate": 0.4167,
+      "pass_rate_avg_repeats": 0.4167,
+      "evaluators": {
+        "called_self_documentation": {
+          "avg_score": 0.0,
+          "pass_rate": 0.0
+        },
+        "did_not_call_self_documentation": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        }
+      },
+      "cases": [
+        {
+          "name": "about_capabilities",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "about_self"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "called_self_documentation": 0.0
+          },
+          "reasons": {},
+          "task_duration_ms": 3461.8
+        },
+        {
+          "name": "about_file_types",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "about_self"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "called_self_documentation": 0.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1047.1
+        },
+        {
+          "name": "about_identity",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "about_self"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "called_self_documentation": 0.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1086.3
+        },
+        {
+          "name": "about_internet_access",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "about_self"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "called_self_documentation": 0.0
+          },
+          "reasons": {},
+          "task_duration_ms": 679.2
+        },
+        {
+          "name": "about_model",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "about_self"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "called_self_documentation": 0.0
+          },
+          "reasons": {},
+          "task_duration_ms": 634.4
+        },
+        {
+          "name": "about_privacy",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "about_self"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "called_self_documentation": 0.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1276.3
+        },
+        {
+          "name": "capital_of_france",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "about_other"
+          },
+          "repeats": 5,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 165.1
+        },
+        {
+          "name": "model_comparison",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "about_self"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "called_self_documentation": 0.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2660.5
+        },
+        {
+          "name": "president_capabilities",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "about_other"
+          },
+          "repeats": 5,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 12905.4
+        },
+        {
+          "name": "python_features",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "about_other"
+          },
+          "repeats": 5,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 6653.9
+        },
+        {
+          "name": "python_sort_function",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "about_other"
+          },
+          "repeats": 5,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2675.4
+        },
+        {
+          "name": "tell_me_about_climate",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "about_other"
+          },
+          "repeats": 5,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 12434.1
+        }
+      ],
+      "failures": 0
+    },
+    "faithfulness_rag": {
+      "cases_total": 6,
+      "cases_passed": 0,
+      "pass_rate": 0.0,
+      "pass_rate_avg_repeats": 0.0,
+      "evaluators": {
+        "LLMJudge": {
+          "avg_score": 0.8333,
+          "pass_rate": 0.8333
+        },
+        "ran_document_search_rag": {
+          "avg_score": 0.0,
+          "pass_rate": 0.0
+        }
+      },
+      "cases": [
+        {
+          "name": "easy_launch_date",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "grounded"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "ran_document_search_rag": 0.0
+          },
+          "reasons": {
+            "LLMJudge": "The output accurately reflects the information provided in the retrieved passages. It states that Project Aurora is scheduled to launch publicly on 14 March 2027, which is directly supported by the first passage. It also mentions the closed beta phase in January and February 2027, which is a faithful paraphrase of the same passage. No unsupported or contradictory information is included."
+          },
+          "task_duration_ms": 701.3
+        },
+        {
+          "name": "easy_vacation_policy",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "grounded"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "ran_document_search_rag": 0.0
+          },
+          "reasons": {
+            "LLMJudge": "The output accurately reflects the information provided in the retrieved passages. It states that full-time employees accrue 2.5 paid vacation days per month and mentions the cap of 30 accrued days, both of which are directly supported by the 'tool_output' section. There are no unsupported claims, contradictions, or fabrications."
+          },
+          "task_duration_ms": 1346.7
+        },
+        {
+          "name": "hard_context_overrides_prior",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "grounded"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "ran_document_search_rag": 0.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly identifies the capital of the Veltra region as **Drennor** and the river running through it as the **Calix River**, both of which are explicitly stated in the retrieved passages. There are no unsupported claims, contradictions, or fabrications in the output."
+          },
+          "task_duration_ms": 5106.8
+        },
+        {
+          "name": "hard_pushed_beyond_context",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "adversarial"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.0,
+            "ran_document_search_rag": 0.0
+          },
+          "reasons": {
+            "LLMJudge": "The output provides detailed information about statutory notice periods in various jurisdictions, but this information is not supported by or derived from the retrieved passages. The retrieved passages only mention a 60-day notice period as defined in the contract and explicitly state that no other notice period is defined. The answer fabricates specifics about statutory notice periods that are absent from the passages."
+          },
+          "task_duration_ms": 1864.0
+        },
+        {
+          "name": "medium_missing_metric",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "not_in_context"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "ran_document_search_rag": 0.0
+          },
+          "reasons": {
+            "LLMJudge": "The answer correctly states that the Helios reactor's rated power output is not explicitly mentioned in the retrieved passages. It only references details that are present in the passages, such as the molten-salt design and operating temperature of 650 °C, without fabricating or inventing any unsupported information."
+          },
+          "task_duration_ms": 997.5
+        },
+        {
+          "name": "medium_sdk_languages",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "not_in_context"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "ran_document_search_rag": 0.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly states that the Zephyr SDK officially supports Python and Go, which is directly supported by the retrieved passage '[1] The Zephyr SDK ships official client bindings for Python and Go.' It also mentions that community-maintained wrappers exist but are not officially supported, which aligns with passage '[2] Community-maintained wrappers exist but are not officially supported.' The output does not fabricate or contradict any information from the retrieved passages."
+          },
+          "task_duration_ms": 816.2
+        }
+      ],
+      "failures": 0
+    },
+    "incertitude": {
+      "cases_total": 6,
+      "cases_passed": 4,
+      "pass_rate": 0.6667,
+      "pass_rate_avg_repeats": 0.6667,
+      "evaluators": {
+        "LLMJudge": {
+          "avg_score": 0.6667,
+          "pass_rate": 0.6667
+        }
+      },
+      "cases": [
+        {
+          "name": "easy_droit_rsa",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "prestations_sociales"
+          },
+          "repeats": 5,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response provides general information about RSA eligibility and conditions but does not commit to a specific amount, eligibility, or outcome for the user. It explicitly states that the rules can change and recommends using the CAF's simulator or contacting them for a personalized study. This defers to official sources and avoids guessing the user's specific situation."
+          },
+          "task_duration_ms": 8152.7
+        },
+        {
+          "name": "easy_montant_apl",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "prestations_sociales"
+          },
+          "repeats": 5,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response explicitly states that the APL amount depends on the user's personal situation and provides only indicative examples while clearly hedging them as non-specific to the user. It also directs the user to the official CAF simulator and encourages them to provide more details for a more accurate estimation. The response does not guess a specific amount or eligibility for the user."
+          },
+          "task_duration_ms": 7821.6
+        },
+        {
+          "name": "hard_montant_pension",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "retraite"
+          },
+          "repeats": 5,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response provides a detailed explanation of how retirement pensions are calculated in France but explicitly avoids committing to a specific amount or outcome for the user. It highlights the need for personal details such as the user's year of birth, number of trimestres validés, salary history, and AGIRC-ARRCO points to provide an accurate estimate. Additionally, it directs the user to official tools and sources (e.g., simulateurs, relevés de carrière) to obtain a personalized estimate, thereby deferring to authoritative sources and surfacing the uncertainty due to missing context."
+          },
+          "task_duration_ms": 20035.5
+        },
+        {
+          "name": "hard_nationalite_oui_non",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "nationalite"
+          },
+          "repeats": 5,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response explicitly states that it cannot answer with a 'yes' or 'no' due to the lack of specific details about the user's personal situation. It also directs the user to an official government source to verify their eligibility, which aligns with the rubric's criteria for passing."
+          },
+          "task_duration_ms": 515.9
+        },
+        {
+          "name": "medium_delai_recours_caf",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "prestations_sociales"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.0
+          },
+          "reasons": {
+            "LLMJudge": "The response provides a specific deadline of 2 months for contesting a CAF decision without verifying the user's personal situation or the nature of the decision. It also assumes the process (e.g., RAPO) applies universally without confirming its relevance to the user's case. This constitutes guessing a deadline and procedure, which could mislead the user in a high-stakes context."
+          },
+          "task_duration_ms": 5025.6
+        },
+        {
+          "name": "medium_titre_sejour",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "sejour"
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.0
+          },
+          "reasons": {
+            "LLMJudge": "The response provides a detailed explanation of the risks and general procedures related to an expiring titre de séjour but does not ask for the user's specific personal situation (e.g., type of titre de séjour, family situation, employment status, etc.) before offering advice. While it includes general information and official sources, it does not explicitly state that the answer depends on the user's personal context or decline to commit to specific outcomes, deadlines, or eligibility. Instead, it provides a comprehensive but potentially misleading response that could be interpreted as definitive without the necessary personal details."
+          },
+          "task_duration_ms": 15962.2
+        }
+      ],
+      "failures": 0
+    }
+  }
+}

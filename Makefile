@@ -50,6 +50,13 @@ COMPOSE_RUN_CROWDIN = $(COMPOSE_RUN) crowdin crowdin
 MANAGE              = $(COMPOSE_RUN_APP) python manage.py
 MAIL_YARN           = $(COMPOSE_RUN) -w /app/src/mail node yarn
 
+# -- Evals (git metadata read on the host; Docker has no .git mount)
+EVAL_GIT_COMMIT     = $(shell git rev-parse HEAD 2>/dev/null)
+EVAL_GIT_BRANCH     = $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
+EVAL_GIT_DIRTY      = $(shell git status --porcelain 2>/dev/null | grep -q . && echo 1 || echo 0)
+EVAL_GIT_ENV        = -e EVAL_GIT_COMMIT=$(EVAL_GIT_COMMIT) -e EVAL_GIT_BRANCH=$(EVAL_GIT_BRANCH) -e EVAL_GIT_DIRTY=$(EVAL_GIT_DIRTY)
+COMPOSE_RUN_EVAL    = $(COMPOSE_RUN) $(EVAL_GIT_ENV) app-dev
+
 # -- Frontend
 PATH_FRONT          = ./src/frontend
 PATH_FRONT_CONVERSATIONS  = $(PATH_FRONT)/apps/conversations
@@ -249,6 +256,26 @@ deindex_inactive_collections: ## run the deindex_inactive_collections management
 fetch_model_health: ## check the health of the models (usage: make fetch_model_health FETCH_MODEL_HEALTH_ARGS="--provider albert")
 	@$(MANAGE) fetch_model_health $(FETCH_MODEL_HEALTH_ARGS)
 .PHONY: fetch_model_health
+
+eval: ## run behavioral evals (usage: make eval EVAL_ARGS="--dataset url_hallucination --verbose")
+	@$(COMPOSE_RUN_EVAL) python manage.py run_evals $(EVAL_ARGS)
+.PHONY: eval
+
+eval-debug: ## run behavioral evals with debugpy on port 5678 (attach VS Code before the command runs)
+	@$(COMPOSE) run --rm -p 5678:5678 $(EVAL_GIT_ENV) app-dev python -m debugpy --listen 0.0.0.0:5678 --wait-for-client manage.py run_evals $(EVAL_ARGS)
+.PHONY: eval-debug
+
+eval-baseline: ## mark a saved eval run as baseline (usage: make eval-baseline EVAL_ARGS="--run latest")
+	@$(MANAGE) create_eval_baseline $(EVAL_ARGS)
+.PHONY: eval-baseline
+
+eval-compare: ## compare saved eval runs (usage: make eval-compare EVAL_ARGS="--fail-on-regression")
+	@$(MANAGE) compare_evals $(EVAL_ARGS)
+.PHONY: eval-compare
+
+eval-dashboard: ## generate the HTML dashboard for saved eval runs
+	@$(MANAGE) generate_eval_dashboard
+.PHONY: eval-dashboard
 
 # -- Database
 
