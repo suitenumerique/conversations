@@ -8,9 +8,11 @@ project carrying indexed RAG files. They exercise:
 """
 
 import json
+from datetime import timedelta
 from unittest import mock
 
 from django.contrib.sessions.backends.cache import SessionStore
+from django.utils import timezone
 
 import pytest
 import respx
@@ -23,6 +25,7 @@ from rest_framework import status
 from core.file_upload.enums import AttachmentStatus
 
 from chat.constants import ACCESS_FULL_CONTEXT
+from chat.enums import AttachmentIndexState
 from chat.factories import (
     ChatConversationAttachmentFactory,
     ChatConversationFactory,
@@ -311,6 +314,118 @@ def test_post_conversation_inlines_convo_doc_while_project_doc_stays_rag_only(
     assert set(docs_by_title) == {"note.md"}
     assert docs_by_title["note.md"]["access"] == ACCESS_FULL_CONTEXT
     assert "The conversation note says hello." in docs_by_title["note.md"]["content"]
+
+
+@pytest.mark.parametrize(
+    ("upload_state", "index_state"),
+    [
+        (AttachmentStatus.ANALYZING, AttachmentIndexState.NOT_INDEXED),
+        (AttachmentStatus.READY, AttachmentIndexState.INDEXING),
+    ],
+)
+def test_post_conversation_blocked_while_project_file_in_flight(
+    api_client, upload_state, index_state
+):
+    """A project file whose scan or indexing is still running blocks the message with 409.
+
+    The backstop must catch both in-flight states: a file mid-scan (ANALYZING,
+    not yet handed to the indexer) and a file mid-indexing (INDEXING). Answering
+    before either settles would silently ignore the file's content.
+    """
+    project = ChatProjectFactory(collection_id="22")
+    ChatProjectAttachmentFactory(
+        project=project,
+        content_type="text/plain",
+        upload_state=upload_state,
+        index_state=index_state,
+    )
+    conversation = ChatConversationFactory(owner=project.owner, project=project)
+    api_client.force_authenticate(user=conversation.owner)
+
+    response = api_client.post(
+        f"/api/v1.0/chats/{conversation.pk}/conversation/",
+        data={"messages": [ASK_DOC_MESSAGE]},
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_409_CONFLICT
+    assert response.json() == {"error": "project_files_indexing"}
+
+
+@respx.mock
+@freeze_time("2025-07-25T10:36:35.297675Z")
+def test_post_conversation_not_blocked_by_terminal_suspicious_file(
+    api_client,
+    hello_conversation_data,
+    mock_ai_agent_service,
+):
+    """A rejected (SUSPICIOUS) project file is terminal and must not block messages.
+
+    Guards against widening the gate to "not READY", which would deadlock the
+    project on terminal states (SUSPICIOUS, too-large) forever.
+    """
+    project = ChatProjectFactory(collection_id=None)
+    ChatProjectAttachmentFactory(
+        project=project,
+        content_type="text/plain",
+        upload_state=AttachmentStatus.SUSPICIOUS,
+    )
+    conversation = ChatConversationFactory(owner=project.owner, project=project)
+    api_client.force_authenticate(user=conversation.owner)
+
+    def agent_model(_messages: list[ModelMessage], _info: AgentInfo):
+        return ModelResponse(parts=[TextPart(content="Hello there")])
+
+    with mock_ai_agent_service(FunctionModel(function=agent_model)):
+        response = api_client.post(
+            f"/api/v1.0/chats/{conversation.pk}/conversation/",
+            data=hello_conversation_data,
+            format="json",
+        )
+
+    assert response.status_code == status.HTTP_200_OK
+
+
+@respx.mock
+@freeze_time("2025-07-25T10:36:35.297675Z")
+def test_post_conversation_not_blocked_by_stale_indexing_file(
+    api_client,
+    settings,
+    hello_conversation_data,
+    mock_ai_agent_service,
+):
+    """A row stuck in INDEXING past the hard-limit window must not deadlock messaging.
+
+    If the indexing worker is SIGKILLed / OOM-killed / crashes, the row never
+    leaves INDEXING. Once its `updated_at` is older than CELERY_TASK_TIME_LIMIT
+    plus the margin, the gate stops blocking on it so the project can chat again.
+    """
+    project = ChatProjectFactory(collection_id=None)
+    attachment = ChatProjectAttachmentFactory(
+        project=project,
+        content_type="text/plain",
+        upload_state=AttachmentStatus.READY,
+        index_state=AttachmentIndexState.INDEXING,
+    )
+    # `updated_at` is auto_now, so bypass it with .update() to age the row past
+    # the cutoff (CELERY_TASK_TIME_LIMIT + 60s margin).
+    stale = timezone.now() - timedelta(seconds=settings.CELERY_TASK_TIME_LIMIT + 120)
+    type(attachment).objects.filter(pk=attachment.pk).update(updated_at=stale)
+
+    conversation = ChatConversationFactory(owner=project.owner, project=project)
+    api_client.force_authenticate(user=conversation.owner)
+
+    def agent_model(_messages: list[ModelMessage], _info: AgentInfo):
+        return ModelResponse(parts=[TextPart(content="Hello there")])
+
+    with mock_ai_agent_service(FunctionModel(function=agent_model)):
+        response = api_client.post(
+            f"/api/v1.0/chats/{conversation.pk}/conversation/",
+            data=hello_conversation_data,
+            format="json",
+        )
+
+    assert response.status_code == status.HTTP_200_OK
 
 
 @respx.mock

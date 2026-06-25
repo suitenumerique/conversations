@@ -238,8 +238,25 @@ class ChatConversationAttachmentSerializer(serializers.ModelSerializer):
 
     class Meta:  # pylint: disable=missing-class-docstring
         model = models.ChatConversationAttachment
-        fields = ["id", "key", "content_type", "file_name", "size", "upload_state", "url"]
-        read_only_fields = ["id", "key", "content_type", "file_name", "size", "upload_state"]
+        fields = [
+            "id",
+            "key",
+            "content_type",
+            "file_name",
+            "size",
+            "upload_state",
+            "index_state",
+            "url",
+        ]
+        read_only_fields = [
+            "id",
+            "key",
+            "content_type",
+            "file_name",
+            "size",
+            "upload_state",
+            "index_state",
+        ]
 
     def get_url(self, attachment) -> str | None:
         """Return the URL of the attachment."""
@@ -299,6 +316,18 @@ class ChatProjectNestedSerializer(serializers.ModelSerializer):
         model = models.ChatProject
         fields = ["id", "title", "icon"]
         read_only_fields = ["id", "title", "icon"]
+
+
+class ChatConversationRetrieveSerializer(ChatConversationSerializer):
+    """Retrieve view: nest project as {id, title, icon} instead of the bare id.
+
+    The default list/create keep the bare project id (leaner, and asserted by
+    tests), but a single conversation retrieval nests it so the client can read
+    project.id/title/icon - matching the search endpoint and the frontend
+    contract (e.g. the project indexing banner needs the conversation's project).
+    """
+
+    project = ChatProjectNestedSerializer(read_only=True)
 
 
 class ChatConversationSearchSerializer(serializers.ModelSerializer):

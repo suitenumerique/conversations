@@ -26,6 +26,8 @@ from core.file_upload.serializers import FileUploadSerializer
 from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.constants import IMAGE_MIME_PREFIX
+from chat.enums import AttachmentIndexState
+from chat.tasks import index_project_attachment_task
 from chat.views.helpers import _bulk_delete_s3_blobs
 
 logger = logging.getLogger(__name__)
@@ -345,6 +347,34 @@ class ChatProjectAttachmentViewSet(  # pylint: disable=too-many-ancestors
         claimed_type = getattr(file_obj, "content_type", None) if file_obj else None
         self._enforce_caps(claimed_type)
         return super().backend_upload_attachment(request, *args, **kwargs)
+
+    @decorators.action(detail=True, methods=["post"], url_path="reindex")
+    def reindex(self, request, *args, **kwargs):
+        """Re-enqueue RAG indexing for a project attachment whose last attempt failed.
+
+        User-initiated recovery for the terminal FAILED state: resets the row to
+        INDEXING and re-runs `index_project_attachment_task`. The task is
+        idempotent - a file whose chunks were already stored (`rag_document_id`
+        set) is reconciled/healed without re-storing; one that never stored is
+        re-parsed and stored. Only FAILED rows are retryable here; a stuck
+        INDEXING row is left to separate periodic recovery.
+        """
+        attachment = self.get_object()
+
+        if attachment.index_state != AttachmentIndexState.FAILED:
+            raise ValidationError(
+                {"index_state": "Only files whose indexing failed can be re-indexed."},
+                code="index-state-not-failed",
+            )
+
+        attachment.index_state = AttachmentIndexState.INDEXING
+        attachment.processing_error = None
+        attachment.save(update_fields=["index_state", "processing_error", "updated_at"])
+
+        index_project_attachment_task.delay(attachment.pk)
+
+        serializer = self.get_serializer(attachment)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def perform_destroy(self, instance):
         """Delete the attachment, its companion markdown row, S3 blob, and RAG document.

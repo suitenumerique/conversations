@@ -16,6 +16,8 @@ import { useTranslation } from 'react-i18next';
 import { APIError, errorCauses, fetchAPI } from '@/api';
 import { Box, Icon, Loader, Text } from '@/components';
 import { useConfig } from '@/core';
+import { useProjectAttachments } from '@/features/attachments/api/useProjectAttachments';
+import { useReindexProjectAttachment } from '@/features/attachments/api/useReindexProjectAttachment';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
 import {
   isContextTrimmedEvent,
@@ -142,6 +144,10 @@ export const Chat = ({
   const router = useRouter();
   const [files, setFiles] = useState<FileList | null>(null);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+  // Project of an already-loaded conversation (new chats use pendingProjectId).
+  const [conversationProjectId, setConversationProjectId] = useState<
+    string | null
+  >(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -222,6 +228,29 @@ export const Chat = ({
     setHasProjectInstructions,
     clearPendingInput,
   } = usePendingChatStore();
+
+  // Gate sending while the active project still has files being indexed: their
+  // content isn't searchable yet, so a message now would get an answer that
+  // ignores them. `useProjectAttachments` polls itself until indexing settles.
+  const activeProjectId =
+    conversationProjectId ?? pendingProjectId ?? undefined;
+  const { data: projectAttachments } = useProjectAttachments(activeProjectId);
+  const isIndexingFiles =
+    projectAttachments?.some((a) => a.index_state === 'indexing') ?? false;
+
+  // Files whose last indexing attempt failed: they stay usable/downloadable but
+  // aren't searchable, so surface an aggregate notice with a retry action.
+  const failedIndexingIds = useMemo(
+    () =>
+      (projectAttachments ?? [])
+        .filter((a) => a.index_state === 'failed')
+        .map((a) => a.id),
+    [projectAttachments],
+  );
+  const reindexAttachment = useReindexProjectAttachment(activeProjectId ?? '');
+  const handleRetryFailedIndexing = useCallback(() => {
+    reindexAttachment.mutate(failedIndexingIds);
+  }, [failedIndexingIds, reindexAttachment]);
 
   const scrollToBottom = useCallback(() => {
     if (chatContainerRef.current) {
@@ -669,6 +698,14 @@ export const Chat = ({
   useEffect(() => {
     hasScrolledToBottomOnLoadRef.current = false; // Réinitialiser au début du chargement
     setImagesSkipped(false);
+    // Drop the previous conversation's project so its indexing gate can't leak
+    // into this one; the getConversation() success below repopulates it. Skip
+    // the reset while a pending first message is creating this conversation: the
+    // fetch is skipped in that window, so onSuccess is the only setter and the
+    // reset would wipe the project it just assigned.
+    if (!(initialConversationId && pendingInput)) {
+      setConversationProjectId(null);
+    }
     let dismissedFromStorage = false;
     if (initialConversationId && typeof window !== 'undefined') {
       try {
@@ -691,6 +728,7 @@ export const Chat = ({
           if (!ignore) {
             setInitialConversationMessages(conversation.messages);
             setImagesSkipped(conversation.images_skipped ?? false);
+            setConversationProjectId(conversation.project?.id ?? null);
             setHasInitialized(true);
           }
         } catch {
@@ -768,6 +806,12 @@ export const Chat = ({
       return;
     }
 
+    // Block while project files are still indexing (matches the backend
+    // backstop); their content isn't searchable yet.
+    if (isIndexingFiles) {
+      return;
+    }
+
     // April Fools' prank on the very first message of a new conversation.
     // Use triggerDeferred so the prank survives the router.push() remount.
     if (messages.length === 0) {
@@ -818,6 +862,11 @@ export const Chat = ({
         },
         {
           onSuccess: (data) => {
+            // Carry the project onto the just-created conversation so its
+            // indexing banner/gate keep showing after we clear pendingProjectId
+            // below (the getConversation refetch that normally repopulates this
+            // is skipped while the pending first message is in flight).
+            setConversationProjectId(pendingProjectId ?? null);
             setProjectId(null);
             setConversationId(data.id);
             // Update the URL to /chat/[id]/
@@ -1045,6 +1094,10 @@ export const Chat = ({
           selectedModel={selectedModel}
           onModelSelect={handleModelSelect}
           isUploadingFiles={isUploadingFiles}
+          isIndexingFiles={isIndexingFiles}
+          failedIndexingCount={failedIndexingIds.length}
+          onRetryFailedIndexing={handleRetryFailedIndexing}
+          isRetryingIndexing={reindexAttachment.isPending}
           errorType={status === 'error' ? chatErrorType : undefined}
           cooldownUntil={cooldownUntil}
         />

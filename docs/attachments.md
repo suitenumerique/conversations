@@ -217,14 +217,29 @@ Project attachments live on `ChatProject` rather than on a single `ChatConversat
 
 ### Indexing at upload time
 
+> For the full indexing lifecycle - the `index_state` state machine, the automatic transient retry, the user-initiated retry, failure logging, and the frontend UX - see the dedicated [Project File Indexing](project-file-indexing.md) doc. This section is the storage-oriented summary.
+
 Conversation attachments are indexed lazily when a chat turn first builds RAG context. Project attachments cannot follow that pattern - any conversation in the project may be the first to ask about a file, and we want them searchable immediately.
 
-The malware safe callback for projects (`chat.malware_detection.project_safe_attachment_callback`) does two things in sequence after marking the attachment `READY`:
+The malware safe callback for projects (`chat.malware_detection.project_safe_attachment_callback`), after marking the attachment `READY`:
 
-1. Fetches the attachment with `select_related("project", "uploaded_by")`.
-2. Calls `chat.agent_rag.indexing.index_project_attachment(attachment)`.
+1. Marks indexable files `index_state = INDEXING` immediately, before the worker picks the task up. This closes the brief enqueue window in which a message sent right after upload could see the file as not-yet-indexing and answer without its content (the send gate keys off `INDEXING`).
+2. Enqueues the Celery task `chat.tasks.index_project_attachment_task` with the attachment id. The heavy parse/store work runs **off the request/callback path, on a worker** (`celery-dev` in development).
 
-`index_project_attachment` is a one-shot, idempotent indexer: it skips images, skips markdown companion rows (`conversion_from` set), skips attachments already carrying a `rag_document_id`, parses the file via `RAG_DOCUMENT_PARSER`, and stores the result in the project's RAG collection. Failures are logged and swallowed - the file stays `READY` and downloadable but won't surface in RAG search until a future re-index.
+The task resolves the row with `select_related("project", "uploaded_by")` and delegates to `chat.agent_rag.indexing.index_project_attachment`, a one-shot, idempotent indexer: it skips images, skips markdown companion rows (`conversion_from` set), skips attachments already carrying a `rag_document_id`, parses the file via `RAG_DOCUMENT_PARSER`, and stores the result in the project's RAG collection. It records its own outcome on the row (`index_state` NOT_INDEXED → INDEXING → INDEXED / FAILED, with `processing_error` on failure). Failures are logged and never raised - the file stays `READY` and downloadable; it just won't surface in RAG search until a future re-index.
+
+#### Worker resource limits
+
+Parsing untrusted uploads (PDF, DOCX, ODT, ...) is the riskiest in-process work in the app: a malformed or hostile file can make the parser loop, hang, or balloon memory (zip bombs, XML entity expansion). Running it on a Celery worker instead of in the web process lets us bound it with two task time limits - this is the main reason the parse moved onto a worker, not just to get it off the request path.
+
+| Setting | Default | What fires | Effect |
+|---|---|---|---|
+| `CELERY_TASK_SOFT_TIME_LIMIT` | 180s (3 min) | Celery raises `SoftTimeLimitExceeded` **inside the task**, at the current line | A normal Python exception. It propagates to the `except Exception` in `index_project_attachment`, which records `index_state = FAILED` + `processing_error`. The worker stays alive; the over-slow file ends as a clean, visible failure that can be re-indexed later. |
+| `CELERY_TASK_TIME_LIMIT` | 300s (5 min) | Celery **SIGKILLs the worker child process** running the task | The hard backstop for the case the soft limit can't reach (a parse wedged in a C extension that never yields, or growing memory without pause). Killing the OS process is the only thing that reliably reclaims its memory; Celery then spins up a fresh child. |
+
+The two work together: the soft limit (graceful, catchable, leaves a recorded failure) is the path you want to hit; the hard limit (unconditional kill ~120s later) is the guarantee that no single upload can pin a worker or OOM the box. Keep `hard > soft` if you override either.
+
+Caveats: the hard kill needs the **prefork** pool (the worker command uses it by default); it does nothing on the `solo` pool. Eager mode (`CELERY_TASK_ALWAYS_EAGER`, used in tests) runs tasks inline and ignores both limits. These limits bound CPU time and memory of a runaway parse; they are **not** the blast-radius fix for a parser RCE - the worker still loads the full secret set today, so narrowing the worker's secrets/egress remains separate follow-up work.
 
 ### Project RAG collection
 

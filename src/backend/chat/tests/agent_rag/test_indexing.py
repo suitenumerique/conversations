@@ -13,6 +13,7 @@ from core.file_upload.enums import AttachmentStatus
 
 from chat import factories
 from chat.agent_rag.indexing import index_project_attachment, is_indexable_for_rag
+from chat.enums import AttachmentIndexState
 from chat.models import ChatConversationAttachment
 
 pytestmark = pytest.mark.django_db
@@ -131,6 +132,8 @@ def test_index_creates_collection_when_project_has_none(project_text_attachment)
     project_text_attachment.refresh_from_db()
     assert project_text_attachment.project.collection_id == "42"
     assert project_text_attachment.rag_document_id == "1"
+    assert project_text_attachment.index_state == AttachmentIndexState.INDEXED
+    assert project_text_attachment.processing_error is None
     assert create_mock.call_count == 1
     assert documents_mock.call_count == 1
 
@@ -161,8 +164,9 @@ def test_index_reuses_existing_project_collection(project_text_attachment):
 
 
 @responses.activate
-def test_index_swallows_backend_errors(project_text_attachment, caplog):
+def test_index_swallows_backend_errors(project_text_attachment, settings, caplog):
     """Backend failures must be logged but never raised."""
+    settings.RAG_STORE_RETRY_DELAY_SECONDS = 0  # 500 triggers a retry; don't sleep
     responses.post(
         "https://albert.api.etalab.gouv.fr/v1/collections",
         json={"id": "42"},
@@ -178,6 +182,132 @@ def test_index_swallows_backend_errors(project_text_attachment, caplog):
     index_project_attachment(project_text_attachment)
 
     assert any("Failed to index project attachment" in record.message for record in caplog.records)
+    project_text_attachment.refresh_from_db()
+    assert project_text_attachment.index_state == AttachmentIndexState.FAILED
+    assert project_text_attachment.processing_error
+    # File stays usable/downloadable despite the indexing failure.
+    assert project_text_attachment.upload_state == AttachmentStatus.READY
+
+
+@responses.activate
+def test_index_fails_when_backend_returns_no_document_id(project_text_attachment):
+    """A falsy document id must fail (FAILED), not leave the row stuck in INDEXING.
+
+    The INDEXED transition and the idempotency guard both key off
+    rag_document_id, so a missing id would otherwise wedge the row in INDEXING.
+    """
+    responses.post(
+        "https://albert.api.etalab.gouv.fr/v1/collections",
+        json={"id": "42"},
+        status=status.HTTP_200_OK,
+    )
+    responses.post(
+        "https://albert.api.etalab.gouv.fr/v1/documents",
+        json={"id": ""},
+        status=status.HTTP_201_CREATED,
+    )
+
+    index_project_attachment(project_text_attachment)
+
+    project_text_attachment.refresh_from_db()
+    assert project_text_attachment.index_state == AttachmentIndexState.FAILED
+    assert project_text_attachment.processing_error
+    assert not project_text_attachment.rag_document_id
+    assert project_text_attachment.upload_state == AttachmentStatus.READY
+
+
+@responses.activate
+def test_index_failure_captures_albert_response_body(project_text_attachment, settings, caplog):
+    """A failed store logs and stores the Albert response body (the real reason),
+    plus the file identity, instead of a generic exception string."""
+    settings.RAG_STORE_RETRY_DELAY_SECONDS = 0  # don't actually sleep between retries
+    project_text_attachment.project.collection_id = "999"
+    project_text_attachment.project.save(update_fields=["collection_id"])
+
+    responses.post(
+        "https://albert.api.etalab.gouv.fr/v1/documents",
+        json={"detail": "model albert-large is overloaded"},
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    )
+    caplog.set_level(logging.ERROR, logger="chat.agent_rag.indexing")
+
+    index_project_attachment(project_text_attachment)
+
+    project_text_attachment.refresh_from_db()
+    assert project_text_attachment.index_state == AttachmentIndexState.FAILED
+    assert "HTTP 500" in project_text_attachment.processing_error
+    assert "model albert-large is overloaded" in project_text_attachment.processing_error
+    # The log line carries the file identity and the response body for triage.
+    assert "hello.txt" in caplog.text
+    assert "model albert-large is overloaded" in caplog.text
+
+
+@responses.activate
+def test_index_retries_once_on_transient_store_error(project_text_attachment, settings):
+    """A transient 5xx on the store call is retried once, then succeeds."""
+    settings.RAG_STORE_RETRY_DELAY_SECONDS = 0  # don't actually sleep in tests
+    project_text_attachment.project.collection_id = "999"
+    project_text_attachment.project.save(update_fields=["collection_id"])
+
+    # responses returns registered mocks in order: first call 503, retry 201.
+    responses.post(
+        "https://albert.api.etalab.gouv.fr/v1/documents",
+        json={"error": "flaky"},
+        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+    )
+    responses.post(
+        "https://albert.api.etalab.gouv.fr/v1/documents",
+        json={"id": 1},
+        status=status.HTTP_201_CREATED,
+    )
+
+    index_project_attachment(project_text_attachment)
+
+    assert len(responses.calls) == 2  # initial attempt + one retry
+    project_text_attachment.refresh_from_db()
+    assert project_text_attachment.index_state == AttachmentIndexState.INDEXED
+    assert project_text_attachment.rag_document_id == "1"
+    assert project_text_attachment.processing_error is None
+
+
+@responses.activate
+def test_index_does_not_retry_on_client_error(project_text_attachment):
+    """A 4xx store error is permanent for this input: no retry, straight to FAILED."""
+    project_text_attachment.project.collection_id = "999"
+    project_text_attachment.project.save(update_fields=["collection_id"])
+
+    responses.post(
+        "https://albert.api.etalab.gouv.fr/v1/documents",
+        json={"error": "bad request"},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
+
+    index_project_attachment(project_text_attachment)
+
+    assert len(responses.calls) == 1  # no retry
+    project_text_attachment.refresh_from_db()
+    assert project_text_attachment.index_state == AttachmentIndexState.FAILED
+
+
+@responses.activate
+def test_index_does_not_retry_on_missing_document_id(project_text_attachment):
+    """A 200 with no id means the chunks were stored; retrying would duplicate
+    them, so it fails fast to FAILED instead of retrying."""
+    project_text_attachment.project.collection_id = "999"
+    project_text_attachment.project.save(update_fields=["collection_id"])
+
+    responses.post(
+        "https://albert.api.etalab.gouv.fr/v1/documents",
+        json={"id": ""},
+        status=status.HTTP_201_CREATED,
+    )
+
+    index_project_attachment(project_text_attachment)
+
+    assert len(responses.calls) == 1  # no retry
+    project_text_attachment.refresh_from_db()
+    assert project_text_attachment.index_state == AttachmentIndexState.FAILED
+    assert not project_text_attachment.rag_document_id
 
 
 @responses.activate
@@ -204,6 +334,31 @@ def test_index_is_idempotent_when_already_indexed(project_text_attachment):
     assert documents_mock.call_count == 0
     project_text_attachment.refresh_from_db()
     assert project_text_attachment.rag_document_id == "777"
+    # The idempotent path reconciles a lagging index_state to INDEXED.
+    assert project_text_attachment.index_state == AttachmentIndexState.INDEXED
+
+
+def test_index_reconcile_clears_stale_processing_error(project_text_attachment):
+    """The idempotent reconcile clears an error left by a prior partial failure.
+
+    A prior attempt can store the chunks (rag_document_id set) then fail on a
+    later side-effect (e.g. companion S3 save), leaving the row FAILED with a
+    processing_error. On retry the chunks already exist, so the row is genuinely
+    indexed - it must land INDEXED with the stale error cleared.
+    """
+    project_text_attachment.rag_document_id = "777"
+    project_text_attachment.index_state = AttachmentIndexState.FAILED
+    project_text_attachment.processing_error = "companion S3 save failed"
+    project_text_attachment.save(
+        update_fields=["rag_document_id", "index_state", "processing_error"]
+    )
+
+    index_project_attachment(project_text_attachment)
+
+    project_text_attachment.refresh_from_db()
+    assert project_text_attachment.index_state == AttachmentIndexState.INDEXED
+    assert project_text_attachment.is_indexed is True
+    assert project_text_attachment.processing_error is None
 
 
 @responses.activate
@@ -259,6 +414,75 @@ def test_index_creates_markdown_companion_for_non_text_input():
         default_storage.delete(saved_name)
         if companion is not None:
             default_storage.delete(companion.key)
+
+
+@responses.activate
+def test_index_reconcile_rebuilds_missing_markdown_companion():
+    """The idempotent reconcile re-writes a companion a prior run failed to store.
+
+    A prior run stored the RAG chunks (rag_document_id set) then crashed before
+    writing the markdown companion. On re-run the reconcile path re-parses (no
+    re-store, so no /documents call and no duplicate chunks) and recreates the
+    missing companion so summarize / the system-prompt listing work again.
+    """
+    saved_name = default_storage.save("project-rag-heal.pdf", ContentFile(b"%PDF-1.4 fake bytes"))
+    attachment = factories.ChatProjectAttachmentFactory(
+        key=saved_name,
+        file_name="paper.pdf",
+        content_type="application/pdf",
+        upload_state=AttachmentStatus.READY,
+        rag_document_id="already-stored",
+    )
+    companion = None
+    try:
+        parse_mock = responses.post(
+            "https://albert.api.etalab.gouv.fr/v1/parse-beta",
+            json={"data": [{"content": "# Parsed PDF\n\nbody"}]},
+            status=status.HTTP_200_OK,
+        )
+        documents_mock = responses.post(
+            "https://albert.api.etalab.gouv.fr/v1/documents",
+            json={"id": 1},
+            status=status.HTTP_201_CREATED,
+        )
+
+        index_project_attachment(attachment)
+
+        # Re-parsed to recover the markdown, but never re-stored the chunks.
+        assert parse_mock.call_count == 1
+        assert documents_mock.call_count == 0
+        companion = ChatConversationAttachment.objects.get(
+            project_id=attachment.project_id, conversion_from=attachment.key
+        )
+        assert companion.file_name == "paper.pdf.md"
+        assert companion.content_type == "text/markdown"
+        assert companion.key.endswith(".md")
+        assert default_storage.exists(companion.key)
+    finally:
+        default_storage.delete(saved_name)
+        if companion is not None:
+            default_storage.delete(companion.key)
+
+
+@responses.activate
+def test_index_reconcile_skips_companion_when_present(project_text_attachment):
+    """Reconcile does no parse work when the companion already exists.
+
+    A text input never has a companion, so the reconcile path must not re-parse
+    it - the common idempotent re-run stays free of backend traffic.
+    """
+    project_text_attachment.rag_document_id = "already-stored"
+    project_text_attachment.save(update_fields=["rag_document_id"])
+
+    parse_mock = responses.post(
+        "https://albert.api.etalab.gouv.fr/v1/parse-beta",
+        json={"data": [{"content": "unused"}]},
+        status=status.HTTP_200_OK,
+    )
+
+    index_project_attachment(project_text_attachment)
+
+    assert parse_mock.call_count == 0
 
 
 @responses.activate

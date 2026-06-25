@@ -1026,6 +1026,25 @@ USER QUESTION:
         environ_prefix=None,
     )
 
+    # Project-file RAG indexing (`index_project_attachment`) retries the store
+    # call on transient Albert failures (network/timeout, 5xx, 429) before
+    # marking the attachment FAILED. Total number of attempts, initial + retries
+    # (2 = one retry). Set to 1 to disable retrying.
+    RAG_STORE_MAX_ATTEMPTS = values.PositiveIntegerValue(
+        default=2,
+        environ_name="RAG_STORE_MAX_ATTEMPTS",
+        environ_prefix=None,
+    )
+
+    # Delay, in seconds, the indexing worker sleeps between store attempts. Kept
+    # short: the worker blocks for this duration, so it trades a held slot for
+    # clearing brief Albert blips.
+    RAG_STORE_RETRY_DELAY_SECONDS = values.PositiveIntegerValue(
+        default=3,
+        environ_name="RAG_STORE_RETRY_DELAY_SECONDS",
+        environ_prefix=None,
+    )
+
     # Find
     FIND_API_KEY = values.Value(
         None,
@@ -1141,6 +1160,20 @@ USER QUESTION:
     CELERY_TASK_ROUTES = values.DictValue(
         {},
         environ_name="CELERY_TASK_ROUTES",
+        environ_prefix=None,
+    )
+    # Per-task wall-clock budget. The soft limit raises SoftTimeLimitExceeded, which the
+    # parse path catches and records as a visible FAILED state; the hard limit SIGKILLs the
+    # worker child (prefork pool) so a runaway or malicious parse (zip bomb, entity blowup)
+    # can't pin a worker indefinitely or grow memory unbounded. Eager mode ignores both.
+    CELERY_TASK_SOFT_TIME_LIMIT = values.IntegerValue(
+        180,
+        environ_name="CELERY_TASK_SOFT_TIME_LIMIT",
+        environ_prefix=None,
+    )
+    CELERY_TASK_TIME_LIMIT = values.IntegerValue(
+        300,
+        environ_name="CELERY_TASK_TIME_LIMIT",
         environ_prefix=None,
     )
 

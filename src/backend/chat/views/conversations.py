@@ -2,10 +2,12 @@
 
 import logging
 import os
+from datetime import timedelta
 
 from django.conf import settings
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Q
 from django.http import StreamingHttpResponse
+from django.utils import timezone
 from django.utils.module_loading import import_string
 
 import langfuse
@@ -23,6 +25,7 @@ from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX, SSE_MIME_TYPE
+from chat.enums import AttachmentIndexState
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.model_routing import resolve_effective_model_hrid
 from chat.rate_limiting import ChatCooldownThrottle, get_cooldown_remaining
@@ -123,6 +126,10 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         # Search results only include nested project info
         if self.action == "list" and self.request.query_params.get("title"):
             return serializers.ChatConversationSearchSerializer
+        # A single retrieval nests project (id, title, icon) so the client can
+        # read the conversation's project without a second request.
+        if self.action == "retrieve":
+            return serializers.ChatConversationRetrieveSerializer
         return super().get_serializer_class()
 
     def get_queryset(self):
@@ -132,9 +139,12 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
 
         qs = self.queryset.filter(owner=self.request.user)
 
-        # Search results use nested project info; post_conversation needs
-        # project.llm_instructions — prefetch to avoid extra queries
-        if self.request.query_params.get("title") or self.action == "post_conversation":
+        # Search results and retrieve use nested project info; post_conversation
+        # needs project.llm_instructions — prefetch to avoid extra queries
+        if self.request.query_params.get("title") or self.action in (
+            "post_conversation",
+            "retrieve",
+        ):
             qs = qs.select_related("project")
 
         # Avoid an N+1 on the images_skipped serializer field: pre-compute
@@ -225,6 +235,40 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         )
 
         conversation = self.get_object()
+
+        # Backstop the frontend gate: a project file whose malware scan or RAG
+        # indexing is still running isn't searchable yet, so answering now would
+        # silently ignore it. Refuse the message until both settle (the frontend
+        # blocks send too). Only these in-flight states block; terminal states
+        # (READY, SUSPICIOUS, too-large, FAILED) and a not-yet-uploaded PENDING
+        # row do not, so a rejected or abandoned file can't deadlock the project.
+        #
+        # An INDEXING row is only counted while fresh: if the indexing worker is
+        # SIGKILLed at CELERY_TASK_TIME_LIMIT (or OOM-killed / crashes), the
+        # final INDEXED/FAILED write never runs and the row stays INDEXING
+        # forever, which would otherwise deadlock messaging for the whole
+        # project. Past the hard-limit window (plus a margin) such a row is
+        # provably dead, so we stop blocking on it. This unblocks messaging only;
+        # recovering the stuck index (mark FAILED / requeue) is separate work.
+        if (
+            conversation.project_id
+            and models.ChatConversationAttachment.objects.filter(
+                project_id=conversation.project_id,
+            )
+            .filter(
+                Q(upload_state=AttachmentStatus.ANALYZING)
+                | Q(
+                    index_state=AttachmentIndexState.INDEXING,
+                    updated_at__gte=timezone.now()
+                    - timedelta(seconds=settings.CELERY_TASK_TIME_LIMIT + 60),
+                )
+            )
+            .exists()
+        ):
+            return Response(
+                {"error": "project_files_indexing"},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         serializer = self.get_serializer(data=request.data)
         try:

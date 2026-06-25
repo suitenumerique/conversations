@@ -14,6 +14,7 @@ from rest_framework import status as http_status
 from core.file_upload.enums import AttachmentStatus, FileUploadMode
 
 from chat import factories, models
+from chat.enums import AttachmentIndexState
 from chat.tests.conftest import PIXEL_PNG
 
 pytestmark = pytest.mark.django_db
@@ -632,3 +633,61 @@ def test_project_backend_upload_creates_s3_file(_mock_malware, api_client):
     with default_storage.open(key, "rb") as f:
         content = f.read()
     assert content == PIXEL_PNG
+
+
+# ------------------------------------------------------------------ #
+# Reindex (user-initiated retry of a failed indexing)
+# ------------------------------------------------------------------ #
+
+
+def test_project_attachment_reindex_not_owner_forbidden(api_client):
+    """A user who does not own the project cannot reindex its attachments."""
+    attachment = factories.ChatProjectAttachmentFactory(
+        index_state=AttachmentIndexState.FAILED,
+    )
+    api_client.force_login(factories.UserFactory())
+
+    url = f"/api/v1.0/projects/{attachment.project.pk}/attachments/{attachment.pk!s}/reindex/"
+    response = api_client.post(url)
+
+    assert response.status_code == 404
+
+
+@mock.patch("chat.views.attachments.index_project_attachment_task")
+def test_project_attachment_reindex_success(mock_task, api_client):
+    """Reindexing a FAILED attachment resets it to INDEXING and re-enqueues the task."""
+    attachment = factories.ChatProjectAttachmentFactory(
+        content_type="application/pdf",
+        upload_state=AttachmentStatus.READY,
+        index_state=AttachmentIndexState.FAILED,
+        processing_error="boom",
+    )
+    api_client.force_login(attachment.project.owner)
+
+    url = f"/api/v1.0/projects/{attachment.project.pk}/attachments/{attachment.pk!s}/reindex/"
+    response = api_client.post(url)
+
+    assert response.status_code == 200
+    attachment.refresh_from_db()
+    assert attachment.index_state == AttachmentIndexState.INDEXING
+    assert attachment.processing_error is None
+    mock_task.delay.assert_called_once_with(attachment.pk)
+
+
+@mock.patch("chat.views.attachments.index_project_attachment_task")
+def test_project_attachment_reindex_rejected_when_not_failed(mock_task, api_client):
+    """Reindex is only allowed for FAILED rows; an INDEXED row is rejected."""
+    attachment = factories.ChatProjectAttachmentFactory(
+        content_type="application/pdf",
+        upload_state=AttachmentStatus.READY,
+        index_state=AttachmentIndexState.INDEXED,
+    )
+    api_client.force_login(attachment.project.owner)
+
+    url = f"/api/v1.0/projects/{attachment.project.pk}/attachments/{attachment.pk!s}/reindex/"
+    response = api_client.post(url)
+
+    assert response.status_code == 400
+    attachment.refresh_from_db()
+    assert attachment.index_state == AttachmentIndexState.INDEXED
+    mock_task.delay.assert_not_called()

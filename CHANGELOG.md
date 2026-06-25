@@ -22,6 +22,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(front) prevent app crash for users without a full name or email
+- ✨(back) process project files asynchronously with indexing state
 
 ## [0.0.19] - 2026-06-24
 
