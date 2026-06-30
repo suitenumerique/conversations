@@ -15,6 +15,7 @@ import requests
 from chat.agent_rag.albert_api_constants import Searches
 from chat.agent_rag.constants import RAGWebResult, RAGWebResults, RAGWebUsage
 from chat.agent_rag.document_rag_backends.base_rag_backend import BaseRagBackend
+from chat.constants import MARKDOWN_MIME_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -153,7 +154,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             urljoin(self._base_url, self._documents_endpoint),
             headers=self._headers,
             files={
-                "file": (f"{name}.md", BytesIO(content.encode("utf-8")), "text/markdown"),
+                "file": (f"{name}.md", BytesIO(content.encode("utf-8")), MARKDOWN_MIME_TYPE),
                 "collection": (None, int(self.collection_id)),
                 "metadata": (None, json.dumps({"document_name": name})),  # undocumented API
             },
@@ -187,7 +188,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
                 urljoin(self._base_url, self._documents_endpoint),
                 headers=self._headers,
                 files={
-                    "file": (f"{name}.md", BytesIO(content.encode("utf-8")), "text/markdown"),
+                    "file": (f"{name}.md", BytesIO(content.encode("utf-8")), MARKDOWN_MIME_TYPE),
                 },
                 data={
                     "collection": int(self.collection_id),

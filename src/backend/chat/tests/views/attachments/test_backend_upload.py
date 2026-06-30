@@ -36,7 +36,7 @@ def test_backend_upload_not_owner_forbidden(api_client):
     assert response.status_code == 404
 
 
-@mock.patch("chat.views.malware_detection.analyse_file")
+@mock.patch("chat.views.attachments.malware_detection.analyse_file")
 def test_backend_upload_success(mock_malware, api_client):
     """Test successful backend file upload."""
     conversation = factories.ChatConversationFactory()
@@ -86,7 +86,7 @@ def test_backend_upload_missing_file(api_client):
     assert "file" in response.json()
 
 
-@mock.patch("chat.views.malware_detection.analyse_file")
+@mock.patch("chat.views.attachments.malware_detection.analyse_file")
 def test_backend_upload_creates_s3_file(_mock_malware, api_client):
     """Test that backend upload creates file in S3."""
 

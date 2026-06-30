@@ -26,6 +26,7 @@ from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import ignore_logger
 
 from core.feature_flags.flags import FeatureFlags, FeatureToggle
+from core.file_upload.enums import FileToLLMMode, FileUploadMode
 
 from chat.llm_configuration import cached_load_llm_configuration, load_llm_configuration
 from conversations.brave_settings import BraveSettings
@@ -231,12 +232,12 @@ class Base(BraveSettings, Configuration):
         environ_prefix=None,
     )
     FILE_UPLOAD_MODE = values.Value(
-        "presigned_url",
+        FileUploadMode.PRESIGNED_URL,
         environ_name="FILE_UPLOAD_MODE",
         environ_prefix=None,
     )
     FILE_TO_LLM_MODE = values.Value(
-        "presigned_url",
+        FileToLLMMode.PRESIGNED_URL,
         environ_name="FILE_TO_LLM_MODE",
         environ_prefix=None,
     )
@@ -1249,7 +1250,7 @@ USER QUESTION:
             )
 
         # File access configuration validation
-        if cls.FILE_TO_LLM_MODE == "backend_temporary_url" and not cls.FILE_BACKEND_URL:
+        if cls.FILE_TO_LLM_MODE == FileToLLMMode.BACKEND_TEMPORARY_URL and not cls.FILE_BACKEND_URL:
             raise ValueError(
                 "FILE_TO_LLM_MODE is set to 'backend_temporary_url' but FILE_BACKEND_URL is empty. "
                 "Please set FILE_BACKEND_URL to a valid URL for backend temporary file access."

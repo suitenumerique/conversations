@@ -160,7 +160,12 @@ from chat.clients.schema import (
     ImagePostRunActions,
     StreamingState,
 )
-from chat.constants import IMAGE_MIME_PREFIX, TEXT_MIME_PREFIX
+from chat.constants import (
+    ACCESS_FULL_CONTEXT,
+    IMAGE_MIME_PREFIX,
+    MARKDOWN_MIME_TYPE,
+    TEXT_MIME_PREFIX,
+)
 from chat.document_context_builder import (
     DocumentsListing,
     build_documents_listing,
@@ -894,7 +899,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     uploaded_by=self.user,
                     key=key or f"{self.conversation.pk}/attachments/{document.identifier}.md",
                     file_name=f"{document.identifier}.md",
-                    content_type="text/markdown",
+                    content_type=MARKDOWN_MIME_TYPE,
                     conversion_from=key,  # might be None
                     # No row exists for inline BinaryContent; carry the id here.
                     rag_document_id=rag_document_id if not key else None,
@@ -1457,7 +1462,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if is_conversation_deindexed:
             listing = await self._build_documents_listing()
             in_context_ids = (
-                {doc.document_id for doc in listing.documents if doc.access == "full-context"}
+                {doc.document_id for doc in listing.documents if doc.access == ACCESS_FULL_CONTEXT}
                 if listing
                 else set()
             )

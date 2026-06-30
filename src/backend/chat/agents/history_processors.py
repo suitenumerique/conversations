@@ -7,6 +7,7 @@ from django.conf import settings
 from pydantic_ai import ImageUrl
 from pydantic_ai.messages import BinaryContent, ModelMessage, ModelRequest, UserPromptPart
 
+from chat.constants import IMAGE_MIME_PREFIX
 from chat.tokens import (
     compute_conversation_budget as _compute_conversation_budget,
 )
@@ -47,7 +48,9 @@ def _estimate_message_tokens(message: ModelMessage) -> int:
             for item in content:
                 if isinstance(item, ImageUrl):
                     part_tokens += _IMAGE_TOKEN_ESTIMATE
-                elif isinstance(item, BinaryContent) and item.media_type.startswith("image/"):
+                elif isinstance(item, BinaryContent) and item.media_type.startswith(
+                    IMAGE_MIME_PREFIX
+                ):
                     part_tokens += _IMAGE_TOKEN_ESTIMATE
                 else:
                     text = _stringify_message_content(item).strip()

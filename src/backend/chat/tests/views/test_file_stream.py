@@ -33,8 +33,8 @@ def test_file_stream_expired_key(api_client):
     assert response.status_code == 404
 
 
-@mock.patch("chat.views.magic.Magic")
-@mock.patch("chat.views.default_storage.open")
+@mock.patch("chat.views.files.magic.Magic")
+@mock.patch("chat.views.files.default_storage.open")
 def test_file_stream_valid_key_streams_file(mock_storage_open, mock_magic, api_client):
     """Test that valid temporary keys stream file content."""
     cache.clear()

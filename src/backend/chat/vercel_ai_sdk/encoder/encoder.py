@@ -3,6 +3,8 @@
 from enum import Enum
 from typing import Union
 
+from chat.constants import SSE_MIME_TYPE
+
 from ..core.events_v4 import BaseEvent as V4BaseEvent
 from ..core.events_v4 import TextPart
 from ..core.events_v5 import BaseEvent as V5BaseEvent
@@ -37,7 +39,7 @@ class EventEncoder:
         """
         Returns the content type of the encoder.
         """
-        return "text/event-stream"
+        return SSE_MIME_TYPE
 
     def encode(self, event: Union[V4BaseEvent, V5BaseEvent]) -> str | None:
         """
