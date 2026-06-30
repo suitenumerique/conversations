@@ -1,0 +1,1192 @@
+# Tool selection — l'agent doit choisir le bon tool (web_search, self_documentation,
+# document_search_rag, summarize) ou aucun, selon la question. Agent prod avec tools
+# stubés ; requires_documents active le contexte document fake. Évaluateurs : spans par cas.
+
+cases:
+  # ── WEB SEARCH — should call ────────────────────────────────────────────────
+
+  - name: news_recent_ai
+    inputs:
+      user_message: "Quelles sont les dernières avancées en IA générative ?"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+      description: Actualités récentes — doit appeler web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: bitcoin_price_now
+    inputs:
+      user_message: "Prix du bitcoin là maintenant"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/bitcoin-cours-juin-2026",
+              "title": "Cours du bitcoin — juin 2026",
+              "snippets": [
+                "Le bitcoin s'échange autour de 98 400 USD en séance du 7 juillet 2026.",
+                "La capitalisation du bitcoin dépasse 1 900 milliards USD sur les principales plateformes."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: easy
+      category: web_search
+      description: Prix en temps réel — doit appeler web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: apple_recent_news
+    inputs:
+      user_message: "Quoi de neuf chez Apple récemment ?"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/apple-actualites-juin-2026",
+              "title": "Apple : actualités récentes",
+              "snippets": [
+                "Apple a présenté en juin 2026 une mise à jour majeure d'iOS avec des fonctionnalités d'IA on-device.",
+                "Le groupe annonce des investissements accrus dans la production de puces en Europe."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: medium
+      category: web_search
+      description: News récentes sur une entreprise — doit appeler web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: law_in_force
+    inputs:
+      user_message: "La loi Sapin II est-elle toujours en vigueur ?"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/loi-sapin-ii-statut-2026",
+              "title": "Loi Sapin II — statut en vigueur",
+              "snippets": [
+                "La loi Sapin II (2016) reste en vigueur ; certaines dispositions ont été modifiées par des ordonnances ultérieures.",
+                "Le registre des bénéficiaires effectifs et les obligations anticorruption des grandes entreprises demeurent applicables."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: medium
+      category: web_search
+      description: Statut légal actuel — doit vérifier via web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: premier_ministre_actuel
+    inputs:
+      user_message: "Qui est le premier ministre ?"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/gouvernement-france-2026",
+              "title": "Gouvernement de la République française",
+              "snippets": [
+                "Le premier ministre de la République française est François Bayrou depuis décembre 2024.",
+                "Il dirige le gouvernement sous la présidence d'Emmanuel Macron."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Fonction politique changeante — le modèle peut répondre de mémoire au lieu
+        de vérifier via web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  # ── WEB SEARCH — borderline (implicite temporel) ────────────────────────────
+  # Mélange connaissance + fraîcheur, ou temporalité implicite sans « maintenant » /
+  # « prix » / « dernières news ». Erreurs prod fréquentes : le modèle répond de mémoire.
+
+  - name: explain_recent_ai_borderline
+    inputs:
+      user_message: "Explique brièvement les dernières avancées en IA générative"
+      requires_documents: false
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Borderline — demande d'explication + fraîcheur implicite (« dernières avancées ») ;
+        ne pas répondre uniquement de mémoire
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: bitcoin_moved_recently
+    inputs:
+      user_message: "Le bitcoin a beaucoup bougé récemment ?"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/bitcoin-volatilite-juin-2026",
+              "title": "Bitcoin : volatilité récente",
+              "snippets": [
+                "Le bitcoin a fluctué d'environ ±12 % sur les 30 derniers jours.",
+                "Les analystes attribuent ces mouvements aux anticipations sur les taux directeurs des banques centrales."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Borderline — pas de « prix » ni « maintenant », mais « récemment » exige
+        des données actuelles
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: apple_smartphone_leader
+    inputs:
+      user_message: "Apple est toujours leader sur les smartphones ?"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/parts-marche-smartphones-2026",
+              "title": "Parts de marché smartphones — T1 2026",
+              "snippets": [
+                "Apple reste leader en valeur sur le segment premium, avec environ 52 % du marché haut de gamme.",
+                "Samsung devance Apple en volume global avec environ 20 % de parts de marché mondial."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Borderline — « toujours » + part de marché changeante ; pas explicitement
+        « actualités » ou « chiffres récents »
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: openai_llm_leader
+    inputs:
+      user_message: "OpenAI est toujours en tête sur les LLM ?"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/classement-llm-2026",
+              "title": "Classement des modèles de langage — mi-2026",
+              "snippets": [
+                "OpenAI reste en tête sur les benchmarks généralistes avec GPT-5, devant Anthropic et Google.",
+                "Des modèles open-weight de Meta et Mistral progressent rapidement sur le raisonnement et le code."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Borderline — comparaison concurrentielle volatile ; le classement actuel
+        n'est pas dans les connaissances figées du modèle
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: interest_rates_high_now
+    inputs:
+      user_message: "Les taux d'intérêt sont hauts en ce moment ?"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/taux-bce-juin-2026",
+              "title": "Taux directeurs BCE et Fed — juin 2026",
+              "snippets": [
+                "La BCE maintient son taux de dépôt à 2,0 % après une série de baisses depuis fin 2024.",
+                "La Fed laisse son taux cible entre 4,25 % et 4,50 %, jugé élevé par rapport à la décennie 2010-2020."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Borderline — « en ce moment » implicite via formulation vague ; taux BCE/Fed
+        changeants
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: tesla_still_valuable
+    inputs:
+      user_message: "Tesla vaut encore autant qu'avant ?"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/tesla-valorisation-juin-2026",
+              "title": "Tesla : valorisation boursière récente",
+              "snippets": [
+                "L'action Tesla se négocie autour de 245 USD, en baisse d'environ 18 % sur les 12 derniers mois.",
+                "La capitalisation boursière de Tesla reste supérieure à 780 milliards USD."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Borderline — valorisation boursière implicite, sans « cours » ni « action » ;
+        nécessite données récentes
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  # ── WEB SEARCH — bruit linguistique (prod-like) ─────────────────────────────
+  # Fautes, argot, mélange FR/EN, formulations indirectes — doit quand même
+  # déclencher web_search quand l'info est temporelle.
+
+  - name: btc_price_sms_slang
+    inputs:
+      user_message: "c koi le prix du btc mtn"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/bitcoin-cours-juin-2026",
+              "title": "Cours du bitcoin (BTC) — juin 2026",
+              "snippets": [
+                "Le bitcoin (BTC) s'échange autour de 98 400 USD en séance du 7 juillet 2026.",
+                "La capitalisation du bitcoin dépasse 1 900 milliards USD sur les principales plateformes."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Bruit linguistique — fautes/argot SMS (« c koi », « btc », « mtn ») ;
+        prix temps réel → web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: apple_latest_news_fr_en
+    inputs:
+      user_message: "latest news sur Apple"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/apple-actualites-juin-2026",
+              "title": "Apple : actualités récentes",
+              "snippets": [
+                "Apple a présenté en juin 2026 une mise à jour majeure d'iOS avec des fonctionnalités d'IA on-device.",
+                "Le groupe annonce des investissements accrus dans la production de puces en Europe."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Bruit linguistique — mélange FR/EN (« latest news sur Apple ») ;
+        actualités récentes → web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: apple_indirect_vibe
+    inputs:
+      user_message: "ça donne quoi Apple en ce moment ?"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/apple-situation-juin-2026",
+              "title": "Apple : où en est la marque en 2026 ?",
+              "snippets": [
+                "Apple affiche des résultats trimestriels en hausse portés par les services et l'iPhone 16.",
+                "Le lancement de nouvelles fonctionnalités d'IA on-device alimente la croissance des ventes d'apps."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Bruit linguistique — formulation indirecte/orale (« ça donne quoi … en ce moment ») ;
+        contexte récent implicite → web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  # ── WEB SEARCH — should NOT call ────────────────────────────────────────────
+
+  - name: static_fact_no_web
+    inputs:
+      user_message: "Qui a inventé le World Wide Web ?"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+      description: Fait historique stable — ne pas appeler web_search
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: explain_llm_no_web
+    inputs:
+      user_message: "Explique le fonctionnement d'un LLM"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+      description: Explication conceptuelle — réponse sans web_search
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: python_loop_no_web
+    inputs:
+      user_message: "Donne-moi un exemple de boucle en Python"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+      description: Exemple de code — ne pas appeler web_search
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: capital_italy_no_web
+    inputs:
+      user_message: "Quelle est la capitale de l'Italie ?"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+      description: Fait géographique stable — pas de web_search
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: math_no_web
+    inputs:
+      user_message: "Calcule 17 × 24"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+      description: Calcul arithmétique — pas de web_search
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  # ── WEB SEARCH — borderline (pas de web malgré apparence temporelle) ─────────
+
+  - name: explain_genai_concept_no_web
+    inputs:
+      user_message: "Explique ce qu'est l'IA générative"
+      requires_documents: false
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Borderline — sujet « IA générative » sans marqueur de fraîcheur ; explication
+        conceptuelle, pas d'actualités
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: apple_created_iphone_no_web
+    inputs:
+      user_message: "Apple a-t-elle créé l'iPhone ?"
+      requires_documents: false
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Borderline — entreprise + « a-t-elle » peut suggérer du récent ; fait
+        historique stable
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: bitcoin_blockchain_how_no_web
+    inputs:
+      user_message: "Comment fonctionne la blockchain du bitcoin ?"
+      requires_documents: false
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Borderline — sujet crypto tendance ; mécanisme technique stable, pas de
+        cours ni d'actu
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: tesla_makes_evs_no_web
+    inputs:
+      user_message: "Tesla fabrique-t-elle des voitures électriques ?"
+      requires_documents: false
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Borderline — marque très médiatisée ; activité principale stable, pas besoin
+        de vérifier en ligne
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: web_inventor_still_tim_berners_no_web
+    inputs:
+      user_message: "C'est toujours Tim Berners-Lee qui a inventé le web ?"
+      requires_documents: false
+    metadata:
+      difficulty: hard
+      category: web_search
+      description: >-
+        Borderline — « toujours » peut déclencher une vérif ; attribution historique
+        figée
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  # ── SELF DOCUMENTATION — adversarial ────────────────────────────────────────
+
+  - name: about_capabilities
+    inputs:
+      user_message: "What can you do?"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: self_documentation
+      description: Question directe sur les capacités — doit appeler self_documentation
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: about_identity
+    inputs:
+      user_message: "Who are you?"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: self_documentation
+      description: Question sur l'identité de l'assistant — doit appeler self_documentation
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: python_sort_function
+    inputs:
+      user_message: "Write a Python function to sort a list"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: self_documentation
+      description: Demande de code Python — ne pas appeler self_documentation
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: did_not_call_self_documentation
+
+  - name: about_file_types
+    inputs:
+      user_message: "What types of files can you handle?"
+      requires_documents: false
+    metadata:
+      difficulty: medium
+      category: self_documentation
+      description: Formats de fichiers supportés — doit appeler self_documentation
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: about_model
+    inputs:
+      user_message: "What model are you based on?"
+      requires_documents: false
+    metadata:
+      difficulty: medium
+      category: self_documentation
+      description: Question sur le modèle sous-jacent — doit appeler self_documentation
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: about_privacy
+    inputs:
+      user_message: "Are my conversations private? Where is my data stored?"
+      requires_documents: false
+    metadata:
+      difficulty: medium
+      category: self_documentation
+      description: Confidentialité et stockage des données — doit appeler self_documentation
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: meta_search_policy
+    inputs:
+      user_message: "Dans quels cas tu utilises un moteur de recherche ?"
+      requires_documents: false
+    metadata:
+      difficulty: medium
+      category: self_documentation
+      description: Politique d'usage du moteur de recherche — self_documentation
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: can_you_code_python
+    inputs:
+      user_message: "Tu peux coder en Python ?"
+      requires_documents: false
+    metadata:
+      difficulty: medium
+      category: self_documentation
+      description: « Tu peux » adressé à l'assistant — self_documentation
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: model_comparison
+    inputs:
+      user_message: "Are you like ChatGPT? What's the difference?"
+      requires_documents: false
+    metadata:
+      difficulty: hard
+      category: self_documentation
+      description: Comparaison avec ChatGPT — question meta sur l'assistant, doit appeler self_documentation
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: generic_ai_can_code
+    inputs:
+      user_message: "Un LLM peut-il coder en Python ?"
+      requires_documents: false
+    metadata:
+      difficulty: hard
+      category: self_documentation
+      description: Question générique sur les LLM — pas self_documentation (pas « tu »)
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: did_not_call_self_documentation
+
+  - name: meta_vs_web_realtime
+    inputs:
+      user_message: "Est-ce que tu peux aller chercher des infos sur internet en temps réel ?"
+      requires_documents: false
+    metadata:
+      difficulty: hard
+      category: self_documentation
+      description: Capacité web temps réel — self_documentation oui, web_search non
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  # ── RAG vs SUMMARIZE (fake document attached) ───────────────────────────────
+
+  - name: rag_section_lookup
+    inputs:
+      user_message: "Dans le document, que dit la section introduction ?"
+      requires_documents: true
+    metadata:
+      difficulty: easy
+      category: rag_vs_summarize
+      description: Recherche ciblée dans une section — document_search_rag, pas summarize
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: did_not_call_summarize
+
+  - name: rag_legal_risk
+    inputs:
+      user_message: "Le document mentionne-t-il des risques légaux ?"
+      requires_documents: true
+    metadata:
+      difficulty: easy
+      category: rag_vs_summarize
+      description: Question factuelle sur le contenu — RAG pour chercher, pas summarize
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: did_not_call_summarize
+
+  - name: summarize_explicit
+    inputs:
+      user_message: "Fais un résumé du document"
+      requires_documents: true
+      tool_output: |
+        {"summarize": "Résumé du document rapport-eval.pdf :\n- Le projet Alpha vise une mise en production en Q4 2025.\n- Les tests utilisateurs montrent une satisfaction de 78 %.\n- Des risques juridiques (RGPD, clauses contractuelles) restent à traiter.\n- La dernière révision interne du rapport date de mars 2025."}
+    metadata:
+      difficulty: easy
+      category: rag_vs_summarize
+      description: Demande explicite de résumé — summarize
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: called_summarize
+
+  - name: summarize_key_points
+    inputs:
+      user_message: "Donne-moi les points importants du document"
+      requires_documents: true
+      tool_output: |
+        {"summarize": "Points importants du document rapport-eval.pdf :\n1. Projet Alpha — production cible Q4 2025.\n2. Satisfaction utilisateurs : 78 % sur l'échantillon testé.\n3. Risques juridiques RGPD et contractuels à traiter.\n4. Dernière révision interne : mars 2025."}
+    metadata:
+      difficulty: medium
+      category: rag_vs_summarize
+      description: Points clés du document — summarize plutôt que RAG
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: called_summarize
+
+  - name: summarize_overview_not_rag
+    inputs:
+      user_message: "Donne-moi une vue d'ensemble du document"
+      requires_documents: true
+      tool_output: |
+        {"summarize": "Vue d'ensemble du document rapport-eval.pdf :\n- Le rapport évalue le projet Alpha pour 2025 et fixe les objectifs 2026.\n- Les tests utilisateurs (120 personnes, janv.–mars 2025) montrent 78 % de satisfaction.\n- Des risques juridiques (RGPD, clauses contractuelles) restent à traiter.\n- Mise en production prévue en Q4 2025 ; dernière révision interne : mars 2025."}
+    metadata:
+      difficulty: medium
+      category: rag_vs_summarize
+      description: >-
+        Vue d'ensemble du document — summarize, pas document_search_rag (piège :
+        le modèle cherche des passages au lieu de résumer)
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: called_summarize
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: did_not_call_document_search_rag
+
+  - name: rag_then_summarize_risks
+    inputs:
+      user_message: >-
+        Dans le document joint, trouve les passages sur les risques puis
+        résume-les en 3 points
+      requires_documents: true
+      tool_output: |
+        {
+          "document_search_rag": "[1] Risques légaux : conformité RGPD partielle — certaines bases légales de traitement ne sont pas documentées.\n[2] Risques contractuels : clauses de responsabilité en cours de révision avec le prestataire cloud.\n[3] Risques opérationnels : dépendance à un fournisseur unique pour l'hébergement.",
+          "summarize": "Résumé des risques (3 points) :\n1. Conformité RGPD incomplète sur les bases légales de traitement.\n2. Clauses contractuelles de responsabilité encore en négociation.\n3. Risque opérationnel lié à la dépendance à un hébergeur unique."
+        }
+    metadata:
+      difficulty: hard
+      category: rag_vs_summarize
+      description: Enchaînement chercher puis résumer — RAG puis summarize
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: called_summarize
+
+  # ── MULTI-TOOL — intentions implicites ──────────────────────────────────────
+  # Deux besoins fusionnés en une seule phrase ; pas de « d'abord », « ensuite », « enfin ».
+
+  - name: doc_risks_still_current
+    inputs:
+      user_message: "Le document parle de risques, c'est toujours d'actualité ?"
+      requires_documents: true
+      tool_output: |
+        {
+          "document_search_rag": "[1] Risques légaux : conformité RGPD partielle — certaines bases légales de traitement ne sont pas documentées.\n[2] Risques contractuels : clauses de responsabilité en cours de révision avec le prestataire cloud.\n[3] Risques opérationnels : dépendance à un fournisseur unique pour l'hébergement.",
+          "web_search": {
+            "0": {
+              "url": "https://example.com/rgpd-controles-juin-2026",
+              "title": "RGPD et risques juridiques — actualité 2026",
+              "snippets": [
+                "La CNIL a renforcé ses contrôles sur les bases légales de traitement en 2026.",
+                "De nouvelles lignes directrices européennes sur les clauses contractuelles cloud entrent en vigueur."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: multi_tool
+      description: >-
+        Multi-intention implicite — lire les risques dans le doc (RAG) puis vérifier
+        l'actualité (web) ; formulation unique, sans enchaînement explicite
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: summarize_doc_still_valid
+    inputs:
+      user_message: "Résume le doc et dis-moi si c'est encore valide"
+      requires_documents: true
+      tool_output: |
+        {
+          "summarize": "Résumé du document rapport-eval.pdf :\n- Le projet Alpha vise une mise en production en Q4 2027.\n- Les tests utilisateurs montrent une satisfaction de 78 %.\n- Des risques juridiques (RGPD, clauses contractuelles) restent à traiter.\n- Des communications publiques sont prévues.",
+          "web_search": {
+            "0": {
+              "url": "https://example.com/projet-alpha-statut-juin-2026",
+              "title": "Projet Alpha — statut et calendrier 2026",
+              "snippets": [
+                "Le projet Alpha a été reporté au T1 2028 en raison de retards sur la conformité RGPD.",
+                "Les tests utilisateurs récents confirment une satisfaction autour de 80 %."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: multi_tool
+      description: >-
+        Multi-intention implicite — résumer le document (summarize) puis juger la
+        validité actuelle (web) ; deux verbes dans une phrase, pas de plan numéroté
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: called_summarize
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: did_not_call_document_search_rag
+
+  # ── MULTI-TOOL / HARD ───────────────────────────────────────────────────────
+
+  - name: doc_vs_news_freshness
+    inputs:
+      user_message: >-
+        Dans le document, les infos sont-elles à jour avec les dernières news ?
+      requires_documents: true
+      tool_output: |
+        {
+          "document_search_rag": "[1] Calendrier : la dernière mise à jour interne du rapport date de mars 2025.\n[2] Le document prévoit une mise en production du projet Alpha en Q4 2025.",
+          "web_search": {
+            "0": {
+              "url": "https://example.com/ia-actualites-juin-2026",
+              "title": "Actualités IA — juin 2026",
+              "snippets": [
+                "En juin 2026, plusieurs modèles multimodaux ont été publiés avec de meilleures capacités de raisonnement.",
+                "De nouvelles lignes directrices européennes sur les systèmes d'IA à usage général sont entrées en vigueur."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: multi_tool
+      description: Comparer doc et actualités — RAG + web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: news_summary_no_doc
+    inputs:
+      user_message: "Résume les dernières actualités sur l'IA"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/actualites-ia-juin-2026",
+              "title": "Dernières actualités sur l'intelligence artificielle",
+              "snippets": [
+                "Plusieurs laboratoires ont annoncé en juin 2026 des modèles spécialisés en raisonnement et en génération de code.",
+                "L'Union européenne a renforcé le cadre applicable aux modèles d'IA à usage général."
+              ]
+            },
+            "1": {
+              "url": "https://example.com/deploiements-ia-public",
+              "title": "L'IA dans le secteur public en 2026",
+              "snippets": [
+                "Des assistants documentaires sont déployés dans plusieurs administrations françaises."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: multi_tool
+      description: Résumé d'actualités web sans document joint — web_search, pas summarize
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: did_not_call_summarize
+
+  # ── MULTI-TOOL / VERY HARD ───────────────────────────────────────────────────────
+
+  - name: self_doc_rag_web_methodology
+    inputs:
+      user_message: >-
+        D'abord, explique-moi ce que tu peux faire avec un document joint et une
+        recherche web. Ensuite, cherche dans le document la section méthodologie.
+        Enfin, vérifie sur internet si un échantillon de 120 utilisateurs est
+        encore une taille courante en tests UX.
+      requires_documents: true
+      tool_output: |
+        {
+          "document_search_rag": "[1] Section méthodologie : les tests ont été menés sur un échantillon de 120 utilisateurs entre janvier et mars 2025.\n[2] Section introduction : ce rapport présente l'évaluation du projet Alpha pour l'année 2025.",
+          "web_search": {
+            "0": {
+              "url": "https://example.com/ux-research-sample-size-2026",
+              "title": "Tailles d'échantillon en UX research en 2026",
+              "snippets": [
+                "En 2026, les études UX qualitatives utilisent souvent 5 à 15 participants par itération, tandis que les tests quantitatifs légers visent plutôt 100 à 200 répondants.",
+                "Un échantillon de 120 utilisateurs reste courant pour des tests d'usage à échelle modérée."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: multi_tool
+      description: Enchaînement self_documentation → RAG → web_search (3 tools)
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: rag_summarize_web_rgpd
+    inputs:
+      user_message: >-
+        Dans le document joint, trouve les passages sur les risques juridiques,
+        résume-les en trois points, puis cherche sur le web les dernières
+        actualités RGPD pour dire si le document est toujours à jour.
+      requires_documents: true
+      tool_output: |
+        {
+          "document_search_rag": "[1] Risques légaux : conformité RGPD partielle — certaines bases légales de traitement ne sont pas documentées.\n[2] Risques contractuels : clauses de responsabilité en cours de révision avec le prestataire cloud.\n[3] Risques opérationnels : dépendance à un fournisseur unique pour l'hébergement.",
+          "summarize": "Résumé des risques juridiques (3 points) :\n1. Conformité RGPD incomplète sur les bases légales de traitement.\n2. Clauses contractuelles de responsabilité encore en négociation.\n3. Risque opérationnel lié à la dépendance à un hébergeur unique.",
+          "web_search": {
+            "0": {
+              "url": "https://example.com/rgpd-actualites-juin-2026",
+              "title": "RGPD : actualités et contrôles récents",
+              "snippets": [
+                "En juin 2026, la CNIL a renforcé les contrôles sur la documentation des bases légales de traitement.",
+                "De nouvelles recommandations encadrent les clauses de sous-traitance cloud dans le secteur public."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: multi_tool
+      description: Enchaînement RAG → summarize → web_search (3 tools)
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: called_summarize
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  # ── TOOL CONFLICT — sources contradictoires ─────────────────────────────────
+  # RAG + web requis ; le doc est outdated ou contredit le web. L'eval vérifie
+  # l'appel des deux tools (pas la résolution du conflit dans la réponse).
+
+  - name: doc_rgpd_laws_conflict
+    inputs:
+      user_message: "Le document est-il à jour selon les dernières lois RGPD ?"
+      requires_documents: true
+      tool_output: |
+        {
+          "document_search_rag": "[1] Conformité RGPD : le rapport indique une conformité complète, audit interne validé en mars 2025.\n[2] Registre des traitements : toutes les bases légales sont documentées ; aucun écart signalé.",
+          "web_search": {
+            "0": {
+              "url": "https://example.com/rgpd-obligations-2026",
+              "title": "RGPD : nouvelles obligations en vigueur depuis 2026",
+              "snippets": [
+                "Depuis janvier 2026, la documentation des bases légales doit inclure une analyse d'impact systématique pour les traitements à risque.",
+                "La CNIL précise que les audits RGPD antérieurs à 2025 ne couvrent plus les exigences actuelles du secteur public."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: tool_conflict
+      description: >-
+        Conflit doc/web — le document affirme une conformité RGPD complète (2025) ;
+        le web impose de nouvelles obligations 2026 → RAG + web
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: doc_launch_date_web_split
+    inputs:
+      user_message: "La date de mise en prod dans le document, elle tient toujours ?"
+      requires_documents: true
+      tool_output: |
+        {
+          "document_search_rag": "[1] Calendrier : mise en production du projet Alpha prévue en Q4 2025.\n[2] Dernière révision interne du rapport : mars 2025.",
+          "web_search": {
+            "0": {
+              "url": "https://example.com/projet-alpha-calendrier-officiel",
+              "title": "Projet Alpha — calendrier officiel",
+              "snippets": [
+                "Le comité de pilotage confirme le lancement en Q4 2025, comme prévu dans la feuille de route initiale."
+              ]
+            },
+            "1": {
+              "url": "https://example.com/projet-alpha-retard-juin-2026",
+              "title": "Projet Alpha : lancement reporté",
+              "snippets": [
+                "Des retards sur la conformité RGPD repoussent la mise en production au T1 2026.",
+                "L'équipe projet confirme un décalage de trois mois par rapport au planning de mars 2025."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: tool_conflict
+      description: >-
+        Conflit triple — doc (Q4 2025) vs web contradictoire (source A confirme,
+        source B reporte au T1 2026) ; info outdated vs récente → RAG + web
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
