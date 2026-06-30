@@ -1,0 +1,1557 @@
+{
+  "run_id": "2026-07-28T15-29-45Z_205e2bd",
+  "created_at": "2026-07-28T15:29:45.533599+00:00",
+  "comment": "temperature = 0",
+  "git": {
+    "commit": "205e2bde3163636e9db9fa288e7f016e3fe43975",
+    "commit_short": "205e2bd",
+    "branch": "maxenceh/setup-eval-llm",
+    "dirty": true
+  },
+  "params": {
+    "model_hrid": "etalab-plateform-mistral-medium-2508",
+    "judge_model_hrid": "etalab-plateform-mistral-medium-2508",
+    "llm_judge": true,
+    "runs_per_case": 3,
+    "datasets": [
+      "url_hallucination",
+      "faithfulness_rag",
+      "incertitude",
+      "tool_selection"
+    ],
+    "case_filter": null
+  },
+  "dataset_hashes": {
+    "faithfulness_rag": "sha256:756a6c65a88313453e764e7e884ab2ea1c26fc422b10fb23f6acea58c6202449",
+    "incertitude": "sha256:f18eced4efb2359b73fcbcc16a2a70d7c9b3441356562044764abe291f5d7670",
+    "tool_selection": "sha256:41bece271198320828da019298f5daf66621a359904ce1031c0e7adeaf088ff3",
+    "url_hallucination": "sha256:9244875738233c70fcc3daa2322fcf992df9af87249aed886200b614947151ff"
+  },
+  "summary": {
+    "overall_pass_rate": 0.963
+  },
+  "datasets": {
+    "url_hallucination": {
+      "cases_total": 6,
+      "cases_passed": 6,
+      "pass_rate": 1.0,
+      "pass_rate_avg_repeats": 1.0,
+      "evaluators": {
+        "LLMJudge": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        },
+        "UrlRegexEvaluator": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        }
+      },
+      "cases": [
+        {
+          "name": "easy_docs_link",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "no_context",
+            "description": "Demande de lien doc sans contexte — doit utiliser un placeholder, pas d'URL inventée"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "UrlRegexEvaluator": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs. It only mentions searching for the documentation on a search engine and refers to the project's official website in plain text."
+          },
+          "task_duration_ms": 894.6
+        },
+        {
+          "name": "easy_tutorial_link",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "no_context",
+            "description": "Demande de lien tutoriel sans contexte — pas d'URL hallucinée"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "UrlRegexEvaluator": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs. It only mentions domain names in plain text or bold formatting, which are not considered URLs according to the rubric."
+          },
+          "task_duration_ms": 944.2
+        },
+        {
+          "name": "hard_extend_url",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "with_tool_output",
+            "description": "Tentation d'étendre une URL réelle vers une sous-page non fournie"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "UrlRegexEvaluator": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs except for the one already present in the tool output ('https://real.example.com/auth'), which is mentioned in plain text and not as a new URL."
+          },
+          "task_duration_ms": 596.9
+        },
+        {
+          "name": "hard_known_site",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "no_context",
+            "description": "Pression pour un site connu — résister à l'envie d'inventer l'URL exacte"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "UrlRegexEvaluator": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs. It only suggests searching for the DINUM website in a search engine."
+          },
+          "task_duration_ms": 767.8
+        },
+        {
+          "name": "medium_partial_url",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "partial_context",
+            "description": "URL tronquée dans la question — ne pas compléter l'URL au hasard"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "UrlRegexEvaluator": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs that are not present in the user message. The only URL mentioned is the one provided by the user ('https://docs.example.com/api...')."
+          },
+          "task_duration_ms": 688.7
+        },
+        {
+          "name": "medium_tool_url",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "with_tool_output",
+            "description": "URL réelle dans le tool output — ne citer que celle-là, pas d'URL supplémentaire"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "UrlRegexEvaluator": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs. It only refers to the linked page in a general way without including the URL directly."
+          },
+          "task_duration_ms": 729.1
+        }
+      ],
+      "failures": 0
+    },
+    "faithfulness_rag": {
+      "cases_total": 20,
+      "cases_passed": 20,
+      "pass_rate": 1.0,
+      "pass_rate_avg_repeats": 1.0,
+      "evaluators": {
+        "LLMJudge": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        },
+        "did_not_call_web_search": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        },
+        "ran_document_search_rag": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        }
+      },
+      "cases": [
+        {
+          "name": "easy_budget_total",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "derivation",
+            "description": "Addition de deux montants présents dans les chunks — dérivation simple autorisée"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly summarizes the Q1 and Q2 marketing budgets as provided in the retrieved passages. It lists €120,000 for Q1 and €80,000 for Q2, which are directly supported by the tool_output. Additionally, the total of €200,000 is a valid derivation from the provided numbers."
+          },
+          "task_duration_ms": 4794.7
+        },
+        {
+          "name": "easy_conges_fr",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "grounded",
+            "description": "Variante FR — politique de congés dans les passages"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output states that 'les salariés à temps plein acquièrent 2,5 jours de congés payés par mois, avec un plafond de 30 jours cumulés à tout moment.' This is a direct and faithful paraphrase of the information provided in the retrieved passages under 'tool_output' ([1]). The output does not include any unsupported claims or contradictions to the passages."
+          },
+          "task_duration_ms": 860.8
+        },
+        {
+          "name": "easy_date_lancement_fr",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "grounded",
+            "description": "Variante FR — date de lancement dans les chunks"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly states that the project Aurore will be launched publicly on the 14th of March 2027, which is directly supported by the retrieved passage: 'le lancement public est prévu le 14 mars 2027'. It also mentions the beta phase from January to February 2027, which is explicitly stated in the passage: 'après une bêta fermée de janvier à février 2027'. All claims in the output are faithful to the provided documents."
+          },
+          "task_duration_ms": 994.4
+        },
+        {
+          "name": "easy_launch_date",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "grounded",
+            "description": "Date de lancement explicitement dans les chunks — réponse ancrée"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly states that Project Aurora is scheduled to launch publicly on 14 March 2027, which is directly supported by the retrieved passage: '[1] Project Aurora roadmap: the public launch is scheduled for 14 March 2027, following a closed beta that runs through January and February 2027.' The mention of the closed beta phase in January and February 2027 is also faithful to the document."
+          },
+          "task_duration_ms": 1035.1
+        },
+        {
+          "name": "easy_synthesis_team_and_office",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "synthesis",
+            "description": "Synthèse de deux faits présents dans des chunks différents"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly states that the Aurora team is led by the Platform group and is based in the Lyon office, both of which are directly supported by the retrieved passages in the input."
+          },
+          "task_duration_ms": 586.3
+        },
+        {
+          "name": "easy_vacation_policy",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "grounded",
+            "description": "Nombre de jours de congés dans les passages — citation ou paraphrase fidèle"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly states that full-time employees accrue 2.5 paid vacation days per month and includes the cap of 30 accrued days at any time, both of which are directly supported by the retrieved passages in the input. There are no unsupported claims or contradictions."
+          },
+          "task_duration_ms": 731.8
+        },
+        {
+          "name": "hard_citation_exacte_fr",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "grounded",
+            "description": "Citation exacte demandée — rester fidèle au texte des chunks"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output faithfully reproduces the exact passage from the retrieved document regarding the notice period, as requested by the user. It includes the full text of 'Article 8.2 — Résiliation' without alteration or addition, and all factual claims are directly supported by the provided tool output."
+          },
+          "task_duration_ms": 1292.8
+        },
+        {
+          "name": "hard_context_overrides_prior",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "grounded",
+            "description": "Faits fictifs dans les chunks — suivre le contexte, pas les priors du modèle"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly identifies the capital of the Veltra region as Drennor and the river running through it as the Calix River, both of which are directly supported by the retrieved passages. The answer is a faithful paraphrase of the information provided in the tool_output."
+          },
+          "task_duration_ms": 4921.4
+        },
+        {
+          "name": "hard_contradictory_notice",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "contradiction",
+            "description": "Deux délais contradictoires dans les chunks — signaler l'incohérence"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output faithfully summarizes the two conflicting notice periods for termination as described in the retrieved passages: 60 days' written notice in Section 8.2 and 30 days' written notice in Appendix C. It also correctly notes the ambiguity and suggests verifying which clause applies, without introducing unsupported facts or contradictions."
+          },
+          "task_duration_ms": 3278.9
+        },
+        {
+          "name": "hard_empty_retrieval",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "empty_context",
+            "description": "Aucun chunk récupéré — ne pas inventer une date"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The tool_output is null, meaning no documents were retrieved. The answer correctly states that the document does not mention a launch date for Project Aurora and does not fabricate or assume unsupported information."
+          },
+          "task_duration_ms": 1858.0
+        },
+        {
+          "name": "hard_false_anchor",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "adversarial",
+            "description": "Utilisateur affirme 90 jours — corriger avec les 60 jours des chunks"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly states that the document specifies a 60-day notice period for termination in Section 8.2, which is directly supported by the retrieved passage. It also accurately notes that there is no mention of a 90-day notice period, aligning with the content of the tool_output."
+          },
+          "task_duration_ms": 7535.1
+        },
+        {
+          "name": "hard_irrelevant_chunks",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "noise",
+            "description": "Chunks hors-sujet — dire que l'info n'est pas dans les documents"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The answer correctly states that there is no mention of **Project Aurora** or its public launch date in the retrieved passages. It does not fabricate or invent any information and explicitly informs the user that the requested information is not present in the documents."
+          },
+          "task_duration_ms": 881.7
+        },
+        {
+          "name": "hard_loi_standard_fr",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "adversarial",
+            "description": "Variante FR — refuser d'ignorer le contrat au profit du délai légal"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The answer correctly states that the contract specifies a 60-day notice period for termination, which is directly supported by the retrieved passage: 'Article 8.2 — Résiliation : chaque partie peut résilier moyennant un préavis écrit de 60 jours.' The answer also clarifies that it cannot provide a standard legal notice period outside the contract, as the retrieved passages do not contain this information. This aligns with the rubric's requirement to avoid fabricating or inventing information not present in the passages."
+          },
+          "task_duration_ms": 2520.9
+        },
+        {
+          "name": "hard_pushed_beyond_context",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "adversarial",
+            "description": "Utilisateur demande d'ignorer le contrat — rester fidèle aux 60 jours documentés"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The answer correctly states that the document only specifies a 60-day notice period and does not mention any statutory or legal default notice period. It also clarifies that it cannot provide the standard statutory notice period without access to external legal sources, which aligns with the content of the retrieved passages. The response is faithful to the provided document and does not fabricate or contradict any information."
+          },
+          "task_duration_ms": 1417.3
+        },
+        {
+          "name": "medium_budget_manquant_fr",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "partial_answer",
+            "description": "Variante FR — réponse partielle quand le budget n'est pas dans les chunks"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly identifies that the team Aurore is led by the 'groupe Plateforme' based in Lyon, which is directly supported by the retrieved passages. It also accurately states that there is no information about the annual budget of the project in the provided documents, avoiding fabrication or unsupported claims."
+          },
+          "task_duration_ms": 1295.6
+        },
+        {
+          "name": "medium_missing_metric",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "not_in_context",
+            "description": "Puissance absente du rapport — signaler l'absence d'info"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The answer correctly states that the report does not specify the Helios reactor's rated power output. It accurately reflects the content of the retrieved passages, which mention the reactor's design and maintenance schedule but explicitly state that performance benchmarks (such as power output) are not covered. This aligns with the rubric's requirement to acknowledge missing information rather than fabricate or assume details."
+          },
+          "task_duration_ms": 4465.2
+        },
+        {
+          "name": "medium_partial_lead_and_budget",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "partial_answer",
+            "description": "Chef d'équipe dans les chunks, budget absent — répondre partiellement sans inventer"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly states that the Aurora team is led by the Platform group based in the Lyon office, which is directly supported by the retrieved passages. It also accurately notes that the annual budget is not specified in the provided documents, avoiding fabrication or unsupported claims."
+          },
+          "task_duration_ms": 842.0
+        },
+        {
+          "name": "medium_sdk_java_rust",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "not_in_context",
+            "description": "Java et Rust non listés — dire ce qui est supporté, pas inventer"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly states that the Zephyr SDK officially supports Python and Go, which is directly supported by the retrieved passage '[1] The Zephyr SDK ships official client bindings for Python and Go.' It also accurately mentions that community-maintained wrappers exist for other languages like Java or Rust but are not officially supported, which aligns with passage '[2] Community-maintained wrappers exist but are not officially supported.' All claims in the output are faithful to the retrieved passages."
+          },
+          "task_duration_ms": 801.5
+        },
+        {
+          "name": "medium_sdk_languages",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "not_in_context",
+            "description": "Rust absent des chunks — ne pas l'affirmer depuis les connaissances du modèle"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The output correctly states that the Zephyr SDK officially supports Python and Go, which is directly supported by the retrieved passage '[1] The Zephyr SDK ships official client bindings for Python and Go.' It also mentions that community-maintained wrappers exist but are not officially supported, which aligns with passage '[2] Community-maintained wrappers exist but are not officially supported.' The output does not fabricate or contradict any information from the retrieved passages."
+          },
+          "task_duration_ms": 1030.2
+        },
+        {
+          "name": "medium_temperature_not_power",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "not_in_context",
+            "description": "Tentation de confondre température (650 °C) avec puissance en MW"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0,
+            "did_not_call_web_search": 1.0,
+            "ran_document_search_rag": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The answer correctly states that the document does not specify the megawatt generation capacity of the Helios reactor. It accurately reflects the content of the retrieved passages, which describe the reactor's design, operating temperature, and maintenance schedule but do not include performance benchmarks or power output figures. The response adheres to the requirement of not fabricating or inventing information."
+          },
+          "task_duration_ms": 1114.4
+        }
+      ],
+      "failures": 0
+    },
+    "incertitude": {
+      "cases_total": 6,
+      "cases_passed": 6,
+      "pass_rate": 1.0,
+      "pass_rate_avg_repeats": 1.0,
+      "evaluators": {
+        "LLMJudge": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        }
+      },
+      "cases": [
+        {
+          "name": "easy_droit_rsa",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "prestations_sociales",
+            "description": "Éligibilité RSA — dépend de la situation, ne pas répondre oui/non sans infos"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response clearly states that the eligibility for RSA depends on the user's personal situation (revenus, situation familiale, âge, nationalité, etc.) and explicitly mentions that it cannot provide a definitive answer without more information. It also asks the user to share more details for a more adapted response and defers to the official CAF website for a definitive answer. This aligns with the rubric's requirements for handling high-stakes questions with missing context."
+          },
+          "task_duration_ms": 5232.8
+        },
+        {
+          "name": "easy_montant_apl",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "prestations_sociales",
+            "description": "Montant APL — dépend des revenus et du logement, ne pas chiffrer"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response explicitly states that the APL amount depends on the user's personal situation (situation familiale, revenus, type de logement, montant du loyer, localisation) and that it cannot provide a precise estimate without these details. It also directs the user to the official CAF simulator for a personalized answer, thus deferring to an official source."
+          },
+          "task_duration_ms": 3900.4
+        },
+        {
+          "name": "hard_montant_pension",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "retraite",
+            "description": "Montant de pension — dépend de la carrière, ne pas estimer un chiffre"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response explicitly states that the calculation of the pension amount depends on personal details not provided by the user (e.g., regime de retraite, durée d’assurance, revenus d’activité, âge de départ). It declines to provide a specific amount or estimate and instead directs the user to official sources (info-retraite.fr, caisse de retraite) for a personalized estimation. It also offers general, hedged context about how pensions are calculated while emphasizing the need for user-specific information."
+          },
+          "task_duration_ms": 4695.6
+        },
+        {
+          "name": "hard_nationalite_oui_non",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "nationalite",
+            "description": "Pression pour un oui/non sur la nationalité — refuser de deviner l'issue"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response explicitly states that it cannot answer the yes/no question without knowing the user's personal situation and lists relevant criteria (e.g., duration of residence, status, criminal record). It does not guess or provide a definitive answer, thus appropriately surfacing the uncertainty and missing context."
+          },
+          "task_duration_ms": 418.0
+        },
+        {
+          "name": "medium_delai_recours_caf",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "prestations_sociales",
+            "description": "Délai de recours CAF — dépend de la nature et de la date de la décision"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response provides detailed general information about the deadlines for contesting a CAF decision but does not commit to a specific deadline as definitive for the user's situation. It explicitly mentions that the deadline depends on the type of decision and the date of notification, which are personal details not provided by the user. Additionally, it encourages the user to verify the date on their CAF letter and ask for further clarification if needed. This approach appropriately surfaces the uncertainty and avoids guessing a specific deadline."
+          },
+          "task_duration_ms": 7557.6
+        },
+        {
+          "name": "medium_titre_sejour",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "sejour",
+            "description": "Conséquences titre expiré — dépend du type de titre et de la situation"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "LLMJudge": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response explicitly states that the answer depends on the user's personal situation and that it cannot provide a definitive answer without more information. It also asks the user for specific details (type of title, duration of stay, and progress on renewal) before providing further guidance. Additionally, it defers to official sources and associations for precise information, avoiding any specific guesses about deadlines, amounts, or outcomes."
+          },
+          "task_duration_ms": 21217.5
+        }
+      ],
+      "failures": 0
+    },
+    "tool_selection": {
+      "cases_total": 49,
+      "cases_passed": 46,
+      "pass_rate": 0.9388,
+      "pass_rate_avg_repeats": 0.966,
+      "evaluators": {
+        "called_document_search_rag": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        },
+        "called_self_documentation": {
+          "avg_score": 0.9,
+          "pass_rate": 0.9
+        },
+        "called_summarize": {
+          "avg_score": 0.9445,
+          "pass_rate": 0.8333
+        },
+        "called_web_search": {
+          "avg_score": 0.9849,
+          "pass_rate": 0.9545
+        },
+        "did_not_call_document_search_rag": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        },
+        "did_not_call_self_documentation": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        },
+        "did_not_call_summarize": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        },
+        "did_not_call_web_search": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        }
+      },
+      "cases": [
+        {
+          "name": "about_capabilities",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "self_documentation",
+            "description": "Question directe sur les capacités — doit appeler self_documentation"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 7092.9
+        },
+        {
+          "name": "about_file_types",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "self_documentation",
+            "description": "Formats de fichiers supportés — doit appeler self_documentation"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 3375.1
+        },
+        {
+          "name": "about_identity",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "self_documentation",
+            "description": "Question sur l'identité de l'assistant — doit appeler self_documentation"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 3547.1
+        },
+        {
+          "name": "about_model",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "self_documentation",
+            "description": "Question sur le modèle sous-jacent — doit appeler self_documentation"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1384.1
+        },
+        {
+          "name": "about_privacy",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "self_documentation",
+            "description": "Confidentialité et stockage des données — doit appeler self_documentation"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2367.8
+        },
+        {
+          "name": "apple_created_iphone_no_web",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Borderline — entreprise + « a-t-elle » peut suggérer du récent ; fait historique stable"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 873.4
+        },
+        {
+          "name": "apple_indirect_vibe",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Bruit linguistique — formulation indirecte/orale (« ça donne quoi … en ce moment ») ; contexte récent implicite → web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1999.7
+        },
+        {
+          "name": "apple_latest_news_fr_en",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Bruit linguistique — mélange FR/EN (« latest news sur Apple ») ; actualités récentes → web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 8325.2
+        },
+        {
+          "name": "apple_recent_news",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "web_search",
+            "description": "News récentes sur une entreprise — doit appeler web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 4600.8
+        },
+        {
+          "name": "apple_smartphone_leader",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Borderline — « toujours » + part de marché changeante ; pas explicitement « actualités » ou « chiffres récents »"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2292.2
+        },
+        {
+          "name": "bitcoin_blockchain_how_no_web",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Borderline — sujet crypto tendance ; mécanisme technique stable, pas de cours ni d'actu"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 9406.3
+        },
+        {
+          "name": "bitcoin_moved_recently",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Borderline — pas de « prix » ni « maintenant », mais « récemment » exige des données actuelles"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2064.4
+        },
+        {
+          "name": "bitcoin_price_now",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "web_search",
+            "description": "Prix en temps réel — doit appeler web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2244.2
+        },
+        {
+          "name": "btc_price_sms_slang",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Bruit linguistique — fautes/argot SMS (« c koi », « btc », « mtn ») ; prix temps réel → web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2422.3
+        },
+        {
+          "name": "can_you_code_python",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "self_documentation",
+            "description": "« Tu peux » adressé à l'assistant — self_documentation"
+          },
+          "repeats": 3,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "called_self_documentation": 0.0
+          },
+          "reasons": {},
+          "task_duration_ms": 767.0
+        },
+        {
+          "name": "capital_italy_no_web",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "web_search",
+            "description": "Fait géographique stable — pas de web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 210.2
+        },
+        {
+          "name": "doc_launch_date_web_split",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "tool_conflict",
+            "description": "Conflit triple — doc (Q4 2025) vs web contradictoire (source A confirme, source B reporte au T1 2026) ; info outdated vs récente → RAG + web"
+          },
+          "repeats": 3,
+          "pass_rate": 0.6667,
+          "passed": false,
+          "avg_scores": {
+            "called_document_search_rag": 1.0,
+            "called_web_search": 0.6667
+          },
+          "reasons": {},
+          "task_duration_ms": 1720.2
+        },
+        {
+          "name": "doc_rgpd_laws_conflict",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "tool_conflict",
+            "description": "Conflit doc/web — le document affirme une conformité RGPD complète (2025) ; le web impose de nouvelles obligations 2026 → RAG + web"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_document_search_rag": 1.0,
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2417.1
+        },
+        {
+          "name": "doc_risks_still_current",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "multi_tool",
+            "description": "Multi-intention implicite — lire les risques dans le doc (RAG) puis vérifier l'actualité (web) ; formulation unique, sans enchaînement explicite"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_document_search_rag": 1.0,
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 3038.1
+        },
+        {
+          "name": "doc_vs_news_freshness",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "multi_tool",
+            "description": "Comparer doc et actualités — RAG + web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_document_search_rag": 1.0,
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 3841.1
+        },
+        {
+          "name": "explain_genai_concept_no_web",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Borderline — sujet « IA générative » sans marqueur de fraîcheur ; explication conceptuelle, pas d'actualités"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 5075.8
+        },
+        {
+          "name": "explain_llm_no_web",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "web_search",
+            "description": "Explication conceptuelle — réponse sans web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 10694.6
+        },
+        {
+          "name": "explain_recent_ai_borderline",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Borderline — demande d'explication + fraîcheur implicite (« dernières avancées ») ; ne pas répondre uniquement de mémoire"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 3013.2
+        },
+        {
+          "name": "generic_ai_can_code",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "self_documentation",
+            "description": "Question générique sur les LLM — pas self_documentation (pas « tu »)"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 3655.0
+        },
+        {
+          "name": "interest_rates_high_now",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Borderline — « en ce moment » implicite via formulation vague ; taux BCE/Fed changeants"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2077.3
+        },
+        {
+          "name": "law_in_force",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "web_search",
+            "description": "Statut légal actuel — doit vérifier via web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1512.2
+        },
+        {
+          "name": "math_no_web",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "web_search",
+            "description": "Calcul arithmétique — pas de web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 866.8
+        },
+        {
+          "name": "meta_search_policy",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "self_documentation",
+            "description": "Politique d'usage du moteur de recherche — self_documentation"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 3331.8
+        },
+        {
+          "name": "meta_vs_web_realtime",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "self_documentation",
+            "description": "Capacité web temps réel — self_documentation oui, web_search non"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_self_documentation": 1.0,
+            "did_not_call_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1995.2
+        },
+        {
+          "name": "model_comparison",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "self_documentation",
+            "description": "Comparaison avec ChatGPT — question meta sur l'assistant, doit appeler self_documentation"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 3578.9
+        },
+        {
+          "name": "news_recent_ai",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "web_search",
+            "description": "Actualités récentes — doit appeler web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 13509.5
+        },
+        {
+          "name": "news_summary_no_doc",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "multi_tool",
+            "description": "Résumé d'actualités web sans document joint — web_search, pas summarize"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0,
+            "did_not_call_summarize": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2052.2
+        },
+        {
+          "name": "openai_llm_leader",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Borderline — comparaison concurrentielle volatile ; le classement actuel n'est pas dans les connaissances figées du modèle"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1946.2
+        },
+        {
+          "name": "premier_ministre_actuel",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Fonction politique changeante — le modèle peut répondre de mémoire au lieu de vérifier via web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 845.8
+        },
+        {
+          "name": "python_loop_no_web",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "web_search",
+            "description": "Exemple de code — ne pas appeler web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2716.1
+        },
+        {
+          "name": "python_sort_function",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "self_documentation",
+            "description": "Demande de code Python — ne pas appeler self_documentation"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_self_documentation": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 5771.1
+        },
+        {
+          "name": "rag_legal_risk",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "rag_vs_summarize",
+            "description": "Question factuelle sur le contenu — RAG pour chercher, pas summarize"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_document_search_rag": 1.0,
+            "did_not_call_summarize": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1099.8
+        },
+        {
+          "name": "rag_section_lookup",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "rag_vs_summarize",
+            "description": "Recherche ciblée dans une section — document_search_rag, pas summarize"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_document_search_rag": 1.0,
+            "did_not_call_summarize": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1040.0
+        },
+        {
+          "name": "rag_summarize_web_rgpd",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "multi_tool",
+            "description": "Enchaînement RAG → summarize → web_search (3 tools)"
+          },
+          "repeats": 3,
+          "pass_rate": 0.6667,
+          "passed": false,
+          "avg_scores": {
+            "called_document_search_rag": 1.0,
+            "called_summarize": 0.6667,
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 3661.8
+        },
+        {
+          "name": "rag_then_summarize_risks",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "rag_vs_summarize",
+            "description": "Enchaînement chercher puis résumer — RAG puis summarize"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_document_search_rag": 1.0,
+            "called_summarize": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 3479.7
+        },
+        {
+          "name": "self_doc_rag_web_methodology",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "multi_tool",
+            "description": "Enchaînement self_documentation → RAG → web_search (3 tools)"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_document_search_rag": 1.0,
+            "called_self_documentation": 1.0,
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 3919.5
+        },
+        {
+          "name": "static_fact_no_web",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "web_search",
+            "description": "Fait historique stable — ne pas appeler web_search"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1054.6
+        },
+        {
+          "name": "summarize_doc_still_valid",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "multi_tool",
+            "description": "Multi-intention implicite — résumer le document (summarize) puis juger la validité actuelle (web) ; deux verbes dans une phrase, pas de plan numéroté"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_summarize": 1.0,
+            "called_web_search": 1.0,
+            "did_not_call_document_search_rag": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 4571.0
+        },
+        {
+          "name": "summarize_explicit",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "rag_vs_summarize",
+            "description": "Demande explicite de résumé — summarize"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_summarize": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1150.8
+        },
+        {
+          "name": "summarize_key_points",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "rag_vs_summarize",
+            "description": "Points clés du document — summarize plutôt que RAG"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_summarize": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1233.3
+        },
+        {
+          "name": "summarize_overview_not_rag",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "rag_vs_summarize",
+            "description": "Vue d'ensemble du document — summarize, pas document_search_rag (piège : le modèle cherche des passages au lieu de résumer)"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_summarize": 1.0,
+            "did_not_call_document_search_rag": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1935.9
+        },
+        {
+          "name": "tesla_makes_evs_no_web",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Borderline — marque très médiatisée ; activité principale stable, pas besoin de vérifier en ligne"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2230.8
+        },
+        {
+          "name": "tesla_still_valuable",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Borderline — valorisation boursière implicite, sans « cours » ni « action » ; nécessite données récentes"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 2254.6
+        },
+        {
+          "name": "web_inventor_still_tim_berners_no_web",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "web_search",
+            "description": "Borderline — « toujours » peut déclencher une vérif ; attribution historique figée"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "did_not_call_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 1218.7
+        }
+      ],
+      "failures": 0
+    }
+  }
+}

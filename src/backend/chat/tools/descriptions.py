@@ -1,144 +1,106 @@
 """Shared descriptions for chat tools."""
 
 DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT = """
-Use document_search_rag ONLY to retrieve specific passages from attached documents.
+Use document_search_rag to retrieve specific passages from attached documents.
 Do NOT use it to summarize; for summaries, call the summarize tool instead.
+When a question combines document content with freshness or current events,
+search the document first, then use web_search for the up-to-date part.
+When the user asks to extract passages and then summarize them, search first,
+then call summarize.
+If the user asks about document content — or asks to ignore the document for
+general/legal knowledge — always search first and answer only from retrieved
+passages. Never replace them with statutory defaults or outside legal knowledge.
+Do not cite filenames unless they appear in the passages.
 """
 
 DOCUMENT_SEARCH_RAG_TOOL_DESCRIPTION = """
 Search for information within the documents provided by the user.
 
-Use this tool when the user asks about content from attached documents 
-(reports, contracts, PDFs, etc.). Prefer this tool over web_search when 
-the answer might be in the documents.
+Use when the user asks about content from attached documents (reports, contracts,
+PDFs, etc.). Prefer this over web_search when the answer might be in the documents.
 
-Must be used whenever the user asks for specific information while having documents attached.
-Do NOT use this tool for up-to-date information or current events.
+Must be used for questions about attached-document content, including when the
+user quotes the document or asks to ignore it for legal/general knowledge.
+Do NOT use when the user only asks to summarize (use summarize) or only needs
+live external data with no document involved.
+When freshness/current events also matter: search the document first, then web_search.
 
 The query must contain all information to find accurate results.
-
-When `document_id` is provided, search is filtered to a single
-text attachment by UUID from the context documents list.
-Example:
-user : "Based on the report, what is the deadline?"
-query : "what is the deadline?"
-document_id : id_from_context
+When `document_id` is provided, filter to that attachment UUID from context.
 """
 
 DOCUMENT_SUMMARIZE_SYSTEM_PROMPT = """
-When you receive a result from the summarization tool, you MUST return it 
-directly to the user without any modification, paraphrasing, or additional summarization.
-You may translate it if needed, but preserve all information / copy it verbatim.
+When you receive a result from the summarization tool, you MUST return it
+directly to the user without any modification, paraphrasing, or additional
+summarization. You may translate it if needed, but preserve all information.
 """
 
 DOCUMENT_SUMMARIZE_TOOL_DESCRIPTION = """
 Generate a complete, ready-to-use summary of documents attached to the
-current conversation (the entries listed under `documents` in the system
-context). For files in the project library (entries under
-`project_documents`), call `summarize_project` instead.
+current conversation (`documents` in context). For project library files
+(`project_documents`), call `summarize_project` instead.
 
-Do not request the documents to the user, this tool can access them directly.
-Return this summary directly to the user WITHOUT any modification,
-or additional summarization.
-The summary is already optimized and MUST be presented as-is in the final response
-or translated preserving the information.
+Use when the user asks for a summary. Prefer summarize over document_search_rag
+for pure summary requests. When they ask to find/extract passages then summarize,
+call document_search_rag first, then summarize — do not skip summarize. When they
+ask to summarize then check whether information is still current, call summarize
+first, then web_search (no document_search_rag needed).
 
-Instructions are optional but should reflect the user's request.
-
-Examples:
-"Summarize this doc in 2 paragraphs" -> instructions = "summary in 2 paragraphs"
-"Summarize this doc in English" -> instructions = "In English", document_id=None
-"Summarize this doc" -> instructions = "" (default), document_id=None
-"Summarize this specific doc" -> instructions = "", document_id=id_from_context
-
-The `document_id` argument MUST be a UUID picked from the `documents` array.
-If the user is referring to a project library file, call `summarize_project`
-with an id picked from `project_documents` instead.
+Do not request the documents; present the summary as-is (or translate preserving
+information). Instructions are optional. `document_id` MUST be a UUID from
+`documents` (use `summarize_project` for project library ids).
 """
 
 DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION = """
 Generate a complete, ready-to-use summary of files in the project library
-(the entries listed under `project_documents` in the system context). These
-files are shared across every conversation in the project.
+(`project_documents` in context), shared across the project.
 
-Use this tool only when the user is referring to project files. For files
-attached to the current conversation only (entries under `documents`), use
+Use only for project files. For conversation attachments (`documents`), use
 `summarize` instead.
 
-Do not request the documents to the user, this tool can access them directly.
-Return this summary directly to the user WITHOUT any modification,
-or additional summarization.
-
-Examples:
-"Summarize the team handbook" (a project file) -> instructions = "", document_id=id_from_project_documents
-"Summarize all our project docs" -> instructions = "", document_id=None
-"Summarize the project brief in 3 bullets" -> instructions = "3 bullets", document_id=id_from_project_documents
-
-The `document_id` argument MUST be a UUID picked from the `project_documents`
-array. Passing a UUID from the `documents` array will be rejected.
+Do not request the documents; present the summary as-is.
+`document_id` MUST be a UUID from `project_documents` (ids from `documents`
+are rejected).
 """
 
 WEB_SEARCH_TOOL_DESCRIPTION = """
 Search the web for real-time and up-to-date information.
 
-Use this tool when the user asks about:
-- Recent news, current events or ongoing situations
-- Legal questions, laws, regulations or jurisprudence
-- Data that changes over time (prices, rates, statistics)
-- Complex technical topics requiring verifiable sources
-- Any topic where outdated information could mislead or harm the user
-- Any terms, acronyms, or specificities that sound foreign to you
+Use for: recent news/current events; laws, regulations, jurisprudence;
+time-varying data (prices, rates, stats); topics where outdated info could
+mislead; unfamiliar terms/acronyms; whether attached-document info is still
+current — after document_search_rag or summarize.
 
-When in doubt, ALWAYS prefer calling this tool rather than relying 
-on your training data, which may be outdated.
+When in doubt on time-sensitive topics, prefer this tool over training data.
 
-Do NOT use for general conversation or creative tasks without factual needs.
-
-Examples of queries that MUST trigger web_search tool:
-- "Quelles sont les dernières nouvelles sur X ?"
-- "Quel est le taux d'intérêt actuel ?"
-- "Est-ce que la loi X est toujours en vigueur ?"
-- "Quelle est la réglementation RGPD sur X ?"
-- "Quel est le prix actuel de X ?"
-- "Que signifie l'acronyme X ?"
-- "Qu'est-ce qui s'est passé récemment avec X ?"
-- "Quelles sont les sanctions prévues par la loi pour X ?"
-
-Examples of queries that do NOT need web_search tool:
-- "Explique-moi comment fonctionne une boucle for"
-- "Écris-moi un poème sur l'automne"
-- "Résume ce texte"
+Do NOT use for:
+- General conversation or creative tasks without factual needs
+- Stable historical or geographic facts that do not change over time,
+  even if the user uses words like "still" or "always"
+  (e.g. who invented X, capitals, discovery dates)
 """
 
 SELF_DOCUMENTATION_SYSTEM_PROMPT = (
-    "For meta questions about this assistant itself (identity, model, "
+    "For meta questions about THIS assistant itself (identity, model, "
     "capabilities, limitations, privacy, internet access, accepted files, "
-    "or hosting), call the self_documentation tool before answering. "
-    "Do not call it for questions about attached documents, web search "
-    "or general knowledge."
+    "hosting, or when it uses web search), call the self_documentation tool "
+    "before answering. This applies when the user addresses you directly "
+    "(you / tu / vous) about what you can do or how you work. "
+    "Do not call it for generic questions about AI or LLMs in general, "
+    "for document content, or for tasks you should perform."
 )
 
 SELF_DOCUMENTATION_TOOL_DESCRIPTION = """
-Call self_documentation ONLY for meta questions where the user asks about
-THIS assistant itself: its identity, the underlying model, its capabilities
-or limitations, privacy and data handling, internet access, which file types
-it accepts, attachment size limits, or how and where it is hosted.
+Call self_documentation ONLY for meta questions about THIS assistant itself:
+identity, model, capabilities, limitations, privacy, internet access, accepted
+files, hosting, or when it uses web search.
 
-Do NOT use this tool for:
-- General knowledge questions or normal conversation
-- Questions about the content of attached documents (use the document search
-  or summarize tools instead)
-- Coding, writing, translation, or any other task-oriented request
+Use when the user addresses you directly (you / tu / vous). Do NOT use for
+generic AI/LLM questions (third person), document content, or performing a
+coding/writing/translation task.
 
-Examples that MUST trigger self_documentation:
-- "Which model are you?"
-- "What can you do?"
-- "Do you have internet access?"
-- "What file types can I upload?"
-- "Where is my data stored?"
-
-Examples that must NOT trigger self_documentation:
-- "Summarize this document"
-- "Explain how a for loop works"
-- "What does this report say about Q3 revenue?"
+Examples that MUST trigger: "Which model are you?", "What can you do?",
+"Can you analyze spreadsheets?", "When do you search the web?"
+Examples that must NOT: "Can language models analyze spreadsheets?",
+"Summarize this document", "Write a sorting function in Rust"
 """
