@@ -22,6 +22,7 @@ import FichiersIcon from '../assets/fichiers.svg';
 import TchapIcon from '../assets/tchap.svg';
 import VisioIcon from '../assets/visio.svg';
 import { useAuth } from '../hooks';
+import { getUserEmail } from '../utils';
 
 export const ActivationPage = () => {
   const { t } = useTranslation();
@@ -359,7 +360,7 @@ export const ActivationPage = () => {
                   ? t(
                       "We'll email you at {{email}} when the public beta opens.",
                       {
-                        email: user.email,
+                        email: getUserEmail(user),
                       },
                     )
                   : t("We'll email you when the public beta opens.") // should not happen

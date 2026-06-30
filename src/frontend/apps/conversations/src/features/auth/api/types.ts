@@ -9,9 +9,9 @@
  */
 export interface User {
   id: string;
-  email: string;
-  full_name: string;
-  short_name: string;
+  email: string | null;
+  full_name: string | null;
+  short_name: string | null;
   language?: string;
   allow_smart_web_search: boolean;
   allow_conversation_analytics: boolean;
