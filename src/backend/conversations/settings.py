@@ -531,6 +531,11 @@ class Base(
     LLM_DEFAULT_MODEL_HRID = values.Value(
         "default-model", environ_name="LLM_DEFAULT_MODEL_HRID", environ_prefix=None
     )
+    LLM_EVAL_JUDGE_MODEL_HRID = values.Value(
+        "",
+        environ_name="LLM_EVAL_JUDGE_MODEL_HRID",
+        environ_prefix=None,
+    )
     LLM_SUMMARIZATION_MODEL_HRID = values.Value(
         "default-summarization-model",
         environ_name="LLM_SUMMARIZATION_MODEL_HRID",

@@ -71,6 +71,12 @@ src/backend/core/templates/mail/
 db.sqlite3
 .mypy_cache
 
+# Eval runs (local experiments — only baseline snapshots under baselines/ are committed)
+src/backend/chat/evals/runs/**
+!src/backend/chat/evals/runs/.gitkeep
+src/backend/chat/evals/dashboard/dashboard.html
+
+
 # Site media
 /data/
 

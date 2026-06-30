@@ -11,6 +11,7 @@ skip =
     *.tsbuildinfo,
     **/uv.lock,
     ./docker/files/etc/mime.types,
+    ./src/backend/chat/evals,
 check-filenames = true
 ignore-words-list =
     afterAll,
