@@ -25,7 +25,10 @@ export const UserInfo = () => {
 
   return (
     <UserMenu
-      user={{ email: user.email, full_name: user.full_name }}
+      user={{
+        email: user.email ?? '',
+        full_name: user.full_name || user.email || user.short_name || t('User'),
+      }}
       logout={gotoLogout}
       actions={<LanguagePicker />}
       termOfServiceUrl="https://docs.numerique.gouv.fr/docs/7b118d32-7f3c-4226-a3d0-92d2f33c5f0a/"
