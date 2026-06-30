@@ -1,0 +1,394 @@
+cases:
+  # ── WEB SEARCH — should call ────────────────────────────────────────────────
+
+  - name: news_recent_ai
+    inputs:
+      user_message: "Quelles sont les dernières avancées en IA générative ?"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: bitcoin_price_now
+    inputs:
+      user_message: "Prix du bitcoin là maintenant"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: apple_recent_news
+    inputs:
+      user_message: "Quoi de neuf chez Apple récemment ?"
+      requires_documents: false
+    metadata:
+      difficulty: medium
+      category: web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: law_in_force
+    inputs:
+      user_message: "La loi Sapin II est-elle toujours en vigueur ?"
+      requires_documents: false
+    metadata:
+      difficulty: medium
+      category: web_search
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  # ── WEB SEARCH — should NOT call ────────────────────────────────────────────
+
+  - name: static_fact_no_web
+    inputs:
+      user_message: "Qui a inventé le World Wide Web ?"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: explain_llm_no_web
+    inputs:
+      user_message: "Explique le fonctionnement d'un LLM"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: python_loop_no_web
+    inputs:
+      user_message: "Donne-moi un exemple de boucle en Python"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: capital_italy_no_web
+    inputs:
+      user_message: "Quelle est la capitale de l'Italie ?"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: math_no_web
+    inputs:
+      user_message: "Calcule 17 × 24"
+      requires_documents: false
+    metadata:
+      difficulty: easy
+      category: web_search
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  # ── SELF DOCUMENTATION — adversarial ────────────────────────────────────────
+
+  - name: meta_realtime_access
+    inputs:
+      user_message: "Est-ce que tu as accès à des données en temps réel ?"
+      requires_documents: false
+    metadata:
+      difficulty: medium
+      category: self_documentation
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: meta_search_policy
+    inputs:
+      user_message: "Dans quels cas tu utilises un moteur de recherche ?"
+      requires_documents: false
+    metadata:
+      difficulty: medium
+      category: self_documentation
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: can_you_code_python
+    inputs:
+      user_message: "Tu peux coder en Python ?"
+      requires_documents: false
+    metadata:
+      difficulty: medium
+      category: self_documentation
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+
+  - name: generic_ai_can_code
+    inputs:
+      user_message: "Un assistant IA peut-il coder en Python ?"
+      requires_documents: false
+    metadata:
+      difficulty: hard
+      category: self_documentation
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: did_not_call_self_documentation
+
+  - name: tell_me_about_climate_fr
+    inputs:
+      user_message: "Que peux-tu me dire sur le changement climatique ?"
+      requires_documents: false
+    metadata:
+      difficulty: hard
+      category: self_documentation
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: did_not_call_self_documentation
+
+  - name: meta_vs_web_realtime
+    inputs:
+      user_message: "Est-ce que tu peux aller chercher des infos sur internet en temps réel ?"
+      requires_documents: false
+    metadata:
+      difficulty: hard
+      category: self_documentation
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "self_documentation"
+          evaluation_name: called_self_documentation
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  # ── RAG vs SUMMARIZE (fake document attached) ───────────────────────────────
+
+  - name: rag_section_lookup
+    inputs:
+      user_message: "Dans le document, que dit la section introduction ?"
+      requires_documents: true
+    metadata:
+      difficulty: easy
+      category: rag_vs_summarize
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: did_not_call_summarize
+
+  - name: rag_legal_risk
+    inputs:
+      user_message: "Le document mentionne-t-il des risques légaux ?"
+      requires_documents: true
+    metadata:
+      difficulty: easy
+      category: rag_vs_summarize
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: did_not_call_summarize
+
+  - name: summarize_explicit
+    inputs:
+      user_message: "Fais un résumé du document"
+      requires_documents: true
+      tool_output: |
+        {"summarize": "Résumé du document rapport-eval.pdf :\n- Le projet Alpha vise une mise en production en Q4 2025.\n- Les tests utilisateurs montrent une satisfaction de 78 %.\n- Des risques juridiques (RGPD, clauses contractuelles) restent à traiter.\n- La dernière révision interne du rapport date de mars 2025."}
+    metadata:
+      difficulty: easy
+      category: rag_vs_summarize
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: called_summarize
+
+  - name: summarize_key_points
+    inputs:
+      user_message: "Donne-moi les points importants du document"
+      requires_documents: true
+      tool_output: |
+        {"summarize": "Points importants du document rapport-eval.pdf :\n1. Projet Alpha — production cible Q4 2025.\n2. Satisfaction utilisateurs : 78 % sur l'échantillon testé.\n3. Risques juridiques RGPD et contractuels à traiter.\n4. Dernière révision interne : mars 2025."}
+    metadata:
+      difficulty: medium
+      category: rag_vs_summarize
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: called_summarize
+
+  - name: rag_then_summarize_risks
+    inputs:
+      user_message: >-
+        Dans le document joint, trouve les passages sur les risques puis
+        résume-les en 3 points
+      requires_documents: true
+      tool_output: |
+        {
+          "document_search_rag": "[1] Risques légaux : conformité RGPD partielle — certaines bases légales de traitement ne sont pas documentées.\n[2] Risques contractuels : clauses de responsabilité en cours de révision avec le prestataire cloud.\n[3] Risques opérationnels : dépendance à un fournisseur unique pour l'hébergement.",
+          "summarize": "Résumé des risques (3 points) :\n1. Conformité RGPD incomplète sur les bases légales de traitement.\n2. Clauses contractuelles de responsabilité encore en négociation.\n3. Risque opérationnel lié à la dépendance à un hébergeur unique."
+        }
+    metadata:
+      difficulty: hard
+      category: rag_vs_summarize
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: called_summarize
+
+  # ── MULTI-TOOL / HARD ───────────────────────────────────────────────────────
+
+  - name: doc_vs_news_freshness
+    inputs:
+      user_message: >-
+        Dans le document, les infos sont-elles à jour avec les dernières news ?
+      requires_documents: true
+      tool_output: |
+        {
+          "document_search_rag": "[1] Calendrier : la dernière mise à jour interne du rapport date de mars 2025.\n[2] Le document prévoit une mise en production du projet Alpha en Q4 2025.",
+          "web_search": {
+            "0": {
+              "url": "https://example.com/ia-actualites-juin-2026",
+              "title": "Actualités IA — juin 2026",
+              "snippets": [
+                "En juin 2026, plusieurs modèles multimodaux ont été publiés avec de meilleures capacités de raisonnement.",
+                "De nouvelles lignes directrices européennes sur les systèmes d'IA à usage général sont entrées en vigueur."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: multi_tool
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+
+  - name: news_summary_no_doc
+    inputs:
+      user_message: "Résume les dernières actualités sur l'IA"
+      requires_documents: false
+      tool_output: |
+        {
+          "web_search": {
+            "0": {
+              "url": "https://example.com/actualites-ia-juin-2026",
+              "title": "Dernières actualités sur l'intelligence artificielle",
+              "snippets": [
+                "Plusieurs laboratoires ont annoncé en juin 2026 des modèles spécialisés en raisonnement et en génération de code.",
+                "L'Union européenne a renforcé le cadre applicable aux modèles d'IA à usage général."
+              ]
+            },
+            "1": {
+              "url": "https://example.com/deploiements-ia-public",
+              "title": "L'IA dans le secteur public en 2026",
+              "snippets": [
+                "Des assistants documentaires sont déployés dans plusieurs administrations françaises."
+              ]
+            }
+          }
+        }
+    metadata:
+      difficulty: hard
+      category: multi_tool
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: did_not_call_summarize
