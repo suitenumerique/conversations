@@ -37,7 +37,8 @@ from chat.ai_sdk_types import (
     UIMessage,
 )
 from chat.constants import ACCESS_TOOL_CALL_ONLY
-from chat.factories import ChatConversationFactory
+from chat.enums import AttachmentIndexState
+from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
 from chat.tests.utils import replace_uuids_with_placeholder
 
 # enable database transactions for tests:
@@ -1237,3 +1238,29 @@ def test_post_conversation_with_odt_document_upload(
         },
         "run_id": _run_id,
     }
+
+
+def test_conversation_blocked_while_own_attachment_indexing(api_client):
+    """POST returns 409 while a conversation's own attachment is still indexing.
+
+    Conversation files are parsed and indexed on the worker at upload time, so a
+    message sent before indexing settles would answer without the file content.
+    The view backstops the frontend gate.
+    """
+    chat_conversation = ChatConversationFactory()
+    api_client.force_authenticate(user=chat_conversation.owner)
+
+    ChatConversationAttachmentFactory(
+        conversation=chat_conversation,
+        content_type="text/plain",
+        index_state=AttachmentIndexState.INDEXING,
+    )
+
+    response = api_client.post(
+        f"/api/v1.0/chats/{chat_conversation.pk}/conversation/",
+        data={"messages": [{"id": "1", "role": "user", "content": "hi", "parts": []}]},
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_409_CONFLICT
+    assert response.json() == {"error": "conversation_files_indexing"}

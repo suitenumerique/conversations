@@ -36,14 +36,13 @@ Documents attached to messages go through several stages:
 2. **Extraction** (`_prepare_prompt`): Documents are extracted from the UIMessage
    and separated from images. Audio/video attachments are rejected.
 
-3. **Parsing** (`_handle_input_documents` → `_parse_input_documents`):
-   - Validates document URLs belong to the conversation (security check)
-   - Creates a vector store collection if none exists
-   - For each document:
-     - Retrieves content from object storage
-     - Parses and stores in the vector store (chunked, embedded)
-     - Creates a markdown attachment for non-text files
-   - Emits tool call events so the UI shows parsing progress
+3. **Parsing** (upload time, off this process): documents are parsed and stored
+   in the vector store by the `index_conversation_attachment_task` Celery task,
+   enqueued from the malware safe-callback once a file is marked READY (see
+   `chat/agent_rag/indexing.py`). The web process never parses a document.
+   At message time `_handle_input_documents` only validates the current message's
+   documents (rejects inline bytes and cross-conversation URLs) - they are
+   already indexed and searchable by then.
 
 4. **RAG Search** (`_setup_rag_tools`): When documents exist, the agent gets:
    - `document_rag_search` tool: Semantic search over document chunks
@@ -84,14 +83,12 @@ import os
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack
-from io import BytesIO
 from typing import AsyncGenerator, Callable, Dict, List, Optional, Tuple, Union
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
-from django.core.files.storage import default_storage
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
@@ -183,9 +180,6 @@ from chat.tools.document_summarize import document_summarize, document_summarize
 from chat.tools.self_documentation import build_self_documentation_payload
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
-
-# Keep at the top of the file to avoid mocking issues
-document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
 logger = logging.getLogger(__name__)
 
@@ -801,111 +795,30 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 logger.debug("v: %s", dataclasses.asdict(node))
                 yield self._handle_end_node(node, langfuse, state)
 
-    async def _fetch_document_data(
-        self, document: "BinaryContent | DocumentUrl"
-    ) -> tuple[str | None, bytes]:
-        """Return (storage_key, raw_bytes). key is None for BinaryContent inlines."""
-        if isinstance(document, DocumentUrl):
-            if not document.url.startswith(DOCUMENT_URL_PREFIX):
-                raise ValueError("External document URL are not accepted yet.")
-            key = document.url[len(DOCUMENT_URL_PREFIX) :]
+    def _validate_input_documents(self, documents: List[BinaryContent | DocumentUrl]) -> None:
+        """Reject inline document bytes and cross-conversation URLs.
 
-            def _read():
-                with default_storage.open(key, "rb") as file:
-                    return file.read()
-
-            return key, await asyncio.to_thread(_read)
-        return None, document.data
-
-    async def _parse_input_documents(self, documents: List[BinaryContent | DocumentUrl]):
-        """
-        Parse and store input documents in the conversation's document store.
-
-        This is the core document processing method that:
-        1. Validates all document URLs belong to this conversation (security)
-        2. Creates a vector store collection if one doesn't exist
-        3. For each document:
-             - Retrieves content from object storage (for DocumentUrl)
-             - Parses the document (extracts text, chunks it)
-             - Stores chunks with embeddings in the vector store
-             - Creates a markdown attachment for non-text files (PDF → MD)
-
-        Security: Documents are validated to ensure their URLs match the pattern
-         `/media-key/{conversation_pk}/...` to prevent cross-conversation access.
-
-        The actual parsing runs in a thread pool (asyncio.to_thread) to avoid
-        blocking the event loop during potentially slow document processing.
-
-        Args:
-            documents: List of BinaryContent (inline data) or DocumentUrl (storage reference)
+        Conversation documents are parsed and indexed on the Celery worker at
+        upload time (`index_conversation_attachment_task`), so the web process
+        never parses a document. The only way a document could still reach this
+        path needing in-process parsing is inline `BinaryContent` bytes - which
+        the real frontend never sends (it always uploads first, so documents
+        arrive as `DocumentUrl`). Reject inline bytes to keep the web process
+        parse-free; validate that every `DocumentUrl` points at this
+        conversation's media keys.
 
         Raises:
-            ValueError: If document URL doesn't belong to this conversation
-            ValueError: If external URLs are provided (not yet supported)
+            ValueError: inline document bytes, external URL, or cross-conversation URL.
         """
-
-        # Early external document URL rejection
-        if any(
-            not document.url.startswith(DOCUMENT_URL_PREFIX)
-            for document in documents
-            if isinstance(document, DocumentUrl)
-        ):
-            raise ValueError("External document URL are not accepted yet.")
-        if any(
-            not document.url.startswith(f"{DOCUMENT_URL_PREFIX}{self.conversation.pk}/")
-            for document in documents
-            if isinstance(document, DocumentUrl)
-        ):
-            raise ValueError("Document URL does not belong to the conversation.")
-
-        document_store = document_store_backend(self.conversation.collection_id)
-        if not document_store.collection_id:
-            # Create a new collection for the conversation
-            collection_id = document_store.create_collection(
-                name=f"conversation-{self.conversation.pk}",
+        if any(isinstance(document, BinaryContent) for document in documents):
+            raise ValueError(
+                "Inline document content is not supported; upload the file first."
             )
-            self.conversation.collection_id = str(collection_id)
-            await self.conversation.asave(update_fields=["collection_id", "updated_at"])
-
-        any_indexed = False
         for document in documents:
-            key, content = await self._fetch_document_data(document)
-            parsed_content, rag_document_id = await asyncio.to_thread(
-                document_store.parse_and_store_document,
-                name=document.identifier,
-                content_type=document.media_type,
-                content=content,
-                user_sub=self.user.sub,
-            )
-
-            # Persist the backend-side document id on the original attachment row
-            # (only for files uploaded via presigned URL — BinaryContent inlines
-            # have no row to update; their id falls through to the md companion).
-            if rag_document_id:
-                any_indexed = True
-                if key:
-                    await models.ChatConversationAttachment.objects.filter(
-                        conversation_id=self.conversation.pk, key=key
-                    ).aupdate(rag_document_id=rag_document_id, is_indexed=True)
-
-            if not document.media_type.startswith(TEXT_MIME_PREFIX):
-                md_attachment = await models.ChatConversationAttachment.objects.acreate(
-                    conversation=self.conversation,
-                    uploaded_by=self.user,
-                    key=key or f"{self.conversation.pk}/attachments/{document.identifier}.md",
-                    file_name=f"{document.identifier}.md",
-                    content_type="text/markdown",
-                    conversion_from=key,  # might be None
-                    # No row exists for inline BinaryContent; carry the id here.
-                    rag_document_id=rag_document_id if not key else None,
-                )
-                default_storage.save(md_attachment.key, BytesIO(parsed_content.encode("utf8")))
-                md_attachment.upload_state = models.AttachmentStatus.READY
-                await md_attachment.asave(update_fields=["upload_state", "updated_at"])
-
-        if any_indexed:
-            self.conversation.index_state = CollectionIndexState.INDEXED
-            await self.conversation.asave(update_fields=["index_state", "updated_at"])
+            if not document.url.startswith(DOCUMENT_URL_PREFIX):
+                raise ValueError("External document URL are not accepted yet.")
+            if not document.url.startswith(f"{DOCUMENT_URL_PREFIX}{self.conversation.pk}/"):
+                raise ValueError("Document URL does not belong to the conversation.")
 
     def _prepare_prompt(  # noqa: PLR0912  # pylint: disable=too-many-branches
         self, message: UIMessage
@@ -1132,20 +1045,22 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         usage: Dict[str, Union[int, float]],
     ) -> AsyncGenerator[events_v4.Event | DocumentParsingResult, None]:
         """
-        Handle document parsing with streaming progress events.
+        Gate the turn on input documents without parsing them.
 
-        This method processes documents attached to the user's message:
-        1. Emits a ToolCallPart event to show "document_parsing" in the UI
-        2. Calls _parse_input_documents() to store documents in the vector store
-        3. Emits ToolResultPart with success/error status
-        4. Yields a DocumentParsingResult marker as the final item
+        Conversation documents are parsed and indexed on the Celery worker at
+        upload time (`index_conversation_attachment_task`), so by the time a
+        message is sent they are already searchable - the web process does no
+        document parsing. This method only:
+        1. Drops documents when the upload feature is disabled.
+        2. Validates the current message's documents (rejects inline bytes and
+           cross-conversation URLs) via `_validate_input_documents`.
+        3. Emits a ToolCallPart/ToolResultPart pair so the UI keeps its existing
+           document-handling affordance.
+        4. Yields a DocumentParsingResult marker as the final item.
 
         The DocumentParsingResult pattern allows the caller to:
         - Yield all events to the stream in real-time
         - Check the final result to decide whether to continue or abort
-
-        If document upload is disabled but documents are provided, they are
-        silently ignored with a warning log.
 
         Yields:
             events_v4.Event: Tool call/result events for UI feedback
@@ -1167,10 +1082,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
 
         try:
-            await self._parse_input_documents(input_documents)
+            self._validate_input_documents(input_documents)
         except Exception as exc:  # pylint: disable=broad-except
             error_kind = resolve_rag_error_code(exc)
-            logger.exception("Error parsing input documents (%s): %s", error_kind, exc)
+            logger.exception("Rejected input documents (%s): %s", error_kind, exc)
             yield (
                 events_v4.ToolResultPart(
                     tool_call_id=_tool_call_id,

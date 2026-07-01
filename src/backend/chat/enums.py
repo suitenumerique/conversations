@@ -16,3 +16,23 @@ class CollectionIndexState(StrEnum):
     def choices(cls):
         """Return a list of tuples for each enum member."""
         return [(member.value, member.name) for member in cls]
+
+
+class AttachmentIndexState(StrEnum):
+    """Per-attachment RAG indexing lifecycle (project and conversation attachments).
+
+    Distinct from the conversation-level `CollectionIndexState`: this tracks a
+    single file's journey into the RAG backend, set by the project and
+    conversation indexing tasks. `FAILED` is terminal until a manual re-index;
+    `processing_error` on the attachment carries the reason.
+    """
+
+    NOT_INDEXED = "not_indexed"  # Default; not yet sent to the backend
+    INDEXING = "indexing"  # Indexing task is running
+    INDEXED = "indexed"  # Stored in the backend; rag_document_id is set
+    FAILED = "failed"  # Last indexing attempt failed; see processing_error
+
+    @classmethod
+    def choices(cls):
+        """Return a list of tuples for each enum member."""
+        return [(member.value, member.name) for member in cls]

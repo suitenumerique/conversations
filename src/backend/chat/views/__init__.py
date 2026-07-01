@@ -38,6 +38,7 @@ from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX
+from chat.enums import AttachmentIndexState
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.model_routing import resolve_effective_model_hrid
 from chat.rate_limiting import ChatCooldownThrottle, get_cooldown_remaining
@@ -332,6 +333,33 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         )
 
         conversation = self.get_object()
+
+        # Backstop the frontend gate: a project file still indexing isn't in the
+        # RAG collection yet, so answering now would silently ignore it. Refuse
+        # the message until indexing settles (the frontend blocks send too).
+        if (
+            conversation.project_id
+            and models.ChatConversationAttachment.objects.filter(
+                project_id=conversation.project_id,
+                index_state=AttachmentIndexState.INDEXING,
+            ).exists()
+        ):
+            return Response(
+                {"error": "project_files_indexing"},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        # Same backstop for the conversation's own attachments: they are parsed
+        # and indexed on the worker at upload time, so a message sent before
+        # indexing settles would answer without their content.
+        if models.ChatConversationAttachment.objects.filter(
+            conversation_id=conversation.pk,
+            index_state=AttachmentIndexState.INDEXING,
+        ).exists():
+            return Response(
+                {"error": "conversation_files_indexing"},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         serializer = self.get_serializer(data=request.data)
         try:
@@ -715,13 +743,30 @@ class BaseAttachmentViewSet(
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class ChatConversationAttachmentViewSet(BaseAttachmentViewSet):
-    """Attachment viewset scoped to a conversation."""
+class ChatConversationAttachmentViewSet(  # pylint: disable=too-many-ancestors
+    mixins.ListModelMixin,
+    BaseAttachmentViewSet,
+):
+    """Attachment viewset scoped to a conversation.
+
+    `ListModelMixin` lets the frontend poll attachment `index_state` so it can
+    gate sending a message until upload-time RAG indexing settles.
+    """
 
     holder_field = "conversation"
     holder_id_field = "conversation_id"
     holder_pk_kwarg = "conversation_pk"
     holder_model = models.ChatConversation
+
+    def get_queryset(self):
+        """Hide the internal markdown companions from the API.
+
+        Companions (`conversion_from` set) are a parsed-content cache produced by
+        RAG indexing, not a user-facing attachment; keyed off `conversion_from`
+        rather than `content_type` because a genuine user-uploaded `.md` file is
+        also `text/markdown` and must stay visible.
+        """
+        return super().get_queryset().filter(conversion_from__isnull=True)
     malware_callbacks = {
         "safe": "chat.malware_detection.conversation_safe_attachment_callback",
         "unknown": "chat.malware_detection.unknown_attachment_callback",

@@ -16,6 +16,12 @@ import { useTranslation } from 'react-i18next';
 import { APIError, errorCauses, fetchAPI } from '@/api';
 import { Box, Icon, Loader, Text } from '@/components';
 import { useConfig } from '@/core';
+import {
+  KEY_CONVERSATION_ATTACHMENTS,
+  isAttachmentProcessing,
+  useConversationAttachments,
+} from '@/features/attachments/api/useConversationAttachments';
+import { useProjectAttachments } from '@/features/attachments/api/useProjectAttachments';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
 import {
   isContextTrimmedEvent,
@@ -142,6 +148,10 @@ export const Chat = ({
   const router = useRouter();
   const [files, setFiles] = useState<FileList | null>(null);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+  // Project of an already-loaded conversation (new chats use pendingProjectId).
+  const [conversationProjectId, setConversationProjectId] = useState<
+    string | null
+  >(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -222,6 +232,33 @@ export const Chat = ({
     setHasProjectInstructions,
     clearPendingInput,
   } = usePendingChatStore();
+
+  // Gate sending while the active project still has files being indexed: their
+  // content isn't searchable yet, so a message now would get an answer that
+  // ignores them. `useProjectAttachments` polls itself until indexing settles.
+  const activeProjectId =
+    conversationProjectId ?? pendingProjectId ?? undefined;
+  const { data: projectAttachments } = useProjectAttachments(activeProjectId);
+  const isIndexingProjectFiles =
+    projectAttachments?.some((a) => a.index_state === 'indexing') ?? false;
+
+  // Conversation files are uploaded at send time, then scanned + indexed on the
+  // worker. After uploading we defer the actual send until those files settle so
+  // the assistant never answers before their content is searchable. The submit
+  // (event + experimental_attachments) is stashed here and fired by an effect
+  // once the just-uploaded keys are no longer processing.
+  const [deferredIndexingSubmit, setDeferredIndexingSubmit] = useState<{
+    event: FormEvent<HTMLFormElement>;
+    options: Record<string, unknown>;
+    keys: string[];
+  } | null>(null);
+  const { data: conversationAttachments } =
+    useConversationAttachments(conversationId);
+
+  // Single flag the input box uses to disable send + show the processing banner,
+  // covering both the project gate and the conversation auto-send deferral.
+  const isIndexingFiles =
+    isIndexingProjectFiles || deferredIndexingSubmit !== null;
 
   const scrollToBottom = useCallback(() => {
     if (chatContainerRef.current) {
@@ -620,6 +657,39 @@ export const Chat = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldAutoSubmit, input, files]);
 
+  // Auto-send once every just-uploaded conversation file has settled (no longer
+  // scanning or indexing). A key still missing from the polled list counts as
+  // not-settled, so a stale pre-upload fetch can't release the gate early.
+  useEffect(() => {
+    if (!deferredIndexingSubmit) {
+      return;
+    }
+    const attachmentsByKey = new Map(
+      (conversationAttachments ?? []).map((a) => [a.key, a]),
+    );
+    const allSettled = deferredIndexingSubmit.keys.every((key) => {
+      const attachment = attachmentsByKey.get(key);
+      return attachment !== undefined && !isAttachmentProcessing(attachment);
+    });
+    if (!allSettled) {
+      return;
+    }
+    const { event, options } = deferredIndexingSubmit;
+    setDeferredIndexingSubmit(null);
+    lastSubmissionRef.current = {
+      input,
+      files: null,
+      event,
+      options: Object.keys(options).length > 0 ? options : undefined,
+    };
+    if (Object.keys(options).length > 0) {
+      baseHandleSubmit(event, options);
+    } else {
+      baseHandleSubmit(event);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deferredIndexingSubmit, conversationAttachments]);
+
   useEffect(() => {
     if (
       shouldRetry &&
@@ -691,6 +761,7 @@ export const Chat = ({
           if (!ignore) {
             setInitialConversationMessages(conversation.messages);
             setImagesSkipped(conversation.images_skipped ?? false);
+            setConversationProjectId(conversation.project?.id ?? null);
             setHasInitialized(true);
           }
         } catch {
@@ -765,6 +836,13 @@ export const Chat = ({
 
     // Inference-load cooldown: block new messages until the wait elapses.
     if (cooldownUntil && Date.now() < cooldownUntil) {
+      return;
+    }
+
+    // Block while project files are still indexing, or while a previous send is
+    // already deferred waiting on conversation files to finish indexing (matches
+    // the backend backstop); their content isn't searchable yet.
+    if (isIndexingFiles) {
       return;
     }
 
@@ -857,6 +935,30 @@ export const Chat = ({
     const options: Record<string, unknown> = {};
     if (attachments.length > 0) {
       options.experimental_attachments = attachments;
+    }
+
+    // Conversation documents are parsed + indexed on the worker after upload.
+    // Defer the actual send until those files settle (scan + index) so the
+    // assistant answers with their content. Images aren't indexed, so they
+    // don't gate. The effect below fires the send once the keys are no longer
+    // processing; the invalidate forces the poll to pick up the just-uploaded
+    // ANALYZING/INDEXING rows immediately.
+    const indexableKeys = attachments
+      .filter((a) => !a.contentType?.startsWith('image/'))
+      .map((a) => a.url.replace('/media-key/', ''));
+    if (indexableKeys.length > 0) {
+      setChatErrorType('generic');
+      setDeferredIndexingSubmit({ event, options, keys: indexableKeys });
+      void queryClient.invalidateQueries({
+        queryKey: [KEY_CONVERSATION_ATTACHMENTS, conversationId],
+      });
+      // Files are uploaded; clear the picker. Input text stays until the
+      // deferred send fires (baseHandleSubmit reads the live input).
+      setFiles(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
     }
 
     setChatErrorType('generic');
@@ -1045,6 +1147,7 @@ export const Chat = ({
           selectedModel={selectedModel}
           onModelSelect={handleModelSelect}
           isUploadingFiles={isUploadingFiles}
+          isIndexingFiles={isIndexingFiles}
           errorType={status === 'error' ? chatErrorType : undefined}
           cooldownUntil={cooldownUntil}
         />

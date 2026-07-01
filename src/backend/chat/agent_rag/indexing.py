@@ -1,9 +1,10 @@
 """Index project attachments into the RAG backend.
 
-Runs synchronously inside the malware safe-callback, after the file is marked
-READY. This is the project equivalent of `_parse_input_documents` for
-conversation files: same parser, same backend, same hidden markdown companion
-attachment for non-text inputs. Differences from the conversation flow:
+Runs in the `index_project_attachment_task` Celery task, enqueued by the malware
+safe-callback after the file is marked READY. This is the project equivalent of
+`_parse_input_documents` for conversation files: same parser, same backend, same
+hidden markdown companion attachment for non-text inputs. Differences from the
+conversation flow:
 
 - Triggered at upload time (one-shot per file), not on every chat turn.
 - Lazily creates the project's RAG collection the first time an indexable file
@@ -12,8 +13,10 @@ attachment for non-text inputs. Differences from the conversation flow:
 - Idempotent: a non-empty `rag_document_id` on the attachment is treated as
   "already indexed" and the call returns without re-parsing. This makes the
   function safe to invoke from a malware backend that retries safe-callbacks.
-- Failures are logged and swallowed: the file stays `READY` and downloadable
-  but won't surface in RAG search until a future re-index.
+- `index_state` tracks progress (NOT_INDEXED -> INDEXING -> INDEXED / FAILED).
+  Failures are logged and swallowed (never raised): the file stays `READY` and
+  downloadable, `index_state` becomes FAILED and `processing_error` carries the
+  reason, so the failure is visible and a future re-index can retry it.
 """
 
 import logging
@@ -27,7 +30,8 @@ from django.utils.module_loading import import_string
 from core.file_upload.enums import AttachmentStatus
 
 from chat.constants import IMAGE_MIME_PREFIX, TEXT_MIME_PREFIX
-from chat.models import ChatConversationAttachment, ChatProject
+from chat.enums import AttachmentIndexState, CollectionIndexState
+from chat.models import ChatConversation, ChatConversationAttachment, ChatProject
 
 logger = logging.getLogger(__name__)
 
@@ -79,9 +83,9 @@ def index_project_attachment(attachment: ChatConversationAttachment) -> None:
     backend-side document id (Albert) is recorded on the original attachment
     for later targeted search and per-document deletion.
 
-    Failures are logged and never raised: the attachment stays `READY` and the
-    user sees no error. Future iteration should surface a visible failure
-    status (e.g. AttachmentStatus.INDEXING_FAILED) and a retry endpoint.
+    Failures are logged and never raised: the attachment stays `READY` and
+    downloadable, but `index_state` is set to FAILED and `processing_error`
+    records the reason so the failure is visible and re-indexable later.
     """
     if not is_indexable_for_rag(attachment):
         logger.info(
@@ -100,6 +104,9 @@ def index_project_attachment(attachment: ChatConversationAttachment) -> None:
             attachment.pk,
             attachment.rag_document_id,
         )
+        if attachment.index_state != AttachmentIndexState.INDEXED:
+            attachment.index_state = AttachmentIndexState.INDEXED
+            attachment.save(update_fields=["index_state", "updated_at"])
         return
 
     if not attachment.project_id:
@@ -108,8 +115,9 @@ def index_project_attachment(attachment: ChatConversationAttachment) -> None:
 
     project = attachment.project
 
-    # TODO(projects-files): swap the bare except below for a visible
-    # AttachmentStatus.INDEXING_FAILED + retry endpoint.
+    attachment.index_state = AttachmentIndexState.INDEXING
+    attachment.save(update_fields=["index_state", "updated_at"])
+
     try:
         backend = _ensure_project_collection(project)
 
@@ -130,7 +138,16 @@ def index_project_attachment(attachment: ChatConversationAttachment) -> None:
         # field.
         if rag_document_id:
             attachment.rag_document_id = rag_document_id
-            attachment.save(update_fields=["rag_document_id", "updated_at"])
+            attachment.index_state = AttachmentIndexState.INDEXED
+            attachment.processing_error = None
+            attachment.save(
+                update_fields=[
+                    "rag_document_id",
+                    "index_state",
+                    "processing_error",
+                    "updated_at",
+                ]
+            )
 
         # Create the hidden markdown companion for non-text inputs so summarize
         # and the system-prompt listing can read parsed content from S3 the
@@ -160,9 +177,159 @@ def index_project_attachment(attachment: ChatConversationAttachment) -> None:
             rag_document_id,
             project.pk,
         )
-    except Exception:  # pylint: disable=broad-except
+    except Exception as exc:  # pylint: disable=broad-except
         logger.exception(
             "Failed to index project attachment %s in project %s",
             attachment.pk,
             project.pk,
         )
+        attachment.index_state = AttachmentIndexState.FAILED
+        attachment.processing_error = str(exc)
+        attachment.save(update_fields=["index_state", "processing_error", "updated_at"])
+
+
+def _ensure_conversation_collection(conversation: ChatConversation):
+    """Return a backend bound to the conversation's collection, creating it if needed.
+
+    Conversation equivalent of `_ensure_project_collection`. Creation is serialized
+    via `select_for_update` on the conversation row so two concurrent first-uploads
+    on a fresh conversation can't each create a collection and orphan one at the
+    backend.
+    """
+    backend_class = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
+
+    with transaction.atomic():
+        locked = ChatConversation.objects.select_for_update().get(pk=conversation.pk)
+        if not locked.collection_id:
+            creator = backend_class()
+            creator.create_collection(name=f"conversation-{locked.pk}")
+            locked.collection_id = str(creator.collection_id)
+            locked.save(update_fields=["collection_id", "updated_at"])
+        collection_id = locked.collection_id
+
+    return backend_class(collection_id=collection_id)
+
+
+def index_conversation_attachment(attachment: ChatConversationAttachment) -> None:
+    """Parse the attachment and store it in the conversation's RAG collection.
+
+    Conversation equivalent of `index_project_attachment`, enqueued at upload time
+    by the malware safe-callback. Previously this work ran in the Django web
+    process at message time (`pydantic_ai._parse_input_documents`); moving it to
+    the worker keeps the parser - and any RCE it could trigger - out of the
+    process holding the LLM/S3/DB/OIDC secrets.
+
+    Same lifecycle as the project path: text inputs go straight to the backend,
+    non-text inputs additionally get a hidden `text/markdown` companion so
+    downstream code (system-prompt listing, summarize) can read parsed content
+    from object storage. The backend-side document id is recorded on the original
+    attachment for later targeted search and per-document deletion.
+
+    Failures are logged and never raised: the attachment stays `READY` and
+    downloadable, but `index_state` is set to FAILED and `processing_error`
+    records the reason so the failure is visible and re-indexable later.
+    """
+    if not is_indexable_for_rag(attachment):
+        logger.info(
+            "Skipping RAG indexing for conversation attachment %s (state=%s, type=%s, "
+            "conversion_from=%s)",
+            attachment.pk,
+            attachment.upload_state,
+            attachment.content_type,
+            attachment.conversion_from,
+        )
+        return
+
+    if attachment.rag_document_id:
+        logger.info(
+            "Conversation attachment %s already indexed (rag_document_id=%s); skipping.",
+            attachment.pk,
+            attachment.rag_document_id,
+        )
+        if attachment.index_state != AttachmentIndexState.INDEXED:
+            attachment.index_state = AttachmentIndexState.INDEXED
+            attachment.save(update_fields=["index_state", "updated_at"])
+        return
+
+    if not attachment.conversation_id:
+        logger.error(
+            "Conversation attachment %s has no conversation_id; cannot index.", attachment.pk
+        )
+        return
+
+    conversation = attachment.conversation
+
+    attachment.index_state = AttachmentIndexState.INDEXING
+    attachment.save(update_fields=["index_state", "updated_at"])
+
+    try:
+        backend = _ensure_conversation_collection(conversation)
+
+        with default_storage.open(attachment.key, "rb") as file:
+            document_data = file.read()
+
+        parsed_content, rag_document_id = backend.parse_and_store_document(
+            name=attachment.file_name,
+            content_type=attachment.content_type,
+            content=document_data,
+            user_sub=attachment.uploaded_by.sub,
+        )
+
+        # Persist the backend id BEFORE the companion side-effects below: the
+        # chunks already exist in the RAG backend, so any later failure (S3
+        # save, companion row create) must not leave us re-indexing on retry
+        # and duplicating chunks. The early-return guard above keys off this
+        # field.
+        if rag_document_id:
+            attachment.rag_document_id = rag_document_id
+            attachment.is_indexed = True
+            attachment.index_state = AttachmentIndexState.INDEXED
+            attachment.processing_error = None
+            attachment.save(
+                update_fields=[
+                    "rag_document_id",
+                    "is_indexed",
+                    "index_state",
+                    "processing_error",
+                    "updated_at",
+                ]
+            )
+            # Mark the conversation collection indexed so `_check_should_enable_rag`
+            # registers the RAG tool, mirroring the old message-time path.
+            if conversation.index_state != CollectionIndexState.INDEXED:
+                conversation.index_state = CollectionIndexState.INDEXED
+                conversation.save(update_fields=["index_state", "updated_at"])
+
+        # Create the hidden markdown companion for non-text inputs so summarize
+        # and the system-prompt listing can read parsed content from S3. Written
+        # to a distinct `.md` S3 key so the original binary stays intact for
+        # direct retrieval; `default_storage.save` returns the actual stored name.
+        if not attachment.content_type.startswith(TEXT_MIME_PREFIX):
+            stored_key = default_storage.save(
+                f"{attachment.key}.md", BytesIO(parsed_content.encode("utf-8"))
+            )
+            ChatConversationAttachment.objects.create(
+                conversation=conversation,
+                uploaded_by=attachment.uploaded_by,
+                key=stored_key,
+                file_name=f"{attachment.file_name}.md",
+                content_type="text/markdown",
+                conversion_from=attachment.key,
+                upload_state=AttachmentStatus.READY,
+            )
+
+        logger.info(
+            "Indexed conversation attachment %s (rag_document_id=%s, conversation=%s).",
+            attachment.pk,
+            rag_document_id,
+            conversation.pk,
+        )
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.exception(
+            "Failed to index conversation attachment %s in conversation %s",
+            attachment.pk,
+            conversation.pk,
+        )
+        attachment.index_state = AttachmentIndexState.FAILED
+        attachment.processing_error = str(exc)
+        attachment.save(update_fields=["index_state", "processing_error", "updated_at"])
