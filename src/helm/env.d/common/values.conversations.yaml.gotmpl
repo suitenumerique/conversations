@@ -1,8 +1,5 @@
 djangoSuperUserEmail: admin@example.com
 djangoSuperUserPass: admin
-oidc:
-    clientId: conversations
-    clientSecret: ThisIsAnExampleKeyForDevPurposeOnly
 
 image:
   repository: localhost:5001/conversations-backend
@@ -13,7 +10,6 @@ backend:
   replicas: 1
   envVars:
     DJANGO_SECRET_KEY: ThisIsAnExampleKeyForDevPurposeOnly
-    OIDC_RP_CLIENT_SECRET: ThisIsAnExampleKeyForDevPurposeOnly
     AWS_S3_SECRET_ACCESS_KEY: password
     AI_BASE_URL:
       secretKeyRef:
@@ -35,6 +31,10 @@ backend:
       secretKeyRef:
         name: secret-dev
         key: BRAVE_API_KEY
+    OIDC_STORE_REFRESH_TOKEN_KEY:
+      secretKeyRef:
+        name: secret-dev
+        key : OIDC_STORE_REFRESH_TOKEN_KEY
     COLLABORATION_SERVER_SECRET: my-secret
     DJANGO_CSRF_TRUSTED_ORIGINS: https://conversations.127.0.0.1.nip.io
     DJANGO_CONFIGURATION: Feature
@@ -54,24 +54,13 @@ backend:
     LOGGING_LEVEL_LOGGERS_APP: INFO
     OIDC_USERINFO_SHORTNAME_FIELD: "given_name"
     OIDC_USERINFO_FULLNAME_FIELDS: "given_name,usual_name"
-    OIDC_OP_JWKS_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/certs
-    OIDC_OP_AUTHORIZATION_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/auth
-    OIDC_OP_TOKEN_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/token
-    OIDC_OP_USER_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/userinfo
-    OIDC_OP_LOGOUT_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/logout
-    OIDC_RP_CLIENT_ID: conversations
     OIDC_RP_SIGN_ALGO: RS256
-    OIDC_RP_SCOPES: "openid email"
-    # "Edit in Docs" — call Docs as an OIDC resource server with the user's stored
-    # access token. Requires the token in the session, hence OIDC_STORE_ACCESS_TOKEN.
-    DOCS_BASE_URL: https://docs.127.0.0.1.nip.io/
+    # OIDC provider endpoints, client credentials, scopes and DOCS_BASE_URL are
+    # per-profile — see env.d/<profile>/values.oidc.yaml.gotmpl.
+    # "Edit in Docs" calls Docs as an OIDC resource server with the user's stored
+    # access token, hence OIDC_STORE_ACCESS_TOKEN below.
     OIDC_STORE_ACCESS_TOKEN: "True"
     OIDC_STORE_REFRESH_TOKEN: "True"
-    OIDC_STORE_REFRESH_TOKEN_KEY: "oidcStoreRefreshToken"
-    # Refresh the access token before Keycloak's ~5min lifespan, not the 15min
-    # default. The refresh_oidc_access_token decorator triggers on this marker, so
-    # keeping it under the access-token TTL avoids handing Docs a dead token.
-    OIDC_RENEW_ID_TOKEN_EXPIRY_SECONDS: "240"
     LOGIN_REDIRECT_URL: https://conversations.127.0.0.1.nip.io
     LOGIN_REDIRECT_URL_FAILURE: https://conversations.127.0.0.1.nip.io
     LOGOUT_REDIRECT_URL: https://conversations.127.0.0.1.nip.io
@@ -159,7 +148,7 @@ frontend:
   envVars:
     PORT: 8080
     NEXT_PUBLIC_API_ORIGIN: https://conversations.127.0.0.1.nip.io
-    NEXT_PUBLIC_PRODUCT_NAME: "Assistant"
+    NEXT_PUBLIC_PRODUCT_NAME: "L'Assistant"
 
   replicas: 1
   command:
