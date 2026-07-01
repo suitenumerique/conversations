@@ -10,6 +10,7 @@ from chat.views.attachments import (
     ChatProjectAttachmentViewSet,
 )
 from chat.views.conversations import ChatAttachmentMixin, ChatCooldownView, ChatViewSet
+from chat.views.edit_in_docs import EditInDocsMixin
 from chat.views.files import FileStreamView
 from chat.views.filters import ProjectFilter, TitleSearchFilter
 from chat.views.health import AssistantHealthView, ModelHealthView
@@ -25,6 +26,7 @@ __all__ = [
     "ChatProjectAttachmentViewSet",
     "ChatProjectViewSet",
     "ChatViewSet",
+    "EditInDocsMixin",
     "FileStreamView",
     "LLMConfigurationView",
     "ModelHealthView",

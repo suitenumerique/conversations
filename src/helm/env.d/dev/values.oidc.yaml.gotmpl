@@ -1,0 +1,18 @@
+# Local Keycloak OIDC overlay (profile: dev).
+# Merged on top of env.d/common/values.conversations.yaml.gotmpl.
+oidc:
+    clientId: conversations
+    clientSecret: ThisIsAnExampleKeyForDevPurposeOnly
+
+backend:
+  envVars:
+    OIDC_OP_JWKS_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/certs
+    OIDC_OP_AUTHORIZATION_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/auth
+    OIDC_OP_TOKEN_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/token
+    OIDC_OP_USER_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/userinfo
+    OIDC_OP_LOGOUT_ENDPOINT: https://conversations-keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/logout
+    OIDC_RP_CLIENT_ID: conversations
+    OIDC_RP_CLIENT_SECRET: ThisIsAnExampleKeyForDevPurposeOnly
+    OIDC_RP_SCOPES: "openid email"
+    # Local Docs is wired to this same Keycloak, so it accepts the stored access token.
+    DOCS_BASE_URL: https://docs.127.0.0.1.nip.io/

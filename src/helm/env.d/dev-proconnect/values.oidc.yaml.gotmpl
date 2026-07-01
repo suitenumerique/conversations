@@ -1,0 +1,28 @@
+# Staging ProConnect (AgentConnect integ01) OIDC overlay (profile: dev-proconnect).
+# Merged on top of env.d/common/values.conversations.yaml.gotmpl.
+backend:
+  envVars:
+    FRONTEND_SILENT_LOGIN_ENABLED: "False"
+    OIDC_OP_URL: https://fca.integ01.dev-agentconnect.fr/api/v2
+    OIDC_OP_JWKS_ENDPOINT: https://fca.integ01.dev-agentconnect.fr/api/v2/jwks
+    OIDC_OP_AUTHORIZATION_ENDPOINT: https://fca.integ01.dev-agentconnect.fr/api/v2/authorize
+    OIDC_OP_TOKEN_ENDPOINT: https://fca.integ01.dev-agentconnect.fr/api/v2/token
+    OIDC_OP_USER_ENDPOINT: https://fca.integ01.dev-agentconnect.fr/api/v2/userinfo
+    OIDC_OP_LOGOUT_ENDPOINT: https://fca.integ01.dev-agentconnect.fr/api/v2/session/end
+    # Client credentials for the integ01 app, kept out of git in secret-dev
+    OIDC_RP_SIGN_ALGO: RS256
+    # (Tilt creates it from env.d/development/kube-secret).
+    OIDC_RP_CLIENT_ID:
+      secretKeyRef:
+        name: secret-dev
+        key: OIDC_RP_CLIENT_ID
+    OIDC_RP_CLIENT_SECRET:
+      secretKeyRef:
+        name: secret-dev
+        key: OIDC_RP_CLIENT_SECRET
+    OIDC_RP_SCOPES: "openid email given_name usual_name"
+    # Edit in Docs: must point at a ProConnect-federated (staging) Docs so it accepts
+    # the user's ProConnect access token. Local Docs (wired to Keycloak) would reject it.
+    DOCS_BASE_URL: https://impress-staging.beta.numerique.gouv.fr
+
+

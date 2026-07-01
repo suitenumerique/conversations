@@ -33,6 +33,15 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
+const mockConfig: { DOCS_BASE_URL?: string } = { DOCS_BASE_URL: undefined };
+jest.mock('@/core/config', () => ({
+  useConfig: () => ({ data: mockConfig }),
+}));
+
+jest.mock('../MoreActionsButton', () => ({
+  MoreActionsButton: () => <div data-testid="more-actions-button" />,
+}));
+
 // Mock child components
 jest.mock('../AttachmentList', () => ({
   AttachmentList: () => <div data-testid="attachment-list" />,
@@ -378,6 +387,30 @@ describe('MessageItem', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockConfig.DOCS_BASE_URL = undefined;
+  });
+
+  describe('Edit in Docs button', () => {
+    it('shows for a content-only message with no text parts when Docs is configured', async () => {
+      mockConfig.DOCS_BASE_URL = 'https://docs.example.com/';
+
+      await act(async () => {
+        // defaultProps.message has `content` but no `parts` (hydrated case).
+        renderWithProviders(<MessageItem {...defaultProps} />);
+      });
+
+      expect(screen.getByTestId('more-actions-button')).toBeInTheDocument();
+    });
+
+    it('is hidden when Docs is not configured', async () => {
+      await act(async () => {
+        renderWithProviders(<MessageItem {...defaultProps} />);
+      });
+
+      expect(
+        screen.queryByTestId('more-actions-button'),
+      ).not.toBeInTheDocument();
+    });
   });
 
   describe('rendering', () => {

@@ -14,6 +14,7 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 import os
 import tomllib
 from socket import gethostbyname, gethostname
+from urllib.parse import urlparse
 
 from django.utils.functional import lazy
 
@@ -1042,6 +1043,11 @@ USER QUESTION:
         environ_name="FIND_API_TIMEOUT",
         environ_prefix=None,
     )
+    # Docs
+    DOCS_BASE_URL = values.Value(None, environ_name="DOCS_BASE_URL", environ_prefix=None)
+    DOCS_API_TIMEOUT = values.PositiveIntegerValue(
+        default=30, environ_name="DOCS_API_TIMEOUT", environ_prefix=None
+    )
 
     # Logging
     # We want to make it easy to log to console but by default we log production
@@ -1218,6 +1224,32 @@ USER QUESTION:
         }
 
     @classmethod
+    def _validate_docs_configuration(cls):
+        """Validate the "Edit in Docs" settings.
+
+        DocsClient forwards the user's OIDC bearer token and document content to
+        DOCS_BASE_URL, so it requires stored access tokens and an encrypted endpoint.
+        """
+        if not cls.DOCS_BASE_URL:
+            return
+
+        if not cls.OIDC_STORE_ACCESS_TOKEN:
+            raise ValueError(
+                "DOCS_BASE_URL is set but OIDC_STORE_ACCESS_TOKEN is not enabled. "
+                "The Docs integration requires OIDC access tokens to be stored in the session."
+            )
+
+        # Reject plaintext endpoints — except localhost for local development.
+        docs_url = urlparse(cls.DOCS_BASE_URL)
+        is_local = docs_url.hostname in ("localhost", "127.0.0.1", "::1")
+        if docs_url.scheme != "https" and not is_local:
+            raise ValueError(
+                "DOCS_BASE_URL must use HTTPS to avoid leaking the forwarded OIDC "
+                "access token and document content over an unencrypted connection "
+                "(localhost is exempted for local development)."
+            )
+
+    @classmethod
     def post_setup(cls):
         """Post setup configuration.
         This is the place where you can configure settings that require other
@@ -1273,6 +1305,9 @@ USER QUESTION:
                 f"{cls.RAG_DOCUMENT_SEARCH_BACKEND} requires FIND_API_KEY, FIND_API_URL, "
                 "OIDC_STORE_ACCESS_TOKEN and OIDC_STORE_REFRESH_TOKEN to be set."
             )
+
+        # Docs configuration
+        cls._validate_docs_configuration()
 
         # Document context budget ratio must be a fraction (0 disables full inlining,
         # 1 dedicates the entire model context to documents).

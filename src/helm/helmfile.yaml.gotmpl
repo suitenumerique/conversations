@@ -2,6 +2,9 @@ environments:
   dev:
     values:
       - version: 0.0.1
+  dev-proconnect:
+    values:
+      - version: 0.0.1
 
 ---
 repositories:
@@ -15,11 +18,12 @@ releases:
     chart: dev-backends/dev-backend
     version: 0.0.4
     values:
-      - env.d/{{ .Environment.Name }}/values.dev-backend.yaml.gotmpl
+      - env.d/common/values.dev-backend.yaml.gotmpl
 
   - name: conversations
     version: {{ .Values.version }}
     namespace: {{ .Namespace }}
     chart: ./conversations
     values:
-      - env.d/{{ .Environment.Name }}/values.conversations.yaml.gotmpl
+      - env.d/common/values.conversations.yaml.gotmpl
+      - env.d/{{ .Environment.Name }}/values.oidc.yaml.gotmpl

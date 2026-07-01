@@ -2,9 +2,11 @@ import { Message, SourceUIPart, ToolInvocationUIPart } from '@ai-sdk/ui-utils';
 import { Button } from '@gouvfr-lasuite/cunningham-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-
+import { useConfig } from '@/core/config';
+import { MoreActionsButton } from '@/features/chat/components/MoreActionsButton';
 import { Box, Icon, Loader, Text } from '@/components';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
+
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import {
   CompletedMarkdownBlock,
@@ -185,6 +187,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   getMetadata,
 }) => {
   const { t } = useTranslation();
+  const { data: config } = useConfig();
+  const docsBaseUrl = config?.DOCS_BASE_URL;
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [isCopied, setIsCopied] = React.useState(false);
   const copyTimeoutRef = React.useRef<number | null>(null);
@@ -235,6 +239,17 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
       (part): part is ToolInvocationUIPart => part.type === 'tool-invocation',
     );
   }, [message.parts]);
+
+  const hasTextContent = React.useMemo(
+    () =>
+      (message.parts ?? []).some(
+        (part) => part.type === 'text' && part.text.trim().length > 0,
+      ) ||
+      // Older/hydrated messages render from `message.content` without populated
+      // text parts — fall back to it so they keep the "Edit in Docs" action.
+      (message.content?.trim().length ?? 0) > 0,
+    [message.parts, message.content],
+  );
 
   const hasNonDocumentParsingTool = React.useMemo(() => {
     return toolInvocationParts.some(
@@ -432,6 +447,15 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                     }
                     className="c__button--neutral action-chat-button"
                   ></Button>
+                  {docsBaseUrl &&
+                    conversationId &&
+                    message.id &&
+                    hasTextContent && (
+                      <MoreActionsButton
+                        conversationId={conversationId}
+                        messageId={message.id}
+                      />
+                    )}
                   {sourceParts.length > 0 && (
                     <Button
                       size="nano"
