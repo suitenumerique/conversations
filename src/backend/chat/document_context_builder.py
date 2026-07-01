@@ -244,7 +244,6 @@ async def build_documents_listing(  # noqa: PLR0913 # pylint: disable=too-many-a
     model_hrid: str,
     max_token_context: int | None,
     budget_ratio: float,
-    security_buffer_tokens: int,
     project_text_attachments: Sequence[models.ChatConversationAttachment] = (),
 ) -> DocumentsListing | None:
     """
@@ -307,6 +306,8 @@ async def build_documents_listing(  # noqa: PLR0913 # pylint: disable=too-many-a
     document_budget = compute_document_budget(
         max_token_context, budget_ratio, security_buffer_tokens
     )
+
+    document_budget = max(int(max_token_context * budget_ratio), 0)
 
     async def _load_document(
         index: int, attachment: models.ChatConversationAttachment

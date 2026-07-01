@@ -502,11 +502,14 @@ Notes:
 
 The decision of which documents are inlined as `full-context` vs left as `tool_call_only` is made by `chat/document_context_builder.py:build_documents_listing` on each turn (called via `_build_document_context_instruction` in `chat/clients/pydantic_ai.py`):
 
-1. Compute the `document_budget` in tokens:
+1. Compute budgets in tokens (`chat/clients/pydantic_ai.py` subtracts the security buffer once, then splits the remainder):
    ```text
    document_budget = max(int(model.max_token_context * DOCUMENT_CONTEXT_BUDGET_RATIO)
                          - DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS, 0)
    ```
+   The conversation history budget (summarization trigger) uses the other share:
+   `message_token_budget = max(int(usable_context * (1 - DOCUMENT_CONTEXT_BUDGET_RATIO)), 0)`.
+   `build_document_context_instruction` receives `usable_context` as its `max_token_context` argument (buffer already applied).
 2. Load all text attachments from object storage **in parallel** (`asyncio.gather`). Attachments that fail to load are marked `tool_call_only` with their failure logged; other documents are not affected.
 3. Iterate documents oldest-first (`order_by("created_at", "id")`). For each document:
    - If its token count exceeds the whole budget alone → keep `tool_call_only`.
@@ -518,8 +521,19 @@ The decision of which documents are inlined as `full-context` vs left as `tool_c
 
 Token estimation uses `tiktoken` with the `cl100k_base` encoding (GPT-4 tokenizer). For non-OpenAI models (Mistral, Llama, Anthropic) actual usage may run 5-15% higher; the security buffer absorbs that drift.
 
-The assembled listing is **cached** per turn (in `_build_documents_listing`, `pydantic_ai.py`) keyed on:
-`conversation_id`, `user_id`, `model_hrid`, `model.max_token_context`, `DOCUMENT_CONTEXT_BUDGET_RATIO`, `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`, and a fingerprint of `(attachment.id, attachment.updated_at)` for every text attachment — **conversation and project text attachments both contribute to the fingerprint**. Any attachment add / remove / edit (including project files), or any settings change, invalidates the cache. TTL is 30 minutes (`CACHE_TIMEOUT`).
+The assembled instruction is **cached** per turn keyed on:
+`conversation_id`, `user_id`, `model_hrid`, `model.max_token_context`, `DOCUMENT_CONTEXT_BUDGET_RATIO`, `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`, and a fingerprint of `(attachment.id, attachment.updated_at)` for every text attachment - **conversation and project text attachments both contribute to the fingerprint**. Any attachment add / remove / edit (including project files), or any settings change, invalidates the cache. TTL is 30 minutes (`CACHE_TIMEOUT`).
+
+#### Conversation history summarization
+
+When `message_token_budget` is exceeded, `chat/agents/history_processors.py` calls a separate summarization model (`LLM_SUMMARIZATION_MODEL_HRID`) and stores the result on the conversation (`history_summary`, `history_summary_checkpoint`). This runs at the **start of a new user turn**, before `agent.iter`, against **stored** `pydantic_messages` from previous turns only (the current user prompt is extracted separately and is not in that list yet). That stored history usually ends on an assistant `ModelResponse`.
+
+1. **Trigger**: estimated tokens in the active history slice exceed `message_token_budget` (see formulas above) and there are new messages after the last checkpoint.
+2. **After a summary**: the model receives the stored summary text (dynamic instruction) plus the last `CONVERSATION_SUMMARY_CONTEXT_MESSAGES` `ModelMessage` entries before the checkpoint. Use an **even** value so the retained window starts on a user `ModelRequest` in a plain user/assistant alternation (tool messages can break parity).
+3. **Summary length**: capped by `CONVERSATION_SUMMARY_MAX_TOKENS` on the summarization LLM call.
+4. **Disable summarization** without changing document budgets: remove `max_token_context` from the chat model in `LLM_CONFIGURATIONS`, or set `message_token_budget` to zero (`DOCUMENT_CONTEXT_BUDGET_RATIO=1` also zeroes it but reallocates all `usable_context` to documents).
+
+The security buffer is **not** a dedicated reserve for system prompts, tool schemas, or completion tokens; those are added on top of the planned document/history split. Size the buffer (and/or plan `max_token_context` below the model nominal window) to leave headroom for that overhead.
 
 #### Targeted document operations (`document_id`)
 
@@ -600,8 +614,7 @@ A `READY` attachment whose `rag_document_id` is null (e.g. parse succeeded but t
 | `PROJECT_FILES_MAX_COUNT`                    | `10`           | Max non-image attachments per project (excludes hidden markdown companions). Enforced at upload-time in `ChatProjectAttachmentViewSet`. Bounds per-turn system-prompt token cost (every entry contributes to `project_documents` on every conversation turn). |
 | `PROJECT_IMAGES_MAX_COUNT`                   | `3`            | Max image attachments per project. Enforced at upload-time. Bounds per-turn vision token cost - every project image is pinned to every turn alongside conversation-message images, and provider request-level image caps (Anthropic ~20/request) clip the trailing entries first. |
 | `DOCUMENT_CONTEXT_BUDGET_RATIO`              | `0.5`          | Fraction of `model.max_token_context` reserved for inlined documents (0 disables full-context inlining; everything stays `tool_call_only`) |
-| `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`    | `1000`         | Tokens subtracted from the inlining budget to absorb tokenizer drift on non-OpenAI models |
-| `RAG_COLLECTION_INACTIVITY_DAYS`             | `30`           | Conversations inactive for this many days have their RAG collection de-indexed by `deindex_inactive_collections`. Resets on re-index. |
+| `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`    | `10000`        | Tokens subtracted once from `max_token_context` before the document/history split, to absorb tokenizer drift on non-OpenAI models and leave headroom beyond the planned split |
 
 #### RAG_FILES_ACCEPTED_FORMATS
 
@@ -649,7 +662,7 @@ RAG_FILES_ACCEPTED_FORMATS = [
 
 ### Per-model setting: `max_token_context`
 
-Each entry in `LLM_CONFIGURATIONS` accepts a `max_token_context` integer field declaring the model's context window size. When set, it drives the inlining budget for the documents listing (`document_budget = max_token_context * DOCUMENT_CONTEXT_BUDGET_RATIO - DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`).
+Each entry in `LLM_CONFIGURATIONS` accepts a `max_token_context` integer field declaring the model's context window size. When set, it drives document inlining and conversation summarization budgets (`usable_context = max_token_context - DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`; `document_budget = usable_context * DOCUMENT_CONTEXT_BUDGET_RATIO`).
 
 If a model has no `max_token_context`, all of its documents are kept `tool_call_only` regardless of size and a warning is logged on every chat turn. Setting the field accurately matters: too low and small documents get pushed to RAG-only when they could be inlined; too high and the LLM may exceed its real window.
 
