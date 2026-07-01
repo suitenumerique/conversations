@@ -269,7 +269,8 @@ class ChatConversationAttachment(BaseModel):
         max_length=20,
         choices=AttachmentIndexState.choices(),
         default=AttachmentIndexState.NOT_INDEXED,
-        help_text="Per-attachment RAG indexing lifecycle (set by the project indexing task)",
+        help_text="Per-attachment RAG indexing lifecycle (set by the project and "
+        "conversation indexing tasks)",
     )
     processing_error = models.TextField(
         blank=True,

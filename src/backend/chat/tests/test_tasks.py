@@ -14,8 +14,8 @@ from rest_framework import status
 from core.file_upload.enums import AttachmentStatus
 
 from chat import factories
-from chat.enums import AttachmentIndexState
-from chat.tasks import index_project_attachment_task
+from chat.enums import AttachmentIndexState, CollectionIndexState
+from chat.tasks import index_conversation_attachment_task, index_project_attachment_task
 
 pytestmark = pytest.mark.django_db
 
@@ -66,3 +66,45 @@ def test_index_project_attachment_task_indexes_attachment():
 def test_index_project_attachment_task_ignores_missing_attachment():
     """A deleted attachment id is logged and skipped, never raised."""
     index_project_attachment_task.delay(999999)
+
+
+@responses.activate
+def test_index_conversation_attachment_task_indexes_attachment():
+    """The task resolves the id and indexes the file into the conversation collection."""
+    saved_name = default_storage.save(
+        "task-rag-conv-test.txt", ContentFile(b"Hello conversation content")
+    )
+    attachment = factories.ChatConversationAttachmentFactory(
+        key=saved_name,
+        file_name="hello.txt",
+        content_type="text/plain",
+        upload_state=AttachmentStatus.READY,
+    )
+    try:
+        responses.post(
+            "https://albert.api.etalab.gouv.fr/v1/collections",
+            json={"id": "42"},
+            status=status.HTTP_200_OK,
+        )
+        responses.post(
+            "https://albert.api.etalab.gouv.fr/v1/documents",
+            json={"id": 1},
+            status=status.HTTP_201_CREATED,
+        )
+
+        index_conversation_attachment_task.delay(attachment.pk)
+
+        attachment.refresh_from_db()
+        assert attachment.rag_document_id == "1"
+        assert attachment.is_indexed is True
+        assert attachment.index_state == AttachmentIndexState.INDEXED
+
+        attachment.conversation.refresh_from_db()
+        assert attachment.conversation.index_state == CollectionIndexState.INDEXED
+    finally:
+        default_storage.delete(saved_name)
+
+
+def test_index_conversation_attachment_task_ignores_missing_attachment():
+    """A deleted attachment id is logged and skipped, never raised."""
+    index_conversation_attachment_task.delay(999999)

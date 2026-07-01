@@ -1,20 +1,19 @@
-"""Tests for the INDEXING busy-state guard in _run_agent / reindex_conversation."""
+"""Tests for the INDEXING busy-state guard in _run_agent / reindex_conversation
+and the error emission of `_handle_input_documents` on document rejection."""
 # pylint: disable=protected-access
 
 import logging
 from datetime import timedelta
-from unittest.mock import AsyncMock
 
 from django.utils import timezone
 
 import pytest
-import requests
 from asgiref.sync import sync_to_async
-from pydantic_ai.messages import BinaryContent
+from pydantic_ai.messages import BinaryContent, DocumentUrl
 
 from chat import models as chat_models
 from chat.ai_sdk_types import TextUIPart, UIMessage
-from chat.clients.pydantic_ai import AIAgentService
+from chat.clients.pydantic_ai import DOCUMENT_URL_PREFIX, AIAgentService
 from chat.enums import CollectionIndexState
 from chat.factories import ChatConversationFactory
 from chat.vercel_ai_sdk.core import events_v4
@@ -124,76 +123,72 @@ async def test_no_busy_error_when_indexing_claim_timed_out():
 
 
 # --------------------------------------------------------------------------- #
-# _handle_input_documents end-to-end error classification
+# _handle_input_documents end-to-end error emission on document rejection
+#
+# Parsing moved to the worker, so the message-time handler no longer parses; it
+# validates the current message's documents. A rejection must still emit the
+# same error envelope it used to on a parse failure: a ToolResultPart error, a
+# FinishMessagePart(ERROR), and a DocumentParsingResult(success=False), logged
+# via logger.exception. Both reachable rejections classify as `rag_error` (only
+# ValueError is raised here); the HTTP-derived kinds now happen on the worker and
+# the kind mapping itself is unit-tested in test_error_classification.py.
 # --------------------------------------------------------------------------- #
 
 
-def _http_error(status_code: int) -> requests.HTTPError:
-    """Build a requests.HTTPError whose response carries the given status code."""
-    response = requests.Response()
-    response.status_code = status_code
-    return requests.HTTPError(response=response)
-
-
-async def _collect_handle_input_documents(service, exc):
-    """Run _handle_input_documents with a single document and a stubbed parse step."""
-    service._parse_input_documents = AsyncMock(side_effect=exc)
-    document = BinaryContent(data=b"hello", media_type="text/plain")
+async def _collect_handle_input_documents(service, documents):
+    """Run _handle_input_documents with the given documents and collect events."""
     usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
     events = []
     async for event in service._handle_input_documents(
-        [document], conversation_has_own_documents=False, usage=usage
+        documents, conversation_has_own_documents=False, usage=usage
     ):
         events.append(event)
     return events
 
 
-def _tool_result(events):
-    return next(e for e in events if isinstance(e, events_v4.ToolResultPart))
-
-
 @pytest.mark.asyncio
-async def test_handle_input_documents_emits_rag_unavailable_on_500(caplog):
-    """A 500 from the RAG backend surfaces as kind=rag_unavailable and is logged at ERROR."""
+@pytest.mark.parametrize(
+    "make_document",
+    [
+        pytest.param(
+            lambda _conversation: BinaryContent(data=b"raw", media_type="text/plain"),
+            id="inline-bytes",
+        ),
+        pytest.param(
+            lambda _conversation: DocumentUrl(
+                url=f"{DOCUMENT_URL_PREFIX}other-conversation/attachments/f.txt",
+                media_type="text/plain",
+            ),
+            id="cross-conversation-url",
+        ),
+    ],
+)
+async def test_handle_input_documents_emits_error_envelope_on_rejection(make_document, caplog):
+    """A rejected document emits the error envelope and aborts the turn, logged at ERROR."""
     conversation = await sync_to_async(ChatConversationFactory)()
     service = AIAgentService(conversation, user=conversation.owner)
 
     caplog.set_level(logging.ERROR, logger=PYDANTIC_AI_LOGGER)
-    events = await _collect_handle_input_documents(service, _http_error(500))
+    events = await _collect_handle_input_documents(service, [make_document(conversation)])
 
-    result = _tool_result(events).result
-    assert result["state"] == "error"
-    assert result["kind"] == "rag_unavailable"
+    # A document_parsing tool call is announced before the error result.
+    tool_call = next(e for e in events if isinstance(e, events_v4.ToolCallPart))
+    assert tool_call.tool_name == "document_parsing"
 
-    parse_failures = [
-        r for r in caplog.records if "Error parsing input documents" in r.getMessage()
-    ]
-    assert len(parse_failures) == 1
-    assert parse_failures[0].levelno == logging.ERROR
+    tool_result = next(e for e in events if isinstance(e, events_v4.ToolResultPart))
+    assert tool_result.result["state"] == "error"
+    assert tool_result.result["kind"] == "rag_error"
+    assert tool_result.result["error"]
+
+    finish = next(e for e in events if isinstance(e, events_v4.FinishMessagePart))
+    assert finish.finish_reason == events_v4.FinishReason.ERROR
+
+    # The final marker reports failure so the caller aborts the turn.
+    assert events[-1].success is False
+
+    rejections = [r for r in caplog.records if "Rejected input documents" in r.getMessage()]
+    assert len(rejections) == 1
+    assert rejections[0].levelno == logging.ERROR
     # logger.exception attaches exc_info — a plain logger.error would not.
-    assert parse_failures[0].exc_info is not None
-    assert "rag_unavailable" in parse_failures[0].getMessage()
-
-
-@pytest.mark.asyncio
-async def test_handle_input_documents_emits_rag_connection_error_on_network_failure():
-    """A requests.ConnectionError surfaces as kind=rag_connection_error."""
-    conversation = await sync_to_async(ChatConversationFactory)()
-    service = AIAgentService(conversation, user=conversation.owner)
-
-    events = await _collect_handle_input_documents(service, requests.ConnectionError("no route"))
-
-    result = _tool_result(events).result
-    assert result["kind"] == "rag_connection_error"
-
-
-@pytest.mark.asyncio
-async def test_handle_input_documents_emits_generic_rag_error_on_local_failure():
-    """A non-HTTP exception (e.g. local parser failure) surfaces as kind=rag_error."""
-    conversation = await sync_to_async(ChatConversationFactory)()
-    service = AIAgentService(conversation, user=conversation.owner)
-
-    events = await _collect_handle_input_documents(service, ValueError("bad odt"))
-
-    result = _tool_result(events).result
-    assert result["kind"] == "rag_error"
+    assert rejections[0].exc_info is not None
+    assert "rag_error" in rejections[0].getMessage()

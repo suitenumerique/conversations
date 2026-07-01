@@ -19,12 +19,12 @@ class CollectionIndexState(StrEnum):
 
 
 class AttachmentIndexState(StrEnum):
-    """Per-attachment RAG indexing lifecycle (project attachments).
+    """Per-attachment RAG indexing lifecycle (project and conversation attachments).
 
     Distinct from the conversation-level `CollectionIndexState`: this tracks a
-    single file's journey into the RAG backend, set by the project indexing
-    task. `FAILED` is terminal until a manual re-index; `processing_error` on
-    the attachment carries the reason.
+    single file's journey into the RAG backend, set by the project and
+    conversation indexing tasks. `FAILED` is terminal until a manual re-index;
+    `processing_error` on the attachment carries the reason.
     """
 
     NOT_INDEXED = "not_indexed"  # Default; not yet sent to the backend

@@ -521,7 +521,7 @@ export const InputChat = ({
                     $color="var(--c--contextuals--content--semantic--warning--primary)"
                   >
                     {t(
-                      'Processing project files. You can send a message once indexing is done.',
+                      'Processing files. You can send a message once indexing is done.',
                     )}
                   </Text>
                 </Box>
