@@ -359,7 +359,7 @@ export const ActivationPage = () => {
                   ? t(
                       "We'll email you at {{email}} when the public beta opens.",
                       {
-                        email: user.email,
+                        email: user.email ?? '',
                       },
                     )
                   : t("We'll email you when the public beta opens.") // should not happen
