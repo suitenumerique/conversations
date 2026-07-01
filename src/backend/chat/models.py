@@ -11,6 +11,7 @@ from core.file_upload.enums import AttachmentStatus
 from core.models import BaseModel
 
 from chat.ai_sdk_types import UIMessage
+from chat.enums import CollectionIndexState
 
 User = get_user_model()
 
@@ -164,12 +165,30 @@ class ChatConversation(BaseModel):
         help_text="Collection ID for the conversation, used for RAG document search",
     )
 
+    index_state = models.CharField(
+        max_length=20,
+        choices=CollectionIndexState.choices(),
+        default=CollectionIndexState.UNINDEXED,
+        help_text="Current indexing state of this conversation's RAG collection",
+    )
+
     project = models.ForeignKey(
         ChatProject,
         related_name="conversations",
         on_delete=models.SET_NULL,  # explicitly avoid Cascade here
         null=True,
         blank=True,
+    )
+
+    model_hrid = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text=(
+            "HRID of the LLM pinned to this conversation. Set on the first message and"
+            " kept for the whole conversation so a recovered main model does not move"
+            " ongoing chats. Empty string means 'not yet pinned'."
+        ),
     )
 
     class Meta:  # pylint: disable=missing-class-docstring
@@ -250,6 +269,11 @@ class ChatConversationAttachment(BaseModel):
         ),
     )
 
+    is_indexed = models.BooleanField(
+        default=False,
+        help_text="Whether this attachment has been indexed in the RAG backend",
+    )
+
     class Meta:  # pylint: disable=missing-class-docstring
         constraints = [
             models.CheckConstraint(
@@ -260,3 +284,25 @@ class ChatConversationAttachment(BaseModel):
                 ),
             ),
         ]
+
+
+class ModelHealth(models.Model):
+    """Append-only health status record fetched from an external provider."""
+
+    class Status(models.TextChoices):  # pylint: disable=missing-class-docstring
+        GREEN = "green"
+        YELLOW = "yellow"
+        RED = "red"
+
+    provider = models.CharField(max_length=50)
+    model_id = models.CharField(max_length=255)
+    status = models.CharField(max_length=10, choices=Status.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        indexes = [models.Index(fields=["provider", "model_id", "-updated_at"])]
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"{self.provider}/{self.model_id}: {self.status}"

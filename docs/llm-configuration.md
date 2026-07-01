@@ -2,6 +2,8 @@
 
 This document describes how to configure Large Language Models (LLMs) in Conversations via the configuration file.
 
+> For health-aware routing across multiple models (default + fallbacks) and runtime threshold tuning, see [`model-fallback.md`](model-fallback.md).
+
 ## Overview
 
 Conversations uses a JSON configuration file to define LLM models and providers. This approach allows you to:

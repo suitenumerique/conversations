@@ -21,8 +21,10 @@ pytestmark = pytest.mark.django_db
 
 
 @override_settings(
-    CRISP_WEBSITE_ID="123",
+    FRONTEND_CONTACT_EMAIL="contact@test.com",
+    STATUS_PAGE_URL="https://status.example.com",
     FRONTEND_CSS_URL="http://testcss/",
+    FRONTEND_DOCUMENTATION_URL="http://testdocs/",
     FRONTEND_THEME="test-theme",
     MEDIA_BASE_URL="http://testserver/",
     POSTHOG_KEY={"id": "132456", "host": "https://eu.i.posthog-test.com"},
@@ -46,11 +48,13 @@ def test_api_config(is_authenticated):
     assert response.status_code == HTTP_200_OK
     assert response.json() == {
         "ACTIVATION_REQUIRED": False,
-        "CRISP_WEBSITE_ID": "123",
+        "STATUS_PAGE_URL": "https://status.example.com",
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},
         "FILE_UPLOAD_MODE": "presigned_url",
+        "FRONTEND_CONTACT_EMAIL": "contact@test.com",
         "FRONTEND_CSS_URL": "http://testcss/",
+        "FRONTEND_DOCUMENTATION_URL": "http://testdocs/",
         "FRONTEND_HOMEPAGE_FEATURE_ENABLED": True,
         "FRONTEND_SILENT_LOGIN_ENABLED": True,
         "FRONTEND_THEME": "test-theme",
@@ -69,8 +73,20 @@ def test_api_config(is_authenticated):
         "chat_upload_accept": "application/pdf,text/plain",
         "project_files_max_count": 10,
         "project_images_max_count": 3,
+        "attachment_max_size": 10,
         "status_banner": None,
+        "maintenance": None,
     }
+
+
+@override_settings(FRONTEND_CONTACT_EMAIL=None, FRONTEND_DOCUMENTATION_URL=None)
+def test_api_config_help_links_unset():
+    """Documentation URL and contact email are exposed as None when not configured."""
+    response = APIClient().get("/api/v1.0/config/")
+    assert response.status_code == HTTP_200_OK
+    content = response.json()
+    assert content["FRONTEND_CONTACT_EMAIL"] is None
+    assert content["FRONTEND_DOCUMENTATION_URL"] is None
 
 
 @override_settings(
@@ -167,8 +183,10 @@ def test_api_config_with_original_theme_customization(is_authenticated, settings
 
 
 @override_settings(
-    CRISP_WEBSITE_ID="123",
+    FRONTEND_CONTACT_EMAIL="contact@test.com",
+    STATUS_PAGE_URL="https://status.example.com",
     FRONTEND_CSS_URL="http://testcss/",
+    FRONTEND_DOCUMENTATION_URL="http://testdocs/",
     FRONTEND_THEME="test-theme",
     MEDIA_BASE_URL="http://testserver/",
     POSTHOG_KEY={"id": "132456", "host": "https://eu.i.posthog-test.com"},
@@ -193,11 +211,13 @@ async def test_api_config_async(is_authenticated):
     assert response.status_code == HTTP_200_OK
     assert response.json() == {
         "ACTIVATION_REQUIRED": False,
-        "CRISP_WEBSITE_ID": "123",
+        "STATUS_PAGE_URL": "https://status.example.com",
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {"document-upload": "enabled", "web-search": "enabled"},
         "FILE_UPLOAD_MODE": "presigned_url",
+        "FRONTEND_CONTACT_EMAIL": "contact@test.com",
         "FRONTEND_CSS_URL": "http://testcss/",
+        "FRONTEND_DOCUMENTATION_URL": "http://testdocs/",
         "FRONTEND_HOMEPAGE_FEATURE_ENABLED": True,
         "FRONTEND_SILENT_LOGIN_ENABLED": True,
         "FRONTEND_THEME": "test-theme",
@@ -216,8 +236,36 @@ async def test_api_config_async(is_authenticated):
         "chat_upload_accept": "application/pdf,text/plain",
         "project_files_max_count": 10,
         "project_images_max_count": 3,
+        "attachment_max_size": 10,
         "status_banner": None,
+        "maintenance": None,
     }
+
+
+@override_settings(
+    STATUS_PAGE_URL=None,
+    THEME_CUSTOMIZATION_FILE_PATH="",
+    RAG_FILES_ACCEPTED_FORMATS=["application/pdf"],
+)
+def test_api_config_albert_status_page_url_none():
+    """STATUS_PAGE_URL defaults to None and is included in config."""
+    client = APIClient()
+    response = client.get("/api/v1.0/config/")
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["STATUS_PAGE_URL"] is None
+
+
+@override_settings(
+    STATUS_PAGE_URL="https://status.example.com",
+    THEME_CUSTOMIZATION_FILE_PATH="",
+    RAG_FILES_ACCEPTED_FORMATS=["application/pdf"],
+)
+def test_api_config_albert_status_page_url_set():
+    """STATUS_PAGE_URL is propagated to the config endpoint when set."""
+    client = APIClient()
+    response = client.get("/api/v1.0/config/")
+    assert response.status_code == HTTP_200_OK
+    assert response.json()["STATUS_PAGE_URL"] == "https://status.example.com"
 
 
 def _set_banner(**fields):

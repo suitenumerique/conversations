@@ -46,30 +46,29 @@ test.describe.serial('Language', () => {
     await waitForLanguageSwitch(page, TestLanguage.English);
   });
 
-  test.fixme(
-    'checks that backend uses the same language as the frontend (requires translated backend)',
-    async ({ page }) => {
-      // Helper function to intercept and assert 404 response
-      const check404Response = async (expectedDetail: string) => {
-        const interceptedBackendResponse = await page.request.get(
-          'http://localhost:8071/api/v1.0/chats/non-existent-uuid/',
-        );
+  test.fixme('checks that backend uses the same language as the frontend (requires translated backend)', async ({
+    page,
+  }) => {
+    // Helper function to intercept and assert 404 response
+    const check404Response = async (expectedDetail: string) => {
+      const interceptedBackendResponse = await page.request.get(
+        'http://localhost:8071/api/v1.0/chats/non-existent-uuid/',
+      );
 
-        // Assert that the intercepted error message is in the expected language
-        expect(await interceptedBackendResponse.json()).toStrictEqual({
-          detail: expectedDetail,
-        });
-      };
+      // Assert that the intercepted error message is in the expected language
+      expect(await interceptedBackendResponse.json()).toStrictEqual({
+        detail: expectedDetail,
+      });
+    };
 
-      // Check for English 404 response
-      await check404Response('Not found.');
+    // Check for English 404 response
+    await check404Response('Not found.');
 
-      await waitForLanguageSwitch(page, TestLanguage.French);
+    await waitForLanguageSwitch(page, TestLanguage.French);
 
-      // Check for French 404 response
-      await check404Response('Pas trouvé.');
-    },
-  );
+    // Check for French 404 response
+    await check404Response('Pas trouvé.');
+  });
 });
 
 // language helper

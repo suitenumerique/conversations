@@ -21,7 +21,6 @@ export default function App({ Component, pageProps }: AppPropsWithLayout) {
   const favicon = (componentTokens as Record<string, unknown>).favicon as
     | { 'png-light': string; 'png-dark': string }
     | undefined;
-
   return (
     <>
       <Head>

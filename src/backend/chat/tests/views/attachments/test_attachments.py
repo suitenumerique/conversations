@@ -143,8 +143,8 @@ def test_attachment_retrieve_success(api_client, upload_state, expected_url_pres
 
 
 @override_settings(POSTHOG_KEY="test_key")
-@mock.patch("chat.views.posthog")
-@mock.patch("chat.views.malware_detection.analyse_file")
+@mock.patch("chat.views.attachments.posthog")
+@mock.patch("chat.views.attachments.malware_detection.analyse_file")
 def test_upload_ended_success(mock_analyse_file, mock_posthog, api_client):
     """
     The 'upload_ended' action should change the attachment state and trigger analysis.

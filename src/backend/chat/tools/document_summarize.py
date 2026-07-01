@@ -269,7 +269,7 @@ async def document_summarize(
             ),
         )
 
-    except (ModelCannotRetry, ModelRetry):
+    except ModelCannotRetry, ModelRetry:
         # Re-raise these as-is
         raise
     except Exception as exc:
@@ -325,7 +325,7 @@ async def document_summarize_project(
             ),
         )
 
-    except (ModelCannotRetry, ModelRetry):
+    except ModelCannotRetry, ModelRetry:
         raise
     except Exception as exc:
         logger.exception("Unexpected error in document_summarize_project: %s", exc)

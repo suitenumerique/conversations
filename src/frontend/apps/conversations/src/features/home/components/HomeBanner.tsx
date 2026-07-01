@@ -1,11 +1,10 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import _Image from 'next/image';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import IconAssistant from '@/assets/logo/logo-beta.svg';
+import IconAssistant from '@/assets/logo/logomark.svg';
 import { Box, Icon, Text } from '@/components';
-import { productName } from '@/core';
+import { productName, useConfig } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
 import { gotoLogin } from '@/features/auth';
 import { useResponsiveStore } from '@/stores';
@@ -23,6 +22,8 @@ export default function HomeBanner() {
   const withProConnect = Boolean(
     (componentTokens as Record<string, unknown>)['home-proconnect'],
   );
+  const { data: config } = useConfig();
+  const documentationUrl = config?.FRONTEND_DOCUMENTATION_URL;
 
   return (
     <Box
@@ -72,7 +73,7 @@ export default function HomeBanner() {
           </Text>
           <Text $theme="neutral" $variation="tertiary">
             {t(
-              'A privacy-first assistant built for French public teams. Natively synced with LaSuite apps to help you draft, search, and decide without leaving your workflow. Beta access is available with a referral code.',
+              'A privacy-first assistant built for French public teams. Natively synced with LaSuite apps to help you draft, search, and decide without leaving your workflow.',
             )}
           </Text>
 
@@ -94,15 +95,17 @@ export default function HomeBanner() {
               </Button>
             )}
 
-            <Button
-              fullWidth={isMobile ? true : false}
-              href="https://docs.numerique.gouv.fr/docs/7a6e6475-5b8f-4ffb-95ea-198da9ebd6d0/"
-              color="brand"
-              variant="bordered"
-              target="_blank"
-            >
-              {t('Know more')}
-            </Button>
+            {documentationUrl ? (
+              <Button
+                fullWidth={isMobile ? true : false}
+                href={documentationUrl}
+                color="brand"
+                variant="bordered"
+                target="_blank"
+              >
+                {t('Know more')}
+              </Button>
+            ) : null}
           </Box>
         </Box>
         {!isMobile &&

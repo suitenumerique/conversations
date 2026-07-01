@@ -174,6 +174,17 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         help_text=_("Whether the user allows to use smart web search features."),
     )
 
+    # Organization SIRET from the OIDC "siret" claim, refreshed on every login.
+    # Empty string (not NULL) when absent or malformed, per Django's convention
+    # for optional string fields.
+    organization_siret = models.CharField(
+        _("organization SIRET"),
+        max_length=14,
+        blank=True,
+        db_index=True,
+        help_text=_("SIRET of the user's organization, as provided by the identity provider."),
+    )
+
     objects = UserManager()
 
     USERNAME_FIELD = "admin_email"
@@ -240,6 +251,16 @@ class SiteConfiguration(SingletonModel):
         help_text=_("If set, the banner is hidden after this date."),
     )
 
+    # Assistant health
+    block_on_full_outage = models.BooleanField(
+        verbose_name=_("Block chat input on full outage"),
+        default=True,
+        help_text=_(
+            "When enabled, the chat input is disabled while all AI models are unavailable. "
+            "Disable to keep the input active and show a degraded-service warning instead."
+        ),
+    )
+
     @property
     def status_banner_visible(self):
         """Is the banner visible?"""
@@ -254,3 +275,205 @@ class SiteConfiguration(SingletonModel):
 
     class Meta:
         verbose_name = _("Site Configuration")
+
+
+class MaintenanceMode(SingletonModel):
+    """Singleton holding the live maintenance-mode state.
+
+    When active, non-exempt requests are short-circuited with HTTP 503 by
+    `MaintenanceMiddleware`. Always OR'd with `settings.MAINTENANCE_MODE`
+    (env-var escape hatch).
+    """
+
+    enabled = models.BooleanField(
+        default=False,
+        verbose_name=_("Enabled"),
+        help_text=_("When checked, the app is in maintenance mode for end-users."),
+    )
+    message = models.TextField(
+        blank=True,
+        default="",
+        verbose_name=_("Message"),
+        help_text=_("Shown on the maintenance page. Leave blank for the default message."),
+    )
+    starts_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("Starts at"),
+        help_text=_("If set, maintenance is inactive before this date."),
+    )
+    ends_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_("Ends at"),
+        help_text=_("If set, maintenance is inactive after this date."),
+    )
+    updated_at = models.DateTimeField(auto_now=True, editable=False)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        editable=False,
+        related_name="+",
+    )
+
+    def is_active_now(self) -> bool:
+        """Whether the DB-driven maintenance window is currently active."""
+        if not self.enabled:
+            return False
+        now = timezone.now()
+        if self.starts_at and now < self.starts_at:
+            return False
+        if self.ends_at and now > self.ends_at:
+            return False
+        return True
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            previous = (
+                type(self).objects.filter(pk=self.pk).values_list("enabled", flat=True).first()
+            )
+        else:
+            previous = None
+        super().save(*args, **kwargs)
+        if previous is not None and previous != self.enabled:
+            logger.warning(
+                "maintenance mode %s (singleton)",
+                "ENABLED" if self.enabled else "DISABLED",
+            )
+
+    class Meta:
+        verbose_name = _("Maintenance Mode")
+
+
+# Selectable cascade-eviction thresholds. Kept inline (rather than derived from
+# chat.models.ModelHealth.Status) to avoid a core -> chat import cycle and to
+# match the frozen choices in migration 0014.
+EVICTION_THRESHOLD_CHOICES = [("yellow", "Yellow"), ("red", "Red")]
+
+
+class ModelHealthSettings(SingletonModel):
+    """Singleton controlling model-health polling and routing behaviour."""
+
+    poll_interval_minutes = models.PositiveIntegerField(
+        default=5,
+        help_text="Minimum minutes between two effective polling runs.",
+    )
+
+    main_eviction_threshold = models.CharField(
+        max_length=10,
+        choices=EVICTION_THRESHOLD_CHOICES,
+        default="red",
+        help_text=(
+            "Minimum main-model health that triggers cascade to a fallback. "
+            "'yellow' = cascade on yellow or red (aggressive). "
+            "'red' = tolerate yellow on main, only cascade on red."
+        ),
+    )
+
+    fallback_eviction_threshold = models.CharField(
+        max_length=10,
+        choices=EVICTION_THRESHOLD_CHOICES,
+        default="red",
+        help_text=(
+            "Minimum fallback-model health to skip to the next fallback. "
+            "Applied uniformly to fallback 1 and fallback 2. "
+            "'yellow' = skip yellow fallbacks (aggressive). "
+            "'red' = accept yellow fallbacks, only skip on red."
+        ),
+    )
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        verbose_name = "Model Health Settings"
+
+
+class AccessBypassEmail(BaseModel):
+    """Allow-list of email addresses that may sign in even without the role
+    normally required by the OIDC access policy (see ``OIDC_ALLOWED_ROLES``).
+
+    Used as a fallback in the authentication backend: a user who lacks the
+    required role is still granted access if their email matches an active,
+    non-expired entry here.
+    """
+
+    email = models.EmailField(
+        _("email address"),
+        unique=True,
+        help_text=_("email address allowed to bypass the role requirement"),
+    )
+    is_active = models.BooleanField(
+        _("active"),
+        default=True,
+        help_text=_("inactive entries are ignored without being deleted"),
+    )
+    note = models.TextField(
+        _("note"),
+        blank=True,
+        help_text=_("optional reason for granting this bypass"),
+    )
+    expires_at = models.DateTimeField(
+        _("expires on"),
+        blank=True,
+        null=True,
+        help_text=_("optional date after which this bypass no longer applies"),
+    )
+
+    class Meta:
+        db_table = "conversations_access_bypass_email"
+        verbose_name = _("access bypass email")
+        verbose_name_plural = _("access bypass emails")
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return self.email
+
+    def save(self, *args, **kwargs):
+        """Store the email normalized (trimmed, lowercase) for case-insensitive matching."""
+        if self.email:
+            self.email = self.email.strip().lower()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def is_email_allowed(cls, email):
+        """Return True if ``email`` has an active, non-expired bypass entry."""
+        if not email:
+            return False
+        return (
+            cls.objects.filter(email__iexact=email.strip(), is_active=True)
+            .filter(models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now()))
+            .exists()
+        )
+
+
+class ChatCooldownSettings(SingletonModel):
+    """Singleton tuning the inference-load cooldown heuristic.
+
+    When a model is in degraded ("yellow"/"red") health, a user who has spent
+    more than ``token_threshold`` total tokens (input + output) over the
+    trailing ``window_seconds`` is asked to wait before their next request. The
+    wait grows with the overage, scaled by a per-model factor (see
+    ``LLModel.cooldown_factor``, which falls back to ``default_factor``), with
+    ``min_seconds`` as the floor once the threshold is crossed.
+    """
+
+    window_seconds = models.PositiveIntegerField(
+        default=20 * 60,
+        help_text="Length of the trailing token-usage window, in seconds.",
+    )
+    token_threshold = models.PositiveIntegerField(
+        default=650_000,
+        help_text="Tokens over the window above which a cooldown can apply.",
+    )
+    default_factor = models.FloatField(
+        default=0.0016,
+        help_text="Seconds of cooldown per token over the threshold, when a "
+        "model defines no cooldown_factor of its own.",
+    )
+    min_seconds = models.PositiveIntegerField(
+        default=30,
+        help_text="Minimum cooldown once the threshold is crossed, in seconds.",
+    )
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        verbose_name = "Chat Cooldown Settings"

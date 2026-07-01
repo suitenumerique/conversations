@@ -9,6 +9,7 @@ WORKDIR /home/frontend/
 
 COPY ./src/frontend/package.json ./package.json
 COPY ./src/frontend/yarn.lock ./yarn.lock
+COPY ./src/frontend/.yarnrc ./.yarnrc
 COPY ./src/frontend/apps/conversations/package.json ./apps/conversations/package.json
 COPY ./src/frontend/packages/eslint-config-conversations/package.json ./packages/eslint-config-conversations/package.json
 

@@ -1,5 +1,5 @@
 """
-Real-component tests for build_document_context_instruction.
+Real-component tests for document_context_builder.
 
 These tests exercise the full builder logic with:
 - Real Django ORM (factory-created attachments)
@@ -8,8 +8,8 @@ These tests exercise the full builder logic with:
   builder module so budget math is precise.
 """
 
+import dataclasses
 import datetime
-import json
 
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
@@ -18,7 +18,9 @@ import pytest
 from asgiref.sync import sync_to_async
 
 from chat.constants import ACCESS_FULL_CONTEXT, ACCESS_TOOL_CALL_ONLY
-from chat.document_context_builder import build_document_context_instruction
+from chat.document_context_builder import (
+    build_documents_listing,
+)
 from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
 from chat.models import ChatConversationAttachment
 
@@ -76,21 +78,19 @@ _acreate_conversation = sync_to_async(ChatConversationFactory)
 _amake_attachment = sync_to_async(_make_attachment)
 
 
-def _parse_listing(instruction: str) -> dict:
-    """Extract and parse the JSON listing from the instruction string."""
-    prefix = "List of documents attached to this conversation:\n"
-    assert prefix in instruction, f"missing prefix in: {instruction!r}"
-    return json.loads(instruction.split(prefix, 1)[1])
+def _to_dict(listing) -> dict:
+    """Convert a DocumentsListing to a plain dict for assertions."""
+    return dataclasses.asdict(listing)
 
 
-async def _build(conversation, *, max_token_context=100, budget_ratio=0.5):
-    """Run build_document_context_instruction with real components."""
+async def _build(conversation, *, max_token_context=100, budget_ratio=0.5, security_buffer=0):
+    """Run build_documents_listing with real components."""
     text_attachments = await sync_to_async(list)(
         conversation.attachments.filter(content_type__startswith="text/").order_by(
             "created_at", "id"
         )
     )
-    return await build_document_context_instruction(
+    return await build_documents_listing(
         conversation_id=str(conversation.id),
         text_attachments=text_attachments,
         model_hrid="test-model",
@@ -100,11 +100,11 @@ async def _build(conversation, *, max_token_context=100, budget_ratio=0.5):
 
 
 @pytest.mark.asyncio
-async def test_empty_attachments_returns_empty_string():
-    """Conversation with no text attachments returns an empty instruction."""
+async def test_no_attachments_returns_none():
+    """Conversation with no text attachments returns None."""
     conversation = await _acreate_conversation()
-    instruction = await _build(conversation)
-    assert instruction == ""
+    listing = await _build(conversation)
+    assert listing is None
 
 
 @pytest.mark.asyncio
@@ -117,8 +117,7 @@ async def test_single_small_doc_is_inlined():
         content="ten words " * 5,  # 10 words
     )
 
-    instruction = await _build(conversation)  # budget = 50 tokens
-    listing = _parse_listing(instruction)
+    listing = _to_dict(await _build(conversation))  # budget = 50 tokens
 
     assert listing["documents_order"] == "newest_to_oldest"
     assert len(listing["documents"]) == 1
@@ -141,8 +140,7 @@ async def test_oversized_doc_kept_tool_call_only():
         content="word " * 60,  # 60 > budget 50
     )
 
-    instruction = await _build(conversation)
-    listing = _parse_listing(instruction)
+    listing = _to_dict(await _build(conversation))
 
     doc = listing["documents"][0]
     assert doc["title"] == "big.md"
@@ -164,8 +162,7 @@ async def test_multiple_small_docs_all_inlined():
         conversation, file_name="doc-3.md", content="gamma " * 10, created_at=_ts(3)
     )  # newest
 
-    instruction = await _build(conversation)  # budget 50, total 30
-    listing = _parse_listing(instruction)
+    listing = _to_dict(await _build(conversation))  # budget 50, total 30
 
     docs = listing["documents"]
     # Newest first in the rendered listing.
@@ -196,8 +193,7 @@ async def test_fifo_eviction_evicts_oldest_when_budget_overflows():
         conversation, file_name="doc-3.md", content="gamma " * 25, created_at=_ts(3)
     )  # newest
 
-    instruction = await _build(conversation)  # budget 50; 3 * 25 = 75
-    listing = _parse_listing(instruction)
+    listing = _to_dict(await _build(conversation))  # budget 50; 3 * 25 = 75
 
     by_id = {d["document_id"]: d for d in listing["documents"]}
     # Oldest evicted, two newest inlined.
@@ -221,8 +217,7 @@ async def test_oversized_and_small_docs_processed_independently():
     )
     a3 = await _amake_attachment(conversation, file_name="small-2.md", content="gamma " * 20)
 
-    instruction = await _build(conversation)  # budget 50
-    listing = _parse_listing(instruction)
+    listing = _to_dict(await _build(conversation))  # budget 50
 
     by_id = {d["document_id"]: d for d in listing["documents"]}
     # Smalls inline (20 + 20 = 40 <= 50). Huge stays tool_call_only and does not
@@ -246,8 +241,7 @@ async def test_failed_storage_read_isolated_from_other_docs():
     )
     a3 = await _amake_attachment(conversation, file_name="ok-2.md", content="gamma " * 15)
 
-    instruction = await _build(conversation)  # budget 50
-    listing = _parse_listing(instruction)
+    listing = _to_dict(await _build(conversation))  # budget 50
 
     by_id = {d["document_id"]: d for d in listing["documents"]}
     # Failed read kept tool_call_only with sentinel content; never inlined.
@@ -278,8 +272,7 @@ async def test_fifo_eviction_can_evict_multiple_oldest_for_one_new_doc():
         conversation, file_name="doc-4.md", content="delta " * 40, created_at=_ts(4)
     )  # 40 tokens, newest - evicts a1, a2, a3 to fit (40 + 15 = 55 > 50)
 
-    instruction = await _build(conversation)  # budget = 50
-    listing = _parse_listing(instruction)
+    listing = _to_dict(await _build(conversation))  # budget = 50
 
     by_id = {d["document_id"]: d for d in listing["documents"]}
     # a1, a2, a3 all evicted to make room for a4.
@@ -300,8 +293,7 @@ async def test_doc_exactly_filling_budget_is_inlined():
         content="word " * 50,  # exactly equal to budget=50
     )
 
-    instruction = await _build(conversation)
-    listing = _parse_listing(instruction)
+    listing = _to_dict(await _build(conversation))
 
     doc = listing["documents"][0]
     assert doc["document_id"] == str(attachment.id)

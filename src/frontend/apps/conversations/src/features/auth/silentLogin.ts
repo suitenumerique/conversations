@@ -1,3 +1,5 @@
+import { navigate } from '@/utils/system';
+
 import { authUrl } from './authUrl';
 
 // Stores the earliest timestamp (ms) at which a new silent login attempt is allowed.
@@ -25,7 +27,7 @@ const setNextRetryTime = (retryIntervalInSeconds: number) => {
 };
 
 const initiateSilentLogin = () => {
-  window.location.href = authUrl({ silent: true }).href;
+  navigate(authUrl({ silent: true }).href);
 };
 
 export const canAttemptSilentLogin = () => {

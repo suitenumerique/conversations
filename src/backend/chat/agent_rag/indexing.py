@@ -26,7 +26,7 @@ from django.utils.module_loading import import_string
 
 from core.file_upload.enums import AttachmentStatus
 
-from chat.constants import IMAGE_MIME_PREFIX, TEXT_MIME_PREFIX
+from chat.constants import IMAGE_MIME_PREFIX, MARKDOWN_MIME_TYPE, TEXT_MIME_PREFIX
 from chat.models import ChatConversationAttachment, ChatProject
 
 logger = logging.getLogger(__name__)
@@ -149,7 +149,7 @@ def index_project_attachment(attachment: ChatConversationAttachment) -> None:
                 uploaded_by=attachment.uploaded_by,
                 key=stored_key,
                 file_name=f"{attachment.file_name}.md",
-                content_type="text/markdown",
+                content_type=MARKDOWN_MIME_TYPE,
                 conversion_from=attachment.key,
                 upload_state=AttachmentStatus.READY,
             )

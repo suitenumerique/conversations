@@ -143,7 +143,7 @@ def test_delete_conversation_cleans_up_s3_blobs(api_client):
     )
     api_client.force_login(conversation.owner)
 
-    with mock.patch("chat.views.default_storage.delete") as storage_delete:
+    with mock.patch("chat.views.helpers.default_storage.delete") as storage_delete:
         response = api_client.delete(f"/api/v1.0/chats/{conversation.pk}/")
 
     assert response.status_code == status.HTTP_204_NO_CONTENT
@@ -165,7 +165,7 @@ def test_delete_conversation_tolerates_s3_failure(api_client, caplog):
     caplog.set_level(logging.ERROR, logger="chat.views")
 
     with mock.patch(
-        "chat.views.default_storage.delete",
+        "chat.views.helpers.default_storage.delete",
         side_effect=ClientError({"Error": {"Code": "InternalError"}}, "DeleteObject"),
     ):
         response = api_client.delete(f"/api/v1.0/chats/{conversation.pk}/")

@@ -3,13 +3,14 @@ import { expect } from '@playwright/test';
 
 export const CONFIG = {
   ACTIVATION_REQUIRED: false,
-  CRISP_WEBSITE_ID: null,
   ENVIRONMENT: 'development',
   FEATURE_FLAGS: {
     'document-upload': 'enabled',
     'web-search': 'enabled',
   },
   FILE_UPLOAD_MODE: 'presigned_url',
+  FRONTEND_CONTACT_EMAIL: null,
+  FRONTEND_DOCUMENTATION_URL: null,
   FRONTEND_CSS_URL: null,
   FRONTEND_HOMEPAGE_FEATURE_ENABLED: true,
   FRONTEND_SILENT_LOGIN_ENABLED: true,
@@ -25,6 +26,7 @@ export const CONFIG = {
   LANGUAGE_CODE: 'en-us',
   POSTHOG_KEY: {},
   SENTRY_DSN: null,
+  STATUS_PAGE_URL: null,
   theme_customization: {},
   chat_upload_accept:
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document,' +
@@ -47,8 +49,10 @@ export const CONFIG = {
     'image/gif,' +
     'image/webp,' +
     'application/vnd.oasis.opendocument.text',
+  maintenance: null,
   project_files_max_count: 10,
   project_images_max_count: 3,
+  attachment_max_size: 10,
   status_banner: null,
 } as const;
 

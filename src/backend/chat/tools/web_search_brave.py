@@ -342,7 +342,7 @@ async def web_search_brave(_ctx: RunContext, query: str) -> ToolReturn:
 
         return formatted_result
 
-    except (ModelCannotRetry, ModelRetry):
+    except ModelCannotRetry, ModelRetry:
         # Re-raise these as-is
         raise
     except Exception as exc:
@@ -368,7 +368,7 @@ async def web_search_brave_llm_context(_ctx: RunContext, query: str) -> ToolRetu
         if not formatted_result.return_value:
             raise ModelRetry("No valid search results were extracted from Brave LLM context.")
         return formatted_result
-    except (ModelCannotRetry, ModelRetry):
+    except ModelCannotRetry, ModelRetry:
         raise
     except Exception as exc:
         logger.exception("Unexpected error in web_search_brave_llm_context: %s", exc)
@@ -454,7 +454,7 @@ async def web_search_brave_with_document_backend(ctx: RunContext, query: str) ->
             raise ModelRetry("No valid search results were extracted.")
 
         return formatted_result
-    except (ModelCannotRetry, ModelRetry):
+    except ModelCannotRetry, ModelRetry:
         # Re-raise these as-is
         raise
     except Exception as e:

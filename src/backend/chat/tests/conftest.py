@@ -5,6 +5,7 @@ from contextlib import ExitStack, contextmanager
 from importlib import reload
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.urls import clear_url_caches, set_urlconf
 from django.utils import formats, timezone
 
@@ -13,11 +14,20 @@ import pytest
 import core.urls
 
 import chat.views
+import chat.views.conversations
 import conversations.urls
 from chat.agents.summarize import SummarizationAgent
 from chat.clients.pydantic_ai import AIAgentService
 
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture()
+def clear_cache():
+    """Clear the Redis cache before/after each test to prevent key leakage."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 @pytest.fixture(name="today_prompt_date")
@@ -51,7 +61,9 @@ def mock_ai_agent_service_fixture():
             stack.enter_context(
                 patch("chat.clients.pydantic_ai.AIAgentService", new=AIAgentServiceMock)
             )
-            stack.enter_context(patch("chat.views.AIAgentService", new=AIAgentServiceMock))
+            stack.enter_context(
+                patch("chat.views.conversations.AIAgentService", new=AIAgentServiceMock)
+            )
             yield
 
     yield _mock_service
@@ -112,6 +124,10 @@ def fixture_oidc_refresh_token_enabled(settings):
     settings.OIDC_STORE_REFRESH_TOKEN = True
 
     # force view reload
+    # chat.views.conversations must be reloaded first: the conditional_refresh_oidc_token
+    # decorator is evaluated at import time there, and reloading the chat.views package
+    # alone would not re-execute the submodule.
+    reload(chat.views.conversations)
     reload(chat.views)
     reload(core.urls)
     reload(conversations.urls)
@@ -123,6 +139,7 @@ def fixture_oidc_refresh_token_enabled(settings):
     settings.OIDC_STORE_REFRESH_TOKEN = __initial_value
 
     # force view reload
+    reload(chat.views.conversations)
     reload(chat.views)
     reload(core.urls)
     reload(conversations.urls)

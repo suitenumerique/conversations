@@ -137,7 +137,7 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
             return mistral_models.MistralModel(
                 model_name=configuration.model_name,
                 profile=(
-                    ModelProfile(**configuration.profile.dict(exclude_unset=True))
+                    ModelProfile(**configuration.profile.model_dump(exclude_unset=True))
                     if configuration.profile
                     else None
                 ),
@@ -149,6 +149,15 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
                         timeout=httpx.Timeout(timeout=600, connect=5),
                         headers={"User-Agent": get_user_agent()},
                     ),
+                ),
+                # pydantic-ai serializes these optional fields as explicit null when
+                # unset. Strict Mistral-compatible platforms (e.g. Etalab) reject
+                # null and require a valid value or omission, so we pass neutral
+                # defaults to keep the request valid.
+                settings=mistral_models.MistralModelSettings(
+                    presence_penalty=0.0,
+                    frequency_penalty=0.0,
+                    stop_sequences=[],
                 ),
             )
         case "openai":
@@ -164,7 +173,7 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
             _patch_openai_streaming_list_content()
 
             if configuration.profile and (
-                _config_profile := configuration.profile.dict(exclude_unset=True)
+                _config_profile := configuration.profile.model_dump(exclude_unset=True)
             ):
                 # set some defaults if not provided, see openai_model_profile which
                 # defines them for known models

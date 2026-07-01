@@ -238,7 +238,9 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
 
   const hasNonDocumentParsingTool = React.useMemo(() => {
     return toolInvocationParts.some(
-      (part) => part.toolInvocation.toolName !== 'document_parsing',
+      (part) =>
+        part.toolInvocation.toolName !== 'document_parsing' &&
+        part.toolInvocation.toolName !== 'conversation_resume',
     );
   }, [toolInvocationParts]);
 
@@ -400,7 +402,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 </Box>
               )}
             {toolInvocationParts.map((part, partIndex) =>
-              isCurrentlyStreaming && isLastAssistantMessage ? (
+              isLastAssistantMessage ? (
                 <ToolInvocationItem
                   key={`tool-invocation-${partIndex}`}
                   toolInvocation={part.toolInvocation}

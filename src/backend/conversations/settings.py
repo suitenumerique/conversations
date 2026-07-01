@@ -26,6 +26,7 @@ from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import ignore_logger
 
 from core.feature_flags.flags import FeatureFlags, FeatureToggle
+from core.file_upload.enums import FileToLLMMode, FileUploadMode
 
 from chat.llm_configuration import cached_load_llm_configuration, load_llm_configuration
 from conversations.brave_settings import BraveSettings
@@ -43,7 +44,7 @@ def get_release():
         with open(os.path.join(BASE_DIR, "pyproject.toml"), "rb") as f:
             pyproject_data = tomllib.load(f)
         return pyproject_data["project"]["version"]
-    except (FileNotFoundError, KeyError):
+    except FileNotFoundError, KeyError:
         return "NA"  # Default: not available
 
 
@@ -231,12 +232,12 @@ class Base(BraveSettings, Configuration):
         environ_prefix=None,
     )
     FILE_UPLOAD_MODE = values.Value(
-        "presigned_url",
+        FileUploadMode.PRESIGNED_URL,
         environ_name="FILE_UPLOAD_MODE",
         environ_prefix=None,
     )
     FILE_TO_LLM_MODE = values.Value(
-        "presigned_url",
+        FileToLLMMode.PRESIGNED_URL,
         environ_name="FILE_TO_LLM_MODE",
         environ_prefix=None,
     )
@@ -326,6 +327,7 @@ class Base(BraveSettings, Configuration):
     MIDDLEWARE = [
         "django.middleware.security.SecurityMiddleware",
         "whitenoise.middleware.WhiteNoiseMiddleware",
+        "core.middleware.MaintenanceMiddleware",
         "django.contrib.sessions.middleware.SessionMiddleware",
         "django.middleware.locale.LocaleMiddleware",
         "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -355,8 +357,6 @@ class Base(BraveSettings, Configuration):
         "django_filters",
         "dockerflow.django",
         "rest_framework",
-        "parler",
-        "easy_thumbnails",
         "solo.apps.SoloAppConfig",
         # Django
         "django.contrib.admin",
@@ -406,16 +406,6 @@ class Base(BraveSettings, Configuration):
             "attachment_auth": values.Value(
                 default="60/minute",
                 environ_name="API_ATTACHMENT_AUTH_THROTTLE_RATE",
-                environ_prefix=None,
-            ),
-            "user_list_sustained": values.Value(
-                default="180/hour",
-                environ_name="API_USERS_LIST_THROTTLE_RATE_SUSTAINED",
-                environ_prefix=None,
-            ),
-            "user_list_burst": values.Value(
-                default="30/minute",
-                environ_name="API_USERS_LIST_THROTTLE_RATE_BURST",
                 environ_prefix=None,
             ),
             "file-stream": values.Value(
@@ -480,9 +470,28 @@ class Base(BraveSettings, Configuration):
         environ_prefix=None,
     )
     FRONTEND_CSS_URL = values.Value(None, environ_name="FRONTEND_CSS_URL", environ_prefix=None)
+    FRONTEND_DOCUMENTATION_URL = values.Value(
+        None, environ_name="FRONTEND_DOCUMENTATION_URL", environ_prefix=None
+    )
+    FRONTEND_CONTACT_EMAIL = values.EmailValue(
+        None, environ_name="FRONTEND_CONTACT_EMAIL", environ_prefix=None
+    )
     FRONTEND_SILENT_LOGIN_ENABLED = values.BooleanValue(
         default=True, environ_name="FRONTEND_SILENT_LOGIN_ENABLED", environ_prefix=None
     )
+
+    # Maintenance mode. When true, the app returns 503 to end-users for every
+    # non-exempt request. Always OR'd with the DB-backed `MaintenanceMode` singleton.
+    MAINTENANCE_MODE = values.BooleanValue(
+        default=False, environ_name="MAINTENANCE_MODE", environ_prefix=None
+    )
+
+    # django-solo cache: avoids a DB hit per request for singleton lookups
+    # (MaintenanceMode, SiteConfiguration). save() invalidates the cache key
+    # instantly; the timeout is a safety net.
+    SOLO_CACHE = "default"
+    SOLO_CACHE_TIMEOUT = 60 * 5
+    SOLO_CACHE_PREFIX = "solo"
     THEME_CUSTOMIZATION_FILE_PATH = values.Value(
         os.path.join(BASE_DIR, "conversations/configuration/theme/default.json"),
         environ_name="THEME_CUSTOMIZATION_FILE_PATH",
@@ -502,8 +511,7 @@ class Base(BraveSettings, Configuration):
         default=False, environ_name="POSTHOG_MW_CAPTURE_EXCEPTIONS", environ_prefix=None
     )
 
-    # Crisp
-    CRISP_WEBSITE_ID = values.Value(None, environ_name="CRISP_WEBSITE_ID", environ_prefix=None)
+    STATUS_PAGE_URL = values.Value(None, environ_name="STATUS_PAGE_URL", environ_prefix=None)
 
     # Easy thumbnails
     THUMBNAIL_EXTENSION = "webp"
@@ -551,12 +559,17 @@ class Base(BraveSettings, Configuration):
         None, environ_name="OIDC_OP_LOGOUT_ENDPOINT", environ_prefix=None
     )
     OIDC_AUTHENTICATE_CLASS = "lasuite.oidc_login.views.OIDCAuthenticationRequestView"
-    OIDC_CALLBACK_CLASS = "lasuite.oidc_login.views.OIDCAuthenticationCallbackView"
+    OIDC_CALLBACK_CLASS = "core.authentication.views.OIDCAuthenticationCallbackView"
     OIDC_AUTH_REQUEST_EXTRA_PARAMS = values.DictValue(
         {}, environ_name="OIDC_AUTH_REQUEST_EXTRA_PARAMS", environ_prefix=None
     )
     OIDC_RP_SCOPES = values.Value(
         "openid email", environ_name="OIDC_RP_SCOPES", environ_prefix=None
+    )
+    # Restrict login and account creation to users exposing one of these roles
+    # in their OIDC "roles" claim. Empty (default) disables the restriction.
+    OIDC_ALLOWED_ROLES = values.ListValue(
+        [], environ_name="OIDC_ALLOWED_ROLES", environ_prefix=None
     )
     LOGIN_REDIRECT_URL = values.Value(None, environ_name="LOGIN_REDIRECT_URL", environ_prefix=None)
     LOGIN_REDIRECT_URL_FAILURE = values.Value(
@@ -668,11 +681,23 @@ class Base(BraveSettings, Configuration):
         environ_name="LLM_SUMMARIZATION_MODEL_HRID",
         environ_prefix=None,
     )
+    LLM_FALLBACK_MODEL_HRID_1 = values.Value(
+        "", environ_name="LLM_FALLBACK_MODEL_HRID_1", environ_prefix=None
+    )
+    LLM_FALLBACK_MODEL_HRID_2 = values.Value(
+        "", environ_name="LLM_FALLBACK_MODEL_HRID_2", environ_prefix=None
+    )
     FAKE_STREAMING_DELAY = values.FloatValue(
         default=0.0025,
         environ_name="FAKE_STREAMING_DELAY",
         environ_prefix=None,  # 25ms
     )
+    # Inference-load cooldown: when a model is in degraded health, a user who has
+    # spent more than a token threshold over a trailing window is asked to wait
+    # before their next request. The wait grows with the overage, scaled by a
+    # per-model factor (see LLModel.cooldown_factor) that reflects the GPUs
+    # allocated to that model. The thresholds/window/floor are tuned at runtime
+    # via the ChatCooldownSettings singleton (core.models), not env vars.
     DEFAULT_ALLOW_CONVERSATION_ANALYTICS = values.BooleanValue(
         default=False,
         environ_name="DEFAULT_ALLOW_CONVERSATION_ANALYTICS",
@@ -790,6 +815,27 @@ class Base(BraveSettings, Configuration):
     RAG_DOCUMENT_PARSER = values.Value(
         "chat.agent_rag.document_converter.parser.AlbertParser",
         environ_name="RAG_DOCUMENT_PARSER",
+        environ_prefix=None,
+    )
+    RAG_COLLECTION_INACTIVITY_DAYS = values.PositiveIntegerValue(
+        default=30,
+        environ_name="RAG_COLLECTION_INACTIVITY_DAYS",
+        environ_prefix=None,
+    )
+    # 10 min: reindex iterates over attachments (storage read + HTTP per doc); 120 s is too tight.
+    REINDEX_CLAIM_TIMEOUT_SECONDS = values.PositiveIntegerValue(
+        default=600,
+        environ_name="REINDEX_CLAIM_TIMEOUT_SECONDS",
+        environ_prefix=None,
+    )
+    DEINDEX_MAX_PER_RUN = values.PositiveIntegerValue(
+        default=100,
+        environ_name="DEINDEX_MAX_PER_RUN",
+        environ_prefix=None,
+    )
+    DEINDEX_PARALLEL_REQUESTS = values.PositiveIntegerValue(
+        default=10,
+        environ_name="DEINDEX_PARALLEL_REQUESTS",
         environ_prefix=None,
     )
     SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS = values.DictValue(
@@ -939,6 +985,15 @@ USER QUESTION:
         environ_name="DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS",
         environ_prefix=None,
     )
+    # Fallback context window for models that don't declare max_token_context.
+    # 8192 is the smallest modern standard (GPT-4 base, Llama 3, Gemma); after
+    # applying security buffer and budget ratio the conversation budget lands at
+    # ~3 600 tokens, safely within even a genuine 4K-context model.
+    DEFAULT_MAX_TOKEN_CONTEXT = values.PositiveIntegerValue(
+        default=8192,
+        environ_name="DEFAULT_MAX_TOKEN_CONTEXT",
+        environ_prefix=None,
+    )
 
     # Tavily API
     TAVILY_API_KEY = values.Value(
@@ -972,6 +1027,18 @@ USER QUESTION:
     ALBERT_API_TIMEOUT = values.PositiveIntegerValue(
         default=30,  # seconds
         environ_name="ALBERT_API_TIMEOUT",
+        environ_prefix=None,
+    )
+
+    ALBERT_HEALTH_URL = values.Value(
+        "https://albert.api.etalab.gouv.fr/health/models",
+        environ_name="ALBERT_HEALTH_URL",
+        environ_prefix=None,
+    )
+
+    ALBERT_HEALTH_TIMEOUT = values.PositiveIntegerValue(
+        default=10,
+        environ_name="ALBERT_HEALTH_TIMEOUT",
         environ_prefix=None,
     )
 
@@ -1039,12 +1106,6 @@ USER QUESTION:
         },
     }
 
-    API_USERS_LIST_LIMIT = values.PositiveIntegerValue(
-        default=5,
-        environ_name="API_USERS_LIST_LIMIT",
-        environ_prefix=None,
-    )
-
     # LLM Instrumentation
     LANGFUSE_ENABLED = values.BooleanValue(
         default=False, environ_name="LANGFUSE_ENABLED", environ_prefix=None
@@ -1078,6 +1139,27 @@ USER QUESTION:
         default=55, environ_name="KEEPALIVE_INTERVAL", environ_prefix=None
     )
 
+    # Celery
+    # Broker uses Redis db 0 to avoid colliding with the cache (db 1 in production,
+    # db 2 in development).
+    CELERY_BROKER_URL = values.Value(
+        "redis://redis:6379/0", environ_name="CELERY_BROKER_URL", environ_prefix=None
+    )
+    # Broker-specific tuning passed through to the Redis transport (e.g. visibility_timeout).
+    # Empty means defaults; raise visibility_timeout if any task can run longer than 1h.
+    CELERY_BROKER_TRANSPORT_OPTIONS = values.DictValue(
+        {},
+        environ_name="CELERY_BROKER_TRANSPORT_OPTIONS",
+        environ_prefix=None,
+    )
+    # Maps task names to queues (e.g. {"chat.tasks.*": {"queue": "heavy"}}) so heavy and
+    # fast tasks can run on separate workers. Empty means everything uses the default queue.
+    CELERY_TASK_ROUTES = values.DictValue(
+        {},
+        environ_name="CELERY_TASK_ROUTES",
+        environ_prefix=None,
+    )
+
     # pylint: disable=invalid-name
     @property
     def ENVIRONMENT(self):
@@ -1093,20 +1175,6 @@ USER QUESTION:
         Delegate to the module function to enable easier testing.
         """
         return get_release()
-
-    # pylint: disable=invalid-name
-    @property
-    def PARLER_LANGUAGES(self):
-        """
-        Return languages for Parler computed from the LANGUAGES and LANGUAGE_CODE settings.
-        """
-        return {
-            self.SITE_ID: tuple({"code": code} for code, _name in self.LANGUAGES),
-            "default": {
-                "fallbacks": [self.LANGUAGE_CODE],
-                "hide_untranslated": False,
-            },
-        }
 
     @property
     def FEATURE_FLAGS(self) -> FeatureFlags:  # pylint: disable=invalid-name
@@ -1198,7 +1266,7 @@ USER QUESTION:
             )
 
         # File access configuration validation
-        if cls.FILE_TO_LLM_MODE == "backend_temporary_url" and not cls.FILE_BACKEND_URL:
+        if cls.FILE_TO_LLM_MODE == FileToLLMMode.BACKEND_TEMPORARY_URL and not cls.FILE_BACKEND_URL:
             raise ValueError(
                 "FILE_TO_LLM_MODE is set to 'backend_temporary_url' but FILE_BACKEND_URL is empty. "
                 "Please set FILE_BACKEND_URL to a valid URL for backend temporary file access."
@@ -1326,11 +1394,19 @@ class Test(Base):
     # Tests are raising warnings because the /data/static directory does not exist
     STATIC_ROOT = None
 
+    # Run celery tasks synchronously in tests, without a broker.
+    CELERY_TASK_ALWAYS_EAGER = True
+
     os.environ["OPENAI_AGENTS_DISABLE_TRACING"] = "true"
 
     AI_BASE_URL = None
     AI_API_KEY = None
     AI_MODEL = None
+
+    # Pin to no role restriction so tests are deterministic regardless of the
+    # developer's local env (which may set OIDC_ALLOWED_ROLES); tests that need
+    # the restriction set it explicitly via override_settings.
+    OIDC_ALLOWED_ROLES = []
 
     POSTHOG_KEY = None
 

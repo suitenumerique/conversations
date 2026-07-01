@@ -27,8 +27,6 @@ These are the environment variables you can set for the `conversations-backend` 
 | PROJECT_FILES_MAX_COUNT                         | max non-image attachments per project (companion markdown rows excluded). Bounds per-turn system-prompt token cost.               | 10                                                      |
 | PROJECT_IMAGES_MAX_COUNT                        | max image attachments per project. Every image is pinned to every conversation turn; bounds vision-token cost and provider caps.   | 3                                                       |
 | LANGUAGE_CODE                                   | default language                                                                                                                  | en-us                                                   |
-| API_USERS_LIST_THROTTLE_RATE_SUSTAINED          | throttle rate for api                                                                                                             | 180/hour                                                |
-| API_USERS_LIST_THROTTLE_RATE_BURST              | throttle rate for api on burst                                                                                                    | 30/minute                                               |
 | SPECTACULAR_SETTINGS_ENABLE_DJANGO_DEPLOY_CHECK |                                                                                                                                   | false                                                   |
 | DJANGO_EMAIL_BACKEND                            | email backend library                                                                                                             | django.core.mail.backends.smtp.EmailBackend             |
 | DJANGO_EMAIL_BRAND_NAME                         | brand name for email                                                                                                              |                                                         |
@@ -45,13 +43,14 @@ These are the environment variables you can set for the `conversations-backend` 
 | DJANGO_CORS_ALLOWED_ORIGIN_REGEXES              | list of origins allowed for CORS using regulair expressions                                                                       | []                                                      |
 | SENTRY_DSN                                      | sentry host                                                                                                                       |                                                         |
 | FRONTEND_CSS_URL                                | To add a external css file to the app                                                                                             |                                                         |
+| FRONTEND_CONTACT_EMAIL                          | Email address shown in the help menu "Contact us" item (used to build a mailto link)                                              |                                                         |
+| FRONTEND_DOCUMENTATION_URL                      | Documentation URL opened from the help menu "Documentation" item                                                                  |                                                         |
 | FRONTEND_HOMEPAGE_FEATURE_ENABLED               | frontend feature flag to display the homepage                                                                                     | false                                                   |
 | FRONTEND_SILENT_LOGIN_ENABLED                   | frontend fsilent login enabled                                                                                                    | false                                                   |
 | FRONTEND_THEME                                  | frontend theme to use                                                                                                             |                                                         |
 | POSTHOG_KEY                                     | posthog key for analytics                                                                                                         |                                                         |
-| CRISP_WEBSITE_ID                                | crisp website id for support                                                                                                      |                                                         |
-| DJANGO_CELERY_BROKER_URL                        | celery broker url                                                                                                                 | redis://redis:6379/0                                    |
-| DJANGO_CELERY_BROKER_TRANSPORT_OPTIONS          | celery broker transport options                                                                                                   | {}                                                      |
+| CELERY_BROKER_URL                               | celery broker url                                                                                                                 | redis://redis:6379/0                                    |
+| CELERY_BROKER_TRANSPORT_OPTIONS                 | celery broker transport options                                                                                                   | {}                                                      |
 | SESSION_COOKIE_AGE                              | duration of the cookie session                                                                                                    | 60*60*12                                                |
 | OIDC_CREATE_USER                                | create used on OIDC                                                                                                               | false                                                   |
 | OIDC_RP_SIGN_ALGO                               | verification algorithm used OIDC tokens                                                                                           | RS256                                                   |
@@ -81,7 +80,7 @@ These are the environment variables you can set for the `conversations-backend` 
 | LLM_DEFAULT_MODEL_HRID                          | HRID of the model used for conversations                                                                                          | default-model                                           |
 | LLM_SUMMARIZATION_MODEL_HRID                    | HRID of the model used for summarization                                                                                          | default-summarization-model                             |
 | DOCUMENT_CONTEXT_BUDGET_RATIO                   | Fraction of `usable_context` (after security buffer) for inlined conversation documents; `(1 - ratio)` is the conversation history token budget. See [attachments.md](attachments.md) | `0.5`                                                   |
-| DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS         | Tokens subtracted once from `max_token_context` before the document/history split                                                              | `1000`                                                  |
+| DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS         | Tokens subtracted once from `max_token_context` before the document/history split                                                              | `10000`                                                 |
 | CONVERSATION_SUMMARY_CONTEXT_MESSAGES           | `ModelMessage` count kept after a conversation summary (use an even value). See [attachments.md](attachments.md)                               | `10`                                                    |
 | CONVERSATION_SUMMARY_MAX_TOKENS                 | Max tokens for the conversation summarization LLM output                                                                                        | `2048`                                                  |
 | AI_API_KEY                                      | AI API key to be used for the default provider (used in default LLM configuration, not for production use)                        |                                                         |
@@ -95,7 +94,6 @@ These are the environment variables you can set for the `conversations-backend` 
 | CONVERSION_API_SECURE                           | Require secure conversion api                                                                                                     | false                                                   |
 | LOGGING_LEVEL_LOGGERS_ROOT                      | default logging level. options are "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"                                                   | INFO                                                    |
 | LOGGING_LEVEL_LOGGERS_APP                       | application logging level. options are "DEBUG", "INFO", "WARN", "ERROR", "CRITICAL"                                               | INFO                                                    |
-| API_USERS_LIST_LIMIT                            | Limit on API users                                                                                                                | 5                                                       |
 | DJANGO_CSRF_TRUSTED_ORIGINS                     | CSRF trusted origins                                                                                                              | []                                                      |
 | REDIS_URL                                       | cache url                                                                                                                         | redis://redis:6379/1                                    |
 | CACHES_DEFAULT_TIMEOUT                          | cache default timeout                                                                                                             | 30                                                      |
@@ -105,6 +103,31 @@ These are the environment variables you can set for the `conversations-backend` 
 | FIND_API_KEY                                    | API key of Find                                                                                                                   |                                                         |
 | FIND_API_URL                                    | URL of Find                                                                                                                       | `https://app-find/api`                                  |
 | FIND_API_TIMEOUT                                | Find API timeout                                                                                                                  | 30                                                      |
+| ACTIVATION_REQUIRED                             | Require users to redeem an activation code before using the app (post-login gate). See "Access control modes" below.              | False                                                   |
+| OIDC_ALLOWED_ROLES                              | Comma-separated roles; restrict login to users whose OIDC `roles` claim contains one of them. Empty disables. See "Access control modes" below. | [] (empty, disabled)                                    |
+
+
+## Access control modes
+
+Access can be gated in two mutually exclusive ways. Enable **one** of them; leave the other off.
+
+- **Activation codes** (`ACTIVATION_REQUIRED=True`): any authenticated user can sign
+  in, but must redeem a valid activation code before using the app. Codes are managed
+  in the Django admin (`activation_codes`).
+- **OIDC role** (`OIDC_ALLOWED_ROLES=<role>`): only users whose OIDC `roles` claim
+  contains one of the listed roles can sign in; everyone else is redirected to the
+  access-denied page. As a fallback, addresses on the access-bypass email allow-list
+  (Django admin, *Access bypass emails*) are let in without the role. The role is
+  re-checked on every login, so revoking it in the IdP blocks the user immediately.
+
+| Mode             | `ACTIVATION_REQUIRED` | `OIDC_ALLOWED_ROLES`     |
+|------------------|-----------------------|--------------------------|
+| Activation codes | `True`                | empty                    |
+| OIDC role        | `False`               | e.g. `agent_public_etat` |
+| Open (no gate)   | `False`               | empty                    |
+
+Setting both at once is not a supported configuration: a user would need the role to
+sign in *and* a redeemed code to use the app.
 
 
 ## conversations-frontend image

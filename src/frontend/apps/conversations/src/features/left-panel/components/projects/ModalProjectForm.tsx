@@ -7,6 +7,7 @@ import {
   TextArea,
 } from '@gouvfr-lasuite/cunningham-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/router';
 import { useCallback, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
@@ -26,6 +27,7 @@ import {
 } from '@/features/attachments/api/useProjectAttachments';
 import { useCreateProject } from '@/features/chat/api/useCreateProject';
 import { useUpdateProject } from '@/features/chat/api/useUpdateProject';
+import { usePendingChatStore } from '@/features/chat/stores/usePendingChatStore';
 import { ChatProject } from '@/features/chat/types';
 
 import { ModalIconColorPicker } from './ModalIconColorPicker';
@@ -513,6 +515,9 @@ export const ModalProjectForm = ({
     ? (colorsTokens[colorToken as keyof typeof colorsTokens] ?? undefined)
     : undefined;
 
+  const router = useRouter();
+  const setProjectId = usePendingChatStore((s) => s.setProjectId);
+
   const { mutateAsync: createProjectAsync, isPending: isCreating } =
     useCreateProject();
 
@@ -586,6 +591,11 @@ export const ModalProjectForm = ({
           4000,
         );
         onClose();
+
+        // Switch to a new conversation in the context of the freshly
+        // created project so the user doesn't have to click it manually.
+        setProjectId(created.id);
+        void router.push('/chat/');
       } catch (error) {
         const err = error as { cause?: string[]; message?: string };
         const errorMessage =

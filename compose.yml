@@ -89,6 +89,39 @@ services:
         createbuckets:
           condition: service_started
 
+  celery-dev:
+    build:
+      context: .
+      target: backend-development
+      args:
+        DOCKER_USER: ${DOCKER_USER:-1000}
+    user: ${DOCKER_USER:-1000}
+    image: conversations:backend-development
+    command: ["celery", "-A", "conversations.celery_app", "worker", "-l", "DEBUG"]
+    environment:
+      - PYLINTHOME=/app/.pylint.d
+      - DJANGO_CONFIGURATION=Development
+    env_file:
+      - env.d/development/common
+      - env.d/development/postgresql
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - lasuite
+    volumes:
+      - ./src/backend:/app
+      - ./data/static:/data/static
+      - /app/.venv
+    depends_on:
+        postgresql:
+            condition: service_healthy
+            restart: true
+        redis:
+          condition: service_started
+        createbuckets:
+          condition: service_started
+
   nginx:
     image: nginx:1.25
     ports:

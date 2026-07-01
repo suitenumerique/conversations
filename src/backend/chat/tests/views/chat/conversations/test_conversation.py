@@ -32,7 +32,7 @@ from chat.tests.utils import (
     assert_data_stream_response,
     replace_uuids_with_placeholder,
 )
-from chat.tools.descriptions import SELF_DOCUMENTATION_TOOL_DESCRIPTION
+from chat.tools.descriptions import SELF_DOCUMENTATION_SYSTEM_PROMPT
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -43,7 +43,7 @@ FROZEN_TIMESTAMP = "2025-07-25T10:36:35.297675Z"
 ENGLISH_INSTRUCTIONS = (
     "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
     f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
-    f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+    f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
 )
 
 
@@ -87,8 +87,11 @@ def _assert_hello_messages(chat_conversation, frozen_now):
     )
 
 
-def _make_pydantic_request(run_id, instructions, content, timestamp=FROZEN_TIMESTAMP):
+def _make_pydantic_request(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    run_id, instructions, content, timestamp=FROZEN_TIMESTAMP, conversation_id=ANY
+):
     return {
+        "conversation_id": conversation_id,
         "instructions": instructions,
         "kind": "request",
         "metadata": None,
@@ -106,8 +109,10 @@ def _make_pydantic_text_response(  # pylint: disable=too-many-arguments,too-many
     provider_response_id="chatcmpl-1234567890",
     provider_url="https://www.external-ai-service.com/",
     usage=None,
+    conversation_id=ANY,
 ):
     return {
+        "conversation_id": conversation_id,
         "finish_reason": "stop",
         "kind": "response",
         "metadata": None,
@@ -125,6 +130,7 @@ def _make_pydantic_text_response(  # pylint: disable=too-many-arguments,too-many
         "provider_name": "openai",
         "provider_response_id": provider_response_id,
         "provider_url": provider_url,
+        "state": "complete",
         "timestamp": timestamp,
         "usage": usage if usage is not None else ZERO_USAGE,
         "run_id": run_id,
@@ -137,7 +143,7 @@ def _system_messages(language="english"):
         {"content": "Today is Friday 25/07/2025.", "role": "system"},
         {"content": f"Answer in {language}.", "role": "system"},
         {"content": PREVENT_URL_HALLUCINATION_INSTRUCTION, "role": "system"},
-        {"content": SELF_DOCUMENTATION_TOOL_DESCRIPTION, "role": "system"},
+        {"content": SELF_DOCUMENTATION_SYSTEM_PROMPT, "role": "system"},
     ]
 
 
@@ -580,6 +586,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
     assert chat_conversation.pydantic_messages == [
         _make_pydantic_request(_run_id, ENGLISH_INSTRUCTIONS, ["Weather in Paris?"]),
         {
+            "conversation_id": ANY,
             "finish_reason": "tool_call",
             "kind": "response",
             "metadata": None,
@@ -592,6 +599,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                     "provider_details": None,
                     "provider_name": None,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    "tool_kind": None,
                     "tool_name": "get_current_weather",
                 }
             ],
@@ -602,11 +610,13 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-tool-call",
             "provider_url": "https://www.external-ai-service.com/",
+            "state": "complete",
             "timestamp": FROZEN_TIMESTAMP,
             "usage": ZERO_USAGE,
             "run_id": _run_id,
         },
         {
+            "conversation_id": ANY,
             "instructions": ENGLISH_INSTRUCTIONS,
             "kind": "request",
             "metadata": None,
@@ -618,6 +628,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                     "part_kind": "tool-return",
                     "timestamp": FROZEN_TIMESTAMP,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    "tool_kind": None,
                     "tool_name": "get_current_weather",
                 }
             ],
@@ -734,12 +745,13 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
     french_instructions = (
         "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in french."
         f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
-        f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+        f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
     )
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
         _make_pydantic_request(_run_id, french_instructions, ["Weather in Paris?"]),
         {
+            "conversation_id": ANY,
             "finish_reason": "tool_call",
             "kind": "response",
             "metadata": None,
@@ -752,6 +764,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
                     "provider_details": None,
                     "provider_name": None,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                    "tool_kind": None,
                     "tool_name": "get_current_weather",
                 }
             ],
@@ -762,11 +775,13 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool, 
             "provider_name": "openai",
             "provider_response_id": "chatcmpl-tool-call",
             "provider_url": "https://www.external-ai-service.com/",
+            "state": "complete",
             "timestamp": FROZEN_TIMESTAMP,
             "usage": ZERO_USAGE,
             "run_id": _run_id,
         },
         {
+            "conversation_id": ANY,
             "instructions": french_instructions,
             "kind": "request",
             "metadata": None,
@@ -993,7 +1008,7 @@ def test_post_conversation_data_protocol_no_stream(
             (
                 "You are an amazing assistant.\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
                 f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
-                f"\n\n{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+                f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
             ),
             ["Why the sky is blue?"],
         ),
