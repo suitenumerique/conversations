@@ -1382,40 +1382,359 @@ class Test(Base):
 
     os.environ["OPENAI_AGENTS_DISABLE_TRACING"] = "true"
 
-    AI_BASE_URL = None
-    AI_API_KEY = None
-    AI_MODEL = None
+    # -------------------------------------------------------------------------
+    # Deterministic test settings.
+    #
+    # Every setting Base derives from an environment variable is redefined here
+    # with an explicit literal, so tests never pick up values from the developer
+    # -local env.d/development/common file. Values mirror Base's coded defaults,
+    # except:
+    #   - infra endpoints are pinned to the docker-compose topology (Postgres,
+    #     MinIO) so tests can still reach the services;
+    #   - SECRET_KEY is a dummy (Base's default is None, which Django rejects);
+    #   - the large AI/RAG prompts are placeholders (the real ones are only
+    #     exercised by tests that override them explicitly).
+    #
+    # chat/tests/test_settings_isolation.py fails if Base gains a new
+    # env-backed setting that is not pinned here.
+    # -------------------------------------------------------------------------
 
-    # Pin the LLM configuration file so tests are deterministic regardless of
+    # -- Infra: pinned to the docker-compose topology --------------------------
+    SECRET_KEY = "test-secret-key-not-for-production"  # noqa: S105
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql_psycopg2",
+            "NAME": "conversations",
+            "USER": "dinum",
+            "PASSWORD": "pass",
+            "HOST": "postgresql",
+            "PORT": 5432,
+        }
+    }
+    STORAGES = {
+        "default": {"BACKEND": "storages.backends.s3.S3Storage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    }
+    AWS_S3_ENDPOINT_URL = "http://minio:9000"
+    AWS_S3_ACCESS_KEY_ID = "conversations"
+    AWS_S3_SECRET_ACCESS_KEY = "password"  # noqa: S105
+    AWS_S3_REGION_NAME = None
+    AWS_STORAGE_BUCKET_NAME = "conversations-media-storage"
+    AWS_S3_SIGNATURE_VERSION = "s3v4"
+    AWS_S3_UPLOAD_POLICY_EXPIRATION = 60
+    AWS_S3_RETRIEVE_POLICY_EXPIRATION = 3 * 60
+    # Presigned URLs are signed for the frontend-facing domain (localhost), not
+    # the in-cluster MinIO hostname; core.file_upload.utils._get_s3_client uses
+    # this to build the client whose endpoint appears in the signed URL.
+    AWS_S3_DOMAIN_REPLACE = "http://localhost:9000"
+
+    # -- Pin the LLM configuration file so tests are deterministic regardless of
     # the developer's local env (which may set LLM_CONFIGURATION_FILE_PATH to a
-    # custom config whose `default-model` uses a different provider/kind).
-    # Tests that need a different config set it explicitly via override_settings.
+    # custom config whose `default-model` uses a different provider/kind). Tests
+    # that need a different config set it explicitly via override_settings.
     _llm_configuration_file_path = os.path.join(
         BASE_DIR, "conversations/configuration/llm/default.json"
     )
-    # Pin OIDC token storage off by default. Some developer envs set these to
-    # True for the local app, which makes `chat.views.conditional_refresh_oidc_token`
-    # wrap `post_conversation` with mozilla-django-oidc's real refresh decorator.
-    # That decorator rejects `force_authenticate`'d requests (no OIDC session
-    # state) with 401. Tests that need the refresh flow opt in via the
-    # `oidc_refresh_token_enabled` fixture (chat/tests/conftest.py).
+
+    # -- Media / hosts ---------------------------------------------------------
+    ALLOWED_HOSTS = []
+    MEDIA_BASE_URL = None
+
+    # -- Attachments / file upload ---------------------------------------------
+    ATTACHMENT_CHECK_UNSAFE_MIME_TYPES_ENABLED = True
+    ATTACHMENT_MAX_SIZE = 10 * (2**20)
+    FILE_UPLOAD_MODE = "presigned_url"
+    FILE_TO_LLM_MODE = "presigned_url"
+    FILE_BACKEND_URL = ""
+    FILE_BACKEND_TEMPORARY_URL_EXPIRATION = 180
+    MALWARE_DETECTION = {
+        "BACKEND": "lasuite.malware_detection.backends.dummy.DummyBackend",
+        "PARAMETERS": {
+            "callback_path": ("core.file_upload.malware_detection.malware_detection_callback"),
+        },
+    }
+
+    # -- i18n ------------------------------------------------------------------
+    LANGUAGE_CODE = "en-us"
+    LANGUAGES = (
+        ("en-us", "English"),
+        ("fr-fr", "Français"),
+        ("nl-nl", "Nederlands"),
+    )
+
+    # -- DRF / OpenAPI ---------------------------------------------------------
+    REST_FRAMEWORK = {
+        "DEFAULT_AUTHENTICATION_CLASSES": (
+            "mozilla_django_oidc.contrib.drf.OIDCAuthentication",
+            "rest_framework.authentication.SessionAuthentication",
+        ),
+        "DEFAULT_PARSER_CLASSES": [
+            "rest_framework.parsers.JSONParser",
+            "nested_multipart_parser.drf.DrfNestedParser",
+        ],
+        "DEFAULT_RENDERER_CLASSES": [
+            "rest_framework.renderers.JSONRenderer",
+        ],
+        "EXCEPTION_HANDLER": "core.api.exception_handler",
+        "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+        "PAGE_SIZE": 20,
+        "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
+        "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+        "DEFAULT_THROTTLE_RATES": {
+            "attachment_upload": "60/minute",
+            "attachment_auth": "60/minute",
+            "file-stream": "60/minute",
+        },
+    }
+    SPECTACULAR_SETTINGS = {
+        "TITLE": "Conversations API",
+        "DESCRIPTION": "This is the conversations API schema.",
+        "VERSION": "1.0.0",
+        "SERVE_INCLUDE_SCHEMA": False,
+        "ENABLE_DJANGO_DEPLOY_CHECK": False,
+        "COMPONENT_SPLIT_REQUEST": True,
+        "SWAGGER_UI_DIST": "SIDECAR",
+        "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+        "REDOC_DIST": "SIDECAR",
+    }
+
+    # -- Email -----------------------------------------------------------------
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_BRAND_NAME = None
+    EMAIL_HOST = None
+    EMAIL_HOST_USER = None
+    EMAIL_HOST_PASSWORD = None
+    EMAIL_LOGO_IMG = None
+    EMAIL_PORT = None
+    EMAIL_USE_TLS = False
+    EMAIL_USE_SSL = False
+    EMAIL_FROM = "from@example.com"
+
+    # -- CORS ------------------------------------------------------------------
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = []
+    CORS_ALLOWED_ORIGIN_REGEXES = []
+    CORS_ALLOW_HEADERS = [
+        "x-posthog-distinct-id",
+        "x-posthog-session-id",
+    ] + list(default_headers)
+
+    # -- Monitoring / analytics ------------------------------------------------
+    SENTRY_DSN = None
+    POSTHOG_KEY = None
+    POSTHOG_MW_CAPTURE_EXCEPTIONS = False
+    STATUS_PAGE_URL = None
+
+    # -- Frontend --------------------------------------------------------------
+    FRONTEND_THEME = None
+    FRONTEND_HOMEPAGE_FEATURE_ENABLED = True
+    FRONTEND_CSS_URL = None
+    FRONTEND_DOCUMENTATION_URL = None
+    FRONTEND_CONTACT_EMAIL = None
+    FRONTEND_SILENT_LOGIN_ENABLED = True
+    THEME_CUSTOMIZATION_FILE_PATH = os.path.join(
+        BASE_DIR, "conversations/configuration/theme/default.json"
+    )
+    THEME_CUSTOMIZATION_CACHE_TIMEOUT = 60 * 60 * 24
+
+    # -- Misc app flags --------------------------------------------------------
+    MAINTENANCE_MODE = False
+    SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+    SESSION_COOKIE_AGE = 60 * 60 * 12
+    ALLOW_LOGOUT_GET_METHOD = True
+    ACTIVATION_REQUIRED = False
+    KEEPALIVE_INTERVAL = 55
+
+    # -- OIDC ------------------------------------------------------------------
+    # OIDC token storage is pinned off. Some developer envs set these to True for
+    # the local app, which makes chat.views.conditional_refresh_oidc_token wrap
+    # post_conversation with mozilla-django-oidc's real refresh decorator; that
+    # decorator rejects force_authenticate'd requests (no OIDC session state) with
+    # 401. Tests that need the refresh flow opt in via the
+    # oidc_refresh_token_enabled fixture (chat/tests/conftest.py).
     OIDC_STORE_ACCESS_TOKEN = False
     OIDC_STORE_REFRESH_TOKEN = False
-
-    # Pin the document parser so tests are deterministic regardless of the
-    # developer's local env (which may set RAG_DOCUMENT_PARSER=AdaptivePdfParser
-    # for the local app). Tests that need a different parser set it explicitly
-    # via override_settings / settings fixture.
-    RAG_DOCUMENT_PARSER = "chat.agent_rag.document_converter.parser.AlbertParser"
-
-    # Pin to no role restriction so tests are deterministic regardless of the
-    # developer's local env (which may set OIDC_ALLOWED_ROLES); tests that need
-    # the restriction set it explicitly via override_settings.
+    OIDC_STORE_ID_TOKEN = True
+    OIDC_STORE_REFRESH_TOKEN_KEY = None
+    OIDC_CREATE_USER = True
+    OIDC_RP_SIGN_ALGO = "RS256"
+    OIDC_RP_CLIENT_ID = "conversations"
+    OIDC_RP_CLIENT_SECRET = "test-client-secret"  # noqa: S105
+    OIDC_RP_SCOPES = "openid email"
+    # OIDC provider endpoints must be non-empty so mozilla-django-oidc's RS256
+    # config check passes on every authenticated request. Tests that exercise the
+    # actual OIDC flows override these with mocked URLs.
+    OIDC_OP_URL = None
+    OIDC_OP_JWKS_ENDPOINT = "http://oidc.test/jwks"
+    OIDC_OP_AUTHORIZATION_ENDPOINT = "http://oidc.test/authorize"
+    OIDC_OP_TOKEN_ENDPOINT = "http://oidc.test/token"  # noqa: S105
+    OIDC_OP_USER_ENDPOINT = "http://oidc.test/userinfo"
+    OIDC_OP_LOGOUT_ENDPOINT = "http://oidc.test/logout"
+    OIDC_AUTH_REQUEST_EXTRA_PARAMS = {}
     OIDC_ALLOWED_ROLES = []
+    LOGIN_REDIRECT_URL = None
+    LOGIN_REDIRECT_URL_FAILURE = None
+    LOGOUT_REDIRECT_URL = None
+    OIDC_USE_NONCE = True
+    OIDC_REDIRECT_REQUIRE_HTTPS = False
+    OIDC_REDIRECT_ALLOWED_HOSTS = []
+    OIDC_FALLBACK_TO_EMAIL_FOR_IDENTIFICATION = True
+    OIDC_USE_PKCE = False
+    OIDC_PKCE_CODE_CHALLENGE_METHOD = "S256"
+    OIDC_PKCE_CODE_VERIFIER_SIZE = 64
+    OIDC_ALLOW_DUPLICATE_EMAILS = False
+    USER_OIDC_ESSENTIAL_CLAIMS = []
+    OIDC_USERINFO_FULLNAME_FIELDS = ["first_name", "last_name"]
+    OIDC_USERINFO_SHORTNAME_FIELD = "first_name"
 
-    POSTHOG_KEY = None
+    # -- Brevo -----------------------------------------------------------------
+    BREVO_API_KEY = None
+    BREVO_FOLLOWUP_LIST_ID = None
+    BREVO_WAITING_LIST_ID = None
 
+    # -- AI agent / LLM --------------------------------------------------------
+    AI_BASE_URL = None
+    AI_API_KEY = None
+    AI_MODEL = None
+    # Placeholder; tests that assert on agent instructions set them explicitly.
+    AI_AGENT_INSTRUCTIONS = "You are a helpful assistant."
+    AI_AGENT_TOOLS = []
+    LLM_DEFAULT_MODEL_HRID = "default-model"
+    LLM_SUMMARIZATION_MODEL_HRID = "default-summarization-model"
+    LLM_FALLBACK_MODEL_HRID_1 = ""
+    LLM_FALLBACK_MODEL_HRID_2 = ""
+    FAKE_STREAMING_DELAY = 0.0025
+    DEFAULT_ALLOW_CONVERSATION_ANALYTICS = False
+    DEFAULT_ALLOW_SMART_WEB_SEARCH = False
+    DEFAULT_MAX_TOKEN_CONTEXT = 8192
+    WARNING_MOCK_CONVERSATION_AGENT = False
     AUTO_TITLE_AFTER_USER_MESSAGES = None
+
+    # -- RAG / documents -------------------------------------------------------
+    RAG_DOCUMENT_SEARCH_BACKEND = (
+        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend"
+    )
+    # Pin the document parser so tests are deterministic regardless of the
+    # developer's local env (which may set RAG_DOCUMENT_PARSER=AdaptivePdfParser).
+    RAG_DOCUMENT_PARSER = "chat.agent_rag.document_converter.parser.AlbertParser"
+    RAG_COLLECTION_INACTIVITY_DAYS = 30
+    REINDEX_CLAIM_TIMEOUT_SECONDS = 600
+    DEINDEX_MAX_PER_RUN = 100
+    DEINDEX_PARALLEL_REQUESTS = 10
+    SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS = {}
+    PROJECT_FILES_MAX_COUNT = 10
+    PROJECT_IMAGES_MAX_COUNT = 3
+    RAG_FILES_ACCEPTED_FORMATS = [
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.ms-excel",
+        "application/excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/plain",
+        "text/csv",
+        "application/csv",
+        "application/pdf",
+        "text/html",
+        "application/xhtml+xml",
+        "text/markdown",
+        "application/markdown",
+        "application/x-markdown",
+        "application/vnd.ms-outlook",
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "application/vnd.oasis.opendocument.text",
+    ]
+    # Placeholder; the sole test exercising this overrides it explicitly.
+    RAG_WEB_SEARCH_PROMPT_UPDATE = (
+        "Answer using the search results:\n{search_results}\nQuestion: {user_prompt}"
+    )
+    RAG_WEB_SEARCH_MAX_RESULTS = 5
+    RAG_WEB_SEARCH_CHUNK_NUMBER = 4
+
+    # -- OCR / text extraction -------------------------------------------------
+    OCR_HRID = "etalab-plateform-mistral-medium-2508"
+    OCR_MODEL = "mistral-ocr-2512"
+    OCR_TIMEOUT = 240
+    OCR_MAX_RETRIES = 3
+    OCR_RETRY_DELAY = 5
+    OCR_BATCH_PAGES = 10
+    MIN_AVG_CHARS_FOR_TEXT_EXTRACTION = 200
+    MIN_TEXT_COVERAGE_FOR_TEXT_EXTRACTION = 0.7
+
+    # -- Summarization / document context --------------------------------------
+    SUMMARIZATION_SYSTEM_PROMPT = (
+        "You are a helpful assistant that summarizes the content "
+        "of documents following user request.\n\n"
+    )
+    SUMMARIZATION_CHUNK_SIZE = 20_000
+    SUMMARIZATION_OVERLAP_SIZE = 0.05
+    SUMMARIZATION_CONCURRENT_REQUESTS = 5
+    DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
+    DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 1000
+
+    # -- External search / RAG providers ---------------------------------------
+    TAVILY_API_KEY = None
+    TAVILY_MAX_RESULTS = 5
+    TAVILY_API_TIMEOUT = 10
+    ALBERT_API_KEY = None
+    ALBERT_API_URL = "https://albert.api.etalab.gouv.fr"
+    ALBERT_API_TIMEOUT = 30
+    ALBERT_API_PARSE_TIMEOUT = 120
+    ALBERT_HEALTH_URL = "https://albert.api.etalab.gouv.fr/health/models"
+    ALBERT_HEALTH_TIMEOUT = 10
+    FIND_API_KEY = None
+    FIND_API_URL = "https://app-find/api"
+    FIND_API_TIMEOUT = 30
+
+    # -- Langfuse --------------------------------------------------------------
+    LANGFUSE_ENABLED = False
+    LANGFUSE_PUBLIC_KEY = None
+    LANGFUSE_SECRET_KEY = None
+    LANGFUSE_HOST = None
+    LANGFUSE_DEBUG = False
+    LANGFUSE_MEDIA_UPLOAD_ENABLED = False
+
+    # -- Auth tokens / celery --------------------------------------------------
+    SERVER_TO_SERVER_API_TOKENS = []
+    CELERY_BROKER_URL = "redis://redis:6379/0"
+    CELERY_BROKER_TRANSPORT_OPTIONS = {}
+    CELERY_TASK_ROUTES = {}
+
+    # -- Logging ---------------------------------------------------------------
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "simple": {
+                "format": "{asctime} {name} {levelname} {message}",
+                "style": "{",
+            },
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "simple",
+            },
+        },
+        "root": {
+            "handlers": ["console"],
+            "level": "INFO",
+        },
+        "loggers": {
+            "core": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "conversations.security": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+        },
+    }
 
     def __init__(self):
         # pylint: disable=invalid-name

@@ -233,6 +233,7 @@ def test_main_red_fb1_unknown_hrid_unavailable(settings):
     assert result["blocked"] is True
 
 
+@pytest.mark.django_db
 def test_main_red_fb1_empty_fb2_red_unavailable(settings, llm_configs):
     # fb1="" (not configured → down) + fb2=red (down) → all_down=True → unavailable.
     settings.LLM_FALLBACK_MODEL_HRID_2 = "fallback-2"
