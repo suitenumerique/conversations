@@ -1,0 +1,10 @@
+{
+  "name": "main",
+  "label": "baseline juin 2026",
+  "created_at": "2026-07-01T10:07:25.585421+00:00",
+  "run_id": "2026-07-01T10-06-22Z_bdfe3cb",
+  "run_file": "baselines/main_run.json",
+  "git_commit": "bdfe3cb",
+  "model_hrid": "etalab-plateform-mistral-medium-2508",
+  "judge_model_hrid": "etalab-plateform-mistral-medium-2508"
+}
