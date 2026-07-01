@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { APIError, errorCauses, fetchAPI } from '@/api';
 import { Box, Icon, Loader, Text } from '@/components';
 import { useConfig } from '@/core';
+import { useProjectAttachments } from '@/features/attachments/api/useProjectAttachments';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
 import {
   isContextTrimmedEvent,
@@ -142,6 +143,10 @@ export const Chat = ({
   const router = useRouter();
   const [files, setFiles] = useState<FileList | null>(null);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+  // Project of an already-loaded conversation (new chats use pendingProjectId).
+  const [conversationProjectId, setConversationProjectId] = useState<
+    string | null
+  >(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -222,6 +227,15 @@ export const Chat = ({
     setHasProjectInstructions,
     clearPendingInput,
   } = usePendingChatStore();
+
+  // Gate sending while the active project still has files being indexed: their
+  // content isn't searchable yet, so a message now would get an answer that
+  // ignores them. `useProjectAttachments` polls itself until indexing settles.
+  const activeProjectId =
+    conversationProjectId ?? pendingProjectId ?? undefined;
+  const { data: projectAttachments } = useProjectAttachments(activeProjectId);
+  const isIndexingFiles =
+    projectAttachments?.some((a) => a.index_state === 'indexing') ?? false;
 
   const scrollToBottom = useCallback(() => {
     if (chatContainerRef.current) {
@@ -669,6 +683,9 @@ export const Chat = ({
   useEffect(() => {
     hasScrolledToBottomOnLoadRef.current = false; // Réinitialiser au début du chargement
     setImagesSkipped(false);
+    // Drop the previous conversation's project so its indexing gate can't leak
+    // into this one; the getConversation() success below is the only repopulator.
+    setConversationProjectId(null);
     let dismissedFromStorage = false;
     if (initialConversationId && typeof window !== 'undefined') {
       try {
@@ -691,6 +708,7 @@ export const Chat = ({
           if (!ignore) {
             setInitialConversationMessages(conversation.messages);
             setImagesSkipped(conversation.images_skipped ?? false);
+            setConversationProjectId(conversation.project?.id ?? null);
             setHasInitialized(true);
           }
         } catch {
@@ -765,6 +783,12 @@ export const Chat = ({
 
     // Inference-load cooldown: block new messages until the wait elapses.
     if (cooldownUntil && Date.now() < cooldownUntil) {
+      return;
+    }
+
+    // Block while project files are still indexing (matches the backend
+    // backstop); their content isn't searchable yet.
+    if (isIndexingFiles) {
       return;
     }
 
@@ -1045,6 +1069,7 @@ export const Chat = ({
           selectedModel={selectedModel}
           onModelSelect={handleModelSelect}
           isUploadingFiles={isUploadingFiles}
+          isIndexingFiles={isIndexingFiles}
           errorType={status === 'error' ? chatErrorType : undefined}
           cooldownUntil={cooldownUntil}
         />

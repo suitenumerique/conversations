@@ -8,7 +8,7 @@ import React, {
 import { useTranslation } from 'react-i18next';
 
 import WarningFilledIcon from '@/assets/icons/uikit-custom/warning-filled.svg';
-import { Box, Text } from '@/components';
+import { Box, Loader, Text } from '@/components';
 import { useToast } from '@/components/ToastProvider';
 import { useConfig, useFeatureEnabled } from '@/core';
 import { useAssistantHealth } from '@/features/chat/api/useAssistantHealth';
@@ -51,6 +51,7 @@ interface InputChatProps {
   selectedModel?: LLMModel | null;
   onModelSelect?: (model: LLMModel) => void;
   isUploadingFiles?: boolean;
+  isIndexingFiles?: boolean;
   errorType?: ChatErrorType;
   cooldownUntil?: number | null;
 }
@@ -149,6 +150,7 @@ export const InputChat = ({
   selectedModel,
   onModelSelect,
   isUploadingFiles = false,
+  isIndexingFiles = false,
   errorType,
   cooldownUntil = null,
 }: InputChatProps) => {
@@ -289,9 +291,9 @@ export const InputChat = ({
     return () => clearInterval(interval);
   }, [cooldownUntil]);
 
-  // During a cooldown the textarea stays enabled so the user can still draft a
-  // message; only sending is blocked (see handleTextareaKeyDown + the send
-  // button below, and the submit guard in Chat).
+  // During a cooldown or while project files are indexing, the textarea stays
+  // enabled so the user can still draft a message; only sending is blocked (see
+  // handleTextareaKeyDown + the send button below, and the submit guard in Chat).
   const isInputDisabled =
     !INPUT_ENABLED_STATUSES.includes(
       status as (typeof INPUT_ENABLED_STATUSES)[number],
@@ -339,12 +341,13 @@ export const InputChat = ({
         if (isInputDisabled) return;
         if (status === 'streaming' || status === 'submitted') return;
         if (cooldownRemaining > 0) return;
+        if (isIndexingFiles) return;
         const textarea = e.target as HTMLTextAreaElement;
         textarea.style.height = '0';
         e.currentTarget.form?.requestSubmit?.();
       }
     },
-    [isInputDisabled, status, cooldownRemaining],
+    [isInputDisabled, status, cooldownRemaining, isIndexingFiles],
   );
 
   const handleFormSubmit = useCallback(
@@ -502,6 +505,27 @@ export const InputChat = ({
                   </Box>
                 </Box>
               )}
+              {isIndexingFiles && (
+                <Box
+                  role="status"
+                  $align="center"
+                  $direction="row"
+                  $justify="center"
+                  $gap="8px"
+                  $css={COOLDOWN_BANNER_CSS}
+                >
+                  <Loader />
+                  <Text
+                    $weight="700"
+                    $size="sm"
+                    $color="var(--c--contextuals--content--semantic--warning--primary)"
+                  >
+                    {t(
+                      'Processing project files. You can send a message once indexing is done.',
+                    )}
+                  </Text>
+                </Box>
+              )}
               {cooldownRemaining > 0 && (
                 <Box
                   role="status"
@@ -538,13 +562,16 @@ export const InputChat = ({
                 style={textareaStyle}
               />
 
-              {!input && !textareaPlaceholder && cooldownRemaining <= 0 && (
-                <SuggestionCarousel
-                  messagesLength={messagesLength}
-                  blocked={isAssistantBlocked}
-                  banners={assistantHealth?.banners ?? []}
-                />
-              )}
+              {!input &&
+                !textareaPlaceholder &&
+                cooldownRemaining <= 0 &&
+                !isIndexingFiles && (
+                  <SuggestionCarousel
+                    messagesLength={messagesLength}
+                    blocked={isAssistantBlocked}
+                    banners={assistantHealth?.banners ?? []}
+                  />
+                )}
 
               <input
                 accept={conf?.chat_upload_accept}
@@ -582,7 +609,7 @@ export const InputChat = ({
                 selectedModel={selectedModel || null}
                 status={status}
                 inputHasContent={Boolean(input?.trim())}
-                sendDisabled={cooldownRemaining > 0}
+                sendDisabled={cooldownRemaining > 0 || isIndexingFiles}
                 onStop={onStop}
               />
             </Box>

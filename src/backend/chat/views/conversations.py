@@ -4,7 +4,7 @@ import logging
 import os
 
 from django.conf import settings
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Q
 from django.http import StreamingHttpResponse
 from django.utils.module_loading import import_string
 
@@ -23,6 +23,7 @@ from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX, SSE_MIME_TYPE
+from chat.enums import AttachmentIndexState
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.model_routing import resolve_effective_model_hrid
 from chat.rate_limiting import ChatCooldownThrottle, get_cooldown_remaining
@@ -225,6 +226,28 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         )
 
         conversation = self.get_object()
+
+        # Backstop the frontend gate: a project file whose malware scan or RAG
+        # indexing is still running isn't searchable yet, so answering now would
+        # silently ignore it. Refuse the message until both settle (the frontend
+        # blocks send too). Only these in-flight states block; terminal states
+        # (READY, SUSPICIOUS, too-large, FAILED) and a not-yet-uploaded PENDING
+        # row do not, so a rejected or abandoned file can't deadlock the project.
+        if (
+            conversation.project_id
+            and models.ChatConversationAttachment.objects.filter(
+                project_id=conversation.project_id,
+            )
+            .filter(
+                Q(upload_state=AttachmentStatus.ANALYZING)
+                | Q(index_state=AttachmentIndexState.INDEXING)
+            )
+            .exists()
+        ):
+            return Response(
+                {"error": "project_files_indexing"},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         serializer = self.get_serializer(data=request.data)
         try:

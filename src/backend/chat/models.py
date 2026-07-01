@@ -11,7 +11,7 @@ from core.file_upload.enums import AttachmentStatus
 from core.models import BaseModel
 
 from chat.ai_sdk_types import UIMessage
-from chat.enums import CollectionIndexState
+from chat.enums import AttachmentIndexState, CollectionIndexState
 
 User = get_user_model()
 
@@ -260,9 +260,29 @@ class ChatConversationAttachment(BaseModel):
         ),
     )
 
+    # `is_indexed` and `index_state` overlap: `is_indexed=True` is exactly
+    # `index_state == INDEXED`. They coexist for historical reasons and split by
+    # owner. Conversation attachments use the older boolean `is_indexed` (it
+    # cannot express INDEXING/FAILED, which the conversation flow does not need).
+    # Project attachments use `index_state`, whose intermediate/failure states
+    # drive the upload UI. The project flow keeps both in sync so the 0009
+    # backfill invariant (rag_document_id present => is_indexed=True) holds.
+    # End state: migrate conversation callers onto `index_state` and drop this.
     is_indexed = models.BooleanField(
         default=False,
         help_text="Whether this attachment has been indexed in the RAG backend",
+    )
+
+    index_state = models.CharField(
+        max_length=20,
+        choices=AttachmentIndexState.choices(),
+        default=AttachmentIndexState.NOT_INDEXED,
+        help_text="Per-attachment RAG indexing lifecycle (set by the project indexing task)",
+    )
+    processing_error = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Human-readable reason the last indexing attempt failed, if any",
     )
 
     class Meta:  # pylint: disable=missing-class-docstring

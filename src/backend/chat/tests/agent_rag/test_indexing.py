@@ -13,6 +13,7 @@ from core.file_upload.enums import AttachmentStatus
 
 from chat import factories
 from chat.agent_rag.indexing import index_project_attachment, is_indexable_for_rag
+from chat.enums import AttachmentIndexState
 from chat.models import ChatConversationAttachment
 
 pytestmark = pytest.mark.django_db
@@ -131,6 +132,8 @@ def test_index_creates_collection_when_project_has_none(project_text_attachment)
     project_text_attachment.refresh_from_db()
     assert project_text_attachment.project.collection_id == "42"
     assert project_text_attachment.rag_document_id == "1"
+    assert project_text_attachment.index_state == AttachmentIndexState.INDEXED
+    assert project_text_attachment.processing_error is None
     assert create_mock.call_count == 1
     assert documents_mock.call_count == 1
 
@@ -178,6 +181,11 @@ def test_index_swallows_backend_errors(project_text_attachment, caplog):
     index_project_attachment(project_text_attachment)
 
     assert any("Failed to index project attachment" in record.message for record in caplog.records)
+    project_text_attachment.refresh_from_db()
+    assert project_text_attachment.index_state == AttachmentIndexState.FAILED
+    assert project_text_attachment.processing_error
+    # File stays usable/downloadable despite the indexing failure.
+    assert project_text_attachment.upload_state == AttachmentStatus.READY
 
 
 @responses.activate
@@ -204,6 +212,8 @@ def test_index_is_idempotent_when_already_indexed(project_text_attachment):
     assert documents_mock.call_count == 0
     project_text_attachment.refresh_from_db()
     assert project_text_attachment.rag_document_id == "777"
+    # The idempotent path reconciles a lagging index_state to INDEXED.
+    assert project_text_attachment.index_state == AttachmentIndexState.INDEXED
 
 
 @responses.activate
