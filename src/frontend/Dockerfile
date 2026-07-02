@@ -29,6 +29,11 @@ FROM frontend-deps AS conversations-dev
 
 WORKDIR /home/frontend/apps/conversations
 
+# Pre-create .next so its (anonymous) volume inherits a writable dir. The container
+# runs as an arbitrary host UID (DOCKER_USER), while the image is built as root, so
+# the dir must be world-writable for `next dev` to create its cache.
+RUN mkdir -p .next && chmod 777 .next
+
 EXPOSE 3000
 
 CMD [ "yarn", "dev"]

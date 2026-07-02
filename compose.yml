@@ -151,6 +151,9 @@ services:
       - ./src/frontend:/home/frontend
       - /home/frontend/node_modules
       - /home/frontend/apps/conversations/node_modules
+      # Keep .next inside the container. On the macOS bind mount, Turbopack's dev
+      # cache desyncs and forces a manual `rm -rf .next` after restarts.
+      - /home/frontend/apps/conversations/.next
     ports:
       - "3000:3000"
 

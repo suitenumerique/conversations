@@ -17,6 +17,10 @@ and this project adheres to
 ### Changed
 
 - ♻️(back) split chat views and replace hardcoded strings with constants
+
+### Fixed
+
+- 🐳(docker) keep the frontend dev build cache inside the container
  
 ### Fixed
 
