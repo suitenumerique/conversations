@@ -8,6 +8,7 @@ import logging
 from io import BytesIO
 from pathlib import Path
 from unittest import mock
+from unittest.mock import ANY
 
 from django.contrib.sessions.backends.cache import SessionStore
 from django.utils import formats, timezone
@@ -545,6 +546,7 @@ def test_post_conversation_with_document_upload(
     _assert_document_instructions(instruction_0, today_prompt_date, "sample.pdf.md")
 
     assert chat_conversation.pydantic_messages[0] == {
+        "conversation_id": ANY,
         "instructions": instruction_0,
         "kind": "request",
         "metadata": None,
@@ -559,6 +561,7 @@ def test_post_conversation_with_document_upload(
         "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[1] == {
+        "conversation_id": ANY,
         "finish_reason": None,
         "kind": "response",
         "metadata": None,
@@ -569,6 +572,7 @@ def test_post_conversation_with_document_upload(
                 "id": None,
                 "part_kind": "tool-call",
                 "tool_call_id": chat_conversation.pydantic_messages[1]["parts"][0]["tool_call_id"],
+                "tool_kind": None,
                 "tool_name": "document_search_rag",
                 "provider_details": None,
                 "provider_name": None,
@@ -578,6 +582,7 @@ def test_post_conversation_with_document_upload(
         "provider_name": None,
         "provider_response_id": None,
         "provider_url": None,
+        "state": "complete",
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -594,6 +599,7 @@ def test_post_conversation_with_document_upload(
     instruction_2 = chat_conversation.pydantic_messages[2]["instructions"]
     _assert_document_instructions(instruction_2, today_prompt_date, "sample.pdf.md")
     assert chat_conversation.pydantic_messages[2] == {
+        "conversation_id": ANY,
         "instructions": instruction_2,
         "kind": "request",
         "metadata": None,
@@ -611,6 +617,7 @@ def test_post_conversation_with_document_upload(
                 "part_kind": "tool-return",
                 "timestamp": timezone_now,
                 "tool_call_id": chat_conversation.pydantic_messages[2]["parts"][0]["tool_call_id"],
+                "tool_kind": None,
                 "tool_name": "document_search_rag",
             }
         ],
@@ -618,6 +625,7 @@ def test_post_conversation_with_document_upload(
         "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[3] == {
+        "conversation_id": ANY,
         "finish_reason": None,
         "kind": "response",
         "metadata": None,
@@ -635,6 +643,7 @@ def test_post_conversation_with_document_upload(
         "provider_name": None,
         "provider_response_id": None,
         "provider_url": None,
+        "state": "complete",
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -863,6 +872,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     instruction_0 = chat_conversation.pydantic_messages[0]["instructions"]
     _assert_document_instructions(instruction_0, today_prompt_date, "sample.pdf.md")
     assert chat_conversation.pydantic_messages[0] == {
+        "conversation_id": ANY,
         "instructions": instruction_0,
         "kind": "request",
         "metadata": None,
@@ -877,6 +887,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[1] == {
+        "conversation_id": ANY,
         "finish_reason": None,
         "kind": "response",
         "metadata": None,
@@ -887,6 +898,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "id": None,
                 "part_kind": "tool-call",
                 "tool_call_id": chat_conversation.pydantic_messages[1]["parts"][0]["tool_call_id"],
+                "tool_kind": None,
                 "tool_name": "summarize",
                 "provider_details": None,
                 "provider_name": None,
@@ -896,6 +908,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "provider_name": None,
         "provider_response_id": None,
         "provider_url": None,
+        "state": "complete",
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -912,6 +925,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     instruction_2 = chat_conversation.pydantic_messages[2]["instructions"]
     _assert_document_instructions(instruction_2, today_prompt_date, "sample.pdf.md")
     assert chat_conversation.pydantic_messages[2] == {
+        "conversation_id": ANY,
         "instructions": instruction_2,
         "kind": "request",
         "metadata": None,
@@ -923,6 +937,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 "part_kind": "tool-return",
                 "timestamp": timezone_now,
                 "tool_call_id": chat_conversation.pydantic_messages[2]["parts"][0]["tool_call_id"],
+                "tool_kind": None,
                 "tool_name": "summarize",
             }
         ],
@@ -930,6 +945,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[3] == {
+        "conversation_id": ANY,
         "finish_reason": None,
         "kind": "response",
         "metadata": None,
@@ -947,6 +963,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "provider_name": None,
         "provider_response_id": None,
         "provider_url": None,
+        "state": "complete",
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -1109,6 +1126,7 @@ def test_post_conversation_with_odt_document_upload(
     _assert_document_instructions(instruction_0, today_prompt_date, "sample.odt.md")
 
     assert chat_conversation.pydantic_messages[0] == {
+        "conversation_id": ANY,
         "instructions": instruction_0,
         "kind": "request",
         "metadata": None,
@@ -1123,6 +1141,7 @@ def test_post_conversation_with_odt_document_upload(
         "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[1] == {
+        "conversation_id": ANY,
         "finish_reason": None,
         "kind": "response",
         "metadata": None,
@@ -1133,6 +1152,7 @@ def test_post_conversation_with_odt_document_upload(
                 "id": None,
                 "part_kind": "tool-call",
                 "tool_call_id": chat_conversation.pydantic_messages[1]["parts"][0]["tool_call_id"],
+                "tool_kind": None,
                 "tool_name": "document_search_rag",
                 "provider_details": None,
                 "provider_name": None,
@@ -1142,6 +1162,7 @@ def test_post_conversation_with_odt_document_upload(
         "provider_name": None,
         "provider_response_id": None,
         "provider_url": None,
+        "state": "complete",
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,
@@ -1158,6 +1179,7 @@ def test_post_conversation_with_odt_document_upload(
     instruction_2 = chat_conversation.pydantic_messages[2]["instructions"]
     _assert_document_instructions(instruction_2, today_prompt_date, "sample.odt.md")
     assert chat_conversation.pydantic_messages[2] == {
+        "conversation_id": ANY,
         "instructions": instruction_2,
         "kind": "request",
         "metadata": None,
@@ -1175,6 +1197,7 @@ def test_post_conversation_with_odt_document_upload(
                 "part_kind": "tool-return",
                 "timestamp": timezone_now,
                 "tool_call_id": chat_conversation.pydantic_messages[2]["parts"][0]["tool_call_id"],
+                "tool_kind": None,
                 "tool_name": "document_search_rag",
             }
         ],
@@ -1182,6 +1205,7 @@ def test_post_conversation_with_odt_document_upload(
         "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[3] == {
+        "conversation_id": ANY,
         "finish_reason": None,
         "kind": "response",
         "metadata": None,
@@ -1199,6 +1223,7 @@ def test_post_conversation_with_odt_document_upload(
         "provider_name": None,
         "provider_response_id": None,
         "provider_url": None,
+        "state": "complete",
         "timestamp": timezone_now,
         "usage": {
             "cache_audio_read_tokens": 0,

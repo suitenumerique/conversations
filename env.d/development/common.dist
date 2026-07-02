@@ -40,7 +40,15 @@ OIDC_OP_USER_ENDPOINT=http://nginx:8083/realms/conversations/protocol/openid-con
 OIDC_RP_CLIENT_ID=conversations
 OIDC_RP_CLIENT_SECRET=ThisIsAnExampleKeyForDevPurposeOnly
 OIDC_RP_SIGN_ALGO=RS256
+# Add "roles" to use OIDC_ALLOWED_ROLES, and "siret" to store the user's
+# organization SIRET. Each requested scope must exist as a client scope in the
+# IdP (Keycloak/ProConnect) or login will fail with invalid_scope.
 OIDC_RP_SCOPES="openid email"
+
+# Restrict login/signup to users holding one of these roles in their "roles"
+# claim. Empty (default) disables the restriction. Mutually exclusive with the
+# activation-codes gate (ACTIVATION_REQUIRED); see docs/env.md "Access control modes".
+#OIDC_ALLOWED_ROLES=agent_public_etat
 
 LOGIN_REDIRECT_URL=http://localhost:3000
 LOGIN_REDIRECT_URL_FAILURE=http://localhost:3000

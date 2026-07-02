@@ -181,6 +181,7 @@ Additional documentation is available in the `docs/` directory:
 - [Installation Guide](docs/installation.md) - Deploy on a Kubernetes cluster
 - [Theming](docs/theming.md) - Customize the application appearance
 - [Architecture](docs/architecture.md) - Technical architecture overview
+- [Celery](docs/celery.md) - Background tasks with Celery and Redis
 
 
 ## Licence 📝

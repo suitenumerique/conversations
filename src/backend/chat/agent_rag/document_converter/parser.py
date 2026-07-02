@@ -13,12 +13,13 @@ import requests
 from pypdf import PdfReader, PdfWriter
 
 from chat.agent_rag.document_converter.markitdown import DocumentConverter
+from chat.constants import PDF_MIME_TYPE
 
 from .odt import OdtToMd
 
 logger = logging.getLogger(__name__)
 
-CT_PDF = "application/pdf"
+CT_PDF = PDF_MIME_TYPE
 CT_ODT = "application/vnd.oasis.opendocument.text"
 
 

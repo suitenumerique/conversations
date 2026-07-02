@@ -2,7 +2,6 @@
 
 import asyncio
 import dataclasses
-import functools
 import json
 import logging
 from collections import deque
@@ -10,35 +9,13 @@ from typing import Literal, Sequence
 
 from django.core.files.storage import default_storage
 
-import tiktoken
 from asgiref.sync import sync_to_async
 
 from chat import models
 from chat.constants import ACCESS_FULL_CONTEXT, ACCESS_TOOL_CALL_ONLY
+from chat.tokens import compute_document_budget, count_approx_tokens
 
 logger = logging.getLogger(__name__)
-
-
-@functools.lru_cache(maxsize=1)
-def _get_token_encoding():
-    """Lazily load and cache the tiktoken encoding."""
-    return tiktoken.get_encoding("cl100k_base")
-
-
-def count_approx_tokens(text: str) -> int:
-    """Estimate token count using tiktoken."""
-    if not text:
-        return 0
-    try:
-        tiktoken_len = len(_get_token_encoding().encode(text))
-        logger.debug("Tiktoken length: %s", tiktoken_len)
-        return tiktoken_len
-    except Exception:  # pylint: disable=broad-except #noqa: BLE001
-        logger.warning("Failed to estimate tokens with tiktoken, falling back to heuristic.")
-        non_space_chars = len("".join(text.split()))
-        if non_space_chars == 0:
-            return 0
-        return non_space_chars // 3 + (1 if non_space_chars % 3 else 0)
 
 
 @sync_to_async
@@ -115,7 +92,7 @@ def _display_title_from_name(file_name: str | None, is_converted: bool) -> str:
     return title.removesuffix(".md") if is_converted else title
 
 
-def _build_documents_listing(
+def _assemble_documents_listing(
     docs: list[_DocumentEntry],
     force_tool_call_only: bool,
     project_docs: list[_DocumentEntry] | None = None,
@@ -155,7 +132,7 @@ def _build_documents_listing(
     )
 
 
-def _render_listing(listing: DocumentsListing) -> str:
+def render_listing(listing: DocumentsListing) -> str:
     """Serialize the listing as the JSON-prefixed instruction snippet.
 
     `project_documents=None` is dropped so the LLM doesn't see an empty/null
@@ -260,17 +237,21 @@ def _project_placeholder_docs(
     ]
 
 
-async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-locals
+async def build_documents_listing(  # noqa: PLR0913 # pylint: disable=too-many-arguments,too-many-locals
     *,
     conversation_id: str,
     text_attachments: Sequence[models.ChatConversationAttachment],
     model_hrid: str,
     max_token_context: int | None,
     budget_ratio: float,
+    security_buffer_tokens: int,
     project_text_attachments: Sequence[models.ChatConversationAttachment] = (),
-) -> str:
+) -> DocumentsListing | None:
     """
-    Build document instructions with a rolling full-context FIFO window.
+    Build the documents listing with a rolling full-context FIFO window.
+
+    Returns None when there are no attachments to list. Use render_listing() to
+    serialise the result into the instruction string for the model.
 
     Rules:
     - Reserve a ratio of max model context for full document inclusion.
@@ -281,7 +262,7 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
       for the inlining budget and have their own per-array `info` ordering.
     """
     if not text_attachments and not project_text_attachments:
-        return ""
+        return None
 
     project_docs = _project_placeholder_docs(project_text_attachments)
 
@@ -304,12 +285,10 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
             conversation_id,
             model_hrid,
         )
-        return _render_listing(
-            _build_documents_listing(
-                docs=placeholder_docs,
-                force_tool_call_only=True,
-                project_docs=project_docs,
-            )
+        return _assemble_documents_listing(
+            docs=placeholder_docs,
+            force_tool_call_only=True,
+            project_docs=project_docs,
         )
 
     if budget_ratio == 0:
@@ -319,13 +298,15 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
             conversation_id,
             model_hrid,
         )
-        return _render_listing(
-            _build_documents_listing(
-                docs=placeholder_docs,
-                force_tool_call_only=True,
-                project_docs=project_docs,
-            )
+        return _assemble_documents_listing(
+            docs=placeholder_docs,
+            force_tool_call_only=True,
+            project_docs=project_docs,
         )
+
+    document_budget = compute_document_budget(
+        max_token_context, budget_ratio, security_buffer_tokens
+    )
 
     document_budget = max(int(max_token_context * budget_ratio), 0)
 
@@ -389,6 +370,6 @@ async def build_document_context_instruction(  # noqa: PLR0913 # pylint: disable
         inlined_count,
     )
 
-    return _render_listing(
-        _build_documents_listing(docs=docs, force_tool_call_only=False, project_docs=project_docs)
+    return _assemble_documents_listing(
+        docs=docs, force_tool_call_only=False, project_docs=project_docs
     )

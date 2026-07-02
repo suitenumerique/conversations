@@ -2,8 +2,11 @@
 Core application factories
 """
 
+from datetime import timedelta
+
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
+from django.utils import timezone
 
 import factory.fuzzy
 from faker import Faker
@@ -29,3 +32,15 @@ class UserFactory(factory.django.DjangoModelFactory):
     short_name = factory.Faker("first_name")
     language = factory.fuzzy.FuzzyChoice([lang[0] for lang in settings.LANGUAGES])
     password = make_password("password")
+
+
+class AccessBypassEmailFactory(factory.django.DjangoModelFactory):
+    """A factory to create access bypass email entries for testing purposes."""
+
+    class Meta:
+        model = models.AccessBypassEmail
+
+    email = factory.Faker("email")
+    is_active = True
+    note = factory.Faker("sentence")
+    expires_at = factory.LazyFunction(lambda: timezone.now() + timedelta(days=30))

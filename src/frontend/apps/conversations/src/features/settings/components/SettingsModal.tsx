@@ -248,6 +248,9 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
     tabs: settingsTabs,
     sidebarTitle: t('Settings'),
     variant: 'tab' as const,
+    constraints: {
+      minHeight: 'min(430px, calc(100dvh - 3rem))',
+    },
   } as unknown as React.ComponentProps<typeof Modal>;
 
   return <Modal {...tabModalProps} />;

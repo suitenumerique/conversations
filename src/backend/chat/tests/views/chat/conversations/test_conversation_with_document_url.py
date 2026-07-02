@@ -5,6 +5,7 @@ import uuid
 
 # pylint: disable=too-many-lines
 from io import BytesIO
+from unittest.mock import ANY
 
 from django.core.files.storage import default_storage
 from django.utils import formats, timezone
@@ -38,7 +39,7 @@ from chat.tests.utils import replace_uuids_with_placeholder
 from chat.tools.descriptions import (
     DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
-    SELF_DOCUMENTATION_TOOL_DESCRIPTION,
+    SELF_DOCUMENTATION_SYSTEM_PROMPT,
 )
 
 # enable database transactions for tests:
@@ -61,7 +62,7 @@ def _expected_document_instructions(
         f"{today_prompt_date}\n\n"
         "Answer in english.\n\n"
         f"{PREVENT_URL_HALLUCINATION_INSTRUCTION}\n\n"
-        f"{SELF_DOCUMENTATION_TOOL_DESCRIPTION}\n\n"
+        f"{SELF_DOCUMENTATION_SYSTEM_PROMPT}\n\n"
         f"{DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT}\n\n"
         f"{DOCUMENT_SUMMARIZE_SYSTEM_PROMPT}\n\n"
         "[Internal context] User documents are attached to this conversation. "
@@ -222,6 +223,7 @@ def test_post_conversation_with_local_pdf_document_url(
             parts=[UserPromptPart(content=["What is in this document?"], timestamp=timezone.now())],
             instructions=messages[0].instructions,
             run_id=messages[0].run_id,
+            conversation_id=messages[0].conversation_id,
             timestamp=timezone.now(),
         )
         _assert_document_instructions(messages[0].instructions, today_prompt_date, "sample.pdf")
@@ -298,6 +300,7 @@ def test_post_conversation_with_local_pdf_document_url(
     _assert_document_instructions(instruction_0, today_prompt_date, "sample.pdf")
     assert chat_conversation.pydantic_messages == [
         {
+            "conversation_id": ANY,
             "instructions": instruction_0,
             "kind": "request",
             "metadata": None,
@@ -314,6 +317,7 @@ def test_post_conversation_with_local_pdf_document_url(
             "timestamp": timestamp,
         },
         {
+            "conversation_id": ANY,
             "finish_reason": None,
             "kind": "response",
             "metadata": None,
@@ -331,6 +335,7 @@ def test_post_conversation_with_local_pdf_document_url(
             "provider_name": None,
             "provider_response_id": None,
             "provider_url": None,
+            "state": "complete",
             "timestamp": timestamp,
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -405,7 +410,7 @@ def test_post_conversation_with_local_document_wrong_url(
         '9:{"toolCallId":"XXX","toolName":"document_parsing",'
         '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
         'a:{"toolCallId":"XXX",'
-        '"result":{"state":"error","error":"Document '
+        '"result":{"state":"error","kind":"rag_error","error":"Document '
         'URL does not belong to the conversation."}}\n'
         'd:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0,'
         '"co2Impact":0.0}}\n'
@@ -474,7 +479,7 @@ def test_post_conversation_with_remote_document_url(
         '9:{"toolCallId":"XXX","toolName":"document_parsing",'
         '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
         'a:{"toolCallId":"XXX",'
-        '"result":{"state":"error","error":"External document '
+        '"result":{"state":"error","kind":"rag_error","error":"External document '
         'URL are not accepted yet."}}\n'
         'd:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0,'
         '"co2Impact":0.0}}\n'
@@ -501,7 +506,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         f"Today is {formatted_date}.\n\n"
         "Answer in english.\n\n"
         f"{PREVENT_URL_HALLUCINATION_INSTRUCTION}\n\n"
-        f"{SELF_DOCUMENTATION_TOOL_DESCRIPTION}"
+        f"{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
     )
 
     chat_conversation = ChatConversationFactory(
@@ -648,6 +653,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                 timestamp=timestamp_now,
                 instructions=expected_instructions,
                 run_id=messages[2].run_id,
+                conversation_id=messages[2].conversation_id,
             ),
         ]
         yield "This is a document of square, very small and nice."
@@ -796,6 +802,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
             # no run_id here
         },
         {
+            "conversation_id": ANY,
             "instructions": expected_instructions,
             "metadata": None,
             "kind": "request",
@@ -810,6 +817,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
             "timestamp": "2025-10-18T20:48:20.286204Z",
         },
         {
+            "conversation_id": ANY,
             "finish_reason": None,
             "kind": "response",
             "metadata": None,
@@ -827,6 +835,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
             "provider_name": None,
             "provider_response_id": None,
             "provider_url": None,
+            "state": "complete",
             "timestamp": "2025-10-18T20:48:20.286204Z",
             "usage": {
                 "cache_audio_read_tokens": 0,
@@ -884,7 +893,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
         status=200,
     )
 
-    chat_conversation = ChatConversationFactory(owner__language="en-us")
+    chat_conversation = ChatConversationFactory(owner__language="en-us", collection_id="123")
     api_client.force_authenticate(user=chat_conversation.owner)
 
     file_path = f"{chat_conversation.pk}/sample.pdf"
@@ -935,6 +944,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
             timestamp=timestamp_now,
             instructions=messages[0].instructions,
             run_id=messages[0].run_id,
+            conversation_id=messages[0].conversation_id,
         )
         _assert_document_instructions(messages[0].instructions, today_prompt_date, file_name)
         yield "This is a document about you."
@@ -1010,6 +1020,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
     _assert_document_instructions(instruction_0, today_prompt_date, file_name)
     assert chat_conversation.pydantic_messages == [
         {
+            "conversation_id": ANY,
             "instructions": instruction_0,
             "kind": "request",
             "metadata": None,
@@ -1026,6 +1037,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
             "timestamp": timestamp,
         },
         {
+            "conversation_id": ANY,
             "finish_reason": None,
             "kind": "response",
             "metadata": None,
@@ -1043,6 +1055,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
             "provider_name": None,
             "provider_response_id": None,
             "provider_url": None,
+            "state": "complete",
             "timestamp": timestamp,
             "usage": {
                 "cache_audio_read_tokens": 0,

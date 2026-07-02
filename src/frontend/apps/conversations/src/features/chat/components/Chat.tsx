@@ -14,9 +14,15 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
-import { Box, Loader, Text } from '@/components';
+import { Box, Icon, Loader, Text } from '@/components';
+import { useConfig } from '@/core';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
-import { useChat } from '@/features/chat/api/useChat';
+import {
+  isContextTrimmedEvent,
+  isImagesSkippedEvent,
+  stampImagesSkippedOnLatestUserMessage,
+  useChat,
+} from '@/features/chat/api/useChat';
 import { getConversation } from '@/features/chat/api/useConversation';
 import { useCreateChatConversation } from '@/features/chat/api/useCreateConversation';
 import {
@@ -27,9 +33,14 @@ import {
   KEY_LIST_PROJECT,
   ProjectsResponse,
 } from '@/features/chat/api/useProjects';
-import { ChatError } from '@/features/chat/components/ChatError';
+import { ChatError, ChatErrorType } from '@/features/chat/components/ChatError';
+import { ImageProcessingUnavailableBanner } from '@/features/chat/components/ImageProcessingUnavailableBanner';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { MessageItem } from '@/features/chat/components/MessageItem';
+import {
+  STATUS_LINK_KINDS,
+  getReindexErrorMessage,
+} from '@/features/chat/components/reindexErrorMessages';
 import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
 
@@ -38,6 +49,20 @@ import { useAprilFools } from '../hooks/useAprilFools';
 import { useChatPreferencesStore } from '../stores/useChatPreferencesStore';
 import { usePendingChatStore } from '../stores/usePendingChatStore';
 import { useScrollStore } from '../stores/useScrollStore';
+
+const PROVIDER_ERROR_CODES = new Set<ChatErrorType>([
+  'model_unavailable',
+  'model_rate_limited',
+  'model_connection_error',
+  'model_not_found',
+  'model_wrong_type',
+  'model_busy',
+]);
+
+const IMAGES_BANNER_STORAGE_PREFIX = 'conversations:images-banner-dismissed:';
+
+const imagesBannerStorageKey = (conversationId: string) =>
+  `${IMAGES_BANNER_STORAGE_PREFIX}${conversationId}`;
 
 // Define Attachment type locally (mirroring backend structure)
 export interface Attachment {
@@ -52,6 +77,8 @@ export const Chat = ({
   initialConversationId: string | undefined;
 }) => {
   const { t } = useTranslation();
+  const { data: config } = useConfig();
+  const statusPageUrl = config?.STATUS_PAGE_URL;
   const copyToClipboard = useClipboard();
   const { isMobile } = useResponsiveStore();
 
@@ -120,8 +147,9 @@ export const Chat = ({
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [chatErrorModal, setChatErrorModal] = useState<{
     title: string;
-    message: string;
+    message: React.ReactNode;
   } | null>(null);
+  const [chatErrorType, setChatErrorType] = useState<ChatErrorType>('generic');
 
   const { setIsAtTop } = useScrollStore();
 
@@ -148,6 +176,12 @@ export const Chat = ({
 
   const [initialConversationMessages, setInitialConversationMessages] =
     useState<Message[] | undefined>(undefined);
+  // True when the pinned model is text-only and any image exists in the
+  // conversation (project or history). Drives the "image processing
+  // unavailable" banner above the input box.
+  const [imagesSkipped, setImagesSkipped] = useState<boolean>(false);
+  const [imagesBannerDismissed, setImagesBannerDismissed] =
+    useState<boolean>(false);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
     event: FormEvent<HTMLFormElement>;
     attachments?: Attachment[];
@@ -173,6 +207,7 @@ export const Chat = ({
   const { mutate: createChatConversation } = useCreateChatConversation();
   const queryClient = useQueryClient();
   const [isReadingInstructions, setIsReadingInstructions] = useState(false);
+  const [contextTrimmed, setContextTrimmed] = useState(false);
   const readingInstructionsStartRef = useRef<number>(0);
   const aprilFools = useAprilFools();
 
@@ -200,21 +235,41 @@ export const Chat = ({
   // Show error modal for upload errors
   useEffect(() => {
     if (isErrorAttachment && errorAttachment) {
+      const maxSize = config?.attachment_max_size;
       setChatErrorModal({
         title: t('Upload Error'),
-        message: t('Failed to upload file'),
+        message: maxSize ? (
+          <Text>
+            {t(
+              'Failed to upload file. It may be due to the attachment size. Max size: {{maxSize}} MB',
+              { maxSize },
+            )}
+          </Text>
+        ) : (
+          <Text>
+            {t('Failed to upload file. It may be due to the attachment size.')}
+          </Text>
+        ),
       });
     }
-  }, [isErrorAttachment, errorAttachment, t]);
+  }, [isErrorAttachment, errorAttachment, config?.attachment_max_size, t]);
 
   // Handle errors from the chat API
   const onErrorChat = (error: Error) => {
     if (error.message === 'attachment_summary_not_supported') {
       setChatErrorModal({
         title: t('Attachment summary not supported'),
-        message: t('The summary feature is not supported yet.'),
+        message: <Text>{t('The summary feature is not supported yet.')}</Text>,
       });
+      return;
     }
+
+    if (PROVIDER_ERROR_CODES.has(error.message as ChatErrorType)) {
+      setChatErrorType(error.message as ChatErrorType);
+    } else {
+      setChatErrorType('generic');
+    }
+
     console.error('Chat error:', error);
   };
 
@@ -226,6 +281,8 @@ export const Chat = ({
     status,
     stop: stopChat,
     setMessages,
+    cooldownUntil,
+    data,
   } = useChat({
     id: conversationId,
     initialMessages: initialConversationMessages,
@@ -352,6 +409,70 @@ export const Chat = ({
     }
   }, [messages]);
 
+  const lastResumeErrorMessageIdRef = useRef<string | null>(null);
+
+  // Show error modal when conversation resume fails to re-index some documents
+  useEffect(() => {
+    if (status === 'streaming' || status === 'submitted') return;
+    const lastAssistant = messages.filter((m) => m.role === 'assistant').pop();
+    if (!lastAssistant?.parts) return;
+    if (lastAssistant.id === lastResumeErrorMessageIdRef.current) return;
+    const resumePart = lastAssistant.parts.find(
+      (p) =>
+        p.type === 'tool-invocation' &&
+        p.toolInvocation.toolName === 'conversation_resume' &&
+        p.toolInvocation.state === 'result',
+    );
+    if (!resumePart || resumePart.type !== 'tool-invocation') return;
+    if (resumePart.toolInvocation.state !== 'result') return;
+    const result = resumePart.toolInvocation.result as {
+      state: string;
+      kind?: string;
+      failed_documents?: string[];
+      error?: string;
+    };
+    const isFullError = result?.state === 'error';
+    const hasPartialFailures = Boolean(result?.failed_documents?.length);
+    if (!isFullError && !hasPartialFailures) return;
+    lastResumeErrorMessageIdRef.current = lastAssistant.id;
+    const showStatusLink =
+      isFullError &&
+      !!statusPageUrl &&
+      !!result.kind &&
+      STATUS_LINK_KINDS.has(result.kind);
+    setChatErrorModal({
+      title: t('Re-indexing Error'),
+      message: isFullError ? (
+        <Box $direction="row" $align="center" $gap="6px">
+          <Text>{getReindexErrorMessage(t, result.kind)}</Text>
+          {showStatusLink && (
+            <a
+              href={statusPageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t('Check service status')}
+            >
+              <Icon iconName="info" $size="1rem" $color="greyscale" />
+            </a>
+          )}
+        </Box>
+      ) : (
+        <>
+          <Text>
+            {t(
+              "Couldn't restore some of this conversation's documents, so the assistant can't reference them. Please re-upload them to continue:",
+            )}
+          </Text>
+          <ul>
+            {(result.failed_documents ?? []).map((doc) => (
+              <li key={doc}>{doc}</li>
+            ))}
+          </ul>
+        </>
+      ),
+    });
+  }, [messages, status, statusPageUrl, t]);
+
   // Clear "reading instructions" once streaming begins or on error, with minimum display time
   useEffect(() => {
     if (isReadingInstructions) {
@@ -423,6 +544,27 @@ export const Chat = ({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
+
+  // Scroll to bottom when conversation_resume tool appears so the illustration is fully visible
+  useEffect(() => {
+    const lastAssistant = messages.filter((m) => m.role === 'assistant').pop();
+    const hasResumeTool = lastAssistant?.parts?.some(
+      (p) =>
+        p.type === 'tool-invocation' &&
+        p.toolInvocation.toolName === 'conversation_resume' &&
+        p.toolInvocation.state !== 'result',
+    );
+    if (hasResumeTool && chatContainerRef.current) {
+      requestAnimationFrame(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTo({
+            top: chatContainerRef.current.scrollHeight,
+            behavior: 'smooth',
+          });
+        }
+      });
+    }
+  }, [messages]);
 
   // Synchronize conversationId state with prop when it changes (e.g., after navigation)
   useEffect(() => {
@@ -497,9 +639,48 @@ export const Chat = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldRetry, input, files]);
 
+  useEffect(() => {
+    setContextTrimmed(false);
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!data || !Array.isArray(data)) return;
+    if (data.some(isContextTrimmedEvent)) {
+      setContextTrimmed(true);
+    }
+    if (
+      data.some(
+        (item) => isImagesSkippedEvent(item) && item.kind === 'chat_notice',
+      )
+    ) {
+      setImagesSkipped(true);
+    }
+    if (
+      data.some(
+        (item) =>
+          isImagesSkippedEvent(item) && item.kind === 'last_message_marked',
+      )
+    ) {
+      setMessages(stampImagesSkippedOnLatestUserMessage);
+    }
+  }, [data, setMessages]);
+
   // Fetch initial conversation messages if initialConversationId is provided and no pending input
   useEffect(() => {
     hasScrolledToBottomOnLoadRef.current = false; // Réinitialiser au début du chargement
+    setImagesSkipped(false);
+    let dismissedFromStorage = false;
+    if (initialConversationId && typeof window !== 'undefined') {
+      try {
+        dismissedFromStorage =
+          window.localStorage.getItem(
+            imagesBannerStorageKey(initialConversationId),
+          ) === '1';
+      } catch {
+        // localStorage unavailable (privacy mode, sandboxed iframe, etc.) — treat as not dismissed.
+      }
+    }
+    setImagesBannerDismissed(dismissedFromStorage);
     let ignore = false;
     async function fetchInitialMessages() {
       if (initialConversationId && !pendingInput) {
@@ -509,6 +690,7 @@ export const Chat = ({
           });
           if (!ignore) {
             setInitialConversationMessages(conversation.messages);
+            setImagesSkipped(conversation.images_skipped ?? false);
             setHasInitialized(true);
           }
         } catch {
@@ -526,6 +708,22 @@ export const Chat = ({
     };
     // Only run when initialConversationId or pendingInput changes
   }, [initialConversationId, pendingInput]);
+
+  const dismissImagesBanner = useCallback(() => {
+    setImagesBannerDismissed(true);
+    if (typeof window !== 'undefined' && conversationId) {
+      try {
+        window.localStorage.setItem(
+          imagesBannerStorageKey(conversationId),
+          '1',
+        );
+      } catch {
+        // localStorage unavailable — in-memory dismissal still holds for this session.
+      }
+    }
+  }, [conversationId]);
+
+  const showImagesBanner = imagesSkipped && !imagesBannerDismissed;
 
   useEffect(() => {
     if (
@@ -565,6 +763,11 @@ export const Chat = ({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    // Inference-load cooldown: block new messages until the wait elapses.
+    if (cooldownUntil && Date.now() < cooldownUntil) {
+      return;
+    }
+
     // April Fools' prank on the very first message of a new conversation.
     // Use triggerDeferred so the prank survives the router.push() remount.
     if (messages.length === 0) {
@@ -592,7 +795,9 @@ export const Chat = ({
         console.error('File upload error:', error);
         setChatErrorModal({
           title: t('Upload Error'),
-          message: t('Failed to upload files. Please try again.'),
+          message: (
+            <Text>{t('Failed to upload files. Please try again.')}</Text>
+          ),
         });
         return;
       }
@@ -654,6 +859,7 @@ export const Chat = ({
       options.experimental_attachments = attachments;
     }
 
+    setChatErrorType('generic');
     lastSubmissionRef.current = {
       input,
       files,
@@ -758,6 +964,21 @@ export const Chat = ({
             })}
           </Box>
         )}
+        {contextTrimmed && (
+          <Box
+            $direction="row"
+            $align="center"
+            $gap="6px"
+            $width="100%"
+            $maxWidth="var(--chat-content-max-width, 750px)"
+            $margin={{ all: 'auto' }}
+            $padding={{ left: '13px', top: 'xs', bottom: 'xs' }}
+          >
+            <Text $theme="neutral" $variation="tertiary" $size="sm">
+              {t("Some older messages are no longer in the model's context.")}
+            </Text>
+          </Box>
+        )}
         {!aprilFools.isActive &&
         ((status !== 'ready' && status !== 'streaming' && status !== 'error') ||
           isUploadingFiles) ? (
@@ -786,6 +1007,7 @@ export const Chat = ({
         ) : null}
         {status === 'error' && !isUploadingFiles && (
           <ChatError
+            errorType={chatErrorType}
             hasLastSubmission={!!lastSubmissionRef.current}
             onRetry={handleRetry}
           />
@@ -799,11 +1021,14 @@ export const Chat = ({
           background-color: var(--c--contextuals--background--surface--secondary);
           z-index: 1000;
         `}
-        $gap="6px"
+        $gap="0"
         $height="auto"
         $width="100%"
         $margin={{ all: 'auto', top: 'base' }}
       >
+        {showImagesBanner && (
+          <ImageProcessingUnavailableBanner onDismiss={dismissImagesBanner} />
+        )}
         <InputChat
           messagesLength={messages.length}
           input={input}
@@ -820,6 +1045,8 @@ export const Chat = ({
           selectedModel={selectedModel}
           onModelSelect={handleModelSelect}
           isUploadingFiles={isUploadingFiles}
+          errorType={status === 'error' ? chatErrorType : undefined}
+          cooldownUntil={cooldownUntil}
         />
       </Box>
       <Modal
@@ -833,7 +1060,7 @@ export const Chat = ({
         closeOnEsc={true}
         size={ModalSize.MEDIUM}
       >
-        <Text>{chatErrorModal?.message}</Text>
+        {chatErrorModal?.message}
       </Modal>
     </Box>
   );

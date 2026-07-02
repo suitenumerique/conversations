@@ -207,6 +207,12 @@ backend:
         python manage.py createsuperuser --email $DJANGO_SUPERUSER_EMAIL --password $DJANGO_SUPERUSER_PASSWORD
     restartPolicy: Never
 
+ ## @param backend.deindexCronJob.enabled Whether to enable the de-index CronJob
+ ## @param backend.deindexCronJob.schedule Cron schedule for the de-index job
+  deindexCronJob:
+    enabled: false
+    schedule: "0 2 * * *"
+
   ## @extra backend.job job dedicated to run a random management command, for example after a deployment
   ## @param backend.job.name The name to use to describe this job
   ## @param backend.job.command The management command to execute
@@ -219,6 +225,18 @@ backend:
     restartPolicy: Never
     annotations: 
       argocd.argoproj.io/hook: PostSync
+
+  ## @param backend.modelHealthCronJob.enabled Enable the model-health polling CronJob
+  ## @param backend.modelHealthCronJob.schedule Cron schedule for the model-health poller
+  ## @param backend.modelHealthCronJob.provider Provider to poll for model health
+  ## @param backend.modelHealthCronJob.startingDeadlineSeconds Seconds after a missed start time before the job is considered failed
+  ## @param backend.modelHealthCronJob.activeDeadlineSeconds Hard deadline in seconds for the job pod
+  modelHealthCronJob:
+    enabled: false
+    schedule: "* * * * *"
+    provider: albert
+    startingDeadlineSeconds: 60
+    activeDeadlineSeconds: 55
 
   ## @param backend.probes.liveness.path [nullable] Configure path for backend HTTP liveness probe
   ## @param backend.probes.liveness.targetPort [nullable] Configure port for backend HTTP liveness probe
@@ -283,6 +301,92 @@ backend:
     enabled: false
     file_content: ""
     mount_path: /app/conversations/configuration/llm
+
+  ## @param backend.celeryWorkers List of celery worker definitions
+  ## Each worker entry supports: name, replicas, command, args, resources, probes
+  celeryWorkers:
+    - name: default
+      replicas: 1
+      command: []
+      args:
+        [
+          "celery",
+          "-A",
+          "conversations.celery_app",
+          "worker",
+          "-l",
+          "INFO",
+          "-n",
+          "conversations@%h",
+        ]
+      resources: {}
+      probes:
+        liveness:
+          exec:
+            command:
+              [
+                "/bin/sh",
+                "-c",
+                "celery -A conversations.celery_app inspect ping -d conversations@$HOSTNAME",
+              ]
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          timeoutSeconds: 15
+          failureThreshold: 3
+        readiness:
+          exec:
+            command:
+              [
+                "/bin/sh",
+                "-c",
+                "celery -A conversations.celery_app inspect ping -d conversations@$HOSTNAME",
+              ]
+          initialDelaySeconds: 20
+          periodSeconds: 30
+          timeoutSeconds: 15
+          failureThreshold: 3
+
+  ## @param backend.celeryBeat.replicas Amount of celery replicas
+  ## @param backend.celeryBeat.enabled Enable or disable the celery beat deployment
+  ## @param backend.celeryBeat.command Override the celery container command
+  ## @param backend.celeryBeat.args Override the celery container args
+  ## @param backend.celeryBeat.resources Resource requirements for the celery container
+  ## @param backend.celeryBeat.probes.liveness.exec.command Override the celery container liveness probe command
+  ## @param backend.celeryBeat.probes.liveness.initialDelaySeconds Initial delay for the celery container liveness probe
+  ## @param backend.celeryBeat.probes.liveness.timeoutSeconds Timeout for the celery container liveness probe
+  ## @param backend.celeryBeat.probes.readiness.exec.command Override the celery container readiness probe command
+  ## @param backend.celeryBeat.probes.readiness.initialDelaySeconds Initial delay for the celery container readiness probe
+  ## @param backend.celeryBeat.probes.readiness.timeoutSeconds Timeout for the celery container readiness probe
+  celeryBeat:
+    enabled: true
+    replicas: 1
+    command: []
+    args:
+      [
+        "celery",
+        "-A",
+        "conversations.celery_app",
+        "beat",
+        "-l",
+        "INFO",
+        "--schedule=/tmp/celerybeat-schedule",
+      ]
+    resources: {}
+    probes:
+      liveness:
+        exec:
+          command: ["/bin/sh", "-c", "celery -A conversations.celery_app inspect ping"]
+        initialDelaySeconds: 30
+        periodSeconds: 60
+        timeoutSeconds: 15
+        failureThreshold: 3
+      readiness:
+        exec:
+          command: ["/bin/sh", "-c", "celery -A conversations.celery_app inspect ping"]
+        initialDelaySeconds: 20
+        periodSeconds: 30
+        timeoutSeconds: 15
+        failureThreshold: 3
 
 ## @section frontend
 

@@ -10,8 +10,9 @@ import {
   useCustomTranslations,
   useSynchronizedLanguage,
 } from '@/features/language';
+import { MaintenancePage } from '@/features/maintenance';
 import { useAnalytics } from '@/libs';
-import { CrispProvider, PostHogAnalytic } from '@/services';
+import { PostHogAnalytic } from '@/services';
 import { useSentryStore } from '@/stores/useSentryStore';
 
 import { useConfig } from './api/useConfig';
@@ -33,8 +34,7 @@ export const ConfigProvider = ({ children }: PropsWithChildren) => {
       return;
     }
 
-    const targetLanguage =
-      conf.LANGUAGE_CODE || i18n.resolvedLanguage || i18n.language;
+    const targetLanguage = i18n.resolvedLanguage || i18n.language;
 
     void changeLanguageSynchronized(targetLanguage).then(() => {
       hasSyncedInitialLanguage.current = true;
@@ -95,6 +95,10 @@ export const ConfigProvider = ({ children }: PropsWithChildren) => {
     );
   }
 
+  if (conf.maintenance?.enabled) {
+    return <MaintenancePage maintenance={conf.maintenance} />;
+  }
+
   return (
     <>
       {conf?.FRONTEND_CSS_URL && (
@@ -102,11 +106,7 @@ export const ConfigProvider = ({ children }: PropsWithChildren) => {
           <link rel="stylesheet" href={conf?.FRONTEND_CSS_URL} />
         </Head>
       )}
-      <AnalyticsProvider>
-        <CrispProvider websiteId={conf?.CRISP_WEBSITE_ID}>
-          {children}
-        </CrispProvider>
-      </AnalyticsProvider>
+      <AnalyticsProvider>{children}</AnalyticsProvider>
     </>
   );
 };

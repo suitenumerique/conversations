@@ -12,6 +12,7 @@ import requests
 from chat.agent_rag.albert_api_constants import Searches
 from chat.agent_rag.constants import RAGWebResult, RAGWebResults, RAGWebUsage
 from chat.agent_rag.document_converter.markitdown import DocumentConverter
+from chat.constants import MARKDOWN_MIME_TYPE, PDF_MIME_TYPE
 from chat.models import ChatConversation
 
 logger = logging.getLogger(__name__)
@@ -120,7 +121,7 @@ class AlbertRagDocumentSearch:
             str: The document content in Markdown format.
         """
         # Implement the parsing logic here
-        if content_type == "application/pdf":
+        if content_type == PDF_MIME_TYPE:
             # Handle PDF parsing
             markdown_content = self._parse_pdf_document(
                 name=name, content_type=content_type, content=content
@@ -147,7 +148,7 @@ class AlbertRagDocumentSearch:
             urljoin(self._base_url, self._documents_endpoint),
             headers=self._headers,
             files={
-                "file": (f"{name}.md", BytesIO(content.encode("utf-8")), "text/markdown"),
+                "file": (f"{name}.md", BytesIO(content.encode("utf-8")), MARKDOWN_MIME_TYPE),
                 "collection": (None, int(self.collection_id)),
                 "metadata": (None, json.dumps({"document_name": name})),  # undocumented API
             },

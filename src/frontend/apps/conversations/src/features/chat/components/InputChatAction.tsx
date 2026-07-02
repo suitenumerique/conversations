@@ -30,6 +30,8 @@ interface InputChatActionsProps {
   status: string | null;
   /** Whether input has content (for send button) */
   inputHasContent: boolean;
+  /** Whether sending is blocked (e.g. during an inference-load cooldown) */
+  sendDisabled?: boolean;
   /** Handler for stop button */
   onStop?: () => void;
 }
@@ -46,6 +48,8 @@ const MOBILE_WEB_BUTTON_CSS = `
     padding-right: 8px !important;
   }
 `;
+
+const ACTIONS_OPACITY_CSS = 'opacity: 1;';
 
 const ACTIVE_WEB_BUTTON_CSS = `
   .research-web-button {
@@ -92,15 +96,10 @@ export const InputChatActions = memo(
     selectedModel,
     status,
     inputHasContent,
+    sendDisabled = false,
     onStop,
   }: InputChatActionsProps) => {
     const { t } = useTranslation();
-
-    // Memoized dynamic styles
-    const actionsOpacityCss = useMemo(
-      () => `opacity: ${status === 'error' ? '0.5' : '1'};`,
-      [status],
-    );
 
     const webSearchWrapperCss = useMemo(() => {
       let css = '';
@@ -119,7 +118,7 @@ export const InputChatActions = memo(
         $gap="sm"
         $padding={STYLES.actionsGap}
         $align="space-between"
-        $css={actionsOpacityCss}
+        $css={ACTIONS_OPACITY_CSS}
       >
         {/* Left side: Attach + Web Search */}
         <Box
@@ -229,7 +228,7 @@ export const InputChatActions = memo(
 
           <SendButton
             status={status}
-            disabled={!inputHasContent || isUploadingFiles}
+            disabled={!inputHasContent || isUploadingFiles || sendDisabled}
             onClick={onStop}
           />
         </Box>

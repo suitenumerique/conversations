@@ -76,4 +76,66 @@ describe('SuggestionCarousel', () => {
 
     clearIntervalSpy.mockRestore();
   });
+
+  it('should show banner title when blocked and not show carousel suggestions', () => {
+    render(
+      <SuggestionCarousel
+        messagesLength={0}
+        blocked={true}
+        banners={[
+          { level: 'alert', title: 'Service unavailable', content: '' },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText('Service unavailable').length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.queryByText('Ask a question')).not.toBeInTheDocument();
+  });
+
+  it('should carousel through title and content when blocked and banner has content', () => {
+    render(
+      <SuggestionCarousel
+        messagesLength={0}
+        blocked={true}
+        banners={[
+          {
+            level: 'alert',
+            title: 'Service unavailable',
+            content: 'Maintenance in progress',
+          },
+        ]}
+      />,
+    );
+
+    // Both items are rendered in the carousel DOM (one visible at a time via CSS transform)
+    expect(screen.getAllByText('Service unavailable').length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getByText('Maintenance in progress')).toBeInTheDocument();
+  });
+
+  it('should render empty wrapper without crashing when blocked with no banners', () => {
+    render(
+      <SuggestionCarousel messagesLength={0} blocked={true} banners={[]} />,
+    );
+
+    expect(screen.queryByText('Ask a question')).not.toBeInTheDocument();
+  });
+
+  it('should show carousel suggestions when not blocked', () => {
+    render(
+      <SuggestionCarousel
+        messagesLength={0}
+        blocked={false}
+        banners={[
+          { level: 'alert', title: 'Service unavailable', content: '' },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText('Ask a question')).toHaveLength(2);
+    expect(screen.queryByText('Service unavailable')).not.toBeInTheDocument();
+  });
 });

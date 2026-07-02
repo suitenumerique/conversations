@@ -60,6 +60,7 @@ def test_llm_configuration_view_authenticated(api_client, llm_configurations):  
                 "is_active": True,
                 "is_default": True,
                 "model_name": "amazing-llm",
+                "supports_image": False,
             },
             {
                 "hrid": "model-2",
@@ -68,6 +69,7 @@ def test_llm_configuration_view_authenticated(api_client, llm_configurations):  
                 "is_active": True,
                 "is_default": False,
                 "model_name": "another-llm",
+                "supports_image": False,
             },
         ]
     }

@@ -138,8 +138,12 @@ logs: ## display app-dev logs (follow mode)
 .PHONY: logs
 
 run-backend: ## Start only the backend application and all needed services
-	@$(COMPOSE) up --force-recreate -d nginx app-dev
+	@$(COMPOSE) up --force-recreate -d nginx app-dev celery-dev
 .PHONY: run-backend
+
+run-celery: ## Start only the celery worker
+	@$(COMPOSE) up --force-recreate -d celery-dev
+.PHONY: run-celery
 
 run-frontend: ## Start only the frontend application
 	@$(COMPOSE) up --force-recreate -d frontend-development
@@ -240,7 +244,15 @@ back-i18n-generate: ## create the .pot files used for i18n
 
 shell: ## connect to database shell
 	@$(MANAGE) shell #_plus
-.PHONY: dbshell
+.PHONY: shell
+
+deindex_inactive_collections: ## run the deindex_inactive_collections management command
+	@$(MANAGE) deindex_inactive_collections
+.PHONY: deindex_inactive_collections
+
+fetch_model_health: ## check the health of the models (usage: make fetch_model_health FETCH_MODEL_HEALTH_ARGS="--provider albert")
+	@$(MANAGE) fetch_model_health $(FETCH_MODEL_HEALTH_ARGS)
+.PHONY: fetch_model_health
 
 # -- Database
 

@@ -1,10 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 
+import WarningFilledIcon from '@/assets/icons/uikit-custom/warning-filled.svg';
 import { Box, Text } from '@/components';
 import { useToast } from '@/components/ToastProvider';
 import { useConfig, useFeatureEnabled } from '@/core';
+import { useAssistantHealth } from '@/features/chat/api/useAssistantHealth';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
+import { ChatErrorType } from '@/features/chat/components/ChatError';
 import { InputChatActions } from '@/features/chat/components/InputChatAction';
 import { ProjectWelcomeMessage } from '@/features/chat/components/ProjectWelcomeMessage';
 import { SuggestionCarousel } from '@/features/chat/components/SuggestionCarousel';
@@ -17,6 +26,14 @@ import FilesIcon from '../assets/files.svg';
 
 import { AttachmentList } from './AttachmentList';
 import { ScrollDown } from './ScrollDown';
+import { getChatErrorMessage } from './chatErrorMessages';
+
+const INPUT_ENABLED_STATUSES = [
+  'ready',
+  'streaming',
+  'submitted',
+  'error',
+] as const;
 
 interface InputChatProps {
   messagesLength: number;
@@ -34,6 +51,8 @@ interface InputChatProps {
   selectedModel?: LLMModel | null;
   onModelSelect?: (model: LLMModel) => void;
   isUploadingFiles?: boolean;
+  errorType?: ChatErrorType;
+  cooldownUntil?: number | null;
 }
 
 const STYLES = {
@@ -71,6 +90,14 @@ const FILE_DROP_CSS = `
                 height: 100%;
                 outline: 2px solid var(--c--contextuals--border--semantic--brand--secondary);
                 box-shadow: 0 0 64px 0 rgba(62, 93, 231, 0.25);
+                `;
+const COOLDOWN_BANNER_CSS = `
+                padding: 8px 16px;
+                border-top-left-radius: 12px;
+                border-top-right-radius: 12px;
+                border-bottom: 1px solid var(--c--contextuals--border--surface--primary);
+                background: var(--c--contextuals--background--semantic--warning--tertiary);
+                text-align: center;
                 `;
 const DRAG_FADE_CSS = `
             top: 0;
@@ -122,6 +149,8 @@ export const InputChat = ({
   selectedModel,
   onModelSelect,
   isUploadingFiles = false,
+  errorType,
+  cooldownUntil = null,
 }: InputChatProps) => {
   const { t } = useTranslation();
   const { showToast } = useToast();
@@ -133,6 +162,8 @@ export const InputChat = ({
   const { data: conf } = useConfig();
   const fileUploadEnabled = useFeatureEnabled('document-upload');
   const webSearchEnabled = useFeatureEnabled('web-search');
+
+  const { data: assistantHealth } = useAssistantHealth();
 
   const isFileAccepted = useCallback(
     (file: File): boolean => {
@@ -236,7 +267,43 @@ export const InputChat = ({
     onFilesRejected: () => showToastError(),
   });
 
-  const isInputDisabled = status !== 'ready' || isUploadingFiles;
+  const isAssistantBlocked = assistantHealth?.blocked ?? false;
+
+  // Inference-load cooldown: count down to the time the user may send again.
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  useEffect(() => {
+    if (!cooldownUntil) {
+      setCooldownRemaining(0);
+      return;
+    }
+    const tick = () =>
+      Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+    setCooldownRemaining(tick());
+    const interval = setInterval(() => {
+      const remaining = tick();
+      setCooldownRemaining(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldownUntil]);
+
+  // During a cooldown the textarea stays enabled so the user can still draft a
+  // message; only sending is blocked (see handleTextareaKeyDown + the send
+  // button below, and the submit guard in Chat).
+  const isInputDisabled =
+    !INPUT_ENABLED_STATUSES.includes(
+      status as (typeof INPUT_ENABLED_STATUSES)[number],
+    ) ||
+    isUploadingFiles ||
+    isAssistantBlocked ||
+    (!!errorType && errorType !== 'generic');
+
+  const textareaPlaceholder =
+    errorType && errorType !== 'generic'
+      ? getChatErrorMessage(t, errorType)
+      : undefined;
 
   const containerCss = useMemo(
     () => `
@@ -246,13 +313,10 @@ export const InputChat = ({
     [isDesktop],
   );
 
-  const textareaStyle = useMemo(
-    () => ({
-      ...TEXTAREA_STYLE,
-      opacity: status === 'error' ? '0.5' : '1',
-    }),
-    [status],
-  );
+  const textareaStyle = {
+    ...TEXTAREA_STYLE,
+    opacity: '1',
+  };
 
   const formPadding = isDesktop ? STYLES.formPadding : STYLES.formPaddingMobile;
 
@@ -272,12 +336,26 @@ export const InputChat = ({
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
         e.preventDefault();
+        if (isInputDisabled) return;
+        if (status === 'streaming' || status === 'submitted') return;
+        if (cooldownRemaining > 0) return;
         const textarea = e.target as HTMLTextAreaElement;
         textarea.style.height = '0';
         e.currentTarget.form?.requestSubmit?.();
       }
     },
-    [],
+    [isInputDisabled, status, cooldownRemaining],
+  );
+
+  const handleFormSubmit = useCallback(
+    (e: React.FormEvent<HTMLFormElement>) => {
+      if (isAssistantBlocked) {
+        e.preventDefault();
+        return;
+      }
+      handleSubmit(e);
+    },
+    [handleSubmit, isAssistantBlocked],
   );
 
   const handlePaste = useCallback(
@@ -389,7 +467,7 @@ export const InputChat = ({
           <ProjectWelcomeMessage fallback={<WelcomeMessage />} />
         )}
 
-        <form onSubmit={handleSubmit} style={STYLES.form}>
+        <form onSubmit={handleFormSubmit} style={STYLES.form}>
           <Box $padding={formPadding}>
             <Box
               $flex={1}
@@ -424,9 +502,32 @@ export const InputChat = ({
                   </Box>
                 </Box>
               )}
+              {cooldownRemaining > 0 && (
+                <Box
+                  role="status"
+                  $align="center"
+                  $direction="row"
+                  $justify="center"
+                  $gap="8px"
+                  $css={COOLDOWN_BANNER_CSS}
+                >
+                  <WarningFilledIcon width={20} height={20} />
+                  <Text
+                    $weight="700"
+                    $size="sm"
+                    $color="var(--c--contextuals--content--semantic--warning--primary)"
+                  >
+                    {t(
+                      'The model is under heavy load. You can send a new message in {{seconds}}s.',
+                      { seconds: cooldownRemaining },
+                    )}
+                  </Text>
+                </Box>
+              )}
               <textarea
                 ref={textareaRef}
                 aria-label={t('Enter your message or a question')}
+                placeholder={textareaPlaceholder}
                 value={input ?? ''}
                 name="inputchat-textarea"
                 onChange={handleTextareaChange}
@@ -437,13 +538,20 @@ export const InputChat = ({
                 style={textareaStyle}
               />
 
-              {!input && <SuggestionCarousel messagesLength={messagesLength} />}
+              {!input && !textareaPlaceholder && cooldownRemaining <= 0 && (
+                <SuggestionCarousel
+                  messagesLength={messagesLength}
+                  blocked={isAssistantBlocked}
+                  banners={assistantHealth?.banners ?? []}
+                />
+              )}
 
               <input
                 accept={conf?.chat_upload_accept}
                 type="file"
                 multiple
                 ref={fileInputRef}
+                data-testid="chat-file-input"
                 style={{ display: 'none' }}
                 onChange={handleFileChange}
               />
@@ -474,6 +582,7 @@ export const InputChat = ({
                 selectedModel={selectedModel || null}
                 status={status}
                 inputHasContent={Boolean(input?.trim())}
+                sendDisabled={cooldownRemaining > 0}
                 onStop={onStop}
               />
             </Box>

@@ -1,5 +1,3 @@
-import { terminateCrispSession } from '@/services/Crisp';
-
 import { LOGIN_URL, LOGOUT_URL, PATH_AUTH_LOCAL_STORAGE } from './conf';
 
 export const getAuthUrl = () => {
@@ -25,6 +23,5 @@ export const gotoLogin = (withRedirect = true) => {
 };
 
 export const gotoLogout = () => {
-  terminateCrispSession();
   window.location.replace(LOGOUT_URL);
 };

@@ -166,7 +166,7 @@ def test_project_attachment_create_companion_rows_excluded_from_caps(api_client,
     assert "maximum of 1 files" in response.json()["content_type"][0]
 
 
-@mock.patch("chat.views.malware_detection.analyse_file")
+@mock.patch("chat.views.attachments.malware_detection.analyse_file")
 def test_project_backend_upload_files_cap(_mock_malware, api_client, settings):
     """The cap is enforced before the S3 upload on the backend-upload path."""
     settings.PROJECT_FILES_MAX_COUNT = 1
@@ -247,8 +247,8 @@ def test_project_attachment_retrieve_success(api_client, upload_state, expected_
 
 
 @override_settings(POSTHOG_KEY="test_key")
-@mock.patch("chat.views.posthog")
-@mock.patch("chat.views.malware_detection.analyse_file")
+@mock.patch("chat.views.attachments.posthog")
+@mock.patch("chat.views.attachments.malware_detection.analyse_file")
 def test_project_upload_ended_success(mock_analyse_file, mock_posthog, api_client):
     """The 'upload_ended' action should change the attachment state and trigger analysis."""
     attachment = factories.ChatProjectAttachmentFactory(
@@ -582,7 +582,7 @@ def test_project_backend_upload_not_owner_forbidden(api_client):
     assert response.status_code == 404
 
 
-@mock.patch("chat.views.malware_detection.analyse_file")
+@mock.patch("chat.views.attachments.malware_detection.analyse_file")
 def test_project_backend_upload_success(mock_malware, api_client):
     """Test successful backend file upload for a project."""
     project = factories.ChatProjectFactory()
@@ -611,7 +611,7 @@ def test_project_backend_upload_success(mock_malware, api_client):
     mock_malware.assert_called_once()
 
 
-@mock.patch("chat.views.malware_detection.analyse_file")
+@mock.patch("chat.views.attachments.malware_detection.analyse_file")
 def test_project_backend_upload_creates_s3_file(_mock_malware, api_client):
     """Test that backend upload creates file in S3."""
     project = factories.ChatProjectFactory()

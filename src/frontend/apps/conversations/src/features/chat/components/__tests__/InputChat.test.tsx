@@ -14,16 +14,10 @@ jest.mock('@/stores', () => ({
   }),
 }));
 
+const mockUseConfig = jest.fn();
+
 jest.mock('@/core', () => ({
-  useConfig: () => ({
-    data: {
-      FEATURE_FLAGS: {
-        'web-search': 'enabled',
-        'document-upload': 'enabled',
-      },
-      chat_upload_accept: '.pdf,.txt',
-    },
-  }),
+  useConfig: () => mockUseConfig(),
   useFeatureEnabled: () => true,
 }));
 
@@ -49,9 +43,20 @@ jest.mock('../InputChatAction', () => ({
 }));
 
 jest.mock('../SuggestionCarousel', () => ({
-  SuggestionCarousel: () => (
-    <div data-testid="suggestion-carousel">Suggestions</div>
-  ),
+  SuggestionCarousel: ({
+    blocked,
+    banners,
+  }: {
+    blocked?: boolean;
+    banners?: Array<{ title: string; content: string; level: string }>;
+  }) =>
+    blocked && banners?.length ? (
+      <div data-testid="suggestion-carousel">
+        {banners.map((b) => b.title).join(' ')}
+      </div>
+    ) : (
+      <div data-testid="suggestion-carousel">Suggestions</div>
+    ),
 }));
 
 jest.mock('../WelcomeMessage', () => ({
@@ -70,6 +75,12 @@ jest.mock('../../assets/files.svg', () => () => (
   <svg data-testid="files-icon" />
 ));
 
+const mockUseAssistantHealth = jest.fn();
+
+jest.mock('@/features/chat/api/useAssistantHealth', () => ({
+  useAssistantHealth: () => mockUseAssistantHealth(),
+}));
+
 const defaultProps = {
   messagesLength: 0,
   input: '',
@@ -83,6 +94,21 @@ const defaultProps = {
 describe('InputChat', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseAssistantHealth.mockReturnValue({
+      data: {
+        banners: [],
+        blocked: false,
+      },
+    });
+    mockUseConfig.mockReturnValue({
+      data: {
+        FEATURE_FLAGS: {
+          'web-search': 'enabled',
+          'document-upload': 'enabled',
+        },
+        chat_upload_accept: '.pdf,.txt,image/*',
+      },
+    });
   });
 
   it('should render the textarea', () => {
@@ -145,34 +171,34 @@ describe('InputChat', () => {
     expect(handleInputChange).toHaveBeenCalled();
   });
 
-  it('should disable textarea when status is error', () => {
+  it('should keep textarea enabled when status is error', () => {
     render(<InputChat {...defaultProps} status="error" />, {
       wrapper: AppWrapper,
     });
 
     expect(
       screen.getByRole('textbox', { name: 'Enter your message or a question' }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 
-  it('should disable textarea when status is streaming', () => {
+  it('should keep textarea enabled when status is streaming', () => {
     render(<InputChat {...defaultProps} status="streaming" />, {
       wrapper: AppWrapper,
     });
 
     expect(
       screen.getByRole('textbox', { name: 'Enter your message or a question' }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 
-  it('should disable textarea when status is submitted', () => {
+  it('should keep textarea enabled when status is submitted', () => {
     render(<InputChat {...defaultProps} status="submitted" />, {
       wrapper: AppWrapper,
     });
 
     expect(
       screen.getByRole('textbox', { name: 'Enter your message or a question' }),
-    ).toBeDisabled();
+    ).toBeEnabled();
   });
 
   it('should not submit form when pressing Enter and status is streaming', async () => {
@@ -253,5 +279,123 @@ describe('InputChat', () => {
     await user.type(textarea, '{Shift>}{Enter}{/Shift}');
 
     expect(handleSubmit).not.toHaveBeenCalled();
+  });
+
+  it('should show a notice but keep the textarea typeable during an active cooldown', () => {
+    render(<InputChat {...defaultProps} cooldownUntil={Date.now() + 5000} />, {
+      wrapper: AppWrapper,
+    });
+
+    // The user can still draft a message during the cooldown; only sending is blocked.
+    expect(
+      screen.getByRole('textbox', { name: 'Enter your message or a question' }),
+    ).toBeEnabled();
+    expect(screen.getByText(/under heavy load/i)).toBeInTheDocument();
+  });
+
+  it('should keep textarea enabled when the cooldown is already past', () => {
+    render(<InputChat {...defaultProps} cooldownUntil={Date.now() - 1000} />, {
+      wrapper: AppWrapper,
+    });
+
+    expect(
+      screen.getByRole('textbox', { name: 'Enter your message or a question' }),
+    ).toBeEnabled();
+    expect(screen.queryByText(/under heavy load/i)).not.toBeInTheDocument();
+  });
+
+  it('should not submit form when pressing Enter during an active cooldown', async () => {
+    const user = userEvent.setup();
+    const handleSubmit = jest.fn((e) => e.preventDefault());
+    render(
+      <InputChat
+        {...defaultProps}
+        cooldownUntil={Date.now() + 5000}
+        handleSubmit={handleSubmit}
+      />,
+      { wrapper: AppWrapper },
+    );
+
+    const textarea = screen.getByRole('textbox', {
+      name: 'Enter your message or a question',
+    });
+    await user.type(textarea, '{Enter}');
+
+    expect(handleSubmit).not.toHaveBeenCalled();
+  });
+
+  it('should submit form when pressing Enter once the cooldown is past', async () => {
+    const user = userEvent.setup();
+    const handleSubmit = jest.fn((e) => e.preventDefault());
+    render(
+      <InputChat
+        {...defaultProps}
+        cooldownUntil={Date.now() - 1000}
+        handleSubmit={handleSubmit}
+      />,
+      { wrapper: AppWrapper },
+    );
+
+    const textarea = screen.getByRole('textbox', {
+      name: 'Enter your message or a question',
+    });
+    await user.type(textarea, '{Enter}');
+
+    expect(handleSubmit).toHaveBeenCalled();
+  });
+
+  it('should disable textarea when assistantHealth.blocked is true', () => {
+    mockUseAssistantHealth.mockReturnValue({
+      data: { banners: [], blocked: true },
+    });
+    render(<InputChat {...defaultProps} status="ready" />, {
+      wrapper: AppWrapper,
+    });
+    expect(
+      screen.getByRole('textbox', { name: 'Enter your message or a question' }),
+    ).toBeDisabled();
+  });
+
+  it('should keep textarea enabled when assistantHealth.blocked is false', () => {
+    mockUseAssistantHealth.mockReturnValue({
+      data: { banners: [], blocked: false },
+    });
+    render(<InputChat {...defaultProps} status="ready" />, {
+      wrapper: AppWrapper,
+    });
+    expect(
+      screen.getByRole('textbox', { name: 'Enter your message or a question' }),
+    ).toBeEnabled();
+  });
+
+  it('should keep textarea enabled when assistantHealth data is undefined', () => {
+    mockUseAssistantHealth.mockReturnValue({ data: undefined });
+    render(<InputChat {...defaultProps} status="ready" />, {
+      wrapper: AppWrapper,
+    });
+    expect(
+      screen.getByRole('textbox', { name: 'Enter your message or a question' }),
+    ).toBeEnabled();
+  });
+
+  it('should show banner title in placeholder area when blocked is true', () => {
+    mockUseAssistantHealth.mockReturnValue({
+      data: {
+        banners: [
+          { level: 'alert', title: 'Service unavailable', content: '' },
+        ],
+        blocked: true,
+      },
+    });
+    render(<InputChat {...defaultProps} input="" status="ready" />, {
+      wrapper: AppWrapper,
+    });
+    expect(screen.getByText('Service unavailable')).toBeInTheDocument();
+  });
+
+  it('uses the raw chat_upload_accept value on the file input', () => {
+    render(<InputChat {...defaultProps} />, { wrapper: AppWrapper });
+    const fileInput: HTMLInputElement = screen.getByTestId('chat-file-input');
+    expect(fileInput.accept).toBe('.pdf,.txt,image/*');
   });
 });

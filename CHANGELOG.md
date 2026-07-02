@@ -6,7 +6,78 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [unreleased]
+
+### Added
+
+- ✨(back) add model fallback mechanism
+- ✨(back) add celery for running background tasks
+- 🧱(helm) add celery worker and beat deployments
+
+### Changed
+
+- ♻️(back) split chat views and replace hardcoded strings with constants
+ 
+## [0.0.19] - 2026-06-24
+
+### Changed
+
+- 🔧(dependencies) bump backend to Python 3.14 and update pinned dependencies
+- ⬆️(dependencies) update front and mail dependencies
+- ♻️(front) source the home documentation link from config
+- 💄(front) use "L'Assistant" as the default product name
+
+### Fixed
+
+- 🐛(front) keep the app open when using the contact link
+- 💄(front) use semantic warning color for banner icon
+- ✨(back) handle 404 during deletion as successful de-indexing 
+
+## [0.0.18] - 2026-06-12
+
+### Added
+
+- ✨(back) add cron job to poll Albert models health
+- ✨(back) de-index inactive collections and reindex in conversation
+- ✨(back) rate-limit chat with a model-health-aware token cooldown
+- ✨(backend) add sliding window history processor
+- ✨(banner) add dynamic health banners
+- ✨(frontend) display specific error when document parsing fails
+
+### Changed
+
+- 🧱(helm) bump chart to v0.0.6
+- 🚸(front) replace help button with a dropdown menu
+- 🔒️(back) restrict sign-in to users with an allowed OIDC role
+- ♻️(back) rename model health status "orange" to "yellow"
+- 🚸(front) explain the attachment size limit when an upload fails
+
+### Fixed
+
+- 🐛(helm) stop job pods from matching the backend disruption budget
+- 🐛(front) use the browser language for the default UI on first load
+- 💄(settings modal) updated the settings modal size
+
+## [0.0.17] - 2026-06-02
+
+### Added
+
+- ✨(maintenance) add maintenance mode
+
+### Changed
+
+- 🔒️(front) disable yarn install scripts in docker build
+- ⬆️(dependencies) update back and front dependencies
+- 🚸(back) improve chat admin filtering, search and display columns
+
+### Fixed
+
+- 🐛(backend) remove user list endpoint
+
+### Added
+- ✨(frontend): display specific error when LLM provider is down
+
+## [0.0.16] - 2026-05-21
 
 ### Added
 
@@ -23,9 +94,9 @@ and this project adheres to
 ### Changed
 
 - ✨(settings) new settings modal
+- ✨(front) allow typing while LLM is generating a response
 - 🐛(fix) source links should open a new tab
 - 💄(ui) codeblock light mode
-- ✨(front) allow typing while LLM is generating a response
 - ⬆️(dependencies) update back and front dependencies
 - 💄(ui) new header
 - ✨(back) add debug mode setup for local development
@@ -36,6 +107,7 @@ and this project adheres to
 - ⬆️(back) upgrade lxml and pypdf
 - ✨(back) set allow_smart_web_search to False for all users
 - ✨(back) make allow_conversation_analytics user setting readonly in admin
+- 🚸(front) switch to new conversation when creating a project
 
 ### Fixed
 
@@ -46,7 +118,9 @@ and this project adheres to
 - 🐛(fix) Fix streaming crash with OpenAI-compatible APIs
 - 🐛(fix) strip thinking part for models without reasoning support
 - ✨(dev) setup Tilt for local development
- - 🐛(front) project modal now respects document-upload feature flag
+- 🐛(front) project modal now respects document-upload feature flag
+- 🐛(back) self-doc tool no longer triggers on generic or document questions
+- 🐛(backend) improve url hallucination instruction
 
 ## [0.0.15] - 2026-03-31
 
@@ -301,7 +375,11 @@ and this project adheres to
 - ✨(onboarding) add activation code logic for launch #62
 - 💄(chat) add code highlighting for LLM responses #67
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.15...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.19...main
+[0.0.19]: https://github.com/suitenumerique/conversations/releases/v0.0.19
+[0.0.18]: https://github.com/suitenumerique/conversations/releases/v0.0.18
+[0.0.17]: https://github.com/suitenumerique/conversations/releases/v0.0.17
+[0.0.16]: https://github.com/suitenumerique/conversations/releases/v0.0.16
 [0.0.15]: https://github.com/suitenumerique/conversations/releases/v0.0.15
 [0.0.14]: https://github.com/suitenumerique/conversations/releases/v0.0.14
 [0.0.13]: https://github.com/suitenumerique/conversations/releases/v0.0.13

@@ -8,6 +8,7 @@
       "profile": null,
       "settings": {},
       "is_active": true,
+      "supports_image": true,
       "icon": [
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAn1BMVEUALosAKoovTZjw8vb////+9/jlPUniAAz",
         "iABUAGIWbpsTwq7HhAAAAI4dle7DrdX4AJohRaaboXWj7+/zn6On5//9NZaT29vfoWmVHYKDoUl/k5OUAIYddc6vpbHYCM47Y3+v53+LiFCUA",

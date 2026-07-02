@@ -1,4 +1,13 @@
+import { navigate } from '@/utils/system';
+
 import { attemptSilentLogin, canAttemptSilentLogin } from '../silentLogin';
+
+jest.mock('@/utils/system', () => ({
+  ...jest.requireActual('@/utils/system'),
+  navigate: jest.fn(),
+}));
+
+const mockNavigate = jest.mocked(navigate);
 
 const SILENT_LOGIN_RETRY_KEY = 'silent-login-retry';
 
@@ -6,10 +15,7 @@ describe('silentLogin', () => {
   beforeEach(() => {
     localStorage.clear();
     jest.useFakeTimers();
-    Object.defineProperty(window, 'location', {
-      value: { ...window.location, href: '' },
-      writable: true,
-    });
+    mockNavigate.mockClear();
   });
 
   afterEach(() => {
@@ -51,19 +57,21 @@ describe('silentLogin', () => {
 
     it('redirects to the silent auth URL', () => {
       attemptSilentLogin(30);
-      expect(window.location.href).toContain('authenticate');
-      expect(window.location.href).toContain('silent=true');
+      expect(mockNavigate).toHaveBeenCalledTimes(1);
+      const target = mockNavigate.mock.calls[0][0];
+      expect(target).toContain('authenticate');
+      expect(target).toContain('silent=true');
     });
 
     it('does nothing if retry is not allowed', () => {
       jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
       attemptSilentLogin(30);
-      window.location.href = '';
+      mockNavigate.mockClear();
 
       jest.setSystemTime(new Date('2026-01-01T00:00:10Z'));
       attemptSilentLogin(30);
 
-      expect(window.location.href).toBe('');
+      expect(mockNavigate).not.toHaveBeenCalled();
     });
   });
 });

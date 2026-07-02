@@ -1,7 +1,9 @@
 """Admin classes and registrations for core app."""
 
-from django.contrib import admin
+from django.conf import settings
+from django.contrib import admin, messages
 from django.contrib.auth import admin as auth_admin
+from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 
 from solo.admin import SingletonModelAdmin
@@ -32,6 +34,7 @@ class UserAdmin(auth_admin.UserAdmin):
                     "email",
                     "full_name",
                     "short_name",
+                    "organization_siret",
                     "language",
                     "timezone",
                     "allow_smart_web_search",
@@ -69,6 +72,7 @@ class UserAdmin(auth_admin.UserAdmin):
         "full_name",
         "admin_email",
         "email",
+        "organization_siret",
         "is_active",
         "allow_smart_web_search",
         "allow_conversation_analytics",
@@ -100,6 +104,7 @@ class UserAdmin(auth_admin.UserAdmin):
         "email",
         "full_name",
         "short_name",
+        "organization_siret",
         "created_at",
         "updated_at",
         "allow_smart_web_search",
@@ -111,7 +116,34 @@ class UserAdmin(auth_admin.UserAdmin):
         "admin_email",
         "email",
         "full_name",
+        "organization_siret",
     )
+
+
+@admin.register(models.ModelHealthSettings)
+class ModelHealthSettingsAdmin(SingletonModelAdmin):
+    """Admin for the ModelHealthSettings singleton."""
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Local import: core -> chat would be a startup cycle.
+        from chat.model_health import (  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
+            set_fallback_eviction_threshold,
+            set_main_eviction_threshold,
+        )
+
+        # Defer cache writes until the admin's atomic block commits, so a
+        # later rollback in the same request can't leave the cache pointing
+        # at a value that was never durably saved.
+        main_value = obj.main_eviction_threshold
+        fallback_value = obj.fallback_eviction_threshold
+        transaction.on_commit(lambda: set_main_eviction_threshold(main_value))
+        transaction.on_commit(lambda: set_fallback_eviction_threshold(fallback_value))
+
+
+@admin.register(models.ChatCooldownSettings)
+class ChatCooldownSettingsAdmin(SingletonModelAdmin):
+    """Admin for the ChatCooldownSettings singleton."""
 
 
 @admin.register(models.SiteConfiguration)
@@ -146,4 +178,45 @@ class SiteConfigurationAdmin(SingletonModelAdmin):
                 ),
             },
         ),
+        (
+            _("Assistant"),
+            {
+                "fields": ("block_on_full_outage",),
+            },
+        ),
     )
+
+
+@admin.register(models.MaintenanceMode)
+class MaintenanceModeAdmin(SingletonModelAdmin):
+    """Admin class for the MaintenanceMode singleton."""
+
+    fields = ("enabled", "message", "starts_at", "ends_at", "updated_at", "updated_by")
+    readonly_fields = ("updated_at", "updated_by")
+
+    def save_model(self, request, obj, form, change):
+        obj.updated_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        if settings.MAINTENANCE_MODE:
+            messages.warning(
+                request,
+                _(
+                    "The MAINTENANCE_MODE environment variable is set: maintenance is "
+                    "forced ON regardless of the value below."
+                ),
+            )
+        return super().changeform_view(request, object_id, form_url, extra_context)
+
+
+@admin.register(models.AccessBypassEmail)
+class AccessBypassEmailAdmin(admin.ModelAdmin):
+    """Admin class for the access bypass email allow-list."""
+
+    list_display = ("email", "is_active", "expires_at", "created_at")
+    list_filter = ("is_active",)
+    search_fields = ("email", "note")
+    ordering = ("-created_at",)
+    readonly_fields = ("id", "created_at", "updated_at")
+    fields = ("email", "is_active", "note", "expires_at", "id", "created_at", "updated_at")

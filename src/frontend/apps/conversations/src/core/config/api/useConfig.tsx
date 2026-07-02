@@ -28,12 +28,19 @@ export interface StatusBanner {
   content: string;
 }
 
+export interface MaintenanceConfig {
+  enabled: boolean;
+  message?: string | null;
+}
+
 export interface ConfigResponse {
   ACTIVATION_REQUIRED: boolean;
-  CRISP_WEBSITE_ID?: string;
+  STATUS_PAGE_URL?: string | null;
   ENVIRONMENT: string;
   FEATURE_FLAGS: FeatureFlags;
   FRONTEND_CSS_URL?: string;
+  FRONTEND_CONTACT_EMAIL?: string;
+  FRONTEND_DOCUMENTATION_URL?: string;
   FRONTEND_HOMEPAGE_FEATURE_ENABLED?: boolean;
   FRONTEND_THEME?: BaseTheme;
   LANGUAGES: [string, string][];
@@ -45,9 +52,11 @@ export interface ConfigResponse {
   FRONTEND_SILENT_LOGIN_ENABLED?: boolean;
   theme_customization?: ThemeCustomization;
   status_banner?: StatusBanner;
+  maintenance?: MaintenanceConfig | null;
   chat_upload_accept?: string;
   project_files_max_count?: number;
   project_images_max_count?: number;
+  attachment_max_size?: number;
 }
 
 const LOCAL_STORAGE_KEY = 'conversations_config';

@@ -1,9 +1,17 @@
 """Global fixtures for the backend tests."""
 
+import freezegun
 import posthog
 import pytest
 from rest_framework.test import APIClient
 from urllib3.connectionpool import HTTPConnectionPool
+
+# freeze_time() scans every loaded module's attributes via getattr(), which
+# triggers langfuse.api's lazy __getattr__-based submodule imports. If that
+# first-time import of a langfuse pydantic model happens while datetime is
+# already patched, schema generation for its datetime field breaks
+# permanently for the rest of the worker process. Skip scanning langfuse.
+freezegun.configure(extend_ignore_list=["langfuse"])
 
 
 @pytest.fixture

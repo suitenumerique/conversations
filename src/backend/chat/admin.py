@@ -1,24 +1,33 @@
 """Admin classes and registrations for chat application."""
 
 from django.contrib import admin
+from django.db.models import OuterRef, Subquery
 
 from . import models
+from .model_health import set_model_health
 
 
 @admin.register(models.ChatConversation)
 class ChatConversationAdmin(admin.ModelAdmin):
     """Admin class for the ChatConversation model"""
 
-    search_fields = ("id", "title", "owner__email", "owner__sub")
+    search_fields = ("id", "title", "owner__email", "owner__sub", "project__title")
     ordering = ("-updated_at",)
+    date_hierarchy = "created_at"
 
     autocomplete_fields = ("owner", "project")
-    list_select_related = ("project",)
+    list_select_related = ("owner", "project")
+    list_filter = (
+        ("project", admin.EmptyFieldListFilter),
+        ("collection_id", admin.EmptyFieldListFilter),
+    )
 
     list_display = (
         "id",
         "title",
+        "owner",
         "project",
+        "collection_id",
         "created_at",
         "updated_at",
     )
@@ -29,33 +38,84 @@ class ChatConversationAttachmentAdmin(admin.ModelAdmin):
     """Admin class for the ChatConversationAttachment model"""
 
     search_fields = (
+        "id",
         "conversation__id",
         "project__id",
         "file_name",
+        "key",
+        "rag_document_id",
+        "uploaded_by__email",
     )
     ordering = ("-created_at",)
+    date_hierarchy = "created_at"
     list_per_page = 50
     show_full_result_count = False
     readonly_fields = ("content_type", "upload_state", "size")
     list_display = (
         "id",
         "file_name",
+        "scope",
         "content_type",
         "upload_state",
         "size",
         "conversation",
         "project",
         "uploaded_by",
+        "rag_document_id",
+        "conversion_from",
         "created_at",
         "updated_at",
     )
     autocomplete_fields = ("conversation", "project", "uploaded_by")
-    list_filter = ("content_type",)
+    list_filter = (
+        "content_type",
+        ("rag_document_id", admin.EmptyFieldListFilter),
+        ("conversion_from", admin.EmptyFieldListFilter),
+    )
     list_select_related = (
         "conversation",
         "project",
         "uploaded_by",
     )
+
+    @admin.display(description="Scope")
+    def scope(self, obj):
+        """Show whether the attachment is owned by a conversation or a project."""
+        if obj.conversation_id:
+            return "conversation"
+        if obj.project_id:
+            return "project"
+        return "-"
+
+
+@admin.register(models.ModelHealth)
+class ModelHealthAdmin(admin.ModelAdmin):
+    """Read-only admin showing the latest health status per (provider, model)."""
+
+    list_display = ("provider", "model_id", "status", "created_at", "updated_at")
+    list_filter = ("provider", "status")
+    readonly_fields = ("provider", "model_id", "created_at", "updated_at")
+
+    def get_queryset(self, request):
+        latest_id = (
+            models.ModelHealth.objects.filter(
+                provider=OuterRef("provider"), model_id=OuterRef("model_id")
+            )
+            .order_by("-updated_at")
+            .values("id")[:1]
+        )
+        return super().get_queryset(request).filter(id=Subquery(latest_id))
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        """Persist the record and mirror the new status into the cache that readers use."""
+        super().save_model(request, obj, form, change)
+        set_model_health(obj.provider, obj.model_id, obj.status)
 
 
 @admin.register(models.ChatProject)
@@ -64,6 +124,7 @@ class ChatProjectAdmin(admin.ModelAdmin):
 
     search_fields = ("id", "title")
     ordering = ("-updated_at",)
+    date_hierarchy = "created_at"
     list_filter = ("color", "icon")
     autocomplete_fields = ("owner",)
     list_select_related = ("owner",)
@@ -71,6 +132,7 @@ class ChatProjectAdmin(admin.ModelAdmin):
         "id",
         "title",
         "owner",
+        "collection_id",
         "icon",
         "color",
         "created_at",

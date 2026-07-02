@@ -22,7 +22,7 @@ export function nextConfig({ tsconfigRootDir, nextRootDir }) {
     },
 
     // Next.js plugin
-    nextPlugin.flatConfig.recommended,
+    nextPlugin.configs.recommended,
 
     // React
     reactPlugin.configs.flat.recommended,

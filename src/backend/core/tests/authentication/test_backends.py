@@ -3,9 +3,11 @@
 import json
 import random
 import re
+from datetime import timedelta
 
 from django.core.exceptions import SuspiciousOperation
 from django.test.utils import override_settings
+from django.utils import timezone
 
 import pytest
 import responses
@@ -13,8 +15,8 @@ from cryptography.fernet import Fernet
 from lasuite.oidc_login.backends import get_oidc_refresh_token
 
 from core import models
-from core.authentication.backends import OIDCAuthenticationBackend
-from core.factories import UserFactory
+from core.authentication.backends import OIDCAuthenticationBackend, OIDCRoleAccessDenied
+from core.factories import AccessBypassEmailFactory, UserFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -626,3 +628,342 @@ def test_authentication_user_added_to_brevo(monkeypatch, rf, settings):
 
     assert len(brevo_create_contact.calls) == 1  # No new call made
     assert len(brevo_add_to_list.calls) == 1  # No new call made
+
+
+@responses.activate
+def test_authentication_user_not_added_to_brevo_without_list_id(monkeypatch, rf, settings):
+    """
+    Test that no Brevo call is made when BREVO_FOLLOWUP_LIST_ID is not configured.
+    """
+    settings.OIDC_OP_TOKEN_ENDPOINT = "http://oidc.endpoint.test/token"
+    settings.OIDC_OP_USER_ENDPOINT = "http://oidc.endpoint.test/userinfo"
+    settings.OIDC_OP_JWKS_ENDPOINT = "http://oidc.endpoint.test/jwks"
+
+    settings.BREVO_API_KEY = "test-api-key"
+    settings.BREVO_FOLLOWUP_LIST_ID = None
+    settings.ACTIVATION_REQUIRED = False
+
+    brevo_create_contact = responses.post(
+        "https://api.brevo.com/v3/contacts",
+        status=200,
+    )
+
+    klass = OIDCAuthenticationBackend()
+    request = rf.get("/some-url", {"state": "test-state", "code": "test-code"})
+    request.session = {}
+
+    def verify_token_mocked(*args, **kwargs):
+        return {"sub": "123", "email": "test@example.com"}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "verify_token", verify_token_mocked)
+
+    responses.add(
+        responses.POST,
+        re.compile(settings.OIDC_OP_TOKEN_ENDPOINT),
+        json={
+            "access_token": "test-access-token",
+            "refresh_token": "test-refresh-token",
+        },
+        status=200,
+    )
+
+    responses.add(
+        responses.GET,
+        re.compile(settings.OIDC_OP_USER_ENDPOINT),
+        json={"sub": "123", "email": "test@example.com"},
+        status=200,
+    )
+
+    user = klass.authenticate(
+        request,
+        code="test-code",
+        nonce="test-nonce",
+        code_verifier="test-code-verifier",
+    )
+
+    assert user is not None
+    assert len(brevo_create_contact.calls) == 0
+
+
+@responses.activate
+def test_authentication_role_denied_user_not_added_to_brevo(monkeypatch, rf, settings):
+    """
+    Test that a user denied by the role gate is not added to the Brevo list.
+    """
+    settings.OIDC_OP_TOKEN_ENDPOINT = "http://oidc.endpoint.test/token"
+    settings.OIDC_OP_USER_ENDPOINT = "http://oidc.endpoint.test/userinfo"
+    settings.OIDC_OP_JWKS_ENDPOINT = "http://oidc.endpoint.test/jwks"
+
+    settings.BREVO_API_KEY = "test-api-key"
+    settings.BREVO_FOLLOWUP_LIST_ID = "follow-up-list-id"
+    settings.ACTIVATION_REQUIRED = False
+    settings.OIDC_ALLOWED_ROLES = ["agent_public_etat"]
+
+    brevo_create_contact = responses.post(
+        "https://api.brevo.com/v3/contacts",
+        status=200,
+    )
+    brevo_add_to_list = responses.post(
+        "https://api.brevo.com/v3/contacts/lists/follow-up-list-id/contacts/add",
+        status=200,
+    )
+
+    klass = OIDCAuthenticationBackend()
+    request = rf.get("/some-url", {"state": "test-state", "code": "test-code"})
+    request.session = {}
+
+    def verify_token_mocked(*args, **kwargs):
+        return {"sub": "123", "email": "test@example.com", "roles": ["user"]}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "verify_token", verify_token_mocked)
+
+    responses.add(
+        responses.POST,
+        re.compile(settings.OIDC_OP_TOKEN_ENDPOINT),
+        json={
+            "access_token": "test-access-token",
+            "refresh_token": "test-refresh-token",
+        },
+        status=200,
+    )
+
+    responses.add(
+        responses.GET,
+        re.compile(settings.OIDC_OP_USER_ENDPOINT),
+        json={"sub": "123", "email": "test@example.com", "roles": ["user"]},
+        status=200,
+    )
+
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.authenticate(
+            request,
+            code="test-code",
+            nonce="test-nonce",
+            code_verifier="test-code-verifier",
+        )
+
+    assert len(brevo_create_contact.calls) == 0
+    assert len(brevo_add_to_list.calls) == 0
+
+
+@override_settings(OIDC_ALLOWED_ROLES=[])
+def test_verify_claims_no_allowed_roles_setting_allows_any_user():
+    """With OIDC_ALLOWED_ROLES empty, any user passing essential claims is allowed."""
+    klass = OIDCAuthenticationBackend()
+
+    assert klass.verify_claims({"sub": "123"}) is True
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
+def test_verify_claims_user_with_required_role_allowed():
+    """A user whose 'roles' claim contains a required role is allowed."""
+    klass = OIDCAuthenticationBackend()
+
+    assert klass.verify_claims({"sub": "123", "roles": ["other", "agent_public_etat"]}) is True
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
+def test_verify_claims_user_without_required_role_denied():
+    """A user whose 'roles' claim lacks every required role is denied."""
+    klass = OIDCAuthenticationBackend()
+
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims({"sub": "123", "roles": ["other"]})
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
+def test_verify_claims_user_without_roles_claim_denied():
+    """A user with no 'roles' claim at all is denied when a role is required."""
+    klass = OIDCAuthenticationBackend()
+
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims({"sub": "123"})
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
+def test_verify_claims_bypass_allows_user_without_role():
+    """A role-less user whose email is on the active bypass list is allowed."""
+    AccessBypassEmailFactory(email="bypass@example.com")
+    klass = OIDCAuthenticationBackend()
+
+    assert (
+        klass.verify_claims({"sub": "123", "email": "bypass@example.com", "roles": ["user"]})
+        is True
+    )
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
+def test_verify_claims_bypass_is_case_insensitive():
+    """The bypass match ignores email casing."""
+    AccessBypassEmailFactory(email="bypass@example.com")
+    klass = OIDCAuthenticationBackend()
+
+    assert (
+        klass.verify_claims({"sub": "123", "email": "ByPass@Example.COM", "roles": ["user"]})
+        is True
+    )
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
+def test_verify_claims_inactive_bypass_is_denied():
+    """An inactive bypass entry does not grant access."""
+    AccessBypassEmailFactory(email="bypass@example.com", is_active=False)
+    klass = OIDCAuthenticationBackend()
+
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims({"sub": "123", "email": "bypass@example.com", "roles": ["user"]})
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
+def test_verify_claims_expired_bypass_is_denied():
+    """An expired bypass entry does not grant access."""
+    AccessBypassEmailFactory(
+        email="bypass@example.com",
+        expires_at=timezone.now() - timedelta(days=1),
+    )
+    klass = OIDCAuthenticationBackend()
+
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims({"sub": "123", "email": "bypass@example.com", "roles": ["user"]})
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
+def test_verify_claims_future_expiry_bypass_is_allowed():
+    """A bypass entry with a future expiry still grants access."""
+    AccessBypassEmailFactory(
+        email="bypass@example.com",
+        expires_at=timezone.now() + timedelta(days=1),
+    )
+    klass = OIDCAuthenticationBackend()
+
+    assert (
+        klass.verify_claims({"sub": "123", "email": "bypass@example.com", "roles": ["user"]})
+        is True
+    )
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
+def test_verify_claims_email_not_on_bypass_is_denied():
+    """A role-less user whose email is not on the bypass list is denied."""
+    AccessBypassEmailFactory(email="someone-else@example.com")
+    klass = OIDCAuthenticationBackend()
+
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims({"sub": "123", "email": "bypass@example.com", "roles": ["user"]})
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
+def test_existing_user_who_lost_required_role_is_denied_on_signin(monkeypatch):
+    """An already-onboarded user whose role was revoked is denied at sign-in.
+
+    The role is re-checked on every authentication: ``verify_claims`` runs
+    before the existing-user lookup, so signing up with the role does not
+    grandfather access once the role is removed in the IdP.
+    """
+    klass = OIDCAuthenticationBackend()
+    db_user = UserFactory()
+
+    def get_userinfo_mocked(*args):
+        return {"sub": db_user.sub, "email": db_user.email, "roles": ["user"]}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "get_userinfo", get_userinfo_mocked)
+
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
+def test_existing_user_who_lost_role_but_on_bypass_can_signin(monkeypatch):
+    """A role-revoked existing user is still let in if on the bypass list."""
+    klass = OIDCAuthenticationBackend()
+    db_user = UserFactory()
+    AccessBypassEmailFactory(email=db_user.email)
+
+    def get_userinfo_mocked(*args):
+        return {"sub": db_user.sub, "email": db_user.email, "roles": ["user"]}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "get_userinfo", get_userinfo_mocked)
+
+    user = klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
+
+    assert user == db_user
+
+
+def test_get_extra_claims_maps_siret_to_organization_siret():
+    """The 'siret' claim is exposed as the 'organization_siret' user field."""
+    klass = OIDCAuthenticationBackend()
+
+    extra = klass.get_extra_claims({"sub": "123", "siret": "12345678901234"})
+
+    assert extra["organization_siret"] == "12345678901234"
+
+
+def test_get_extra_claims_without_siret_is_empty():
+    """A missing 'siret' claim maps to an empty string rather than raising."""
+    klass = OIDCAuthenticationBackend()
+
+    extra = klass.get_extra_claims({"sub": "123"})
+
+    assert extra["organization_siret"] == ""
+
+
+def test_get_extra_claims_strips_surrounding_whitespace_from_siret():
+    """A well-formed SIRET with surrounding whitespace is stored trimmed."""
+    klass = OIDCAuthenticationBackend()
+
+    extra = klass.get_extra_claims({"sub": "123", "siret": "  12345678901234  "})
+
+    assert extra["organization_siret"] == "12345678901234"
+
+
+@pytest.mark.parametrize("value", ["123", "1234567890123A", "1234 5678 9012 34", ""])
+def test_get_extra_claims_drops_malformed_siret(value):
+    """A SIRET that is not exactly 14 digits maps to an empty string."""
+    klass = OIDCAuthenticationBackend()
+
+    extra = klass.get_extra_claims({"sub": "123", "siret": value})
+
+    assert extra["organization_siret"] == ""
+
+
+def test_signin_stores_siret_on_new_user(monkeypatch):
+    """A new user signing in with a 'siret' claim gets it stored."""
+    klass = OIDCAuthenticationBackend()
+
+    def get_userinfo_mocked(*args):
+        return {"sub": "new-sub", "email": "new@example.com", "siret": "12345678901234"}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "get_userinfo", get_userinfo_mocked)
+
+    user = klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
+
+    assert user.organization_siret == "12345678901234"
+
+
+def test_signin_without_siret_does_not_break(monkeypatch):
+    """Signing in without a 'siret' claim succeeds and leaves the field empty."""
+    klass = OIDCAuthenticationBackend()
+
+    def get_userinfo_mocked(*args):
+        return {"sub": "new-sub", "email": "new@example.com"}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "get_userinfo", get_userinfo_mocked)
+
+    user = klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
+
+    assert user.organization_siret == ""
+
+
+def test_existing_user_siret_is_refreshed_on_signin(monkeypatch):
+    """A changed 'siret' claim updates the stored value on the next login."""
+    klass = OIDCAuthenticationBackend()
+    db_user = UserFactory(organization_siret="11111111111111")
+
+    def get_userinfo_mocked(*args):
+        return {"sub": db_user.sub, "email": db_user.email, "siret": "22222222222222"}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "get_userinfo", get_userinfo_mocked)
+
+    user = klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
+
+    assert user.organization_siret == "22222222222222"
