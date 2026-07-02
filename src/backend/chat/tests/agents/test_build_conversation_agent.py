@@ -33,7 +33,6 @@ def base_settings(settings):
     settings.AI_API_KEY = "test-key"
     settings.AI_MODEL = "model-123"
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
-    settings.AI_AGENT_TOOLS = []
 
 
 def test_build_pydantic_agent_success_no_tools():

@@ -2,21 +2,9 @@
 
 # pylint: disable=protected-access
 
-import pytest
 from pydantic_ai.models.openai import OpenAIChatModel
 
 from chat.agents.conversation import TitleGenerationAgent
-
-
-@pytest.fixture(autouse=True)
-def base_settings(settings):
-    """Set up base settings for the tests."""
-    settings.AI_BASE_URL = "https://api.llm.com/v1/"
-    settings.AI_API_KEY = "test-key"
-    settings.AI_MODEL = "model-XYZ"
-    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
-    settings.AI_AGENT_TOOLS = []
-    settings.LLM_DEFAULT_MODEL_HRID = "default-model"
 
 
 def test_title_generation_agent_uses_default_model_hrid(settings):
@@ -24,7 +12,6 @@ def test_title_generation_agent_uses_default_model_hrid(settings):
     settings.AI_MODEL = "custom-llm-model"
     settings.AI_BASE_URL = "https://custom.api.com/v1/"
     settings.AI_API_KEY = "custom-key"
-    settings.LLM_DEFAULT_MODEL_HRID = "default-model"
 
     agent = TitleGenerationAgent()
 
@@ -38,9 +25,9 @@ def test_title_generation_agent_model_configuration():
     agent = TitleGenerationAgent()
 
     assert isinstance(agent._model, OpenAIChatModel)
-    assert agent._model.model_name == "model-XYZ"
-    assert str(agent._model.client.base_url) == "https://api.llm.com/v1/"
-    assert agent._model.client.api_key == "test-key"
+    assert agent._model.model_name == "test-model"
+    assert str(agent._model.client.base_url) == "https://www.external-ai-service.com/"
+    assert agent._model.client.api_key == "test-api-key"
 
 
 def test_title_generation_agent_has_no_tools():

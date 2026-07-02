@@ -32,8 +32,6 @@ def authenticated_client(client, db):
 @pytest.fixture(autouse=True)
 def patch_llm_settings(settings):
     settings.LLM_DEFAULT_MODEL_HRID = "main-model"
-    settings.LLM_FALLBACK_MODEL_HRID_1 = ""
-    settings.LLM_FALLBACK_MODEL_HRID_2 = ""
     settings.LLM_CONFIGURATIONS = {
         "main-model": _make_model("llama3-8b"),
         "fallback-1": _make_model("mistral-7b"),

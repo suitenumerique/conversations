@@ -77,7 +77,6 @@ def test_env_var_forces_active_even_if_db_disabled():
     assert is_maintenance_active() is True
 
 
-@override_settings(MAINTENANCE_MODE=False)
 def test_db_only_when_env_off():
     """With env off, the DB singleton state alone drives the flag."""
     config = models.MaintenanceMode.get_solo()

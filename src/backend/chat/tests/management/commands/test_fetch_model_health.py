@@ -15,22 +15,19 @@ from core.models import ModelHealthSettings
 
 from chat.models import ModelHealth
 
-ALBERT_HEALTH_URL = "https://albert.test.fr/health/models"
+# Matches the ALBERT_HEALTH_URL default in the Test settings class.
+ALBERT_HEALTH_URL = "https://albert.api.etalab.gouv.fr/health/models"
 
 
 @pytest.fixture(autouse=True)
-def albert_settings(settings, clear_cache):  # pylint: disable=unused-argument
-    """Set common Albert API settings shared by all tests."""
-    settings.ALBERT_HEALTH_URL = ALBERT_HEALTH_URL
-    settings.ALBERT_HEALTH_TIMEOUT = 10
+def _clear_cache_between_tests(clear_cache):  # pylint: disable=unused-argument
+    """Reset the cache shared by all tests."""
 
 
 @pytest.mark.django_db
 @responses_lib.activate
-def test_fetch_model_health_inserts_rows_and_sets_cache(settings):
+def test_fetch_model_health_inserts_rows_and_sets_cache():
     """On success: one DB row per model + Redis key set, Bearer token sent."""
-    settings.ALBERT_API_KEY = "test-api-key"
-
     responses_lib.add(
         responses_lib.GET,
         ALBERT_HEALTH_URL,
@@ -44,7 +41,7 @@ def test_fetch_model_health_inserts_rows_and_sets_cache(settings):
 
     call_command("fetch_model_health", "--provider", "albert")
 
-    assert responses_lib.calls[0].request.headers["Authorization"] == "Bearer test-api-key"
+    assert responses_lib.calls[0].request.headers["Authorization"] == "Bearer test-key"
     assert ModelHealth.objects.count() == 2
     row = ModelHealth.objects.get(provider="albert", model_id="BAAI/bge-m3")
     assert row.status == "green"

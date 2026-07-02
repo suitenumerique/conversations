@@ -1416,18 +1416,150 @@ class Test(Base):
 
     os.environ["OPENAI_AGENTS_DISABLE_TRACING"] = "true"
 
-    AI_BASE_URL = None
-    AI_API_KEY = None
-    AI_MODEL = None
+    # -------------------------------------------------------------------------
+    # Deterministic test settings.
+    #
+    # Tests get a dedicated, controlled environment: the ``app-test`` compose
+    # service (docker ``make test``) and pytest-dotenv (host / CI) load
+    # ``env.d/test`` instead of the developer-local ``env.d/development/common``.
+    # With that file gone, every setting Base derives from an environment
+    # variable falls back to Base's coded default, which is already
+    # deterministic. ``env.d/test`` only overrides the handful of settings whose
+    # Base default is unusable in tests (secrets, service credentials, provider
+    # endpoints/models); see that file.
+    #
+    # What stays pinned here is what is genuinely test-specific and NOT env
+    # -backed in Base:
+    #   - infra topology (Postgres, MinIO) describes the network, not behavior:
+    #     it defaults to the docker-compose hostnames but stays env-overridable
+    #     so pytest also runs on the host / in CI (repo-root .env or the CI job
+    #     env point at the published ports);
+    #   - test-only backends and structures (dummy malware backend, DRF/OpenAPI,
+    #     CORS headers, storages);
+    #   - the large AI/RAG prompts kept as short placeholders (the real ones are
+    #     only exercised by tests that override them explicitly).
+    #
+    # chat/tests/test_settings_isolation.py asserts the resulting settings are
+    # deterministic.
+    # -------------------------------------------------------------------------
 
-    # Pin to no role restriction so tests are deterministic regardless of the
-    # developer's local env (which may set OIDC_ALLOWED_ROLES); tests that need
-    # the restriction set it explicitly via override_settings.
-    OIDC_ALLOWED_ROLES = []
+    # -- Infra: docker-compose topology by default, env-overridable ------------
+    # Tests run from two vantage points: inside docker (DB_HOST=postgresql via
+    # the app-test service defaults) and on the host / CI (DB_HOST=localhost via
+    # the repo-root .env or the CI job env).
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql_psycopg2",
+            "NAME": "conversations",
+            "USER": "dinum",
+            "PASSWORD": "pass",
+            "HOST": os.environ.get("DB_HOST", "postgresql"),
+            "PORT": int(os.environ.get("DB_PORT", "5432")),
+        }
+    }
 
-    POSTHOG_KEY = None
+    STORAGES = {
+        "default": {"BACKEND": "storages.backends.s3.S3Storage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    }
 
-    AUTO_TITLE_AFTER_USER_MESSAGES = None
+    # AWS_S3_ENDPOINT_URL: docker default is the compose MinIO host; the repo
+    # -root .env / CI job env point it at the published port.
+    AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL", "http://minio:9000")
+
+    # -- Attachments: dummy malware backend ------------------------------------
+    MALWARE_DETECTION = {
+        "BACKEND": "lasuite.malware_detection.backends.dummy.DummyBackend",
+        "PARAMETERS": {
+            "callback_path": ("core.file_upload.malware_detection.malware_detection_callback"),
+        },
+    }
+
+    # -- DRF / OpenAPI ---------------------------------------------------------
+    REST_FRAMEWORK = {
+        "DEFAULT_AUTHENTICATION_CLASSES": (
+            "mozilla_django_oidc.contrib.drf.OIDCAuthentication",
+            "rest_framework.authentication.SessionAuthentication",
+        ),
+        "DEFAULT_PARSER_CLASSES": [
+            "rest_framework.parsers.JSONParser",
+            "nested_multipart_parser.drf.DrfNestedParser",
+        ],
+        "DEFAULT_RENDERER_CLASSES": [
+            "rest_framework.renderers.JSONRenderer",
+        ],
+        "EXCEPTION_HANDLER": "core.api.exception_handler",
+        "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+        "PAGE_SIZE": 20,
+        "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
+        "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+        "DEFAULT_THROTTLE_RATES": {
+            "attachment_upload": "60/minute",
+            "attachment_auth": "60/minute",
+            "file-stream": "60/minute",
+        },
+    }
+
+    SPECTACULAR_SETTINGS = {
+        "TITLE": "Conversations API",
+        "DESCRIPTION": "This is the conversations API schema.",
+        "VERSION": "1.0.0",
+        "SERVE_INCLUDE_SCHEMA": False,
+        "ENABLE_DJANGO_DEPLOY_CHECK": False,
+        "COMPONENT_SPLIT_REQUEST": True,
+        "SWAGGER_UI_DIST": "SIDECAR",
+        "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+        "REDOC_DIST": "SIDECAR",
+    }
+
+    # -- CORS ------------------------------------------------------------------
+    CORS_ALLOW_HEADERS = [
+        "x-posthog-distinct-id",
+        "x-posthog-session-id",
+    ] + list(default_headers)
+
+    # -- AI / RAG prompt placeholders ------------------------------------------
+    # Kept as short placeholders instead of Base's large production prompts;
+    # tests that assert on prompt content override these explicitly.
+    AI_AGENT_INSTRUCTIONS = "You are a helpful assistant."
+
+    RAG_WEB_SEARCH_PROMPT_UPDATE = (
+        "Answer using the search results:\n{search_results}\nQuestion: {user_prompt}"
+    )
+
+    # -- Logging ---------------------------------------------------------------
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "simple": {
+                "format": "{asctime} {name} {levelname} {message}",
+                "style": "{",
+            },
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "simple",
+            },
+        },
+        "root": {
+            "handlers": ["console"],
+            "level": "INFO",
+        },
+        "loggers": {
+            "core": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "conversations.security": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+        },
+    }
 
     def __init__(self):
         # pylint: disable=invalid-name

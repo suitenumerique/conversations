@@ -57,9 +57,8 @@ def test_activation_status_authenticated_activated(api_client, settings):
 
 
 @pytest.mark.django_db
-def test_activation_status_activation_not_required(api_client, settings):
+def test_activation_status_activation_not_required(api_client):
     """Test activation status when activation is not required."""
-    settings.ACTIVATION_REQUIRED = False
     user = UserFactory()
     api_client.force_authenticate(user=user)
 

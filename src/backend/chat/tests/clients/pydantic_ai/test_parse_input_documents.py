@@ -17,16 +17,6 @@ from chat.factories import ChatConversationFactory
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-@pytest.fixture(autouse=True, name="base_settings")
-def base_settings_fixture(settings):
-    """Minimum settings to instantiate AIAgentService."""
-    settings.AI_BASE_URL = "https://api.llm.com/v1/"
-    settings.AI_API_KEY = "test-key"
-    settings.AI_MODEL = "model-123"
-    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
-    settings.AI_AGENT_TOOLS = []
-
-
 def _mock_backend(rag_document_id):
     """Return a mock backend class whose store returns the given rag_document_id."""
     store = MagicMock()

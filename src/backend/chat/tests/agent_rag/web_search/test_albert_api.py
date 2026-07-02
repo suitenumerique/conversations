@@ -10,13 +10,6 @@ from chat.agent_rag.constants import RAGWebResult, RAGWebResults, RAGWebUsage
 from chat.agent_rag.web_search.albert_api import AlbertWebSearchManager
 
 
-@pytest.fixture(autouse=True)
-def albert_api_settings(settings):
-    """Fixture to set Albert API settings for tests."""
-    settings.ALBERT_API_URL = "http://test-albert-api.com"
-    settings.ALBERT_API_KEY = "test-key"
-
-
 @pytest.mark.parametrize(
     "url, expected",
     [
@@ -31,13 +24,10 @@ def test_clean_url(url, expected):
 
 
 @responses.activate
-def test_web_search_success(settings):
+def test_web_search_success():
     """Test a successful web search."""
-    settings.RAG_WEB_SEARCH_MAX_RESULTS = 20
-    settings.RAG_WEB_SEARCH_CHUNK_NUMBER = 10
-
     mock_albert_api = responses.post(
-        "http://test-albert-api.com/v1/search",
+        "https://albert.api.etalab.gouv.fr/v1/search",
         json={
             "data": [
                 {
@@ -72,8 +62,8 @@ def test_web_search_success(settings):
     assert json.loads(request.body) == {
         "prompt": "test query",
         "web_search": True,
-        "web_search_k": 20,  # Default value from settings
-        "k": 10,  # Default value from settings
+        "web_search_k": 5,  # Default value from settings
+        "k": 4,  # Default value from settings
     }
 
 
@@ -86,7 +76,7 @@ def test_web_search_empty_query():
 @responses.activate
 def test_web_search_http_error():
     """Test web_search with an HTTP error from the API."""
-    responses.post("http://test-albert-api.com/v1/search", status=500)
+    responses.post("https://albert.api.etalab.gouv.fr/v1/search", status=500)
     with pytest.raises(requests.HTTPError):
         AlbertWebSearchManager().web_search("test query")
 
@@ -95,7 +85,7 @@ def test_web_search_http_error():
 def test_web_search_json_decode_error():
     """Test web_search with a JSON decode error from the API."""
     responses.post(
-        "http://test-albert-api.com/v1/search",
+        "https://albert.api.etalab.gouv.fr/v1/search",
         body="invalid json",
         status=200,
         content_type="application/json",

@@ -22,9 +22,8 @@ def _make_backend_mock(**delete_kwargs):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_deindexes_inactive_conversation(settings):
+def test_deindexes_inactive_conversation():
     """Active collection on inactive conversation is deleted and collection_id nulled."""
-    settings.RAG_COLLECTION_INACTIVITY_DAYS = 30
     conversation = ChatConversationFactory(collection_id="albert-123")
     ChatConversation.objects.filter(pk=conversation.pk).update(
         updated_at=timezone.now() - timedelta(days=31)
@@ -45,9 +44,8 @@ def test_deindexes_inactive_conversation(settings):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_skips_active_conversation(settings):
+def test_skips_active_conversation():
     """Collection on a recently active conversation is not deleted."""
-    settings.RAG_COLLECTION_INACTIVITY_DAYS = 30
     conversation = ChatConversationFactory(collection_id="albert-456")
     # updated_at is auto_now so it is already recent — no override needed
 
@@ -64,9 +62,8 @@ def test_skips_active_conversation(settings):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_skips_conversation_without_collection(settings):
+def test_skips_conversation_without_collection():
     """Conversation without a collection_id is never processed."""
-    settings.RAG_COLLECTION_INACTIVITY_DAYS = 30
     conversation = ChatConversationFactory(collection_id=None)
     ChatConversation.objects.filter(pk=conversation.pk).update(
         updated_at=timezone.now() - timedelta(days=31)
@@ -84,9 +81,8 @@ def test_skips_conversation_without_collection(settings):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_continues_on_error(settings):
+def test_continues_on_error():
     """If the first conversation fails, the second one is still processed."""
-    settings.RAG_COLLECTION_INACTIVITY_DAYS = 30
 
     conv1 = ChatConversationFactory(collection_id="albert-fail")
     conv2 = ChatConversationFactory(collection_id="albert-ok")
@@ -118,9 +114,8 @@ def test_continues_on_error(settings):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_rollback_restores_exact_pre_deindex_state(settings):
+def test_rollback_restores_exact_pre_deindex_state():
     """On delete_collection failure, conversation and attachment state are restored exactly."""
-    settings.RAG_COLLECTION_INACTIVITY_DAYS = 30
     # Use ERROR (not INDEXED) to prove index_state is restored verbatim, not hardcoded.
     conv = ChatConversationFactory(
         collection_id="albert-fail", index_state=CollectionIndexState.ERROR
@@ -156,9 +151,8 @@ def test_rollback_restores_exact_pre_deindex_state(settings):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_treats_404_as_deindexed(settings):
+def test_treats_404_as_deindexed():
     """A 404 from delete_collection means the collection is already gone — keep cleared state."""
-    settings.RAG_COLLECTION_INACTIVITY_DAYS = 30
     conv = ChatConversationFactory(
         collection_id="albert-gone", index_state=CollectionIndexState.INDEXED
     )
@@ -188,9 +182,8 @@ def test_treats_404_as_deindexed(settings):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_does_not_update_updated_at(settings):
+def test_does_not_update_updated_at():
     """Running the command must not change updated_at on the conversation."""
-    settings.RAG_COLLECTION_INACTIVITY_DAYS = 30
     conversation = ChatConversationFactory(collection_id="albert-789")
     past = timezone.now() - timedelta(days=31)
     ChatConversation.objects.filter(pk=conversation.pk).update(updated_at=past)

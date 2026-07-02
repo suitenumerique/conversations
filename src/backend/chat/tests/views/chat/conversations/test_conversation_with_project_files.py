@@ -41,16 +41,7 @@ pytestmark = pytest.mark.django_db(transaction=True)
 @pytest.fixture(autouse=True)
 def ai_settings(settings):
     """Albert backend + LLM settings, mirroring the document_upload test fixture."""
-    settings.RAG_DOCUMENT_SEARCH_BACKEND = (
-        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend"
-    )
-    settings.RAG_DOCUMENT_PARSER = "chat.agent_rag.document_converter.parser.AlbertParser"
-    settings.AI_BASE_URL = "https://www.external-ai-service.com/"
-    settings.AI_API_KEY = "test-api-key"
-    settings.AI_MODEL = "test-model"
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
-    settings.ALBERT_API_URL = "https://albert.api.etalab.gouv.fr"
-    settings.ALBERT_API_KEY = "albert-api-key"
     return settings
 
 
@@ -205,7 +196,6 @@ def _inlineable_llm_config_fixture(settings):
     document to `tool_call_only`. Override with a 4000-token model and a 0.5
     budget ratio so a tiny conversation attachment lands as ACCESS_FULL_CONTEXT.
     """
-    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
     settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 0
     settings.LLM_CONFIGURATIONS = {
         "default-model": LLModel(

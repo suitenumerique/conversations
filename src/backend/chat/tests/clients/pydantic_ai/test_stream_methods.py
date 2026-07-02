@@ -29,16 +29,6 @@ class AsyncRaiseIterator:
         raise self.exc
 
 
-@pytest.fixture(autouse=True)
-def base_settings(settings):
-    """Set up base settings for the tests."""
-    settings.AI_BASE_URL = "https://api.llm.com/v1/"
-    settings.AI_API_KEY = "test-key"
-    settings.AI_MODEL = "model-123"
-    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
-    settings.AI_AGENT_TOOLS = []
-
-
 @pytest.fixture(name="ui_messages")
 def ui_messages_fixture():
     """Fixture for test UI messages."""

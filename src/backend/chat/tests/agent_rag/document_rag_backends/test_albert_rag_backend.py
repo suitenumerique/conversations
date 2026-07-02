@@ -19,15 +19,14 @@ from httpx import Response
 
 from chat.agent_rag.document_rag_backends.albert_rag_backend import AlbertRagBackend
 
-ALBERT_BASE_URL = "https://albert.test"
+# Matches the ALBERT_API_URL default in the Test settings class.
+ALBERT_BASE_URL = "https://albert.api.etalab.gouv.fr"
 SEARCH_URL = f"{ALBERT_BASE_URL}/v1/search"
 
 
 @pytest.fixture(name="albert_backend")
-def albert_backend_fixture(settings):
-    """A backend pointing at a test API and a fixed collection."""
-    settings.ALBERT_API_URL = ALBERT_BASE_URL
-    settings.ALBERT_API_KEY = "test-key"
+def albert_backend_fixture():
+    """A backend with a fixed collection, using the Test settings Albert API."""
     return AlbertRagBackend(collection_id="123")
 
 

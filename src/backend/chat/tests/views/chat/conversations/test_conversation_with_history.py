@@ -37,12 +37,8 @@ PYAI_V1_17 = "v1.17"
 @pytest.fixture(autouse=True)
 def ai_settings(settings):
     """Fixture to set AI service URLs for testing."""
-    settings.AI_BASE_URL = "https://www.external-ai-service.com/"
-    settings.AI_API_KEY = "test-api-key"
-    settings.AI_MODEL = "test-model"
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
 
-    settings.AUTO_TITLE_AFTER_USER_MESSAGES = None  # disable auto title generation
     return settings
 
 
@@ -742,13 +738,12 @@ def test_post_conversation_tool_call_with_history(
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_tool_call_fails_with_history(
-    api_client, mock_openai_stream_tool, settings, history_conversation
+    api_client, mock_openai_stream_tool, history_conversation
 ):
     """
     Ensure tool calls are correctly forwarded and streamed back when failing with a
     conversation with history.
     """
-    settings.AI_AGENT_TOOLS = []
 
     url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
 

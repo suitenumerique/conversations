@@ -36,11 +36,7 @@ UNREADABLE_MARKER = "cannot read or process images"
 
 @pytest.fixture(autouse=True)
 def ai_settings(settings):
-    settings.AI_BASE_URL = "https://www.external-ai-service.com/"
-    settings.AI_API_KEY = "test-api-key"
-    settings.AI_MODEL = "test-model"
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
-    settings.LANGFUSE_ENABLED = False
 
 
 def _configure_model(settings, *, supports_image):
@@ -61,7 +57,6 @@ def _configure_model(settings, *, supports_image):
             ),
         ),
     }
-    settings.LLM_DEFAULT_MODEL_HRID = "default-model"
 
 
 @pytest.fixture(name="text_only_llm")

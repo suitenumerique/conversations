@@ -187,11 +187,6 @@ def test_apply_sliding_window_keeps_last_turn_even_if_too_big():
 # ── resolve_conversation_budget ───────────────────────────────────────────────
 
 
-@override_settings(
-    DEFAULT_MAX_TOKEN_CONTEXT=8192,
-    DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS=1000,
-    DOCUMENT_CONTEXT_BUDGET_RATIO=0.5,
-)
 def test_resolve_conversation_budget_no_max_context_uses_default():
     """Models without max_token_context fall back to DEFAULT_MAX_TOKEN_CONTEXT."""
 
@@ -211,10 +206,6 @@ def test_resolve_conversation_budget_zero_max_context():
     assert resolve_conversation_budget(Cfg()) == 0
 
 
-@override_settings(
-    DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS=1000,
-    DOCUMENT_CONTEXT_BUDGET_RATIO=0.5,
-)
 def test_resolve_conversation_budget_formula():
     """Budget is computed as int(max*(1-ratio))-buffer."""
 

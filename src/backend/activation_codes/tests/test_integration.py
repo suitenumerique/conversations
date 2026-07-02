@@ -53,9 +53,8 @@ def test_complete_activation_flow(api_client, settings):
 
 
 @pytest.mark.django_db
-def test_activation_not_required_flow(api_client, settings):
+def test_activation_not_required_flow(api_client):
     """Test that when activation is not required, users can access without codes."""
-    settings.ACTIVATION_REQUIRED = False
 
     user = UserFactory(email="freeuser@example.com", password="password123")
 

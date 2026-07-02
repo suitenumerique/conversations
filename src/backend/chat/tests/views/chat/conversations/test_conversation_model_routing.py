@@ -24,14 +24,6 @@ pytestmark = pytest.mark.django_db(transaction=True)
 FROZEN = "2025-07-25T10:36:35.297675Z"
 
 
-@pytest.fixture(autouse=True)
-def ai_settings(settings):
-    settings.AI_BASE_URL = "https://www.external-ai-service.com/"
-    settings.AI_API_KEY = "test-api-key"
-    settings.AI_MODEL = "test-model"
-    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
-
-
 @pytest.fixture(name="health_cache", autouse=True)
 def health_cache_fixture():
     django_cache.clear()
@@ -63,7 +55,6 @@ def routed_llm_configs(settings):
     }
     settings.LLM_DEFAULT_MODEL_HRID = "main-model"
     settings.LLM_FALLBACK_MODEL_HRID_1 = "fallback-1"
-    settings.LLM_FALLBACK_MODEL_HRID_2 = ""
 
 
 @freeze_time(FROZEN)

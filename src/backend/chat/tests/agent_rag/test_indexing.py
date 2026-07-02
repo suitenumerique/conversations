@@ -22,12 +22,6 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture(autouse=True)
 def ai_settings(settings):
     """Configure Albert backend + parser for the indexing tests."""
-    settings.RAG_DOCUMENT_SEARCH_BACKEND = (
-        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend"
-    )
-    settings.RAG_DOCUMENT_PARSER = "chat.agent_rag.document_converter.parser.AlbertParser"
-    settings.ALBERT_API_URL = "https://albert.api.etalab.gouv.fr"
-    settings.ALBERT_API_KEY = "albert-api-key"
     return settings
 
 

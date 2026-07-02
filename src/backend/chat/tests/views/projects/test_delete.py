@@ -24,11 +24,6 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture(name="albert_settings")
 def fixture_albert_settings(settings):
     """Configure Albert backend so collection cleanup hits a known URL."""
-    settings.RAG_DOCUMENT_SEARCH_BACKEND = (
-        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend"
-    )
-    settings.ALBERT_API_URL = "https://albert.api.etalab.gouv.fr"
-    settings.ALBERT_API_KEY = "albert-api-key"
     return settings
 
 

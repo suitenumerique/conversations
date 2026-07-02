@@ -74,16 +74,6 @@ def test_strip_thinking_parts_mixed_history():
     assert result[2] is response_without_thinking
 
 
-@pytest.fixture(autouse=True, name="base_settings")
-def base_settings_fixture(settings):
-    """Configure minimal LLM settings."""
-    settings.AI_BASE_URL = "https://api.llm.com/v1/"
-    settings.AI_API_KEY = "test-key"
-    settings.AI_MODEL = "model-123"
-    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
-    settings.AI_AGENT_TOOLS = []
-
-
 def _pydantic_messages_with_thinking():
     """Return pydantic_messages JSON with a ModelResponse containing a ThinkingPart."""
     messages = [

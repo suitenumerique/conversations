@@ -24,17 +24,6 @@ PYDANTIC_AI_LOGGER = "chat.clients.pydantic_ai"
 pytestmark = pytest.mark.django_db(transaction=True)
 
 
-@pytest.fixture(autouse=True, name="base_settings")
-def base_settings_fixture(settings):
-    """Minimum LLM settings to instantiate AIAgentService."""
-    settings.AI_BASE_URL = "https://api.llm.com/v1/"
-    settings.AI_API_KEY = "test-key"
-    settings.AI_MODEL = "model-123"
-    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
-    settings.AI_AGENT_TOOLS = []
-    settings.REINDEX_CLAIM_TIMEOUT_SECONDS = 600
-
-
 _USER_MESSAGE = [
     UIMessage(
         id="msg-1",

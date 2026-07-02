@@ -79,7 +79,6 @@ def test_api_config(is_authenticated):
     }
 
 
-@override_settings(FRONTEND_CONTACT_EMAIL=None, FRONTEND_DOCUMENTATION_URL=None)
 def test_api_config_help_links_unset():
     """Documentation URL and contact email are exposed as None when not configured."""
     response = APIClient().get("/api/v1.0/config/")
@@ -243,7 +242,6 @@ async def test_api_config_async(is_authenticated):
 
 
 @override_settings(
-    STATUS_PAGE_URL=None,
     THEME_CUSTOMIZATION_FILE_PATH="",
     RAG_FILES_ACCEPTED_FORMATS=["application/pdf"],
 )

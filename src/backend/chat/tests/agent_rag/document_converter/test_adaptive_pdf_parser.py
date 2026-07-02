@@ -52,13 +52,11 @@ OCR_MAX_RETRIES = 3
 def ai_settings(settings):
     """Mock Django settings for OCR configuration."""
     settings.MIN_AVG_CHARS_FOR_TEXT_EXTRACTION = MIN_AVG_CHARS_FOR_TEXT_EXTRACTION
-    settings.MIN_TEXT_COVERAGE_FOR_TEXT_EXTRACTION = 0.7
     settings.OCR_HRID = "test-ocr-hrid"
     settings.OCR_MODEL = "test-ocr-model"
     settings.OCR_TIMEOUT = 60
     settings.OCR_MAX_RETRIES = OCR_MAX_RETRIES
     settings.OCR_RETRY_DELAY = OCR_RETRY_DELAY
-    settings.OCR_BATCH_PAGES = 10
     settings.LLM_CONFIGURATIONS = {
         "test-ocr-hrid": MagicMock(
             provider=MagicMock(

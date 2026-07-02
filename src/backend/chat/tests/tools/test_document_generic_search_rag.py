@@ -293,9 +293,8 @@ def test_document_search_rag_tool_execution(settings):
     }
 
 
-def test_get_specific_rag_search_tool_config_with_empty_settings(settings):
+def test_get_specific_rag_search_tool_config_with_empty_settings():
     """Test get_specific_rag_search_tool_config with empty SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS."""
-    settings.SPECIFIC_RAG_DOCUMENT_SEARCH_TOOLS = {}
 
     user = UserFactory()
     config = get_specific_rag_search_tool_config(user)

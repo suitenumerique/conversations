@@ -24,9 +24,8 @@ def view_fixture():
 
 
 @pytest.mark.django_db
-def test_is_activated_user_permission_activation_not_required(request_factory, view, settings):
+def test_is_activated_user_permission_activation_not_required(request_factory, view):
     """Test that permission allows access when activation is not required."""
-    settings.ACTIVATION_REQUIRED = False
     user = UserFactory()
 
     request = request_factory.get("/")

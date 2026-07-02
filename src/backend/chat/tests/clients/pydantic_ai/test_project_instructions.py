@@ -8,16 +8,6 @@ from chat.factories import ChatConversationFactory, ChatProjectFactory
 pytestmark = pytest.mark.django_db
 
 
-@pytest.fixture(autouse=True)
-def base_settings(settings):
-    """Set up base settings for the tests."""
-    settings.AI_BASE_URL = "https://api.llm.com/v1/"
-    settings.AI_API_KEY = "test-key"
-    settings.AI_MODEL = "model-123"
-    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
-    settings.AI_AGENT_TOOLS = []
-
-
 def _get_instruction_names(service):
     """Return the names of dynamic (callable) instructions registered on the conversation agent."""
     # pylint: disable=protected-access

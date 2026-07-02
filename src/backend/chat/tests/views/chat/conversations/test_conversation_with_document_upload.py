@@ -92,18 +92,7 @@ def ai_settings(request, settings):
         "Please answer the user's question: {user_prompt}"
     )
 
-    settings.AI_BASE_URL = "https://www.external-ai-service.com/"
-    settings.AI_API_KEY = "test-api-key"
-    settings.AI_MODEL = "test-model"
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
-
-    # Albert API settings
-    settings.ALBERT_API_URL = "https://albert.api.etalab.gouv.fr"
-    settings.ALBERT_API_KEY = "albert-api-key"
-
-    # Find API settings
-    settings.FIND_API_URL = "https://find.api.example.com"
-    settings.FIND_API_KEY = "find-api-key"
 
     return settings
 
@@ -213,14 +202,14 @@ def fixture_mock_document_api():
 
     # Mock document indexing (Find API)
     responses.post(
-        "https://find.api.example.com/api/v1.0/documents/index/",
+        "https://app-find/api/v1.0/documents/index/",
         json={"id": "456", "status": "indexed"},
         status=status.HTTP_200_OK,
     )
 
     # Mock document search (Find API)
     responses.post(
-        "https://find.api.example.com/api/v1.0/documents/search/",
+        "https://app-find/api/v1.0/documents/search/",
         json=[
             {
                 "_source": {
@@ -300,14 +289,14 @@ def fixture_mock_odt_document_api():
 
     # Mock document indexing (Find API)
     responses.post(
-        "https://find.api.example.com/api/v1.0/documents/index/",
+        "https://app-find/api/v1.0/documents/index/",
         json={"id": "456", "status": "indexed"},
         status=status.HTTP_200_OK,
     )
 
     # Mock document search (Find API)
     responses.post(
-        "https://find.api.example.com/api/v1.0/documents/search/",
+        "https://app-find/api/v1.0/documents/search/",
         json=[
             {
                 "_source": {

@@ -29,8 +29,6 @@ def llm_configs():
 @pytest.fixture(autouse=True)
 def patch_settings(settings, llm_configs):
     settings.LLM_DEFAULT_MODEL_HRID = "main-model"
-    settings.LLM_FALLBACK_MODEL_HRID_1 = ""
-    settings.LLM_FALLBACK_MODEL_HRID_2 = ""
     settings.LLM_CONFIGURATIONS = llm_configs
 
 
@@ -233,6 +231,7 @@ def test_main_red_fb1_unknown_hrid_unavailable(settings):
     assert result["blocked"] is True
 
 
+@pytest.mark.django_db
 def test_main_red_fb1_empty_fb2_red_unavailable(settings, llm_configs):
     # fb1="" (not configured → down) + fb2=red (down) → all_down=True → unavailable.
     settings.LLM_FALLBACK_MODEL_HRID_2 = "fallback-2"
@@ -244,6 +243,7 @@ def test_main_red_fb1_empty_fb2_red_unavailable(settings, llm_configs):
 # --- fallback partially configured ------------------------------------------
 
 
+@pytest.mark.django_db
 def test_fb1_empty_fb2_yellow_degraded(settings, llm_configs):
     # fb1="" (down) but fb2=yellow (not down) → all_down=False → degraded.
     settings.LLM_FALLBACK_MODEL_HRID_2 = "fallback-2"

@@ -46,12 +46,7 @@ def _albert_chunk(content="snippet", document_name="doc.pdf", score=0.9):
 
 @pytest.fixture(name="albert_settings")
 def albert_settings_fixture(settings):
-    """Point the RAG backend setting + Albert API at deterministic test values."""
-    settings.RAG_DOCUMENT_SEARCH_BACKEND = (
-        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend"
-    )
-    settings.ALBERT_API_URL = "https://albert.test"
-    settings.ALBERT_API_KEY = "test-key"
+    """Expose the settings (Albert API defaults from Test) to build mock URLs."""
     return settings
 
 

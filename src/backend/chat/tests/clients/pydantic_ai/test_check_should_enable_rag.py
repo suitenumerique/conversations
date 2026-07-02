@@ -19,16 +19,6 @@ from chat.factories import (
 pytestmark = pytest.mark.django_db
 
 
-@pytest.fixture(autouse=True)
-def base_settings(settings):
-    """Minimum LLM settings to instantiate AIAgentService."""
-    settings.AI_BASE_URL = "https://api.llm.com/v1/"
-    settings.AI_API_KEY = "test-key"
-    settings.AI_MODEL = "model-123"
-    settings.AI_AGENT_INSTRUCTIONS = "You are a helpful assistant"
-    settings.AI_AGENT_TOOLS = []
-
-
 def _check(conversation, *, conversation_has_documents=False):
     service = AIAgentService(conversation, user=conversation.owner)
     return async_to_sync(service._check_should_enable_rag)(conversation_has_documents)
