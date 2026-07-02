@@ -124,20 +124,16 @@ jobs:
         # needed because the postgres container does not provide a healthcheck
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
+    # Only infra topology is set here; the deterministic behavior settings come
+    # from env.d/test, loaded by pytest-dotenv (see src/backend/pyproject.toml).
+    # These inline values are part of the process env, so they take precedence
+    # over the repo-root .env's host-oriented ports.
     env:
       DJANGO_CONFIGURATION: Test
       DJANGO_SETTINGS_MODULE: conversations.settings
-      DJANGO_SECRET_KEY: ThisIsAnExampleKeyForTestPurposeOnly
-      OIDC_OP_JWKS_ENDPOINT: /endpoint-for-test-purpose-only
       DB_HOST: localhost
-      DB_NAME: conversations
-      DB_USER: dinum
-      DB_PASSWORD: pass
       DB_PORT: 5432
-      STORAGES_STATICFILES_BACKEND: django.contrib.staticfiles.storage.StaticFilesStorage
       AWS_S3_ENDPOINT_URL: http://localhost:9000
-      AWS_S3_ACCESS_KEY_ID: conversations
-      AWS_S3_SECRET_ACCESS_KEY: password
 
     steps:
       - name: Checkout repository

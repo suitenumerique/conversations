@@ -1,0 +1,44 @@
+# Dedicated, deterministic test environment.
+#
+# Loaded by the `app-test` compose service (docker `make test`) and, for host-run
+# pytest and CI, by pytest-dotenv (see [tool.pytest.ini_options] in
+# src/backend/pyproject.toml). It deliberately does NOT load
+# env.d/development/common, so tests never inherit developer-local values.
+#
+# Only settings whose Base coded default is unsuitable for tests are listed here.
+# Everything else falls back to Base's defaults, which are already deterministic
+# once env.d/development/common is not loaded. Infra topology (DB_HOST/DB_PORT,
+# AWS_S3_ENDPOINT_URL) is intentionally absent: it stays env-overridable so the
+# same file works inside docker (compose hostnames) and on the host / CI (the
+# repo-root .env or the CI job env point at the published ports).
+
+# Django (Base default is None, which Django rejects)
+DJANGO_SECRET_KEY=ThisIsAnExampleKeyForTestPurposeOnly
+
+# Media / S3 credentials (Base defaults are None)
+AWS_S3_ACCESS_KEY_ID=conversations
+AWS_S3_SECRET_ACCESS_KEY=password
+# Presigned URLs are signed for the frontend-facing domain, not the in-cluster
+# MinIO hostname.
+AWS_S3_DOMAIN_REPLACE=http://localhost:9000
+
+# OIDC (Base defaults are None; the endpoints must be non-empty so
+# mozilla-django-oidc's RS256 config check passes on authenticated requests.
+# Tests exercising the real OIDC flows override these with mocked URLs.)
+OIDC_RP_CLIENT_SECRET=test-client-secret
+OIDC_OP_JWKS_ENDPOINT=http://oidc.test/jwks
+OIDC_OP_AUTHORIZATION_ENDPOINT=http://oidc.test/authorize
+OIDC_OP_TOKEN_ENDPOINT=http://oidc.test/token
+OIDC_OP_USER_ENDPOINT=http://oidc.test/userinfo
+OIDC_OP_LOGOUT_ENDPOINT=http://oidc.test/logout
+
+# AI / LLM (Base defaults are None; conversation view tests mock this provider
+# via respx and assert on these values. Unit tests that assert configuration
+# propagation set their own distinct values.)
+AI_BASE_URL=https://www.external-ai-service.com/
+AI_API_KEY=test-api-key
+AI_MODEL=test-model
+
+# External RAG / search providers (Base defaults are None)
+ALBERT_API_KEY=test-key
+FIND_API_KEY=test-key

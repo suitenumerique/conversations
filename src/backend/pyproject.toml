@@ -91,6 +91,7 @@ dev = [
     "pytest-asyncio==1.4.0",
     "pytest-cov==7.1.0",
     "pytest-django==4.12.0",
+    "pytest-dotenv==0.5.2",
     "pytest==9.0.3",
     "pytest-icdiff==0.9",
     "pytest-xdist==3.8.0",
@@ -179,4 +180,13 @@ addopts = [
 python_files = [
     "test_*.py",
     "tests.py",
+]
+# For host-run pytest and CI (docker uses the app-test service env_file instead),
+# load the dedicated, deterministic test environment. env.d/test carries the
+# behavior settings; the repo-root .env carries host infra topology (DB/S3 ports).
+# Existing process env is never overridden, so the CI job env (localhost/5432)
+# wins over .env's host ports (localhost/15432).
+env_files = [
+    "env.d/test",
+    ".env",
 ]

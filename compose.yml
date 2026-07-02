@@ -89,6 +89,43 @@ services:
         createbuckets:
           condition: service_started
 
+  app-test:
+    # Mirrors app-dev but loads env.d/test instead of env.d/development/common,
+    # so tests never inherit developer-local settings. Used by bin/pytest.
+    build:
+      context: .
+      target: backend-development
+      args:
+        DOCKER_USER: ${DOCKER_USER:-1000}
+    user: ${DOCKER_USER:-1000}
+    image: conversations:backend-development
+    environment:
+      - PYLINTHOME=/app/.pylint.d
+      - PYTHONPATH=/app
+      - DJANGO_CONFIGURATION=Test
+      - DJANGO_SETTINGS_MODULE=conversations.settings
+    env_file:
+      - env.d/test
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - lasuite
+    volumes:
+      - ./src/backend:/app
+      - ./data/static:/data/static
+      - /app/.venv
+    depends_on:
+        postgresql:
+            condition: service_healthy
+            restart: true
+        maildev:
+          condition: service_started
+        redis:
+          condition: service_started
+        createbuckets:
+          condition: service_started
+
   celery-dev:
     build:
       context: .
