@@ -68,6 +68,12 @@ async def test_apply_history_cleanup_persists_summary_metadata():
     assert service.conversation.history_summary == "A generated summary"
     assert service.conversation.history_summary_checkpoint == 4
 
+    # The summary is persisted immediately, not only via _finalize_conversation:
+    # an agent failure later in the run must not discard a paid summarization.
+    await service.conversation.arefresh_from_db()
+    assert service.conversation.history_summary == "A generated summary"
+    assert service.conversation.history_summary_checkpoint == 4
+
 
 @pytest.mark.asyncio
 async def test_apply_history_cleanup_leaves_metadata_untouched_without_summary():
@@ -117,7 +123,7 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
     conversation = await sync_to_async(ChatConversationFactory)()
     service = AIAgentService(conversation, user=conversation.owner)
 
-    async def fake_prepare(_messages):
+    async def fake_prepare(_messages, _raw_history):
         usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
         return ("prompt", [], [], [], usage, [], False)
 
@@ -131,10 +137,16 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
     service.conversation_agent = MagicMock()
     service.conversation_agent.iter = fake_iter
 
+    async def fake_cleanup(_history, *, allow_summary_generation):
+        # Simulate a successful summarization: the checkpoint advances.
+        if allow_summary_generation:
+            service._history_summary_checkpoint += 1
+        return []
+
     with (
         patch.object(service, "_prepare_agent_run", side_effect=fake_prepare),
         patch.object(service, "_handle_input_documents", side_effect=fake_handle_docs),
-        patch.object(service, "_apply_history_cleanup", AsyncMock(return_value=[])),
+        patch.object(service, "_apply_history_cleanup", side_effect=fake_cleanup),
         patch.object(service, "_agent_stop_streaming", AsyncMock()),
         patch.object(service, "_setup_self_documentation_tool"),
         patch.object(service, "_setup_web_search_tool"),
@@ -161,12 +173,55 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
 
 
 @pytest.mark.asyncio
+async def test_run_agent_reports_error_state_when_summarization_fails(ui_messages):
+    """A failed summarization (checkpoint unchanged) must not report state=done."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+
+    async def fake_prepare(_messages, _raw_history):
+        usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
+        return ("prompt", [], [], [], usage, [], False)
+
+    async def fake_handle_docs(*_args, **_kwargs):
+        yield DocumentParsingResult(success=True, has_documents=False)
+
+    @asynccontextmanager
+    async def fake_iter(*_args, **_kwargs):
+        yield _FakeRun()
+
+    service.conversation_agent = MagicMock()
+    service.conversation_agent.iter = fake_iter
+
+    with (
+        patch.object(service, "_prepare_agent_run", side_effect=fake_prepare),
+        patch.object(service, "_handle_input_documents", side_effect=fake_handle_docs),
+        # Checkpoint does not advance: the summarization LLM call failed.
+        patch.object(service, "_apply_history_cleanup", AsyncMock(return_value=[])),
+        patch.object(service, "_agent_stop_streaming", AsyncMock()),
+        patch.object(service, "_setup_self_documentation_tool"),
+        patch.object(service, "_setup_web_search_tool"),
+        patch.object(service, "_setup_web_search"),
+        patch.object(service, "_check_should_enable_rag", AsyncMock(return_value=False)),
+        patch.object(service, "_process_agent_nodes", side_effect=_empty_async_gen),
+        patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
+        patch("chat.clients.pydantic_ai.should_generate_conversation_summary", return_value=True),
+        patch("chat.clients.pydantic_ai.get_mcp_servers", return_value=[]),
+        patch("chat.clients.pydantic_ai._extract_co2_from_usage", return_value=0),
+    ):
+        events = [event async for event in service._run_agent(ui_messages)]
+
+    tool_results = [e for e in events if isinstance(e, events_v4.ToolResultPart)]
+    assert len(tool_results) == 1
+    assert tool_results[0].result == {"state": "error"}
+
+
+@pytest.mark.asyncio
 async def test_run_agent_skips_summary_events_when_summarization_not_triggered(ui_messages):
     """No summary events are emitted when summarization is not needed (and still no crash)."""
     conversation = await sync_to_async(ChatConversationFactory)()
     service = AIAgentService(conversation, user=conversation.owner)
 
-    async def fake_prepare(_messages):
+    async def fake_prepare(_messages, _raw_history):
         usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
         return ("prompt", [], [], [], usage, [], False)
 

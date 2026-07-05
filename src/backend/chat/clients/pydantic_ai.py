@@ -99,7 +99,7 @@ from asgiref.sync import sync_to_async
 from langfuse import get_client, propagate_attributes
 from mistralai.client.errors import HTTPValidationError, SDKError
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
-from pydantic_ai.capabilities import Instrumentation
+from pydantic_ai.capabilities import Instrumentation, ProcessHistory
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import (
     BinaryContent,
@@ -337,24 +337,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._history_summary = conversation.history_summary.strip() or None
         self._history_summary_checkpoint = max(conversation.history_summary_checkpoint, 0)
 
-        _capabilities = (
-            [
+        _capabilities: list = [ProcessHistory(self._history_processor)]
+        if self._langfuse_available:
+            _capabilities.append(
                 Instrumentation(
                     settings=InstrumentationSettings(
                         include_binary_content=self._store_analytics,
                         include_content=self._store_analytics,
                     )
                 )
-            ]
-            if self._langfuse_available
-            else []
-        )
+            )
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
             language=self.language,
             capabilities=_capabilities,
             deps_type=ContextDeps,
-            history_processors=[self._history_processor],
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
         max_token_context = self.model_configuration.max_token_context or 0
@@ -742,32 +739,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if cleanup_result.summary_checkpoint is not None:
             self._history_summary_checkpoint = cleanup_result.summary_checkpoint
             self.conversation.history_summary_checkpoint = cleanup_result.summary_checkpoint
-        return cleanup_result.history
-
-    async def _history_processor(self, history: list[ModelMessage]) -> list[ModelMessage]:
-        """Native pydantic-ai history processor for internal tool-cycle cleanup."""
-        return safe_clean_tool_history(history)
-
-    async def _apply_history_cleanup(
-        self, history: list[ModelMessage], *, allow_summary_generation: bool
-    ) -> list[ModelMessage]:
-        """Compact history and persist any generated summary metadata."""
-        cleaned_history = safe_clean_tool_history(history)
-        cleanup_result = await maybe_summarize_history(
-            cleaned_history,
-            previous_summary=self._history_summary,
-            summary_checkpoint=self._history_summary_checkpoint,
-            message_token_budget=self._conversation_message_token_budget,
-            context_messages=settings.CONVERSATION_SUMMARY_CONTEXT_MESSAGES,
-            summary_max_tokens=settings.CONVERSATION_SUMMARY_MAX_TOKENS,
-            allow_summary_generation=allow_summary_generation,
-        )
-        if cleanup_result.summary:
-            self._history_summary = cleanup_result.summary
-            self.conversation.history_summary = cleanup_result.summary
-        if cleanup_result.summary_checkpoint is not None:
-            self._history_summary_checkpoint = cleanup_result.summary_checkpoint
-            self.conversation.history_summary_checkpoint = cleanup_result.summary_checkpoint
+        if cleanup_result.summary or cleanup_result.summary_checkpoint is not None:
+            # Persist right away: the summarization LLM call is paid for, and
+            # a later agent failure only saves `messages`.
+            await self.conversation.asave(
+                update_fields=["history_summary", "history_summary_checkpoint", "updated_at"]
+            )
         return cleanup_result.history
 
     async def _history_processor(self, history: list[ModelMessage]) -> list[ModelMessage]:
@@ -1527,18 +1504,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # instructions can read the updated summary in the same model request.
         should_emit_summary_event = should_generate_conversation_summary(
             history,
-            previous_summary=self._history_summary,
             summary_checkpoint=self._history_summary_checkpoint,
             message_token_budget=self._conversation_message_token_budget,
             context_messages=settings.CONVERSATION_SUMMARY_CONTEXT_MESSAGES,
         )
-        if should_emit_summary_event:
-            tool_call_id = str(uuid.uuid4())
-            yield events_v4.ToolCallPart(
-                tool_call_id=tool_call_id,
-                tool_name="summarize",
-                args={"state": "running", "summary_scope": "conversation"},
-            )
 
         for pre_event in self._pre_stream_events:
             yield events_v4.DataPart(data=[pre_event])
@@ -1587,14 +1556,23 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         conversation_has_own_documents = doc_result.has_documents
 
+        if should_emit_summary_event:
+            tool_call_id = str(uuid.uuid4())
+            yield events_v4.ToolCallPart(
+                tool_call_id=tool_call_id,
+                tool_name="summarize",
+                args={"state": "running", "summary_scope": "conversation"},
+            )
+        checkpoint_before_cleanup = self._history_summary_checkpoint
         history = await self._apply_history_cleanup(
             history,
             allow_summary_generation=should_emit_summary_event,
         )
         if should_emit_summary_event:
+            summary_generated = self._history_summary_checkpoint > checkpoint_before_cleanup
             yield events_v4.ToolResultPart(
                 tool_call_id=tool_call_id,
-                result={"state": "done"},
+                result={"state": "done" if summary_generated else "error"},
             )
 
         await self._agent_stop_streaming(force_cache_check=True)
@@ -1618,7 +1596,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
             async with self.conversation_agent.iter(
                 [user_prompt] + input_images,
-                # History passes through history_processors when set on the agent.
+                # History passes through the ProcessHistory capability set on the agent.
                 message_history=message_history,
                 deps=self._context_deps,
                 toolsets=mcp_servers,

@@ -9,6 +9,7 @@ from pydantic_ai import (
     TextPart,
     UserPromptPart,
 )
+from pydantic_ai.capabilities import ProcessHistory
 from pydantic_ai.messages import (
     ToolCallPart,
     ToolReturnPart,
@@ -62,7 +63,7 @@ def test_history_processors_are_applied_before_provider_call(
     def keep_only_requests(messages: list[ModelMessage]) -> list[ModelMessage]:
         return [msg for msg in messages if isinstance(msg, ModelRequest)]
 
-    agent = Agent(function_model, history_processors=[keep_only_requests])
+    agent = Agent(function_model, capabilities=[ProcessHistory(keep_only_requests)])
     message_history = [
         ModelRequest(parts=[UserPromptPart(content="Question 1")]),
         ModelResponse(parts=[TextPart(content="Answer 1")]),
@@ -161,7 +162,6 @@ async def test_history_cleanup_existing_summary_uses_checkpoint_slice(monkeypatc
 
     result = await history_processors.maybe_summarize_history(
         messages,
-        previous_summary="summary-v1",
         summary_checkpoint=6,
         message_token_budget=10_000,
         context_messages=1,
@@ -192,7 +192,6 @@ async def test_history_cleanup_budget_only_counts_active_window_after_checkpoint
 
     result = await history_processors.maybe_summarize_history(
         messages,
-        previous_summary="summary-v1",
         summary_checkpoint=4,
         message_token_budget=100,
         context_messages=1,
@@ -216,7 +215,6 @@ async def test_history_cleanup_does_not_resummarize_when_checkpoint_is_current(m
 
     result = await history_processors.maybe_summarize_history(
         messages,
-        previous_summary="summary-v1",
         summary_checkpoint=len(messages),
         message_token_budget=1,
         context_messages=1,
@@ -234,7 +232,6 @@ async def test_history_cleanup_never_returns_empty_history_when_checkpoint_is_at
 
     result = await history_processors.maybe_summarize_history(
         messages,
-        previous_summary="summary-v1",
         summary_checkpoint=len(messages),
         message_token_budget=10_000,
         context_messages=1,
@@ -266,7 +263,6 @@ async def test_history_cleanup_summary_failure_keeps_runtime_slice(monkeypatch):
 
     result = await history_processors.maybe_summarize_history(
         messages,
-        previous_summary="summary-v1",
         summary_checkpoint=2,
         message_token_budget=1,
         context_messages=1,
@@ -285,14 +281,12 @@ def test_should_generate_conversation_summary_when_budget_exceeded():
     )
     assert not history_processors.should_generate_conversation_summary(
         messages,
-        previous_summary="summary-v1",
         summary_checkpoint=len(messages),
         message_token_budget=1,
         context_messages=1,
     )
     assert not history_processors.should_generate_conversation_summary(
         messages,
-        previous_summary="summary-v1",
         summary_checkpoint=28,
         message_token_budget=1,
         context_messages=1,
@@ -307,7 +301,6 @@ def test_should_generate_conversation_summary_when_budget_exceeded():
     ]
     assert not history_processors.should_generate_conversation_summary(
         messages_with_large_summarized_prefix,
-        previous_summary="summary-v1",
         summary_checkpoint=4,
         message_token_budget=100,
         context_messages=1,
@@ -340,7 +333,6 @@ async def test_maybe_summarize_history_falls_back_on_unexpected_error(monkeypatc
 
     result = await history_processors.maybe_summarize_history(
         messages,
-        previous_summary="summary-v1",
         summary_checkpoint=2,
         message_token_budget=1,
         context_messages=1,

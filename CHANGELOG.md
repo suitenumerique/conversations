@@ -13,10 +13,12 @@ and this project adheres to
 - ✨(back) add model fallback mechanism
 - ✨(back) add celery for running background tasks
 - 🧱(helm) add celery worker and beat deployments
+- ✨(conversation) summarize messages
 
 ### Changed
 
 - ♻️(back) split chat views and replace hardcoded strings with constants
+- 🔧(back) raise DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS default from 1000 to 10000
  
 ## [0.0.19] - 2026-06-24
 
@@ -89,7 +91,6 @@ and this project adheres to
 - 🐛(fix) add prevent_url_hallucination instruction to ConversationAgent
 - ✨(projects) handle project files for RAG search
 - ✨(banner) configurable banner with level, title, content and start/end
-- ✨(conversation) summarize messages
 
 ### Changed
 

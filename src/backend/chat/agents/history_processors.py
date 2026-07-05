@@ -314,18 +314,14 @@ async def maybe_summarize_history(  # noqa: PLR0913  # pylint: disable=too-many-
         return _history_cleanup_fallback(messages, summary_checkpoint, context_messages)
 
 
-# check for summary generation need to know if the current
-# turn should trigger a frontend summary event
 def should_generate_conversation_summary(
     messages: list[ModelMessage],
     *,
-    previous_summary: str | None = None,
     summary_checkpoint: int = 0,
     message_token_budget: int = 0,
     context_messages: int = 10,
 ) -> bool:
     """Return True when active history exceeds budget and new messages can be summarized."""
-    _ = previous_summary
     if message_token_budget <= 0:
         return False
 
