@@ -1,11 +1,10 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
 import Head from 'next/head';
-import Image from 'next/image';
 import { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 
-import img403 from '@/assets/icons/icon-403.png';
+import Icon404 from '@/assets/icons/icon-404.svg';
 import { Box, Icon, StyledLink, Text } from '@/components';
 import { productName } from '@/core';
 import { PageLayout } from '@/layouts';
@@ -36,10 +35,9 @@ const Page: NextPageWithLayout = () => {
         $gap="1rem"
         $padding={{ bottom: '2rem' }}
       >
-        <Image
+        <Icon404
           className="c__image-system-filter"
-          src={img403}
-          alt={t('Image 403')}
+          aria-hidden
           style={{
             maxWidth: '100%',
             height: 'auto',

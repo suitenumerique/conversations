@@ -17,7 +17,8 @@ and this project adheres to
 ### Changed
 
 - ♻️(back) split chat views and replace hardcoded strings with constants
- 
+- 💄(front) change 404 illustration
+
 ### Fixed
 
 - 🐛(front) prevent app crash for users without a full name or email
