@@ -137,6 +137,14 @@ nextjs-portal {
   font-family: 'Material Symbols Outlined Variable', sans-serif;
 }
 
+.c__tooltip {
+  padding: 6px 4px !important;
+}
+
+.c__tooltip .react-aria-OverlayArrow {
+  display: none !important;
+}
+
 .c__toast__container {
   min-height: 0 !important;
   height: auto !important;
@@ -354,6 +362,10 @@ ul a:hover {
   @media (width <= 1150px) {
     display: none !important;
   }
+}
+
+.c__button--with-icon--right {
+  gap: 7px !important;
 }
 
 .c__button--background {

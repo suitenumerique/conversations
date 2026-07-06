@@ -7,6 +7,8 @@ import { Box, Icon, Loader, Text } from '@/components';
 import { useConfig } from '@/core/config';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
+import { MessageEnergyIndicator } from '@/features/chat/components/MessageEnergyIndicator';
+import { getMessageCo2Impact } from '@/features/chat/utils/getMessageCo2Impact';
 import {
   CompletedMarkdownBlock,
   RawTextBlock,
@@ -221,6 +223,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   const isCurrentlyStreaming =
     isLastAssistantMessage &&
     (status === 'streaming' || status === 'submitted');
+
+  const co2ImpactKg = getMessageCo2Impact(message);
 
   const sourceParts = React.useMemo(() => {
     if (!message.parts) {
@@ -484,15 +488,16 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                     </Button>
                   )}
                 </Box>
-                <Box $direction="row" $gap="4px">
-                  {conversationId &&
-                    message.id &&
-                    message.id.startsWith('trace-') && (
-                      <FeedbackButtons
-                        conversationId={conversationId}
-                        messageId={message.id}
-                      />
-                    )}
+                <Box $direction="row" $gap="4px" $align="center">
+                  {co2ImpactKg !== undefined && (
+                    <MessageEnergyIndicator co2ImpactKg={co2ImpactKg} />
+                  )}
+                  {conversationId && message.id?.startsWith('trace-') && (
+                    <FeedbackButtons
+                      conversationId={conversationId}
+                      messageId={message.id}
+                    />
+                  )}
                 </Box>
               </Box>
             )}
@@ -528,6 +533,13 @@ const arePropsEqual = (
     return false;
   }
   if (prevProps.message.role !== nextProps.message.role) {
+    return false;
+  }
+
+  if (
+    getMessageCo2Impact(prevProps.message) !==
+    getMessageCo2Impact(nextProps.message)
+  ) {
     return false;
   }
 

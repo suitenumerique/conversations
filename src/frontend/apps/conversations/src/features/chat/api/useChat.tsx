@@ -168,11 +168,31 @@ export function stampImagesSkippedOnLatestUserMessage(
 
 export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
   const queryClient = useQueryClient();
+  const { onFinish: onFinishOption, ...restOptions } = options;
 
   const result = useAiSdkChat({
-    ...options,
+    ...restOptions,
     maxSteps: 3,
     fetch: fetchAPIAdapter,
+    onFinish: (message, finishOptions) => {
+      if (message.annotations?.length) {
+        result.setMessages((prev) => {
+          const lastAssistantIndex = prev.findLastIndex(
+            (msg) => msg.role === 'assistant',
+          );
+          if (lastAssistantIndex === -1) {
+            return prev;
+          }
+          const updated = [...prev];
+          updated[lastAssistantIndex] = {
+            ...updated[lastAssistantIndex],
+            annotations: message.annotations,
+          };
+          return updated;
+        });
+      }
+      onFinishOption?.(message, finishOptions);
+    },
   });
 
   // Epoch ms until which the user must wait before sending a new message.

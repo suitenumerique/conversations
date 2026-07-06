@@ -12,6 +12,8 @@ import {
   splitStreamingContent,
 } from '../MessageItem';
 
+const TEST_CO2_IMPACT_KG = 0.00002191613089507352;
+
 // Mock react-markdown (ESM module)
 jest.mock('react-markdown', () => ({
   MarkdownHooks: ({ children }: { children: string }) => (
@@ -49,6 +51,10 @@ jest.mock('../AttachmentList', () => ({
 
 jest.mock('../FeedbackButtons', () => ({
   FeedbackButtons: () => <div data-testid="feedback-buttons" />,
+}));
+
+jest.mock('../MessageEnergyIndicator', () => ({
+  MessageEnergyIndicator: () => <div data-testid="message-energy-indicator" />,
 }));
 
 jest.mock('../SourceItemList', () => ({
@@ -547,6 +553,36 @@ describe('MessageItem', () => {
       });
 
       expect(screen.queryByTestId('attachment-list')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('energy indicator', () => {
+    it('renders MessageEnergyIndicator when co2 annotation is present', async () => {
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={{
+              ...defaultProps.message,
+              annotations: [{ co2_impact: TEST_CO2_IMPACT_KG }],
+            }}
+          />,
+        );
+      });
+
+      expect(
+        screen.getByTestId('message-energy-indicator'),
+      ).toBeInTheDocument();
+    });
+
+    it('does not render MessageEnergyIndicator without co2 annotation', async () => {
+      await act(async () => {
+        renderWithProviders(<MessageItem {...defaultProps} />);
+      });
+
+      expect(
+        screen.queryByTestId('message-energy-indicator'),
+      ).not.toBeInTheDocument();
     });
   });
 

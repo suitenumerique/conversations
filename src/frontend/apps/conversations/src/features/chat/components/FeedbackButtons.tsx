@@ -120,7 +120,7 @@ export const FeedbackButtons = ({
       `}
     >
       <Button
-        size="small"
+        size="nano"
         color={selectedFeedback === 'positive' ? 'brand' : 'neutral'}
         variant="tertiary"
         onClick={() => {
@@ -128,10 +128,10 @@ export const FeedbackButtons = ({
         }}
         aria-label={t('Feedback positif')}
         icon={selectedFeedback === 'positive' ? <ThumbUpFilled /> : <ThumbUp />}
-        className="c__button--neutral c__button--neutral--icon action-chat-button"
+        className="c__button--neutral action-chat-button"
       />
       <Button
-        size="small"
+        size="nano"
         color={selectedFeedback === 'negative' ? 'brand' : 'neutral'}
         variant="tertiary"
         onClick={() => {
@@ -141,7 +141,7 @@ export const FeedbackButtons = ({
         icon={
           selectedFeedback === 'negative' ? <ThumbDownFilled /> : <ThumbDown />
         }
-        className="c__button--neutral c__button--neutral--icon action-chat-button"
+        className="c__button--neutral action-chat-button"
       />
     </Box>
   );
