@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(back) pre-emptive conversation summarization in a Celery task
 - ✨(back) add model fallback mechanism
 - ✨(back) add celery for running background tasks
 - 🧱(helm) add celery worker and beat deployments

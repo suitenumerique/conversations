@@ -132,7 +132,8 @@ from chat import models
 from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
 from chat.agents.history_processors import (
     SUMMARY_SYSTEM_PREFIX,
-    maybe_summarize_history,
+    SummarizationRequiredError,
+    build_active_history,
     safe_clean_tool_history,
     should_generate_conversation_summary,
 )
@@ -163,12 +164,14 @@ from chat.clients.schema import (
     ContextDeps,
     DocumentParsingResult,
     ImagePostRunActions,
+    PreparedHistory,
     StreamingState,
 )
 from chat.constants import (
     ACCESS_FULL_CONTEXT,
     IMAGE_MIME_PREFIX,
     MARKDOWN_MIME_TYPE,
+    SUMMARIZATION_ENQUEUE_CLAIM_GRACE_SECONDS,
     TEXT_MIME_PREFIX,
 )
 from chat.document_context_builder import (
@@ -177,8 +180,13 @@ from chat.document_context_builder import (
     render_listing,
 )
 from chat.enums import CollectionIndexState
+from chat.llm_configuration import (
+    conversation_message_token_budget,
+    usable_token_context,
+)
 from chat.mcp_servers import get_mcp_servers
 from chat.rate_limiting import record_and_compute_cooldown
+from chat.tasks import summarize_conversation_history
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
@@ -337,7 +345,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._history_summary = conversation.history_summary.strip() or None
         self._history_summary_checkpoint = max(conversation.history_summary_checkpoint, 0)
 
-        _capabilities: list = [ProcessHistory(self._history_processor)]
+        _capabilities: list = [ProcessHistory(safe_clean_tool_history)]
         if self._langfuse_available:
             _capabilities.append(
                 Instrumentation(
@@ -354,13 +362,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             deps_type=ContextDeps,
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
-        max_token_context = self.model_configuration.max_token_context or 0
-        usable_token_context = max(
-            max_token_context - settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS,
-            0,
-        )
-        self._conversation_message_token_budget = max(
-            int((1 - settings.DOCUMENT_CONTEXT_BUDGET_RATIO) * usable_token_context), 0
+        self._conversation_message_token_budget = conversation_message_token_budget(
+            self.model_configuration
         )
 
         # Inject project-level custom instructions if the conversation belongs to a project
@@ -472,7 +475,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 "can't read images."
             )
 
-    async def _stream_content(
+    async def _stream_content(  # noqa: PLR0912  # pylint: disable=too-many-branches
         self, messages: List[UIMessage], force_web_search: bool = False, encoder_fn: Callable = None
     ):
         """Common streaming logic with configurable encoder."""
@@ -531,6 +534,19 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     yield encoded
                 else:
                     raise
+            except SummarizationRequiredError as exc:
+                logger.error(
+                    "Summarization required but failed for conversation %s: %s",
+                    self.conversation.pk,
+                    exc,
+                )
+                if messages:
+                    await self._persist_user_message_on_error(messages[-1])
+                error_event = events_v4.ErrorPart(error="summarization_failed")
+                if encoded := encoder_fn(error_event):
+                    yield encoded
+                else:
+                    raise
 
     async def stream_text_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return only the assistant text deltas (legacy text mode)."""
@@ -580,16 +596,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # --------------------------------------------------------------------- #
 
     async def _prepare_agent_run(
-        self, messages: List[UIMessage], history: List[ModelMessage]
-    ) -> Tuple[
-        str,
-        List,
-        List,
-        Dict[str, str],
-        Dict[str, Union[int, float]],
-        List,
-        bool,
-    ]:
+        self, messages: List[UIMessage]
+    ) -> Tuple[str, List, List, Dict[str, str], Dict[str, Union[int, float]], List, bool]:
         """
         Prepare all inputs needed before running the agent.
 
@@ -613,6 +621,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             - conversation_has_own_documents: Whether this
             conversation has its own (non-project) text attachments
         """
+        history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
         history = update_history_local_urls(
             self.conversation, history
         )  # presign URLs for local images
@@ -719,37 +728,106 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             conversation_has_own_documents,
         )
 
-    async def _apply_history_cleanup(
-        self, history: list[ModelMessage], *, allow_summary_generation: bool
-    ) -> list[ModelMessage]:
-        """Compact history and persist any generated summary metadata."""
+    def _build_model_history(self, history: list[ModelMessage]) -> list[ModelMessage]:
+        """Compact tool cycles and trim to the runtime window for this turn.
+
+        Pure transformation of the message list sent to the model: no LLM, no
+        DB writes. The summarized prefix is represented by the persisted summary
+        (injected via dynamic instructions), not by these messages.
+        """
         cleaned_history = safe_clean_tool_history(history)
-        cleanup_result = await maybe_summarize_history(
+        return build_active_history(
             cleaned_history,
-            previous_summary=self._history_summary,
+            self._history_summary_checkpoint,
+            settings.CONVERSATION_SUMMARY_CONTEXT_MESSAGES,
+        )
+
+    async def _wait_for_history_summary(
+        self,
+        claim_deadline: float | None = None,
+    ) -> AsyncGenerator[events_v4.DataPart, None]:
+        """Wait for the summarization task while its claim is live.
+
+        Yields keep-alive data parts so proxies don't kill the idle SSE
+        stream. Returns when the summary lands (checkpoint advanced past
+        ours) or when the claim is dead — immediately, or, when
+        ``claim_deadline`` (monotonic clock) is given, once the deadline has
+        passed without a worker claiming. Bounded by the claim TTL plus the
+        grace window by construction.
+        """
+        while True:
+            await self.conversation.arefresh_from_db(
+                fields=[
+                    "history_summary",
+                    "history_summary_checkpoint",
+                    "history_summary_claimed_at",
+                ]
+            )
+            if self.conversation.history_summary_checkpoint > self._history_summary_checkpoint:
+                return
+            if not self.conversation.history_summarization_claim_is_live and (
+                claim_deadline is None or time.monotonic() >= claim_deadline
+            ):
+                return
+            yield events_v4.DataPart(data=[{"type": "keep_alive"}])
+            await asyncio.sleep(1)
+
+    async def _run_history_summary_phase(
+        self, history: list[ModelMessage]
+    ) -> AsyncGenerator[events_v4.Event | PreparedHistory, None]:
+        """Run the conversation-summary phase, then trim the history.
+
+        This runs before agent.iter so dynamic instructions can read the
+        updated summary in the same model request. When the message budget is
+        exceeded it emits a visible `summarize` tool call (running -> done) and
+        blocks the turn while a Celery worker generates the summary: enqueue the
+        task, wait on its claim, then adopt whatever landed. Generation is
+        Celery-only — if no summary lands (worker down) and the turn is still
+        over budget, it raises `SummarizationRequiredError` rather than answering
+        with degraded context. Always trims the history and yields the result as
+        the final item (the `DocumentParsingResult` sentinel pattern).
+        """
+        should_emit_summary_event = should_generate_conversation_summary(
+            history,
             summary_checkpoint=self._history_summary_checkpoint,
             message_token_budget=self._conversation_message_token_budget,
             context_messages=settings.CONVERSATION_SUMMARY_CONTEXT_MESSAGES,
-            summary_max_tokens=settings.CONVERSATION_SUMMARY_MAX_TOKENS,
-            allow_summary_generation=allow_summary_generation,
         )
-        if cleanup_result.summary:
-            self._history_summary = cleanup_result.summary
-            self.conversation.history_summary = cleanup_result.summary
-        if cleanup_result.summary_checkpoint is not None:
-            self._history_summary_checkpoint = cleanup_result.summary_checkpoint
-            self.conversation.history_summary_checkpoint = cleanup_result.summary_checkpoint
-        if cleanup_result.summary or cleanup_result.summary_checkpoint is not None:
-            # Persist right away: the summarization LLM call is paid for, and
-            # a later agent failure only saves `messages`.
-            await self.conversation.asave(
-                update_fields=["history_summary", "history_summary_checkpoint", "updated_at"]
+        if should_emit_summary_event:
+            tool_call_id = str(uuid.uuid4())
+            yield events_v4.ToolCallPart(
+                tool_call_id=tool_call_id,
+                tool_name="summarize",
+                args={"state": "running", "summary_scope": "conversation"},
             )
-        return cleanup_result.history
+            claim_deadline = None
+            if not self.conversation.history_summarization_claim_is_live:
+                # Nobody is generating: enqueue the task (the summarized prefix
+                # predates this turn, so DB state is current), then give the
+                # worker a grace window to pick it up and claim.
+                await sync_to_async(summarize_conversation_history.delay)(str(self.conversation.pk))
+                claim_deadline = time.monotonic() + SUMMARIZATION_ENQUEUE_CLAIM_GRACE_SECONDS
+            async for keep_alive in self._wait_for_history_summary(claim_deadline=claim_deadline):
+                yield keep_alive
+            # Adopt whatever landed while we waited.
+            self._history_summary = self.conversation.history_summary.strip() or None
+            self._history_summary_checkpoint = max(self.conversation.history_summary_checkpoint, 0)
+            if should_generate_conversation_summary(
+                history,
+                summary_checkpoint=self._history_summary_checkpoint,
+                message_token_budget=self._conversation_message_token_budget,
+                context_messages=settings.CONVERSATION_SUMMARY_CONTEXT_MESSAGES,
+            ):
+                # No summary landed and still over budget: no degraded turn.
+                raise SummarizationRequiredError(
+                    "Conversation summary did not land while the history exceeds the budget."
+                )
+            yield events_v4.ToolResultPart(
+                tool_call_id=tool_call_id,
+                result={"state": "done"},
+            )
 
-    async def _history_processor(self, history: list[ModelMessage]) -> list[ModelMessage]:
-        """Native pydantic-ai history processor for internal tool-cycle cleanup."""
-        return safe_clean_tool_history(history)
+        yield PreparedHistory(history=self._build_model_history(history))
 
     def _setup_web_search(self, force_web_search: bool) -> bool:
         """Configure web search if forced. Returns whether web search is actually
@@ -1044,8 +1122,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     upload_state=models.AttachmentStatus.READY,
                 ).order_by("created_at", "id")
             )
-        max_token_context = self.model_configuration.max_token_context or 0
-        usable_token_context = max(max_token_context - security_buffer_tokens, 0)
+        model_usable_token_context = usable_token_context(self.model_configuration)
 
         # Cache the DocumentsListing: building it requires reading every text
         # attachment from object storage and tokenizing it. The fingerprint includes
@@ -1055,7 +1132,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             f"conv={self.conversation.id}",
             f"user={getattr(self.user, 'id', None)}",
             f"model={self.model_hrid}",
-            f"max_ctx={usable_token_context}",
+            f"max_ctx={model_usable_token_context}",
             f"ratio={budget_ratio}",
             f"buffer={security_buffer_tokens}",
             *(f"{att.id}:{att.updated_at.isoformat()}" for att in text_attachments),
@@ -1075,7 +1152,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             text_attachments=text_attachments,
             project_text_attachments=project_text_attachments,
             model_hrid=self.model_hrid,
-            max_token_context=usable_token_context,
+            max_token_context=model_usable_token_context,
             budget_ratio=budget_ratio,
             security_buffer_tokens=security_buffer_tokens,
         )
@@ -1475,8 +1552,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
-    async def _run_agent(  # noqa: PLR0912, PLR0915
+    async def _run_agent(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # noqa: PLR0912
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
@@ -1488,7 +1564,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Trace-level attributes are propagated by `_stream_content` via
         # `propagate_attributes`; `langfuse` is kept for downstream helpers.
         langfuse = get_client() if self._langfuse_available else None
-        raw_history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
 
         (
             user_prompt,
@@ -1498,16 +1573,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             usage,
             history,
             conversation_has_own_documents,
-        ) = await self._prepare_agent_run(messages, raw_history)
-
-        # Conversation summary process. This runs before agent.iter so dynamic
-        # instructions can read the updated summary in the same model request.
-        should_emit_summary_event = should_generate_conversation_summary(
-            history,
-            summary_checkpoint=self._history_summary_checkpoint,
-            message_token_budget=self._conversation_message_token_budget,
-            context_messages=settings.CONVERSATION_SUMMARY_CONTEXT_MESSAGES,
-        )
+        ) = await self._prepare_agent_run(messages)
 
         for pre_event in self._pre_stream_events:
             yield events_v4.DataPart(data=[pre_event])
@@ -1556,24 +1622,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         conversation_has_own_documents = doc_result.has_documents
 
-        if should_emit_summary_event:
-            tool_call_id = str(uuid.uuid4())
-            yield events_v4.ToolCallPart(
-                tool_call_id=tool_call_id,
-                tool_name="summarize",
-                args={"state": "running", "summary_scope": "conversation"},
-            )
-        checkpoint_before_cleanup = self._history_summary_checkpoint
-        history = await self._apply_history_cleanup(
-            history,
-            allow_summary_generation=should_emit_summary_event,
-        )
-        if should_emit_summary_event:
-            summary_generated = self._history_summary_checkpoint > checkpoint_before_cleanup
-            yield events_v4.ToolResultPart(
-                tool_call_id=tool_call_id,
-                result={"state": "done" if summary_generated else "error"},
-            )
+        async for item in self._run_history_summary_phase(history):
+            if isinstance(item, PreparedHistory):
+                history = item.history
+            else:
+                yield item
 
         await self._agent_stop_streaming(force_cache_check=True)
         self._setup_self_documentation_tool()

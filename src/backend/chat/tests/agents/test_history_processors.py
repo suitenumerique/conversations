@@ -78,15 +78,15 @@ def test_history_processors_are_applied_before_provider_call(
     assert user_prompt_contents == ["Question 1", "Question 2"]
 
 
-@pytest.mark.asyncio
-async def test_history_cleanup_keeps_full_history_when_under_budget():
-    """No summary should be produced when the active slice fits budget."""
+def test_build_active_history_keeps_full_history_within_context_window():
+    """The whole history is kept when it fits inside the context window."""
     messages = _build_turns(2)
 
-    result = await history_processors.maybe_summarize_history(messages, message_token_budget=10_000)
+    result = history_processors.build_active_history(
+        messages, summary_checkpoint=0, context_messages=10
+    )
 
-    assert result.summary is None
-    assert result.history == messages
+    assert result == messages
 
 
 def test_clean_tool_history_redacts_old_tool_returns_but_keeps_latest_tool_result():
@@ -125,8 +125,8 @@ def test_clean_tool_history_redacts_old_tool_returns_but_keeps_latest_tool_resul
 
 
 @pytest.mark.asyncio
-async def test_history_cleanup_over_budget_generates_summary_and_advances_checkpoint(monkeypatch):
-    """Summary is generated when unsummarized runtime history exceeds budget."""
+async def test_generate_history_summary_returns_summary_and_advances_checkpoint(monkeypatch):
+    """Generation summarizes everything after the checkpoint and advances it to the end."""
     summarized_messages = []
 
     async def fake_summary(messages, *, max_tokens=300, previous_summary=None):
@@ -135,52 +135,52 @@ async def test_history_cleanup_over_budget_generates_summary_and_advances_checkp
         _ = previous_summary
         return "summary-v1"
 
-    monkeypatch.setattr(history_processors, "conversation_summarization", fake_summary)
+    monkeypatch.setattr(history_processors, "summarize_conversation", fake_summary)
     messages = _build_turns(3)
 
-    result = await history_processors.maybe_summarize_history(
-        messages, message_token_budget=1, context_messages=1
-    )
+    summary, checkpoint = await history_processors.generate_history_summary(messages)
 
-    assert result.summary == "summary-v1"
-    assert result.summary_checkpoint == len(messages)
-    assert result.history == messages[5:]
-    assert summarized_messages == messages[: result.summary_checkpoint]
+    assert summary == "summary-v1"
+    assert checkpoint == len(messages)
+    assert summarized_messages == messages
 
 
 @pytest.mark.asyncio
-async def test_history_cleanup_existing_summary_uses_checkpoint_slice(monkeypatch):
-    """When already summarized, runtime history starts at checkpoint minus context."""
+async def test_generate_history_summary_summarizes_only_after_checkpoint(monkeypatch):
+    """With an existing checkpoint, only messages after it are sent to the model."""
+    summarized_messages = []
 
-    async def fake_summary(_messages, *, max_tokens=300, previous_summary=None):
+    async def fake_summary(messages, *, max_tokens=300, previous_summary=None):
+        summarized_messages.extend(messages)
         _ = max_tokens
         _ = previous_summary
-        raise AssertionError("Summary should not be regenerated at turn 5")
+        return "summary-v2"
 
-    monkeypatch.setattr(history_processors, "conversation_summarization", fake_summary)
+    monkeypatch.setattr(history_processors, "summarize_conversation", fake_summary)
     messages = _build_turns(5)
 
-    result = await history_processors.maybe_summarize_history(
-        messages,
-        summary_checkpoint=6,
-        message_token_budget=10_000,
-        context_messages=1,
+    summary, checkpoint = await history_processors.generate_history_summary(
+        messages, summary_checkpoint=6
     )
 
-    assert result.summary is None
-    assert result.history == messages[5:]
+    assert summary == "summary-v2"
+    assert checkpoint == len(messages)
+    assert summarized_messages == messages[6:]
 
 
-@pytest.mark.asyncio
-async def test_history_cleanup_budget_only_counts_active_window_after_checkpoint(monkeypatch):
-    """Old summarized messages should not retrigger summaries after checkpoint."""
+def test_build_active_history_starts_at_checkpoint_minus_context():
+    """The runtime window starts `context_messages` before the checkpoint."""
+    messages = _build_turns(5)
 
-    async def fake_summary(_messages, *, max_tokens=300, previous_summary=None):
-        _ = max_tokens
-        _ = previous_summary
-        raise AssertionError("Messages before the active window should not count")
+    result = history_processors.build_active_history(
+        messages, summary_checkpoint=6, context_messages=1
+    )
 
-    monkeypatch.setattr(history_processors, "conversation_summarization", fake_summary)
+    assert result == messages[5:]
+
+
+def test_build_active_history_drops_the_summarized_prefix():
+    """A large already-summarized prefix is dropped from the runtime window."""
     messages = [
         ModelRequest(parts=[UserPromptPart(content=["old user " + ("x " * 500)])]),
         ModelResponse(parts=[TextPart(content="old assistant " + ("x " * 500))]),
@@ -190,55 +190,22 @@ async def test_history_cleanup_budget_only_counts_active_window_after_checkpoint
         ModelResponse(parts=[TextPart(content="new assistant")]),
     ]
 
-    result = await history_processors.maybe_summarize_history(
-        messages,
-        summary_checkpoint=4,
-        message_token_budget=100,
-        context_messages=1,
+    result = history_processors.build_active_history(
+        messages, summary_checkpoint=4, context_messages=1
     )
 
-    assert result.summary is None
-    assert result.history == messages[3:]
+    assert result == messages[3:]
 
 
-@pytest.mark.asyncio
-async def test_history_cleanup_does_not_resummarize_when_checkpoint_is_current(monkeypatch):
-    """After a summary, context overlap alone should not be summarized again."""
-
-    async def fake_summary(_messages, *, max_tokens=300, previous_summary=None):
-        _ = max_tokens
-        _ = previous_summary
-        raise AssertionError("Latest active turn should not be summarized")
-
-    monkeypatch.setattr(history_processors, "conversation_summarization", fake_summary)
-    messages = _build_turns(3)
-
-    result = await history_processors.maybe_summarize_history(
-        messages,
-        summary_checkpoint=len(messages),
-        message_token_budget=1,
-        context_messages=1,
-    )
-
-    assert result.summary is None
-    assert result.summary_checkpoint is None
-    assert result.history == messages[5:]
-
-
-@pytest.mark.asyncio
-async def test_history_cleanup_never_returns_empty_history_when_checkpoint_is_at_end():
-    """pydantic-ai rejects empty processed history when it passed history in."""
+def test_build_active_history_never_empty_when_checkpoint_at_end():
+    """pydantic-ai rejects empty processed history, so the last message is kept."""
     messages = _build_turns(2)
 
-    result = await history_processors.maybe_summarize_history(
-        messages,
-        summary_checkpoint=len(messages),
-        message_token_budget=10_000,
-        context_messages=1,
+    result = history_processors.build_active_history(
+        messages, summary_checkpoint=len(messages), context_messages=1
     )
 
-    assert result.summary is None
-    assert result.history == messages[3:]
+    assert result == messages[3:]
 
 
 def test_clean_tool_history_has_no_summary_checkpoint_behavior():
@@ -251,25 +218,17 @@ def test_clean_tool_history_has_no_summary_checkpoint_behavior():
 
 
 @pytest.mark.asyncio
-async def test_history_cleanup_summary_failure_keeps_runtime_slice(monkeypatch):
-    """If summary generation fails, keep runtime slice unchanged."""
+async def test_generate_history_summary_raises_when_model_returns_nothing(monkeypatch):
+    """No degraded turn: an empty summary raises so the task retries."""
 
     async def fake_summary(_messages, *, max_tokens=300, previous_summary=None):
-        _ = max_tokens
-        _ = previous_summary
+        _ = max_tokens, previous_summary
 
-    monkeypatch.setattr(history_processors, "conversation_summarization", fake_summary)
-    messages = _build_turns(4)
+    monkeypatch.setattr(history_processors, "summarize_conversation", fake_summary)
+    messages = _build_turns(20)
 
-    result = await history_processors.maybe_summarize_history(
-        messages,
-        summary_checkpoint=2,
-        message_token_budget=1,
-        context_messages=1,
-    )
-
-    assert result.summary is None
-    assert result.history == messages[1:]
+    with pytest.raises(history_processors.SummarizationRequiredError):
+        await history_processors.generate_history_summary(messages)
 
 
 def test_should_generate_conversation_summary_when_budget_exceeded():
@@ -319,24 +278,3 @@ def test_safe_clean_tool_history_falls_back_to_raw_history(monkeypatch):
     result = history_processors.safe_clean_tool_history(messages)
 
     assert result == messages
-
-
-@pytest.mark.asyncio
-async def test_maybe_summarize_history_falls_back_on_unexpected_error(monkeypatch):
-    """Unexpected summarization errors should keep the active history slice."""
-    messages = _build_turns(4)
-
-    def raise_estimate(_message):
-        raise RuntimeError("token estimate failed")
-
-    monkeypatch.setattr(history_processors, "_estimate_message_tokens", raise_estimate)
-
-    result = await history_processors.maybe_summarize_history(
-        messages,
-        summary_checkpoint=2,
-        message_token_budget=1,
-        context_messages=1,
-    )
-
-    assert result.summary is None
-    assert result.history == messages[1:]

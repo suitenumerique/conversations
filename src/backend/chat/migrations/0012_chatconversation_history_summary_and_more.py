@@ -26,4 +26,16 @@ class Migration(migrations.Migration):
                 help_text="Number of pydantic history messages already compacted into history_summary",
             ),
         ),
+        migrations.AddField(
+            model_name="chatconversation",
+            name="history_summary_claimed_at",
+            field=models.DateTimeField(
+                blank=True,
+                help_text=(
+                    "When a worker claimed summary generation; claims expire after "
+                    "HISTORY_SUMMARY_CLAIM_TTL_SECONDS (dead-worker liveness bound)"
+                ),
+                null=True,
+            ),
+        ),
     ]

@@ -11,7 +11,9 @@ from chat.llm_configuration import (
     LLModel,
     LLMProvider,
     _get_setting_or_env_or_value,
+    conversation_message_token_budget,
     load_llm_configuration,
+    usable_token_context,
 )
 
 
@@ -252,3 +254,55 @@ def test_llmodel_max_token_context_rejects_invalid_value():
             tools=[],
             max_token_context="abc",
         )
+
+
+def test_usable_token_context_subtracts_security_buffer(settings):
+    """usable_token_context = max_token_context - security buffer, floored at 0."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 10000
+    model = LLModel(
+        hrid="m",
+        model_name="m",
+        human_readable_name="M",
+        is_active=True,
+        icon=None,
+        system_prompt="",
+        tools=[],
+        max_token_context=128000,
+        provider=LLMProvider(hrid="p", base_url="https://example.com", api_key="k"),
+    )
+    assert usable_token_context(model) == 118000
+
+
+def test_usable_token_context_is_zero_without_max_token_context(settings):
+    """Returns 0 when the model has no max_token_context configured."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 10000
+    model = LLModel(
+        hrid="m",
+        model_name="m",
+        human_readable_name="M",
+        is_active=True,
+        icon=None,
+        system_prompt="",
+        tools=[],
+        max_token_context=None,
+        provider=LLMProvider(hrid="p", base_url="https://example.com", api_key="k"),
+    )
+    assert usable_token_context(model) == 0
+
+
+def test_conversation_message_token_budget_uses_history_share(settings):
+    """History budget = (1 - ratio) x usable context."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 10000
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
+    model = LLModel(
+        hrid="m",
+        model_name="m",
+        human_readable_name="M",
+        is_active=True,
+        icon=None,
+        system_prompt="",
+        tools=[],
+        max_token_context=128000,
+        provider=LLMProvider(hrid="p", base_url="https://example.com", api_key="k"),
+    )
+    assert conversation_message_token_budget(model) == 59000

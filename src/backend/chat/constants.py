@@ -19,3 +19,17 @@ SSE_MIME_TYPE = "text/event-stream"  # Server-Sent Events streaming responses
 # can't reference module-level constants).
 ACCESS_FULL_CONTEXT = "full-context"
 ACCESS_TOOL_CALL_ONLY = "tool_call_only"
+
+# Conversation summarization task limits. The claim TTL is the hard time
+# limit plus a margin: past it, the claiming worker is provably dead
+# (SIGKILLed at time_limit, OOM-killed, or crashed) and the claim stops
+# blocking. Keep the three values consistent — the liveness math depends
+# on TTL > TIME_LIMIT.
+SUMMARIZATION_TASK_SOFT_TIME_LIMIT = 110  # seconds, raises SoftTimeLimitExceeded
+SUMMARIZATION_TASK_TIME_LIMIT = 120  # seconds, worker is SIGKILLed
+HISTORY_SUMMARY_CLAIM_TTL_SECONDS = SUMMARIZATION_TASK_TIME_LIMIT + 60
+
+# After the triggering turn enqueues the summarization task, how long the
+# wait loop tolerates "no live claim yet" before falling back to inline
+# generation (covers broker latency and a short worker backlog).
+SUMMARIZATION_ENQUEUE_CLAIM_GRACE_SECONDS = 10

@@ -142,3 +142,25 @@ Examples that must NOT trigger self_documentation:
 - "Explain how a for loop works"
 - "What does this report say about Q3 revenue?"
 """
+
+
+CONVERSATION_SUMMARY_TOOL_DESCRIPTION = (
+    "You are a conversation summarization assistant. Your role is to maintain\n"
+    "a concise and accurate running summary of a conversation, "
+    "omitting small talk and unrelated topics.\n\n"
+    "Given the previous summary (if any) and the new exchanges provided,\n"
+    "generate an updated summary that:\n\n"
+    "- **Preserves** every key information, decisions, and important facts\n"
+    "- **Integrates** the new exchanges in a coherent way\n"
+    "- **Removes** redundant or non-essential details\n"
+    "- **Maintains** the context needed for the conversation to continue\n"
+    "- Is written in a neutral, factual, third-person style\n"
+    "- Stays **concise** (5-10 lines maximum)\n\n"
+    "## Previous Summary:\n"
+    "{latest_summary}\n\n"
+    "## New Exchanges:\n"
+    "{exchanges}\n\n"
+    "Only answer with the updated summary, including the new exchanges "
+    "information and the previous summary.\n\n"
+    "## Updated Summary:\n"
+)

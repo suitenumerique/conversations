@@ -14,6 +14,7 @@ from pydantic_ai.messages import (
 )
 
 from chat.document_context_builder import count_approx_tokens
+from chat.tools.descriptions import CONVERSATION_SUMMARY_TOOL_DESCRIPTION
 
 from .summarize import SummarizationAgent
 
@@ -23,14 +24,12 @@ SUMMARY_SYSTEM_PREFIX = (
     "[Conversation summary from previous turns] (context only, not a user request):\n"
 )
 
+_TOKENS_PER_PART_OVERHEAD = 4  # framing/delimiters per message part
+_TOKENS_PER_MESSAGE_OVERHEAD = 4  # per-message envelope
 
-@dataclasses.dataclass(frozen=True)
-class HistoryCleanupResult:
-    """Result of history cleanup, with optional generated summary."""
 
-    history: list[ModelMessage]
-    summary: str | None = None
-    summary_checkpoint: int | None = None
+class SummarizationRequiredError(Exception):
+    """A summary was required to fit the token budget but could not be generated."""
 
 
 def _stringify_message_content(content: object) -> str:
@@ -43,6 +42,7 @@ def _stringify_message_content(content: object) -> str:
 
 
 def _format_exchanges_for_summary(messages: list[ModelMessage]) -> str:
+    """Render user/assistant turns as `Role: text` lines for the summary prompt."""
     lines = []
 
     for msg in messages:
@@ -63,38 +63,21 @@ def _format_exchanges_for_summary(messages: list[ModelMessage]) -> str:
     return "\n".join(lines)
 
 
-async def conversation_summarization(
+async def summarize_conversation(
     messages: list[ModelMessage], *, max_tokens: int = 300, previous_summary: str | None = None
 ) -> str | None:
-    """
-    Summarize the conversation.
-    """
+    """Generate an updated running summary, folding `previous_summary` into `messages`.
 
+    Returns the new summary text, or None when the model produces nothing or the
+    summarization call fails.
+    """
     summarization_agent = SummarizationAgent()
-    latest_summary = previous_summary
+    latest_summary = previous_summary or ""
     exchanges = _format_exchanges_for_summary(messages)
-    prompt = (
-        "You are a conversation summarization assistant. Your role is to maintain\n"
-        "a concise and accurate running summary of a conversation, "
-        "omitting small talk and unrelated topics.\n\n"
-        "Given the previous summary (if any) and the new exchanges provided,\n"
-        "generate an updated summary that:\n\n"
-        "- **Preserves** every key information, decisions, and important facts\n"
-        "- **Integrates** the new exchanges in a coherent way\n"
-        "- **Removes** redundant or non-essential details\n"
-        "- **Maintains** the context needed for the conversation to continue\n"
-        "- Is written in a neutral, factual, third-person style\n"
-        "- Stays **concise** (5-10 lines maximum)\n\n"
-        "## Previous Summary:\n"
-        f"{latest_summary if latest_summary else ''}\n\n"
-        "## New Exchanges:\n"
-        f"{exchanges}\n\n"
-        "Only answer with the updated summary, including the new exchanges "
-        "information and the previous summary.\n\n"
-        "## Updated Summary:\n"
+    prompt = (CONVERSATION_SUMMARY_TOOL_DESCRIPTION + "\n\n").format(
+        exchanges=exchanges, latest_summary=latest_summary
     )
     logger.debug("Prompt for summarization: %s", prompt)
-    logger.debug("Latest summary: %s", latest_summary)
     try:
         resp = await summarization_agent.run(
             prompt,
@@ -109,6 +92,7 @@ async def conversation_summarization(
 
 
 def _latest_tool_call_ids(messages: list[ModelMessage]) -> set[str]:
+    """Return the tool_call_ids of the most recent assistant tool-call turn."""
     for message in reversed(messages):
         if not isinstance(message, ModelResponse):
             continue
@@ -123,6 +107,7 @@ def _latest_tool_call_ids(messages: list[ModelMessage]) -> set[str]:
 
 
 def _clean_request_parts(parts: list, latest_tool_call_ids: set[str]) -> list:
+    """Replace stale tool returns with a compact placeholder, keeping the latest cycle."""
     kept_parts = []
     for part in parts:
         if not isinstance(part, ToolReturnPart):
@@ -172,14 +157,6 @@ def safe_clean_tool_history(messages: list[ModelMessage]) -> list[ModelMessage]:
         return messages
 
 
-def _history_cleanup_fallback(
-    messages: list[ModelMessage], summary_checkpoint: int, context_messages: int
-) -> HistoryCleanupResult:
-    """Return the active history slice when summarization logic fails unexpectedly."""
-    checkpoint = _safe_checkpoint(messages, summary_checkpoint)
-    return HistoryCleanupResult(history=_active_history(messages, checkpoint, context_messages))
-
-
 def _estimate_message_tokens(message: ModelMessage) -> int:
     """Estimate the token weight of one model message."""
     parts = getattr(message, "parts", []) or []
@@ -197,7 +174,7 @@ def _estimate_message_tokens(message: ModelMessage) -> int:
         if isinstance(args, str) and args.strip():
             part_tokens += count_approx_tokens(args)
 
-    return part_tokens + (4 * len(parts)) + 4
+    return part_tokens + (_TOKENS_PER_PART_OVERHEAD * len(parts)) + _TOKENS_PER_MESSAGE_OVERHEAD
 
 
 def _estimate_history_tokens(messages: list[ModelMessage]) -> int:
@@ -210,108 +187,70 @@ def _safe_checkpoint(messages: list[ModelMessage], summary_checkpoint: int) -> i
     return max(0, min(summary_checkpoint, len(messages)))
 
 
-def _active_start_index(
-    messages: list[ModelMessage], summary_checkpoint: int, context_messages: int
-) -> int:
-    """Return where active history starts for a summary checkpoint."""
-    checkpoint = _safe_checkpoint(messages, summary_checkpoint)
-    return max(0, checkpoint - max(context_messages, 1))
-
-
-def _active_history(
+def build_active_history(
     messages: list[ModelMessage], summary_checkpoint: int, context_messages: int
 ) -> list[ModelMessage]:
-    """Keep the last `context_messages` ModelMessage entries before the checkpoint."""
-    active_start = _active_start_index(messages, summary_checkpoint, context_messages)
+    """Trim history to the runtime window: the last `context_messages` entries
+    before the checkpoint, plus everything after it.
+
+    Pure list-slicing, no LLM. This is the history the model actually sees for
+    the current turn; the summarized prefix (everything before the window) is
+    represented by the persisted summary instead. Never returns empty while
+    `messages` is non-empty.
+    """
+    checkpoint = _safe_checkpoint(messages, summary_checkpoint)
+    active_start = max(0, checkpoint - max(context_messages, 1))
     active = messages[active_start:]
     if active:
         return active
     return messages[-1:] if messages else []
 
 
-def build_active_history(
+def _active_window(
     messages: list[ModelMessage], summary_checkpoint: int, context_messages: int
-) -> list[ModelMessage]:
-    """Return the runtime history window for a summary checkpoint."""
-    return _active_history(messages, summary_checkpoint, context_messages)
+) -> tuple[int, list[ModelMessage], int]:
+    """Return (clamped checkpoint, active-history slice, its token estimate)."""
+    checkpoint = _safe_checkpoint(messages, summary_checkpoint)
+    active_history = build_active_history(messages, checkpoint, context_messages)
+    return checkpoint, active_history, _estimate_history_tokens(active_history)
 
 
-async def maybe_summarize_history(  # noqa: PLR0913  # pylint: disable=too-many-arguments
+async def generate_history_summary(
     messages: list[ModelMessage],
     *,
     previous_summary: str | None = None,
     summary_checkpoint: int = 0,
-    message_token_budget: int = 0,
-    context_messages: int = 10,
     summary_max_tokens: int = 2048,
-    allow_summary_generation: bool = True,
-) -> HistoryCleanupResult:
+) -> tuple[str, int]:
+    """Summarize everything after the checkpoint; return (summary, new_checkpoint).
+
+    Called by the Celery task once `should_generate_conversation_summary` has
+    confirmed the history is over budget. Summarizes `messages[checkpoint:]`,
+    folding in `previous_summary`, and returns the text plus the advanced
+    checkpoint (the full message count). Raises `SummarizationRequiredError`
+    when the model yields nothing, so the task retries rather than persisting an
+    empty summary.
     """
-    Summarize when active history exceeds token budget.
-
-    Called at the start of a new user turn against stored history from previous
-    turns (the current user prompt is not in `messages` yet). That history
-    normally ends on an assistant ModelResponse; use an even `context_messages`
-    so the post-summary window starts on a user message.
-
-    `summary_checkpoint` is the message index up to which `previous_summary`
-    is valid. Runtime history keeps the last `context_messages` ModelMessage
-    entries before the checkpoint so the model still has recent detailed context
-    in addition to the summary.
-    """
-    try:
-        checkpoint = _safe_checkpoint(messages, summary_checkpoint)
-        active_history = _active_history(messages, checkpoint, context_messages)
-        active_tokens = _estimate_history_tokens(active_history)
-        logger.debug(
-            (
-                "maybe_summarize_history state: total_messages=%s checkpoint=%s "
-                "active_messages=%s active_tokens=%s token_budget=%s"
-            ),
-            len(messages),
-            checkpoint,
-            len(active_history),
-            active_tokens,
-            message_token_budget,
+    checkpoint = _safe_checkpoint(messages, summary_checkpoint)
+    next_checkpoint = len(messages)
+    summary_input = messages[checkpoint:next_checkpoint]
+    logger.debug(
+        "generate_history_summary summarizing messages %s:%s (%s message(s)).",
+        checkpoint,
+        next_checkpoint,
+        len(summary_input),
+    )
+    summary = await summarize_conversation(
+        summary_input,
+        max_tokens=summary_max_tokens,
+        previous_summary=previous_summary,
+    )
+    if not summary:
+        raise SummarizationRequiredError(
+            "Summarization produced no output for the over-budget history "
+            f"({len(summary_input)} message(s) after checkpoint {checkpoint})."
         )
-
-        if message_token_budget <= 0 or active_tokens <= message_token_budget:
-            return HistoryCleanupResult(history=active_history)
-
-        next_checkpoint = len(messages)
-        if not allow_summary_generation or next_checkpoint <= checkpoint:
-            return HistoryCleanupResult(history=active_history)
-
-        summary_input = messages[checkpoint:next_checkpoint]
-        logger.debug(
-            "maybe_summarize_history summarizing messages %s:%s (%s message(s)).",
-            checkpoint,
-            next_checkpoint,
-            len(summary_input),
-        )
-        summary = await conversation_summarization(
-            summary_input,
-            max_tokens=summary_max_tokens,
-            previous_summary=previous_summary,
-        )
-        if not summary:
-            logger.warning(
-                "No updated summary generated, keeping previous summary and active context."
-            )
-            return HistoryCleanupResult(history=active_history)
-
-        return HistoryCleanupResult(
-            history=_active_history(messages, next_checkpoint, context_messages),
-            summary=summary,
-            summary_checkpoint=next_checkpoint,
-        )
-    except Exception as exc:  # pylint: disable=broad-except  # noqa: BLE001
-        logger.warning(
-            "History summarization failed, keeping active context: %s",
-            exc,
-            exc_info=True,
-        )
-        return _history_cleanup_fallback(messages, summary_checkpoint, context_messages)
+    return summary, next_checkpoint
 
 
 def should_generate_conversation_summary(
@@ -326,9 +265,7 @@ def should_generate_conversation_summary(
         return False
 
     cleaned_history = safe_clean_tool_history(messages)
-    checkpoint = _safe_checkpoint(cleaned_history, summary_checkpoint)
-    active_history = _active_history(cleaned_history, checkpoint, context_messages)
-    return (
-        _estimate_history_tokens(active_history) > message_token_budget
-        and len(cleaned_history) > checkpoint
+    checkpoint, _active, active_tokens = _active_window(
+        cleaned_history, summary_checkpoint, context_messages
     )
+    return active_tokens > message_token_budget and len(cleaned_history) > checkpoint
