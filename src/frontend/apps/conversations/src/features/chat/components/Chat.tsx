@@ -56,6 +56,7 @@ const PROVIDER_ERROR_CODES = new Set<ChatErrorType>([
   'model_not_found',
   'model_wrong_type',
   'model_busy',
+  'summarization_failed',
 ]);
 
 const IMAGES_BANNER_STORAGE_PREFIX = 'conversations:images-banner-dismissed:';

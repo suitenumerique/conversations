@@ -14,7 +14,8 @@ export type ChatErrorType =
   | 'model_connection_error'
   | 'model_not_found'
   | 'model_wrong_type'
-  | 'model_busy';
+  | 'model_busy'
+  | 'summarization_failed';
 
 interface ChatErrorProps {
   errorType: ChatErrorType;

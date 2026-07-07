@@ -11,6 +11,7 @@ import {
   RawTextBlock,
 } from '@/features/chat/components/MessageBlock';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
+import { SummarizationProgress } from '@/features/chat/components/SummarizationProgress';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
@@ -256,6 +257,18 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     return tool?.toolInvocation;
   }, [toolInvocationParts]);
 
+  const conversationSummarizeInvocation = React.useMemo(() => {
+    const part = [...toolInvocationParts]
+      .reverse()
+      .find(
+        (p) =>
+          p.toolInvocation.toolName === 'summarize' &&
+          (p.toolInvocation.args as { summary_scope?: string })
+            ?.summary_scope === 'conversation',
+      );
+    return part?.toolInvocation;
+  }, [toolInvocationParts]);
+
   // Memoize the streaming content split to avoid recreating components in JSX
   const { completedBlocks, pending } = React.useMemo(() => {
     // When not streaming, everything is completed as a single block array
@@ -374,8 +387,27 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
             {isCurrentlyStreaming &&
               isLastAssistantMessage &&
               status === 'streaming' &&
+              conversationSummarizeInvocation && (
+                <Box
+                  $width="100%"
+                  $maxWidth="var(--chat-content-max-width, 750px)"
+                  $margin={{
+                    all: 'auto',
+                    top: 'base',
+                    bottom: 'md',
+                  }}
+                >
+                  <SummarizationProgress
+                    done={conversationSummarizeInvocation.state === 'result'}
+                  />
+                </Box>
+              )}
+            {isCurrentlyStreaming &&
+              isLastAssistantMessage &&
+              status === 'streaming' &&
               hasNonDocumentParsingTool &&
-              activeToolInvocation && (
+              activeToolInvocation &&
+              activeToolInvocation !== conversationSummarizeInvocation && (
                 <Box
                   $direction="row"
                   $align="center"
@@ -391,13 +423,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   <Loader />
                   <Text $variation="600" $size="md">
                     {activeToolInvocation.toolName === 'summarize'
-                      ? (
-                          activeToolInvocation.args as {
-                            summary_scope?: string;
-                          }
-                        )?.summary_scope === 'conversation'
-                        ? t('Summarizing conversation...')
-                        : t('Summarizing...')
+                      ? t('Summarizing...')
                       : t('Search...')}
                   </Text>
                 </Box>
