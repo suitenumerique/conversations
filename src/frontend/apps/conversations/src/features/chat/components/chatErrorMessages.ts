@@ -27,7 +27,7 @@ export const getChatErrorMessage = (
       'The AI inference provider is too busy. Please try again later.',
     ),
     summarization_failed: t(
-      'The conversation context could not be prepared. Please try again later.',
+      'Summarization failed. Please try again later.',
     ),
   };
   return messages[errorType];

@@ -922,6 +922,8 @@ export const Chat = ({
                       isFirstConversationMessage={isFirstConversationMessage}
                       streamingMessageHeight={streamingMessageHeight}
                       status={status}
+                      chatErrorType={chatErrorType}
+                      onRetry={handleRetry}
                       conversationId={conversationId}
                       isSourceOpen={isSourceOpen}
                       isMobile={isMobile}
@@ -982,13 +984,15 @@ export const Chat = ({
             </Text>
           </Box>
         ) : null}
-        {status === 'error' && !isUploadingFiles && (
-          <ChatError
-            errorType={chatErrorType}
-            hasLastSubmission={!!lastSubmissionRef.current}
-            onRetry={handleRetry}
-          />
-        )}
+        {status === 'error' &&
+          !isUploadingFiles &&
+          chatErrorType !== 'summarization_failed' && (
+            <ChatError
+              errorType={chatErrorType}
+              hasLastSubmission={!!lastSubmissionRef.current}
+              onRetry={handleRetry}
+            />
+          )}
       </Box>
       <Box
         $css={`
