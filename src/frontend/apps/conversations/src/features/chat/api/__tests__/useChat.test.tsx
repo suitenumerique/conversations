@@ -27,7 +27,7 @@ describe('isImagesSkippedEvent', () => {
   });
 
   it('rejects events of other types', () => {
-    expect(isImagesSkippedEvent({ type: 'context_trimmed' })).toBe(false);
+    expect(isImagesSkippedEvent({ type: 'some_other_event' })).toBe(false);
   });
 
   it('rejects events with unknown kind', () => {

@@ -22,6 +22,13 @@ class DocumentParsingResult:
 
 
 @dataclasses.dataclass
+class PreparedHistory:
+    """Result marker carrying the prepared (trimmed) history out of the summary phase."""
+
+    history: List
+
+
+@dataclasses.dataclass
 class StreamingState:
     """
     Mutable state shared across stream processing handlers.
