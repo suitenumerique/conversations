@@ -308,6 +308,8 @@ async def build_documents_listing(  # noqa: PLR0913 # pylint: disable=too-many-a
         max_token_context, budget_ratio, security_buffer_tokens
     )
 
+    document_budget = max(int(max_token_context * budget_ratio), 0)
+
     async def _load_document(
         index: int, attachment: models.ChatConversationAttachment
     ) -> _DocumentEntry:
