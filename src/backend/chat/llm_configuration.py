@@ -5,8 +5,6 @@ import os
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Optional, Self, Sequence
 
-from django.conf import settings
-
 from pydantic import (
     AfterValidator,
     BaseModel,
@@ -36,8 +34,7 @@ LEGACY_TOOL_NAMES = frozenset(
 
 def _get_setting_or_env_or_value(value: str) -> Any:
     """Get the value from environment variable, Django settings, or return the value as is."""
-    # pylint: disable-next=import-outside-toplevel,redefined-outer-name,reimported
-    from django.conf import settings  # noqa: PLC0415
+    from django.conf import settings  # pylint: disable=import-outside-toplevel # noqa: PLC0415
 
     if value.startswith("environ."):
         env_var = value.split("environ.")[1]
@@ -268,17 +265,13 @@ def cached_load_llm_configuration(llm_configuration_file_path) -> dict[str, LLMo
     return load_llm_configuration(llm_configuration_file_path)
 
 
-def usable_token_context(model_configuration) -> int:
-    """Token window left after the security buffer, before the document/history split."""
-    max_token_context = model_configuration.max_token_context or 0
-    return max(max_token_context - settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS, 0)
+def get_model_configuration(model_hrid: str):
+    """Get the model configuration from settings."""
+    # pylint: disable=import-outside-toplevel
+    from django.conf import settings  # noqa: PLC0415
+    from django.core.exceptions import ImproperlyConfigured  # noqa: PLC0415
 
-
-def conversation_message_token_budget(model_configuration) -> int:
-    """Token budget for conversation history: the non-document share of the usable context."""
-    return max(
-        int(
-            (1 - settings.DOCUMENT_CONTEXT_BUDGET_RATIO) * usable_token_context(model_configuration)
-        ),
-        0,
-    )
+    try:
+        return settings.LLM_CONFIGURATIONS[model_hrid]
+    except KeyError as exc:
+        raise ImproperlyConfigured(f"LLM model configuration '{model_hrid}' not found.") from exc

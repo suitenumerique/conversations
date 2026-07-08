@@ -10,7 +10,6 @@ and this project adheres to
 
 ### Added
 
-- ✨(back) pre-emptive conversation summarization in a Celery task
 - ✨(back) add model fallback mechanism
 - ✨(back) add celery for running background tasks
 - 🧱(helm) add celery worker and beat deployments
@@ -19,7 +18,6 @@ and this project adheres to
 ### Changed
 
 - ♻️(back) split chat views and replace hardcoded strings with constants
-- 🔧(back) raise DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS default from 1000 to 10000
  
 ## [0.0.19] - 2026-06-24
 

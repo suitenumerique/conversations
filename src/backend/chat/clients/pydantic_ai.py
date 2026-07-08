@@ -90,7 +90,6 @@ from typing import AsyncGenerator, Callable, Dict, List, Optional, Tuple, Union
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
@@ -134,6 +133,7 @@ from chat.agents.history_processors import (
     SUMMARY_SYSTEM_PREFIX,
     SummarizationRequiredError,
     build_active_history,
+    resolve_conversation_budget,
     safe_clean_tool_history,
     should_generate_conversation_summary,
 )
@@ -180,10 +180,7 @@ from chat.document_context_builder import (
     render_listing,
 )
 from chat.enums import CollectionIndexState
-from chat.llm_configuration import (
-    conversation_message_token_budget,
-    usable_token_context,
-)
+from chat.llm_configuration import get_model_configuration
 from chat.mcp_servers import get_mcp_servers
 from chat.rate_limiting import record_and_compute_cooldown
 from chat.tasks import summarize_conversation_history
@@ -218,14 +215,6 @@ DOCUMENT_URL_PREFIX = "/media-key/"
 # reasons or events.
 IMAGES_SKIPPED_EVENT_TYPE = "images_skipped"
 IMAGE_SKIP_REASON_TEXT_ONLY = "model_text_only"
-
-
-def get_model_configuration(model_hrid: str):
-    """Get the model configuration from settings."""
-    try:
-        return settings.LLM_CONFIGURATIONS[model_hrid]
-    except KeyError as exc:
-        raise ImproperlyConfigured(f"LLM model configuration '{model_hrid}' not found.") from exc
 
 
 def _strip_thinking_parts(history: list[ModelMessage]) -> list[ModelMessage]:
@@ -362,7 +351,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             deps_type=ContextDeps,
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
-        self._conversation_message_token_budget = conversation_message_token_budget(
+        self._conversation_message_token_budget = resolve_conversation_budget(
             self.model_configuration
         )
 
@@ -1122,7 +1111,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     upload_state=models.AttachmentStatus.READY,
                 ).order_by("created_at", "id")
             )
-        model_usable_token_context = usable_token_context(self.model_configuration)
+        max_token_context = self.model_configuration.max_token_context
 
         # Cache the DocumentsListing: building it requires reading every text
         # attachment from object storage and tokenizing it. The fingerprint includes
@@ -1132,7 +1121,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             f"conv={self.conversation.id}",
             f"user={getattr(self.user, 'id', None)}",
             f"model={self.model_hrid}",
-            f"max_ctx={model_usable_token_context}",
+            f"max_ctx={max_token_context}",
             f"ratio={budget_ratio}",
             f"buffer={security_buffer_tokens}",
             *(f"{att.id}:{att.updated_at.isoformat()}" for att in text_attachments),
@@ -1152,7 +1141,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             text_attachments=text_attachments,
             project_text_attachments=project_text_attachments,
             model_hrid=self.model_hrid,
-            max_token_context=model_usable_token_context,
+            max_token_context=max_token_context,
             budget_ratio=budget_ratio,
             security_buffer_tokens=security_buffer_tokens,
         )
@@ -1622,6 +1611,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         conversation_has_own_documents = doc_result.has_documents
 
+        # The budget check runs on `history` (stored previous turns) only; the incoming
+        # user message is not counted, by design — a turn tipped over by it alone is caught
+        # next turn, and the security buffer absorbs the overflow meanwhile (see ADR 0002).
         async for item in self._run_history_summary_phase(history):
             if isinstance(item, PreparedHistory):
                 history = item.history

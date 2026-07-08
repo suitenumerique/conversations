@@ -46,6 +46,23 @@ def test_release_clears_the_claim():
     assert conversation.history_summary_claimed_at is None
 
 
+def test_release_is_a_noop_when_another_worker_reclaimed():
+    """A stale worker's release must not wipe a newer worker's live claim."""
+    conversation = ChatConversationFactory()
+    conversation.claim_history_summarization()
+
+    # A second worker reclaims (e.g. after the first worker's TTL elapsed).
+    reclaimed_at = timezone.now()
+    other = type(conversation).objects.get(pk=conversation.pk)
+    type(other).objects.filter(pk=other.pk).update(history_summary_claimed_at=reclaimed_at)
+
+    # The first worker releases: it no longer owns the claim, so this is a no-op.
+    conversation.release_history_summarization_claim()
+
+    conversation.refresh_from_db()
+    assert conversation.history_summary_claimed_at == reclaimed_at
+
+
 def test_persist_history_summary_advances_checkpoint():
     """Persisting a summary with a newer checkpoint succeeds and saves both fields."""
     conversation = ChatConversationFactory()

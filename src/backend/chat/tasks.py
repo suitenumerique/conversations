@@ -10,6 +10,7 @@ from pydantic_ai.messages import ModelMessagesTypeAdapter
 
 from chat.agents.history_processors import (
     generate_history_summary,
+    resolve_conversation_budget,
     safe_clean_tool_history,
     should_generate_conversation_summary,
 )
@@ -17,7 +18,7 @@ from chat.constants import (
     SUMMARIZATION_TASK_SOFT_TIME_LIMIT,
     SUMMARIZATION_TASK_TIME_LIMIT,
 )
-from chat.llm_configuration import conversation_message_token_budget
+from chat.llm_configuration import get_model_configuration
 from chat.models import ChatConversation
 from conversations.celery_app import app
 
@@ -50,11 +51,6 @@ def summarize_conversation_history(conversation_id: str) -> None:
         return
 
     try:
-        # Late import: pydantic_ai imports chat.tasks (enqueue), avoid the cycle.
-        from chat.clients.pydantic_ai import (  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-            get_model_configuration,
-        )
-
         model_hrid = conversation.model_hrid or settings.LLM_DEFAULT_MODEL_HRID
         try:
             model_configuration = get_model_configuration(model_hrid)
@@ -66,7 +62,7 @@ def summarize_conversation_history(conversation_id: str) -> None:
             )
             return
 
-        budget = conversation_message_token_budget(model_configuration)
+        budget = resolve_conversation_budget(model_configuration)
         if budget <= 0:
             return
 

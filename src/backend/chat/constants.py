@@ -30,6 +30,7 @@ SUMMARIZATION_TASK_TIME_LIMIT = 120  # seconds, worker is SIGKILLed
 HISTORY_SUMMARY_CLAIM_TTL_SECONDS = SUMMARIZATION_TASK_TIME_LIMIT + 60
 
 # After the triggering turn enqueues the summarization task, how long the
-# wait loop tolerates "no live claim yet" before falling back to inline
-# generation (covers broker latency and a short worker backlog).
+# wait loop tolerates "no live claim yet" before giving up and failing the
+# turn (covers broker latency and a short worker backlog). Generation stays
+# Celery-only; there is no inline fallback (see ADR 0002).
 SUMMARIZATION_ENQUEUE_CLAIM_GRACE_SECONDS = 10

@@ -3,7 +3,11 @@
 import dataclasses
 import logging
 
+from django.conf import settings
+
+from pydantic_ai import ImageUrl
 from pydantic_ai.messages import (
+    BinaryContent,
     ModelMessage,
     ModelRequest,
     ModelResponse,
@@ -13,6 +17,8 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
+from chat.constants import IMAGE_MIME_PREFIX
+from chat.tokens import compute_conversation_budget as _compute_conversation_budget
 from chat.tokens import count_approx_tokens
 from chat.tools.descriptions import CONVERSATION_SUMMARY_TOOL_DESCRIPTION
 
@@ -27,6 +33,11 @@ SUMMARY_SYSTEM_PREFIX = (
 _TOKENS_PER_PART_OVERHEAD = 4  # framing/delimiters per message part
 _TOKENS_PER_MESSAGE_OVERHEAD = 4  # per-message envelope
 
+# Conservative flat estimate per image part. Precise estimation is model-specific,
+# so a constant keeps the estimator model-agnostic while ensuring we never silently
+# under-count images.
+_IMAGE_TOKEN_ESTIMATE = 1500
+
 
 class SummarizationRequiredError(Exception):
     """A summary was required to fit the token budget but could not be generated."""
@@ -34,11 +45,17 @@ class SummarizationRequiredError(Exception):
 
 def _stringify_message_content(content: object) -> str:
     """Convert part content to a plain text representation."""
+    if content is None:
+        return ""
     if isinstance(content, str):
         return content
-    if isinstance(content, list):
-        return " ".join(str(item) for item in content if item is not None)
-    return str(content)
+    if isinstance(content, (list, tuple)):
+        return " ".join(_stringify_message_content(c) for c in content)
+    if hasattr(content, "content"):
+        return _stringify_message_content(content.content)
+    if hasattr(content, "text"):
+        return _stringify_message_content(content.text)
+    return ""
 
 
 def _format_exchanges_for_summary(messages: list[ModelMessage]) -> str:
@@ -64,7 +81,7 @@ def _format_exchanges_for_summary(messages: list[ModelMessage]) -> str:
 
 
 async def summarize_conversation(
-    messages: list[ModelMessage], *, max_tokens: int = 300, previous_summary: str | None = None
+    messages: list[ModelMessage], *, max_tokens: int, previous_summary: str | None = None
 ) -> str | None:
     """Generate an updated running summary, folding `previous_summary` into `messages`.
 
@@ -157,23 +174,51 @@ def safe_clean_tool_history(messages: list[ModelMessage]) -> list[ModelMessage]:
         return messages
 
 
+def _estimate_text_tokens(value: object) -> int:
+    """Count tokens for a stringifiable value, ignoring blank content."""
+    text = _stringify_message_content(value).strip()
+    return count_approx_tokens(text) if text else 0
+
+
+def _estimate_item_tokens(item: object) -> int:
+    """Count tokens for one content item, flat-rating images."""
+    if isinstance(item, ImageUrl):
+        return _IMAGE_TOKEN_ESTIMATE
+    if isinstance(item, BinaryContent) and item.media_type.startswith(IMAGE_MIME_PREFIX):
+        return _IMAGE_TOKEN_ESTIMATE
+    return _estimate_text_tokens(item)
+
+
+def _estimate_content_tokens(content: object) -> int:
+    """Count tokens for a part's content, whether a scalar or a sequence."""
+    if isinstance(content, (list, tuple)):
+        return sum(_estimate_item_tokens(item) for item in content)
+    return _estimate_text_tokens(content)
+
+
+def _estimate_args_tokens(args: object) -> int:
+    """Count tokens for a tool-call part's args."""
+    if isinstance(args, dict):
+        return count_approx_tokens(str(args))
+    if isinstance(args, str) and args.strip():
+        return count_approx_tokens(args)
+    return 0
+
+
+def _estimate_part_tokens(part: object) -> int:
+    """Count tokens for one message part: its content plus any tool-call args."""
+    return _estimate_content_tokens(getattr(part, "content", "")) + _estimate_args_tokens(
+        getattr(part, "args", "")
+    )
+
+
 def _estimate_message_tokens(message: ModelMessage) -> int:
     """Estimate the token weight of one model message."""
     parts = getattr(message, "parts", []) or []
     if not parts:
         return 0
 
-    part_tokens = 0
-    for part in parts:
-        content = getattr(part, "content", "")
-        text = _stringify_message_content(content).strip()
-        if text:
-            part_tokens += count_approx_tokens(text)
-
-        args = getattr(part, "args", "")
-        if isinstance(args, str) and args.strip():
-            part_tokens += count_approx_tokens(args)
-
+    part_tokens = sum(_estimate_part_tokens(part) for part in parts)
     return part_tokens + (_TOKENS_PER_PART_OVERHEAD * len(parts)) + _TOKENS_PER_MESSAGE_OVERHEAD
 
 
@@ -251,6 +296,31 @@ async def generate_history_summary(
             f"({len(summary_input)} message(s) after checkpoint {checkpoint})."
         )
     return summary, next_checkpoint
+
+
+def resolve_conversation_budget(configuration) -> int:
+    """Return the token budget for conversation history given an LLM configuration."""
+    max_token_context = getattr(configuration, "max_token_context", None)
+    if max_token_context is None:
+        max_token_context = settings.DEFAULT_MAX_TOKEN_CONTEXT
+    security_buffer = settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS
+    budget_ratio = settings.DOCUMENT_CONTEXT_BUDGET_RATIO
+    system_prompt = getattr(configuration, "system_prompt", None)
+    system_prompt_tokens = count_approx_tokens(system_prompt) if system_prompt else 0
+    conversation_budget = max(
+        _compute_conversation_budget(max_token_context, budget_ratio, security_buffer)
+        - system_prompt_tokens,
+        0,
+    )
+    if conversation_budget == 0 and max_token_context > 0:
+        logger.warning(
+            "Summarization is disabled: conversation budget is 0 "
+            "(max_token_context=%d, security_buffer=%d, budget_ratio=%.2f).",
+            max_token_context,
+            security_buffer,
+            budget_ratio,
+        )
+    return conversation_budget
 
 
 def should_generate_conversation_summary(

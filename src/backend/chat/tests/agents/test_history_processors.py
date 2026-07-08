@@ -1,5 +1,7 @@
 """Tests for history processors."""
 
+import logging
+
 import pytest
 from pydantic_ai import (
     Agent,
@@ -17,6 +19,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from chat.agents import history_processors
+from chat.tokens import count_approx_tokens
 
 
 @pytest.fixture
@@ -264,6 +267,87 @@ def test_should_generate_conversation_summary_when_budget_exceeded():
         message_token_budget=100,
         context_messages=1,
     )
+
+
+def test_resolve_conversation_budget_no_max_context_uses_default(settings):
+    """Models without max_token_context fall back to DEFAULT_MAX_TOKEN_CONTEXT."""
+    settings.DEFAULT_MAX_TOKEN_CONTEXT = 8192
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 1000
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
+
+    class Cfg:  # pylint: disable=missing-class-docstring
+        max_token_context = None
+
+    # int(8192*0.5)-1000=3096
+    assert history_processors.resolve_conversation_budget(Cfg()) == 3096
+
+
+def test_resolve_conversation_budget_zero_max_context(settings):
+    """max_token_context=0 returns 0 (trimming disabled)."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 1000
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
+
+    class Cfg:  # pylint: disable=missing-class-docstring
+        max_token_context = 0
+
+    assert history_processors.resolve_conversation_budget(Cfg()) == 0
+
+
+def test_resolve_conversation_budget_formula(settings):
+    """Budget is computed as int(max*(1-ratio))-buffer."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 1000
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
+
+    class Cfg:  # pylint: disable=missing-class-docstring
+        max_token_context = 10_000
+
+    # int(10000*0.5)-1000=4000
+    assert history_processors.resolve_conversation_budget(Cfg()) == 4000
+
+
+def test_resolve_conversation_budget_zero_ratio(settings):
+    """budget_ratio=0 allocates the full context window to conversation."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 0
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.0
+
+    class Cfg:  # pylint: disable=missing-class-docstring
+        max_token_context = 10_000
+
+    assert history_processors.resolve_conversation_budget(Cfg()) == 10_000
+
+
+def test_resolve_conversation_budget_logs_warning_when_buffer_exceeds_context(settings, caplog):
+    """A warning is logged when the security buffer leaves no tokens for conversation."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 10_000
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
+
+    class Cfg:  # pylint: disable=missing-class-docstring
+        max_token_context = 5_000
+
+    with caplog.at_level(logging.WARNING, logger="chat.agents.history_processors"):
+        result = history_processors.resolve_conversation_budget(Cfg())
+
+    assert result == 0
+    assert "Summarization is disabled" in caplog.text
+
+
+def test_resolve_conversation_budget_deducts_system_prompt(settings):
+    """System prompt tokens are subtracted from the conversation budget."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 0
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.0
+    system_prompt = "You are a helpful assistant."
+
+    class CfgNoPrompt:  # pylint: disable=missing-class-docstring
+        max_token_context = 10_000
+        system_prompt = None
+
+    class CfgWithPrompt:  # pylint: disable=missing-class-docstring
+        max_token_context = 10_000
+        system_prompt = "You are a helpful assistant."
+
+    budget_without = history_processors.resolve_conversation_budget(CfgNoPrompt())
+    budget_with = history_processors.resolve_conversation_budget(CfgWithPrompt())
+    assert budget_with == budget_without - count_approx_tokens(system_prompt)
 
 
 def test_safe_clean_tool_history_falls_back_to_raw_history(monkeypatch):

@@ -502,14 +502,12 @@ Notes:
 
 The decision of which documents are inlined as `full-context` vs left as `tool_call_only` is made by `chat/document_context_builder.py:build_documents_listing` on each turn (called via `_build_document_context_instruction` in `chat/clients/pydantic_ai.py`):
 
-1. Compute budgets in tokens (`chat/clients/pydantic_ai.py` subtracts the security buffer once, then splits the remainder):
+1. Compute budgets in tokens (`chat/tokens.py` splits `max_token_context` by ratio, then subtracts the security buffer from **each** share independently):
    ```text
-   usable_context = max(model.max_token_context - DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS, 0)
-   document_budget = max(int(usable_context * DOCUMENT_CONTEXT_BUDGET_RATIO), 0)
+   document_budget      = max(int(max_token_context * DOCUMENT_CONTEXT_BUDGET_RATIO) - DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS, 0)
+   message_token_budget = max(int(max_token_context * (1 - DOCUMENT_CONTEXT_BUDGET_RATIO)) - DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS, 0)
    ```
-   The conversation history budget (summarization trigger) uses the other share:
-   `message_token_budget = max(int(usable_context * (1 - DOCUMENT_CONTEXT_BUDGET_RATIO)), 0)`.
-   `build_document_context_instruction` receives `usable_context` as its `max_token_context` argument (buffer already applied).
+   The document share (`document_budget`, via `compute_document_budget`) inlines conversation documents; the history share (`message_token_budget`, via `compute_conversation_budget`) is the conversation-summarization trigger. `build_documents_listing` receives the raw `max_token_context`, `budget_ratio`, and `security_buffer_tokens` and applies the formula above.
 2. Load all text attachments from object storage **in parallel** (`asyncio.gather`). Attachments that fail to load are marked `tool_call_only` with their failure logged; other documents are not affected.
 3. Iterate documents oldest-first (`order_by("created_at", "id")`). For each document:
    - If its token count exceeds the whole budget alone → keep `tool_call_only`.
@@ -526,13 +524,13 @@ The assembled listing is **cached** per turn (in `_build_documents_listing`, `py
 
 #### Conversation history summarization
 
-When `message_token_budget` is exceeded, `chat/agents/history_processors.py` calls a separate summarization model (`LLM_SUMMARIZATION_MODEL_HRID`) and stores the result on the conversation (`history_summary`, `history_summary_checkpoint`). This runs at the **start of a new user turn**, before `agent.iter`, against **stored** `pydantic_messages` from previous turns only (the current user prompt is extracted separately and is not in that list yet). That stored history usually ends on an assistant `ModelResponse`.
+When `message_token_budget` is exceeded, `chat/agents/history_processors.py` calls a separate summarization model (`LLM_SUMMARIZATION_MODEL_HRID`) and stores the result on the conversation (`history_summary`, `history_summary_checkpoint`). This runs at the **start of a new user turn**, before `agent.iter`, against **stored** `pydantic_messages` from previous turns only (the current user prompt is extracted separately and, by design, is not counted in the budget check — see ADR 0002). That stored history usually ends on an assistant `ModelResponse`.
 
 1. **Trigger**: estimated tokens in the active history slice exceed `message_token_budget` (see formulas above) and there are new messages after the last checkpoint.
 2. **After a summary**: the model receives the stored summary text (dynamic instruction) plus the last `CONVERSATION_SUMMARY_CONTEXT_MESSAGES` `ModelMessage` entries before the checkpoint. Use an **even** value so the retained window starts on a user `ModelRequest` in a plain user/assistant alternation (tool messages can break parity).
 3. **Summary length**: capped by `CONVERSATION_SUMMARY_MAX_TOKENS` on the summarization LLM call.
 4. **Disable summarization** without changing document budgets: remove `max_token_context` from the chat model in `LLM_CONFIGURATIONS`, or set `message_token_budget` to zero (`DOCUMENT_CONTEXT_BUDGET_RATIO=1` also zeroes it but reallocates all `usable_context` to documents).
-5. **Visible blocking generation**: at the start of a turn whose active history (including the new user message) exceeds the history budget, the turn enqueues a Celery task (`chat/tasks.py:summarize_conversation_history`) and waits for it on the open SSE stream, emitting `keep_alive` data parts; the client shows an in-thread progress indicator anchored on the `summarize` tool events. Concurrency is controlled by a time-bounded claim (`ChatConversation.history_summary_claimed_at`, TTL = task hard time limit 120s + 60s): if the task never claims within a 10s grace window or its claim dies, the turn summarizes inline as a backstop, and it fails with a `summarization_failed` stream error if generation keeps failing (3 task retries with exponential backoff). A turn is never answered with truncated or over-budget context — see `docs/adr/0002-summarization-visible-blocking-phase.md` and ADR 0001.
+5. **Visible blocking generation**: at the start of a turn whose active history (previous turns only; the new user message is not counted — see ADR 0002) exceeds the history budget, the turn enqueues a Celery task (`chat/tasks.py:summarize_conversation_history`) and waits for it on the open SSE stream, emitting `keep_alive` data parts; the client shows an in-thread progress indicator anchored on the `summarize` tool events. Concurrency is controlled by a time-bounded claim (`ChatConversation.history_summary_claimed_at`, TTL = task hard time limit 120s + 60s): if the task never claims within a 10s grace window or its claim dies and no summary has landed, the turn fails with a `summarization_failed` stream error — there is no inline fallback; generation stays Celery-only (3 task retries with exponential backoff). A turn is never answered with truncated or over-budget context — see `docs/adr/0002-summarization-visible-blocking-phase.md` and ADR 0001.
 
 The security buffer is **not** a dedicated reserve for system prompts, tool schemas, or completion tokens; those are added on top of the planned document/history split. Size the buffer (and/or plan `max_token_context` below the model nominal window) to leave headroom for that overhead.
 
@@ -614,8 +612,8 @@ A `READY` attachment whose `rag_document_id` is null (e.g. parse succeeded but t
 | `RAG_DOCUMENT_SEARCH_BACKEND`                | `AlbertRagBackend` | Import path of the vector-search backend used for indexing and search (Albert or Find) |
 | `PROJECT_FILES_MAX_COUNT`                    | `10`           | Max non-image attachments per project (excludes hidden markdown companions). Enforced at upload-time in `ChatProjectAttachmentViewSet`. Bounds per-turn system-prompt token cost (every entry contributes to `project_documents` on every conversation turn). |
 | `PROJECT_IMAGES_MAX_COUNT`                   | `3`            | Max image attachments per project. Enforced at upload-time. Bounds per-turn vision token cost - every project image is pinned to every turn alongside conversation-message images, and provider request-level image caps (Anthropic ~20/request) clip the trailing entries first. |
-| `DOCUMENT_CONTEXT_BUDGET_RATIO`              | `0.5`          | Fraction of `usable_context` (after the security buffer) reserved for inlined documents. `(1 - ratio)` goes to the conversation history budget (summarization trigger). `0` disables full-context inlining (everything stays `tool_call_only`). |
-| `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`    | `10000`        | Tokens subtracted once from `model.max_token_context` before the document/history split, to absorb tokenizer drift on non-OpenAI models and leave headroom beyond the planned split |
+| `DOCUMENT_CONTEXT_BUDGET_RATIO`              | `0.5`          | Fraction of `model.max_token_context` reserved for inlined documents; `(1 - ratio)` goes to the conversation history budget (summarization trigger). The security buffer is subtracted from each share afterwards. `0` disables full-context inlining (everything stays `tool_call_only`). |
+| `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`    | `1000`         | Tokens subtracted from **each** of the document and history budgets (independently), to absorb tokenizer drift on non-OpenAI models and leave headroom beyond the planned split |
 | `CONVERSATION_SUMMARY_CONTEXT_MESSAGES`      | `10`           | Number of pydantic-ai `ModelMessage` entries kept in runtime history after a conversation summary (in addition to the stored summary text). Use an even value (see [Conversation history summarization](#conversation-history-summarization)) |
 | `CONVERSATION_SUMMARY_MAX_TOKENS`            | `2048`         | `max_tokens` for the summarization LLM call when generating or updating `history_summary` |
 | `LLM_SUMMARIZATION_MODEL_HRID`               | `default-summarization-model` | HRID in `LLM_CONFIGURATIONS` for the conversation summarization agent (see [LLM Configuration](llm-configuration.md)) |

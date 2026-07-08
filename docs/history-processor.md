@@ -4,7 +4,7 @@ When a conversation grows long enough to exceed its token budget, the backend su
 
 ## How it works
 
-Summarization is a visible blocking phase at the start of the triggering turn. A single check runs at the start of every turn, with the just-received user message included: when the active history exceeds the conversation budget, the turn enqueues a Celery task to generate the summary, waits on the open stream (emitting keep-alives, with an in-thread progress bar on the client), and only then sends the input to the agent. Generation is **Celery-only** — the web process never runs the summarization LLM — and is guarded by a time-bounded claim on the conversation; checkpoint writes only ever advance, so duplicate completions are no-ops. A turn is never answered with degraded context: if no summary lands while the turn is still over budget — the worker is down, or generation kept failing — the turn errors with `summarization_failed`, and the enqueued task keeps running to persist the summary for the retry (see ADR 0001).
+Summarization is a visible blocking phase at the start of the triggering turn. A single check runs at the start of every turn, over the stored history from previous turns (the just-received user message is intentionally not counted — see ADR 0002): when the active history exceeds the conversation budget, the turn enqueues a Celery task to generate the summary, waits on the open stream (emitting keep-alives, with an in-thread progress bar on the client), and only then sends the input to the agent. Generation is **Celery-only** — the web process never runs the summarization LLM — and is guarded by a time-bounded claim on the conversation; checkpoint writes only ever advance, so duplicate completions are no-ops. A turn is never answered with degraded context: if no summary lands while the turn is still over budget — the worker is down, or generation kept failing — the turn errors with `summarization_failed`, and the enqueued task keeps running to persist the summary for the retry (see ADR 0001).
 
 Two functions in `chat/agents/history_processors.py` split the work. The Celery task calls `generate_history_summary`, which runs a dedicated summarization agent (`LLM_SUMMARIZATION_MODEL_HRID`) to fold the un-summarized messages into the previous summary; the result is persisted on the conversation. The turn itself only trims — `build_active_history` selects the runtime window, never calling the LLM. Two fields carry the summary across turns:
 
@@ -44,8 +44,7 @@ Summarization is enabled by setting `max_token_context` on a model in the LLM co
 The conversation budget is derived from the same settings that drive the document inlining budget:
 
 ```text
-usable_context          = max_token_context - DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS
-message_token_budget    = int(usable_context × (1 - DOCUMENT_CONTEXT_BUDGET_RATIO))
+message_token_budget = max(int(max_token_context × (1 - DOCUMENT_CONTEXT_BUDGET_RATIO)) - DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS, 0)
 ```
 
 See [attachments.md](attachments.md#conversation-history-summarization) for the full budget formulas, the settings reference (`DOCUMENT_CONTEXT_BUDGET_RATIO`, `DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS`, `CONVERSATION_SUMMARY_CONTEXT_MESSAGES`, `CONVERSATION_SUMMARY_MAX_TOKENS`, `LLM_SUMMARIZATION_MODEL_HRID`) and how to disable summarization without changing document budgets.

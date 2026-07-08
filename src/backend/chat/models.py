@@ -232,8 +232,16 @@ class ChatConversation(BaseModel):
         return bool(updated)
 
     def release_history_summarization_claim(self) -> None:
-        """Release the claim unconditionally."""
-        type(self).objects.filter(pk=self.pk).update(history_summary_claimed_at=None)
+        """Release the claim, but only while we still hold it.
+
+        Guards against a stale worker wiping a newer worker's live claim: if
+        our claim already expired and another worker reclaimed, the timestamp
+        no longer matches ours and the update is a no-op. Mirrors the guarded
+        checkpoint write in `persist_history_summary`.
+        """
+        type(self).objects.filter(
+            pk=self.pk, history_summary_claimed_at=self.history_summary_claimed_at
+        ).update(history_summary_claimed_at=None)
         self.history_summary_claimed_at = None
 
     @property
