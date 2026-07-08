@@ -58,6 +58,7 @@ const PROVIDER_ERROR_CODES = new Set<ChatErrorType>([
   'model_not_found',
   'model_wrong_type',
   'model_busy',
+  'summarization_failed',
 ]);
 
 const IMAGES_BANNER_STORAGE_PREFIX = 'conversations:images-banner-dismissed:';
@@ -970,6 +971,8 @@ export const Chat = ({
                       isFirstConversationMessage={isFirstConversationMessage}
                       streamingMessageHeight={streamingMessageHeight}
                       status={status}
+                      chatErrorType={chatErrorType}
+                      onRetry={handleRetry}
                       conversationId={conversationId}
                       isSourceOpen={isSourceOpen}
                       isMobile={isMobile}
@@ -1030,13 +1033,15 @@ export const Chat = ({
             </Text>
           </Box>
         ) : null}
-        {status === 'error' && !isUploadingFiles && (
-          <ChatError
-            errorType={chatErrorType}
-            hasLastSubmission={!!lastSubmissionRef.current}
-            onRetry={handleRetry}
-          />
-        )}
+        {status === 'error' &&
+          !isUploadingFiles &&
+          chatErrorType !== 'summarization_failed' && (
+            <ChatError
+              errorType={chatErrorType}
+              hasLastSubmission={!!lastSubmissionRef.current}
+              onRetry={handleRetry}
+            />
+          )}
       </Box>
       <Box
         $css={`
