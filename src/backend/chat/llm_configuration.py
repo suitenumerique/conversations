@@ -263,3 +263,15 @@ def load_llm_configuration(llm_configuration_file_path) -> dict[str, LLModel]:
 def cached_load_llm_configuration(llm_configuration_file_path) -> dict[str, LLModel]:
     """Load the LLM configuration with caching to avoid redundant loading."""
     return load_llm_configuration(llm_configuration_file_path)
+
+
+def get_model_configuration(model_hrid: str):
+    """Get the model configuration from settings."""
+    # pylint: disable=import-outside-toplevel
+    from django.conf import settings  # noqa: PLC0415
+    from django.core.exceptions import ImproperlyConfigured  # noqa: PLC0415
+
+    try:
+        return settings.LLM_CONFIGURATIONS[model_hrid]
+    except KeyError as exc:
+        raise ImproperlyConfigured(f"LLM model configuration '{model_hrid}' not found.") from exc

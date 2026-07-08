@@ -709,9 +709,12 @@ class Base(BraveSettings, Configuration):
         environ_prefix=None,
     )
     # Conversation summary: at the start of a new user turn (before agent.iter), when the
-    # active slice of stored pydantic_messages (previous turns only; the current user
-    # prompt is not in that list yet) exceeds the message token budget
-    # (usable_context * (1 - DOCUMENT_CONTEXT_BUDGET_RATIO)). That history usually ends
+    # active slice of stored pydantic_messages (previous turns only) exceeds the message
+    # token budget (int(max_token_context * (1 - DOCUMENT_CONTEXT_BUDGET_RATIO)) - security_buffer).
+    # The incoming user message is intentionally NOT counted in this check: it is not
+    # persisted yet, so the check stays on stored history. A turn tipped over budget by the
+    # new message alone is caught on the next turn; the security buffer absorbs the overflow
+    # meanwhile (see ADR 0002). That history usually ends
     # on an assistant ModelResponse. After a summary, keep the last N ModelMessage
     # entries before the checkpoint. Use an even N so the window starts on a user message.
     CONVERSATION_SUMMARY_CONTEXT_MESSAGES = values.PositiveIntegerValue(
@@ -981,7 +984,7 @@ USER QUESTION:
         environ_prefix=None,
     )
     DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = values.PositiveIntegerValue(
-        default=10000,
+        default=1000,
         environ_name="DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS",
         environ_prefix=None,
     )

@@ -13,6 +13,7 @@ and this project adheres to
 - ✨(back) add model fallback mechanism
 - ✨(back) add celery for running background tasks
 - 🧱(helm) add celery worker and beat deployments
+- ✨(conversation) summarize messages
 
 ### Changed
 
@@ -95,7 +96,6 @@ and this project adheres to
 - 🐛(fix) add prevent_url_hallucination instruction to ConversationAgent
 - ✨(projects) handle project files for RAG search
 - ✨(banner) configurable banner with level, title, content and start/end
-- ✨(conversation) summarize messages
 
 ### Changed
 

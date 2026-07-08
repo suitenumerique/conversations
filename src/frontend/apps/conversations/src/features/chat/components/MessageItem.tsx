@@ -249,10 +249,9 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
       .reverse()
       .find(
         (part) =>
-         
-        part.toolInvocation.toolName !== 'document_parsing' &&
+          part.toolInvocation.toolName !== 'document_parsing' &&
           part.toolInvocation.state !== 'result' &&
-        part.toolInvocation.toolName !== 'conversation_resume',
+          part.toolInvocation.toolName !== 'conversation_resume',
       );
     return tool?.toolInvocation;
   }, [toolInvocationParts]);

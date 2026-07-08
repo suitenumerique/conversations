@@ -38,8 +38,8 @@ def _parse_listing(instruction: str) -> dict:
 def _llm_config_with_context(settings):
     """Configure a model with max_token_context for context window tests."""
     settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
-    # Branch default is 10_000; with max_token_context=4000 that zeroes usable_context.
-    # Tests target buffer=1_000 so budget math stays: usable=3000, document_budget=1500.
+    # Pin the buffer so the budget math stays deterministic regardless of the
+    # environment default: int(4000 * 0.5) - 1000 = 1000.
     settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 1000
     settings.LLM_CONFIGURATIONS = {
         "default-model": LLModel(
@@ -50,6 +50,8 @@ def _llm_config_with_context(settings):
             icon=None,
             system_prompt="You are an amazing assistant.",
             tools=[],
+            # Keep context large enough so tests can exercise rolling-window behavior
+            # despite the fixed security buffer applied by the service.
             max_token_context=4000,
             provider=LLMProvider(
                 hrid="unused",
@@ -82,10 +84,9 @@ def test_document_context_marks_oversized_docs_as_rag_only(_llm_config_with_cont
         "chat.document_context_builder.read_attachment_content",
         fake_read_attachment_content,
     )
-    # max_token_context=4000, buffer=1000, ratio=0.5 => document_budget=1500.
     monkeypatch.setattr(
         "chat.document_context_builder.count_approx_tokens",
-        lambda _text: 1501,
+        lambda _text: 1201,
     )
 
     instruction = async_to_sync(service._build_document_context_instruction)()  # pylint: disable=protected-access
@@ -144,14 +145,14 @@ def test_document_context_uses_fifo_rolling_window(_llm_config_with_context, mon
 
     monkeypatch.setattr(
         "chat.document_context_builder.count_approx_tokens",
-        lambda _text: 600,
+        lambda _text: 400,
     )
 
     instruction = async_to_sync(service._build_document_context_instruction)()  # pylint: disable=protected-access
     listing = _parse_listing(instruction)
 
-    # max_token_context=4000, buffer=1000, ratio=0.5 => budget=1500.
-    # With 3 docs at 600 tokens each (1800 total), FIFO evicts doc-1; doc-2 + doc-3 stay inlined.
+    # max_token_context=4000, ratio=0.5 => budget=1000 after buffer.
+    # With 3 docs at 400 tokens each, rolling outcome should inline doc-2 + doc-3.
     assert listing["documents_order"] == "newest_to_oldest"
     by_title = {d["title"]: d for d in listing["documents"]}
     assert set(by_title) == {"doc-1", "doc-2", "doc-3"}
@@ -316,7 +317,7 @@ def test_project_documents_have_independent_info_ordering(_llm_config_with_conte
 
 def test_document_context_uses_configurable_ratio(_llm_config_with_context, monkeypatch, settings):
     """Budget ratio comes from Django settings and changes inlining behavior."""
-    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.3  # usable_context=3000 => budget=900
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.3  # max_token_context=4000 => budget=200
 
     user = UserFactory()
     conversation = ChatConversationFactory(owner=user)
@@ -361,8 +362,8 @@ def test_document_context_uses_configurable_ratio(_llm_config_with_context, monk
 
     by_title = {d["title"]: d for d in listing["documents"]}
     assert set(by_title) == {"doc-1", "doc-2"}
-    # ratio=0.3, max_context=4000, buffer=1000 => budget=900; both fit.
-    assert by_title["doc-1"]["access"] == ACCESS_FULL_CONTEXT
+    # ratio=0.3, max_context=4000, buffer=1000 => budget=200; only newest fits.
+    assert by_title["doc-1"]["access"] == ACCESS_TOOL_CALL_ONLY
     assert by_title["doc-2"]["access"] == ACCESS_FULL_CONTEXT
 
 
