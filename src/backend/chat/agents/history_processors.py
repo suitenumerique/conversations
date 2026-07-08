@@ -13,7 +13,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
-from chat.document_context_builder import count_approx_tokens
+from chat.tokens import count_approx_tokens
 from chat.tools.descriptions import CONVERSATION_SUMMARY_TOOL_DESCRIPTION
 
 from .summarize import SummarizationAgent
