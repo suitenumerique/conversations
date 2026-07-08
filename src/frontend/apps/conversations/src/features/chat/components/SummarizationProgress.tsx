@@ -48,15 +48,15 @@ export const SummarizationProgress = ({ done }: SummarizationProgressProps) => {
     <Box
       data-testid="summarization-progress"
       $direction="column"
-      $gap="6px"
+      $gap="10px"
       $width="100%"
     >
       <Text $variation="600" $size="md">
         {t('Summarizing conversation...')}
       </Text>
       <Box
-        $width="100%"
-        $css="height: 4px; border-radius: 2px; background: var(--c--globals--colors--gray-200); overflow: hidden;"
+        $width="60%"
+        $css="height: 12px; border-radius: 2px; background: var(--c--globals--colors--gray-200); overflow: hidden;"
       >
         <Box
           data-testid="summarization-progress-fill"
@@ -64,7 +64,7 @@ export const SummarizationProgress = ({ done }: SummarizationProgressProps) => {
           $css={`
             height: 100%;
             border-radius: 2px;
-            background: var(--c--globals--colors--brand-600);
+            background: var(--c--globals--colors--gray-600);
             transition: width ${TICK_MS * 2}ms linear;
           `}
         />
