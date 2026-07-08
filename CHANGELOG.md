@@ -95,6 +95,7 @@ and this project adheres to
 - 🐛(fix) add prevent_url_hallucination instruction to ConversationAgent
 - ✨(projects) handle project files for RAG search
 - ✨(banner) configurable banner with level, title, content and start/end
+- ✨(conversation) summarize messages
 
 ### Changed
 
