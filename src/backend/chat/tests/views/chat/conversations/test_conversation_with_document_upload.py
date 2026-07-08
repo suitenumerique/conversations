@@ -1,7 +1,6 @@
 """Unit tests for chat conversation actions with document search RAG functionality."""
 
 # pylint: disable=too-many-lines
-import base64
 import dataclasses
 import json
 import logging
@@ -11,6 +10,7 @@ from unittest import mock
 from unittest.mock import ANY
 
 from django.contrib.sessions.backends.cache import SessionStore
+from django.core.files.storage import default_storage
 from django.utils import formats, timezone
 
 import httpx
@@ -37,7 +37,7 @@ from chat.ai_sdk_types import (
     UIMessage,
 )
 from chat.constants import ACCESS_TOOL_CALL_ONLY
-from chat.factories import ChatConversationFactory
+from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
 from chat.tests.utils import replace_uuids_with_placeholder
 
 # enable database transactions for tests:
@@ -83,7 +83,14 @@ def _assert_document_instructions(
     ],
 )
 def ai_settings(request, settings):
-    """Fixture to set AI service URLs for testing."""
+    """Fixture to set AI service URLs for testing.
+
+    The Find backend is being removed, so its variants are skipped. It also does
+    not support conversation-document RAG search (``store_document`` returns no
+    per-document id), which several of these tests exercise.
+    """
+    if request.param.endswith("FindRagBackend"):
+        pytest.skip("Find backend is being removed")
 
     # enable on rag document search tool
     settings.RAG_DOCUMENT_SEARCH_BACKEND = request.param
@@ -406,7 +413,17 @@ def test_post_conversation_with_document_upload(
     chat_conversation = ChatConversationFactory(owner__language="en-us")
     api_client.force_authenticate(user=chat_conversation.owner)
 
-    pdf_base64 = base64.b64encode(sample_pdf_content.read()).decode("utf-8")
+    file_path = f"{chat_conversation.pk}/sample.pdf"
+    ChatConversationAttachmentFactory(  # Must be created by frontend
+        conversation=chat_conversation,
+        uploaded_by=chat_conversation.owner,
+        key=file_path,
+        file_name="sample.pdf",
+        content_type="application/pdf",
+    )
+    default_storage.save(file_path, sample_pdf_content)
+    document_url = f"/media-key/{chat_conversation.pk}/sample.pdf"
+
     message = UIMessage(
         id="1",
         role="user",
@@ -421,7 +438,7 @@ def test_post_conversation_with_document_upload(
             Attachment(
                 name="sample.pdf",
                 contentType="application/pdf",
-                url=f"data:application/pdf;base64,{pdf_base64}",
+                url=document_url,
             )
         ],
     )
@@ -532,7 +549,7 @@ def test_post_conversation_with_document_upload(
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     instruction_0 = chat_conversation.pydantic_messages[0]["instructions"]
-    _assert_document_instructions(instruction_0, today_prompt_date, "sample.pdf.md")
+    _assert_document_instructions(instruction_0, today_prompt_date, "sample.pdf")
 
     assert chat_conversation.pydantic_messages[0] == {
         "conversation_id": ANY,
@@ -586,7 +603,7 @@ def test_post_conversation_with_document_upload(
         "run_id": _run_id,
     }
     instruction_2 = chat_conversation.pydantic_messages[2]["instructions"]
-    _assert_document_instructions(instruction_2, today_prompt_date, "sample.pdf.md")
+    _assert_document_instructions(instruction_2, today_prompt_date, "sample.pdf")
     assert chat_conversation.pydantic_messages[2] == {
         "conversation_id": ANY,
         "instructions": instruction_2,
@@ -656,7 +673,6 @@ def test_post_conversation_with_document_upload_feature_disabled(
     api_client,
     caplog,
     mock_openai_stream,  # pylint: disable=unused-argument
-    sample_pdf_content,
     feature_flags,
 ):
     """
@@ -669,7 +685,11 @@ def test_post_conversation_with_document_upload_feature_disabled(
     chat_conversation = ChatConversationFactory()
     api_client.force_authenticate(user=chat_conversation.owner)
 
-    pdf_base64 = base64.b64encode(sample_pdf_content.read()).decode("utf-8")
+    # Feature disabled: the document is ignored before any parsing or storage
+    # read, so no attachment row or stored object is needed - only a valid
+    # `/media-key/` reference on the message.
+    document_url = f"/media-key/{chat_conversation.pk}/sample.pdf"
+
     message = UIMessage(
         id="1",
         role="user",
@@ -684,7 +704,7 @@ def test_post_conversation_with_document_upload_feature_disabled(
             Attachment(
                 name="sample.pdf",
                 contentType="application/pdf",
-                url=f"data:application/pdf;base64,{pdf_base64}",
+                url=document_url,
             )
         ],
     )
@@ -733,7 +753,16 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     chat_conversation = ChatConversationFactory(owner__language="en-us")
     api_client.force_authenticate(user=chat_conversation.owner)
 
-    pdf_base64 = base64.b64encode(sample_pdf_content.read()).decode("utf-8")
+    file_path = f"{chat_conversation.pk}/sample.pdf"
+    ChatConversationAttachmentFactory(  # Must be created by frontend
+        conversation=chat_conversation,
+        uploaded_by=chat_conversation.owner,
+        key=file_path,
+        file_name="sample.pdf",
+        content_type="application/pdf",
+    )
+    default_storage.save(file_path, sample_pdf_content)
+    document_url = f"/media-key/{chat_conversation.pk}/sample.pdf"
 
     message = UIMessage(
         id="1",
@@ -749,7 +778,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             Attachment(
                 name="sample.pdf",
                 contentType="application/pdf",
-                url=f"data:application/pdf;base64,{pdf_base64}",
+                url=document_url,
             )
         ],
     )
@@ -859,7 +888,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     instruction_0 = chat_conversation.pydantic_messages[0]["instructions"]
-    _assert_document_instructions(instruction_0, today_prompt_date, "sample.pdf.md")
+    _assert_document_instructions(instruction_0, today_prompt_date, "sample.pdf")
     assert chat_conversation.pydantic_messages[0] == {
         "conversation_id": ANY,
         "instructions": instruction_0,
@@ -912,7 +941,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "run_id": _run_id,
     }
     instruction_2 = chat_conversation.pydantic_messages[2]["instructions"]
-    _assert_document_instructions(instruction_2, today_prompt_date, "sample.pdf.md")
+    _assert_document_instructions(instruction_2, today_prompt_date, "sample.pdf")
     assert chat_conversation.pydantic_messages[2] == {
         "conversation_id": ANY,
         "instructions": instruction_2,
@@ -985,7 +1014,16 @@ def test_post_conversation_with_odt_document_upload(
     chat_conversation = ChatConversationFactory(owner__language="en-us")
     api_client.force_authenticate(user=chat_conversation.owner)
 
-    odt_base64 = base64.b64encode(sample_odt_content.read()).decode("utf-8")
+    file_path = f"{chat_conversation.pk}/sample.odt"
+    ChatConversationAttachmentFactory(  # Must be created by frontend
+        conversation=chat_conversation,
+        uploaded_by=chat_conversation.owner,
+        key=file_path,
+        file_name="sample.odt",
+        content_type="application/vnd.oasis.opendocument.text",
+    )
+    default_storage.save(file_path, sample_odt_content)
+    document_url = f"/media-key/{chat_conversation.pk}/sample.odt"
 
     message = UIMessage(
         id="1",
@@ -1001,7 +1039,7 @@ def test_post_conversation_with_odt_document_upload(
             Attachment(
                 name="sample.odt",
                 contentType="application/vnd.oasis.opendocument.text",
-                url=f"data:application/vnd.oasis.opendocument.text;base64,{odt_base64}",
+                url=document_url,
             )
         ],
     )
@@ -1112,7 +1150,7 @@ def test_post_conversation_with_odt_document_upload(
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     instruction_0 = chat_conversation.pydantic_messages[0]["instructions"]
-    _assert_document_instructions(instruction_0, today_prompt_date, "sample.odt.md")
+    _assert_document_instructions(instruction_0, today_prompt_date, "sample.odt")
 
     assert chat_conversation.pydantic_messages[0] == {
         "conversation_id": ANY,
@@ -1166,7 +1204,7 @@ def test_post_conversation_with_odt_document_upload(
         "run_id": _run_id,
     }
     instruction_2 = chat_conversation.pydantic_messages[2]["instructions"]
-    _assert_document_instructions(instruction_2, today_prompt_date, "sample.odt.md")
+    _assert_document_instructions(instruction_2, today_prompt_date, "sample.odt")
     assert chat_conversation.pydantic_messages[2] == {
         "conversation_id": ANY,
         "instructions": instruction_2,

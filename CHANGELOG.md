@@ -20,11 +20,12 @@ and this project adheres to
 
 - ♻️(back) split chat views and replace hardcoded strings with constants
 - 💄(front) change 404 illustration
+- ✨(back) process project files asynchronously with indexing state
+- ⚡️(back) process conversation files asynchronously off the request worker
 
 ### Fixed
 
 - 🐛(front) prevent app crash for users without a full name or email
-- ✨(back) process project files asynchronously with indexing state
 
 ## [0.0.19] - 2026-06-24
 

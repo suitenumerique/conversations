@@ -15,7 +15,10 @@ from core.file_upload.enums import AttachmentStatus
 
 from chat import factories
 from chat.enums import AttachmentIndexState
-from chat.tasks import index_project_attachment_task
+from chat.tasks import (
+    index_project_attachment_task,
+    parse_and_store_conversation_document_task,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -66,3 +69,30 @@ def test_index_project_attachment_task_indexes_attachment():
 def test_index_project_attachment_task_ignores_missing_attachment():
     """A deleted attachment id is logged and skipped, never raised."""
     index_project_attachment_task.delay(999999)
+
+
+@responses.activate
+def test_parse_and_store_conversation_document_task_returns_parsed_and_id():
+    """The task reads the file from storage, parses + stores it, and returns (content, id)."""
+    saved_name = default_storage.save(
+        "conv-task-test.txt", ContentFile(b"Hello conversation content")
+    )
+    try:
+        responses.post(
+            "https://albert.api.etalab.gouv.fr/v1/documents",
+            json={"id": 7},
+            status=status.HTTP_201_CREATED,
+        )
+
+        parsed_content, rag_document_id = parse_and_store_conversation_document_task.delay(
+            "42",
+            saved_name,
+            "hello.txt",
+            "text/plain",
+            "user-sub-123",
+        ).get()
+
+        assert rag_document_id == "7"
+        assert "Hello conversation content" in parsed_content
+    finally:
+        default_storage.delete(saved_name)

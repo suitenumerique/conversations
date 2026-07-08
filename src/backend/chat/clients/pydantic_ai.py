@@ -40,8 +40,8 @@ Documents attached to messages go through several stages:
    - Validates document URLs belong to the conversation (security check)
    - Creates a vector store collection if none exists
    - For each document:
-     - Retrieves content from object storage
-     - Parses and stores in the vector store (chunked, embedded)
+     - Enqueues the parse + vector-store step on a Celery worker and blocks
+       on the result (the worker reads the file from object storage by key)
      - Creates a markdown attachment for non-text files
    - Emits tool call events so the UI shows parsing progress
 
@@ -96,6 +96,7 @@ from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
 from asgiref.sync import sync_to_async
+from celery.exceptions import TimeoutError as CeleryTimeoutError
 from langfuse import get_client, propagate_attributes
 from mistralai.client.errors import HTTPValidationError, SDKError
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
@@ -174,6 +175,7 @@ from chat.document_context_builder import (
 from chat.enums import CollectionIndexState
 from chat.mcp_servers import get_mcp_servers
 from chat.rate_limiting import record_and_compute_cooldown
+from chat.tasks import parse_and_store_conversation_document_task
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
@@ -806,22 +808,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 logger.debug("v: %s", dataclasses.asdict(node))
                 yield self._handle_end_node(node, langfuse, state)
 
-    async def _fetch_document_data(
-        self, document: "BinaryContent | DocumentUrl"
-    ) -> tuple[str | None, bytes]:
-        """Return (storage_key, raw_bytes). key is None for BinaryContent inlines."""
-        if isinstance(document, DocumentUrl):
-            if not document.url.startswith(DOCUMENT_URL_PREFIX):
-                raise ValueError("External document URL are not accepted yet.")
-            key = document.url[len(DOCUMENT_URL_PREFIX) :]
-
-            def _read():
-                with default_storage.open(key, "rb") as file:
-                    return file.read()
-
-            return key, await asyncio.to_thread(_read)
-        return None, document.data
-
     async def _parse_input_documents(self, documents: List[BinaryContent | DocumentUrl]):
         """
         Parse and store input documents in the conversation's document store.
@@ -830,23 +816,29 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         1. Validates all document URLs belong to this conversation (security)
         2. Creates a vector store collection if one doesn't exist
         3. For each document:
-             - Retrieves content from object storage (for DocumentUrl)
-             - Parses the document (extracts text, chunks it)
-             - Stores chunks with embeddings in the vector store
+             - Enqueues the parse + RAG store on a Celery worker (reading the
+               file from storage by key) and blocks on the result
+             - Persists the backend document id on the attachment row
              - Creates a markdown attachment for non-text files (PDF → MD)
 
         Security: Documents are validated to ensure their URLs match the pattern
          `/media-key/{conversation_pk}/...` to prevent cross-conversation access.
 
-        The actual parsing runs in a thread pool (asyncio.to_thread) to avoid
-        blocking the event loop during potentially slow document processing.
+        The parse + store runs in the `parse_and_store_conversation_document_task`
+        Celery task rather than in-process, so the heavy, hostile-input-exposed
+        work is off the request process and capped by the Celery task time limits.
+        The turn blocks on the task result, so the UX is unchanged.
+
+        Only stored documents (DocumentUrl) are supported; inline BinaryContent
+        has no storage key for the worker to read and is rejected.
 
         Args:
-            documents: List of BinaryContent (inline data) or DocumentUrl (storage reference)
+            documents: List of DocumentUrl (storage reference). BinaryContent is rejected.
 
         Raises:
             ValueError: If document URL doesn't belong to this conversation
             ValueError: If external URLs are provided (not yet supported)
+            ValueError: If a document is inline BinaryContent (unsupported)
         """
 
         # Early external document URL rejection
@@ -874,35 +866,68 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         any_indexed = False
         for document in documents:
-            key, content = await self._fetch_document_data(document)
-            parsed_content, rag_document_id = await asyncio.to_thread(
-                document_store.parse_and_store_document,
-                name=document.identifier,
-                content_type=document.media_type,
-                content=content,
-                user_sub=self.user.sub,
-            )
+            if not isinstance(document, DocumentUrl):
+                # Inline document bytes (BinaryContent) are not produced by the
+                # chat UI, which always uploads to storage first. Only a stored
+                # document can be parsed off-process by the Celery task, which
+                # reads the file from storage by key.
+                raise ValueError("Inline document content is not supported for parsing.")
 
-            # Persist the backend-side document id on the original attachment row
-            # (only for files uploaded via presigned URL — BinaryContent inlines
-            # have no row to update; their id falls through to the md companion).
+            # Extract the storage key; the guard above already asserted every
+            # DocumentUrl belongs to this conversation.
+            key = document.url[len(DOCUMENT_URL_PREFIX) :]
+
+            # Offload parse + RAG store to a Celery worker so the heavy,
+            # hostile-input-exposed work runs off the request process and under
+            # the task time limits. The turn blocks on the result (UX unchanged):
+            # a timeout or parse error propagates out and is surfaced by the
+            # caller's error handling.
+            # The publish is a synchronous Redis round trip, so run it in a
+            # thread like the `.get()`/`.forget()` below to keep the event
+            # loop free for other streams.
+            async_result = await asyncio.to_thread(
+                parse_and_store_conversation_document_task.delay,
+                self.conversation.collection_id,
+                key,
+                document.identifier,
+                document.media_type,
+                self.user.sub,
+            )
+            try:
+                parsed_content, rag_document_id = await asyncio.to_thread(
+                    async_result.get,
+                    timeout=settings.DOCUMENT_PARSE_RESULT_TIMEOUT_SECONDS,
+                )
+            except CeleryTimeoutError:
+                # The task may still be waiting in the queue; revoke it so it
+                # doesn't run (and store chunks) after the user has already seen
+                # this turn fail. A task that is already executing is not stopped
+                # by revoke; the Celery hard time limit caps it instead.
+                await asyncio.to_thread(async_result.revoke)
+                raise
+            finally:
+                # Drop the (possibly large) parsed-content payload from the result
+                # backend once the task has finished: it has been consumed on
+                # success, and is useless on failure. If the task is still queued
+                # or running (timeout path above), a result written later sits in
+                # Redis until CELERY_RESULT_EXPIRES.
+                await asyncio.to_thread(async_result.forget)
+
+            # Persist the backend-side document id on the original attachment row.
             if rag_document_id:
                 any_indexed = True
-                if key:
-                    await models.ChatConversationAttachment.objects.filter(
-                        conversation_id=self.conversation.pk, key=key
-                    ).aupdate(rag_document_id=rag_document_id, is_indexed=True)
+                await models.ChatConversationAttachment.objects.filter(
+                    conversation_id=self.conversation.pk, key=key
+                ).aupdate(rag_document_id=rag_document_id, is_indexed=True)
 
             if not document.media_type.startswith(TEXT_MIME_PREFIX):
                 md_attachment = await models.ChatConversationAttachment.objects.acreate(
                     conversation=self.conversation,
                     uploaded_by=self.user,
-                    key=key or f"{self.conversation.pk}/attachments/{document.identifier}.md",
+                    key=key,
                     file_name=f"{document.identifier}.md",
                     content_type=MARKDOWN_MIME_TYPE,
-                    conversion_from=key,  # might be None
-                    # No row exists for inline BinaryContent; carry the id here.
-                    rag_document_id=rag_document_id if not key else None,
+                    conversion_from=key,
                 )
                 default_storage.save(md_attachment.key, BytesIO(parsed_content.encode("utf8")))
                 md_attachment.upload_state = models.AttachmentStatus.READY

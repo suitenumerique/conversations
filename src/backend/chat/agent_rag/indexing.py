@@ -135,7 +135,7 @@ def _albert_error_detail(exc: Exception) -> str:
     return str(exc)[:_ERROR_DETAIL_MAX_CHARS]
 
 
-def _parse_and_store_with_retry(
+def parse_and_store_with_retry(
     backend, *, name: str, content_type: str, content: bytes, user_sub: str
 ) -> tuple[str, str | None]:
     """Parse and store the document, retrying transient Albert errors.
@@ -254,7 +254,7 @@ def index_project_attachment(attachment: ChatConversationAttachment) -> None:
         with default_storage.open(attachment.key, "rb") as file:
             document_data = file.read()
 
-        parsed_content, rag_document_id = _parse_and_store_with_retry(
+        parsed_content, rag_document_id = parse_and_store_with_retry(
             backend,
             name=attachment.file_name,
             content_type=attachment.content_type,

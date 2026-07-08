@@ -53,7 +53,7 @@ export const uploadFileToServer = (
   });
 
 /**
- * Upload a file to the backend (for backend_base64 and backend_temporary_url modes).
+ * Upload a file to the backend (for the backend_to_s3 upload mode).
  * Uses XHR to track upload progress while respecting the project's API patterns.
  * @param conversationId The ID of the conversation.
  * @param file The file to upload.
