@@ -37,6 +37,7 @@ from conversations.brave_settings import BraveSettings
 from conversations.celery_settings import CelerySettings
 from conversations.observability_settings import ObservabilitySettings
 from conversations.oidc_settings import OIDCSettings
+from conversations.staan_settings import StaanSettings
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -57,6 +58,7 @@ def get_release():
 
 class Base(
     BraveSettings,
+    StaanSettings,
     CelerySettings,
     ObservabilitySettings,
     OIDCSettings,
@@ -968,6 +970,38 @@ class Base(
             )
 
     @classmethod
+    def _validate_staan_configuration(cls):
+        """Validate the Staan web search settings.
+
+        STAAN_API_KEY is sent as a bearer token on every search, so the endpoint
+        must be encrypted. The snippet limits are enforced by the API itself, so an
+        out-of-range value would only surface as a 400 on every search.
+        """
+        if not cls.STAAN_API_URL:
+            return
+
+        # Reject plaintext endpoints — except localhost for local development.
+        staan_url = urlparse(cls.STAAN_API_URL)
+        is_local = staan_url.hostname in ("localhost", "127.0.0.1", "::1")
+        if staan_url.scheme.lower() != "https" and not is_local:
+            raise ValueError(
+                "STAAN_API_URL must use HTTPS to avoid sending STAAN_API_KEY over an "
+                "unencrypted connection (localhost is exempted for local development)."
+            )
+
+        if not 1 <= cls.STAAN_MAX_SNIPPETS_PER_URL <= 10:
+            raise ValueError(
+                "STAAN_MAX_SNIPPETS_PER_URL must be between 1 and 10, "
+                f"got {cls.STAAN_MAX_SNIPPETS_PER_URL}."
+            )
+
+        if not 0 <= cls.STAAN_MIN_SNIPPET_SCORE <= 1:
+            raise ValueError(
+                "STAAN_MIN_SNIPPET_SCORE must be between 0 and 1, "
+                f"got {cls.STAAN_MIN_SNIPPET_SCORE}."
+            )
+
+    @classmethod
     def post_setup(cls):
         """Post setup configuration.
         This is the place where you can configure settings that require other
@@ -1017,6 +1051,9 @@ class Base(
 
         # Docs configuration
         cls._validate_docs_configuration()
+
+        # Staan web search configuration
+        cls._validate_staan_configuration()
 
         # Document context budget ratio must be a fraction (0 disables full inlining,
         # 1 dedicates the entire model context to documents).
