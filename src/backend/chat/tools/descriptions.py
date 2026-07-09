@@ -108,6 +108,8 @@ Examples of queries that do NOT need web_search tool:
 - "Explique-moi comment fonctionne une boucle for"
 - "Écris-moi un poème sur l'automne"
 - "Résume ce texte"
+
+When using web_search tool, you can retry the search with a different query if the first one didn't return any relevant results.
 """
 
 SELF_DOCUMENTATION_SYSTEM_PROMPT = (

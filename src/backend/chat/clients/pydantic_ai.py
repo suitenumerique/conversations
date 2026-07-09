@@ -325,6 +325,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             user=user,
             session=session,
             web_search_enabled=self._is_web_search_enabled and self._is_smart_search_enabled,
+            language=self.language,
         )
         self._web_search_tool_registered = False
         self._self_documentation_tool_registered = False
