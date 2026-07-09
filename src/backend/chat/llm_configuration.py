@@ -181,20 +181,20 @@ class LLModel(BaseModel):
 
     @field_validator("max_token_context", mode="before")
     @classmethod
-    def validate_max_token_context(cls, value: int | str | None) -> int | None:
-        """Accept integer-like values from JSON for model context size."""
+    def validate_max_token_context(cls, value: Any) -> int | None:
+        """Parse max_token_context from literal, setting, or env value."""
         if value is None or value == "":
             return None
         if isinstance(value, bool):
             # bool is an int subclass in Python, reject explicitly so True/False
             # don't become 1/0.
             raise ValueError("max_token_context must be an integer value.")
-        if isinstance(value, int):
-            parsed_value = value
-        elif isinstance(value, str):
+        if isinstance(value, str):
+            value = _get_setting_or_env_or_value(value)
+        try:
             parsed_value = int(value)
-        else:
-            raise ValueError("max_token_context must be an integer value.")
+        except (TypeError, ValueError) as exc:
+            raise ValueError("max_token_context must be an integer value.") from exc
 
         if parsed_value <= 0:
             raise ValueError("max_token_context must be a positive integer")
@@ -263,3 +263,15 @@ def load_llm_configuration(llm_configuration_file_path) -> dict[str, LLModel]:
 def cached_load_llm_configuration(llm_configuration_file_path) -> dict[str, LLModel]:
     """Load the LLM configuration with caching to avoid redundant loading."""
     return load_llm_configuration(llm_configuration_file_path)
+
+
+def get_model_configuration(model_hrid: str):
+    """Get the model configuration from settings."""
+    # pylint: disable=import-outside-toplevel
+    from django.conf import settings  # noqa: PLC0415
+    from django.core.exceptions import ImproperlyConfigured  # noqa: PLC0415
+
+    try:
+        return settings.LLM_CONFIGURATIONS[model_hrid]
+    except KeyError as exc:
+        raise ImproperlyConfigured(f"LLM model configuration '{model_hrid}' not found.") from exc

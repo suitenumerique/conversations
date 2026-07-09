@@ -11,7 +11,11 @@ import {
   RawTextBlock,
 } from '@/features/chat/components/MessageBlock';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
+import { SummarizationError } from '@/features/chat/components/SummarizationError';
+import { SummarizationProgress } from '@/features/chat/components/SummarizationProgress';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
+
+import { ChatErrorType } from './ChatError';
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
 const BlocksList = React.memo(
@@ -163,6 +167,8 @@ export interface MessageItemProps {
   isFirstConversationMessage: boolean;
   streamingMessageHeight: number | null;
   status: 'submitted' | 'streaming' | 'ready' | 'error';
+  chatErrorType?: ChatErrorType;
+  onRetry?: () => void;
   conversationId: string | undefined;
   isSourceOpen: string | null;
   isMobile: boolean;
@@ -178,6 +184,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   isFirstConversationMessage,
   streamingMessageHeight,
   status,
+  chatErrorType,
+  onRetry,
   conversationId,
   isSourceOpen,
   onCopyToClipboard,
@@ -245,13 +253,37 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   }, [toolInvocationParts]);
 
   const activeToolInvocation = React.useMemo(() => {
-    const tool = toolInvocationParts.find(
-      (part) =>
-        part.toolInvocation.toolName !== 'document_parsing' &&
-        part.toolInvocation.toolName !== 'conversation_resume',
-    );
+    const tool = [...toolInvocationParts]
+      .reverse()
+      .find(
+        (part) =>
+          part.toolInvocation.toolName !== 'document_parsing' &&
+          part.toolInvocation.state !== 'result' &&
+          part.toolInvocation.toolName !== 'conversation_resume',
+      );
     return tool?.toolInvocation;
   }, [toolInvocationParts]);
+
+  const conversationSummarizeInvocation = React.useMemo(() => {
+    const part = [...toolInvocationParts]
+      .reverse()
+      .find(
+        (p) =>
+          p.toolInvocation.toolName === 'summarize' &&
+          (p.toolInvocation.args as { summary_scope?: string })
+            ?.summary_scope === 'conversation',
+      );
+    return part?.toolInvocation;
+  }, [toolInvocationParts]);
+
+  // The summary phase failed the turn: the backend emits the `summarize`
+  // tool-call before it can fail, so the invocation is still present here and
+  // we render the failure (with a Retry) in the progress bar's slot.
+  const summarizationFailed =
+    isLastAssistantMessage &&
+    status === 'error' &&
+    chatErrorType === 'summarization_failed' &&
+    !!conversationSummarizeInvocation;
 
   // Memoize the streaming content split to avoid recreating components in JSX
   const { completedBlocks, pending } = React.useMemo(() => {
@@ -371,7 +403,40 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
             {isCurrentlyStreaming &&
               isLastAssistantMessage &&
               status === 'streaming' &&
-              hasNonDocumentParsingTool && (
+              conversationSummarizeInvocation && (
+                <Box
+                  $width="100%"
+                  $maxWidth="var(--chat-content-max-width, 750px)"
+                  $margin={{
+                    all: 'auto',
+                    top: 'base',
+                    bottom: 'md',
+                  }}
+                >
+                  <SummarizationProgress
+                    done={conversationSummarizeInvocation.state === 'result'}
+                  />
+                </Box>
+              )}
+            {summarizationFailed && onRetry && (
+              <Box
+                $width="100%"
+                $maxWidth="var(--chat-content-max-width, 750px)"
+                $margin={{
+                  all: 'auto',
+                  top: 'base',
+                  bottom: 'md',
+                }}
+              >
+                <SummarizationError onRetry={onRetry} />
+              </Box>
+            )}
+            {isCurrentlyStreaming &&
+              isLastAssistantMessage &&
+              status === 'streaming' &&
+              hasNonDocumentParsingTool &&
+              activeToolInvocation &&
+              activeToolInvocation !== conversationSummarizeInvocation && (
                 <Box
                   $direction="row"
                   $align="center"
@@ -386,7 +451,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 >
                   <Loader />
                   <Text $variation="600" $size="md">
-                    {activeToolInvocation?.toolName === 'summarize'
+                    {activeToolInvocation.toolName === 'summarize'
                       ? t('Summarizing...')
                       : t('Search...')}
                   </Text>
@@ -540,6 +605,12 @@ const arePropsEqual = (
     return false;
   }
   if (prevProps.status !== nextProps.status) {
+    return false;
+  }
+  if (prevProps.chatErrorType !== nextProps.chatErrorType) {
+    return false;
+  }
+  if (prevProps.onRetry !== nextProps.onRetry) {
     return false;
   }
   if (prevProps.isSourceOpen !== nextProps.isSourceOpen) {

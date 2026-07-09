@@ -38,6 +38,9 @@ def _parse_listing(instruction: str) -> dict:
 def _llm_config_with_context(settings):
     """Configure a model with max_token_context for context window tests."""
     settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
+    # Pin the buffer so the budget math stays deterministic regardless of the
+    # environment default: int(4000 * 0.5) - 1000 = 1000.
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 1000
     settings.LLM_CONFIGURATIONS = {
         "default-model": LLModel(
             hrid="default-model",

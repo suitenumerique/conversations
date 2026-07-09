@@ -87,21 +87,6 @@ async function fetchChatCooldown(): Promise<{ cooldown_seconds: number }> {
   return response.json() as Promise<{ cooldown_seconds: number }>;
 }
 
-interface ContextTrimmedEvent {
-  type: 'context_trimmed';
-}
-
-export function isContextTrimmedEvent(
-  item: unknown,
-): item is ContextTrimmedEvent {
-  return (
-    typeof item === 'object' &&
-    item !== null &&
-    'type' in item &&
-    item.type === 'context_trimmed'
-  );
-}
-
 // Stream-protocol contract with the backend. Mirrored in
 // ``pydantic_ai.py`` (``IMAGES_SKIPPED_EVENT_TYPE`` /
 // ``IMAGE_SKIP_REASON_TEXT_ONLY``). Keep both sides in sync when adding new

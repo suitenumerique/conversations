@@ -539,4 +539,119 @@ describe('MessageItem', () => {
       expect(screen.queryByTestId('feedback-buttons')).not.toBeInTheDocument();
     });
   });
+
+  describe('summarization progress', () => {
+    const conversationSummarizeMessage = {
+      id: 'msg-sum',
+      role: 'assistant' as const,
+      content: '',
+      parts: [
+        {
+          type: 'tool-invocation' as const,
+          toolInvocation: {
+            toolCallId: 'call-1',
+            toolName: 'summarize',
+            state: 'call' as const,
+            args: { state: 'running', summary_scope: 'conversation' },
+          },
+        },
+      ],
+    };
+
+    it('renders the progress bar while conversation summarization runs', async () => {
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={conversationSummarizeMessage}
+            status="streaming"
+            isLastAssistantMessage={true}
+          />,
+        );
+      });
+
+      expect(screen.getByTestId('summarization-progress')).toBeInTheDocument();
+      // The generic spinner branch must not double-render for this tool
+      // (exact-string queries: 'Summarizing...' does not match the progress
+      // bar's 'Summarizing conversation...' label).
+      expect(screen.queryByText('Summarizing...')).not.toBeInTheDocument();
+      expect(screen.queryByText('Search...')).not.toBeInTheDocument();
+    });
+
+    it('keeps the generic spinner for document-scope summarize', async () => {
+      const documentSummarizeMessage = {
+        ...conversationSummarizeMessage,
+        parts: [
+          {
+            type: 'tool-invocation' as const,
+            toolInvocation: {
+              toolCallId: 'call-2',
+              toolName: 'summarize',
+              state: 'call' as const,
+              args: { state: 'running', summary_scope: 'document' },
+            },
+          },
+        ],
+      };
+
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={documentSummarizeMessage}
+            status="streaming"
+            isLastAssistantMessage={true}
+          />,
+        );
+      });
+
+      expect(screen.getByText('Summarizing...')).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('summarization-progress'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('replaces the progress bar with the error and retry when summarization fails', async () => {
+      const onRetry = jest.fn();
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={conversationSummarizeMessage}
+            status="error"
+            chatErrorType="summarization_failed"
+            onRetry={onRetry}
+            isLastAssistantMessage={true}
+          />,
+        );
+      });
+
+      expect(screen.getByTestId('summarization-error')).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('summarization-progress'),
+      ).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+      expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not render the summarization error for other error types', async () => {
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={conversationSummarizeMessage}
+            status="error"
+            chatErrorType="generic"
+            onRetry={jest.fn()}
+            isLastAssistantMessage={true}
+          />,
+        );
+      });
+
+      expect(
+        screen.queryByTestId('summarization-error'),
+      ).not.toBeInTheDocument();
+    });
+  });
 });

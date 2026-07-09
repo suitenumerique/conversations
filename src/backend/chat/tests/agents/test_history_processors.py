@@ -1,263 +1,421 @@
-"""Tests for chat.agents.history_processors."""
+"""Tests for history processors."""
 
 import logging
+from types import SimpleNamespace
 
-from django.test import override_settings
-
-from pydantic_ai import ImageUrl
-from pydantic_ai.messages import (
-    BinaryContent,
+import pytest
+from pydantic_ai import (
+    Agent,
+    ModelMessage,
     ModelRequest,
     ModelResponse,
     TextPart,
-    ToolCallPart,
-    ToolReturnPart,
     UserPromptPart,
 )
-
-from chat.agents.history_processors import (
-    _IMAGE_TOKEN_ESTIMATE,
-    _estimate_message_tokens,
-    _group_into_turns,
-    _stringify_message_content,
-    apply_sliding_window,
-    estimate_history_tokens,
-    resolve_conversation_budget,
+from pydantic_ai.capabilities import ProcessHistory
+from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.messages import (
+    ToolCallPart,
+    ToolReturnPart,
 )
-from chat.tokens import count_approx_tokens
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 
-# ── helpers ──────────────────────────────────────────────────────────────────
-
-
-def user_msg(text: str) -> ModelRequest:
-    """Build a minimal user ModelRequest."""
-    return ModelRequest(parts=[UserPromptPart(content=text)], kind="request")
-
-
-def assistant_msg(text: str) -> ModelResponse:
-    """Build a minimal assistant ModelResponse."""
-    return ModelResponse(parts=[TextPart(content=text)], kind="response")
+from chat.agents import history_processors
+from chat.tokens import (
+    compute_conversation_budget,
+    compute_document_budget,
+    count_approx_tokens,
+)
 
 
-def tool_call_msg(tool_call_id: str = "tc1") -> ModelResponse:
-    """Build a ModelResponse containing a single tool call."""
-    return ModelResponse(
-        parts=[ToolCallPart(tool_name="web_search", tool_call_id=tool_call_id, args="{}")],
-        kind="response",
-    )
+@pytest.fixture
+def _received_messages_fixture() -> list[ModelMessage]:
+    """Fixture to capture messages received by the function model."""
+    return []
 
 
-def tool_return_msg(tool_call_id: str = "tc1") -> ModelRequest:
-    """Build a ModelRequest containing a single tool return."""
-    return ModelRequest(
-        parts=[ToolReturnPart(tool_name="web_search", tool_call_id=tool_call_id, content="result")],
-        kind="request",
-    )
+@pytest.fixture(name="received_messages")
+def received_messages_fixture_alias(
+    _received_messages_fixture: list[ModelMessage],
+) -> list[ModelMessage]:
+    """Expose received messages fixture with a stable pytest name."""
+    return _received_messages_fixture
 
 
-# ── _estimate_message_tokens ─────────────────────────────────────────────────
+@pytest.fixture(name="function_model")
+def function_model_fixture(received_messages: list[ModelMessage]) -> FunctionModel:
+    """Fixture to capture model function."""
+
+    def capture_model_function(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        # Capture exactly what reaches the provider after history processors.
+        received_messages.clear()
+        received_messages.extend(messages)
+        return ModelResponse(parts=[TextPart(content="Provider response")])
+
+    return FunctionModel(capture_model_function)
 
 
-def test_estimate_message_tokens_empty_parts():
-    """Messages with no parts return 0 tokens."""
-    msg = ModelRequest(parts=[], kind="request")
-    assert _estimate_message_tokens(msg) == 0
+def _build_turns(turn_count: int) -> list:
+    """Build a list of turns for testing."""
+    messages = []
+    for turn in range(1, turn_count + 1):
+        messages.append(ModelRequest(parts=[UserPromptPart(content=[f"user-{turn}"])]))
+        messages.append(ModelResponse(parts=[TextPart(content=f"assistant-{turn}")]))
+    return messages
 
 
-def test_estimate_message_tokens_tool_call():
-    """ToolCallPart with args='{}' accounts for arg tokens plus per-message overhead."""
-    # args="{}" → tiktoken("{}")=1 token; overhead: 4*1+4=8 → total 9
-    msg = tool_call_msg()
-    assert _estimate_message_tokens(msg) == 9
+def test_history_processors_are_applied_before_provider_call(
+    function_model: FunctionModel, received_messages: list[ModelMessage]
+):
+    """History processors should run before provider invocation."""
 
+    def keep_only_requests(messages: list[ModelMessage]) -> list[ModelMessage]:
+        return [msg for msg in messages if isinstance(msg, ModelRequest)]
 
-def test_estimate_message_tokens_image_url_adds_constant():
-    """An ImageUrl part adds the flat IMAGE_TOKEN_ESTIMATE constant."""
-    msg = ModelRequest(
-        parts=[UserPromptPart(content=[ImageUrl(url="https://example.com/photo.jpg")])],
-        kind="request",
-    )
-    # overhead: 4*1 parts + 4 message = 8
-    assert _estimate_message_tokens(msg) == _IMAGE_TOKEN_ESTIMATE + 8
-
-
-def test_estimate_message_tokens_binary_image_adds_constant():
-    """A BinaryContent image part adds the flat IMAGE_TOKEN_ESTIMATE constant."""
-    msg = ModelRequest(
-        parts=[UserPromptPart(content=[BinaryContent(data=b"\x89PNG", media_type="image/png")])],
-        kind="request",
-    )
-    assert _estimate_message_tokens(msg) == _IMAGE_TOKEN_ESTIMATE + 8
-
-
-# ── estimate_history_tokens ───────────────────────────────────────────────────
-
-
-def test_estimate_history_tokens_empty():
-    """Empty history returns 0 tokens."""
-    assert estimate_history_tokens([]) == 0
-
-
-def test_estimate_history_tokens_two_messages():
-    """Token count for a user+assistant exchange matches the sum of individual estimates."""
-    history = [user_msg("hello world"), assistant_msg("hello world")]
-    assert estimate_history_tokens(history) == 24
-
-
-# ── _group_into_turns ─────────────────────────────────────────────────────────
-
-
-def test_group_into_turns_single_turn():
-    """A single user+assistant exchange forms one turn."""
-    history = [user_msg("hi"), assistant_msg("hello")]
-    turns = _group_into_turns(history)
-    assert len(turns) == 1
-    assert turns[0] == history
-
-
-def test_group_into_turns_two_turns():
-    """Two user+assistant exchanges form two turns."""
-    h = [user_msg("q1"), assistant_msg("a1"), user_msg("q2"), assistant_msg("a2")]
-    turns = _group_into_turns(h)
-    assert len(turns) == 2
-    assert turns[0] == [h[0], h[1]]
-    assert turns[1] == [h[2], h[3]]
-
-
-def test_group_into_turns_tool_calls_stay_in_same_turn():
-    """Tool call/return messages stay grouped with the user turn that triggered them."""
-    h = [
-        user_msg("search this"),
-        tool_call_msg(),
-        tool_return_msg(),
-        assistant_msg("found it"),
-        user_msg("thanks"),
-        assistant_msg("welcome"),
+    agent = Agent(function_model, capabilities=[ProcessHistory(keep_only_requests)])
+    message_history = [
+        ModelRequest(parts=[UserPromptPart(content="Question 1")]),
+        ModelResponse(parts=[TextPart(content="Answer 1")]),
     ]
-    turns = _group_into_turns(h)
-    assert len(turns) == 2
-    assert turns[0] == h[:4]
-    assert turns[1] == h[4:]
+
+    agent.run_sync("Question 2", message_history=message_history)
+    assert len(received_messages) == 1
+    assert isinstance(received_messages[0], ModelRequest)
+    user_prompt_contents = [
+        part.content for part in received_messages[0].parts if isinstance(part, UserPromptPart)
+    ]
+    assert user_prompt_contents == ["Question 1", "Question 2"]
 
 
-def test_group_into_turns_empty():
-    """Empty history produces no turns."""
-    assert not _group_into_turns([])
+def test_build_active_history_keeps_full_history_within_context_window():
+    """The whole history is kept when it fits inside the context window."""
+    messages = _build_turns(2)
+
+    result = history_processors.build_active_history(
+        messages, summary_checkpoint=0, context_messages=10
+    )
+
+    assert result == messages
 
 
-# ── apply_sliding_window ──────────────────────────────────────────────────────
+def test_clean_tool_history_redacts_old_tool_returns_but_keeps_latest_tool_result():
+    """Old tool results are compacted, latest tool result stays intact."""
+    messages = [
+        ModelResponse(parts=[ToolCallPart(tool_call_id="old", tool_name="search", args="{}")]),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_call_id="old",
+                    tool_name="search",
+                    content="large old result",
+                )
+            ]
+        ),
+        ModelResponse(parts=[ToolCallPart(tool_call_id="latest", tool_name="search", args="{}")]),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_call_id="latest",
+                    tool_name="search",
+                    content="fresh result",
+                )
+            ]
+        ),
+    ]
+
+    result = history_processors.clean_tool_history(messages)
+
+    old_return = result[1].parts[0]
+    latest_return = result[3].parts[0]
+    assert isinstance(old_return, ToolReturnPart)
+    assert isinstance(latest_return, ToolReturnPart)
+    assert old_return.content == "<search response compacted>"
+    assert latest_return.content == "fresh result"
 
 
-def test_apply_sliding_window_no_trim_needed():
-    """History within budget is returned unchanged with trimmed=False."""
-    history = [user_msg("hi"), assistant_msg("hello")]
-    result, trimmed = apply_sliding_window(history, 10_000)
-    assert result == history
-    assert trimmed is False
+@pytest.mark.asyncio
+async def test_generate_history_summary_returns_summary_and_advances_checkpoint(monkeypatch):
+    """Generation summarizes everything after the checkpoint and advances it to the end."""
+    summarized_messages = []
+
+    async def fake_summary(messages, *, max_tokens=300, previous_summary=None):
+        summarized_messages.extend(messages)
+        _ = max_tokens
+        _ = previous_summary
+        return "summary-v1"
+
+    monkeypatch.setattr(history_processors, "summarize_conversation", fake_summary)
+    messages = _build_turns(3)
+
+    summary, checkpoint = await history_processors.generate_history_summary(messages)
+
+    assert summary == "summary-v1"
+    assert checkpoint == len(messages)
+    assert summarized_messages == messages
 
 
-def test_apply_sliding_window_budget_zero_disables():
-    """Budget of 0 disables trimming regardless of history size."""
-    history = [user_msg("a" * 4000), assistant_msg("b" * 4000)]
-    result, trimmed = apply_sliding_window(history, 0)
-    assert result == history
-    assert trimmed is False
+@pytest.mark.asyncio
+async def test_generate_history_summary_summarizes_only_after_checkpoint(monkeypatch):
+    """With an existing checkpoint, only messages after it are sent to the model."""
+    summarized_messages = []
+
+    async def fake_summary(messages, *, max_tokens=300, previous_summary=None):
+        summarized_messages.extend(messages)
+        _ = max_tokens
+        _ = previous_summary
+        return "summary-v2"
+
+    monkeypatch.setattr(history_processors, "summarize_conversation", fake_summary)
+    messages = _build_turns(5)
+
+    summary, checkpoint = await history_processors.generate_history_summary(
+        messages, summary_checkpoint=6
+    )
+
+    assert summary == "summary-v2"
+    assert checkpoint == len(messages)
+    assert summarized_messages == messages[6:]
 
 
-def test_apply_sliding_window_trims_oldest_turn():
-    """Oldest turn is evicted when total history exceeds budget."""
-    # old_turn: user("a"*400)+assistant("b"*400) ≈ 216 tokens
-    # new_turn: user("c"*400)+assistant("d"*400) ≈ 216 tokens
-    # total ≈ 432 tokens; budget=250 → old_turn evicted
-    old_turn = [user_msg("a" * 400), assistant_msg("b" * 400)]
-    new_turn = [user_msg("c" * 400), assistant_msg("d" * 400)]
-    result, trimmed = apply_sliding_window(old_turn + new_turn, 250)
-    assert trimmed is True
-    assert result == new_turn
+@pytest.mark.asyncio
+async def test_summarize_conversation_propagates_provider_errors(monkeypatch):
+    """Provider API errors propagate so the Celery task can retry the transient case.
+
+    Swallowing them (returning None) would turn every transient blip into a
+    non-retryable SummarizationRequiredError — the regression this guards against.
+    """
+
+    class _FailingAgent:
+        async def run(self, *_args, **_kwargs):
+            """Simulate a transient provider failure."""
+            raise ModelHTTPError(status_code=503, model_name="summ")
+
+    monkeypatch.setattr(history_processors, "SummarizationAgent", _FailingAgent)
+
+    messages = _build_turns(1)
+    with pytest.raises(ModelHTTPError):
+        await history_processors.summarize_conversation(messages, max_tokens=100)
 
 
-def test_apply_sliding_window_keeps_last_turn_even_if_too_big():
-    """A single oversized turn is kept as-is; trimmed remains False."""
-    big_turn = [user_msg("a" * 4000), assistant_msg("b" * 4000)]
-    result, trimmed = apply_sliding_window(big_turn, 100)
-    assert result == big_turn
-    assert trimmed is False
+@pytest.mark.asyncio
+async def test_generate_history_summary_raises_when_output_empty(monkeypatch):
+    """Genuinely empty model output raises SummarizationRequiredError (non-retryable)."""
+
+    class _EmptyAgent:
+        async def run(self, *_args, **_kwargs):
+            """Simulate the model returning empty output."""
+            return SimpleNamespace(output="")
+
+    monkeypatch.setattr(history_processors, "SummarizationAgent", _EmptyAgent)
+
+    messages = _build_turns(2)
+    with pytest.raises(history_processors.SummarizationRequiredError):
+        await history_processors.generate_history_summary(messages)
 
 
-# ── resolve_conversation_budget ───────────────────────────────────────────────
+def test_build_active_history_starts_at_checkpoint_minus_context():
+    """The runtime window starts `context_messages` before the checkpoint."""
+    messages = _build_turns(5)
+
+    result = history_processors.build_active_history(
+        messages, summary_checkpoint=6, context_messages=1
+    )
+
+    assert result == messages[5:]
 
 
-@override_settings(
-    DEFAULT_MAX_TOKEN_CONTEXT=8192,
-    DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS=1000,
-    DOCUMENT_CONTEXT_BUDGET_RATIO=0.5,
-)
-def test_resolve_conversation_budget_no_max_context_uses_default():
+def test_build_active_history_drops_the_summarized_prefix():
+    """A large already-summarized prefix is dropped from the runtime window."""
+    messages = [
+        ModelRequest(parts=[UserPromptPart(content=["old user " + ("x " * 500)])]),
+        ModelResponse(parts=[TextPart(content="old assistant " + ("x " * 500))]),
+        ModelRequest(parts=[UserPromptPart(content=["context user"])]),
+        ModelResponse(parts=[TextPart(content="context assistant")]),
+        ModelRequest(parts=[UserPromptPart(content=["new user"])]),
+        ModelResponse(parts=[TextPart(content="new assistant")]),
+    ]
+
+    result = history_processors.build_active_history(
+        messages, summary_checkpoint=4, context_messages=1
+    )
+
+    assert result == messages[3:]
+
+
+def test_build_active_history_never_empty_when_checkpoint_at_end():
+    """pydantic-ai rejects empty processed history, so the last message is kept."""
+    messages = _build_turns(2)
+
+    result = history_processors.build_active_history(
+        messages, summary_checkpoint=len(messages), context_messages=1
+    )
+
+    assert result == messages[3:]
+
+
+def test_clean_tool_history_has_no_summary_checkpoint_behavior():
+    """The pydantic-ai history processor path only cleans tools."""
+    messages = _build_turns(2)
+
+    result = history_processors.clean_tool_history(messages)
+
+    assert result == messages
+
+
+@pytest.mark.asyncio
+async def test_generate_history_summary_raises_when_model_returns_nothing(monkeypatch):
+    """No degraded turn: an empty summary raises so the task retries."""
+
+    async def fake_summary(_messages, *, max_tokens=300, previous_summary=None):
+        _ = max_tokens, previous_summary
+
+    monkeypatch.setattr(history_processors, "summarize_conversation", fake_summary)
+    messages = _build_turns(20)
+
+    with pytest.raises(history_processors.SummarizationRequiredError):
+        await history_processors.generate_history_summary(messages)
+
+
+def test_should_generate_conversation_summary_when_budget_exceeded():
+    """Frontend summary event should trigger only when over budget."""
+    messages = _build_turns(3)
+    assert history_processors.should_generate_conversation_summary(messages, message_token_budget=1)
+    assert not history_processors.should_generate_conversation_summary(
+        messages, message_token_budget=10_000
+    )
+    assert not history_processors.should_generate_conversation_summary(
+        messages,
+        summary_checkpoint=len(messages),
+        message_token_budget=1,
+        context_messages=1,
+    )
+    assert not history_processors.should_generate_conversation_summary(
+        messages,
+        summary_checkpoint=28,
+        message_token_budget=1,
+        context_messages=1,
+    )
+    messages_with_large_summarized_prefix = [
+        ModelRequest(parts=[UserPromptPart(content=["old user " + ("x " * 500)])]),
+        ModelResponse(parts=[TextPart(content="old assistant " + ("x " * 500))]),
+        ModelRequest(parts=[UserPromptPart(content=["context user"])]),
+        ModelResponse(parts=[TextPart(content="context assistant")]),
+        ModelRequest(parts=[UserPromptPart(content=["new user"])]),
+        ModelResponse(parts=[TextPart(content="new assistant")]),
+    ]
+    assert not history_processors.should_generate_conversation_summary(
+        messages_with_large_summarized_prefix,
+        summary_checkpoint=4,
+        message_token_budget=100,
+        context_messages=1,
+    )
+
+
+def test_resolve_conversation_budget_no_max_context_uses_default(settings):
     """Models without max_token_context fall back to DEFAULT_MAX_TOKEN_CONTEXT."""
+    settings.DEFAULT_MAX_TOKEN_CONTEXT = 8192
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 1000
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
 
     class Cfg:  # pylint: disable=missing-class-docstring
         max_token_context = None
 
     # int(8192*0.5)-1000=3096
-    assert resolve_conversation_budget(Cfg()) == 3096
+    assert history_processors.resolve_conversation_budget(Cfg()) == 3096
 
 
-def test_resolve_conversation_budget_zero_max_context():
+def test_resolve_conversation_budget_zero_max_context(settings):
     """max_token_context=0 returns 0 (trimming disabled)."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 1000
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
 
     class Cfg:  # pylint: disable=missing-class-docstring
         max_token_context = 0
 
-    assert resolve_conversation_budget(Cfg()) == 0
+    assert history_processors.resolve_conversation_budget(Cfg()) == 0
 
 
-@override_settings(
-    DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS=1000,
-    DOCUMENT_CONTEXT_BUDGET_RATIO=0.5,
-)
-def test_resolve_conversation_budget_formula():
+def test_resolve_conversation_budget_formula(settings):
     """Budget is computed as int(max*(1-ratio))-buffer."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 1000
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
 
     class Cfg:  # pylint: disable=missing-class-docstring
         max_token_context = 10_000
 
     # int(10000*0.5)-1000=4000
-    assert resolve_conversation_budget(Cfg()) == 4000
+    assert history_processors.resolve_conversation_budget(Cfg()) == 4000
 
 
-@override_settings(
-    DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS=0,
-    DOCUMENT_CONTEXT_BUDGET_RATIO=0.0,
-)
-def test_resolve_conversation_budget_zero_ratio():
+def test_resolve_conversation_budget_zero_ratio(settings):
     """budget_ratio=0 allocates the full context window to conversation."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 0
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.0
 
     class Cfg:  # pylint: disable=missing-class-docstring
         max_token_context = 10_000
 
-    assert resolve_conversation_budget(Cfg()) == 10_000
+    assert history_processors.resolve_conversation_budget(Cfg()) == 10_000
 
 
-@override_settings(DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS=10_000)
-def test_resolve_conversation_budget_logs_warning_when_buffer_exceeds_context(caplog):
+@pytest.mark.parametrize("budget_ratio", [0.0, 0.3, 0.5, 0.7, 1.0])
+@pytest.mark.parametrize("security_buffer", [0, 1000])
+@pytest.mark.parametrize("max_token_context", [4000, 10_000, 128_000])
+def test_document_and_conversation_budgets_never_jointly_exceed_context(
+    max_token_context, budget_ratio, security_buffer
+):
+    """Documents and history partition the window; together they never overflow it.
+
+    The two budgets split `max_token_context` by `budget_ratio` / `(1 - ratio)`,
+    each minus the security buffer, so summarization bounding the history share
+    is enough to keep the whole request within the model's context window.
+    """
+    document_budget = compute_document_budget(max_token_context, budget_ratio, security_buffer)
+    conversation_budget = compute_conversation_budget(
+        max_token_context, budget_ratio, security_buffer
+    )
+
+    assert document_budget + conversation_budget <= max_token_context
+
+
+def test_budget_partition_leaves_only_the_security_buffer_as_slack():
+    """At a large-doc ratio the buffer is the sole headroom between the two budgets."""
+    max_token_context = 10_000
+    budget_ratio = 0.7
+    security_buffer = 1000
+
+    document_budget = compute_document_budget(max_token_context, budget_ratio, security_buffer)
+    conversation_budget = compute_conversation_budget(
+        max_token_context, budget_ratio, security_buffer
+    )
+
+    # 7000-1000=6000 docs + 3000-1000=2000 history = 8000; the missing 2000 is
+    # exactly the two security buffers. A ratio/buffer change that breaks the
+    # partition would push this sum past max_token_context and fail loudly.
+    assert document_budget == 6000
+    assert conversation_budget == 2000
+    assert max_token_context - (document_budget + conversation_budget) == 2 * security_buffer
+
+
+def test_resolve_conversation_budget_logs_warning_when_buffer_exceeds_context(settings, caplog):
     """A warning is logged when the security buffer leaves no tokens for conversation."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 10_000
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.5
 
     class Cfg:  # pylint: disable=missing-class-docstring
         max_token_context = 5_000
 
     with caplog.at_level(logging.WARNING, logger="chat.agents.history_processors"):
-        result = resolve_conversation_budget(Cfg())
+        result = history_processors.resolve_conversation_budget(Cfg())
 
     assert result == 0
-    assert "Sliding window disabled" in caplog.text
+    assert "Summarization is disabled" in caplog.text
 
 
-@override_settings(
-    DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS=0,
-    DOCUMENT_CONTEXT_BUDGET_RATIO=0.0,
-)
-def test_resolve_conversation_budget_deducts_system_prompt():
+def test_resolve_conversation_budget_deducts_system_prompt(settings):
     """System prompt tokens are subtracted from the conversation budget."""
+    settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS = 0
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0.0
     system_prompt = "You are a helpful assistant."
 
     class CfgNoPrompt:  # pylint: disable=missing-class-docstring
@@ -268,24 +426,20 @@ def test_resolve_conversation_budget_deducts_system_prompt():
         max_token_context = 10_000
         system_prompt = "You are a helpful assistant."
 
-    budget_without = resolve_conversation_budget(CfgNoPrompt())
-    budget_with = resolve_conversation_budget(CfgWithPrompt())
+    budget_without = history_processors.resolve_conversation_budget(CfgNoPrompt())
+    budget_with = history_processors.resolve_conversation_budget(CfgWithPrompt())
     assert budget_with == budget_without - count_approx_tokens(system_prompt)
 
 
-# ── _stringify_message_content ───────────────────────────────────────────────
+def test_safe_clean_tool_history_falls_back_to_raw_history(monkeypatch):
+    """Unexpected cleanup errors should not break the conversation flow."""
+    messages = _build_turns(2)
 
+    def raise_cleanup(_messages):
+        raise RuntimeError("cleanup failed")
 
-def test_stringify_none_returns_empty():
-    """None content stringifies to empty string."""
-    assert _stringify_message_content(None) == ""
+    monkeypatch.setattr(history_processors, "clean_tool_history", raise_cleanup)
 
+    result = history_processors.safe_clean_tool_history(messages)
 
-def test_stringify_str_returns_same():
-    """String content is returned unchanged."""
-    assert _stringify_message_content("hello") == "hello"
-
-
-def test_stringify_list_joins():
-    """List content items are joined with a space."""
-    assert _stringify_message_content(["a", "b"]) == "a b"
+    assert result == messages

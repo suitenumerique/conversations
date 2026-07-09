@@ -20,7 +20,6 @@ import { useProjectAttachments } from '@/features/attachments/api/useProjectAtta
 import { useReindexProjectAttachment } from '@/features/attachments/api/useReindexProjectAttachment';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
 import {
-  isContextTrimmedEvent,
   isImagesSkippedEvent,
   stampImagesSkippedOnLatestUserMessage,
   useChat,
@@ -59,6 +58,7 @@ const PROVIDER_ERROR_CODES = new Set<ChatErrorType>([
   'model_not_found',
   'model_wrong_type',
   'model_busy',
+  'summarization_failed',
 ]);
 
 const IMAGES_BANNER_STORAGE_PREFIX = 'conversations:images-banner-dismissed:';
@@ -213,7 +213,6 @@ export const Chat = ({
   const { mutate: createChatConversation } = useCreateChatConversation();
   const queryClient = useQueryClient();
   const [isReadingInstructions, setIsReadingInstructions] = useState(false);
-  const [contextTrimmed, setContextTrimmed] = useState(false);
   const readingInstructionsStartRef = useRef<number>(0);
   const aprilFools = useAprilFools();
 
@@ -669,14 +668,7 @@ export const Chat = ({
   }, [shouldRetry, input, files]);
 
   useEffect(() => {
-    setContextTrimmed(false);
-  }, [conversationId]);
-
-  useEffect(() => {
     if (!data || !Array.isArray(data)) return;
-    if (data.some(isContextTrimmedEvent)) {
-      setContextTrimmed(true);
-    }
     if (
       data.some(
         (item) => isImagesSkippedEvent(item) && item.kind === 'chat_notice',
@@ -979,6 +971,8 @@ export const Chat = ({
                       isFirstConversationMessage={isFirstConversationMessage}
                       streamingMessageHeight={streamingMessageHeight}
                       status={status}
+                      chatErrorType={chatErrorType}
+                      onRetry={handleRetry}
                       conversationId={conversationId}
                       isSourceOpen={isSourceOpen}
                       isMobile={isMobile}
@@ -1013,21 +1007,6 @@ export const Chat = ({
             })}
           </Box>
         )}
-        {contextTrimmed && (
-          <Box
-            $direction="row"
-            $align="center"
-            $gap="6px"
-            $width="100%"
-            $maxWidth="var(--chat-content-max-width, 750px)"
-            $margin={{ all: 'auto' }}
-            $padding={{ left: '13px', top: 'xs', bottom: 'xs' }}
-          >
-            <Text $theme="neutral" $variation="tertiary" $size="sm">
-              {t("Some older messages are no longer in the model's context.")}
-            </Text>
-          </Box>
-        )}
         {!aprilFools.isActive &&
         ((status !== 'ready' && status !== 'streaming' && status !== 'error') ||
           isUploadingFiles) ? (
@@ -1054,13 +1033,15 @@ export const Chat = ({
             </Text>
           </Box>
         ) : null}
-        {status === 'error' && !isUploadingFiles && (
-          <ChatError
-            errorType={chatErrorType}
-            hasLastSubmission={!!lastSubmissionRef.current}
-            onRetry={handleRetry}
-          />
-        )}
+        {status === 'error' &&
+          !isUploadingFiles &&
+          chatErrorType !== 'summarization_failed' && (
+            <ChatError
+              errorType={chatErrorType}
+              hasLastSubmission={!!lastSubmissionRef.current}
+              onRetry={handleRetry}
+            />
+          )}
       </Box>
       <Box
         $css={`
