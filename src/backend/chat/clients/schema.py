@@ -52,6 +52,7 @@ class ContextDeps:
     user: User
     session: Optional[Dict] = None
     web_search_enabled: bool = False
+    language: str | None = None
 
 
 @dataclasses.dataclass
