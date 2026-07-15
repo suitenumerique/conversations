@@ -37,7 +37,7 @@ dependencies = [
     "django-redis==6.0.0",
     "django-storages[s3]==1.14.6",
     "django-timezone-field>=5.1",
-    "django==5.2.14",
+    "django==5.2.15",
     "djangorestframework==3.17.1",
     "drf_spectacular==0.29.0",
     "dockerflow==2026.3.4",
@@ -63,7 +63,7 @@ dependencies = [
     "trafilatura==2.1.0",
     "uvicorn==0.49.0",
     "whitenoise==6.12.0",
-    "pypdf==6.13.0",
+    "pypdf==6.13.3",
     "odfdo==3.22.8",
     "django-solo==2.5.1",
     "tiktoken==0.13.0",
@@ -99,7 +99,7 @@ dev = [
     "respx==0.23.1",
     "ruff==0.15.16",
     "types-requests==2.33.0.20260518",
-    "debugpy>=1.8.20",    
+    "debugpy>=1.8.20",
 ]
 
 [tool.setuptools]
@@ -117,10 +117,11 @@ required-environments = [
 ]
 override-dependencies = [
     "cryptography>=48.0.1", # GHSA-537c-gmf6-5ccf
-    "joserfc>=1.6.3", # CVE-2026-27932
+    "joserfc>=1.6.8", # CVE-2026-49852
     "pillow>=12.2.0", #CVE-2026-40192
-    "python-multipart>=0.0.30", # CVE-2026-53539
-   "starlette>=1.3.1", # CVE-2026-48818, CVE-2026-54283
+    "python-multipart>=0.0.31", # CVE-2026-53539
+    "starlette>=1.3.1", # CVE-2026-48818, CVE-2026-54283,
+    "pyjwt>=2.13.0", #CVE-2026-48526
 ]
 
 [tool.uv.build-backend]

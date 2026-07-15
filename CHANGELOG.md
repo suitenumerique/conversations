@@ -22,6 +22,7 @@ and this project adheres to
 - 💄(front) change 404 illustration
 - ✨(back) process project files asynchronously with indexing state
 - ⚡️(back) process conversation files asynchronously off the request worker
+- ⬆️(dependencies) update dependencies and pin CVE-affected packages
 
 ### Fixed
 
