@@ -7,15 +7,15 @@ import { Box, Icon, Loader, Text } from '@/components';
 import { useConfig } from '@/core/config';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
-import { MessageEnergyIndicator } from '@/features/chat/components/MessageEnergyIndicator';
-import { getMessageCo2Impact } from '@/features/chat/utils/getMessageCo2Impact';
 import {
   CompletedMarkdownBlock,
   RawTextBlock,
 } from '@/features/chat/components/MessageBlock';
+import { MessageEnergyIndicator } from '@/features/chat/components/MessageEnergyIndicator';
 import { MoreActionsButton } from '@/features/chat/components/MoreActionsButton';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
+import { getMessageCo2Impact } from '@/features/chat/utils/getMessageCo2Impact';
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
 const BlocksList = React.memo(

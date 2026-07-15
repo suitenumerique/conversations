@@ -5,7 +5,7 @@ import os
 from datetime import timedelta
 
 from django.conf import settings
-from django.db.models import Exists, OuterRef, Q
+from django.db.models import Exists, OuterRef
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 from django.utils.module_loading import import_string
@@ -25,7 +25,6 @@ from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX, SSE_MIME_TYPE
-from chat.enums import AttachmentIndexState
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.model_routing import resolve_effective_model_hrid
 from chat.rate_limiting import ChatCooldownThrottle, get_cooldown_remaining
@@ -238,34 +237,33 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
 
         conversation = self.get_object()
 
-        # Backstop the frontend gate: a project file whose malware scan or RAG
-        # indexing is still running isn't searchable yet, so answering now would
-        # silently ignore it. Refuse the message until both settle (the frontend
-        # blocks send too). Only these in-flight states block; terminal states
-        # (READY, SUSPICIOUS, too-large, FAILED) and a not-yet-uploaded PENDING
-        # row do not, so a rejected or abandoned file can't deadlock the project.
+        # Refuse the message while a project file is still being malware-scanned:
+        # its content must not reach the model before the scan clears it. Only
+        # this in-flight state blocks; terminal states (READY, SUSPICIOUS,
+        # too-large, FAILED) and a not-yet-uploaded PENDING row do not, so a
+        # rejected or abandoned file can't deadlock the project.
         #
-        # An INDEXING row is only counted while fresh: if the indexing worker is
-        # SIGKILLed at CELERY_TASK_TIME_LIMIT (or OOM-killed / crashes), the
-        # final INDEXED/FAILED write never runs and the row stays INDEXING
-        # forever, which would otherwise deadlock messaging for the whole
-        # project. Past the hard-limit window (plus a margin) such a row is
-        # provably dead, so we stop blocking on it. This unblocks messaging only;
-        # recovering the stuck index (mark FAILED / requeue) is separate work.
+        # An ANALYZING row is only counted while fresh. The scan runs off-process
+        # if it exhausts its retries or the worker dies,
+        # the callback never fires and the row stays
+        # ANALYZING forever, permanently blocking every message in the project.
+        # Past the window such a row is provably dead, so we stop blocking on it.
+        # This is safe: the row never reaches READY, and only READY uploads are
+        # fed to the model, so an unscanned file still can't reach it. Marking
+        # the dead row terminal is separate periodic-recovery work.
+        #
+        # Indexing deliberately does NOT block: since indexing runs as a Celery
+        # task it can take a while, and a user may well have a quick question
+        # unrelated to the documents. A still-indexing file is simply not
+        # searchable yet, and the frontend banner says so.
         if (
             conversation.project_id
             and models.ChatConversationAttachment.objects.filter(
                 project_id=conversation.project_id,
-            )
-            .filter(
-                Q(upload_state=AttachmentStatus.ANALYZING)
-                | Q(
-                    index_state=AttachmentIndexState.INDEXING,
-                    updated_at__gte=timezone.now()
-                    - timedelta(seconds=settings.CELERY_TASK_TIME_LIMIT + 60),
-                )
-            )
-            .exists()
+                upload_state=AttachmentStatus.ANALYZING,
+                updated_at__gte=timezone.now()
+                - timedelta(seconds=settings.CELERY_TASK_TIME_LIMIT + 60),
+            ).exists()
         ):
             return Response(
                 {"error": "project_files_indexing"},

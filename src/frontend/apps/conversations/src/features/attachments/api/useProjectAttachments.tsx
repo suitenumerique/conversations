@@ -32,7 +32,7 @@ export const useProjectAttachments = (projectId?: string) => {
     queryKey: [KEY_PROJECT_ATTACHMENTS, projectId],
     queryFn: () => getProjectAttachments(projectId as string),
     enabled: !!projectId,
-    // Poll while any file is still indexing so the send gate clears on its own.
+    // Poll while any file is still indexing so the banner clears on its own.
     refetchInterval: (query) =>
       query.state.data?.some((a) => a.index_state === 'indexing')
         ? 3000

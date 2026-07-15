@@ -22,7 +22,7 @@ describe('getMessageCo2Impact', () => {
         id: '1',
         role: 'assistant',
         content: 'Hello',
-      } as Message),
+      }),
     ).toBeUndefined();
   });
 
@@ -33,7 +33,7 @@ describe('getMessageCo2Impact', () => {
         role: 'assistant',
         content: 'Hello',
         annotations: [{ co2_impact: 0 }],
-      } as Message & { annotations: { co2_impact: number }[] }),
+      }),
     ).toBeUndefined();
   });
 });

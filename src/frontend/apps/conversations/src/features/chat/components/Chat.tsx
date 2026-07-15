@@ -229,9 +229,10 @@ export const Chat = ({
     clearPendingInput,
   } = usePendingChatStore();
 
-  // Gate sending while the active project still has files being indexed: their
-  // content isn't searchable yet, so a message now would get an answer that
-  // ignores them. `useProjectAttachments` polls itself until indexing settles.
+  // Surface a notice while the active project still has files being indexed:
+  // their content isn't searchable yet, so a message sent now gets an answer
+  // that ignores them. Sending stays allowed - the banner states the tradeoff
+  // and the user decides. `useProjectAttachments` polls until indexing settles.
   const activeProjectId =
     conversationProjectId ?? pendingProjectId ?? undefined;
   const { data: projectAttachments } = useProjectAttachments(activeProjectId);
@@ -803,12 +804,6 @@ export const Chat = ({
 
     // Inference-load cooldown: block new messages until the wait elapses.
     if (cooldownUntil && Date.now() < cooldownUntil) {
-      return;
-    }
-
-    // Block while project files are still indexing (matches the backend
-    // backstop); their content isn't searchable yet.
-    if (isIndexingFiles) {
       return;
     }
 

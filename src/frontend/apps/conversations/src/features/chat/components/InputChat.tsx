@@ -1,4 +1,5 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
+import { ArrowSquarepath, FileDelete } from '@gouvfr-lasuite/ui-kit/icons';
 import React, {
   useCallback,
   useEffect,
@@ -16,6 +17,7 @@ import { useAssistantHealth } from '@/features/chat/api/useAssistantHealth';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 import { ChatErrorType } from '@/features/chat/components/ChatError';
 import { InputChatActions } from '@/features/chat/components/InputChatAction';
+import { InputChatBanner } from '@/features/chat/components/InputChatBanner';
 import { ProjectWelcomeMessage } from '@/features/chat/components/ProjectWelcomeMessage';
 import { SuggestionCarousel } from '@/features/chat/components/SuggestionCarousel';
 import { WelcomeMessage } from '@/features/chat/components/WelcomeMessage';
@@ -96,14 +98,6 @@ const FILE_DROP_CSS = `
                 outline: 2px solid var(--c--contextuals--border--semantic--brand--secondary);
                 box-shadow: 0 0 64px 0 rgba(62, 93, 231, 0.25);
                 `;
-const COOLDOWN_BANNER_CSS = `
-                padding: 8px 16px;
-                border-top-left-radius: 12px;
-                border-top-right-radius: 12px;
-                border-bottom: 1px solid var(--c--contextuals--border--surface--primary);
-                background: var(--c--contextuals--background--semantic--warning--tertiary);
-                text-align: center;
-                `;
 const DRAG_FADE_CSS = `
             top: 0;
             left: 0;
@@ -114,6 +108,10 @@ const DRAG_FADE_CSS = `
             background-color: rgba(255, 255, 255, 0.1);
             pointer-events: all;
           `;
+
+// The ui-kit ArrowSquarepath draws vertical arrows; the design wants them
+// horizontal (top arrow pointing right, bottom arrow pointing left).
+const ROTATE_90_STYLE: React.CSSProperties = { transform: 'rotate(90deg)' };
 
 const TEXTAREA_STYLE: React.CSSProperties = {
   padding: '1rem 1.5rem 0.5rem 1.5rem',
@@ -298,9 +296,10 @@ export const InputChat = ({
     return () => clearInterval(interval);
   }, [cooldownUntil]);
 
-  // During a cooldown or while project files are indexing, the textarea stays
-  // enabled so the user can still draft a message; only sending is blocked (see
-  // handleTextareaKeyDown + the send button below, and the submit guard in Chat).
+  // During a cooldown the textarea stays enabled so the user can still draft a
+  // message; only sending is blocked (see handleTextareaKeyDown + the send
+  // button below). Indexing no longer blocks sending: the banner warns that
+  // still-indexing files are ignored, and the user decides whether to wait.
   const isInputDisabled =
     !INPUT_ENABLED_STATUSES.includes(
       status as (typeof INPUT_ENABLED_STATUSES)[number],
@@ -348,13 +347,12 @@ export const InputChat = ({
         if (isInputDisabled) return;
         if (status === 'streaming' || status === 'submitted') return;
         if (cooldownRemaining > 0) return;
-        if (isIndexingFiles) return;
         const textarea = e.target as HTMLTextAreaElement;
         textarea.style.height = '0';
         e.currentTarget.form?.requestSubmit?.();
       }
     },
-    [isInputDisabled, status, cooldownRemaining, isIndexingFiles],
+    [isInputDisabled, status, cooldownRemaining],
   );
 
   const handleFormSubmit = useCallback(
@@ -479,6 +477,46 @@ export const InputChat = ({
 
         <form onSubmit={handleFormSubmit} style={STYLES.form}>
           <Box $padding={formPadding}>
+            {isIndexingFiles && (
+              <InputChatBanner
+                variant="neutral"
+                icon={<Loader />}
+                text={t(
+                  'Files related to this project are being indexed and will be ignored.',
+                )}
+              />
+            )}
+            {failedIndexingCount > 0 && !isIndexingFiles && (
+              <InputChatBanner
+                variant="error"
+                icon={<FileDelete size={18} />}
+                text={t(
+                  '{{number}} project file(s) failed to index and are not searchable.',
+                  { number: failedIndexingCount },
+                )}
+                action={
+                  <Button
+                    size="nano"
+                    color="error"
+                    variant="tertiary"
+                    icon={<ArrowSquarepath size={18} style={ROTATE_90_STYLE} />}
+                    onClick={onRetryFailedIndexing}
+                    disabled={isRetryingIndexing || !onRetryFailedIndexing}
+                  >
+                    {t('Retry')}
+                  </Button>
+                }
+              />
+            )}
+            {cooldownRemaining > 0 && (
+              <InputChatBanner
+                icon={<WarningFilledIcon width={20} height={20} />}
+                text={t(
+                  'The model is under heavy load. You can send a new message in {{seconds}}s.',
+                  { seconds: cooldownRemaining },
+                )}
+              />
+            )}
             <Box
               $flex={1}
               $radius="12px"
@@ -510,80 +548,6 @@ export const InputChat = ({
                       {t('To add a file to the conversation, drop it here.')}
                     </Text>
                   </Box>
-                </Box>
-              )}
-              {isIndexingFiles && (
-                <Box
-                  role="status"
-                  $align="center"
-                  $direction="row"
-                  $justify="center"
-                  $gap="8px"
-                  $css={COOLDOWN_BANNER_CSS}
-                >
-                  <Loader />
-                  <Text
-                    $weight="700"
-                    $size="sm"
-                    $color="var(--c--contextuals--content--semantic--warning--primary)"
-                  >
-                    {t(
-                      'Processing project files. You can send a message once indexing is done.',
-                    )}
-                  </Text>
-                </Box>
-              )}
-              {failedIndexingCount > 0 && !isIndexingFiles && (
-                <Box
-                  role="status"
-                  $align="center"
-                  $direction="row"
-                  $justify="center"
-                  $gap="8px"
-                  $css={COOLDOWN_BANNER_CSS}
-                >
-                  <WarningFilledIcon width={20} height={20} />
-                  <Text
-                    $weight="700"
-                    $size="sm"
-                    $color="var(--c--contextuals--content--semantic--warning--primary)"
-                  >
-                    {t(
-                      '{{number}} project file(s) failed to index and are not searchable.',
-                      { number: failedIndexingCount },
-                    )}
-                  </Text>
-                  <Button
-                    size="nano"
-                    color="neutral"
-                    variant="bordered"
-                    onClick={onRetryFailedIndexing}
-                    disabled={isRetryingIndexing || !onRetryFailedIndexing}
-                  >
-                    {t('Retry')}
-                  </Button>
-                </Box>
-              )}
-              {cooldownRemaining > 0 && (
-                <Box
-                  role="status"
-                  $align="center"
-                  $direction="row"
-                  $justify="center"
-                  $gap="8px"
-                  $css={COOLDOWN_BANNER_CSS}
-                >
-                  <WarningFilledIcon width={20} height={20} />
-                  <Text
-                    $weight="700"
-                    $size="sm"
-                    $color="var(--c--contextuals--content--semantic--warning--primary)"
-                  >
-                    {t(
-                      'The model is under heavy load. You can send a new message in {{seconds}}s.',
-                      { seconds: cooldownRemaining },
-                    )}
-                  </Text>
                 </Box>
               )}
               <textarea
@@ -648,7 +612,7 @@ export const InputChat = ({
                 selectedModel={selectedModel || null}
                 status={status}
                 inputHasContent={Boolean(input?.trim())}
-                sendDisabled={cooldownRemaining > 0 || isIndexingFiles}
+                sendDisabled={cooldownRemaining > 0}
                 onStop={onStop}
               />
             </Box>
