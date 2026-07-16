@@ -1,6 +1,8 @@
 """Unit tests for project attachment RAG indexing."""
 
+import io
 import logging
+import zipfile
 
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
@@ -17,6 +19,8 @@ from chat.enums import AttachmentIndexState
 from chat.models import ChatConversationAttachment
 
 pytestmark = pytest.mark.django_db
+
+DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 @pytest.fixture(autouse=True)
@@ -477,6 +481,55 @@ def test_index_reconcile_skips_companion_when_present(project_text_attachment):
     index_project_attachment(project_text_attachment)
 
     assert parse_mock.call_count == 0
+
+
+@responses.activate
+def test_index_rejects_zip_bomb_and_marks_failed(settings):
+    """A decompression-bomb project attachment is rejected before it is stored.
+
+    The parser's `guard_zip_bomb` fires inside `parse_and_store_document`, so the
+    document store HTTP call is never made; `index_project_attachment` catches the
+    guard error and records a visible FAILED state while leaving the file usable.
+    """
+    settings.ATTACHMENT_PARSE_MAX_UNCOMPRESSED_SIZE = 1 * (2**20)  # 1MB
+
+    # A DOCX (ZIP) declaring 4MB of zero-filled content: tiny compressed, well
+    # over the 1MB uncompressed cap.
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("word/document.xml", b"\x00" * (4 * 2**20))
+    saved_name = default_storage.save("project-bomb.docx", ContentFile(buffer.getvalue()))
+    attachment = factories.ChatProjectAttachmentFactory(
+        key=saved_name,
+        file_name="bomb.docx",
+        content_type=DOCX_CONTENT_TYPE,
+        upload_state=AttachmentStatus.READY,
+    )
+
+    responses.post(
+        "https://albert.api.etalab.gouv.fr/v1/collections",
+        json={"id": "42"},
+        status=status.HTTP_200_OK,
+    )
+    documents_mock = responses.post(
+        "https://albert.api.etalab.gouv.fr/v1/documents",
+        json={"id": 1},
+        status=status.HTTP_201_CREATED,
+    )
+
+    try:
+        index_project_attachment(attachment)
+
+        # Guard fired before the store: no document was persisted in the backend.
+        assert documents_mock.call_count == 0
+        attachment.refresh_from_db()
+        assert attachment.index_state == AttachmentIndexState.FAILED
+        assert attachment.processing_error
+        assert not attachment.rag_document_id
+        # File stays usable/downloadable despite the rejected indexing.
+        assert attachment.upload_state == AttachmentStatus.READY
+    finally:
+        default_storage.delete(saved_name)
 
 
 @responses.activate

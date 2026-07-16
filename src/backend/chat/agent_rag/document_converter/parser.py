@@ -12,6 +12,7 @@ from django.conf import settings
 import requests
 from pypdf import PdfReader, PdfWriter
 
+from chat.agent_rag.document_converter.guards import guard_pdf_page_count, guard_zip_bomb
 from chat.agent_rag.document_converter.markitdown import DocumentConverter
 from chat.constants import PDF_MIME_TYPE
 
@@ -34,6 +35,7 @@ class BaseParser(ABC):
 
     def parse_document(self, name: str, content_type: str, content: bytes) -> str:
         """Route to the appropriate parser based on content type."""
+        guard_zip_bomb(content)
         content_type = content_type.lower()
         if content_type == CT_PDF:
             return self.parse_pdf_document(name=name, content_type=content_type, content=content)
@@ -93,6 +95,7 @@ def analyze_pdf(pdf_data: bytes) -> dict:
     """Analyze a PDF to determine if it needs OCR or can use direct text extraction."""
     reader = PdfReader(BytesIO(pdf_data))
     total_pages = len(reader.pages)
+    guard_pdf_page_count(total_pages)
     if total_pages == 0:
         logger.info("No page found in pdf")
         return {

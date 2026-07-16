@@ -233,6 +233,26 @@ class Base(BraveSettings, Configuration):
         environ_name="ATTACHMENT_MAX_SIZE",
         environ_prefix=None,
     )
+    # Resource-exhaustion guards for the document parser (guards.py). The upload
+    # cap above bounds compressed bytes; these bound how much a ZIP-container
+    # document (DOCX/XLSX/PPTX/ODT) may expand and how many pages an in-process
+    # PDF parse may loop over, so a decompression bomb or a huge PDF can't OOM
+    # or pin a worker.
+    ATTACHMENT_PARSE_MAX_UNCOMPRESSED_SIZE = values.IntegerValue(
+        200 * (2**20),  # 200MB of declared uncompressed content
+        environ_name="ATTACHMENT_PARSE_MAX_UNCOMPRESSED_SIZE",
+        environ_prefix=None,
+    )
+    ATTACHMENT_PARSE_MAX_COMPRESSION_RATIO = values.PositiveIntegerValue(
+        default=100,  # uncompressed / compressed
+        environ_name="ATTACHMENT_PARSE_MAX_COMPRESSION_RATIO",
+        environ_prefix=None,
+    )
+    ATTACHMENT_PARSE_MAX_PDF_PAGES = values.PositiveIntegerValue(
+        default=2000,
+        environ_name="ATTACHMENT_PARSE_MAX_PDF_PAGES",
+        environ_prefix=None,
+    )
     FILE_UPLOAD_MODE = values.Value(
         FileUploadMode.PRESIGNED_URL,
         environ_name="FILE_UPLOAD_MODE",
