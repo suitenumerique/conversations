@@ -4,9 +4,7 @@ and the filter propagates all the way to the Albert /v1/search HTTP request body
 """
 
 import json
-from unittest import mock
 
-from django.contrib.sessions.backends.cache import SessionStore
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
@@ -31,16 +29,6 @@ def ai_settings(settings):
     """Configure AI service URLs and the Albert backend."""
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
     return settings
-
-
-@pytest.fixture(autouse=True)
-def mock_refresh_access_token():
-    """Bypass token refresh during the request."""
-    with mock.patch("utils.oidc.refresh_access_token") as mocked:
-        session = SessionStore()
-        session["oidc_access_token"] = "mocked-access-token"
-        mocked.return_value = session
-        yield mocked
 
 
 @respx.mock

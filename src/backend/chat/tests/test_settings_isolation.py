@@ -19,7 +19,6 @@ def test_env_test_file_is_loaded(settings):
     assert settings.AI_API_KEY == "test-api-key"
     assert settings.AI_BASE_URL == "https://www.external-ai-service.com/"
     assert settings.ALBERT_API_KEY == "test-key"
-    assert settings.FIND_API_KEY == "test-key"
     assert settings.SECRET_KEY
 
 

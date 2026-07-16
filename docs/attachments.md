@@ -29,7 +29,6 @@ Both share the same model, same storage, same RAG backend, and the same retrieva
   - [Image Attachments](#image-attachments)
   - [PDF Documents](#pdf-documents)
   - [Other Document Types](#other-document-types)
-  - [Find backend: known limitations](#find-backend-known-limitations)
 - [Configuration](#configuration)
 
 ---
@@ -249,7 +248,7 @@ collection_id` starts NULL; `_ensure_project_collection(project)` runs the creat
 
 At search time, when a conversation belongs to a project, the project's collection is added to the search payload alongside the conversation's own collection (`read_only_collection_id=[project.collection_id]`). The model can therefore pull chunks from both scopes in a single tool call.
 
-The Albert backend records a per-document id (`rag_document_id`) at index time. The search tool prefers it over name-based filtering (`document_ids: [<int>]` instead of `metadata_filters: document_name`) - this is collection-aware and unambiguous, whereas a name match could collide across the conversation and project collections. The Find backend currently does not return per-document ids; both id-based and name-based filters fall back to a plain query.
+The Albert backend records a per-document id (`rag_document_id`) at index time. The search tool prefers it over name-based filtering (`document_ids: [<int>]` instead of `metadata_filters: document_name`) - this is collection-aware and unambiguous, whereas a name match could collide across the conversation and project collections.
 
 ### Markdown companion attachment
 
@@ -446,7 +445,7 @@ When a user sends a message with attachments, the system processes them differen
 
 1. **Document parsing**: Two pluggable settings drive parsing and storage:
    - `RAG_DOCUMENT_PARSER` (default `chat.agent_rag.document_converter.parser.AlbertParser`): converts the source bytes to Markdown. Routes by content type - ODT files always use `odfdo`, everything other than PDF/ODT goes through **MarkItDown**, PDFs depend on which parser is configured (see below).
-   - `RAG_DOCUMENT_SEARCH_BACKEND` (`AlbertRagBackend` or `FindRagBackend`): stores the converted markdown in the configured vector index and serves search queries.
+   - `RAG_DOCUMENT_SEARCH_BACKEND` (default `chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend`): stores the converted markdown in the configured vector index and serves search queries.
 
    **PDF parsing strategies** (per `RAG_DOCUMENT_PARSER`):
    - `AlbertParser`: every PDF is sent unconditionally to the Albert `/v1/parse-beta` endpoint.
@@ -464,7 +463,7 @@ When a user sends a message with attachments, the system processes them differen
    - **`tool_call_only`**: oversized or evicted conversation documents, **and every project document**, stay reachable via the `document_search_rag` tool, plus `summarize` for conversation files or `summarize_project` for project-library files.
 
 4. **RAG (Retrieval-Augmented Generation)**:
-   - Converted text is indexed in a vector database (Albert collection or Find index). Conversations and projects each have their own collection.
+   - Converted text is indexed in a vector database (Albert collection). Conversations and projects each have their own collection.
    - The LLM uses the `document_search_rag` tool to query relevant chunks. When the conversation belongs to a project, both the conversation collection and the project collection are searched in a single call. The tool accepts an optional `document_id` argument to target a single attachment from either scope.
 
 5. **Summarization tool** if needed (also accepts `document_id`).
@@ -551,33 +550,13 @@ For all three tools, the resolution is:
 2. Look it up against the tool-specific attachment set (see table). **If the UUID is not in that set, the tool raises `ModelRetry` ("not found")** - this is the IDOR boundary. The boundaries are deliberately strict per-tool: `summarize` rejects a project-attachment id (the LLM should call `summarize_project` instead), `summarize_project` rejects a conversation-attachment id, and `document_search_rag` is the only widening tool because the model cannot tell from the question alone which scope to prefer.
 3. For `document_search_rag`, forward the resolved attachment to the backend, preferring the per-document id (`rag_document_id`) recorded at index time over the file name:
    - **Albert**: sends `document_ids: [<int>]` on `/v1/search`. This is collection-aware and unambiguous, which matters when conversation and project collections both carry a file with the same name.
-   - **Find**: per-document id is not available; the backend currently ignores both `document_id` and `document_name` filters and runs a plain query (known gap, follow-up work).
-   - When `rag_document_id` is missing (e.g. older attachment, Find backend), Albert falls back to a `metadata_filters: { key: "document_name", value: ..., type: "eq" }` clause; the file name is `report.pdf.md` stripped to `report.pdf` if the attachment is a converted markdown copy.
+   - When `rag_document_id` is missing (e.g. an older attachment indexed before the id was recorded), Albert falls back to a `metadata_filters: { key: "document_name", value: ..., type: "eq" }` clause; the file name is `report.pdf.md` stripped to `report.pdf` if the attachment is a converted markdown copy.
 
 The two `summarize*` tools share the same chunk-and-merge pipeline (`_summarize_text_attachments` in `chat/tools/document_summarize.py`) - they only differ in which attachment set they fetch and which scope-specific soft-fail message they emit ("no docs in this conversation" vs. "no project files").
 
 #### Empty filtered RAG result → `ModelRetry`
 
 If the model targeted a document via `document_id` and the backend returned no results, `document_search_rag` raises `ModelRetry` with explicit guidance: either retry without `document_id` (and explicitly tell the user the search was broadened) or stop and tell the user the targeted document does not contain the requested information. This replaces an earlier silent fallback that quietly widened scope without informing the model. See `chat/tools/document_search_rag.py` for the exact text.
-
-#### Find backend: known limitations
-
-`FindRagBackend` does not have feature parity with `AlbertRagBackend`. Operators selecting `RAG_DOCUMENT_SEARCH_BACKEND` should account for the following gaps:
-
-| Capability | Albert | Find |
-|---|---|---|
-| Per-document id captured at index time (`rag_document_id`) | ✅ | ❌ |
-| Per-attachment delete (`DELETE /v1/documents/{id}`) | ✅ removes chunks immediately | ❌ no-op; chunks remain searchable until the parent conversation/project is deleted and the whole collection is dropped |
-| `document_id`-targeted RAG search | ✅ filtered to one document | ❌ raises `FindFilterUnsupportedError` instead of silently returning full-collection hits |
-| `document_name`-targeted fallback | ✅ `metadata_filters` clause | ❌ raises `FindFilterUnsupportedError` |
-| RAG enable-gate (`_check_should_enable_rag`) | ✅ fires once any attachment has `rag_document_id` set | ❌ never fires - Find never populates `rag_document_id`, so the agent runs without RAG tools registered |
-
-User-visible consequences when running Find:
-- Deleting a sensitive attachment from a project does **not** remove its chunks from the search index. They keep surfacing in RAG searches until the project itself is deleted.
-- A `document_id`-targeted search fails fast with `FindFilterUnsupportedError` rather than silently returning unrelated hits. Callers (e.g. the `document_search_rag` tool) need to catch this and surface a clear "this backend cannot scope to one document; retry without document_id or switch backend" message.
-- **The agent does not register any RAG tools.** Because the enable-gate uses `rag_document_id` as the "actually indexed" signal and Find never sets it, even successful Find indexing is invisible to the gate. The model answers from training data alone unless documents arrive in the current message. Selecting Find is therefore a deliberate "no per-document features, no RAG tools" choice until per-document ids are wired in.
-
-The Albert backend is the recommended choice for any deployment that needs per-document control or RAG tooling. Wiring per-document operations into Find is a known follow-up.
 
 ### Processing Strategy Decision Tree
 
@@ -592,7 +571,7 @@ The RAG-tool gate (`AIAgentService._check_should_enable_rag`) keys off `rag_docu
 - the conversation owns at least one attachment with a non-empty `rag_document_id`,
 - the conversation belongs to a project that owns at least one such attachment.
 
-A `READY` attachment whose `rag_document_id` is null (e.g. parse succeeded but the backend store call failed, or the backend simply never returns ids) does not trip the gate. This is why the Find backend - which never returns a per-document id - leaves RAG disabled even when its index call succeeds, as called out in the Find section above.
+A `READY` attachment whose `rag_document_id` is null (e.g. parse succeeded but the backend store call failed) does not trip the gate.
 
 ---
 
@@ -611,7 +590,7 @@ A `READY` attachment whose `rag_document_id` is null (e.g. parse succeeded but t
 | `MALWARE_DETECTION_PARAMETERS`               | `{}`           | Backend-specific configuration                             |
 | `RAG_FILES_ACCEPTED_FORMATS`                 | See below      | List of MIME types accepted for file uploads               |
 | `RAG_DOCUMENT_PARSER`                        | `AlbertParser` | Import path of the parser that converts uploads to Markdown (PDF -> Albert API, ODT -> odfdo, others -> MarkItDown) |
-| `RAG_DOCUMENT_SEARCH_BACKEND`                | `AlbertRagBackend` | Import path of the vector-search backend used for indexing and search (Albert or Find) |
+| `RAG_DOCUMENT_SEARCH_BACKEND`                | `AlbertRagBackend` | Import path of the vector-search backend used for indexing and search |
 | `PROJECT_FILES_MAX_COUNT`                    | `10`           | Max non-image attachments per project (excludes hidden markdown companions). Enforced at upload-time in `ChatProjectAttachmentViewSet`. Bounds per-turn system-prompt token cost (every entry contributes to `project_documents` on every conversation turn). |
 | `PROJECT_IMAGES_MAX_COUNT`                   | `3`            | Max image attachments per project. Enforced at upload-time. Bounds per-turn vision token cost - every project image is pinned to every turn alongside conversation-message images, and provider request-level image caps (Anthropic ~20/request) clip the trailing entries first. |
 | `DOCUMENT_CONTEXT_BUDGET_RATIO`              | `0.5`          | Fraction of `model.max_token_context` reserved for inlined documents (0 disables full-context inlining; everything stays `tool_call_only`) |

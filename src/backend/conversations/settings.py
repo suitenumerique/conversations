@@ -1067,22 +1067,6 @@ USER QUESTION:
         environ_prefix=None,
     )
 
-    # Find
-    FIND_API_KEY = values.Value(
-        None,
-        environ_name="FIND_API_KEY",
-        environ_prefix=None,
-    )
-    FIND_API_URL = values.Value(
-        "https://app-find/api",
-        environ_name="FIND_API_URL",
-        environ_prefix=None,
-    )
-    FIND_API_TIMEOUT = values.PositiveIntegerValue(
-        default=30,  # seconds
-        environ_name="FIND_API_TIMEOUT",
-        environ_prefix=None,
-    )
     # Docs
     DOCS_BASE_URL = values.Value(None, environ_name="DOCS_BASE_URL", environ_prefix=None)
     DOCS_API_TIMEOUT = values.PositiveIntegerValue(
@@ -1377,24 +1361,6 @@ USER QUESTION:
             raise ValueError(
                 "FILE_TO_LLM_MODE is set to 'backend_temporary_url' but FILE_BACKEND_URL is empty. "
                 "Please set FILE_BACKEND_URL to a valid URL for backend temporary file access."
-            )
-
-        # Find configuration
-        if (
-            cls.RAG_DOCUMENT_SEARCH_BACKEND
-            == "chat.agent_rag.document_rag_backends.find_rag_backend.FindRagBackend"
-            and not all(
-                (
-                    cls.FIND_API_KEY,
-                    cls.FIND_API_URL,
-                    cls.OIDC_STORE_ACCESS_TOKEN,
-                    cls.OIDC_STORE_REFRESH_TOKEN,
-                )
-            )
-        ):
-            raise ValueError(
-                f"{cls.RAG_DOCUMENT_SEARCH_BACKEND} requires FIND_API_KEY, FIND_API_URL, "
-                "OIDC_STORE_ACCESS_TOKEN and OIDC_STORE_REFRESH_TOKEN to be set."
             )
 
         # Docs configuration

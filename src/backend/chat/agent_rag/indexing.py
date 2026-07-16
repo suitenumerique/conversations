@@ -268,10 +268,8 @@ def index_project_attachment(attachment: ChatConversationAttachment) -> None:
         # except -> FAILED path instead keeps the failure visible and retryable.
         #
         # NOTE: this assumes a backend that returns a per-document id (Albert).
-        # It is INCOMPATIBLE with FindRagBackend, whose `store_document` returns
-        # None on every success - it would mark all Find indexing as FAILED.
-        # Find is deprecated for project indexing for now; revisit this branch
-        # (mark INDEXED with an empty id on success) if Find is reinstated.
+        # A backend whose `store_document` returns None on success would have
+        # all its indexing marked FAILED here.
         if not rag_document_id:
             raise ValueError("RAG backend returned no document id for the stored attachment")
 

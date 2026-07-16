@@ -41,4 +41,3 @@ AI_MODEL=test-model
 
 # External RAG / search providers (Base defaults are None)
 ALBERT_API_KEY=test-key
-FIND_API_KEY=test-key

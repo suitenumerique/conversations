@@ -98,8 +98,6 @@ The Celery task (`chat.tasks.index_project_attachment_task`) is a thin wrapper: 
 
 On any exception the row lands `FAILED` with `processing_error` set; the error is logged, never raised.
 
-> **Backend note:** the missing-id fail-fast assumes a backend that returns a per-document id (Albert). `FindRagBackend` returns `None` on every store and is therefore not usable for project indexing as-is. See [Find backend limitations](attachments.md#find-backend-known-limitations).
-
 ---
 
 ## Retry layer 1: automatic transient retry

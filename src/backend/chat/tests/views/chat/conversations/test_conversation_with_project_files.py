@@ -9,9 +9,7 @@ project carrying indexed RAG files. They exercise:
 
 import json
 from datetime import timedelta
-from unittest import mock
 
-from django.contrib.sessions.backends.cache import SessionStore
 from django.utils import timezone
 
 import pytest
@@ -43,17 +41,6 @@ def ai_settings(settings):
     """Albert backend + LLM settings, mirroring the document_upload test fixture."""
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
     return settings
-
-
-@pytest.fixture(name="mock_refresh_access_token", autouse=True)
-def mock_refresh_access_token_fixture():
-    """Bypass OIDC token refresh (same pattern as the document_upload tests)."""
-
-    with mock.patch("utils.oidc.refresh_access_token") as mocked:
-        session = SessionStore()
-        session["oidc_access_token"] = "mocked-access-token"
-        mocked.return_value = session
-        yield mocked
 
 
 ASK_DOC_MESSAGE = {

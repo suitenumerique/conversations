@@ -26,6 +26,10 @@ and this project adheres to
 - ⚡️(back) process conversation files asynchronously off the request worker
 - ⬆️(dependencies) update dependencies and pin CVE-affected packages
 
+### Removed
+
+- 🔥(back) remove the Find RAG backend and its FIND_API_* settings
+
 ### Fixed
 
 - 🐛(front) prevent app crash for users without a full name or email

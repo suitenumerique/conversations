@@ -121,24 +121,12 @@ def _assert_document_instructions(
     assert document["info"] == expected_info
 
 
-@pytest.fixture(
-    autouse=True,
-    params=[
-        "chat.agent_rag.document_rag_backends.find_rag_backend.FindRagBackend",
-        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend",
-    ],
-)
-def ai_settings(request, settings):
-    """Fixture to set AI service URLs for testing.
-
-    The Find backend is being removed, so its variants are skipped. It also does
-    not support conversation-document RAG search (``store_document`` returns no
-    per-document id), which several of these tests exercise.
-    """
-    if request.param.endswith("FindRagBackend"):
-        pytest.skip("Find backend is being removed")
-
-    settings.RAG_DOCUMENT_SEARCH_BACKEND = request.param
+@pytest.fixture(autouse=True)
+def ai_settings(settings):
+    """Fixture to set AI service URLs for testing."""
+    settings.RAG_DOCUMENT_SEARCH_BACKEND = (
+        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend"
+    )
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
     return settings
 

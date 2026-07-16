@@ -9,7 +9,6 @@ from pathlib import Path
 from unittest import mock
 from unittest.mock import ANY
 
-from django.contrib.sessions.backends.cache import SessionStore
 from django.core.files.storage import default_storage
 from django.utils import formats, timezone
 
@@ -75,25 +74,13 @@ def _assert_document_instructions(
     assert doc["info"] == expected_info
 
 
-@pytest.fixture(
-    autouse=True,
-    params=[
-        "chat.agent_rag.document_rag_backends.find_rag_backend.FindRagBackend",
-        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend",
-    ],
-)
-def ai_settings(request, settings):
-    """Fixture to set AI service URLs for testing.
-
-    The Find backend is being removed, so its variants are skipped. It also does
-    not support conversation-document RAG search (``store_document`` returns no
-    per-document id), which several of these tests exercise.
-    """
-    if request.param.endswith("FindRagBackend"):
-        pytest.skip("Find backend is being removed")
-
+@pytest.fixture(autouse=True)
+def ai_settings(settings):
+    """Fixture to set AI service URLs for testing."""
     # enable on rag document search tool
-    settings.RAG_DOCUMENT_SEARCH_BACKEND = request.param
+    settings.RAG_DOCUMENT_SEARCH_BACKEND = (
+        "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend"
+    )
     settings.RAG_WEB_SEARCH_PROMPT_UPDATE = (
         "Based on the following document contents:\n\n{search_results}\n\n"
         "Please answer the user's question: {user_prompt}"
@@ -102,16 +89,6 @@ def ai_settings(request, settings):
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
 
     return settings
-
-
-@pytest.fixture(autouse=True)
-def mock_refresh_access_token():
-    """Mock refresh_access_token to bypass token refresh in tests."""
-    with mock.patch("utils.oidc.refresh_access_token") as mocked_refresh_access_token:
-        session = SessionStore()
-        session["oidc_access_token"] = "mocked-access-token"
-        mocked_refresh_access_token.return_value = session
-        yield mocked_refresh_access_token
 
 
 @pytest.fixture(name="sample_pdf_content")
@@ -179,11 +156,8 @@ def fixture_mock_document_api():
         status=status.HTTP_201_CREATED,
     )
 
-    # Mock document search.
-    # Two clients use this endpoint:
-    # - AlbertRagBackend.asearch via httpx -> intercepted by respx
-    # - FindRagBackend (sync search via base-class fallback) via requests
-    #   -> intercepted by responses
+    # Mock document search. AlbertRagBackend.asearch calls this endpoint via
+    # httpx -> intercepted by respx.
     search_response_body = {
         "data": [
             {

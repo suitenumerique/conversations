@@ -87,8 +87,6 @@ def add_document_rag_search_tool(agent: Agent) -> None:
                 document_name = selected_attachment.file_name
 
             # Albert prefers `document_id` over `document_name` when both are sent.
-            # Find lacks per-document filtering and raises FindFilterUnsupportedError
-            # on either field, so document-scoped search is Albert-only today.
             rag_document_id = selected_attachment.rag_document_id
 
         rag_results = await document_store.asearch(

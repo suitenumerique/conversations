@@ -114,7 +114,7 @@ class BaseRagBackend(ABC):
 
         Returns:
             Optional[str]: Backend-side document id if the backend supports per-doc
-            identifiers (Albert), else None (Find).
+            identifiers (Albert does), else None.
         """
         raise NotImplementedError("Must be implemented in subclass.")
 
@@ -176,9 +176,9 @@ class BaseRagBackend(ABC):
         Remove a single document from the collection.
 
         Default implementation is a no-op for backends that lack per-document
-        deletion (e.g. Find): callers should still invoke it on per-attachment
-        delete - if the backend can't honor it, indexed chunks remain
-        searchable until the whole collection is dropped.
+        deletion: callers should still invoke it on per-attachment delete - if
+        the backend can't honor it, indexed chunks remain searchable until the
+        whole collection is dropped.
 
         Args:
             document_id: Backend-side document id (the value returned by
