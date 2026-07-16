@@ -27,6 +27,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(front) prevent app crash for users without a full name or email
+- 🐛(front) refresh the conversation title in the collapsed left panel
 
 ## [0.0.19] - 2026-06-24
 

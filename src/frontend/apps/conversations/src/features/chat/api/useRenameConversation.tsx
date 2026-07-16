@@ -6,6 +6,7 @@ import {
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
 
+import { KEY_CONVERSATION } from './useConversation';
 import { KEY_LIST_CONVERSATION } from './useConversations';
 import { KEY_LIST_PROJECT } from './useProjects';
 
@@ -52,6 +53,9 @@ export const useRenameConversation = (
       });
       void queryClient.invalidateQueries({
         queryKey: [KEY_LIST_PROJECT],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [KEY_CONVERSATION, variables.conversationId],
       });
       if (options?.onSuccess) {
         void options.onSuccess(data, variables, onMutateResult, context);

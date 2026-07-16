@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
 import { fetchAPI } from '@/api';
+import { KEY_CONVERSATION } from '@/features/chat/api/useConversation';
 import { KEY_LIST_CONVERSATION } from '@/features/chat/api/useConversations';
 import { KEY_LIST_PROJECT } from '@/features/chat/api/useProjects';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
@@ -217,6 +218,9 @@ export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
         });
         void queryClient.invalidateQueries({
           queryKey: [KEY_LIST_PROJECT],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: [KEY_CONVERSATION, item.conversationId],
         });
       } else if (isCooldownEvent(item)) {
         setCooldownUntil(Date.now() + item.seconds * 1000);
