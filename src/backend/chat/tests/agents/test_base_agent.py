@@ -93,6 +93,36 @@ def test_custom_model_openai(settings):
     assert isinstance(agent._model, OpenAIChatModel)
 
 
+def test_custom_model_openai_output_token_limit(settings):
+    """OpenAI-compatible models must carry the output token limit as `max_tokens`
+    in `extra_body`, since `max_completion_tokens` is ignored by servers (Albert,
+    vLLM, LM Studio) that only honour the legacy `max_tokens` field."""
+    settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE = 1234
+    settings.LLM_CONFIGURATIONS = {
+        "openai-compatible-model": LLModel(
+            hrid="custom-gpt-4",
+            model_name="gpt-4",
+            human_readable_name="Custom GPT-4",
+            profile=None,
+            provider=LLMProvider(
+                hrid="openai",
+                kind="openai",
+                base_url="https://test.vllm/v1",
+                api_key="testkey",
+            ),
+            is_active=True,
+            system_prompt="direct",
+            tools=[],
+        ),
+    }
+
+    agent = BaseAgent(model_hrid="openai-compatible-model")
+
+    model_settings = agent._model.settings
+    assert model_settings is not None
+    assert model_settings["extra_body"]["max_tokens"] == 1234
+
+
 def test_custom_model_mistral(settings):
     """Test that a custom Mistral model is initialized correctly."""
     settings.LLM_CONFIGURATIONS = {

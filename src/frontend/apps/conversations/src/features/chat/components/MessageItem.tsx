@@ -14,6 +14,15 @@ import {
 import { MoreActionsButton } from '@/features/chat/components/MoreActionsButton';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
+import { TruncatedResponseMessage } from '@/features/chat/components/TruncatedResponseMessage';
+
+const hasTruncatedAnnotation = (annotations: Message['annotations']): boolean =>
+  annotations?.some(
+    (a) =>
+      typeof a === 'object' &&
+      a !== null &&
+      (a as Record<string, unknown>).truncated === true,
+  ) ?? false;
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
 const BlocksList = React.memo(
@@ -259,6 +268,13 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     );
   }, [toolInvocationParts]);
 
+  const isTruncated = React.useMemo(() => {
+    return (
+      message.role === 'assistant' &&
+      hasTruncatedAnnotation(message.annotations)
+    );
+  }, [message.annotations, message.role]);
+
   const activeToolInvocation = React.useMemo(() => {
     const tool = toolInvocationParts.find(
       (part) =>
@@ -419,6 +435,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
             )}
           </Box>
 
+          {isTruncated && <TruncatedResponseMessage />}
+
           {message.role === 'assistant' &&
             !(isLastAssistantMessage && status === 'streaming') && (
               <Box
@@ -535,6 +553,19 @@ const arePropsEqual = (
   const prevPartsLength = prevProps.message.parts?.length ?? 0;
   const nextPartsLength = nextProps.message.parts?.length ?? 0;
   if (prevPartsLength !== nextPartsLength) {
+    return false;
+  }
+
+  // Check annotations changes (for truncation and other metadata)
+  const prevAnnotationsLength = prevProps.message.annotations?.length ?? 0;
+  const nextAnnotationsLength = nextProps.message.annotations?.length ?? 0;
+  if (prevAnnotationsLength !== nextAnnotationsLength) {
+    return false;
+  }
+  if (
+    hasTruncatedAnnotation(prevProps.message.annotations) !==
+    hasTruncatedAnnotation(nextProps.message.annotations)
+  ) {
     return false;
   }
 

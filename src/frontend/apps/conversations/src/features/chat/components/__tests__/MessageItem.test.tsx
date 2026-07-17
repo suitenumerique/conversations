@@ -59,6 +59,12 @@ jest.mock('../ToolInvocationItem', () => ({
   ToolInvocationItem: () => <div data-testid="tool-invocation-item" />,
 }));
 
+jest.mock('../TruncatedResponseMessage', () => ({
+  TruncatedResponseMessage: () => (
+    <div data-testid="truncated-response-message" />
+  ),
+}));
+
 describe('splitIntoBlocks', () => {
   describe('basic splitting', () => {
     it('returns empty array for empty content', () => {
@@ -571,5 +577,92 @@ describe('MessageItem', () => {
 
       expect(screen.queryByTestId('feedback-buttons')).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('truncated response annotation', () => {
+  const baseProps = {
+    isLastMessage: true,
+    isLastAssistantMessage: true,
+    isFirstConversationMessage: false,
+    streamingMessageHeight: null,
+    status: 'ready' as const,
+    conversationId: 'conv-1',
+    isSourceOpen: null,
+    isMobile: false,
+    onCopyToClipboard: jest.fn(),
+    onOpenSources: jest.fn(),
+    getMetadata: jest.fn(),
+  };
+
+  it('renders TruncatedResponseMessage when annotations contain truncated:true', () => {
+    const message = {
+      id: 'msg-1',
+      role: 'assistant' as const,
+      content: 'Hello world',
+      annotations: [{ truncated: true }],
+      parts: [],
+    };
+
+    render(
+      <CunninghamProvider>
+        <Suspense fallback={null}>
+          <ToastProvider>
+            <MessageItem message={message} {...baseProps} />
+          </ToastProvider>
+        </Suspense>
+      </CunninghamProvider>,
+    );
+
+    expect(
+      screen.getByTestId('truncated-response-message'),
+    ).toBeInTheDocument();
+  });
+
+  it('does not render TruncatedResponseMessage when annotations are absent', () => {
+    const message = {
+      id: 'msg-1',
+      role: 'assistant' as const,
+      content: 'Hello world',
+      parts: [],
+    };
+
+    render(
+      <CunninghamProvider>
+        <Suspense fallback={null}>
+          <ToastProvider>
+            <MessageItem message={message} {...baseProps} />
+          </ToastProvider>
+        </Suspense>
+      </CunninghamProvider>,
+    );
+
+    expect(
+      screen.queryByTestId('truncated-response-message'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not render TruncatedResponseMessage when annotations do not contain truncated:true', () => {
+    const message = {
+      id: 'msg-1',
+      role: 'assistant' as const,
+      content: 'Hello world',
+      annotations: [{ co2_impact: 0.001 }],
+      parts: [],
+    };
+
+    render(
+      <CunninghamProvider>
+        <Suspense fallback={null}>
+          <ToastProvider>
+            <MessageItem message={message} {...baseProps} />
+          </ToastProvider>
+        </Suspense>
+      </CunninghamProvider>,
+    );
+
+    expect(
+      screen.queryByTestId('truncated-response-message'),
+    ).not.toBeInTheDocument();
   });
 });
