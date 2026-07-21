@@ -26,6 +26,7 @@ and this project adheres to
 - ⚡️(back) process conversation files asynchronously off the request worker
 - ⬆️(dependencies) update dependencies and pin CVE-affected packages
 - ♻️(front) consolidate input chat banners into a reusable component
+- ⬆️(dependencies) drop unused pydantic-ai extras
 
 ### Fixed
 
