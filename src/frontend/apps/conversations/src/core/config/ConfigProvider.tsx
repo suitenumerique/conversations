@@ -1,5 +1,4 @@
 import { Loader } from '@gouvfr-lasuite/cunningham-react';
-import Head from 'next/head';
 import { PropsWithChildren, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -102,9 +101,11 @@ export const ConfigProvider = ({ children }: PropsWithChildren) => {
   return (
     <>
       {conf?.FRONTEND_CSS_URL && (
-        <Head>
-          <link rel="stylesheet" href={conf?.FRONTEND_CSS_URL} />
-        </Head>
+        <link
+          rel="stylesheet"
+          href={conf?.FRONTEND_CSS_URL}
+          precedence="high"
+        />
       )}
       <AnalyticsProvider>{children}</AnalyticsProvider>
     </>

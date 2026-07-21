@@ -94,7 +94,7 @@ backend:
 frontend:
   envVars:
     PORT: 8080
-    NEXT_PUBLIC_API_ORIGIN: https://conversations.127.0.0.1.nip.io
+    VITE_API_ORIGIN: https://conversations.127.0.0.1.nip.io
 
   replicas: 1
 

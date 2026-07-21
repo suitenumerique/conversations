@@ -3,7 +3,6 @@ import {
   type OnboardingModalProps,
   type OnboardingStep,
 } from '@gouvfr-lasuite/ui-kit';
-import Image, { type StaticImageData } from 'next/image';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createGlobalStyle } from 'styled-components';
@@ -91,8 +90,8 @@ export const OnboardingWelcomeModal = (props: OnboardingWelcomeModalProps) => {
   const { i18n, t } = useTranslation();
   const isFr = i18n.resolvedLanguage?.startsWith('fr');
 
-  const stepImage = (src: StaticImageData) => (
-    <Image
+  const stepImage = (src: string) => (
+    <img
       src={src}
       alt=""
       style={{

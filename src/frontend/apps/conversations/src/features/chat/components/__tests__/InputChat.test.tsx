@@ -7,42 +7,42 @@ import { AppWrapper } from '@/tests/utils';
 import { InputChat } from '../InputChat';
 
 // Mock stores and hooks
-jest.mock('@/stores', () => ({
+vi.mock('@/stores', () => ({
   useResponsiveStore: () => ({
     isDesktop: true,
     isMobile: false,
   }),
 }));
 
-const mockUseConfig = jest.fn();
+const mockUseConfig = vi.fn();
 
-jest.mock('@/core', () => ({
+vi.mock('@/core', () => ({
   useConfig: () => mockUseConfig(),
   useFeatureEnabled: () => true,
 }));
 
-jest.mock('@/components/ToastProvider', () => ({
+vi.mock('@/components/ToastProvider', () => ({
   useToast: () => ({
-    showToast: jest.fn(),
+    showToast: vi.fn(),
   }),
 }));
 
-jest.mock('@/features/chat/hooks/useFileDragDrop', () => ({
+vi.mock('@/features/chat/hooks/useFileDragDrop', () => ({
   useFileDragDrop: () => ({
     isDragActive: false,
   }),
 }));
 
-jest.mock('@/features/chat/hooks/useFileUrls', () => ({
+vi.mock('@/features/chat/hooks/useFileUrls', () => ({
   useFileUrls: () => new Map(),
 }));
 
 // Mock child components
-jest.mock('../InputChatAction', () => ({
+vi.mock('../InputChatAction', () => ({
   InputChatActions: () => <div data-testid="input-chat-actions">Actions</div>,
 }));
 
-jest.mock('../SuggestionCarousel', () => ({
+vi.mock('../SuggestionCarousel', () => ({
   SuggestionCarousel: ({
     blocked,
     banners,
@@ -59,41 +59,41 @@ jest.mock('../SuggestionCarousel', () => ({
     ),
 }));
 
-jest.mock('../WelcomeMessage', () => ({
+vi.mock('../WelcomeMessage', () => ({
   WelcomeMessage: () => <div data-testid="welcome-message">Welcome</div>,
 }));
 
-jest.mock('../AttachmentList', () => ({
+vi.mock('../AttachmentList', () => ({
   AttachmentList: () => <div data-testid="attachment-list">Attachments</div>,
 }));
 
-jest.mock('../ScrollDown', () => ({
+vi.mock('../ScrollDown', () => ({
   ScrollDown: () => <div data-testid="scroll-down">Scroll Down</div>,
 }));
 
-jest.mock('../../assets/files.svg', () => () => (
-  <svg data-testid="files-icon" />
-));
+vi.mock('../../assets/files.svg', () => ({
+  default: () => <svg data-testid="files-icon" />,
+}));
 
-const mockUseAssistantHealth = jest.fn();
+const mockUseAssistantHealth = vi.fn();
 
-jest.mock('@/features/chat/api/useAssistantHealth', () => ({
+vi.mock('@/features/chat/api/useAssistantHealth', () => ({
   useAssistantHealth: () => mockUseAssistantHealth(),
 }));
 
 const defaultProps = {
   messagesLength: 0,
   input: '',
-  handleInputChange: jest.fn(),
-  handleSubmit: jest.fn(),
+  handleInputChange: vi.fn(),
+  handleSubmit: vi.fn(),
   status: 'ready' as const,
   files: null,
-  setFiles: jest.fn(),
+  setFiles: vi.fn(),
 };
 
 describe('InputChat', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockUseAssistantHealth.mockReturnValue({
       data: {
         banners: [],
@@ -157,7 +157,7 @@ describe('InputChat', () => {
 
   it('should call handleInputChange when typing', async () => {
     const user = userEvent.setup();
-    const handleInputChange = jest.fn();
+    const handleInputChange = vi.fn();
     render(
       <InputChat {...defaultProps} handleInputChange={handleInputChange} />,
       { wrapper: AppWrapper },
@@ -203,7 +203,7 @@ describe('InputChat', () => {
 
   it('should not submit form when pressing Enter and status is streaming', async () => {
     const user = userEvent.setup();
-    const handleSubmit = jest.fn((e) => e.preventDefault());
+    const handleSubmit = vi.fn((e) => e.preventDefault());
     render(
       <InputChat
         {...defaultProps}
@@ -223,7 +223,7 @@ describe('InputChat', () => {
 
   it('should not submit form when pressing Enter and status is submitted', async () => {
     const user = userEvent.setup();
-    const handleSubmit = jest.fn((e) => e.preventDefault());
+    const handleSubmit = vi.fn((e) => e.preventDefault());
     render(
       <InputChat
         {...defaultProps}
@@ -253,7 +253,7 @@ describe('InputChat', () => {
 
   it('should submit form when pressing Enter', async () => {
     const user = userEvent.setup();
-    const handleSubmit = jest.fn((e) => e.preventDefault());
+    const handleSubmit = vi.fn((e) => e.preventDefault());
     render(<InputChat {...defaultProps} handleSubmit={handleSubmit} />, {
       wrapper: AppWrapper,
     });
@@ -268,7 +268,7 @@ describe('InputChat', () => {
 
   it('should not submit form when pressing Shift+Enter', async () => {
     const user = userEvent.setup();
-    const handleSubmit = jest.fn((e) => e.preventDefault());
+    const handleSubmit = vi.fn((e) => e.preventDefault());
     render(<InputChat {...defaultProps} handleSubmit={handleSubmit} />, {
       wrapper: AppWrapper,
     });
@@ -306,7 +306,7 @@ describe('InputChat', () => {
 
   it('should not submit form when pressing Enter during an active cooldown', async () => {
     const user = userEvent.setup();
-    const handleSubmit = jest.fn((e) => e.preventDefault());
+    const handleSubmit = vi.fn((e) => e.preventDefault());
     render(
       <InputChat
         {...defaultProps}
@@ -326,7 +326,7 @@ describe('InputChat', () => {
 
   it('should submit form when pressing Enter once the cooldown is past', async () => {
     const user = userEvent.setup();
-    const handleSubmit = jest.fn((e) => e.preventDefault());
+    const handleSubmit = vi.fn((e) => e.preventDefault());
     render(
       <InputChat
         {...defaultProps}

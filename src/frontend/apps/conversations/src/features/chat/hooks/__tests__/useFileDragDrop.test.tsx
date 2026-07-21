@@ -30,7 +30,7 @@ const createDragEvent = (
 
   Object.defineProperty(event, 'dataTransfer', { value: dataTransfer });
   Object.defineProperty(event, 'relatedTarget', { value: relatedTarget });
-  Object.defineProperty(event, 'preventDefault', { value: jest.fn() });
+  Object.defineProperty(event, 'preventDefault', { value: vi.fn() });
 
   return event;
 };
@@ -38,13 +38,13 @@ const createDragEvent = (
 describe('useFileDragDrop', () => {
   const defaultProps = {
     enabled: true,
-    isFileAccepted: jest.fn(() => true),
-    onFilesAccepted: jest.fn(),
-    onFilesRejected: jest.fn(),
+    isFileAccepted: vi.fn(() => true),
+    onFilesAccepted: vi.fn(),
+    onFilesRejected: vi.fn(),
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should initialize with isDragActive as false', () => {
@@ -129,7 +129,7 @@ describe('useFileDragDrop', () => {
   });
 
   it('should call onFilesAccepted with accepted files on drop', () => {
-    const onFilesAccepted = jest.fn();
+    const onFilesAccepted = vi.fn();
     const file = createFile('test.txt', 'text/plain');
 
     renderHook(() =>
@@ -147,8 +147,8 @@ describe('useFileDragDrop', () => {
   });
 
   it('should call onFilesRejected with rejected file names', () => {
-    const onFilesRejected = jest.fn();
-    const isFileAccepted = jest.fn(() => false);
+    const onFilesRejected = vi.fn();
+    const isFileAccepted = vi.fn(() => false);
 
     renderHook(() =>
       useFileDragDrop({
@@ -168,9 +168,9 @@ describe('useFileDragDrop', () => {
   });
 
   it('should separate accepted and rejected files', () => {
-    const onFilesAccepted = jest.fn();
-    const onFilesRejected = jest.fn();
-    const isFileAccepted = jest.fn((file: File) => file.type === 'text/plain');
+    const onFilesAccepted = vi.fn();
+    const onFilesRejected = vi.fn();
+    const isFileAccepted = vi.fn((file: File) => file.type === 'text/plain');
 
     const acceptedFile = createFile('good.txt', 'text/plain');
     const rejectedFile = createFile('bad.exe', 'application/exe');
@@ -230,7 +230,7 @@ describe('useFileDragDrop', () => {
   });
 
   it('should clean up event listeners on unmount', () => {
-    const removeEventListenerSpy = jest.spyOn(window, 'removeEventListener');
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
 
     const { unmount } = renderHook(() => useFileDragDrop(defaultProps));
     unmount();

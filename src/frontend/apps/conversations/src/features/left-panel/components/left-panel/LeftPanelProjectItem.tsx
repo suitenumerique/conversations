@@ -1,6 +1,6 @@
-import { useRouter } from 'next/router';
 import { memo, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import { css } from 'styled-components';
 
 import { Box, Icon, Text } from '@/components';
@@ -94,7 +94,7 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
 }: LeftPanelProjectItemProps) {
   const { t } = useTranslation();
   const { colorsTokens } = useCunninghamTheme();
-  const router = useRouter();
+  const navigate = useNavigate();
   const setProjectId = usePendingChatStore((s) => s.setProjectId);
   const { isDesktop } = useResponsiveStore();
   const { setPanelOpen } = useChatPreferencesStore();
@@ -122,11 +122,11 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
 
   const handleNewConversation = useCallback(() => {
     setProjectId(project.id);
-    void router.push('/chat/');
+    void navigate('/chat/');
     if (!isDesktop) {
       setPanelOpen(false);
     }
-  }, [router, project.id, setProjectId, isDesktop, setPanelOpen]);
+  }, [navigate, project.id, setProjectId, isDesktop, setPanelOpen]);
 
   return (
     <Box>

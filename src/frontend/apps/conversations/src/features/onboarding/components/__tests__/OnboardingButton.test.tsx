@@ -7,36 +7,35 @@ import { AppWrapper } from '@/tests/utils';
 import packageJson from '../../../../../package.json';
 import { OnboardingButton } from '../OnboardingButton';
 
-jest.mock('@/utils/system', () => ({
-  ...jest.requireActual('@/utils/system'),
-  navigate: jest.fn(),
+vi.mock('@/utils/system', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/system')>()),
+  navigate: vi.fn(),
 }));
 
 // Config is swapped per test through this mutable holder.
 let mockConfig: Record<string, unknown> | undefined;
-jest.mock('@/core/config/api/useConfig', () => ({
+vi.mock('@/core/config/api/useConfig', () => ({
   useConfig: () => ({ data: mockConfig }),
 }));
 
-jest.mock('@/components', () => ({
+vi.mock('@/components', () => ({
   Icon: ({ iconName }: { iconName: string }) => (
     <span data-testid={`icon-${iconName}`} />
   ),
 }));
 
-jest.mock('@/assets/icons/uikit-custom/question-mark-circle.svg', () => {
-  const Svg = () => <svg data-testid="help-icon" />;
-  return Svg;
-});
+vi.mock('@/assets/icons/uikit-custom/question-mark-circle.svg', () => ({
+  default: () => <svg data-testid="help-icon" />,
+}));
 
-jest.mock('../OnboardingModal', () => ({
+vi.mock('../OnboardingModal', () => ({
   OnboardingWelcomeModal: ({ isOpen }: { isOpen: boolean }) =>
     isOpen ? <div data-testid="onboarding-modal" /> : null,
 }));
 
 // Render the dropdown options inline so visibility/callbacks can be asserted
 // without dealing with the real popover portal.
-jest.mock('@gouvfr-lasuite/ui-kit', () => ({
+vi.mock('@gouvfr-lasuite/ui-kit', () => ({
   DropdownMenu: ({
     options,
     children,
@@ -73,7 +72,7 @@ jest.mock('@gouvfr-lasuite/ui-kit', () => ({
 }));
 
 // Every link is opened in a new tab via window.open (see openUrl).
-const openSpy = jest.fn();
+const openSpy = vi.fn();
 
 beforeEach(() => {
   mockConfig = {
@@ -81,7 +80,7 @@ beforeEach(() => {
     FRONTEND_CONTACT_EMAIL: 'help@test.com',
   };
   window.open = openSpy;
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 describe('OnboardingButton', () => {

@@ -1,7 +1,7 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import { useRouter } from 'next/router';
 import { PropsWithChildren, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 
 import Logo from '@/assets/logo/logo-assistant.svg';
 import { Box, Icon, StyledLink } from '@/components';
@@ -17,7 +17,7 @@ import { LeftPanelHeaderActions } from './LeftPanelHeaderActions';
 import { LeftPanelSearchModal } from './LeftPanelSearchModal';
 
 export const LeftPanelHeader = ({ children }: PropsWithChildren) => {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { t } = useTranslation();
   const { authenticated } = useAuth();
   const { isDesktop } = useResponsiveStore();
@@ -40,7 +40,7 @@ export const LeftPanelHeader = ({ children }: PropsWithChildren) => {
 
   const goToHome = () => {
     setProjectId(null);
-    void router.push('/');
+    void navigate('/');
     if (!isDesktop) {
       setPanelOpen(false);
     }

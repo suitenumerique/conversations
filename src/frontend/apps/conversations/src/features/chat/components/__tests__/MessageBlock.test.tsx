@@ -5,8 +5,8 @@ import { Suspense } from 'react';
 
 import { CompletedMarkdownBlock, RawTextBlock } from '../MessageBlock';
 
-// Mock react-markdown (ESM module not compatible with Jest)
-jest.mock('react-markdown', () => ({
+// Mock react-markdown to keep the assertions on the component, not the parser
+vi.mock('react-markdown', () => ({
   MarkdownHooks: ({ children }: { children: string }) => {
     // Simple mock that renders markdown-like content
     // This tests the component integration, not the markdown parsing itself
@@ -15,15 +15,15 @@ jest.mock('react-markdown', () => ({
 }));
 
 // Mock rehype/remark plugins
-jest.mock('@shikijs/rehype/core', () => () => {});
-jest.mock('../../utils/shiki', () => ({
+vi.mock('@shikijs/rehype/core', () => ({ default: () => {} }));
+vi.mock('../../utils/shiki', () => ({
   getHighlighter: () => Promise.resolve({}),
 }));
-jest.mock('rehype-katex', () => () => {});
-jest.mock('remark-gfm', () => () => {});
-jest.mock('remark-math', () => () => {});
+vi.mock('rehype-katex', () => ({ default: () => {} }));
+vi.mock('remark-gfm', () => ({ default: () => {} }));
+vi.mock('remark-math', () => ({ default: () => {} }));
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),

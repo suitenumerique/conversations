@@ -95,7 +95,7 @@ describe('useAssistantHealth', () => {
   });
 
   it('polls the endpoint every 60 seconds', async () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
 
     fetchMock.get(`${API_BASE}assistant-health/`, {
       status: 200,
@@ -115,7 +115,7 @@ describe('useAssistantHealth', () => {
     expect(callsBefore).toBeGreaterThanOrEqual(1);
 
     await act(async () => {
-      jest.advanceTimersByTime(60_000);
+      vi.advanceTimersByTime(60_000);
       await Promise.resolve();
     });
 
@@ -123,6 +123,6 @@ describe('useAssistantHealth', () => {
       expect(fetchMock.calls().length).toBeGreaterThan(callsBefore),
     );
 
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 });

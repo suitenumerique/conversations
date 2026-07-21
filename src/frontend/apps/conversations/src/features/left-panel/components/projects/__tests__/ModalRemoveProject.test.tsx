@@ -3,23 +3,26 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import fetchMock from 'fetch-mock';
+import type { Mock } from 'vitest';
 
 import { useToast } from '@/components';
 
 import { ModalRemoveProject } from '../ModalRemoveProject';
 
-jest.mock('@/components', () => ({
-  ...jest.requireActual('@/components'),
-  useToast: jest.fn(),
+vi.mock('@/components', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components')>()),
+  useToast: vi.fn(),
 }));
 
-const mockPush = jest.fn();
+const mockNavigate = vi.hoisted(() => vi.fn());
 let mockPathname = '/';
-jest.mock('next/router', () => ({
-  useRouter: () => ({ push: mockPush, pathname: mockPathname }),
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useNavigate: () => mockNavigate,
+  useLocation: () => ({ pathname: mockPathname }),
 }));
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       if (options) {
@@ -32,7 +35,7 @@ jest.mock('react-i18next', () => ({
     },
   }),
 }));
-jest.mock('i18next', () => ({
+vi.mock('i18next', () => ({
   t: (key: string, options?: Record<string, string>) => {
     if (options) {
       return Object.entries(options).reduce(
@@ -61,15 +64,15 @@ const renderWithProviders = (component: React.ReactNode) => {
 };
 
 describe('ModalRemoveProject', () => {
-  const mockOnClose = jest.fn();
-  const mockShowToast = jest.fn();
+  const mockOnClose = vi.fn();
+  const mockShowToast = vi.fn();
   const project = { id: 'proj-123', title: 'My Project' };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     fetchMock.restore();
     mockPathname = '/';
-    (useToast as jest.Mock).mockReturnValue({
+    (useToast as Mock).mockReturnValue({
       showToast: mockShowToast,
     });
   });
@@ -110,7 +113,7 @@ describe('ModalRemoveProject', () => {
         4000,
       );
     });
-    expect(mockPush).toHaveBeenCalledWith('/');
+    expect(mockNavigate).toHaveBeenCalledWith('/');
     expect(mockOnClose).not.toHaveBeenCalled();
   });
 
@@ -137,6 +140,6 @@ describe('ModalRemoveProject', () => {
       );
     });
     expect(mockOnClose).toHaveBeenCalled();
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

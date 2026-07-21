@@ -9,10 +9,9 @@ from lasuite.oidc_login.views import (
 from core.authentication.backends import OIDCRoleAccessDenied
 
 # Frontend path shown to users whose account is not allowed to access the app.
-# Keep the trailing slash: the frontend is a Next.js static export with
-# trailingSlash=true, so the canonical URL is /unauthorized/. Redirecting to the
-# bare path makes the frontend nginx issue a directory redirect that leaks its
-# internal listen port (e.g. :8080) and breaks behind the TLS ingress.
+# The frontend is a client-routed single-page app: nginx serves index.html for
+# this path and the router renders the access-denied page. The trailing slash is
+# kept so links minted before the SPA migration keep resolving to the same URL.
 ACCESS_DENIED_PATH = "/unauthorized/"
 
 

@@ -1,14 +1,14 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import dynamic from 'next/dynamic';
-import { useRouter } from 'next/router';
 import { useEffect as _useEffect, useState as _useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate, useParams } from 'react-router';
 import { css } from 'styled-components';
 
 import NewChatIcon from '@/assets/icons/new-message-bold.svg';
 import LogoAssistant from '@/assets/logo/logomark.svg';
 import { Box } from '@/components/';
 import { useCunninghamTheme } from '@/cunningham';
+import { UserInfo } from '@/features/auth/components/UserInfo';
 import { useChatScroll } from '@/features/chat/hooks';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { useResponsiveStore } from '@/stores';
@@ -17,12 +17,6 @@ import { HEADER_HEIGHT } from '../conf';
 
 import { ButtonToggleLeftPanel } from './ButtonToggleLeftPanel';
 import { LaGaufre } from './LaGaufre';
-
-const UserInfo = dynamic(
-  () =>
-    import('@/features/auth/components/UserInfo').then((mod) => mod.UserInfo),
-  { ssr: false },
-);
 
 const headerStyles = css`
   display: flex;
@@ -44,9 +38,9 @@ export const Header = () => {
   const { isDesktop } = useResponsiveStore();
   const { setPanelOpen } = useChatPreferencesStore();
   const { isAtTop } = useChatScroll();
-  const router = useRouter();
-  const hasConversationIdInRoute =
-    router.query.id && router.query.id.length > 0;
+  const navigate = useNavigate();
+  const { id } = useParams();
+  const hasConversationIdInRoute = !!id && id.length > 0;
 
   return (
     <Box
@@ -93,7 +87,7 @@ export const Header = () => {
             <Button
               size="small"
               onClick={() => {
-                void router.push('/');
+                void navigate('/');
                 setPanelOpen(false);
               }}
               className="mobile-no-focus"

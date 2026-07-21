@@ -21,8 +21,8 @@ const createWrapper = () => {
 
 describe('helpers', () => {
   it('fetches and paginates correctly', async () => {
-    const mockAPI = jest
-      .fn<Promise<DummyResponse>, [{ page: number; query: string }]>()
+    const mockAPI = vi
+      .fn<(params: { page: number; query: string }) => Promise<DummyResponse>>()
       .mockResolvedValueOnce({
         results: [{ id: 1 }],
         next: 'url?page=2',

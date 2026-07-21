@@ -214,7 +214,7 @@ docs
 
 ### Stack
 
-Conversations is built on top of [Django Rest Framework](https://www.django-rest-framework.org/), [Next.js](https://nextjs.org/), [Vercel&lsquo;s AI SDK](https://ai-sdk.dev/) and [Pydantic AI](https://ai.pydantic.dev). We thank the contributors of all these projects for their awesome work!
+Conversations is built on top of [Django Rest Framework](https://www.django-rest-framework.org/), [Vite](https://vite.dev/), [React Router](https://reactrouter.com/), [Vercel&lsquo;s AI SDK](https://ai-sdk.dev/) and [Pydantic AI](https://ai.pydantic.dev). We thank the contributors of all these projects for their awesome work!
 
 
 ### Gov ❤️ open source

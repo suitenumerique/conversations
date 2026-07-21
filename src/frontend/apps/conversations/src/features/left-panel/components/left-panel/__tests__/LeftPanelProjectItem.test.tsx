@@ -7,32 +7,26 @@ import { ChatProject } from '@/features/chat/types';
 
 import { LeftPanelProjectItem } from '../LeftPanelProjectItem';
 
-const mockPush = jest.fn();
-jest.mock('next/router', () => ({
-  useRouter: () => ({ push: mockPush }),
-}));
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mockPush }),
-  usePathname: () => '/chat/',
+const mockNavigate = vi.hoisted(() => vi.fn());
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useNavigate: () => mockNavigate,
 }));
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),
 }));
-jest.mock('i18next', () => ({
+vi.mock('i18next', () => ({
   t: (key: string) => key,
 }));
 
 // Stub child components that pull in heavy dependencies
-jest.mock(
-  '@/features/left-panel/components/projects/ProjectItemActions',
-  () => ({
-    ProjectItemActions: () => null,
-  }),
-);
-jest.mock('@/features/left-panel/components/ConversationItemActions', () => ({
+vi.mock('@/features/left-panel/components/projects/ProjectItemActions', () => ({
+  ProjectItemActions: () => null,
+}));
+vi.mock('@/features/left-panel/components/ConversationItemActions', () => ({
   ConversationItemActions: () => null,
 }));
 
@@ -56,7 +50,7 @@ const makeProject = (overrides?: Partial<ChatProject>): ChatProject => ({
 
 describe('LeftPanelProjectItem', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     usePendingChatStore.setState({
       projectId: null,
       input: '',
@@ -123,7 +117,7 @@ describe('LeftPanelProjectItem', () => {
     );
 
     expect(usePendingChatStore.getState().projectId).toBe('proj-1');
-    expect(mockPush).toHaveBeenCalledWith('/chat/');
+    expect(mockNavigate).toHaveBeenCalledWith('/chat/');
     expect(screen.queryByText('Colors discussion')).not.toBeInTheDocument();
   });
 });

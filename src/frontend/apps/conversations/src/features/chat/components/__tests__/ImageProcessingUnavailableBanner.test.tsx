@@ -9,7 +9,7 @@ import { ImageProcessingUnavailableBanner } from '../ImageProcessingUnavailableB
 describe('ImageProcessingUnavailableBanner', () => {
   it('renders the headline and calls onDismiss when the user clicks the close button', async () => {
     const user = userEvent.setup();
-    const onDismiss = jest.fn();
+    const onDismiss = vi.fn();
 
     render(<ImageProcessingUnavailableBanner onDismiss={onDismiss} />, {
       wrapper: AppWrapper,
@@ -29,7 +29,7 @@ describe('ImageProcessingUnavailableBanner', () => {
   it('opens a modal with the explanation when "More info" is clicked', async () => {
     const user = userEvent.setup();
 
-    render(<ImageProcessingUnavailableBanner onDismiss={jest.fn()} />, {
+    render(<ImageProcessingUnavailableBanner onDismiss={vi.fn()} />, {
       wrapper: AppWrapper,
     });
 

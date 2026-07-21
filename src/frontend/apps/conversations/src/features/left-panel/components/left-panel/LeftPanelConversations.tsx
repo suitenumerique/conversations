@@ -1,5 +1,5 @@
-import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
+import { useParams } from 'react-router';
 
 import { Box, InfiniteScroll, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
@@ -8,8 +8,7 @@ import { LeftPanelConversationItem } from '@/features/left-panel/components/left
 
 export const LeftPanelConversations = () => {
   const { t } = useTranslation();
-  const router = useRouter();
-  const { id } = router.query;
+  const { id } = useParams();
 
   const { spacingsTokens } = useCunninghamTheme();
 

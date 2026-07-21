@@ -1,7 +1,7 @@
-import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { InView } from 'react-intersection-observer';
+import { useNavigate, useParams } from 'react-router';
 import { useDebouncedCallback } from 'use-debounce';
 
 import { Box } from '@/components';
@@ -21,7 +21,7 @@ type LeftPanelSearchProps = {
 
 export const LeftPanelSearch = ({ onSearchChange }: LeftPanelSearchProps) => {
   const { t } = useTranslation();
-  const router = useRouter();
+  const navigate = useNavigate();
   const params = useParams();
   const [search, setSearch] = useState('');
   const { isDesktop: _isDesktop } = useResponsiveStore();
@@ -39,7 +39,7 @@ export const LeftPanelSearch = ({ onSearchChange }: LeftPanelSearchProps) => {
   }, 300);
 
   const handleSelect = (conversation: ChatConversation) => {
-    router.push(`/chat/${conversation.id}`);
+    void navigate(`/chat/${conversation.id}`);
   };
 
   const conversationsData: QuickSearchData<ChatConversation> = useMemo(() => {

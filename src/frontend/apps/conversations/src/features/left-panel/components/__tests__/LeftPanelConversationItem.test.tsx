@@ -5,26 +5,31 @@ import '@/i18n/initI18n';
 
 import { LeftPanelConversationItem } from '../left-panel/LeftPanelConversationItem';
 
-const mockSetPanelOpen = jest.fn();
-const mockPush = jest.fn();
+const mockSetPanelOpen = vi.fn();
+const mockNavigate = vi.hoisted(() => vi.fn());
 
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useNavigate: () => mockNavigate,
 }));
 
-jest.mock('@/stores', () => ({
-  useResponsiveStore: jest.fn((selector) => selector({ isDesktop: true })),
+const mockUseResponsiveStore = vi.hoisted(() =>
+  vi.fn((selector: (state: { isDesktop: boolean }) => boolean) =>
+    selector({ isDesktop: true }),
+  ),
+);
+
+vi.mock('@/stores', () => ({
+  useResponsiveStore: mockUseResponsiveStore,
 }));
 
-jest.mock('@/features/chat/stores/useChatPreferencesStore', () => ({
-  useChatPreferencesStore: jest.fn((selector) =>
+vi.mock('@/features/chat/stores/useChatPreferencesStore', () => ({
+  useChatPreferencesStore: vi.fn((selector) =>
     selector({ setPanelOpen: mockSetPanelOpen }),
   ),
 }));
 
-jest.mock('@/features/left-panel/components/SimpleConversationItem', () => ({
+vi.mock('@/features/left-panel/components/SimpleConversationItem', () => ({
   SimpleConversationItem: ({
     conversation,
   }: {
@@ -32,7 +37,7 @@ jest.mock('@/features/left-panel/components/SimpleConversationItem', () => ({
   }) => <div data-testid="simple-conversation-item">{conversation.title}</div>,
 }));
 
-jest.mock('@/features/left-panel/components/ConversationItemActions', () => ({
+vi.mock('@/features/left-panel/components/ConversationItemActions', () => ({
   ConversationItemActions: ({
     conversation,
   }: {
@@ -52,7 +57,7 @@ const mockConversation = {
 
 describe('LeftPanelConversationItem', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should render the conversation item with link', () => {
@@ -107,10 +112,8 @@ describe('LeftPanelConversationItem', () => {
   });
 
   it('should close panel on click when on mobile', async () => {
-    const { useResponsiveStore } = jest.requireMock('@/stores');
-    useResponsiveStore.mockImplementation(
-      (selector: (state: { isDesktop: boolean }) => boolean) =>
-        selector({ isDesktop: false }),
+    mockUseResponsiveStore.mockImplementation((selector) =>
+      selector({ isDesktop: false }),
     );
 
     const user = userEvent.setup();

@@ -14,54 +14,54 @@ import {
 
 const TEST_CO2_IMPACT_KG = 0.00002191613089507352;
 
-// Mock react-markdown (ESM module)
-jest.mock('react-markdown', () => ({
+// Mock react-markdown to keep the assertions on the component, not the parser
+vi.mock('react-markdown', () => ({
   MarkdownHooks: ({ children }: { children: string }) => (
     <div data-testid="markdown-content">{children}</div>
   ),
 }));
 
-jest.mock('@shikijs/rehype/core', () => () => {});
-jest.mock('../../utils/shiki', () => ({
+vi.mock('@shikijs/rehype/core', () => ({ default: () => {} }));
+vi.mock('../../utils/shiki', () => ({
   getHighlighter: () => Promise.resolve({}),
 }));
-jest.mock('rehype-katex', () => () => {});
-jest.mock('remark-gfm', () => () => {});
-jest.mock('remark-math', () => () => {});
+vi.mock('rehype-katex', () => ({ default: () => {} }));
+vi.mock('remark-gfm', () => ({ default: () => {} }));
+vi.mock('remark-math', () => ({ default: () => {} }));
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),
 }));
 
 const mockConfig: { DOCS_BASE_URL?: string } = { DOCS_BASE_URL: undefined };
-jest.mock('@/core/config', () => ({
+vi.mock('@/core/config', () => ({
   useConfig: () => ({ data: mockConfig }),
 }));
 
-jest.mock('../MoreActionsButton', () => ({
+vi.mock('../MoreActionsButton', () => ({
   MoreActionsButton: () => <div data-testid="more-actions-button" />,
 }));
 
 // Mock child components
-jest.mock('../AttachmentList', () => ({
+vi.mock('../AttachmentList', () => ({
   AttachmentList: () => <div data-testid="attachment-list" />,
 }));
 
-jest.mock('../FeedbackButtons', () => ({
+vi.mock('../FeedbackButtons', () => ({
   FeedbackButtons: () => <div data-testid="feedback-buttons" />,
 }));
 
-jest.mock('../MessageEnergyIndicator', () => ({
+vi.mock('../MessageEnergyIndicator', () => ({
   MessageEnergyIndicator: () => <div data-testid="message-energy-indicator" />,
 }));
 
-jest.mock('../SourceItemList', () => ({
+vi.mock('../SourceItemList', () => ({
   SourceItemList: () => <div data-testid="source-item-list" />,
 }));
 
-jest.mock('../ToolInvocationItem', () => ({
+vi.mock('../ToolInvocationItem', () => ({
   ToolInvocationItem: () => <div data-testid="tool-invocation-item" />,
 }));
 
@@ -376,9 +376,9 @@ describe('MessageItem', () => {
     conversationId: 'conv-1',
     isSourceOpen: null,
     isMobile: false,
-    onCopyToClipboard: jest.fn(),
-    onOpenSources: jest.fn(),
-    getMetadata: jest.fn(),
+    onCopyToClipboard: vi.fn(),
+    onOpenSources: vi.fn(),
+    getMetadata: vi.fn(),
   };
 
   const renderWithProviders = (ui: React.ReactNode) => {
@@ -392,7 +392,7 @@ describe('MessageItem', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockConfig.DOCS_BASE_URL = undefined;
   });
 
@@ -487,7 +487,7 @@ describe('MessageItem', () => {
   describe('interactions', () => {
     it('calls onCopyToClipboard when copy button is clicked', async () => {
       const user = userEvent.setup();
-      const onCopyToClipboard = jest.fn();
+      const onCopyToClipboard = vi.fn();
 
       await act(async () => {
         renderWithProviders(

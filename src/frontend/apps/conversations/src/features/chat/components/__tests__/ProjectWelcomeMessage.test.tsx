@@ -15,12 +15,12 @@ import { ChatProject } from '@/features/chat/types';
 
 import { ProjectWelcomeMessage } from '../ProjectWelcomeMessage';
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),
 }));
-jest.mock('i18next', () => ({
+vi.mock('i18next', () => ({
   t: (key: string) => key,
 }));
 

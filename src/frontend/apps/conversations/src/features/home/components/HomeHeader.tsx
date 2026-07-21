@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import { useTranslation } from 'react-i18next';
 
 import Logo from '@/assets/logo/logo-assistant.svg';
@@ -47,12 +46,9 @@ export const HomeHeader = () => {
         $justify="center"
       >
         {!isSmallMobile && logo?.src && (
-          <Image
-            priority
+          <img
             src={logo.src}
             alt={logo.alt}
-            width={0}
-            height={0}
             style={{ width: logo.widthHeader, height: 'auto' }}
           />
         )}

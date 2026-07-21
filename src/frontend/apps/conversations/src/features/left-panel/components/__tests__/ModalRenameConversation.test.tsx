@@ -1,6 +1,7 @@
 import { CunninghamProvider } from '@gouvfr-lasuite/cunningham-react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { Mock } from 'vitest';
 
 import { useToast } from '@/components';
 import { useRenameConversation } from '@/features/chat/api/useRenameConversation';
@@ -8,14 +9,14 @@ import { ChatConversation } from '@/features/chat/types';
 
 import { ModalRenameConversation } from '../ModalRenameConversation';
 
-jest.mock('@/components', () => ({
-  ...jest.requireActual('@/components'),
-  useToast: jest.fn(),
+vi.mock('@/components', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components')>()),
+  useToast: vi.fn(),
 }));
 
-jest.mock('@/features/chat/api/useRenameConversation');
+vi.mock('@/features/chat/api/useRenameConversation');
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       if (options) {
@@ -28,7 +29,7 @@ jest.mock('react-i18next', () => ({
     },
   }),
 }));
-jest.mock('i18next', () => ({
+vi.mock('i18next', () => ({
   t: (key: string) => key,
 }));
 const renderWithProviders = (component: React.ReactNode) => {
@@ -36,9 +37,9 @@ const renderWithProviders = (component: React.ReactNode) => {
 };
 
 describe('ModalRenameConversation', () => {
-  const mockOnClose = jest.fn();
-  const mockShowToast = jest.fn();
-  const mockRenameConversation = jest.fn();
+  const mockOnClose = vi.fn();
+  const mockShowToast = vi.fn();
+  const mockRenameConversation = vi.fn();
 
   const mockConversation: ChatConversation = {
     id: 'conv-123',
@@ -49,11 +50,11 @@ describe('ModalRenameConversation', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (useToast as jest.Mock).mockReturnValue({
+    vi.clearAllMocks();
+    (useToast as Mock).mockReturnValue({
       showToast: mockShowToast,
     });
-    (useRenameConversation as jest.Mock).mockReturnValue({
+    (useRenameConversation as Mock).mockReturnValue({
       mutate: mockRenameConversation,
     });
   });
@@ -107,7 +108,7 @@ describe('ModalRenameConversation', () => {
     const user = userEvent.setup();
     let onSuccessCallback: (() => void) | undefined;
 
-    (useRenameConversation as jest.Mock).mockImplementation(({ onSuccess }) => {
+    (useRenameConversation as Mock).mockImplementation(({ onSuccess }) => {
       onSuccessCallback = onSuccess;
       return { mutate: mockRenameConversation };
     });
@@ -163,7 +164,7 @@ describe('ModalRenameConversation', () => {
     const user = userEvent.setup();
     let onErrorCallback: ((error: any) => void) | undefined;
 
-    (useRenameConversation as jest.Mock).mockImplementation(({ onError }) => {
+    (useRenameConversation as Mock).mockImplementation(({ onError }) => {
       onErrorCallback = onError;
       return { mutate: mockRenameConversation };
     });
@@ -200,7 +201,7 @@ describe('ModalRenameConversation', () => {
     const user = userEvent.setup();
     let onErrorCallback: ((error: any) => void) | undefined;
 
-    (useRenameConversation as jest.Mock).mockImplementation(({ onError }) => {
+    (useRenameConversation as Mock).mockImplementation(({ onError }) => {
       onErrorCallback = onError;
       return { mutate: mockRenameConversation };
     });
@@ -236,7 +237,7 @@ describe('ModalRenameConversation', () => {
     const user = userEvent.setup();
     let onErrorCallback: ((error: any) => void) | undefined;
 
-    (useRenameConversation as jest.Mock).mockImplementation(({ onError }) => {
+    (useRenameConversation as Mock).mockImplementation(({ onError }) => {
       onErrorCallback = onError;
       return { mutate: mockRenameConversation };
     });
