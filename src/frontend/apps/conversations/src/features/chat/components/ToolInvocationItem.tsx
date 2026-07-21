@@ -2,11 +2,13 @@ import { ToolInvocation } from '@ai-sdk/ui-utils';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Loader, Text } from '@/components';
+import { Box, Text } from '@/components';
 
 import ChatBubblesIllustration from '../assets/chat-bubbles-illustration.svg';
 
 import { DocumentParsingErrorBox } from './DocumentParsingErrorBox';
+import { ToolCard } from './ToolCard';
+import { getDocumentParsingSummary } from './toolCardUtils';
 
 const ConversationResumeLoader = ({ t }: { t: (key: string) => string }) => {
   return (
@@ -45,14 +47,33 @@ const ConversationResumeLoader = ({ t }: { t: (key: string) => string }) => {
 
 interface ToolInvocationItemProps {
   toolInvocation: ToolInvocation;
-  status?: string;
-  hideSearchLoader?: boolean;
 }
+
+export const isVisibleToolInvocation = (
+  toolInvocation: ToolInvocation,
+): boolean => {
+  if (toolInvocation.toolName === 'conversation_resume') {
+    return toolInvocation.state !== 'result';
+  }
+
+  if (toolInvocation.toolName === 'document_parsing') {
+    if (toolInvocation.state === 'partial-call') {
+      return false;
+    }
+
+    if (toolInvocation.state === 'result') {
+      const result = toolInvocation.result as { state?: string };
+      return result?.state === 'error';
+    }
+
+    return true;
+  }
+
+  return true;
+};
 
 export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
   toolInvocation,
-  status,
-  hideSearchLoader = false,
 }) => {
   const { t } = useTranslation();
 
@@ -82,55 +103,19 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
       return null;
     }
 
-    const documents: unknown = (toolInvocation.args as { documents: unknown })
-      ?.documents;
-    const documentIdentifiers: string[] =
-      Array.isArray(documents) &&
-      documents.every(
-        (doc): doc is { identifier: string } =>
-          typeof doc === 'object' && doc !== null && 'identifier' in doc,
-      )
-        ? documents.map((doc) => doc.identifier)
-        : [];
+    const documentSummary = getDocumentParsingSummary(toolInvocation.args);
+    const toolInvocationWithSummary = documentSummary
+      ? {
+          ...toolInvocation,
+          args: {
+            ...toolInvocation.args,
+            documents: documentSummary,
+          },
+        }
+      : toolInvocation;
 
-    return (
-      <Box
-        $direction="row"
-        $align="center"
-        $gap="6px"
-        key={toolInvocation.toolCallId}
-        $width="100%"
-        $maxWidth="750px"
-        $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
-      >
-        <Loader />
-        <Text $variation="600" $size="md">
-          {t('Extracting documents: {{documents}} ...', {
-            documents: documentIdentifiers.join(', '),
-          })}
-        </Text>
-      </Box>
-    );
+    return <ToolCard toolInvocation={toolInvocationWithSummary} />;
   }
 
-  return (
-    <>
-      {status === 'streaming' && !hideSearchLoader && (
-        <Box
-          $direction="row"
-          $align="center"
-          $gap="6px"
-          key={toolInvocation.toolCallId}
-          $width="100%"
-          $maxWidth="750px"
-          $margin={{ all: 'auto', top: 'base', bottom: 'md' }}
-        >
-          <Loader />
-          <Text $variation="600" $size="md">
-            {t('Search...')}
-          </Text>
-        </Box>
-      )}
-    </>
-  );
+  return <ToolCard toolInvocation={toolInvocation} />;
 };

@@ -3,14 +3,18 @@ import dynamic from 'next/dynamic';
 const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 import searchingAnimation from '@/assets/lotties/searching';
 
-export function Loader() {
+interface LoaderProps {
+  size?: number;
+}
+
+export function Loader({ size = 24 }: LoaderProps) {
   return (
     <div role="status">
       <Lottie
         animationData={searchingAnimation}
         loop
         autoplay
-        style={{ width: 24, height: 24 }}
+        style={{ width: size, height: size }}
       />
     </div>
   );

@@ -18,6 +18,7 @@ and this project adheres to
 
 - ♻️(back) split chat views and replace hardcoded strings with constants
 - 💄(front) change 404 illustration
+- 💄(front) tool calls display
 
 ### Fixed
 

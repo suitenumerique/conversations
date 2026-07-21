@@ -3,7 +3,7 @@ import { Button } from '@gouvfr-lasuite/cunningham-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Box, Icon, Loader, Text } from '@/components';
+import { Box, Icon, Text } from '@/components';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import {
@@ -11,7 +11,8 @@ import {
   RawTextBlock,
 } from '@/features/chat/components/MessageBlock';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
-import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
+import { ToolInvocationItem, isVisibleToolInvocation } from '@/features/chat/components/ToolInvocationItem';
+import { ToolInvocationTimeline } from '@/features/chat/components/ToolInvocationTimeline';
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
 const BlocksList = React.memo(
@@ -236,21 +237,10 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     );
   }, [message.parts]);
 
-  const hasNonDocumentParsingTool = React.useMemo(() => {
-    return toolInvocationParts.some(
-      (part) =>
-        part.toolInvocation.toolName !== 'document_parsing' &&
-        part.toolInvocation.toolName !== 'conversation_resume',
+  const visibleToolInvocationParts = React.useMemo(() => {
+    return toolInvocationParts.filter((part) =>
+      isVisibleToolInvocation(part.toolInvocation),
     );
-  }, [toolInvocationParts]);
-
-  const activeToolInvocation = React.useMemo(() => {
-    const tool = toolInvocationParts.find(
-      (part) =>
-        part.toolInvocation.toolName !== 'document_parsing' &&
-        part.toolInvocation.toolName !== 'conversation_resume',
-    );
-    return tool?.toolInvocation;
   }, [toolInvocationParts]);
 
   // Memoize the streaming content split to avoid recreating components in JSX
@@ -335,6 +325,19 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
               : undefined
           }
         >
+          {message.role === 'assistant' && visibleToolInvocationParts.length > 0 && (
+            <ToolInvocationTimeline>
+              {visibleToolInvocationParts.map((part, partIndex) =>
+                isLastAssistantMessage ? (
+                  <ToolInvocationItem
+                    key={`tool-invocation-${partIndex}`}
+                    toolInvocation={part.toolInvocation}
+                  />
+                ) : null,
+              )}
+            </ToolInvocationTimeline>
+          )}
+
           {/* Message content */}
           {message.content && (
             <Box
@@ -366,43 +369,6 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
               )}
             </Box>
           )}
-
-          <Box $direction="column" $gap="2">
-            {isCurrentlyStreaming &&
-              isLastAssistantMessage &&
-              status === 'streaming' &&
-              hasNonDocumentParsingTool && (
-                <Box
-                  $direction="row"
-                  $align="center"
-                  $gap="6px"
-                  $width="100%"
-                  $maxWidth="var(--chat-content-max-width, 750px)"
-                  $margin={{
-                    all: 'auto',
-                    top: 'base',
-                    bottom: 'md',
-                  }}
-                >
-                  <Loader />
-                  <Text $variation="600" $size="md">
-                    {activeToolInvocation?.toolName === 'summarize'
-                      ? t('Summarizing...')
-                      : t('Search...')}
-                  </Text>
-                </Box>
-              )}
-            {toolInvocationParts.map((part, partIndex) =>
-              isLastAssistantMessage ? (
-                <ToolInvocationItem
-                  key={`tool-invocation-${partIndex}`}
-                  toolInvocation={part.toolInvocation}
-                  status={status}
-                  hideSearchLoader={true}
-                />
-              ) : null,
-            )}
-          </Box>
 
           {message.role === 'assistant' &&
             !(isLastAssistantMessage && status === 'streaming') && (
