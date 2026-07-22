@@ -66,7 +66,8 @@ describe('MessageEnergyIndicator', () => {
 
     const dialog = await screen.findByRole('dialog');
     expect(
-      within(dialog).getByText('This request: {{co2}}:0.02 g CO₂eq'),
+      // Decimal separator depends on the host locale (dot in CI, comma on fr)
+      within(dialog).getByText(/^This request: \{\{co2\}\}:0[.,]022 g CO₂eq$/),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Know more/i })).toHaveAttribute(
       'href',

@@ -21,9 +21,12 @@ import {
 } from '../utils/impactCo2';
 
 const formatCo2Impact = (kgCo2eq: number): string => {
-  return `${(kgCo2eq * 1000).toLocaleString(undefined, {
-    maximumFractionDigits: 2,
-  })} g CO₂eq`;
+  const grams = kgCo2eq * 1000;
+  // Below 1 g, fixed fraction digits would round to "0"; keep 2 significant
+  // digits instead so low impacts stay visible (e.g. "0.0012 g CO₂eq").
+  const format: Intl.NumberFormatOptions =
+    grams < 1 ? { maximumSignificantDigits: 2 } : { maximumFractionDigits: 2 };
+  return `${grams.toLocaleString(undefined, format)} g CO₂eq`;
 };
 
 interface MessageEnergyIndicatorProps {
@@ -37,7 +40,6 @@ export const MessageEnergyIndicator = ({
   const { isMobile } = useResponsiveStore();
   const theme = useCunninghamTheme((state) => state.theme);
   const modal = useModal();
-
   const impactLabel = t('This request: {{co2}}', {
     co2: formatCo2Impact(co2ImpactKg),
   });

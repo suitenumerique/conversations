@@ -1401,6 +1401,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # conversation's cumulative total.
         request_tokens = int(usage["promptTokens"]) + int(usage["completionTokens"])
 
+        # Per-message CO2 impact, captured before _prepare_update_conversation
+        # folds the conversation's cumulative total into usage["co2_impact"].
+        message_co2_impact = usage["co2_impact"]
+
         await sync_to_async(self._prepare_update_conversation)(
             final_output=new_messages,
             usage=usage,
@@ -1430,6 +1434,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 ]
             )
         self._update_langfuse_trace(run_output)
+        # Stream the same CO2 annotation _prepare_update_conversation persisted,
+        # so the live message matches what a reload hydrates from the database.
+        if message_co2_impact:
+            yield events_v4.MessageAnnotationPart(annotations=[{"co2_impact": message_co2_impact}])
         # Vercel finish message
         yield events_v4.FinishMessagePart(
             finish_reason=events_v4.FinishReason.STOP,

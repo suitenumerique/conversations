@@ -5,6 +5,7 @@ type Co2Annotation = { co2_impact?: number };
 export const getMessageCo2Impact = (message: Message): number | undefined => {
   const annotations = (message as Message & { annotations?: Co2Annotation[] })
     .annotations;
+
   const impact = annotations
     ?.map((annotation) => annotation as Co2Annotation)
     .find(

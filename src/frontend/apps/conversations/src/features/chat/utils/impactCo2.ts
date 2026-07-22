@@ -1,15 +1,17 @@
-export const IMPACT_CO2_COMPARISONS =
-  'ordinateurfixeparticulier,hotel,disquedur,galettefromage';
+export const IMPACT_CO2_COMPARISONS = 'rechercheweb,email,cafe,visioconference';
 
 export const IMPACT_CO2_SCRIPT_URL = 'https://impactco2.fr/iframe.js';
 export const IMPACT_CO2_WIDGET_TYPE = 'comparateur/etiquette-animee';
 
-/** impactco2 widgets expect the impact as a gram value (numeric string). */
-export const formatImpactCo2Value = (co2ImpactKg: number): string =>
-  (co2ImpactKg * 1000).toLocaleString('en-US', {
+const formatNumericValue = (value: number): string =>
+  value.toLocaleString('en-US', {
     maximumFractionDigits: 20,
     useGrouping: false,
   });
+
+/** The impactco2 comparateur page expects the impact as a gram value (numeric string). */
+export const formatImpactCo2Value = (co2ImpactKg: number): string =>
+  formatNumericValue(co2ImpactKg * 1000);
 
 export const buildImpactCo2ComparateurUrl = (co2ImpactKg: number): string => {
   const params = new URLSearchParams({
@@ -30,7 +32,8 @@ export const buildImpactCo2WidgetDataSearch = ({
   theme: 'default' | 'night';
 }): string => {
   const params = new URLSearchParams({
-    value: formatImpactCo2Value(co2ImpactKg),
+    // Unlike the comparateur page, the iframe widget expects the value in kg
+    value: formatNumericValue(co2ImpactKg),
     comparisons: IMPACT_CO2_COMPARISONS,
     language,
     theme,

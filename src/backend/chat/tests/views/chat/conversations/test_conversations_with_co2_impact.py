@@ -17,6 +17,11 @@ pytestmark = pytest.mark.django_db(transaction=True)
 EXPECTED_CO2_IMPACT = 1e-05
 
 
+def _extract_annotation_events(response_content: str) -> list:
+    """Parse `8:` (message annotation) events from a data-stream response body."""
+    return [json.loads(line[2:]) for line in response_content.splitlines() if line.startswith("8:")]
+
+
 @pytest.fixture(name="albert_settings", autouse=True)
 def albert_settings_fixture(settings):
     """Configure Django settings to use the Albert LLM provider."""
@@ -117,6 +122,10 @@ def test_albert_co2_impact_appears_in_annotations_and_stream(
     response_content = b"".join(response.streaming_content).decode("utf-8")
     assert response_content
     assert mock_openai_stream_multi_calls.called
+    # The CO2 annotation is streamed so the live message shows it without a reload
+    assert _extract_annotation_events(response_content) == [
+        [{"co2_impact": pytest.approx(EXPECTED_CO2_IMPACT)}]
+    ]
     chat_conversation.refresh_from_db()
 
     # Verify the assistant message carries the CO2 annotation in the DB
@@ -153,6 +162,10 @@ def test_albert_co2_impact_appears_in_annotations_and_stream(
 
     second_response_content = b"".join(second_response.streaming_content).decode("utf-8")
     assert second_response_content
+    # The streamed annotation carries this turn's impact, not the cumulative total
+    assert _extract_annotation_events(second_response_content) == [
+        [{"co2_impact": pytest.approx(EXPECTED_CO2_IMPACT)}]
+    ]
     # Verify CO2 annotation appears on the new assistant message
     chat_conversation.refresh_from_db()
     assert chat_conversation.messages[3].annotations == [
@@ -234,7 +247,10 @@ def test_albert_co2_impact_preserved_when_second_request_has_no_co2(
         ]
     }
     second_response = api_client.post(url, second_data, format="json")
-    assert b"".join(second_response.streaming_content).decode("utf-8")
+    second_response_content = b"".join(second_response.streaming_content).decode("utf-8")
+    assert second_response_content
+    # No CO2 from the API means no annotation event in the stream either
+    assert _extract_annotation_events(second_response_content) == []
     chat_conversation.refresh_from_db()
 
     # New assistant message should have no CO2 annotation (none returned by API)

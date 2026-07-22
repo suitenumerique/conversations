@@ -6,6 +6,7 @@ import {
 } from '../impactCo2';
 
 const TEST_CO2_IMPACT_KG = 0.00002191613089507352;
+const ENCODED_COMPARISONS = 'rechercheweb%2Cemail%2Ccafe%2Cvisioconference';
 
 describe('impactCo2', () => {
   it('formats kg CO₂eq as a gram value for impactco2', () => {
@@ -16,7 +17,7 @@ describe('impactCo2', () => {
 
   it('builds the comparateur URL with value and comparisons', () => {
     expect(buildImpactCo2ComparateurUrl(TEST_CO2_IMPACT_KG)).toBe(
-      'https://impactco2.fr/outils/comparateur?value=0.021916130895073518&comparisons=ordinateurfixeparticulier%2Chotel%2Cdisquedur%2Cgalettefromage',
+      `https://impactco2.fr/outils/comparateur?value=0.021916130895073518&comparisons=${ENCODED_COMPARISONS}`,
     );
   });
 
@@ -28,7 +29,8 @@ describe('impactCo2', () => {
         theme: 'night',
       }),
     ).toBe(
-      '?value=0.021916130895073518&comparisons=ordinateurfixeparticulier%2Chotel%2Cdisquedur%2Cgalettefromage&language=fr&theme=night',
+      // The widget takes the value in kg, unlike the comparateur URL (grams)
+      `?value=0.00002191613089507352&comparisons=${ENCODED_COMPARISONS}&language=fr&theme=night`,
     );
   });
 
@@ -47,7 +49,9 @@ describe('impactCo2', () => {
     expect(script?.getAttribute('data-type')).toBe(
       'comparateur/etiquette-animee',
     );
-    expect(script?.getAttribute('data-search')).toContain('value=0.0219161');
+    expect(script?.getAttribute('data-search')).toContain(
+      'value=0.00002191613',
+    );
     expect(script?.getAttribute('data-search')).toContain('language=en');
     expect(script?.getAttribute('data-search')).toContain('theme=default');
   });
