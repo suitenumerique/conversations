@@ -148,13 +148,13 @@ Example:
 docker build -f src/frontend/Dockerfile --target frontend-production --build-arg API_ORIGIN=https://mybackend.example.com conversations-frontend:latest
 ``` 
 
-If you want to build the front-end application using the yarn build command, you can edit the file `src/frontend/apps/conversations/.env` with the `NODE_ENV=production` environment variable and modify it. Alternatively, you can use the listed environment variables with the prefix `NEXT_PUBLIC_`.
+If you want to build the front-end application using the yarn build command, you can edit the file `src/frontend/apps/conversations/.env` and modify it. Alternatively, you can use the listed environment variables with the prefix `VITE_`.
 
 Example:
 
 ```
 cd src/frontend/apps/conversations
-NODE_ENV=production NEXT_PUBLIC_API_ORIGIN=https://mybackend.example.com yarn build
+VITE_API_ORIGIN=https://mybackend.example.com yarn build
 ```
 
 | Option                                          | Description                                                                        | default                                                 |

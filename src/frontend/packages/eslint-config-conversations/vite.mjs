@@ -1,4 +1,3 @@
-import nextPlugin from '@next/eslint-plugin-next';
 import queryPlugin from '@tanstack/eslint-plugin-query';
 import jsxA11yPlugin from 'eslint-plugin-jsx-a11y';
 import prettierRecommended from 'eslint-plugin-prettier/recommended';
@@ -14,15 +13,12 @@ import {
 } from './common.mjs';
 import { jestTestConfigs } from './jest.mjs';
 
-export function nextConfig({ tsconfigRootDir, nextRootDir }) {
+export function viteConfig({ tsconfigRootDir }) {
   return [
     // Ignores
     {
-      ignores: ['.next/', '.swc/', 'out/', 'coverage/', 'service-worker.js'],
+      ignores: ['dist/', 'coverage/', 'service-worker.js'],
     },
-
-    // Next.js plugin
-    nextPlugin.configs.recommended,
 
     // React
     reactPlugin.configs.flat.recommended,
@@ -68,7 +64,6 @@ export function nextConfig({ tsconfigRootDir, nextRootDir }) {
       },
       settings: {
         react: { version: 'detect' },
-        next: { rootDir: nextRootDir },
       },
       rules: {
         ...globalRules,
@@ -79,7 +74,7 @@ export function nextConfig({ tsconfigRootDir, nextRootDir }) {
     // TypeScript
     ...typescriptConfigs(tsconfigRootDir),
 
-    // Test files (Jest)
+    // Test files
     ...jestTestConfigs(),
 
     // TanStack Query

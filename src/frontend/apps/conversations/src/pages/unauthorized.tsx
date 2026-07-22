@@ -1,45 +1,37 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import Head from 'next/head';
-import { useRouter } from 'next/router';
-import { ReactElement, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import Icon404 from '@/assets/icons/icon-404.svg';
 import { Box, Icon, StyledLink, Text } from '@/components';
 import { productName } from '@/core';
 import { useAuth } from '@/features/auth';
-import { PageLayout } from '@/layouts';
-import { NextPageWithLayout } from '@/types/next';
 
 const StyledButton = styled(Button)`
   width: fit-content;
 `;
 
-const Page: NextPageWithLayout = () => {
+const Page = () => {
   const { t } = useTranslation();
   const { authenticated } = useAuth();
-  const { replace } = useRouter();
+  const navigate = useNavigate();
 
   // An authorized user should never see this page; send them to the app.
   useEffect(() => {
     if (authenticated) {
-      void replace('/');
+      void navigate('/', { replace: true });
     }
-  }, [authenticated, replace]);
+  }, [authenticated, navigate]);
 
   return (
     <>
-      <Head>
-        <title>
-          {t('Access denied')} - {productName}
-        </title>
-        <meta
-          property="og:title"
-          content={`${t('Access denied')} - ${productName}`}
-          key="title"
-        />
-      </Head>
+      <title>{`${t('Access denied')} - ${productName}`}</title>
+      <meta
+        property="og:title"
+        content={`${t('Access denied')} - ${productName}`}
+      />
       <Box
         $align="center"
         $margin="auto"
@@ -85,10 +77,6 @@ const Page: NextPageWithLayout = () => {
       </Box>
     </>
   );
-};
-
-Page.getLayout = function getLayout(page: ReactElement) {
-  return <PageLayout withFooter={false}>{page}</PageLayout>;
 };
 
 export default Page;

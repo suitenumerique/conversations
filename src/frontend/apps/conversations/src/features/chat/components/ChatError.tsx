@@ -1,6 +1,6 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 
 import { Box, Icon, Text } from '@/components';
 import { useConfig } from '@/core';
@@ -28,7 +28,7 @@ export const ChatError = ({
   onRetry,
 }: ChatErrorProps) => {
   const { t } = useTranslation();
-  const router = useRouter();
+  const navigate = useNavigate();
   const { data: config } = useConfig();
   const statusPageUrl = config?.STATUS_PAGE_URL;
   const isProviderError = errorType !== 'generic';
@@ -111,7 +111,7 @@ export const ChatError = ({
             color="brand"
             variant="bordered"
             onClick={() => {
-              void router.push('/');
+              void navigate('/');
             }}
             icon={<Icon iconName="add" $color="greyscale" />}
           >

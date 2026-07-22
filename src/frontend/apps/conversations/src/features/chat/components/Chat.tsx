@@ -2,7 +2,6 @@ import { Message, SourceUIPart } from '@ai-sdk/ui-utils';
 import { Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
-import { useRouter } from 'next/router';
 import React, {
   useCallback,
   useEffect,
@@ -12,6 +11,7 @@ import React, {
 } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 
 import { APIError, errorCauses, fetchAPI } from '@/api';
 import { Box, Icon, Loader, Text } from '@/components';
@@ -141,7 +141,7 @@ export const Chat = ({
     setSelectedModelHrid(model.hrid);
   };
 
-  const router = useRouter();
+  const navigate = useNavigate();
   const [files, setFiles] = useState<FileList | null>(null);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   // Project of an already-loaded conversation (new chats use pendingProjectId).
@@ -865,7 +865,7 @@ export const Chat = ({
             setProjectId(null);
             setConversationId(data.id);
             // Update the URL to /chat/[id]/
-            void router.push(`/chat/${data.id}/`);
+            void navigate(`/chat/${data.id}/`);
             // After setting the conversationId, submit the pending message
             setTimeout(() => {
               if (pendingFirstMessage) {

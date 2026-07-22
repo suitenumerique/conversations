@@ -7,9 +7,9 @@ import {
   TextArea,
 } from '@gouvfr-lasuite/cunningham-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/router';
 import { useCallback, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import { css } from 'styled-components';
 
 import FileDocIcon from '@/assets/icons/uikit-custom/file-doc.svg';
@@ -515,7 +515,7 @@ export const ModalProjectForm = ({
     ? (colorsTokens[colorToken as keyof typeof colorsTokens] ?? undefined)
     : undefined;
 
-  const router = useRouter();
+  const navigate = useNavigate();
   const setProjectId = usePendingChatStore((s) => s.setProjectId);
 
   const { mutateAsync: createProjectAsync, isPending: isCreating } =
@@ -595,7 +595,7 @@ export const ModalProjectForm = ({
         // Switch to a new conversation in the context of the freshly
         // created project so the user doesn't have to click it manually.
         setProjectId(created.id);
-        void router.push('/chat/');
+        void navigate('/chat/');
       } catch (error) {
         const err = error as { cause?: string[]; message?: string };
         const errorMessage =

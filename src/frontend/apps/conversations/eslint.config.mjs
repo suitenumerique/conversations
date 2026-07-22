@@ -1,6 +1,5 @@
-import { nextConfig } from 'eslint-config-conversations/next.mjs';
+import { viteConfig } from 'eslint-config-conversations/vite.mjs';
 
-export default nextConfig({
+export default viteConfig({
   tsconfigRootDir: import.meta.dirname,
-  nextRootDir: import.meta.dirname,
 });

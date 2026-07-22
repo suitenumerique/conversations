@@ -8,7 +8,7 @@
 | **Team QA**               | 16 GB | 6    | 30 GB   | Runs integration tests    |
 | **Prod ≤ 100 live users** | 32 GB | 8 +  | 50 GB + | Scale linearly above this |
 
-Memory is the first bottleneck; CPU matters only when Celery or the Next.js build is saturated.
+Memory is the first bottleneck; CPU matters only when Celery or the Vite build is saturated.
 
 > **Note:** Memory consumption varies by operating system. Windows tends to be more memory-hungry than Linux, so consider adding 10-20% extra RAM when running on Windows compared to Linux-based systems.
 
@@ -21,7 +21,7 @@ Memory is the first bottleneck; CPU matters only when Celery or the Next.js buil
 | Redis            | **≤ 256 MB**                  | Empty instance ≈ 3 MB; budget 256 MB to allow small datasets ([stackoverflow.com][3])   |
 | MinIO            | **2 GB (dev) / 32 GB (prod)** | Pre-allocates 1–2 GiB; docs recommend 32 GB per host for ≤ 100 Ti storage ([min.io][4]) |
 | Django API       | **0.8 – 1.5 GB**              | Empirical in-house metrics                                                              |
-| Next.js frontend | **0.5 – 1 GB**                | Dev build chain                                                                         |
+| Vite frontend    | **0.5 – 1 GB**                | Dev build chain                                                                         |
 | Nginx            | **< 100 MB**                  | Static reverse-proxy footprint                                                          |
 
 [1]: https://www.postgresql.org/docs/9.1/runtime-config-resource.html "PostgreSQL: Documentation: 9.1: Resource Consumption"
@@ -42,12 +42,12 @@ Production deployments differ significantly from development environments. The t
 | Redis                     | **256 MB – 2 GB**           | Session storage and caching; scales with active user sessions                            |
 | Object Storage (optional) | **External or self-hosted** | Can use AWS S3, Azure Blob, Google Cloud Storage, or self-hosted MinIO                   |
 | Django API (+ Celery)     | **1 – 3 GB**                | Production workloads with background tasks and higher concurrency                        |
-| Static Files (Nginx)      | **< 200 MB**                | Serves Next.js build output and static assets; no development overhead                   |
+| Static Files (Nginx)      | **< 200 MB**                | Serves Vite build output and static assets; no development overhead                   |
 | Nginx (Load Balancer)     | **< 200 MB**                | Reverse proxy, SSL termination, static file serving                                      |
 
 ### Production Architecture Notes
 
-- **Frontend**: Uses pre-built Next.js static assets served by Nginx (no Node.js runtime needed)
+- **Frontend**: Uses pre-built Vite static assets served by Nginx (no Node.js runtime needed)
 - **Authentication**: Any OIDC-compatible provider can be used instead of self-hosted Keycloak
 - **Object Storage**: External services (S3, Azure Blob) or self-hosted solutions (MinIO) are both viable
 - **Database**: Consider PostgreSQL clustering or managed database services for high availability
@@ -83,7 +83,7 @@ Production deployments differ significantly from development environments. The t
 
 | Port      | Service                    |
 |-----------|----------------------------|
-| 3000      | Next.js                    |
+| 3000      | Vite                       |
 | 8071      | Django                     |
 | 8080      | Keycloak                   |
 | 8083      | Nginx proxy                |
@@ -98,7 +98,7 @@ Production deployments differ significantly from development environments. The t
 
 > **OS considerations:** Windows systems typically require 10-20% more RAM than Linux due to higher OS overhead. Docker Desktop on Windows also uses additional memory compared to native Linux Docker.
 
-**CPU** – budget one vCPU per busy container until Celery or Next.js builds saturate.
+**CPU** – budget one vCPU per busy container until Celery or Vite builds saturate.
 
 **Disk** – SSD; add 10 GB extra for the Docker layer cache.
 

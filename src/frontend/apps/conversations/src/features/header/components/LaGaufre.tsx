@@ -1,5 +1,4 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import Script from 'next/script';
 import { useCallback, useEffect, useRef } from 'react';
 
 declare global {
@@ -7,6 +6,10 @@ declare global {
     _lasuite_widget?: unknown[];
   }
 }
+
+const WIDGET_SCRIPT_ID = 'lasuite-lagaufre-script';
+const WIDGET_SCRIPT_SRC =
+  'https://static.suite.anct.gouv.fr/widgets/lagaufre.js';
 
 export const LaGaufre = () => {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
@@ -50,6 +53,21 @@ export const LaGaufre = () => {
     ]);
     hasInitializedRef.current = true;
   }, []);
+
+  // Load the widget script once for the whole app; `initLaGaufre` is
+  // idempotent so calling it again once loaded is safe.
+  useEffect(() => {
+    if (document.getElementById(WIDGET_SCRIPT_ID)) {
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = WIDGET_SCRIPT_ID;
+    script.src = WIDGET_SCRIPT_SRC;
+    script.async = true;
+    script.addEventListener('load', initLaGaufre);
+    document.body.appendChild(script);
+  }, [initLaGaufre]);
 
   useEffect(() => {
     const wrapper = document.querySelector('[data-gaufre-button-wrapper]');
@@ -115,13 +133,6 @@ export const LaGaufre = () => {
           </svg>
         </Button>
       </div>
-      <Script
-        src="https://static.suite.anct.gouv.fr/widgets/lagaufre.js"
-        strategy="lazyOnload"
-        onLoad={() => {
-          initLaGaufre();
-        }}
-      />
     </>
   );
 };

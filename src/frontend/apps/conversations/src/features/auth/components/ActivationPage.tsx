@@ -1,7 +1,7 @@
 import { Button, Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
-import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 import { css } from 'styled-components';
 
 import { fetchAPI } from '@/api';
@@ -35,7 +35,7 @@ export const ActivationPage = () => {
   const { data: activationStatus, refetch } = useActivationStatus();
   const { mutate: registerNotification } = useRegisterNotification();
   const { isSmallMobile, isDesktop } = useResponsiveStore();
-  const router = useRouter();
+  const navigate = useNavigate();
   const { authenticated, user } = useAuth();
 
   const IconKey = () => {
@@ -80,9 +80,9 @@ export const ActivationPage = () => {
   useEffect(() => {
     // Redirect to home if user is authenticated and already activated
     if (authenticated && activationStatus?.is_activated) {
-      void router.push('/');
+      void navigate('/');
     }
-  }, [authenticated, activationStatus, router]);
+  }, [authenticated, activationStatus, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +90,7 @@ export const ActivationPage = () => {
 
     // Verify user is still authenticated before submitting
     if (!authenticated) {
-      void router.push('/');
+      void navigate('/');
       return;
     }
 
@@ -144,7 +144,7 @@ export const ActivationPage = () => {
   const handleNotificationRegister = () => {
     // Verify user is still authenticated before registering
     if (!authenticated) {
-      void router.push('/');
+      void navigate('/');
       return;
     }
 

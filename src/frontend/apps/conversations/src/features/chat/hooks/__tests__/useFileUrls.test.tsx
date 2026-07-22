@@ -34,8 +34,8 @@ const createFileList = (files: File[]): FileList => {
 
 describe('useFileUrls', () => {
   let urlCounter: number;
-  const mockCreateObjectURL = jest.fn();
-  const mockRevokeObjectURL = jest.fn();
+  const mockCreateObjectURL = vi.fn();
+  const mockRevokeObjectURL = vi.fn();
 
   beforeEach(() => {
     urlCounter = 0;
@@ -49,7 +49,7 @@ describe('useFileUrls', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should return an empty Map when files is null', () => {

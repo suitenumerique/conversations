@@ -1,10 +1,9 @@
-import { useRouter } from 'next/router';
+import { Navigate } from 'react-router';
 
 import { HOME_URL } from '@/features/auth';
 
 const Page = () => {
-  const { replace } = useRouter();
-  void replace(HOME_URL);
+  return <Navigate to={HOME_URL} replace />;
 };
 
 export default Page;

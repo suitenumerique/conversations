@@ -3,29 +3,30 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import fetchMock from 'fetch-mock';
+import type { Mock } from 'vitest';
 
 import { useToast } from '@/components';
 import { ChatProject } from '@/features/chat/types';
 
 import { ModalProjectForm } from '../ModalProjectForm';
 
-const mockPush = jest.fn();
-jest.mock('next/router', () => ({
-  ...jest.requireActual('next/router'),
-  useRouter: () => ({ push: mockPush }),
+const mockNavigate = vi.hoisted(() => vi.fn());
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useNavigate: () => mockNavigate,
 }));
 
-jest.mock('@/components', () => ({
-  ...jest.requireActual('@/components'),
-  useToast: jest.fn(),
+vi.mock('@/components', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components')>()),
+  useToast: vi.fn(),
 }));
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),
 }));
-jest.mock('i18next', () => ({
+vi.mock('i18next', () => ({
   t: (key: string) => key,
 }));
 
@@ -46,8 +47,8 @@ const renderWithProviders = (component: React.ReactNode) => {
 };
 
 describe('ModalProjectForm', () => {
-  const mockOnClose = jest.fn();
-  const mockShowToast = jest.fn();
+  const mockOnClose = vi.fn();
+  const mockShowToast = vi.fn();
 
   const existingProject: ChatProject = {
     id: 'proj-123',
@@ -61,9 +62,9 @@ describe('ModalProjectForm', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     fetchMock.restore();
-    (useToast as jest.Mock).mockReturnValue({
+    (useToast as Mock).mockReturnValue({
       showToast: mockShowToast,
     });
   });
@@ -184,7 +185,7 @@ describe('ModalProjectForm', () => {
       );
     });
     expect(mockOnClose).toHaveBeenCalled();
-    expect(mockPush).toHaveBeenCalledWith('/chat/');
+    expect(mockNavigate).toHaveBeenCalledWith('/chat/');
   });
 
   it('shows API error message on failed create', async () => {

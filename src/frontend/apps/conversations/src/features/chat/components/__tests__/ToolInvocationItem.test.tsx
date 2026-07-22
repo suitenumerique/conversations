@@ -2,13 +2,13 @@ import { render, screen } from '@testing-library/react';
 
 import { ToolInvocationItem } from '../ToolInvocationItem';
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
 let mockStatusPageUrl: string | undefined = 'https://status.example.com';
 
-jest.mock('@/core', () => ({
+vi.mock('@/core', () => ({
   useConfig: () => ({
     data: { STATUS_PAGE_URL: mockStatusPageUrl },
   }),

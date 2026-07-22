@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 
 import { ConversationItemActions } from '../ConversationItemActions';
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       if (options) {
@@ -17,11 +17,11 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('i18next', () => ({
+vi.mock('i18next', () => ({
   t: (key: string) => key,
 }));
 
-jest.mock('@/components', () => ({
+vi.mock('@/components', () => ({
   DropdownMenu: ({
     children,
     options,
@@ -53,7 +53,7 @@ jest.mock('@/components', () => ({
   }) => <span data-icon={iconName} {...props} />,
 }));
 
-jest.mock('../ModalRenameConversation', () => ({
+vi.mock('../ModalRenameConversation', () => ({
   ModalRenameConversation: ({
     onClose,
     conversation,
@@ -70,7 +70,7 @@ jest.mock('../ModalRenameConversation', () => ({
   ),
 }));
 
-jest.mock('../ModalRemoveConversation', () => ({
+vi.mock('../ModalRemoveConversation', () => ({
   ModalRemoveConversation: ({
     onClose,
     conversation,

@@ -3,17 +3,16 @@ import userEvent from '@testing-library/user-event';
 
 import { StyledLink } from '../Link';
 
-const mockPush = jest.fn();
+const mockNavigate = vi.hoisted(() => vi.fn());
 
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-  }),
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useNavigate: () => mockNavigate,
 }));
 
 describe('StyledLink', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should render a link with the correct href', () => {
@@ -23,18 +22,18 @@ describe('StyledLink', () => {
     expect(link).toHaveAttribute('href', '/test-path');
   });
 
-  it('should navigate using router.push on click', async () => {
+  it('should navigate on click', async () => {
     const user = userEvent.setup();
     render(<StyledLink href="/test-path">Test Link</StyledLink>);
 
     const link = screen.getByRole('link', { name: 'Test Link' });
     await user.click(link);
 
-    expect(mockPush).toHaveBeenCalledWith('/test-path');
+    expect(mockNavigate).toHaveBeenCalledWith('/test-path');
   });
 
   it('should call onClick prop when clicked', async () => {
-    const handleClick = jest.fn();
+    const handleClick = vi.fn();
     const user = userEvent.setup();
     render(
       <StyledLink href="/test-path" onClick={handleClick}>
@@ -54,7 +53,7 @@ describe('StyledLink', () => {
     const link = screen.getByRole('link', { name: 'Test Link' });
     fireEvent.click(link, { metaKey: true });
 
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('should allow default behavior when ctrl key is pressed', () => {
@@ -63,7 +62,7 @@ describe('StyledLink', () => {
     const link = screen.getByRole('link', { name: 'Test Link' });
     fireEvent.click(link, { ctrlKey: true });
 
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('should allow default behavior when shift key is pressed', () => {
@@ -72,7 +71,7 @@ describe('StyledLink', () => {
     const link = screen.getByRole('link', { name: 'Test Link' });
     fireEvent.click(link, { shiftKey: true });
 
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('should allow default behavior when alt key is pressed', () => {
@@ -81,7 +80,7 @@ describe('StyledLink', () => {
     const link = screen.getByRole('link', { name: 'Test Link' });
     fireEvent.click(link, { altKey: true });
 
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('should pass additional props to the anchor element', () => {

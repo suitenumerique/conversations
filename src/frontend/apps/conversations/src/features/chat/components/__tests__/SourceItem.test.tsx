@@ -1,23 +1,25 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { Mock, MockInstance } from 'vitest';
 
 import { SourceItem } from '../SourceItem';
 
-jest.mock('next/navigation', () => ({
-  useRouter: () => ({ push: jest.fn() }),
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useNavigate: () => vi.fn(),
 }));
 
 describe('SourceItem', () => {
-  let consoleSpy: jest.SpyInstance;
+  let consoleSpy: MockInstance;
 
   beforeEach(() => {
-    consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     // Prevent real HTTP calls; override per test as needed
-    globalThis.fetch = jest.fn().mockReturnValue(new Promise(() => {}));
+    globalThis.fetch = vi.fn().mockReturnValue(new Promise(() => {}));
   });
 
   afterEach(() => {
     consoleSpy.mockRestore();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('non-http URL', () => {
@@ -197,9 +199,7 @@ describe('SourceItem', () => {
     });
 
     it('uses hostname as title when CORS fetch fails', async () => {
-      (globalThis.fetch as jest.Mock).mockRejectedValue(
-        new Error('CORS error'),
-      );
+      (globalThis.fetch as Mock).mockRejectedValue(new Error('CORS error'));
 
       render(<SourceItem url="https://example.com/page" />);
 
@@ -209,7 +209,7 @@ describe('SourceItem', () => {
     });
 
     it('parses page title from fetched HTML', async () => {
-      (globalThis.fetch as jest.Mock).mockResolvedValue({
+      (globalThis.fetch as Mock).mockResolvedValue({
         ok: true,
         text: () =>
           Promise.resolve('<html><head><title>My Page</title></head></html>'),
@@ -221,7 +221,7 @@ describe('SourceItem', () => {
     });
 
     it('uses hostname as title when response is not ok', async () => {
-      (globalThis.fetch as jest.Mock).mockResolvedValue({
+      (globalThis.fetch as Mock).mockResolvedValue({
         ok: false,
         status: 404,
       });
@@ -234,7 +234,7 @@ describe('SourceItem', () => {
     });
 
     it('does not fetch when metadata is loaded', () => {
-      const fetchSpy = globalThis.fetch as jest.Mock;
+      const fetchSpy = globalThis.fetch as Mock;
 
       render(
         <SourceItem

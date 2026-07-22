@@ -1,22 +1,23 @@
 import { render, waitFor } from '@testing-library/react';
 import i18n from 'i18next';
+import type { Mock } from 'vitest';
 
 import { AppWrapper } from '@/tests/utils';
 
 import { ConfigProvider } from '../ConfigProvider';
 import { useConfig } from '../api/useConfig';
 
-jest.mock('../api/useConfig', () => ({
-  ...jest.requireActual('../api/useConfig'),
-  useConfig: jest.fn(),
+vi.mock('../api/useConfig', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/useConfig')>()),
+  useConfig: vi.fn(),
 }));
 
-jest.mock('@/features/auth', () => ({
-  ...jest.requireActual('@/features/auth'),
-  useAuthQuery: jest.fn(() => ({ data: undefined })),
+vi.mock('@/features/auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/auth')>()),
+  useAuthQuery: vi.fn(() => ({ data: undefined })),
 }));
 
-const mockUseConfig = useConfig as jest.Mock;
+const mockUseConfig = useConfig as Mock;
 
 const makeConfig = (overrides: Record<string, unknown> = {}) => ({
   data: {
@@ -49,7 +50,7 @@ describe('ConfigProvider - initial language', () => {
 
   it('follows a non-French browser language over the instance default', async () => {
     await i18n.changeLanguage('de');
-    const changeLanguageSpy = jest.spyOn(i18n, 'changeLanguage');
+    const changeLanguageSpy = vi.spyOn(i18n, 'changeLanguage');
     mockUseConfig.mockReturnValue(makeConfig({ LANGUAGE_CODE: 'fr-fr' }));
 
     render(<ConfigProvider>app</ConfigProvider>, { wrapper: AppWrapper });

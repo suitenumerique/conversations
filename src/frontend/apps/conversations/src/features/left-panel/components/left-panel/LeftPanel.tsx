@@ -1,9 +1,9 @@
-import dynamic from 'next/dynamic';
 import { useEffect } from 'react';
 import { createGlobalStyle, css } from 'styled-components';
 
 import { Box, SeparatedSection } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
+import { UserInfo } from '@/features/auth/components/UserInfo';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { LaGaufre } from '@/features/header/components/LaGaufre';
 import { OnboardingButton } from '@/features/onboarding';
@@ -18,12 +18,6 @@ const MobileLeftPanelStyle = createGlobalStyle`
     overflow: hidden;
   }
 `;
-
-const UserInfo = dynamic(
-  () =>
-    import('@/features/auth/components/UserInfo').then((mod) => mod.UserInfo),
-  { ssr: false },
-);
 
 export const LeftPanel = () => {
   const { isDesktop } = useResponsiveStore();

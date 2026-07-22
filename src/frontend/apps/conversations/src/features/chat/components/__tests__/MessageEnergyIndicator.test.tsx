@@ -9,7 +9,7 @@ import { MessageEnergyIndicator } from '../MessageEnergyIndicator';
 
 const TEST_CO2_IMPACT_KG = 0.00002191613089507352;
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, opts?: { co2?: string }) =>
       opts?.co2 ? `${key}:${opts.co2}` : key,
@@ -17,11 +17,11 @@ jest.mock('react-i18next', () => ({
   }),
 }));
 
-jest.mock('@/stores', () => ({
-  useResponsiveStore: jest.fn(),
+vi.mock('@/stores', () => ({
+  useResponsiveStore: vi.fn(),
 }));
 
-const mockUseResponsiveStore = jest.mocked(useResponsiveStore);
+const mockUseResponsiveStore = vi.mocked(useResponsiveStore);
 
 const setResponsive = (isMobile: boolean) =>
   mockUseResponsiveStore.mockReturnValue({
@@ -31,8 +31,8 @@ const setResponsive = (isMobile: boolean) =>
     isSmallMobile: false,
     screenSize: isMobile ? 'mobile' : 'desktop',
     screenWidth: isMobile ? 600 : 1024,
-    setScreenSize: jest.fn(),
-    initializeResizeListener: jest.fn(() => () => {}),
+    setScreenSize: vi.fn(),
+    initializeResizeListener: vi.fn(() => () => {}),
   });
 
 const renderIndicator = () =>
