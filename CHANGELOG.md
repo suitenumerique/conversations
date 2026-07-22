@@ -27,6 +27,7 @@ and this project adheres to
 - ⬆️(dependencies) update dependencies and pin CVE-affected packages
 - ♻️(front) consolidate input chat banners into a reusable component
 - ⬆️(dependencies) drop unused pydantic-ai extras
+- 💬(back) use a generic localised timestamped title for Docs exports
 
 ### Fixed
 

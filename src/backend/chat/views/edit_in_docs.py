@@ -6,10 +6,11 @@ stays readable.
 """
 
 import logging
-import re
 from urllib.parse import urljoin
 
 from django.conf import settings
+from django.utils import formats, timezone
+from django.utils.translation import gettext as _
 
 import requests as http_requests
 from rest_framework import decorators, status
@@ -22,46 +23,18 @@ from chat.views.helpers import conditional_refresh_oidc_token
 
 logger = logging.getLogger(__name__)
 
-TITLE_MAX_LENGTH = 60
 
-_HEADER_RE = re.compile(r"^#{1,6}\s+(.*)")
-# Leading whitespace, blockquote (>), bullet (-, *) and ordered-list (1.) markers.
-_LEADING_MARKERS_RE = re.compile(r"^[\s>*\-]*(?:\d+\.\s+)?")
-
-
-def _truncate_title(text):
-    """Trim a title to TITLE_MAX_LENGTH characters on a word boundary."""
-    text = text.strip()
-    if len(text) <= TITLE_MAX_LENGTH:
-        return text
-    truncated = text[:TITLE_MAX_LENGTH].rsplit(" ", 1)[0].rstrip()
-    return f"{truncated or text[:TITLE_MAX_LENGTH].rstrip()}…"
-
-
-def _build_doc_title(content):
-    """Derive a document title from the assistant's markdown.
-
-    1. the first markdown header (``#`` … ``######``) in document order;
-    2. else the first non-empty line, stripped of leading markdown markers;
-    3. else a generic default.
-
-    The result is truncated to TITLE_MAX_LENGTH on a word boundary.
+def _build_doc_title():
+    """Build a generic timestamped document title, e.g.
+    "[L'Assistant] New document 07/22/2026 14:30" (localised via gettext,
+    including the date format itself).
     """
-    lines = content.splitlines()
-
-    for line in lines:
-        match = _HEADER_RE.match(line.strip())
-        if match and match.group(1).strip():
-            return _truncate_title(match.group(1))
-
-    for line in lines:
-        if not line.strip():
-            continue
-        cleaned = _LEADING_MARKERS_RE.sub("", line.strip()).strip("* ").strip()
-        if cleaned:
-            return _truncate_title(cleaned)
-
-    return "Assistant response"
+    # Translators: Django date-format string
+    # (https://docs.djangoproject.com/en/stable/ref/templates/builtins/#date),
+    # e.g. French uses "d/m/Y H:i" for the day-first order.
+    date_format = _("m/d/Y H:i")
+    formatted_date = formats.date_format(timezone.now(), date_format, use_l10n=False)
+    return _("[L'Assistant] New document %(date)s") % {"date": formatted_date}
 
 
 def _docs_http_error_response(exc):
@@ -162,7 +135,7 @@ class EditInDocsMixin:
         if not content:
             raise ValidationError({"message_id": "Message has no text content."})
 
-        title = _build_doc_title(content)
+        title = _build_doc_title()
 
         docs_client = DocsClient()
         try:

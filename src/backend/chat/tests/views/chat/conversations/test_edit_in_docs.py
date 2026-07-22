@@ -1,5 +1,6 @@
 """Tests for the edit_in_docs view action."""
 
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,7 +12,6 @@ from core.factories import UserFactory
 from chat.ai_sdk_types import TextUIPart, UIMessage
 from chat.factories import ChatConversationFactory
 from chat.views.edit_in_docs import (
-    TITLE_MAX_LENGTH,
     _build_doc_title,
     conditional_refresh_oidc_token,
 )
@@ -363,43 +363,18 @@ def test_edit_in_docs_maps_docs_http_errors(
 
 
 # ---------------------------------------------------------------------------
-# Title heuristic (_build_doc_title)
+# Title (_build_doc_title)
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize(
-    ("content", "expected"),
-    [
-        # 1. first markdown header wins
-        ("# Hello World\n\nbody text", "Hello World"),
-        ("## Comparison of approaches\nbody", "Comparison of approaches"),
-        # header wins even when it is not the first line
-        ("intro line\n\n## Real Header\nbody", "Real Header"),
-        # 2. no header -> first non-empty line, markers stripped
-        ("Just a plain first line\nmore", "Just a plain first line"),
-        ("- bullet item here\nmore", "bullet item here"),
-        ("1. first ordered item\nmore", "first ordered item"),
-        ("> quoted line\nx", "quoted line"),
-        ("**Bold lead**\nrest", "Bold lead"),
-        # leading blank lines are skipped
-        ("\n\n   \nActual content\n", "Actual content"),
-        # 3. fallback when there is nothing usable
-        ("", "Assistant response"),
-        ("\n\n   \n", "Assistant response"),
-    ],
-)
-def test_build_doc_title(content, expected):
-    """The title heuristic prefers a header, else the first cleaned line, else a default."""
-    assert _build_doc_title(content) == expected
+def test_build_doc_title_is_generic_and_timestamped():
+    """The title follows the "[L'Assistant] New document MM/DD/YYYY HH:MM" template.
 
-
-def test_build_doc_title_truncates_on_word_boundary():
-    """A long title is truncated to TITLE_MAX_LENGTH on a word boundary with an ellipsis."""
-    long_header = "# " + " ".join(["word"] * 30)  # well over 60 chars
-
-    title = _build_doc_title(long_header)
-
-    assert title.endswith("…")
-    assert len(title) <= TITLE_MAX_LENGTH + 1  # +1 for the ellipsis char
-    assert not title.rstrip("…").endswith("wor")  # no mid-word cut
+    The date format string is itself translatable (French flips to DD/MM/YYYY);
+    under the test locale (English) the source format applies.
+    """
+    assert re.fullmatch(
+        r"\[L'Assistant\] New document \d{2}/\d{2}/\d{4} \d{2}:\d{2}",
+        _build_doc_title(),
+    )
 
 
 # ---------------------------------------------------------------------------
