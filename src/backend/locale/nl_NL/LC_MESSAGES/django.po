@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-23 14:51+0000\n"
-"PO-Revision-Date: 2026-06-24 18:13\n"
+"POT-Creation-Date: 2026-07-22 19:24+0000\n"
+"PO-Revision-Date: 2026-07-23 07:41\n"
 "Last-Translator: \n"
 "Language-Team: Dutch\n"
 "Language: nl_NL\n"
@@ -129,7 +129,7 @@ msgstr "huidig gebruik"
 msgid "Number of times this code has been used"
 msgstr "Aantal keren dat deze code is gebruikt"
 
-#: activation_codes/models.py:65 core/models.py:156 core/models.py:377
+#: activation_codes/models.py:65 core/models.py:156 core/models.py:406
 msgid "active"
 msgstr "actief"
 
@@ -210,6 +210,18 @@ msgstr "De activeringscode om te valideren"
 msgid "Your account has been successfully activated"
 msgstr "Uw account is succesvol geactiveerd"
 
+#: chat/agent_rag/document_converter/guards.py:61
+msgid "Document expands beyond the allowed size and was rejected."
+msgstr ""
+
+#: chat/agent_rag/document_converter/guards.py:73
+msgid "Document has a suspicious compression ratio and was rejected."
+msgstr ""
+
+#: chat/agent_rag/document_converter/guards.py:98
+msgid "Document has too many pages and was rejected."
+msgstr ""
+
 #: chat/agent_rag/document_converter/odt.py:30
 #, python-format
 msgid "Failed to parse ODT document: %(error)s"
@@ -243,53 +255,65 @@ msgstr ""
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
 msgstr ""
 
-#: chat/clients/pydantic_ai.py:1000
+#: chat/clients/pydantic_ai.py:1153
 msgid "Internal Documentation of the AI Assistant"
 msgstr ""
 
-#: chat/views/__init__.py:740
+#: chat/views/attachments.py:307
 #, python-format
 msgid "This project already has the maximum of %(cap)d images. Remove one before uploading another."
 msgstr ""
 
-#: chat/views/__init__.py:756
+#: chat/views/attachments.py:323
 #, python-format
 msgid "This project already has the maximum of %(cap)d files. Remove one before uploading another."
 msgstr ""
 
-#: core/admin.py:29
+#. Translators: Django date-format string
+#. (https://docs.djangoproject.com/en/stable/ref/templates/builtins/#date),
+#. e.g. French uses "d/m/Y H:i" for the day-first order.
+#: chat/views/edit_in_docs.py:35
+msgid "m/d/Y H:i"
+msgstr ""
+
+#: chat/views/edit_in_docs.py:37
+#, python-format
+msgid "[L'Assistant] New document %(date)s"
+msgstr ""
+
+#: core/admin.py:30
 msgid "Personal info"
 msgstr "Persoonlijke gegevens"
 
-#: core/admin.py:45
+#: core/admin.py:46
 msgid "Permissions"
 msgstr "Machtigingen"
 
-#: core/admin.py:57
+#: core/admin.py:58
 msgid "Important dates"
 msgstr "Belangrijke data"
 
-#: core/admin.py:138
+#: core/admin.py:155
 msgid "Self documentation"
 msgstr ""
 
-#: core/admin.py:141
+#: core/admin.py:158
 msgid "Markdown documentation about this service. Exposed to the conversation agent so it can answer questions users ask about the app itself."
 msgstr ""
 
-#: core/admin.py:149
+#: core/admin.py:166
 msgid "Status banner"
 msgstr ""
 
-#: core/admin.py:152
+#: core/admin.py:169
 msgid "Shown to all users at the top of the app. Leave title and content empty to disable."
 msgstr ""
 
-#: core/admin.py:165
+#: core/admin.py:182
 msgid "Assistant"
 msgstr ""
 
-#: core/admin.py:189
+#: core/admin.py:206
 msgid "The MAINTENANCE_MODE environment variable is set: maintenance is forced ON regardless of the value below."
 msgstr ""
 
@@ -501,39 +525,39 @@ msgstr ""
 msgid "Maintenance Mode"
 msgstr ""
 
-#: core/models.py:372
+#: core/models.py:401
 msgid "email address"
 msgstr ""
 
-#: core/models.py:374
+#: core/models.py:403
 msgid "email address allowed to bypass the role requirement"
 msgstr ""
 
-#: core/models.py:379
+#: core/models.py:408
 msgid "inactive entries are ignored without being deleted"
 msgstr ""
 
-#: core/models.py:382
+#: core/models.py:411
 msgid "note"
 msgstr ""
 
-#: core/models.py:384
+#: core/models.py:413
 msgid "optional reason for granting this bypass"
 msgstr ""
 
-#: core/models.py:387
+#: core/models.py:416
 msgid "expires on"
 msgstr ""
 
-#: core/models.py:390
+#: core/models.py:419
 msgid "optional date after which this bypass no longer applies"
 msgstr ""
 
-#: core/models.py:395
+#: core/models.py:424
 msgid "access bypass email"
 msgstr ""
 
-#: core/models.py:396
+#: core/models.py:425
 msgid "access bypass emails"
 msgstr ""
 
