@@ -227,6 +227,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         query_params_serializer.is_valid(raise_exception=True)
         protocol = query_params_serializer.validated_data["protocol"]
         force_web_search = query_params_serializer.validated_data["force_web_search"]
+        force_plan = query_params_serializer.validated_data["force_plan"]
         requested_model_hrid = query_params_serializer.validated_data["model_hrid"]
 
         raw_messages = request.data.get("messages")
@@ -329,19 +330,23 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             logger.debug("Using ASYNC streaming for chat conversation.")
             if protocol == "data":
                 base_stream = ai_service.stream_data_async(
-                    messages, force_web_search=force_web_search
+                    messages, force_web_search=force_web_search, force_plan=force_plan
                 )
             else:  # Default to 'text' protocol
                 base_stream = ai_service.stream_text_async(
-                    messages, force_web_search=force_web_search
+                    messages, force_web_search=force_web_search, force_plan=force_plan
                 )
             streaming_content = stream_with_keepalive_async(base_stream)
         else:
             logger.debug("Using SYNC streaming for chat conversation.")
             if protocol == "data":
-                base_stream = ai_service.stream_data(messages, force_web_search=force_web_search)
+                base_stream = ai_service.stream_data(
+                    messages, force_web_search=force_web_search, force_plan=force_plan
+                )
             else:  # Default to 'text' protocol
-                base_stream = ai_service.stream_text(messages, force_web_search=force_web_search)
+                base_stream = ai_service.stream_text(
+                    messages, force_web_search=force_web_search, force_plan=force_plan
+                )
 
             streaming_content = stream_with_keepalive_sync(base_stream)
         response = StreamingHttpResponse(

@@ -37,6 +37,7 @@ def test_chat_conversation_request_serializer_default():
     assert serializer.is_valid()
     assert serializer.validated_data == {
         "force_web_search": False,
+        "force_plan": False,
         "model_hrid": None,
         "protocol": "data",
     }
@@ -90,6 +91,27 @@ def test_chat_conversation_request_serializer_force_web_search_invalid():
     assert not serializer.is_valid()
     assert serializer.errors == {
         "force_web_search": [ErrorDetail(string="Must be a valid boolean.", code="invalid")]
+    }
+
+
+@pytest.mark.parametrize("force_plan", [True, False])
+def test_chat_conversation_request_serializer_force_plan_valid(force_plan):
+    """
+    Test that the serializer accepts valid boolean values for force_plan.
+    """
+    serializer = serializers.ChatConversationRequestSerializer(data={"force_plan": force_plan})
+    assert serializer.is_valid()
+    assert serializer.validated_data["force_plan"] == force_plan
+
+
+def test_chat_conversation_request_serializer_force_plan_invalid():
+    """
+    Test that the serializer rejects non-boolean values for force_plan.
+    """
+    serializer = serializers.ChatConversationRequestSerializer(data={"force_plan": "invalid"})
+    assert not serializer.is_valid()
+    assert serializer.errors == {
+        "force_plan": [ErrorDetail(string="Must be a valid boolean.", code="invalid")]
     }
 
 

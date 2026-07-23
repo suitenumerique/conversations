@@ -371,13 +371,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # Public streaming API (unchanged signatures)
     # --------------------------------------------------------------------- #
 
-    def stream_text(self, messages: List[UIMessage], force_web_search: bool = False):
+    def stream_text(
+        self, messages: List[UIMessage], force_web_search: bool = False, force_plan: bool = False
+    ):
         """Return only the assistant text deltas (legacy text mode)."""
-        return convert_async_generator_to_sync(self.stream_text_async(messages, force_web_search))
+        return convert_async_generator_to_sync(
+            self.stream_text_async(messages, force_web_search, force_plan)
+        )
 
-    def stream_data(self, messages: List[UIMessage], force_web_search: bool = False):
+    def stream_data(
+        self, messages: List[UIMessage], force_web_search: bool = False, force_plan: bool = False
+    ):
         """Return Vercel-AI-SDK formatted events."""
-        return convert_async_generator_to_sync(self.stream_data_async(messages, force_web_search))
+        return convert_async_generator_to_sync(
+            self.stream_data_async(messages, force_web_search, force_plan)
+        )
 
     def stop_streaming(self):
         """
@@ -455,7 +463,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             )
 
     async def _stream_content(
-        self, messages: List[UIMessage], force_web_search: bool = False, encoder_fn: Callable = None
+        self,
+        messages: List[UIMessage],
+        force_web_search: bool = False,
+        force_plan: bool = False,
+        encoder_fn: Callable = None,
     ):
         """Common streaming logic with configurable encoder."""
         await self._clean()
@@ -475,7 +487,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 )
 
             try:
-                async for event in self._run_agent(messages, force_web_search):
+                async for event in self._run_agent(messages, force_web_search, force_plan):
                     if stream_text := encoder_fn(event):
                         yield stream_text
             except (ModelHTTPError, HTTPValidationError, SDKError) as exc:
@@ -514,18 +526,28 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 else:
                     raise
 
-    async def stream_text_async(self, messages: List[UIMessage], force_web_search: bool = False):
+    async def stream_text_async(
+        self, messages: List[UIMessage], force_web_search: bool = False, force_plan: bool = False
+    ):
         """Return only the assistant text deltas (legacy text mode)."""
         async for chunk in self._stream_content(
-            messages, force_web_search, encoder_fn=self.event_encoder.encode_text
+            messages,
+            force_web_search,
+            force_plan=force_plan,
+            encoder_fn=self.event_encoder.encode_text,
         ):
             yield chunk
 
-    async def stream_data_async(self, messages: List[UIMessage], force_web_search: bool = False):
+    async def stream_data_async(
+        self, messages: List[UIMessage], force_web_search: bool = False, force_plan: bool = False
+    ):
         """Return Vercel-AI-SDK formatted events."""
 
         async for chunk in self._stream_content(
-            messages, force_web_search, encoder_fn=self.event_encoder.encode
+            messages,
+            force_web_search,
+            force_plan=force_plan,
+            encoder_fn=self.event_encoder.encode,
         ):
             yield chunk
 
@@ -713,6 +735,25 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         def force_web_search_prompt() -> str:
             """Dynamic system prompt function to force web search."""
             return "You must call the web_search tool before answering the user request."
+
+        return True
+
+    def _setup_plan(self, force_plan: bool) -> bool:
+        """Configure plan-first mode if forced."""
+        if not force_plan:
+            return False
+
+        @self.conversation_agent.instructions
+        def force_plan_prompt() -> str:
+            """Dynamic system prompt function to force upfront planning."""
+            return (
+                "Planning mode is enabled for this request. Start by proposing a concise "
+                "numbered plan (maximum 8 steps) tailored to the user's goal. If you plan "
+                "to use tools, tell the user which tools without using explicitly the tools "
+                "names but tell the user the arguments you plan to use. Ask the user "
+                "to confirm or adjust the plan, and do not proceed with any execution until "
+                "the plan is approved. After approval, follow the agreed steps."
+            )
 
         return True
 
@@ -1452,6 +1493,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
+        force_plan: bool = False,
     ) -> AsyncGenerator[events_v4.Event | events_v5.Event, None]:
         """Run the Pydantic AI agent and stream events."""
         if not messages or messages[-1].role != "user":
@@ -1529,6 +1571,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._setup_self_documentation_tool()
         self._setup_web_search_tool()
         self._setup_web_search(force_web_search)
+        self._setup_plan(force_plan)
 
         if await self._check_should_enable_rag(conversation_has_own_documents):
             document_context_instruction = await self._build_document_context_instruction()

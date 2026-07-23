@@ -18,10 +18,14 @@ interface InputChatActionsProps {
   isMobile: boolean;
   /** Whether web search is forced/active */
   forceWebSearch: boolean;
+  /** Whether plan-first mode is active */
+  forcePlanMode?: boolean;
   /** Handler for attach button click */
   onAttachClick: () => void;
   /** Handler for web search toggle - if undefined, button is hidden */
   onWebSearchToggle?: () => void;
+  /** Handler for plan mode toggle - if undefined, button is hidden */
+  onPlanModeToggle?: () => void;
   /** Handler for model selection - if undefined, selector is hidden */
   onModelSelect?: (model: LLMModel) => void;
   /** Currently selected model */
@@ -53,6 +57,13 @@ const ACTIONS_OPACITY_CSS = 'opacity: 1;';
 
 const ACTIVE_WEB_BUTTON_CSS = `
   .research-web-button {
+    background-color: var(--c--contextuals--background--semantic--brand--secondary) !important;
+    color: var(--c--contextuals--content--semantic--brand--secondary) !important;
+  }
+`;
+
+const ACTIVE_PLAN_BUTTON_CSS = `
+  .plan-mode-button {
     background-color: var(--c--contextuals--background--semantic--brand--secondary) !important;
     color: var(--c--contextuals--content--semantic--brand--secondary) !important;
   }
@@ -90,8 +101,10 @@ export const InputChatActions = memo(
     isUploadingFiles,
     isMobile,
     forceWebSearch,
+    forcePlanMode = false,
     onAttachClick,
     onWebSearchToggle,
+    onPlanModeToggle,
     onModelSelect,
     selectedModel,
     status,
@@ -111,6 +124,10 @@ export const InputChatActions = memo(
       }
       return css;
     }, [isMobile, forceWebSearch]);
+
+    const planModeWrapperCss = useMemo(() => {
+      return forcePlanMode ? ACTIVE_PLAN_BUTTON_CSS : '';
+    }, [forcePlanMode]);
 
     return (
       <Box
@@ -195,6 +212,62 @@ export const InputChatActions = memo(
                       $css={MOBILE_TEXT_CSS}
                     >
                       {t('Web')}
+                    </Text>
+                    <Icon
+                      iconName="close"
+                      $theme="brand"
+                      $variation="secondary"
+                      $size="md"
+                      $css={CLOSE_ICON_CSS}
+                    />
+                  </Box>
+                )}
+              </Button>
+            </Box>
+          )}
+
+          {/* Plan-first toggle button */}
+          {onPlanModeToggle && (
+            <Box $margin={STYLES.webSearchMargin} $css={planModeWrapperCss}>
+              <Button
+                size="nano"
+                color={forcePlanMode ? 'brand' : 'neutral'}
+                variant="tertiary"
+                type="button"
+                disabled={isUploadingFiles}
+                onClick={onPlanModeToggle}
+                aria-label={t('Plan tasks first')}
+                className="c__button--neutral plan-mode-button"
+                icon={
+                  <Icon
+                    iconName="fact_check"
+                    $theme={forcePlanMode ? 'brand' : 'neutral'}
+                    $variation="tertiary"
+                  />
+                }
+              >
+                {!isMobile && (
+                  <Text
+                    $theme={forcePlanMode ? 'brand' : 'neutral'}
+                    $variation="tertiary"
+                  >
+                    {t('Plan first')}
+                  </Text>
+                )}
+                {isMobile && forcePlanMode && (
+                  <Box
+                    $direction="row"
+                    $align="space-between"
+                    $gap="xs"
+                    $css={MOBILE_TEXT_WRAPPER_CSS}
+                  >
+                    <Text
+                      $theme="brand"
+                      $variation="secondary"
+                      $weight="500"
+                      $css={MOBILE_TEXT_CSS}
+                    >
+                      {t('Plan')}
                     </Text>
                     <Icon
                       iconName="close"
