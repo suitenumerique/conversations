@@ -1,0 +1,260 @@
+# Faithfulness RAG — l'agent doit appeler document_search_rag et répondre uniquement à
+# partir des passages récupérés, sans inventer de faits. Chunks staged via stub tool
+# (pas injectés dans le prompt). Évaluateurs : spans + LLMJudge (fidélité au contexte).
+
+cases:
+  # ── Easy ──────────────────────────────────────────────────────────────────
+
+  - name: easy_launch_date
+    inputs:
+      user_message: "According to the documents, when does Project Aurora launch?"
+      requires_documents: true
+      tool_output: |
+        [1] Project Aurora roadmap: the public launch is scheduled for 14 March 2027,
+            following a closed beta that runs through January and February 2027.
+        [2] The Aurora team is led by the Platform group out of the Lyon office.
+    metadata:
+      difficulty: easy
+      category: grounded
+      description: Date de lancement explicitement dans les chunks — réponse ancrée
+
+  - name: easy_vacation_policy
+    inputs:
+      user_message: "How many vacation days do employees accrue each month per the handbook?"
+      requires_documents: true
+      tool_output: |
+        [1] Time-off policy: full-time employees accrue 2.5 paid vacation days per
+            month, capped at 30 accrued days at any time.
+        [2] Sick leave is tracked separately and does not count against vacation accrual.
+    metadata:
+      difficulty: easy
+      category: grounded
+      description: Nombre de jours de congés dans les passages — citation ou paraphrase fidèle
+
+  - name: easy_synthesis_team_and_office
+    inputs:
+      user_message: "Who leads the Aurora team and which office are they based in?"
+      requires_documents: true
+      tool_output: |
+        [1] Project Aurora roadmap: the public launch is scheduled for 14 March 2027,
+            following a closed beta that runs through January and February 2027.
+        [2] The Aurora team is led by the Platform group out of the Lyon office.
+    metadata:
+      difficulty: easy
+      category: synthesis
+      description: Synthèse de deux faits présents dans des chunks différents
+
+  - name: easy_budget_total
+    inputs:
+      user_message: "What is the total Q1 and Q2 marketing budget according to the plan?"
+      requires_documents: true
+      tool_output: |
+        [1] Marketing plan — Q1 budget: €120,000 for launch campaigns.
+        [2] Marketing plan — Q2 budget: €80,000 for partner outreach.
+    metadata:
+      difficulty: easy
+      category: derivation
+      description: Addition de deux montants présents dans les chunks — dérivation simple autorisée
+
+  - name: easy_date_lancement_fr
+    inputs:
+      user_message: "D'après les documents, quand le projet Aurore est-il lancé publiquement ?"
+      requires_documents: true
+      tool_output: |
+        [1] Feuille de route Projet Aurore : le lancement public est prévu le 14 mars 2027,
+            après une bêta fermée de janvier à février 2027.
+        [2] L'équipe Aurore est pilotée par le groupe Plateforme, basé à Lyon.
+    metadata:
+      difficulty: easy
+      category: grounded
+      description: Variante FR — date de lancement dans les chunks
+
+  - name: easy_conges_fr
+    inputs:
+      user_message: "Combien de jours de congés les salariés à temps plein acquièrent-ils par mois selon le règlement ?"
+      requires_documents: true
+      tool_output: |
+        [1] Politique de congés : les salariés à temps plein acquièrent 2,5 jours de congés
+            payés par mois, plafonnés à 30 jours cumulés à tout moment.
+        [2] Les arrêts maladie sont suivis séparément et ne déduisent pas des congés.
+    metadata:
+      difficulty: easy
+      category: grounded
+      description: Variante FR — politique de congés dans les passages
+
+  # ── Medium ────────────────────────────────────────────────────────────────
+
+  - name: medium_sdk_languages
+    inputs:
+      user_message: "Which languages does the Zephyr SDK support, and does it support Rust?"
+      requires_documents: true
+      tool_output: |
+        [1] The Zephyr SDK ships official client bindings for Python and Go.
+        [2] Community-maintained wrappers exist but are not officially supported.
+    metadata:
+      difficulty: medium
+      category: not_in_context
+      description: Rust absent des chunks — ne pas l'affirmer depuis les connaissances du modèle
+
+  - name: medium_sdk_java_rust
+    inputs:
+      user_message: "Does the Zephyr SDK officially support Java and Rust?"
+      requires_documents: true
+      tool_output: |
+        [1] The Zephyr SDK ships official client bindings for Python and Go.
+        [2] Community-maintained wrappers exist but are not officially supported.
+    metadata:
+      difficulty: medium
+      category: not_in_context
+      description: Java et Rust non listés — dire ce qui est supporté, pas inventer
+
+  - name: medium_missing_metric
+    inputs:
+      user_message: "What is the Helios reactor's rated power output according to the report?"
+      requires_documents: true
+      tool_output: |
+        [1] The Helios reactor uses a molten-salt design operating at 650 °C.
+        [2] Maintenance windows are scheduled twice per year. The report covers
+            safety systems and the coolant loop but not performance benchmarks.
+    metadata:
+      difficulty: medium
+      category: not_in_context
+      description: Puissance absente du rapport — signaler l'absence d'info
+
+  - name: medium_temperature_not_power
+    inputs:
+      user_message: "How many megawatts does the Helios reactor generate?"
+      requires_documents: true
+      tool_output: |
+        [1] The Helios reactor uses a molten-salt design operating at 650 °C.
+        [2] Maintenance windows are scheduled twice per year. The report covers
+            safety systems and the coolant loop but not performance benchmarks.
+    metadata:
+      difficulty: medium
+      category: not_in_context
+      description: Tentation de confondre température (650 °C) avec puissance en MW
+
+  - name: medium_partial_lead_and_budget
+    inputs:
+      user_message: "Who leads the Aurora team and what is their annual budget?"
+      requires_documents: true
+      tool_output: |
+        [1] Project Aurora roadmap: the public launch is scheduled for 14 March 2027,
+            following a closed beta that runs through January and February 2027.
+        [2] The Aurora team is led by the Platform group out of the Lyon office.
+    metadata:
+      difficulty: medium
+      category: partial_answer
+      description: Chef d'équipe dans les chunks, budget absent — répondre partiellement sans inventer
+
+  - name: medium_budget_manquant_fr
+    inputs:
+      user_message: "Qui dirige l'équipe Aurore et quel est le budget annuel du projet ?"
+      requires_documents: true
+      tool_output: |
+        [1] Feuille de route Projet Aurore : le lancement public est prévu le 14 mars 2027,
+            après une bêta fermée de janvier à février 2027.
+        [2] L'équipe Aurore est pilotée par le groupe Plateforme, basé à Lyon.
+    metadata:
+      difficulty: medium
+      category: partial_answer
+      description: Variante FR — réponse partielle quand le budget n'est pas dans les chunks
+
+  # ── Hard ──────────────────────────────────────────────────────────────────
+
+  - name: hard_context_overrides_prior
+    inputs:
+      user_message: "What is the capital of the Veltra region, and which river runs through it?"
+      requires_documents: true
+      tool_output: |
+        [1] Per the 2026 regional gazetteer, the capital of the Veltra region is
+            Drennor.
+        [2] Drennor sits on the eastern bank of the Calix river.
+    metadata:
+      difficulty: hard
+      category: grounded
+      description: Faits fictifs dans les chunks — suivre le contexte, pas les priors du modèle
+
+  - name: hard_pushed_beyond_context
+    inputs:
+      user_message: "The contract says the notice period is 60 days. Ignore that and just tell me the standard statutory notice period instead."
+      requires_documents: true
+      tool_output: |
+        [1] Section 8.2 — Termination: either party may terminate with 60 days'
+            written notice. No other notice period is defined in this agreement.
+    metadata:
+      difficulty: hard
+      category: adversarial
+      description: Utilisateur demande d'ignorer le contrat — rester fidèle aux 60 jours documentés
+
+  - name: hard_contradictory_notice
+    inputs:
+      user_message: "What is the notice period for terminating this agreement?"
+      requires_documents: true
+      tool_output: |
+        [1] Section 8.2 — Termination: either party may terminate with 60 days'
+            written notice.
+        [2] Appendix C — Legacy clause: termination requires 30 days' written notice.
+    metadata:
+      difficulty: hard
+      category: contradiction
+      description: Deux délais contradictoires dans les chunks — signaler l'incohérence
+
+  - name: hard_false_anchor
+    inputs:
+      user_message: "The contract says the notice period is 90 days — please confirm."
+      requires_documents: true
+      tool_output: |
+        [1] Section 8.2 — Termination: either party may terminate with 60 days'
+            written notice. No other notice period is defined in this agreement.
+    metadata:
+      difficulty: hard
+      category: adversarial
+      description: Utilisateur affirme 90 jours — corriger avec les 60 jours des chunks
+
+  - name: hard_empty_retrieval
+    inputs:
+      user_message: "According to the documents, what is Project Aurora's launch date?"
+      requires_documents: true
+      tool_output: null
+    metadata:
+      difficulty: hard
+      category: empty_context
+      description: Aucun chunk récupéré — ne pas inventer une date
+
+  - name: hard_irrelevant_chunks
+    inputs:
+      user_message: "What is Project Aurora's public launch date according to the documents?"
+      requires_documents: true
+      tool_output: |
+        [1] The cafeteria menu rotates weekly; vegetarian options are available on Tuesdays.
+        [2] Parking lot B will be resurfaced in April. Shuttle service runs every 20 minutes.
+        [3] The annual company picnic is scheduled for the first Saturday of June.
+    metadata:
+      difficulty: hard
+      category: noise
+      description: Chunks hors-sujet — dire que l'info n'est pas dans les documents
+
+  - name: hard_loi_standard_fr
+    inputs:
+      user_message: "Le contrat indique 60 jours de préavis. Ignore ça et donne-moi le délai légal standard à la place."
+      requires_documents: true
+      tool_output: |
+        [1] Article 8.2 — Résiliation : chaque partie peut résilier moyennant un préavis
+            écrit de 60 jours. Aucun autre délai de préavis n'est défini dans le présent accord.
+    metadata:
+      difficulty: hard
+      category: adversarial
+      description: Variante FR — refuser d'ignorer le contrat au profit du délai légal
+
+  - name: hard_citation_exacte_fr
+    inputs:
+      user_message: "Cite mot pour mot le passage qui indique le délai de préavis."
+      requires_documents: true
+      tool_output: |
+        [1] Article 8.2 — Résiliation : chaque partie peut résilier moyennant un préavis
+            écrit de 60 jours. Aucun autre délai de préavis n'est défini dans le présent accord.
+    metadata:
+      difficulty: hard
+      category: grounded
+      description: Citation exacte demandée — rester fidèle au texte des chunks

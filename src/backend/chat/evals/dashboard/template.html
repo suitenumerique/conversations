@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conversations — Eval Runs</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --card: #fff;
+      --text: #111827;
+      --muted: #4b5563;
+      --border: #e5e7eb;
+      --pass: #047857;
+      --pass-bg: #d1fae5;
+      --fail: #b91c1c;
+      --fail-bg: #fee2e2;
+      --warn: #b45309;
+      --warn-bg: #fef3c7;
+      --accent: #1d4ed8;
+      --accent-bg: #dbeafe;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+    .site-header {
+      padding: 1.75rem 2rem 1.5rem;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #111827 100%);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+      color: #fff;
+    }
+    .site-header-inner {
+      max-width: 1440px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .site-header-eyebrow {
+      display: block;
+      margin-bottom: .35rem;
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #93c5fd;
+    }
+    .site-header h1 {
+      margin: 0;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+    }
+    .site-header-subtitle {
+      margin: .45rem 0 0;
+      max-width: 36rem;
+      font-size: .92rem;
+      line-height: 1.45;
+      color: #94a3b8;
+    }
+    .site-header-meta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: .5rem;
+    }
+    .header-pill {
+      padding: .35rem .7rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      font-size: .78rem;
+      font-weight: 500;
+      color: #e2e8f0;
+      white-space: nowrap;
+    }
+    .header-pill strong { color: #f8fafc; font-weight: 600; }
+    @media (max-width: 768px) {
+      .site-header-inner { align-items: flex-start; }
+      .site-header-meta { justify-content: flex-start; }
+    }
+    main { padding: 1.25rem 2rem 3rem; max-width: 1440px; margin: 0 auto; }
+    h2 { margin: 0 0 .75rem; font-size: 1.05rem; }
+    h3 { margin: 0 0 .5rem; font-size: .95rem; }
+    .grid { display: grid; gap: 1rem; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+    .grid-2 > .card { min-width: 0; }
+    .grid-4 { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.15rem; }
+    .muted { color: var(--muted); }
+    .badge { display: inline-block; padding: .1rem .45rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+    .badge-pass { background: var(--pass-bg); color: var(--pass); }
+    .badge-fail { background: var(--fail-bg); color: var(--fail); }
+    .badge-warn { background: var(--warn-bg); color: var(--warn); }
+    .badge-baseline { background: var(--accent-bg); color: var(--accent); }
+    .badge-neutral { background: #f3f4f6; color: var(--muted); }
+    .badge-partial-up { background: #d1fae5; color: #065f46; }
+    .badge-partial-down { background: #fee2e2; color: #991b1b; }
+    .badge-diff-easy { background: #ecfdf5; color: #047857; }
+    .badge-diff-medium { background: #fef3c7; color: #b45309; }
+    .badge-diff-hard { background: #fee2e2; color: #b91c1c; }
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .table-wrap { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+    .runs-table-wrap {
+      margin: 0 -0.15rem;
+      padding-bottom: 0.15rem;
+    }
+    .runs-table {
+      width: max-content;
+      min-width: 100%;
+      table-layout: auto;
+    }
+    .runs-table th,
+    .runs-table td {
+      white-space: nowrap;
+      vertical-align: top;
+    }
+    .runs-table code { white-space: nowrap; }
+    .runs-table .change-chip { max-width: none; white-space: nowrap; }
+    .runs-table .col-change { min-width: 14rem; }
+    .runs-table .col-date { min-width: 9.5rem; }
+    .runs-table .col-pass { min-width: 3.5rem; }
+    .runs-table .col-model { min-width: 14rem; }
+    .runs-table .col-judge { min-width: 14rem; }
+    .runs-table .col-runs { min-width: 2.5rem; }
+    .runs-table .col-datasets { min-width: 12rem; }
+    th, td { padding: .5rem .45rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+    /* Long case tables: keep column headers visible while scrolling. */
+    #comparison-table thead th, #run-b-detail thead th {
+      position: sticky;
+      top: 0;
+      background: var(--card);
+      z-index: 5;
+    }
+    tr.row-fail td { background: #fffbfb; }
+    tr.row-pass td { background: #fafffe; }
+    tr.row-changed td { background: #fffbeb; }
+    tr.row-baseline td { background: #f0f7ff; }
+    .runs-table tbody tr:hover td { background: #eef2f8; }
+    button, select { border: 1px solid var(--border); border-radius: 7px; padding: .4rem .65rem; background: #fff; cursor: pointer; font-size: .88rem; }
+    button:hover { background: #f3f4f6; }
+    .mini-btn {
+      padding: .15rem .55rem;
+      font-size: .75rem;
+      font-weight: 700;
+      color: var(--accent);
+      border-color: #c7d2fe;
+      border-radius: 6px;
+    }
+    .mini-btn:hover { background: var(--accent-bg); }
+    .ds-summary { margin-top: .75rem; max-width: 46rem; }
+    .ds-summary th, .ds-summary td { vertical-align: middle; }
+    .ds-summary .col-ds-delta { min-width: 4rem; }
+    .ds-bar { position: relative; height: 1.15rem; background: #f3f4f6; border-radius: 5px; min-width: 9rem; overflow: hidden; }
+    .ds-bar-fill { height: 100%; border-radius: 5px 0 0 5px; background: #bfdbfe; }
+    .ds-bar-a { background: #cbd5e1; }
+    .ds-bar-up { background: #a7f3d0; }
+    .ds-bar-down { background: #fecaca; }
+    .ds-bar-label {
+      position: absolute;
+      left: .45rem;
+      top: 0;
+      font-size: .72rem;
+      line-height: 1.15rem;
+      font-weight: 600;
+      color: #111827;
+    }
+    .ds-total td { font-weight: 700; border-top: 2px solid var(--border); }
+    .controls { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-bottom: .75rem; }
+    .stat { text-align: center; }
+    .stat .value { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
+    .stat .label { font-size: .78rem; color: var(--muted); margin-top: .15rem; }
+    .stat-trend {
+      display: inline-flex;
+      align-items: baseline;
+      gap: .3rem;
+    }
+    .stat-trend-up { color: var(--pass); }
+    .stat-trend-down { color: var(--fail); }
+    .stat-trend-icon {
+      font-size: .95rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .delta-pos { color: var(--pass); font-weight: 600; }
+    .delta-neg { color: var(--fail); font-weight: 600; }
+    .param-grid { display: grid; grid-template-columns: auto 1fr; gap: .2rem .75rem; font-size: .85rem; }
+    .param-grid dt { color: var(--muted); }
+    .param-grid dd { margin: 0; }
+    details { margin-top: .35rem; }
+    details summary { cursor: pointer; color: var(--accent); font-size: .82rem; }
+    .reason { margin-top: .35rem; padding: .5rem .65rem; background: #f9fafb; border-left: 3px solid var(--border); font-size: .82rem; color: #374151; border-radius: 0 6px 6px 0; }
+    .reason.fail { border-left-color: var(--fail); }
+    code { font-size: .82rem; background: #f3f4f6; padding: .1rem .3rem; border-radius: 4px; }
+    .section { margin-top: 1rem; }
+    .run-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 768px) { .run-meta { grid-template-columns: 1fr; } }
+    .change-context-card {
+      background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+      border: 1px solid #bfdbfe;
+      border-left: 4px solid var(--accent);
+      border-radius: 10px;
+      padding: 1rem 1.15rem;
+      margin-bottom: .75rem;
+    }
+    .change-context-title {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: .65rem;
+    }
+    .change-context-body {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: .65rem 1rem;
+    }
+    .change-ref {
+      flex: 1 1 220px;
+      min-width: 0;
+      padding: .55rem .75rem;
+      background: rgba(255,255,255,.75);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .change-ref-highlight {
+      background: #fff;
+      border-color: #93c5fd;
+      box-shadow: 0 1px 2px rgba(29,78,216,.08);
+    }
+    .change-ref-baseline {
+      background: #fff;
+      border-color: #6ee7b7;
+      box-shadow: 0 1px 2px rgba(4,120,87,.08);
+    }
+    .change-ref-empty { color: var(--muted); }
+    .change-ref-label {
+      display: block;
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: .25rem;
+    }
+    .change-ref-highlight .change-ref-label { color: var(--accent); }
+    .change-ref-baseline .change-ref-label { color: var(--pass); }
+    .change-ref-text { font-size: .95rem; font-weight: 600; line-height: 1.35; overflow-wrap: break-word; }
+    .change-arrow { color: var(--muted); font-size: 1.1rem; font-weight: 700; flex: 0 0 auto; }
+    .run-change-note {
+      margin: 0 0 .75rem;
+      padding: .55rem .75rem;
+      background: var(--accent-bg);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      font-size: .92rem;
+      font-weight: 600;
+      line-height: 1.35;
+      overflow-wrap: break-word;
+    }
+    .run-baseline-note {
+      margin: 0 0 .75rem;
+      padding: .55rem .75rem;
+      background: var(--pass-bg);
+      border-left: 3px solid var(--pass);
+      border-radius: 0 8px 8px 0;
+      font-size: .92rem;
+      font-weight: 600;
+      line-height: 1.35;
+      overflow-wrap: break-word;
+      color: #065f46;
+    }
+    .change-chip {
+      display: inline-block;
+      max-width: 100%;
+      padding: .25rem .55rem;
+      background: var(--accent-bg);
+      color: #1e3a8a;
+      border-radius: 6px;
+      font-size: .82rem;
+      font-weight: 600;
+      line-height: 1.35;
+      overflow-wrap: break-word;
+    }
+    .change-empty { color: var(--muted); font-style: italic; }
+    .run-id-sub { font-size: .75rem; color: var(--muted); margin-top: .25rem; display: inline-block; }
+    h2.run-detail-title { line-height: 1.35; overflow-wrap: break-word; }
+    .filter-changes-label {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .filter-changes-label input { margin: 0; cursor: pointer; }
+    .dataset-header { margin-bottom: .35rem; }
+    .dataset-header h3 { margin-bottom: .2rem; }
+    .dataset-desc {
+      margin: 0 0 .5rem;
+      font-size: .82rem;
+      line-height: 1.45;
+      color: var(--muted);
+      max-width: 52rem;
+    }
+    .case-name-wrap {
+      display: inline-flex;
+      align-items: baseline;
+      gap: .35rem;
+      max-width: 18rem;
+    }
+    .case-name-wrap code {
+      overflow-wrap: break-word;
+      white-space: normal;
+    }
+    .case-desc-icon {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1rem;
+      height: 1rem;
+      border-radius: 50%;
+      background: #f3f4f6;
+      color: var(--muted);
+      font-size: .68rem;
+      font-weight: 700;
+      font-style: normal;
+      line-height: 1;
+      cursor: help;
+      position: relative;
+    }
+    .case-desc-icon:hover,
+    .case-desc-icon:focus-visible {
+      background: var(--accent-bg);
+      color: var(--accent);
+      outline: none;
+    }
+    .case-desc-icon::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + .45rem);
+      transform: translateX(-50%);
+      width: max-content;
+      max-width: 18rem;
+      padding: .45rem .6rem;
+      border-radius: 8px;
+      background: #111827;
+      color: #f9fafb;
+      font-size: .75rem;
+      font-weight: 400;
+      line-height: 1.4;
+      white-space: normal;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, .18);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .12s ease;
+      z-index: 20;
+    }
+    .case-desc-icon:hover::after,
+    .case-desc-icon:focus-visible::after {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <div class="site-header-brand">
+        <span class="site-header-eyebrow">Conversations</span>
+        <h1>Eval Runs</h1>
+        <p class="site-header-subtitle">Comparaison des runs behavioral evals — baselines, scores moyens et détail par case.</p>
+      </div>
+      <div class="site-header-meta" id="header-meta"></div>
+    </div>
+  </header>
+  <main>
+    <section class="grid grid-4 section" id="stats-row"></section>
+
+    <section class="card section">
+      <h2>Comparaison</h2>
+      <div class="controls">
+        <label>Référence (A) <select id="run-a"></select></label>
+        <label>À comparer (B) <select id="run-b"></select></label>
+        <button id="swap-runs" type="button">Inverser</button>
+        <button id="use-baseline" type="button">Baseline → dernier run</button>
+      </div>
+      <div class="controls">
+        <label>Dataset <select id="filter-dataset"><option value="">Tous les datasets</option></select></label>
+        <label>Case <select id="filter-case"><option value="">Toutes les cases</option></select></label>
+        <label class="filter-changes-label">
+          <input id="filter-changes-only" type="checkbox" />
+          Changements uniquement
+        </label>
+      </div>
+      <div id="change-context"></div>
+      <div id="comparison-summary" class="muted"></div>
+      <div id="dataset-summary"></div>
+      <div class="run-meta section" id="run-meta"></div>
+      <div class="grid grid-4 section" id="comparison-stats"></div>
+    </section>
+
+    <section class="card section">
+      <h2>Détail par case</h2>
+      <div id="comparison-table"></div>
+    </section>
+
+    <section class="grid grid-2 section">
+      <div class="card">
+        <h2>Historique des runs</h2>
+        <div id="runs-list"></div>
+      </div>
+      <div class="card">
+        <h2>Baselines</h2>
+        <div id="baselines-list"></div>
+      </div>
+    </section>
+
+    <section class="card section">
+      <h2 id="run-b-detail-title" class="run-detail-title">Détail du run B</h2>
+      <div id="run-b-detail" class="muted">Sélectionnez un run B.</div>
+    </section>
+  </main>
+
+  <script id="eval-data" type="application/json">__EVAL_DATA_JSON__</script>
+  <script>
+    const payload = JSON.parse(document.getElementById("eval-data").textContent);
+    const recordsById = Object.fromEntries(payload.run_records.map((r) => [r.run_id, r]));
+    const datasetCatalog = payload.dataset_catalog || {};
+    const baselines = payload.baselines || {};
+    const baselineRunId = (baselines.main ?? Object.values(baselines)[0])?.run_id;
+
+    function pct(v) { return `${Math.round((v || 0) * 100)}%`; }
+    function pct1(v) { return `${((v || 0) * 100).toFixed(1)}%`; }
+    function fmtDate(iso) {
+      if (!iso) return "—";
+      try { return new Date(iso).toLocaleString("fr-FR"); } catch { return iso; }
+    }
+    function fmtMs(ms) {
+      if (!ms) return "—";
+      return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+    }
+    function runNote(run) {
+      return run?.comment || run?.label || "";
+    }
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+    function joinBr(items) {
+      return (items || []).map((item) => escapeHtml(item)).join("<br>");
+    }
+    function joinComma(items) {
+      const escaped = (items || []).map((item) => escapeHtml(item));
+      return escaped.length ? escaped.join(", ") : "—";
+    }
+    function shortRunId(id) {
+      if (!id) return "—";
+      const parts = id.split("_");
+      return parts.length > 1 ? parts.slice(0, -1).join("_") : id;
+    }
+    function optionLabel(entry) {
+      const note = entry.comment || entry.label;
+      const rate = pct(entry.overall_pass_rate);
+      const bl = entry.is_baseline ? " · baseline" : "";
+      const sid = escapeHtml(shortRunId(entry.run_id));
+      if (note) return `${escapeHtml(note)} (${rate})${bl} — ${sid}`;
+      return `${sid} (${rate})${bl}`;
+    }
+    function datasetDescription(dataset) {
+      return datasetCatalog[dataset]?.description || "";
+    }
+    function caseDescription(dataset, caseName) {
+      return datasetCatalog[dataset]?.cases?.[caseName] || "";
+    }
+    function caseNameCell(dataset, caseName) {
+      const desc = caseDescription(dataset, caseName);
+      const code = `<code>${escapeHtml(caseName)}</code>`;
+      if (!desc) return code;
+      return `<span class="case-name-wrap">${code}<span class="case-desc-icon" tabindex="0" data-tip="${escapeHtml(desc)}" aria-label="${escapeHtml(desc)}">i</span></span>`;
+    }
+    function datasetHeaderHtml(dataset) {
+      const desc = datasetDescription(dataset);
+      const descHtml = desc
+        ? `<p class="dataset-desc">${escapeHtml(desc)}</p>`
+        : "";
+      return `<div class="dataset-header"><h3>${escapeHtml(dataset)}</h3>${descHtml}</div>`;
+    }
+    function changeChip(note) {
+      if (!note) return '<span class="change-empty">—</span>';
+      return `<span class="change-chip">${escapeHtml(note)}</span>`;
+    }
+    function renderChangeContext(beforeRun, afterRun) {
+      const el = document.getElementById("change-context");
+      if (!beforeRun || !afterRun) {
+        el.innerHTML = "";
+        return;
+      }
+      const noteA = runNote(beforeRun);
+      const noteB = runNote(afterRun);
+      if (!noteA && !noteB) {
+        el.innerHTML = "";
+        return;
+      }
+      const refA = noteA
+        ? `<div class="change-ref change-ref-baseline"><span class="change-ref-label">Référence (A)</span><div class="change-ref-text">${escapeHtml(noteA)}</div></div>`
+        : `<div class="change-ref change-ref-empty"><span class="change-ref-label">Référence (A)</span><div class="change-ref-text"><em>Aucune note</em></div></div>`;
+      const refB = noteB
+        ? `<div class="change-ref change-ref-highlight"><span class="change-ref-label">Changement testé (B)</span><div class="change-ref-text">${escapeHtml(noteB)}</div></div>`
+        : `<div class="change-ref change-ref-empty"><span class="change-ref-label">Run testé (B)</span><div class="change-ref-text"><em>Aucune note</em></div></div>`;
+      el.innerHTML = `
+        <div class="change-context-card">
+          <div class="change-context-title">Contexte du run</div>
+          <div class="change-context-body">
+            ${refA}
+            <span class="change-arrow" aria-hidden="true">→</span>
+            ${refB}
+          </div>
+        </div>`;
+    }
+    function statusBadge(passed) {
+      return passed
+        ? '<span class="badge badge-pass">PASS</span>'
+        : '<span class="badge badge-fail">FAIL</span>';
+    }
+    function difficultyBadge(difficulty) {
+      if (!difficulty) return "—";
+      const cls = {
+        easy: "badge-diff-easy",
+        medium: "badge-diff-medium",
+        hard: "badge-diff-hard",
+      }[difficulty] || "badge-neutral";
+      return `<span class="badge ${cls}">${escapeHtml(difficulty)}</span>`;
+    }
+    function selectRuns({ runA, runB } = {}) {
+      if (runA) document.getElementById("run-a").value = runA;
+      if (runB) document.getElementById("run-b").value = runB;
+      renderComparison({ resetFilters: true });
+      document.getElementById("run-a").closest("section")
+        .scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    function avgScoresEqual(bScores, aScores) {
+      const b = bScores || {};
+      const a = aScores || {};
+      const keys = new Set([...Object.keys(b), ...Object.keys(a)]);
+      for (const key of keys) {
+        if (b[key] !== a[key]) return false;
+      }
+      return true;
+    }
+    function caseDelta(b, a) {
+      const isChanged = b.passed !== a.passed || b.pass_rate !== a.pass_rate
+        || !avgScoresEqual(b.avg_scores, a.avg_scores);
+      if (!isChanged) return { kind: "stable", badge: '<span class="badge badge-neutral">=</span>' };
+      if (b.passed && !a.passed) return { kind: "regression", badge: '<span class="badge badge-fail">↓ régression</span>' };
+      if (!b.passed && a.passed) return { kind: "improvement", badge: '<span class="badge badge-pass">↑ amélioration</span>' };
+      if (!b.passed && !a.passed && a.pass_rate > b.pass_rate) {
+        return { kind: "partial_up", badge: '<span class="badge badge-partial-up">↑ partiel</span>' };
+      }
+      if (!b.passed && !a.passed && a.pass_rate < b.pass_rate) {
+        return { kind: "partial_down", badge: '<span class="badge badge-partial-down">↓ partiel</span>' };
+      }
+      return { kind: "changed", badge: '<span class="badge badge-warn">~ changé</span>' };
+    }
+    function getDeltaDisplay(delta) {
+      if (delta > 0) return { className: "delta-pos", label: "amélioration", signedPp: `+${Math.round(delta * 100)}pp` };
+      if (delta < 0) return { className: "delta-neg", label: "régression", signedPp: `${Math.round(delta * 100)}pp` };
+      return { className: "", label: "stable", signedPp: "0pp" };
+    }
+    function getComparisonRowClass(kind, passedAfter) {
+      if (kind === "stable") return passedAfter ? "row-pass" : "row-fail";
+      return "row-changed";
+    }
+    function renderRepeatDeltaCell(beforeCase, afterCase) {
+      if (beforeCase.repeats > 1 || afterCase.repeats > 1) {
+        return `${pct1(beforeCase.pass_rate)} → ${pct1(afterCase.pass_rate)}`;
+      }
+      return beforeCase.passed === afterCase.passed ? "=" : "changement";
+    }
+    function renderFailReasonsRow(rowClass, afterCase) {
+      const reasons = Object.entries(afterCase.reasons || {}).filter(([, reason]) => reason && !afterCase.passed);
+      if (!reasons.length) return "";
+      const details = reasons.map(([ev, reason]) =>
+        `<details><summary>Raison B (${escapeHtml(ev)})</summary>
+         <div class="reason fail">${escapeHtml(reason)}</div></details>`
+      ).join("");
+      return `<tr class="${rowClass}"><td colspan="8">${details}</td></tr>`;
+    }
+    function renderComparisonDatasetTable(dataset, rows) {
+      const beforeDataset = rows[0].bd;
+      const afterDataset = rows[0].ad;
+      const hashWarn = rows[0].hashMatch
+        ? ""
+        : '<p class="badge badge-warn">Dataset modifié entre les deux runs</p>';
+      const datasetDelta = afterDataset.pass_rate - beforeDataset.pass_rate;
+      const datasetDeltaDisplay = getDeltaDisplay(datasetDelta);
+
+      const bodyRows = rows.map(({ name, b, a, kind }) => {
+        const rowClass = getComparisonRowClass(kind, a.passed);
+        const deltaBadge = kind === "coverage_gap"
+          ? '<span class="badge badge-fail">✕ absente</span>'
+          : caseDelta(b, a).badge;
+        const reasonRow = renderFailReasonsRow(rowClass, a);
+        const scoreLines = Object.entries(a.avg_scores || {})
+          .map(([scoreName, scoreValue]) => `${escapeHtml(scoreName)}=${escapeHtml(scoreValue)}`)
+          .join("<br>") || "—";
+        const repeatDelta = renderRepeatDeltaCell(b, a);
+        return `
+          <tr class="${rowClass}">
+            <td>${caseNameCell(dataset, name)}</td>
+            <td>${difficultyBadge(a.metadata?.difficulty)}</td>
+            <td>${escapeHtml(a.metadata?.category || "—")}</td>
+            <td>${statusBadge(b.passed)}</td>
+            <td>${statusBadge(a.passed)}</td>
+            <td>${repeatDelta}</td>
+            <td>${scoreLines}</td>
+            <td>${deltaBadge}</td>
+          </tr>${reasonRow}`;
+      }).join("");
+
+      return `<div style="margin-bottom:1.5rem;">
+        ${datasetHeaderHtml(dataset)}
+        ${hashWarn}
+        <p class="muted">
+          Pass rate: ${pct(beforeDataset.pass_rate)} (${beforeDataset.cases_passed}/${beforeDataset.cases_total})
+          → ${pct(afterDataset.pass_rate)} (${afterDataset.cases_passed}/${afterDataset.cases_total})
+          <span class="${datasetDeltaDisplay.className}">(${datasetDeltaDisplay.signedPp})</span>
+          · Avg repeat: ${pct1(beforeDataset.pass_rate_avg_repeats)} → ${pct1(afterDataset.pass_rate_avg_repeats)}
+        </p>
+        <table>
+          <thead><tr>
+            <th>Case</th><th>Diff.</th><th>Catégorie</th>
+            <th>A</th><th>B</th><th>Repeat A→B</th><th>Scores B</th><th>Δ</th>
+          </tr></thead>
+          <tbody>${bodyRows}</tbody>
+        </table>
+      </div>`;
+    }
+    function runParamsHtml(run, title, { noteStyle = null } = {}) {
+      if (!run) return "";
+      const p = run.params || {};
+      const g = run.git || {};
+      const note = runNote(run);
+      let noteBlock = "";
+      if (note && noteStyle === "change") {
+        noteBlock = `<p class="run-change-note">${escapeHtml(note)}</p>`;
+      } else if (note && noteStyle === "baseline") {
+        noteBlock = `<p class="run-baseline-note">${escapeHtml(note)}</p>`;
+      }
+      return `
+        <div class="card" style="padding:.75rem 1rem;">
+          <h3>${escapeHtml(title)}</h3>
+          ${noteBlock}
+          <dl class="param-grid">
+            <dt>Run ID</dt><dd><code>${escapeHtml(run.run_id)}</code></dd>
+            <dt>Date</dt><dd>${escapeHtml(fmtDate(run.created_at))}</dd>
+            <dt>Modèle</dt><dd><code>${escapeHtml(p.model_hrid || "?")}</code></dd>
+            <dt>Modèle juge</dt><dd><code>${escapeHtml(p.judge_model_hrid || "—")}</code></dd>
+            <dt>LLM judge</dt><dd>${p.llm_judge ? "oui" : "non"}</dd>
+            <dt>Runs / case</dt><dd>${escapeHtml(p.runs_per_case || 1)}</dd>
+            <dt>Datasets</dt><dd>${joinComma(p.datasets)}</dd>
+            <dt>Case filter</dt><dd>${escapeHtml(p.case_filter || "—")}</dd>
+            <dt>Git commit</dt><dd><code>${escapeHtml(g.commit_short || g.commit || "?")}</code>${g.dirty ? ' <span class="badge badge-warn">dirty</span>' : ""}</dd>
+            <dt>Branche</dt><dd>${escapeHtml(g.branch || "?")}</dd>
+            <dt>Pass rate global</dt><dd><strong>${pct(run.summary?.overall_pass_rate)}</strong></dd>
+          </dl>
+        </div>`;
+    }
+
+    function renderLastRunStatValue() {
+      const runs = payload.runs || [];
+      if (!runs[0]) return "—";
+
+      const latestRate = runs[0].overall_pass_rate
+        ?? recordsById[runs[0].run_id]?.summary?.overall_pass_rate
+        ?? 0;
+      const latestPct = pct(latestRate);
+
+      if (!baselineRunId) {
+        return latestPct;
+      }
+
+      const baselineRate = recordsById[baselineRunId]?.summary?.overall_pass_rate
+        ?? payload.runs.find((run) => run.run_id === baselineRunId)?.overall_pass_rate;
+      if (baselineRate == null) {
+        return latestPct;
+      }
+
+      const delta = latestRate - baselineRate;
+      if (delta > 0) {
+        return `<span class="stat-trend stat-trend-up">${latestPct}<span class="stat-trend-icon" aria-hidden="true">↑</span></span>`;
+      }
+      if (delta < 0) {
+        return `<span class="stat-trend stat-trend-down">${latestPct}<span class="stat-trend-icon" aria-hidden="true">↓</span></span>`;
+      }
+      return latestPct;
+    }
+
+    function renderHeaderMeta() {
+      const runs = payload.runs || [];
+      const el = document.getElementById("header-meta");
+      if (!el) return;
+
+      const pills = [
+        `<span class="header-pill"><strong>${runs.length}</strong> run${runs.length === 1 ? "" : "s"} sauvegardé${runs.length === 1 ? "" : "s"}</span>`,
+        ...(baselineRunId ? ['<span class="header-pill">Baseline définie</span>'] : []),
+        ...(runs[0]?.created_at
+          ? [`<span class="header-pill">Dernier run · ${escapeHtml(fmtDate(runs[0].created_at))}</span>`]
+          : []),
+      ];
+      el.innerHTML = pills.join("");
+    }
+
+    function summaryBarCell(rate, fillClass) {
+      if (rate == null) return '<span class="muted">—</span>';
+      return `<div class="ds-bar">
+        <div class="ds-bar-fill ${fillClass}" style="width:${Math.round(rate * 100)}%"></div>
+        <span class="ds-bar-label">${pct(rate)}</span>
+      </div>`;
+    }
+
+    function summaryRow(label, rateA, rateB, { isTotal = false } = {}) {
+      const pp = rateA != null && rateB != null ? Math.round((rateB - rateA) * 100) : null;
+      const deltaHtml = pp == null
+        ? '<span class="muted">—</span>'
+        : pp === 0
+          ? '<span class="muted">=</span>'
+          : `<span class="${pp > 0 ? "delta-pos" : "delta-neg"}">${pp > 0 ? "+" : ""}${pp}pp</span>`;
+      const fillB = pp == null || pp === 0 ? "" : pp > 0 ? "ds-bar-up" : "ds-bar-down";
+      return `<tr class="${isTotal ? "ds-total" : ""}">
+        <td>${escapeHtml(label)}</td>
+        <td>${summaryBarCell(rateA, "ds-bar-a")}</td>
+        <td>${summaryBarCell(rateB, fillB)}</td>
+        <td class="col-ds-delta">${deltaHtml}</td>
+      </tr>`;
+    }
+
+    function renderDatasetSummary(result) {
+      const el = document.getElementById("dataset-summary");
+      if (!result) {
+        el.innerHTML = "";
+        return;
+      }
+      const names = [...new Set([
+        ...Object.keys(result.before.datasets || {}),
+        ...Object.keys(result.after.datasets || {}),
+      ])].sort();
+      const rows = names.map((name) => summaryRow(
+        name,
+        result.before.datasets?.[name]?.pass_rate ?? null,
+        result.after.datasets?.[name]?.pass_rate ?? null,
+      ));
+      rows.push(summaryRow(
+        "Total",
+        result.before.summary?.overall_pass_rate ?? null,
+        result.after.summary?.overall_pass_rate ?? null,
+        { isTotal: true },
+      ));
+      el.innerHTML = `<table class="ds-summary">
+        <thead><tr><th>Dataset</th><th>Référence (A)</th><th>Run testé (B)</th><th>Δ</th></tr></thead>
+        <tbody>${rows.join("")}</tbody>
+      </table>`;
+    }
+
+    function renderStats() {
+      const runs = payload.runs || [];
+      const baselines = Object.keys(payload.baselines || {});
+      document.getElementById("stats-row").innerHTML = [
+        ["Runs sauvegardés", runs.length, false],
+        ["Baselines", baselines.length, false],
+        ["Dernier run", renderLastRunStatValue(), true],
+        ["Baseline", baselineRunId ? pct(recordsById[baselineRunId]?.summary?.overall_pass_rate) : "—", false],
+      ].map(([label, value, isHtml]) => `
+        <div class="card stat"><div class="value">${isHtml ? value : escapeHtml(value)}</div><div class="label">${label}</div></div>`
+      ).join("");
+    }
+
+    function renderRuns() {
+      const runs = payload.runs || [];
+      const baselineRate = runs.find((run) => run.run_id === baselineRunId)?.overall_pass_rate
+        ?? recordsById[baselineRunId]?.summary?.overall_pass_rate;
+
+      function baselineDeltaCell(run) {
+        if (baselineRate == null || run.run_id === baselineRunId) return '<span class="muted">—</span>';
+        const delta = (run.overall_pass_rate || 0) - baselineRate;
+        const pp = Math.round(delta * 100);
+        if (pp === 0) return '<span class="muted">=</span>';
+        return `<span class="${pp > 0 ? "delta-pos" : "delta-neg"}">${pp > 0 ? "+" : ""}${pp}pp</span>`;
+      }
+
+      document.getElementById("runs-list").innerHTML = runs.length
+        ? `<div class="table-wrap runs-table-wrap"><table class="runs-table">
+            <thead><tr>
+              <th class="col-cmp">A/B</th><th class="col-change">Changement</th><th class="col-date">Date</th><th class="col-pass">Pass</th><th class="col-delta">Δ base</th><th class="col-model">Modèle</th><th class="col-judge">Juge</th><th class="col-runs">N</th><th class="col-datasets">Datasets</th>
+            </tr></thead>
+            <tbody>${runs.map((run) => {
+              const note = run.comment || run.label;
+              const rid = escapeHtml(run.run_id);
+              return `
+              <tr class="${run.is_baseline ? "row-baseline" : ""}">
+                <td class="col-cmp">
+                  <button type="button" class="mini-btn" data-run="${rid}" data-slot="a" title="Sélectionner comme référence (A)">A</button>
+                  <button type="button" class="mini-btn" data-run="${rid}" data-slot="b" title="Sélectionner comme run à comparer (B)">B</button>
+                </td>
+                <td class="col-change">
+                  ${changeChip(note)}
+                  ${run.is_baseline ? '<br><span class="badge badge-baseline">baseline</span>' : ""}
+                  <br><code class="run-id-sub">${rid}</code>
+                </td>
+                <td class="col-date muted">${escapeHtml(fmtDate(run.created_at))}</td>
+                <td class="col-pass"><strong>${pct(run.overall_pass_rate)}</strong></td>
+                <td class="col-delta">${baselineDeltaCell(run)}</td>
+                <td class="col-model"><code>${escapeHtml(run.model_hrid || "?")}</code></td>
+                <td class="col-judge"><code>${escapeHtml(run.judge_model_hrid || "—")}</code></td>
+                <td class="col-runs">${escapeHtml(run.runs_per_case || 1)}</td>
+                <td class="col-datasets">${joinComma(run.datasets)}</td>
+              </tr>`;
+            }).join("")}
+            </tbody></table></div>`
+        : '<p class="muted">Aucun run. <code>make eval EVAL_ARGS=--save</code></p>';
+
+      document.querySelectorAll("#runs-list .mini-btn").forEach((btn) => {
+        btn.addEventListener("click", () => selectRuns(
+          btn.dataset.slot === "a" ? { runA: btn.dataset.run } : { runB: btn.dataset.run }
+        ));
+      });
+    }
+
+    function renderBaselines() {
+      const baselines = Object.values(payload.baselines || {});
+      document.getElementById("baselines-list").innerHTML = baselines.length
+        ? baselines.map((b) => {
+            const rec = recordsById[b.run_id];
+            return `<div style="margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--border);">
+              <strong>${escapeHtml(b.name)}</strong>${b.label ? ` — ${escapeHtml(b.label)}` : ""}
+              ${rec && runNote(rec) ? `<p class="run-change-note" style="margin-top:.5rem;margin-bottom:0;">${escapeHtml(runNote(rec))}</p>` : ""}
+              <dl class="param-grid" style="margin-top:.5rem;">
+                <dt>Run</dt><dd><code>${escapeHtml(b.run_id)}</code></dd>
+                <dt>Commit</dt><dd><code>${escapeHtml(b.git_commit || "?")}</code></dd>
+                <dt>Modèle</dt><dd><code>${escapeHtml(b.model_hrid || "?")}</code></dd>
+                <dt>Modèle juge</dt><dd><code>${escapeHtml(b.judge_model_hrid || "—")}</code></dd>
+                <dt>Pass rate</dt><dd>${rec ? pct(rec.summary?.overall_pass_rate) : "?"}</dd>
+                <dt>Créée le</dt><dd>${escapeHtml(fmtDate(b.created_at))}</dd>
+              </dl>
+            </div>`;
+          }).join("")
+        : "<p class='muted'>Aucune baseline. <code>make eval-baseline</code></p>";
+    }
+
+    // Same convention as compare.py: a case missing from run B counts as failed
+    // (coverage gap), and --fail-on-regression treats it as a regression.
+    function coverageGapCase(beforeCase) {
+      return {
+        name: beforeCase.name,
+        metadata: beforeCase.metadata,
+        repeats: beforeCase.repeats,
+        pass_rate: 0,
+        passed: false,
+        avg_scores: {},
+        reasons: { _coverage: "case absente du run B (coverage gap)" },
+      };
+    }
+
+    function compareDatasetCaseRows(before, after, dataset, bd, ad) {
+      const hashMatch = before.dataset_hashes?.[dataset] === after.dataset_hashes?.[dataset];
+      const bCases = Object.fromEntries(bd.cases.map((c) => [c.name, c]));
+      const aCases = Object.fromEntries(ad.cases.map((c) => [c.name, c]));
+      const rows = [];
+      for (const name of [...new Set([...Object.keys(bCases), ...Object.keys(aCases)])].sort()) {
+        const b = bCases[name];
+        const a = aCases[name];
+        if (!b) continue; // new case in B: ignored, like compare.py
+        if (!a) {
+          rows.push({ dataset, name, b, a: coverageGapCase(b), kind: "coverage_gap", hashMatch, bd, ad });
+          continue;
+        }
+        rows.push({ dataset, name, b, a, kind: caseDelta(b, a).kind, hashMatch, bd, ad });
+      }
+      return rows;
+    }
+
+    function compareRuns(beforeId, afterId) {
+      const before = recordsById[beforeId];
+      const after = recordsById[afterId];
+      if (!before || !after) return null;
+
+      const datasets = [...new Set([
+        ...Object.keys(before.datasets || {}),
+        ...Object.keys(after.datasets || {}),
+      ])].sort();
+
+      const rows = [];
+      for (const dataset of datasets) {
+        const bd = before.datasets[dataset];
+        const ad = after.datasets[dataset];
+        if (!bd) continue; // dataset only in B: nothing to regress against, like compare.py
+        // Dataset missing from B: every case is a coverage gap (compare.py semantics).
+        const adOrEmpty = ad || {
+          pass_rate: 0,
+          pass_rate_avg_repeats: 0,
+          cases_passed: 0,
+          cases_total: bd.cases_total,
+          cases: [],
+        };
+        rows.push(...compareDatasetCaseRows(before, after, dataset, bd, adOrEmpty));
+      }
+
+      return { before, after, datasets, ...computeComparisonStats(rows), rows };
+    }
+
+    function computeComparisonStats(rows) {
+      let regressions = 0, improvements = 0, partialUp = 0, partialDown = 0, stable = 0, changed = 0, coverageGaps = 0;
+      for (const { kind } of rows) {
+        const isChanged = kind !== "stable";
+        if (isChanged) changed++;
+        if (kind === "regression") regressions++;
+        else if (kind === "improvement") improvements++;
+        else if (kind === "partial_up") partialUp++;
+        else if (kind === "partial_down") partialDown++;
+        else if (kind === "coverage_gap") coverageGaps++;
+        else if (kind === "stable") stable++;
+      }
+      return { regressions, improvements, partialUp, partialDown, stable, changed, coverageGaps };
+    }
+
+    function isChangesOnlyFilter() {
+      return document.getElementById("filter-changes-only").checked;
+    }
+
+    function populateComparisonFilters(rows, { reset = false } = {}) {
+      const datasetSelect = document.getElementById("filter-dataset");
+      const caseSelect = document.getElementById("filter-case");
+      const prevDataset = reset ? "" : datasetSelect.value;
+      const prevCase = reset ? "" : caseSelect.value;
+      const changesOnly = isChangesOnlyFilter();
+
+      const rowsForDatasets = changesOnly
+        ? rows.filter((row) => row.kind !== "stable")
+        : rows;
+      const datasets = [...new Set(rowsForDatasets.map((row) => row.dataset))].sort();
+      datasetSelect.innerHTML = '<option value="">Tous les datasets</option>' +
+        datasets.map((dataset) => `<option value="${escapeHtml(dataset)}">${escapeHtml(dataset)}</option>`).join("");
+      datasetSelect.value = datasets.includes(prevDataset) ? prevDataset : "";
+
+      const rowsForCases = rowsForDatasets.filter((row) =>
+        !datasetSelect.value || row.dataset === datasetSelect.value
+      );
+      const cases = [...new Set(rowsForCases.map((row) => row.name))].sort();
+      caseSelect.innerHTML = '<option value="">Toutes les cases</option>' +
+        cases.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("");
+      caseSelect.value = cases.includes(prevCase) ? prevCase : "";
+    }
+
+    function filterComparisonRows(rows) {
+      const dataset = document.getElementById("filter-dataset").value;
+      const caseName = document.getElementById("filter-case").value;
+      const changesOnly = isChangesOnlyFilter();
+      return rows.filter((row) => {
+        if (changesOnly && row.kind === "stable") return false;
+        if (dataset && row.dataset !== dataset) return false;
+        if (caseName && row.name !== caseName) return false;
+        return true;
+      });
+    }
+
+    function comparisonFilterLabel() {
+      const dataset = document.getElementById("filter-dataset").value;
+      const caseName = document.getElementById("filter-case").value;
+      const changesOnly = isChangesOnlyFilter();
+      if (!dataset && !caseName && !changesOnly) return "";
+      const parts = [
+        changesOnly && "changements uniquement",
+        dataset && `dataset=${dataset}`,
+        caseName && `case=${caseName}`,
+      ].filter(Boolean);
+      return ` · Filtre: ${parts.join(", ")}`;
+    }
+
+    function renderCaseReasonRows(c, reasons) {
+      if (!reasons.length) return "";
+      const details = reasons.map(([ev, reason]) =>
+        `<details><summary>Raison (${escapeHtml(ev)})</summary>
+          <div class="reason ${c.passed ? "" : "fail"}">${escapeHtml(reason)}</div></details>`
+      ).join("");
+      return `<tr><td colspan="7">${details}</td></tr>`;
+    }
+
+    function renderCaseDetailRow(dsName, c) {
+      const reasons = Object.entries(c.reasons || {}).filter(([, r]) => r);
+      const repeatCell = c.repeats > 1 ? `${pct1(c.pass_rate)} (${c.repeats}×)` : "—";
+      const scoresCell = Object.entries(c.avg_scores || {})
+        .map(([n, s]) => `${escapeHtml(n)}=${escapeHtml(s)}`)
+        .join("<br>") || "—";
+      return `<tr class="${c.passed ? "row-pass" : "row-fail"}">
+            <td>${caseNameCell(dsName, c.name)}</td>
+            <td>${difficultyBadge(c.metadata?.difficulty)}</td>
+            <td>${escapeHtml(c.metadata?.category || "—")}</td>
+            <td>${statusBadge(c.passed)}</td>
+            <td>${repeatCell}</td>
+            <td>${scoresCell}</td>
+            <td>${escapeHtml(fmtMs(c.task_duration_ms))}</td>
+          </tr>${renderCaseReasonRows(c, reasons)}`;
+    }
+
+    function renderDatasetDetail(dsName, ds) {
+      const dsDesc = datasetDescription(dsName);
+      const descHtml = dsDesc ? `<p class="dataset-desc">${escapeHtml(dsDesc)}</p>` : "";
+      const evaluatorsLine = Object.entries(ds.evaluators || {})
+        .map(([n, e]) => `${escapeHtml(n)}: ${pct1(e.pass_rate)}`)
+        .join(" · ");
+      const caseRows = ds.cases.map((c) => renderCaseDetailRow(dsName, c)).join("");
+      return `<div class="dataset-header"><h3>${escapeHtml(dsName)} — ${ds.cases_passed}/${ds.cases_total} pass (${pct(ds.pass_rate)})</h3></div>
+        ${descHtml}
+        <p class="muted">Avg repeat pass: ${pct1(ds.pass_rate_avg_repeats)} · ${evaluatorsLine}</p>
+        <table><thead><tr>
+          <th>Case</th><th>Difficulté</th><th>Catégorie</th><th>Status</th>
+          <th>Repeat pass</th><th>Scores</th><th>Durée</th>
+        </tr></thead><tbody>${caseRows}</tbody></table>`;
+    }
+
+    function renderRunDetail(run) {
+      if (!run) return '<p class="muted">—</p>';
+      return Object.entries(run.datasets || {})
+        .map(([dsName, ds]) => renderDatasetDetail(dsName, ds))
+        .join("");
+    }
+
+    function renderComparison({ resetFilters = false } = {}) {
+      const runA = document.getElementById("run-a").value;
+      const runB = document.getElementById("run-b").value;
+      const summary = document.getElementById("comparison-summary");
+      const meta = document.getElementById("run-meta");
+      const stats = document.getElementById("comparison-stats");
+      const table = document.getElementById("comparison-table");
+      const detail = document.getElementById("run-b-detail");
+
+      const detailTitle = document.getElementById("run-b-detail-title");
+      const changeContext = document.getElementById("change-context");
+      const dsSummary = document.getElementById("dataset-summary");
+
+      if (!runA || !runB) {
+        summary.textContent = "Sélectionnez deux runs.";
+        changeContext.innerHTML = "";
+        meta.innerHTML = stats.innerHTML = table.innerHTML = detail.innerHTML = "";
+        dsSummary.innerHTML = "";
+        detailTitle.textContent = "Détail du run B";
+        return;
+      }
+
+      const recordA = recordsById[runA];
+      const recordB = recordsById[runB];
+      renderChangeContext(recordA, recordB);
+      meta.innerHTML = runParamsHtml(recordA, "Référence (A)", { noteStyle: "baseline" }) +
+        runParamsHtml(recordB, "À comparer (B)", { noteStyle: "change" });
+      detail.innerHTML = renderRunDetail(recordB);
+      const noteB = runNote(recordB);
+      detailTitle.textContent = noteB ? `Détail — ${noteB}` : "Détail du run B";
+
+      if (runA === runB) {
+        summary.innerHTML = "Sélectionnez deux runs <strong>différents</strong> pour comparer.";
+        stats.innerHTML = table.innerHTML = dsSummary.innerHTML = "";
+        return;
+      }
+
+      const result = compareRuns(runA, runB);
+      if (!result) {
+        summary.textContent = "Impossible de charger un des runs.";
+        stats.innerHTML = table.innerHTML = dsSummary.innerHTML = "";
+        return;
+      }
+
+      renderDatasetSummary(result);
+
+      if (!result.rows.length) {
+        populateComparisonFilters([], { reset: true });
+        summary.innerHTML = "Aucun dataset en commun entre les deux runs.";
+        stats.innerHTML = table.innerHTML = "";
+        return;
+      }
+
+      populateComparisonFilters(result.rows, { reset: resetFilters });
+      const filteredRows = filterComparisonRows(result.rows);
+      const filteredStats = computeComparisonStats(filteredRows);
+
+      const beforeRate = result.before.summary?.overall_pass_rate || 0;
+      const afterRate = result.after.summary?.overall_pass_rate || 0;
+      const delta = afterRate - beforeRate;
+      const deltaDisplay = getDeltaDisplay(delta);
+
+      const coverageNote = filteredStats.coverageGaps
+        ? ` · <span class="delta-neg">${filteredStats.coverageGaps} case(s) absente(s) du run B</span>`
+        : "";
+      summary.innerHTML = `
+        Pass rate global <strong>${pct(beforeRate)} → ${pct(afterRate)}</strong>
+        <span class="${deltaDisplay.className}">(${deltaDisplay.signedPp}, ${deltaDisplay.label})</span>
+        · <code>${escapeHtml(shortRunId(runB))}</code> vs <code>${escapeHtml(shortRunId(runA))}</code>
+        · ${filteredRows.length}/${result.rows.length} case(s) affichée(s)${escapeHtml(comparisonFilterLabel())}${coverageNote}`;
+
+      stats.innerHTML = [
+        ["Régressions", filteredStats.regressions, "delta-neg"],
+        ["Améliorations", filteredStats.improvements, "delta-pos"],
+        ["↑ partiel", filteredStats.partialUp, "delta-pos"],
+        ["↓ partiel", filteredStats.partialDown, "delta-neg"],
+        ["Cases manquantes", filteredStats.coverageGaps, "delta-neg"],
+        ["Stables", filteredStats.stable, ""],
+      ].map(([label, value, cls]) => `
+        <div class="card stat">
+          <div class="value ${cls}">${value}</div>
+          <div class="label">${label}</div>
+        </div>`).join("");
+
+      if (!filteredRows.length) {
+        table.innerHTML = "<p class='muted'>Aucune case ne correspond aux filtres sélectionnés.</p>";
+        return;
+      }
+
+      const byDataset = {};
+      for (const row of filteredRows) {
+        if (!byDataset[row.dataset]) byDataset[row.dataset] = [];
+        byDataset[row.dataset].push(row);
+      }
+      table.innerHTML = Object.entries(byDataset)
+        .map(([dataset, rows]) => renderComparisonDatasetTable(dataset, rows))
+        .join("");
+    }
+
+    function initSelectors() {
+      const runs = payload.runs || [];
+      const opts = runs.map((r) => `<option value="${escapeHtml(r.run_id)}">${optionLabel(r)}</option>`).join("");
+      document.getElementById("run-a").innerHTML = opts;
+      document.getElementById("run-b").innerHTML = opts;
+
+      if (baselineRunId && runs.some((r) => r.run_id === baselineRunId)) {
+        document.getElementById("run-a").value = baselineRunId;
+        document.getElementById("run-b").value = runs[0].run_id;
+      } else if (runs.length > 1) {
+        document.getElementById("run-a").value = runs[1].run_id;
+        document.getElementById("run-b").value = runs[0].run_id;
+      }
+
+      const onRunChange = () => renderComparison({ resetFilters: true });
+      document.getElementById("run-a").addEventListener("change", onRunChange);
+      document.getElementById("run-b").addEventListener("change", onRunChange);
+      document.getElementById("swap-runs").addEventListener("click", () => {
+        const a = document.getElementById("run-a"), b = document.getElementById("run-b");
+        [a.value, b.value] = [b.value, a.value];
+        renderComparison({ resetFilters: true });
+      });
+      document.getElementById("use-baseline").addEventListener("click", () => {
+        if (baselineRunId) document.getElementById("run-a").value = baselineRunId;
+        if (runs[0]) document.getElementById("run-b").value = runs[0].run_id;
+        renderComparison({ resetFilters: true });
+      });
+      document.getElementById("filter-dataset").addEventListener("change", () => {
+        document.getElementById("filter-case").value = "";
+        renderComparison();
+      });
+      document.getElementById("filter-case").addEventListener("change", renderComparison);
+      document.getElementById("filter-changes-only").addEventListener("change", () => {
+        document.getElementById("filter-case").value = "";
+        renderComparison();
+      });
+    }
+
+    renderHeaderMeta();
+    renderStats();
+    renderRuns();
+    renderBaselines();
+    initSelectors();
+    renderComparison();
+  </script>
+</body>
+</html>

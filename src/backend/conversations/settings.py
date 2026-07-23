@@ -698,6 +698,11 @@ class Base(BraveSettings, Configuration):
     LLM_DEFAULT_MODEL_HRID = values.Value(
         "default-model", environ_name="LLM_DEFAULT_MODEL_HRID", environ_prefix=None
     )
+    LLM_EVAL_JUDGE_MODEL_HRID = values.Value(
+        "",
+        environ_name="LLM_EVAL_JUDGE_MODEL_HRID",
+        environ_prefix=None,
+    )
     LLM_SUMMARIZATION_MODEL_HRID = values.Value(
         "default-summarization-model",
         environ_name="LLM_SUMMARIZATION_MODEL_HRID",
@@ -742,6 +747,8 @@ class Base(BraveSettings, Configuration):
             "Wrap formulas or any math notation between `\\(...\\)` and `\\[...\\]`, "
             "like `\\(x^2 + y^2 = z^2\\)` for inline formula or `\\[C_l\\]` for display. "
             "You must use Markdown to format your answers except when asked otherwise. "
+            "Never make up information. If you are missing information and cannot find "
+            "it using the available tools, let the user know."
         ),
         environ_name="AI_AGENT_INSTRUCTIONS",
         environ_prefix=None,
