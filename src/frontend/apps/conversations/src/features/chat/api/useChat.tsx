@@ -23,7 +23,7 @@ const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
 
   const searchParams = new URLSearchParams();
 
-  const { forceWebSearch, selectedModelHrid } =
+  const { forceWebSearch, selectedModelHrid, forcePlanMode } =
     useChatPreferencesStore.getState();
 
   if (forceWebSearch) {
@@ -32,6 +32,10 @@ const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
 
   if (selectedModelHrid) {
     searchParams.append('model_hrid', selectedModelHrid);
+  }
+
+  if (forcePlanMode) {
+    searchParams.append('force_plan', 'true');
   }
 
   if (searchParams.toString()) {

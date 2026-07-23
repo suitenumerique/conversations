@@ -89,6 +89,8 @@ export const Chat = ({
   const {
     forceWebSearch,
     toggleForceWebSearch,
+    forcePlanMode,
+    toggleForcePlanMode,
     selectedModelHrid,
     setSelectedModelHrid,
   } = useChatPreferencesStore();
@@ -337,8 +339,46 @@ export const Chat = ({
     }
   };
 
+  const [dismissedPlanForAssistantId, setDismissedPlanForAssistantId] =
+    useState<string | null>(null);
+  const [planAcceptPending, setPlanAcceptPending] = useState(false);
+  const [overlayLockedForUserId, setOverlayLockedForUserId] = useState<
+    string | null
+  >(null);
+  const [planAcceptedOnce, setPlanAcceptedOnce] = useState(false);
+  const lastMessage = messages[messages.length - 1];
+  const lastAssistantId =
+    messages
+      .slice()
+      .reverse()
+      .find((m) => m.role === 'assistant')?.id || null;
+  const lastAssistantIndexForPlan = messages.findLastIndex(
+    (m) => m.role === 'assistant',
+  );
+  const lastUserIndexForPlan = messages.findLastIndex((m) => m.role === 'user');
+  const lastUserId =
+    messages
+      .slice()
+      .reverse()
+      .find((m) => m.role === 'user')?.id || null;
+  const canShowForUser = lastUserId && overlayLockedForUserId !== lastUserId;
+  const showPlanOverlay =
+    forcePlanMode &&
+    lastAssistantId !== null &&
+    lastAssistantIndexForPlan > lastUserIndexForPlan &&
+    dismissedPlanForAssistantId !== lastAssistantId &&
+    canShowForUser &&
+    !planAcceptedOnce;
+
   const toggleWebSearch = () => {
     toggleForceWebSearch();
+  };
+
+  const togglePlanning = () => {
+    toggleForcePlanMode();
+    setPlanAcceptedOnce(false);
+    setDismissedPlanForAssistantId(null);
+    setOverlayLockedForUserId(null);
   };
 
   const handleStop = () => {
@@ -348,6 +388,46 @@ export const Chat = ({
   const handleSubmitWrapper = (event: FormEvent<HTMLFormElement>) => {
     void handleSubmit(event);
   };
+
+  const handlePlanAccept = () => {
+    if (lastAssistantId) {
+      setDismissedPlanForAssistantId(lastAssistantId);
+    }
+    if (lastUserId) {
+      setOverlayLockedForUserId(lastUserId);
+    }
+    setPlanAcceptedOnce(true);
+    handleInputChange({
+      target: { value: t('Plan accepté') },
+    } as ChangeEvent<HTMLTextAreaElement>);
+    // Wait for React to update the input, then submit when status is ready.
+    setPlanAcceptPending(true);
+  };
+
+  useEffect(() => {
+    if (planAcceptPending && status === 'ready') {
+      const form = document.createElement('form');
+      const syntheticFormEvent = {
+        preventDefault: () => {},
+        target: form,
+        currentTarget: form,
+      } as unknown as FormEvent<HTMLFormElement>;
+      void handleSubmitWrapper(syntheticFormEvent);
+      setPlanAcceptPending(false);
+      if (lastAssistantId) {
+        setDismissedPlanForAssistantId(lastAssistantId);
+      }
+    }
+  }, [planAcceptPending, status, lastAssistantId]);
+
+  useEffect(() => {
+    // When a new user message arrives, re-authorize overlay for that turn.
+    if (lastMessage?.role === 'user' && lastUserId) {
+      setOverlayLockedForUserId(null);
+      setDismissedPlanForAssistantId(null);
+      setPlanAcceptPending(false);
+    }
+  }, [lastMessage, lastUserId]);
 
   const handleRetry = () => {
     if (!lastSubmissionRef.current || !setMessages) {
@@ -1057,6 +1137,77 @@ export const Chat = ({
           />
         )}
       </Box>
+      {showPlanOverlay && lastAssistantId && (
+        <Box
+          $css={`
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: ${isMobile ? '110px' : '140px'};
+            display: flex;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 1400;
+          `}
+        >
+          <Box
+            $direction="row"
+            $align="center"
+            $gap="10px"
+            $padding={{ horizontal: 'md', vertical: 'xs' }}
+            $radius="12px"
+            $background="var(--c--contextuals--background--surface--primary)"
+            $css={`
+              border: 1px solid var(--c--contextuals--border--semantic--brand--tertiary);
+              pointer-events: auto;
+              box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+              max-width: 360px;
+              width: fit-content;
+              justify-content: center;
+              margin: 0 auto;
+            `}
+          >
+            <Icon
+              iconName="fact_check"
+              $theme="brand"
+              $variation="secondary"
+              $size="22px"
+            />
+            {!isMobile && (
+              <Text $theme="brand" $variation="secondary" $size="sm">
+                {t('Plan prêt — acceptez pour continuer')}
+              </Text>
+            )}
+            <Box
+              className="c__button--neutral action-chat-button"
+              $direction="row"
+              $align="center"
+              $gap="6px"
+              $padding={{ horizontal: 'sm', vertical: 'xs' }}
+              $css="cursor: pointer;"
+              onClick={handlePlanAccept}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handlePlanAccept();
+                }
+              }}
+              role="button"
+              tabIndex={0}
+            >
+              <Icon
+                iconName="check"
+                $theme="brand"
+                $variation="secondary"
+                $size="18px"
+              />
+              <Text $theme="brand" $variation="secondary">
+                {t('Accept')}
+              </Text>
+            </Box>
+          </Box>
+        </Box>
+      )}
       <Box
         $css={`
           position: relative;
@@ -1086,6 +1237,8 @@ export const Chat = ({
           onStop={handleStop}
           forceWebSearch={forceWebSearch}
           onToggleWebSearch={toggleWebSearch}
+          planModeEnabled={forcePlanMode}
+          onTogglePlanMode={togglePlanning}
           selectedModel={selectedModel}
           onModelSelect={handleModelSelect}
           isUploadingFiles={isUploadingFiles}

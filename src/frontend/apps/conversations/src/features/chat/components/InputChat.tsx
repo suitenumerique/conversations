@@ -50,6 +50,8 @@ interface InputChatProps {
   containerRef?: React.RefObject<HTMLDivElement | null>;
   forceWebSearch?: boolean;
   onToggleWebSearch?: () => void;
+  planModeEnabled?: boolean;
+  onTogglePlanMode?: () => void;
   onStop?: () => void;
   selectedModel?: LLMModel | null;
   onModelSelect?: (model: LLMModel) => void;
@@ -148,6 +150,8 @@ export const InputChat = ({
   containerRef,
   forceWebSearch = false,
   onToggleWebSearch,
+  planModeEnabled = false,
+  onTogglePlanMode,
   onStop,
   selectedModel,
   onModelSelect,
@@ -410,6 +414,11 @@ export const InputChat = ({
     textareaRef.current?.focus();
   }, [onToggleWebSearch]);
 
+  const handlePlanModeToggle = useCallback(() => {
+    onTogglePlanMode?.();
+    textareaRef.current?.focus();
+  }, [onTogglePlanMode]);
+
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const fileList = e.target.files;
@@ -604,9 +613,13 @@ export const InputChat = ({
                 isUploadingFiles={isUploadingFiles}
                 isMobile={isMobile}
                 forceWebSearch={forceWebSearch}
+                forcePlanMode={planModeEnabled}
                 onAttachClick={handleAttachClick}
                 onWebSearchToggle={
                   onToggleWebSearch ? handleWebSearchToggle : undefined
+                }
+                onPlanModeToggle={
+                  onTogglePlanMode ? handlePlanModeToggle : undefined
                 }
                 onModelSelect={onModelSelect}
                 selectedModel={selectedModel || null}

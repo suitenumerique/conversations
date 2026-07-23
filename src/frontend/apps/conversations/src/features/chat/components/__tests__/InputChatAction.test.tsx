@@ -214,4 +214,55 @@ describe('InputChatActions', () => {
     expect(screen.getByText('Research on the web')).toBeInTheDocument();
     expect(screen.queryByText('Web')).not.toBeInTheDocument();
   });
+
+  it('should render plan mode button when onPlanModeToggle is provided', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        onPlanModeToggle={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Plan tasks first' }),
+    ).toBeInTheDocument();
+  });
+
+  it('should not render plan mode button when onPlanModeToggle is undefined', () => {
+    render(
+      <InputChatActions {...defaultProps} onPlanModeToggle={undefined} />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: 'Plan tasks first' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('should call onPlanModeToggle when plan mode button is clicked', async () => {
+    const user = userEvent.setup();
+    const onPlanModeToggle = jest.fn();
+    render(
+      <InputChatActions
+        {...defaultProps}
+        onPlanModeToggle={onPlanModeToggle}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Plan tasks first' }));
+
+    expect(onPlanModeToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('should show "Plan" text on mobile when forcePlanMode is active', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        isMobile={true}
+        forcePlanMode={true}
+        onPlanModeToggle={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Plan')).toBeInTheDocument();
+  });
 });
