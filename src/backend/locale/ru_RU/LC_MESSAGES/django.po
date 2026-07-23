@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-23 14:51+0000\n"
-"PO-Revision-Date: 2026-06-24 18:13\n"
+"POT-Creation-Date: 2026-07-23 11:24+0000\n"
+"PO-Revision-Date: 2026-07-23 13:09\n"
 "Last-Translator: \n"
 "Language-Team: Russian\n"
 "Language: ru_RU\n"
@@ -129,7 +129,7 @@ msgstr "использовано"
 msgid "Number of times this code has been used"
 msgstr "Сколько раз этот код был использован"
 
-#: activation_codes/models.py:65 core/models.py:156 core/models.py:377
+#: activation_codes/models.py:65 core/models.py:156 core/models.py:406
 msgid "active"
 msgstr "активный"
 
@@ -210,6 +210,18 @@ msgstr "Код активации для проверки"
 msgid "Your account has been successfully activated"
 msgstr "Ваша учётная запись успешно активирована"
 
+#: chat/agent_rag/document_converter/guards.py:61
+msgid "Document expands beyond the allowed size and was rejected."
+msgstr "Документ выходит за рамки допустимого размера и был отклонён."
+
+#: chat/agent_rag/document_converter/guards.py:73
+msgid "Document has a suspicious compression ratio and was rejected."
+msgstr "Документ имеет сомнительный коэффициент сжатия и был отклонён."
+
+#: chat/agent_rag/document_converter/guards.py:98
+msgid "Document has too many pages and was rejected."
+msgstr "Документ содержит слишком много страниц и был отклонён."
+
 #: chat/agent_rag/document_converter/odt.py:30
 #, python-format
 msgid "Failed to parse ODT document: %(error)s"
@@ -243,53 +255,58 @@ msgstr "Служба недоступна"
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
 msgstr "В настоящее время сервис недоступен из-за чрезмерной нагрузки. Команда работает над скорейшим восстановлением работы Помощника."
 
-#: chat/clients/pydantic_ai.py:1000
+#: chat/clients/pydantic_ai.py:1153
 msgid "Internal Documentation of the AI Assistant"
 msgstr "Внутренняя документация ИИ помощника"
 
-#: chat/views/__init__.py:740
+#: chat/views/attachments.py:307
 #, python-format
 msgid "This project already has the maximum of %(cap)d images. Remove one before uploading another."
 msgstr "В этом проекте уже больше %(cap)d изображений. Удалите одно перед загрузкой другого."
 
-#: chat/views/__init__.py:756
+#: chat/views/attachments.py:323
 #, python-format
 msgid "This project already has the maximum of %(cap)d files. Remove one before uploading another."
 msgstr "В этом проекте уже больше %(cap)d файлов. Удалите один перед загрузкой другого."
 
-#: core/admin.py:29
+#: chat/views/edit_in_docs.py:35
+#, python-format
+msgid "[L'Assistant] New document %(date)s"
+msgstr ""
+
+#: core/admin.py:30
 msgid "Personal info"
 msgstr "Личные данные"
 
-#: core/admin.py:45
+#: core/admin.py:46
 msgid "Permissions"
 msgstr "Разрешения"
 
-#: core/admin.py:57
+#: core/admin.py:58
 msgid "Important dates"
 msgstr "Важные даты"
 
-#: core/admin.py:138
+#: core/admin.py:155
 msgid "Self documentation"
 msgstr "Встроенная документация"
 
-#: core/admin.py:141
+#: core/admin.py:158
 msgid "Markdown documentation about this service. Exposed to the conversation agent so it can answer questions users ask about the app itself."
 msgstr "Документация в формате Markdown об этой службе. Введена в состав агента, чтобы он мог ответить на вопросы пользователей о самом приложении."
 
-#: core/admin.py:149
+#: core/admin.py:166
 msgid "Status banner"
 msgstr "Индикатор состояния"
 
-#: core/admin.py:152
+#: core/admin.py:169
 msgid "Shown to all users at the top of the app. Leave title and content empty to disable."
 msgstr "Показывается всем пользователям в верхней части приложения. Для отключения оставьте заголовок и содержимое пустыми."
 
-#: core/admin.py:165
+#: core/admin.py:182
 msgid "Assistant"
 msgstr "Помощник"
 
-#: core/admin.py:189
+#: core/admin.py:206
 msgid "The MAINTENANCE_MODE environment variable is set: maintenance is forced ON regardless of the value below."
 msgstr "Переменная окружения MAINTENANCE_MODE установлена: обслуживание не зависимо от приведенного ниже значения."
 
@@ -501,39 +518,39 @@ msgstr "Если установлено, обслуживание неактив
 msgid "Maintenance Mode"
 msgstr "Режим обслуживания"
 
-#: core/models.py:372
+#: core/models.py:401
 msgid "email address"
 msgstr "адрес электронной почты"
 
-#: core/models.py:374
+#: core/models.py:403
 msgid "email address allowed to bypass the role requirement"
 msgstr "адрес электронной почты, которому разрешено обходить требование роли"
 
-#: core/models.py:379
+#: core/models.py:408
 msgid "inactive entries are ignored without being deleted"
 msgstr "неактивные записи игнорируются без их удаления"
 
-#: core/models.py:382
+#: core/models.py:411
 msgid "note"
 msgstr "примечание"
 
-#: core/models.py:384
+#: core/models.py:413
 msgid "optional reason for granting this bypass"
 msgstr "необязательная причина предоставления этого обхода"
 
-#: core/models.py:387
+#: core/models.py:416
 msgid "expires on"
 msgstr "истекает"
 
-#: core/models.py:390
+#: core/models.py:419
 msgid "optional date after which this bypass no longer applies"
 msgstr "необязательная дата, после которой этот обход больше не применяется"
 
-#: core/models.py:395
+#: core/models.py:424
 msgid "access bypass email"
 msgstr "эл. адрес обходного доступа"
 
-#: core/models.py:396
+#: core/models.py:425
 msgid "access bypass emails"
 msgstr "эл. почта для доступа с обходом"
 
