@@ -28,6 +28,7 @@ and this project adheres to
 - ♻️(front) consolidate input chat banners into a reusable component
 - ⬆️(dependencies) drop unused pydantic-ai extras
 - 💬(back) use a generic localised timestamped title for Docs exports
+- ⬆️(front) pin sharp to a libvips patched against GHSA-f88m-g3jw-g9cj
 
 ### Fixed
 
