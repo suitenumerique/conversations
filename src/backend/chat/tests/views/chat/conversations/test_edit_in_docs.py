@@ -1,7 +1,8 @@
 """Tests for the edit_in_docs view action."""
 
-import re
 from unittest.mock import MagicMock, patch
+
+from django.utils import formats, timezone
 
 import pytest
 import requests
@@ -366,14 +367,15 @@ def test_edit_in_docs_maps_docs_http_errors(
 # Title (_build_doc_title)
 # ---------------------------------------------------------------------------
 def test_build_doc_title_is_generic_and_timestamped():
-    """The title follows the "[L'Assistant] New document MM/DD/YYYY HH:MM" template.
+    """The title is the generic template plus the locale's SHORT_DATETIME_FORMAT date."""
+    # Format the date on both sides of the call so a minute rollover cannot flake.
+    before = formats.date_format(timezone.now(), "SHORT_DATETIME_FORMAT")
+    title = _build_doc_title()
+    after = formats.date_format(timezone.now(), "SHORT_DATETIME_FORMAT")
 
-    The date format string is itself translatable (French flips to DD/MM/YYYY);
-    under the test locale (English) the source format applies.
-    """
-    assert re.fullmatch(
-        r"\[L'Assistant\] New document \d{2}/\d{2}/\d{4} \d{2}:\d{2}",
-        _build_doc_title(),
+    assert title in (
+        f"[L'Assistant] New document {before}",
+        f"[L'Assistant] New document {after}",
     )
 
 

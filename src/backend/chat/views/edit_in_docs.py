@@ -26,14 +26,12 @@ logger = logging.getLogger(__name__)
 
 def _build_doc_title():
     """Build a generic timestamped document title, e.g.
-    "[L'Assistant] New document 07/22/2026 14:30" (localised via gettext,
-    including the date format itself).
+    "[L'Assistant] New document 07/22/2026 2:30 p.m.".
+
+    The wording is localised via gettext; the date uses Django's per-locale
+    SHORT_DATETIME_FORMAT, so no translation entry is needed for the format.
     """
-    # Translators: Django date-format string
-    # (https://docs.djangoproject.com/en/stable/ref/templates/builtins/#date),
-    # e.g. French uses "d/m/Y H:i" for the day-first order.
-    date_format = _("m/d/Y H:i")
-    formatted_date = formats.date_format(timezone.now(), date_format, use_l10n=False)
+    formatted_date = formats.date_format(timezone.now(), "SHORT_DATETIME_FORMAT")
     return _("[L'Assistant] New document %(date)s") % {"date": formatted_date}
 
 
