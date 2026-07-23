@@ -111,10 +111,7 @@ def test_create_document_sends_bearer_token(docs_client):
 
 
 def test_create_document_sends_markdown_file(docs_client):
-    """create_document uploads the content with text/markdown MIME type.
-
-    The filename carries no .md extension: Docs reuses it as the document title.
-    """
+    """create_document uploads the content as a .md file with text/markdown MIME type."""
     session = {"oidc_access_token": "tok"}
     fake_response = MagicMock()
     fake_response.json.return_value = {"id": "doc-abc"}
@@ -125,7 +122,7 @@ def test_create_document_sends_markdown_file(docs_client):
     files = mock_post.call_args.kwargs["files"]
     assert "file" in files
     filename, fileobj, mimetype = files["file"]
-    assert filename == "My Doc"
+    assert filename == "My Doc.md"
     assert mimetype == "text/markdown"
     assert fileobj.read() == b"# Hello"
 
