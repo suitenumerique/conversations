@@ -623,8 +623,9 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
         'data: {"type":"tool-input-delta","toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","in'
         'putTextDelta":"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n\n'
         'data: {"type":"tool-output-available","toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47'
-        '","output":"Unknown tool name: \'get_current_weather\'. Available tools: \'self_doc'
-        "umentation'\"}\n\n"
+        '","output":"Unknown tool name: \'get_current_weather\'. '
+        "Available tools: 'generate_presentation', "
+        "'self_documentation'\"}\n\n"
         'data: {"type":"text-start","id":"0"}\n\n'
         'data: {"type":"text-delta","id":"0","delta":"I cannot give you an answer to that."}'
         "\n\n"
@@ -727,7 +728,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
             "parts": [
                 {
                     "content": "Unknown tool name: 'get_current_weather'. "
-                    "Available tools: 'self_documentation'",
+                    "Available tools: 'generate_presentation', 'self_documentation'",
                     "part_kind": "retry-prompt",
                     "timestamp": FROZEN_TIMESTAMP,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",

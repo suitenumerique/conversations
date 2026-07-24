@@ -98,6 +98,16 @@ def test_generate_retrieve_policy():
 
 
 @freeze_time()
+def test_generate_retrieve_policy_custom_expiration():
+    """A custom expiration overrides the default retrieve-policy lifetime."""
+    key = f"test/{uuid4()!s}/key.txt"
+    policy = generate_retrieve_policy(key, expiration=3600)
+
+    query_params = parse_qs(urlparse(policy).query)
+    assert query_params["X-Amz-Expires"] == ["3600"]
+
+
+@freeze_time()
 def test_generate_retrieve_policy_s3_domain_replace(settings):
     """
     Test the generate_retrieve_policy function with S3_DOMAIN_REPLACE setting.

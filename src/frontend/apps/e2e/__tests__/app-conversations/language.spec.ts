@@ -12,10 +12,6 @@ test.describe.serial('Language', () => {
     page = await browser.newPage();
   });
 
-  test.afterAll(async () => {
-    await page.close();
-  });
-
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await waitForLanguageSwitch(page, TestLanguage.English);
@@ -24,6 +20,10 @@ test.describe.serial('Language', () => {
   test.afterEach(async ({ page }) => {
     // Switch back to English - important for other tests to run as expected
     await waitForLanguageSwitch(page, TestLanguage.English);
+  });
+
+  test.afterAll(async () => {
+    await page.close();
   });
 
   test('checks language switching', async ({ page }) => {

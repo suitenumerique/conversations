@@ -129,12 +129,15 @@ def generate_upload_policy(key: str):
     return policy
 
 
-def generate_retrieve_policy(key: str):
+def generate_retrieve_policy(key: str, expiration: int | None = None):
     """
     Generate a S3 retrieve policy for a given item.
 
     Args:
         key (str): The S3 object key where the file is stored.
+        expiration (int | None): Lifetime of the signed URL in seconds. Defaults
+            to AWS_S3_RETRIEVE_POLICY_EXPIRATION, which suits URLs the LLM reads
+            at once; pass a longer value for links a user is meant to click.
     """
 
     # Get the S3 client according to the settings
@@ -144,7 +147,7 @@ def generate_retrieve_policy(key: str):
     policy = s3_client.generate_presigned_url(
         ClientMethod="get_object",
         Params={"Bucket": default_storage.bucket_name, "Key": key},
-        ExpiresIn=settings.AWS_S3_RETRIEVE_POLICY_EXPIRATION,
+        ExpiresIn=expiration or settings.AWS_S3_RETRIEVE_POLICY_EXPIRATION,
     )
 
     return policy

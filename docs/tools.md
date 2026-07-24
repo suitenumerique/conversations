@@ -231,6 +231,7 @@ If the LLM isn't using the tool response correctly:
 ## See Also
 
 - [Web Search Configuration](llm-configuration.md)
+- [Slide Deck Generation](presentations.md)
 - [Architecture](architecture.md)
 - [Environment Variables](env.md)
 
