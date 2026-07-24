@@ -56,6 +56,7 @@ dependencies = [
     "psycopg[binary]==3.3.4",
     "PyJWT==2.13.0",
     "python-magic==0.4.27",
+    "python-pptx==1.0.2",
     "redis<6.0.0",
     "requests==2.34.2",
     "semchunk==4.0.0",

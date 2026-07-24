@@ -180,6 +180,7 @@ from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
     DOCUMENT_SUMMARIZE_TOOL_DESCRIPTION,
+    GENERATE_PRESENTATION_TOOL_DESCRIPTION,
     SELF_DOCUMENTATION_SYSTEM_PROMPT,
     SELF_DOCUMENTATION_TOOL_DESCRIPTION,
     WEB_SEARCH_TOOL_DESCRIPTION,
@@ -187,6 +188,7 @@ from chat.tools.descriptions import (
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize, document_summarize_project
+from chat.tools.generate_presentation import generate_presentation
 from chat.tools.self_documentation import build_self_documentation_payload
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
@@ -319,6 +321,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Feature flags
         self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
         self._is_web_search_enabled = is_feature_enabled(self.user, "web_search")
+        self._is_presentation_generation_enabled = is_feature_enabled(
+            self.user, "presentation_generation"
+        )
         self._is_smart_search_enabled = user.allow_smart_web_search
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
@@ -330,6 +335,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
         self._web_search_tool_registered = False
         self._self_documentation_tool_registered = False
+        self._presentation_tool_registered = False
 
         _capabilities = (
             [
@@ -1123,6 +1129,23 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self._web_search_tool_registered = True
 
+    def _setup_presentation_tool(self) -> None:
+        """Register the slide deck generation tool when the feature is enabled."""
+        if self._presentation_tool_registered or not self._is_presentation_generation_enabled:
+            return
+
+        @self.conversation_agent.tool(
+            name="generate_presentation",
+            retries=1,
+            description=GENERATE_PRESENTATION_TOOL_DESCRIPTION,
+        )
+        @functools.wraps(generate_presentation)
+        async def generate_presentation_tool(ctx: RunContext, *args, **kwargs) -> ToolReturn:
+            """Wrap the generate_presentation tool to provide context and add the tool."""
+            return await generate_presentation(ctx, *args, **kwargs)
+
+        self._presentation_tool_registered = True
+
     def _setup_self_documentation_tool(self) -> None:
         """Register a tool exposing static and runtime self-documentation metadata."""
         if self._self_documentation_tool_registered:
@@ -1527,6 +1550,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         await self._agent_stop_streaming(force_cache_check=True)
         self._setup_self_documentation_tool()
+        self._setup_presentation_tool()
         self._setup_web_search_tool()
         self._setup_web_search(force_web_search)
 

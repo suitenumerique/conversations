@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - 💄(front) add tooltip co2
+- ✨(back) add slide deck generation tool
 - ✨(back) add model fallback mechanism
 - ✨(back) add celery for running background tasks
 - 🧱(helm) add celery worker and beat deployments
