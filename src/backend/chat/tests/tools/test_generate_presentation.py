@@ -158,7 +158,8 @@ async def test_no_attachment_row_is_created():
 
     await run_tool(ctx)
 
-    assert await conversation.attachments.acount() == 0
+    attachment_count = await sync_to_async(conversation.attachments.count)()
+    assert attachment_count == 0
 
 
 @pytest.mark.asyncio
