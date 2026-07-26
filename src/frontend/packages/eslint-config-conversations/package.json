@@ -10,7 +10,7 @@
     "@tanstack/eslint-plugin-query": "5.100.14",
     "@typescript-eslint/eslint-plugin": "*",
     "@typescript-eslint/parser": "*",
-    "eslint": "*",
+    "eslint": "10.0.0",
     "eslint-config-prettier": "10.1.5",
     "eslint-plugin-import-x": "4.16.1",
     "eslint-plugin-jest": "28.12.0",
