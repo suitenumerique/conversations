@@ -61,17 +61,41 @@ export interface ConfigResponse {
 }
 
 const LOCAL_STORAGE_KEY = 'conversations_config';
+const ONE_HOUR = 1000 * 60 * 60;
+const FIVE_MINUTES = 1000 * 60 * 5;
+
+// Read and parsed once per page load instead of on every render. `useConfig`
+// has ~19 call sites, several of them in components that render continuously
+// while a response streams, and both the localStorage read and the parse are
+// synchronous main-thread work over a payload that carries the whole
+// translation bundle. The result only ever seeds the query cache, so re-parsing
+// it on later renders was pure waste.
+let cachedConfig: ConfigResponse | undefined;
+let hasReadCachedConfig = false;
 
 function getCachedConfig() {
+  if (hasReadCachedConfig) {
+    return cachedConfig;
+  }
+  hasReadCachedConfig = true;
+
   try {
     const jsonString = localStorage.getItem(LOCAL_STORAGE_KEY);
-    return jsonString ? (JSON.parse(jsonString) as ConfigResponse) : undefined;
+    cachedConfig = jsonString
+      ? (JSON.parse(jsonString) as ConfigResponse)
+      : undefined;
   } catch {
-    return undefined;
+    cachedConfig = undefined;
   }
+
+  return cachedConfig;
 }
 
 function setCachedConfig(config: ConfigResponse) {
+  // Keep the in-memory copy in step, so a query cache reset re-seeds from the
+  // freshest config rather than the one read when the page loaded.
+  cachedConfig = config;
+  hasReadCachedConfig = true;
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(config));
 }
 
@@ -90,17 +114,17 @@ export const getConfig = async (): Promise<ConfigResponse> => {
 
 export const KEY_CONFIG = 'config';
 
-export function useConfig() {
-  const cachedData = getCachedConfig();
-  const oneHour = 1000 * 60 * 60;
-  const fiveMinutes = 1000 * 60 * 5;
+// Force initial data to be considered stale. Any timestamp at least staleTime
+// old does that, so computing it once when the module loads keeps it true.
+const INITIAL_DATA_UPDATED_AT = Date.now() - ONE_HOUR;
 
+export function useConfig() {
   return useQuery<ConfigResponse, APIError, ConfigResponse>({
     queryKey: [KEY_CONFIG],
     queryFn: () => getConfig(),
-    initialData: cachedData,
-    staleTime: oneHour,
-    initialDataUpdatedAt: Date.now() - oneHour, // Force initial data to be considered stale
-    refetchInterval: fiveMinutes,
+    initialData: getCachedConfig(),
+    staleTime: ONE_HOUR,
+    initialDataUpdatedAt: INITIAL_DATA_UPDATED_AT,
+    refetchInterval: FIVE_MINUTES,
   });
 }
