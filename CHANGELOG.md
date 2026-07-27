@@ -21,6 +21,7 @@ and this project adheres to
 - ⬆️(dependencies) update front and mail dependencies and remove unused ones
 - ⬆️(dependencies) upgrade pyjwt to 2.14.0
 - ⬆️(dependencies) upgrade urllib3 to 2.8.0
+- ⚡️(front) read the cached config once per page load i/o on every render
 
 ### Fixed
 
