@@ -45,6 +45,7 @@ import {
 } from '@/features/chat/components/reindexErrorMessages';
 import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
+import { trackRender } from '@/utils';
 
 import { useSourceMetadataCache } from '../hooks';
 import { useAprilFools } from '../hooks/useAprilFools';
@@ -763,6 +764,52 @@ export const Chat = ({
   }, [conversationId]);
 
   const showImagesBanner = imagesSkipped && !imagesBannerDismissed;
+
+  // TEMPORARY: render-loop diagnostic, remove with utils/debugRenderLoop.
+  // Every hook output this component reads, so the diff names what churns.
+  trackRender('Chat', {
+    initialConversationId,
+    conversationId,
+    messages,
+    setMessages,
+    status,
+    data,
+    input,
+    cooldownUntil,
+    initialConversationMessages,
+    llmConfig,
+    selectedModel,
+    selectedModelHrid,
+    config,
+    t,
+    files,
+    isUploadingFiles,
+    conversationProjectId,
+    projectAttachments,
+    failedIndexingIds,
+    chatErrorModal,
+    chatErrorType,
+    imagesSkipped,
+    imagesBannerDismissed,
+    isSourceOpen,
+    streamingMessageHeight,
+    isReadingInstructions,
+    contextTrimmed,
+    shouldAutoSubmit,
+    shouldRetry,
+    hasInitialized,
+    pendingFirstMessage,
+    pendingInput,
+    pendingFiles,
+    pendingProjectId,
+    hasProjectInstructions,
+    forceWebSearch,
+    isMobile,
+    aprilFoolsActive: aprilFools.isActive,
+    aprilFoolsText: aprilFools.displayedText,
+    isErrorAttachment,
+    errorAttachment,
+  });
 
   useEffect(() => {
     if (

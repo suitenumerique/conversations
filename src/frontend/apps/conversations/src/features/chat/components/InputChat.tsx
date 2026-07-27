@@ -24,6 +24,7 @@ import { WelcomeMessage } from '@/features/chat/components/WelcomeMessage';
 import { useFileDragDrop } from '@/features/chat/hooks/useFileDragDrop';
 import { useFileUrls } from '@/features/chat/hooks/useFileUrls';
 import { useResponsiveStore } from '@/stores';
+import { trackRender } from '@/utils';
 
 import FilesIcon from '../assets/files.svg';
 
@@ -456,6 +457,41 @@ export const InputChat = ({
       };
     });
   }, [files, fileUrlMap]);
+
+  // TEMPORARY: render-loop diagnostic, remove with utils/debugRenderLoop.
+  trackRender('InputChat', {
+    messagesLength,
+    input,
+    status,
+    files,
+    setFiles,
+    handleInputChange,
+    handleSubmit,
+    onScrollToBottom,
+    containerRef,
+    forceWebSearch,
+    onToggleWebSearch,
+    onStop,
+    selectedModel,
+    onModelSelect,
+    isUploadingFiles,
+    isIndexingFiles,
+    failedIndexingCount,
+    onRetryFailedIndexing,
+    isRetryingIndexing,
+    errorType,
+    cooldownUntil,
+    cooldownRemaining,
+    conf,
+    assistantHealth,
+    isDragActive,
+    fileUrlMap,
+    attachments,
+    isDesktop,
+    isMobile,
+    t,
+    showToast,
+  });
 
   return (
     <>

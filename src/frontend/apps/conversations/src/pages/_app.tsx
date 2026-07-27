@@ -7,8 +7,13 @@ import { AppProvider, productName } from '@/core/';
 import { useCunninghamTheme } from '@/cunningham';
 import '@/i18n/initI18n';
 import { NextPageWithLayout } from '@/types/next';
+import { installRenderLoopCapture } from '@/utils';
 
 import './globals.css';
+
+// TEMPORARY: names the component behind the "Maximum update depth exceeded"
+// errors. Remove together with the trackRender() call sites.
+installRenderLoopCapture();
 
 type AppPropsWithLayout = AppProps & {
   Component: NextPageWithLayout;

@@ -10,6 +10,7 @@ import { Header } from '@/features/header';
 import { LeftPanel } from '@/features/left-panel';
 import { MAIN_LAYOUT_ID } from '@/layouts/conf';
 import { useResponsiveStore } from '@/stores';
+import { trackRender } from '@/utils';
 
 type MainLayoutProps = {
   backgroundColor?: 'white' | 'grey';
@@ -23,6 +24,9 @@ export function MainLayout({
   const { isPanelOpen } = useChatPreferencesStore();
   const { data: config } = useConfig();
   const { data: assistantHealth } = useAssistantHealth();
+
+  // TEMPORARY: render-loop diagnostic, remove with utils/debugRenderLoop.
+  trackRender('MainLayout', { isDesktop, isPanelOpen });
 
   return (
     <Box className="--docs--main-layout">

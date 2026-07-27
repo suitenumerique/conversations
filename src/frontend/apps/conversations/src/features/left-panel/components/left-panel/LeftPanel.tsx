@@ -9,6 +9,7 @@ import { LaGaufre } from '@/features/header/components/LaGaufre';
 import { OnboardingButton } from '@/features/onboarding';
 import { SettingsButton } from '@/features/settings';
 import { useResponsiveStore } from '@/stores';
+import { trackRender } from '@/utils';
 
 import { LeftPanelContent } from './LeftPanelContent';
 import { LeftPanelHeader } from './LeftPanelHeader';
@@ -32,6 +33,9 @@ export const LeftPanel = () => {
   const showLaGaufre =
     (componentTokens as Record<string, unknown>)['la-gaufre'] === true;
   const { setPanelOpen, isPanelOpen } = useChatPreferencesStore();
+
+  // TEMPORARY: render-loop diagnostic, remove with utils/debugRenderLoop.
+  trackRender('LeftPanel', { isDesktop, isPanelOpen });
 
   useEffect(() => {
     setPanelOpen(isDesktop ? true : false);

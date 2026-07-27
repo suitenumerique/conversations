@@ -8,6 +8,7 @@ import { KEY_CONVERSATION } from '@/features/chat/api/useConversation';
 import { KEY_LIST_CONVERSATION } from '@/features/chat/api/useConversations';
 import { KEY_LIST_PROJECT } from '@/features/chat/api/useProjects';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
+import { debugSample } from '@/utils';
 
 const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
   let url: string;
@@ -166,6 +167,12 @@ export function stampImagesSkippedOnLatestUserMessage(
   return next;
 }
 
+// Without this the SDK calls SWR's `mutate` once per stream chunk
+// (`throttle(fn, undefined)` returns `fn` untouched), so a fast response
+// re-renders the whole chat tree ~100 times a second. 50ms caps the refresh at
+// 20fps, which still reads as continuous typing.
+const STREAM_THROTTLE_MS = 50;
+
 export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
   const queryClient = useQueryClient();
   const { onFinish: onFinishOption, ...restOptions } = options;
@@ -173,6 +180,7 @@ export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
   const result = useAiSdkChat({
     ...restOptions,
     maxSteps: 3,
+    experimental_throttle: STREAM_THROTTLE_MS,
     fetch: fetchAPIAdapter,
     onFinish: (message, finishOptions) => {
       if (message.annotations?.length) {
@@ -194,6 +202,12 @@ export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
       onFinishOption?.(message, finishOptions);
     },
   });
+
+  // TEMPORARY: render-loop diagnostic. Renders that continue past a `ready`
+  // status are a real loop; renders that stop with it were just the stream.
+  useEffect(() => {
+    debugSample('useChat status', { status: result.status });
+  }, [result.status]);
 
   // Epoch ms until which the user must wait before sending a new message.
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
