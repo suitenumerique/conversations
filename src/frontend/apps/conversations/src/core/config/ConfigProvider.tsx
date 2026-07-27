@@ -14,6 +14,7 @@ import { MaintenancePage } from '@/features/maintenance';
 import { useAnalytics } from '@/libs';
 import { PostHogAnalytic } from '@/services';
 import { useSentryStore } from '@/stores/useSentryStore';
+import { trackRender } from '@/utils';
 
 import { useConfig } from './api/useConfig';
 
@@ -28,6 +29,13 @@ export const ConfigProvider = ({ children }: PropsWithChildren) => {
   const { i18n } = useTranslation();
   const hasSyncedInitialLanguage = useRef(false);
   const lastSyncedUserLanguage = useRef<string | null>(null);
+
+  // TEMPORARY: render-loop diagnostic, remove with utils/debugRenderLoop.
+  trackRender('ConfigProvider', {
+    hasConf: !!conf,
+    hasUser: !!user,
+    language: i18n.resolvedLanguage,
+  });
 
   useEffect(() => {
     if (!conf || hasSyncedInitialLanguage.current) {

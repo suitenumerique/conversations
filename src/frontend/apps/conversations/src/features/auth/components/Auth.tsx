@@ -3,6 +3,7 @@ import { PropsWithChildren } from 'react';
 
 import { Box, Loader } from '@/components';
 import { useConfig } from '@/core';
+import { trackRender } from '@/utils';
 
 import { useActivationStatus } from '../api/useActivationStatus';
 import { HOME_URL } from '../conf';
@@ -17,6 +18,22 @@ export const Auth = ({ children }: PropsWithChildren) => {
   const { data: config, isLoading: isConfigLoading } = useConfig();
   const { data: activationStatus, isLoading: isActivationLoading } =
     useActivationStatus();
+
+  // TEMPORARY: this component redirects from its render body, so every input
+  // it branches on is worth seeing when it loops.
+  trackRender('Auth', {
+    pathname,
+    authenticated,
+    pathAllowed,
+    isLoading,
+    isFetchedAfterMount,
+    isConfigLoading,
+    isActivationLoading,
+    silentLoginEnabled: config?.FRONTEND_SILENT_LOGIN_ENABLED,
+    homepageEnabled: config?.FRONTEND_HOMEPAGE_FEATURE_ENABLED,
+    activationRequired: config?.ACTIVATION_REQUIRED,
+    isActivated: activationStatus?.is_activated,
+  });
 
   if (isLoading && !isFetchedAfterMount) {
     return (
