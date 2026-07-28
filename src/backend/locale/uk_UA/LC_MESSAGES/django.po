@@ -3,7 +3,7 @@ msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-07-23 11:24+0000\n"
-"PO-Revision-Date: 2026-07-23 13:08\n"
+"PO-Revision-Date: 2026-07-28 13:58\n"
 "Last-Translator: \n"
 "Language-Team: Ukrainian\n"
 "Language: uk_UA\n"
@@ -272,7 +272,7 @@ msgstr "Цей проект вже досяг максимальної кіль�
 #: chat/views/edit_in_docs.py:35
 #, python-format
 msgid "[L'Assistant] New document %(date)s"
-msgstr ""
+msgstr "[L'Assistant] Новий документ %(date)s"
 
 #: core/admin.py:30
 msgid "Personal info"
