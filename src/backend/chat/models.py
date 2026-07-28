@@ -205,6 +205,8 @@ class ChatConversation(BaseModel):
         indexes = [
             models.Index(fields=["owner", "-created_at"]),
             models.Index(fields=["owner", "project"]),
+            # Global "most recently updated first" listing, used by the admin changelist.
+            models.Index(fields=["-updated_at", "-id"]),
         ]
 
     def __str__(self):
