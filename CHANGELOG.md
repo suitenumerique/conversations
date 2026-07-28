@@ -12,6 +12,10 @@ and this project adheres to
 
 - ⬆️(dependencies) update pypdf and next
 
+### Changed
+
+- 👷(ci) replace trivy by grype for vulnerability scanning
+
 ### Fixed
 
 - 🐛(back) align Albert RAG document upload and search with the current API
