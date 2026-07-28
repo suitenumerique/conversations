@@ -143,4 +143,4 @@ def test_post_conversation_search_with_document_id_filters_albert_request(
     payload = json.loads(albert_search_route.calls[0].request.content)
     assert payload["document_ids"] == [202]
     assert "metadata_filters" not in payload
-    assert payload["prompt"] == "what is in the document?"
+    assert payload["query"] == "what is in the document?"

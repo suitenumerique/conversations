@@ -68,8 +68,8 @@ def test_search_without_filter_does_not_send_metadata_filters(albert_backend):
     assert len(responses.calls) == 1
     payload = json.loads(responses.calls[0].request.body)
     assert "metadata_filters" not in payload
-    assert payload["prompt"] == "any query"
-    assert payload["collections"] == [123]
+    assert payload["query"] == "any query"
+    assert payload["collection_ids"] == [123]
 
 
 @responses.activate

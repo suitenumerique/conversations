@@ -12,6 +12,10 @@ and this project adheres to
 
 - ⬆️(dependencies) update pypdf and next
 
+### Fixed
+
+- 🐛(back) align Albert RAG document upload and search with the current API
+
 ## [0.0.20] - 2026-07-23
 
 ### Added

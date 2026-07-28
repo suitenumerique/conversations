@@ -123,8 +123,8 @@ def test_post_conversation_searches_project_collection(
 
     assert search_mock.call_count == 1
     payload = json.loads(search_mock.calls[0].request.content)
-    assert payload["collections"] == [22]
-    assert payload["prompt"] == "What does the project doc say?"
+    assert payload["collection_ids"] == [22]
+    assert payload["query"] == "What does the project doc say?"
 
 
 @respx.mock
@@ -172,7 +172,7 @@ def test_post_conversation_searches_both_collections_when_conversation_has_own(
     response_text = b"".join(response.streaming_content).decode("utf-8")
     assert search_mock.call_count > 0, f"search not called. response: {response_text!r}"
     payload = json.loads(search_mock.calls[0].request.content)
-    assert sorted(payload["collections"]) == [11, 22]
+    assert sorted(payload["collection_ids"]) == [11, 22]
 
 
 @pytest.fixture(name="inlineable_llm_config")
@@ -277,7 +277,7 @@ def test_post_conversation_inlines_convo_doc_while_project_doc_stays_rag_only(
     # Project doc still searched via the RAG tool against project collection.
     assert search_mock.call_count == 1
     payload = json.loads(search_mock.calls[0].request.content)
-    assert payload["collections"] == [22]
+    assert payload["collection_ids"] == [22]
 
     # Convo doc reached the system prompt as inlined full context.
     assert captured_instructions, "agent_model never received instructions"

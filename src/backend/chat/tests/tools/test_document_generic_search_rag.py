@@ -280,15 +280,15 @@ def test_document_search_rag_tool_execution(settings):
 
     assert len(search_mock.calls) == 2
     assert json.loads(search_mock.calls[0].request.content) == {
-        "collections": [100, 101, 102],
-        "k": 4,
-        "prompt": "a",
+        "collection_ids": [100, 101, 102],
+        "limit": 4,
+        "query": "a",
         "score_threshold": 0.6,
     }
     assert json.loads(search_mock.calls[1].request.content) == {
-        "collections": [200],
-        "k": 4,
-        "prompt": "a",
+        "collection_ids": [200],
+        "limit": 4,
+        "query": "a",
         "score_threshold": 0.6,
     }
 
@@ -349,9 +349,9 @@ async def test_add_document_rag_search_tool_function_call(settings):
     assert result.metadata == {"sources": {"doc1.txt"}}
     assert len(search_mock.calls) == 1
     assert json.loads(search_mock.calls[0].request.content) == {
-        "collections": [100, 101, 102],
-        "k": 4,
-        "prompt": "Find information about French laws.",
+        "collection_ids": [100, 101, 102],
+        "limit": 4,
+        "query": "Find information about French laws.",
         "score_threshold": 0.6,
     }
 

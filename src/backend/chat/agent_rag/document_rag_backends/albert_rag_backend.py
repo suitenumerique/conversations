@@ -155,7 +155,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             headers=self._headers,
             files={
                 "file": (f"{name}.md", BytesIO(content.encode("utf-8")), MARKDOWN_MIME_TYPE),
-                "collection": (None, int(self.collection_id)),
+                "collection_id": (None, int(self.collection_id)),
                 "metadata": (None, json.dumps({"document_name": name})),  # undocumented API
             },
             timeout=settings.ALBERT_API_TIMEOUT,
@@ -191,7 +191,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
                     "file": (f"{name}.md", BytesIO(content.encode("utf-8")), MARKDOWN_MIME_TYPE),
                 },
                 data={
-                    "collection": int(self.collection_id),
+                    "collection_id": int(self.collection_id),
                     "metadata": json.dumps({"document_name": name}),  # undocumented API
                 },
                 timeout=settings.ALBERT_API_TIMEOUT,
@@ -218,14 +218,14 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         When `document_id` is provided, it is preferred over `document_name`:
         Albert's `document_ids` filter is collection-aware and unambiguous,
         whereas `metadata_filters: document_name` matches by name across every
-        collection in `collections` (which fails when conversation and project
+        collection in `collection_ids` (which fails when conversation and project
         each carry a doc with the same filename).
         """
         payload: dict = {
-            "collections": self.get_all_collection_ids(),  # might raise RuntimeError
-            "prompt": query,
+            "collection_ids": self.get_all_collection_ids(),  # might raise RuntimeError
+            "query": query,
             "score_threshold": 0.6,
-            "k": results_count,
+            "limit": results_count,
         }
         if document_id:
             payload["document_ids"] = [int(document_id)]
