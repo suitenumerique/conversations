@@ -153,6 +153,21 @@ export const splitStreamingContent = (content: string): StreamingContent => {
   return { completedBlocks, pending: pendingContent };
 };
 
+/** Label shown next to the loader while a tool is running. */
+const getStreamingToolLabel = (
+  toolName: string | undefined,
+  t: (key: string) => string,
+): string => {
+  switch (toolName) {
+    case 'summarize':
+      return t('Summarizing...');
+    case 'generate_presentation':
+      return t('Generating the slides...');
+    default:
+      return t('Search...');
+  }
+};
+
 interface SourceMetadata {
   title: string | null;
   favicon: string | null;
@@ -405,9 +420,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 >
                   <Loader />
                   <Text $variation="600" $size="md">
-                    {activeToolInvocation?.toolName === 'summarize'
-                      ? t('Summarizing...')
-                      : t('Search...')}
+                    {getStreamingToolLabel(activeToolInvocation?.toolName, t)}
                   </Text>
                 </Box>
               )}

@@ -7,6 +7,7 @@ export const CONFIG = {
   ENVIRONMENT: 'development',
   FEATURE_FLAGS: {
     'document-upload': 'enabled',
+    'presentation-generation': 'disabled',
     'web-search': 'enabled',
   },
   FILE_UPLOAD_MODE: 'presigned_url',

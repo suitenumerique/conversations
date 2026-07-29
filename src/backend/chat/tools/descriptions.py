@@ -110,6 +110,32 @@ Examples of queries that do NOT need web_search tool:
 - "Résume ce texte"
 """
 
+GENERATE_PRESENTATION_TOOL_DESCRIPTION = """
+Generate a slide deck (.pptx) and return a link to download it.
+
+Use this tool whenever the user asks for a presentation, a deck, slides, or a
+support to project in a meeting. The tool writes the slides itself: pass a
+brief describing the subject, the audience and any structure the user asked
+for, not the slides themselves.
+
+The tool returns a download link. Pass that link on to the user as-is; do NOT
+restate the deck's content or list the slides.
+
+Do NOT use this tool to:
+- Write a document, a report or a note (no slides involved)
+- Summarize an attached document (use the summarize tool)
+- Answer a question about presentations in general
+
+Examples that MUST trigger this tool:
+- "Fais-moi une présentation sur la sobriété énergétique"
+- "Prépare un support de 10 slides pour le comité de lundi"
+- "Convertis cette note en deck"
+
+Examples that must NOT trigger this tool:
+- "Résume ce document"
+- "Comment structurer une bonne présentation ?"
+"""
+
 SELF_DOCUMENTATION_SYSTEM_PROMPT = (
     "For meta questions about this assistant itself (identity, model, "
     "capabilities, limitations, privacy, internet access, accepted files, "
