@@ -64,6 +64,44 @@ def _build_turns(turn_count: int) -> list:
     return messages
 
 
+def _build_tool_turn(turn: int) -> list:
+    """Build one tool-using turn: user, tool call, tool return, answer."""
+    call_id = f"call-{turn}"
+    return [
+        ModelRequest(parts=[UserPromptPart(content=[f"user-{turn}"])]),
+        ModelResponse(parts=[ToolCallPart(tool_call_id=call_id, tool_name="search", args="{}")]),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_call_id=call_id,
+                    tool_name="search",
+                    content=f"result-{turn}",
+                )
+            ]
+        ),
+        ModelResponse(parts=[TextPart(content=f"assistant-{turn}")]),
+    ]
+
+
+def _orphan_tool_return_ids(messages: list[ModelMessage]) -> set[str]:
+    """Return tool_call_ids answered in `messages` without their call present."""
+    call_ids = {
+        part.tool_call_id
+        for message in messages
+        if isinstance(message, ModelResponse)
+        for part in message.parts
+        if isinstance(part, ToolCallPart)
+    }
+    return_ids = {
+        part.tool_call_id
+        for message in messages
+        if isinstance(message, ModelRequest)
+        for part in message.parts
+        if isinstance(part, ToolReturnPart)
+    }
+    return return_ids - call_ids
+
+
 def test_history_processors_are_applied_before_provider_call(
     function_model: FunctionModel, received_messages: list[ModelMessage]
 ):
@@ -99,8 +137,9 @@ def test_build_active_history_keeps_full_history_within_context_window():
 
 
 def test_clean_tool_history_redacts_old_tool_returns_but_keeps_latest_tool_result():
-    """Old tool results are compacted, latest tool result stays intact."""
+    """A previous turn's tool result is compacted, the current turn's stays intact."""
     messages = [
+        ModelRequest(parts=[UserPromptPart(content=["user-1"])]),
         ModelResponse(parts=[ToolCallPart(tool_call_id="old", tool_name="search", args="{}")]),
         ModelRequest(
             parts=[
@@ -111,6 +150,8 @@ def test_clean_tool_history_redacts_old_tool_returns_but_keeps_latest_tool_resul
                 )
             ]
         ),
+        ModelResponse(parts=[TextPart(content="assistant-1")]),
+        ModelRequest(parts=[UserPromptPart(content=["user-2"])]),
         ModelResponse(parts=[ToolCallPart(tool_call_id="latest", tool_name="search", args="{}")]),
         ModelRequest(
             parts=[
@@ -125,12 +166,66 @@ def test_clean_tool_history_redacts_old_tool_returns_but_keeps_latest_tool_resul
 
     result = history_processors.clean_tool_history(messages)
 
-    old_return = result[1].parts[0]
-    latest_return = result[3].parts[0]
+    old_return = result[2].parts[0]
+    latest_return = result[6].parts[0]
     assert isinstance(old_return, ToolReturnPart)
     assert isinstance(latest_return, ToolReturnPart)
     assert old_return.content == "<search response compacted>"
     assert latest_return.content == "fresh result"
+
+
+def test_clean_tool_history_keeps_sequential_tool_cycles_of_the_current_turn():
+    """Multi-step tool use inside one turn keeps every result the model asked for."""
+    messages = [
+        ModelRequest(parts=[UserPromptPart(content=["user-1"])]),
+        ModelResponse(parts=[ToolCallPart(tool_call_id="web", tool_name="web_search", args="{}")]),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_call_id="web",
+                    tool_name="web_search",
+                    content="web result",
+                )
+            ]
+        ),
+        ModelResponse(parts=[ToolCallPart(tool_call_id="rag", tool_name="rag_search", args="{}")]),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_call_id="rag",
+                    tool_name="rag_search",
+                    content="rag result",
+                )
+            ]
+        ),
+    ]
+
+    result = history_processors.clean_tool_history(messages)
+
+    # The web search precedes the RAG call but belongs to the same turn, so the
+    # model still sees it when it writes the answer.
+    assert result[2].parts[0].content == "web result"
+    assert result[4].parts[0].content == "rag result"
+
+
+def test_clean_tool_history_keeps_everything_without_a_user_prompt():
+    """With no user prompt to anchor the turn, nothing is compacted."""
+    messages = [
+        ModelResponse(parts=[ToolCallPart(tool_call_id="only", tool_name="search", args="{}")]),
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_call_id="only",
+                    tool_name="search",
+                    content="result",
+                )
+            ]
+        ),
+    ]
+
+    result = history_processors.clean_tool_history(messages)
+
+    assert result[1].parts[0].content == "result"
 
 
 @pytest.mark.asyncio
@@ -214,14 +309,16 @@ async def test_generate_history_summary_raises_when_output_empty(monkeypatch):
 
 
 def test_build_active_history_starts_at_checkpoint_minus_context():
-    """The runtime window starts `context_messages` before the checkpoint."""
+    """The window starts `context_messages` before the checkpoint, aligned to a user turn."""
     messages = _build_turns(5)
 
     result = history_processors.build_active_history(
         messages, summary_checkpoint=6, context_messages=1
     )
 
-    assert result == messages[5:]
+    # Raw start is index 5 (an assistant response); alignment walks it back to
+    # the user message that opens that turn.
+    assert result == messages[4:]
 
 
 def test_build_active_history_drops_the_summarized_prefix():
@@ -239,7 +336,9 @@ def test_build_active_history_drops_the_summarized_prefix():
         messages, summary_checkpoint=4, context_messages=1
     )
 
-    assert result == messages[3:]
+    # Alignment pulls the start back to "context user"; the large prefix
+    # (indices 0-1) is still dropped.
+    assert result == messages[2:]
 
 
 def test_build_active_history_never_empty_when_checkpoint_at_end():
@@ -250,7 +349,57 @@ def test_build_active_history_never_empty_when_checkpoint_at_end():
         messages, summary_checkpoint=len(messages), context_messages=1
     )
 
-    assert result == messages[3:]
+    assert result == messages[2:]
+
+
+def test_build_active_history_never_opens_the_window_on_an_orphan_tool_return():
+    """A window edge landing inside a tool cycle is aligned back to the user turn."""
+    messages = _build_turns(2) + _build_tool_turn(3)
+
+    # Raw start would be index 6, the ModelRequest carrying the tool return
+    # whose ToolCallPart sits at index 5.
+    result = history_processors.build_active_history(
+        messages, summary_checkpoint=len(messages), context_messages=2
+    )
+
+    assert result == messages[4:]
+    assert isinstance(result[0], ModelRequest)
+    assert any(isinstance(part, UserPromptPart) for part in result[0].parts)
+    assert not _orphan_tool_return_ids(result)
+
+
+def test_build_active_history_alignment_survives_tool_history_compaction():
+    """Compacted stale returns are still ToolReturnParts, so alignment must hold."""
+    messages = _build_turns(1) + _build_tool_turn(2) + _build_tool_turn(3)
+    cleaned = history_processors.clean_tool_history(messages)
+
+    # The older cycle is compacted but stays a ToolReturnPart, so it still
+    # needs its ToolCallPart in the window.
+    compacted_return = cleaned[4].parts[0]
+    assert isinstance(compacted_return, ToolReturnPart)
+    assert compacted_return.content == "<search response compacted>"
+
+    # Raw start would be index 4, the compacted return whose call sits at index 3.
+    result = history_processors.build_active_history(
+        cleaned, summary_checkpoint=len(cleaned), context_messages=6
+    )
+
+    assert result == cleaned[2:]
+    assert not _orphan_tool_return_ids(result)
+
+
+def test_build_active_history_falls_back_when_no_user_turn_precedes():
+    """A degenerate history with no user prompt keeps the unaligned window start."""
+    messages = [
+        ModelResponse(parts=[TextPart(content="assistant-1")]),
+        ModelResponse(parts=[TextPart(content="assistant-2")]),
+    ]
+
+    result = history_processors.build_active_history(
+        messages, summary_checkpoint=len(messages), context_messages=1
+    )
+
+    assert result == messages[1:]
 
 
 def test_clean_tool_history_has_no_summary_checkpoint_behavior():

@@ -14,7 +14,10 @@ from asgiref.sync import sync_to_async
 from chat.agents.history_processors import SummarizationRequiredError
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService, DocumentParsingResult
-from chat.constants import HISTORY_SUMMARY_POLL_INTERVAL_SECONDS
+from chat.constants import (
+    HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS,
+    HISTORY_SUMMARY_POLL_INTERVAL_SECONDS,
+)
 from chat.factories import ChatConversationFactory
 from chat.llm_configuration import LLModel, LLMProvider
 from chat.vercel_ai_sdk.core import events_v4
@@ -248,23 +251,35 @@ async def test_wait_for_history_summary_returns_when_checkpoint_advances():
 
 
 @pytest.mark.asyncio
-async def test_wait_for_history_summary_returns_immediately_on_dead_claim():
-    """A claim past the TTL belongs to a dead worker: no waiting."""
+async def test_wait_for_history_summary_returns_after_grace_on_dead_claim():
+    """A claim past the TTL belongs to a dead worker: give up once the grace elapses."""
     conversation = await sync_to_async(ChatConversationFactory)(
         history_summary_claimed_at=timezone.now() - timedelta(seconds=181),
     )
     service = AIAgentService(conversation, user=conversation.owner)
+    fake_now = 0.0
 
-    with patch("chat.clients.pydantic_ai.asyncio.sleep") as sleep:
+    async def fake_sleep(seconds):
+        """Patched sleep that advances the fake monotonic clock."""
+        nonlocal fake_now
+        fake_now += seconds
+
+    with (
+        patch("chat.clients.pydantic_ai.asyncio.sleep", side_effect=fake_sleep),
+        patch("chat.clients.pydantic_ai.time.monotonic", side_effect=lambda: fake_now),
+    ):
         events = [event async for event in service._wait_for_history_summary()]
 
-    sleep.assert_not_awaited()
-    assert events == []
+    # Keep-alive at t=0, τ ... until the claim has been dead for the full grace.
+    assert len(events) == (
+        HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS // HISTORY_SUMMARY_POLL_INTERVAL_SECONDS
+    )
+    assert all(e.data == [{"type": "keep_alive"}] for e in events)
 
 
 @pytest.mark.asyncio
 async def test_wait_for_history_summary_waits_for_claim_grace_deadline():
-    """No live claim but a grace deadline: the wait holds until the deadline passes."""
+    """No live claim: the wait holds until both the deadline and the dead grace pass."""
     conversation = await sync_to_async(ChatConversationFactory)()
     service = AIAgentService(conversation, user=conversation.owner)
     fake_now = 0.0
@@ -274,9 +289,10 @@ async def test_wait_for_history_summary_waits_for_claim_grace_deadline():
         nonlocal fake_now
         fake_now += seconds
 
-    # Deadline three poll intervals out: keep-alive fire at t=0, τ and 2τ,
-    # then the loop returns once t reaches the 3τ deadline.
+    # Deadline three poll intervals out, but the claim-dead grace is longer, so
+    # the grace is what ends the wait.
     claim_deadline = 3 * HISTORY_SUMMARY_POLL_INTERVAL_SECONDS
+    assert claim_deadline < HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS
     with (
         patch("chat.clients.pydantic_ai.asyncio.sleep", side_effect=fake_sleep),
         patch("chat.clients.pydantic_ai.time.monotonic", side_effect=lambda: fake_now),
@@ -286,8 +302,47 @@ async def test_wait_for_history_summary_waits_for_claim_grace_deadline():
             async for event in service._wait_for_history_summary(claim_deadline=claim_deadline)
         ]
 
-    assert len(events) == 3
+    assert len(events) == (
+        HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS // HISTORY_SUMMARY_POLL_INTERVAL_SECONDS
+    )
     assert all(e.data == [{"type": "keep_alive"}] for e in events)
+
+
+@pytest.mark.asyncio
+async def test_wait_for_history_summary_survives_a_celery_retry_gap():
+    """A claim dropped between Celery retries must not end the wait."""
+    conversation = await sync_to_async(ChatConversationFactory)(
+        history_summary_claimed_at=timezone.now(),
+    )
+    service = AIAgentService(conversation, user=conversation.owner)
+    fake_now = 0.0
+    ticks = 0
+
+    async def fake_sleep(seconds):
+        """Drop the claim as a retry would, then re-claim and land the summary."""
+        nonlocal fake_now, ticks
+        fake_now += seconds
+        ticks += 1
+        update = type(conversation).objects.filter(pk=conversation.pk).update
+        if ticks == 1:
+            # Provider blip: the task released its claim on the way to a retry.
+            await sync_to_async(update)(history_summary_claimed_at=None)
+        elif ticks == 2:
+            # The retry ran and re-claimed well inside the grace.
+            await sync_to_async(update)(history_summary_claimed_at=timezone.now())
+        elif ticks == 3:
+            await sync_to_async(update)(history_summary="retried", history_summary_checkpoint=9)
+
+    with (
+        patch("chat.clients.pydantic_ai.asyncio.sleep", side_effect=fake_sleep),
+        patch("chat.clients.pydantic_ai.time.monotonic", side_effect=lambda: fake_now),
+    ):
+        events = [event async for event in service._wait_for_history_summary()]
+
+    # Without the grace the wait would end at the second poll, on the dropped
+    # claim, and the turn would fail while the retry was about to succeed.
+    assert len(events) == 3
+    assert service.conversation.history_summary_checkpoint == 9
 
 
 @pytest.mark.asyncio

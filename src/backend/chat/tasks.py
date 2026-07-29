@@ -100,7 +100,7 @@ def parse_and_store_conversation_document_task(collection_id, s3_key, name, cont
     time_limit=SUMMARIZATION_TASK_TIME_LIMIT,
 )
 def summarize_conversation_history(conversation_id: str) -> None:
-    """Generate the running summary for a conversation's history (see ADR 0002).
+    """Generate the running summary for a conversation's history.
 
     Enqueued by the over-budget turn, which waits on the claim. Claims the
     conversation, re-checks the budget against current DB state, generates,

@@ -35,6 +35,15 @@ HISTORY_SUMMARY_CLAIM_TTL_SECONDS = SUMMARIZATION_TASK_TIME_LIMIT + 60
 # Celery-only; there is no inline fallback (see ADR 0002).
 SUMMARIZATION_ENQUEUE_CLAIM_GRACE_SECONDS = 10
 
+# The task releases its claim in `finally`, including when Celery is about to
+# schedule a retry, so an absent claim does not mean generation is over. The
+# waiting turn only gives up once the claim has been dead *continuously* for
+# this long. It must exceed the longest single retry backoff (1s/2s/4s) plus
+# broker latency; under a worker backlog the gap can still outlast it, in
+# which case the turn fails while the retry goes on to persist the summary
+# for the next turn.
+HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS = 10
+
 # How often the waiting turn re-reads the conversation from the DB while a
 # worker generates the summary. Each tick is an `arefresh_from_db`, so this
 # bounds the DB load per concurrent over-budget turn; summaries take seconds,

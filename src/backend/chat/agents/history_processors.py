@@ -112,29 +112,51 @@ async def summarize_conversation(
     return updated_summary or None
 
 
-def _latest_tool_call_ids(messages: list[ModelMessage]) -> set[str]:
-    """Return the tool_call_ids of the most recent assistant tool-call turn."""
-    for message in reversed(messages):
-        if not isinstance(message, ModelResponse):
-            continue
-        response_tool_calls = [
-            part.tool_call_id
-            for part in message.parts
-            if isinstance(part, ToolCallPart) and isinstance(part.tool_call_id, str)
-        ]
-        if response_tool_calls:
-            return set(response_tool_calls)
-    return set()
+def _find_user_turn_start(messages: list[ModelMessage], start: int) -> int | None:
+    """Return the index of the nearest user message at or before `start`, or None."""
+    # `start` indexes a real message for any non-empty history; the clamp only
+    # keeps the empty-history case out of range.
+    for index in range(min(start, len(messages) - 1), -1, -1):
+        message = messages[index]
+        if isinstance(message, ModelRequest) and any(
+            isinstance(part, UserPromptPart) for part in message.parts
+        ):
+            return index
+    return None
 
 
-def _clean_request_parts(parts: list, latest_tool_call_ids: set[str]) -> list:
-    """Replace stale tool returns with a compact placeholder, keeping the latest cycle."""
+def _current_turn_tool_call_ids(messages: list[ModelMessage]) -> set[str]:
+    """Return the tool_call_ids issued since the last user prompt.
+
+    A single turn can run several tool cycles in sequence (a web search, then a
+    RAG lookup, then the answer). `ProcessHistory` re-runs this cleanup before
+    *every* model request inside a run, so keying on the most recent tool-call
+    response alone would compact the earlier cycles of the turn in progress and
+    strip results the model asked for moments earlier. Everything from the last
+    `UserPromptPart` onward belongs to the turn being answered, so it is kept.
+
+    With no user prompt at all (degenerate synthetic history) the whole list is
+    treated as the current turn: compaction has no meaningful anchor, and
+    keeping context is the safe direction.
+    """
+    turn_start = _find_user_turn_start(messages, len(messages) - 1)
+    return {
+        part.tool_call_id
+        for message in messages[turn_start or 0 :]
+        if isinstance(message, ModelResponse)
+        for part in message.parts
+        if isinstance(part, ToolCallPart) and isinstance(part.tool_call_id, str)
+    }
+
+
+def _clean_request_parts(parts: list, kept_tool_call_ids: set[str]) -> list:
+    """Replace previous turns' tool returns with a compact placeholder."""
     kept_parts = []
     for part in parts:
         if not isinstance(part, ToolReturnPart):
             kept_parts.append(part)
             continue
-        if part.tool_call_id in latest_tool_call_ids:
+        if part.tool_call_id in kept_tool_call_ids:
             kept_parts.append(part)
             continue
         tool_name = getattr(part, "tool_name", None) or "unknown_tool"
@@ -149,13 +171,13 @@ def _clean_request_parts(parts: list, latest_tool_call_ids: set[str]) -> list:
 
 
 def clean_tool_history(messages: list[ModelMessage]) -> list[ModelMessage]:
-    """Compact old tool returns while preserving the latest tool cycle."""
-    latest_tool_call_ids = _latest_tool_call_ids(messages)
+    """Compact previous turns' tool returns while preserving the current turn."""
+    kept_tool_call_ids = _current_turn_tool_call_ids(messages)
     cleaned_history: list[ModelMessage] = []
 
     for message in messages:
         if isinstance(message, ModelRequest):
-            kept_parts = _clean_request_parts(message.parts, latest_tool_call_ids)
+            kept_parts = _clean_request_parts(message.parts, kept_tool_call_ids)
             if kept_parts:
                 cleaned_history.append(dataclasses.replace(message, parts=kept_parts))
             continue
@@ -236,11 +258,34 @@ def _safe_checkpoint(messages: list[ModelMessage], summary_checkpoint: int) -> i
     return max(0, min(summary_checkpoint, len(messages)))
 
 
+def _align_to_user_turn(messages: list[ModelMessage], start: int) -> int:
+    """Walk `start` back to the nearest user turn so tool cycles stay intact.
+
+    Slicing on a raw index can open the window on a `ModelRequest` holding a
+    `ToolReturnPart` whose `ToolCallPart` sits in the dropped prefix. Providers
+    reject such an orphaned tool result (the same strictness the Mistral
+    tail-patch in `pydantic_ai._run_agent` works around), and compaction does
+    not help: `_clean_request_parts` replaces stale returns with a placeholder
+    that is still a `ToolReturnPart`.
+
+    Walking backward only ever grows the window, so no context is lost and the
+    scan always terminates. Returns `start` unchanged for a degenerate history
+    with no user prompt at or before it.
+    """
+    aligned_start = _find_user_turn_start(messages, start)
+    return start if aligned_start is None else aligned_start
+
+
 def build_active_history(
     messages: list[ModelMessage], summary_checkpoint: int, context_messages: int
 ) -> list[ModelMessage]:
     """Trim history to the runtime window: the last `context_messages` entries
     before the checkpoint, plus everything after it.
+
+    The window start is aligned back to the nearest user message, so the window
+    never opens in the middle of a tool cycle; it therefore holds at least
+    `context_messages` entries before the checkpoint, and at most one extra turn
+    more.
 
     Pure list-slicing, no LLM. This is the history the model actually sees for
     the current turn; the summarized prefix (everything before the window) is
@@ -248,7 +293,7 @@ def build_active_history(
     `messages` is non-empty.
     """
     checkpoint = _safe_checkpoint(messages, summary_checkpoint)
-    active_start = max(0, checkpoint - max(context_messages, 1))
+    active_start = _align_to_user_turn(messages, max(0, checkpoint - max(context_messages, 1)))
     active = messages[active_start:]
     if active:
         return active

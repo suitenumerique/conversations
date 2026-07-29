@@ -997,6 +997,16 @@ USER QUESTION:
         environ_name="SUMMARIZATION_CONCURRENT_REQUESTS",
         environ_prefix=None,
     )
+    # One knob, two mechanisms - both share the finite context window:
+    #   `ratio`     -> full-document inlining budget. Higher inlines more docs
+    #                  verbatim; lower pushes them to tool_call_only (RAG). `0`
+    #                  disables inlining entirely.
+    #   `1 - ratio` -> conversation history budget that gates summarization.
+    #                  A smaller history share makes summarization trigger sooner.
+    # So raising this to inline more documents also shrinks the history budget and
+    # fires summarization earlier, and vice versa - they cannot be tuned
+    # independently. See docs/attachments.md and docs/history-processor.md.
+    #
     # Token estimation uses cl100k_base (GPT-4 tokenizer); non-OpenAI models
     # (Mistral, Llama, Anthropic) may tokenize 5-15% higher for the same text.
     # The security buffer below absorbs that drift.

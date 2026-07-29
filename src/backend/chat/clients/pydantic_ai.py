@@ -170,6 +170,7 @@ from chat.clients.schema import (
 )
 from chat.constants import (
     ACCESS_FULL_CONTEXT,
+    HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS,
     HISTORY_SUMMARY_POLL_INTERVAL_SECONDS,
     IMAGE_MIME_PREFIX,
     MARKDOWN_MIME_TYPE,
@@ -745,11 +746,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         Yields keep-alive data parts so proxies don't kill the idle SSE
         stream. Returns when the summary lands (checkpoint advanced past
-        ours) or when the claim is dead — immediately, or, when
-        ``claim_deadline`` (monotonic clock) is given, once the deadline has
-        passed without a worker claiming. Bounded by the claim TTL plus the
-        grace window by construction.
+        ours), or once the claim has been dead *continuously* for
+        ``HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS`` and, when
+        ``claim_deadline`` (monotonic clock) is given, that deadline has also
+        passed without a worker claiming.
+
+        The dead-claim grace exists because the task releases its claim in
+        `finally` even when Celery is about to retry it: without the grace the
+        turn would fail during a retry backoff that was about to succeed. A
+        reappearing claim resets the grace, so each retry attempt is waited out
+        afresh — bounded overall by the claim TTL per attempt.
         """
+        claim_dead_since: float | None = None
         while True:
             await self.conversation.arefresh_from_db(
                 fields=[
@@ -760,10 +768,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             )
             if self.conversation.history_summary_checkpoint > self._history_summary_checkpoint:
                 return
-            if not self.conversation.history_summarization_claim_is_live and (
-                claim_deadline is None or time.monotonic() >= claim_deadline
-            ):
-                return
+            now = time.monotonic()
+            if self.conversation.history_summarization_claim_is_live:
+                claim_dead_since = None
+            else:
+                if claim_dead_since is None:
+                    claim_dead_since = now
+                if now - claim_dead_since >= HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS and (
+                    claim_deadline is None or now >= claim_deadline
+                ):
+                    return
             yield events_v4.DataPart(data=[{"type": "keep_alive"}])
             await asyncio.sleep(HISTORY_SUMMARY_POLL_INTERVAL_SECONDS)
 
