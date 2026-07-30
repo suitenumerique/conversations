@@ -17,15 +17,13 @@ and this project adheres to
 - ⬆️(back) migrate to pydantic-ai 2.x
 - 🏗️(front) migrate the frontend from Next.js to Vite and React Router
 - 🏗️(front) rename frontend build var from the NEXT_PUBLIC_ prefix to VITE_
+- 💬(back) rewrite the default agent instructions and tool descriptions
+- 💄(front) correct icon Docs button
 
 ### Removed
 
 - 🔥(back) remove the unused Albert web search manager and its tool
 - 🔥(back) remove the unused RAG_WEB_SEARCH_PROMPT_UPDATE setting
-
-### Changed
-
-- 💄(front) correct icon Docs button
 
 ## [0.0.22] - 2026-08-10
 
