@@ -121,11 +121,15 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
             }
         )
 
-    def authenticate(self, request, **kwargs):
-        """Authenticate user and add they to Brevo list if activation not required."""
-        user = super().authenticate(request, **kwargs)
+    def post_get_or_create_user(self, user, claims, is_new_user):
+        """Add the user to the Brevo follow-up list if activation is not required.
 
-        if user and not settings.ACTIVATION_REQUIRED and settings.BREVO_FOLLOWUP_LIST_ID:
+        Only on signup: adding a contact already in the list is a no-op for Brevo, so
+        doing it on every login only costs an HTTP round-trip in the login path.
+
+        A failure is logged and never retried (as in every other Brevo call site).
+        The follow-up list is a marketing aid: recovering a missed contact is a
+        re-import, not something worth persisting per-user state for.
+        """
+        if is_new_user and not settings.ACTIVATION_REQUIRED and settings.BREVO_FOLLOWUP_LIST_ID:
             add_user_to_brevo_list([user.email], settings.BREVO_FOLLOWUP_LIST_ID)
-
-        return user

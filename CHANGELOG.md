@@ -10,15 +10,19 @@ and this project adheres to
 
 ### Added
 
-- ✨(back) list conversation files on the admin conversation page
 - ✨(conversation) summarize messages
 
 ### Changed
 
-- ⬆️(dependencies) update pypdf and next
+- ⚡️(back) add users to the Brevo follow-up list only at signup
+- ✨(back) list conversation files on the admin conversation page
 - ⚡️(back) speed up the admin conversation list page
 
 ## [0.0.21] - 2026-07-28
+
+### Changed
+
+- ⬆️(dependencies) update pypdf and next
 
 ### Fixed
 

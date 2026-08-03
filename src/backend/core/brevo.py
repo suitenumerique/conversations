@@ -9,6 +9,12 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+# Brevo answers the "add to list" endpoint with a 400 when it has nothing to add.
+# The message is ambiguous on purpose ("already in list" OR "does not exist"), but we
+# always create the contact right before adding it, so only the first branch can apply:
+# this is an expected no-op, not a failure.
+BREVO_NOTHING_TO_ADD_MESSAGE = "Contact already in list and/or does not exist"
+
 
 def create_contact_in_brevo(email: str) -> bool:
     """
@@ -88,6 +94,10 @@ def add_user_to_brevo_list(emails: List[str], list_id: Optional[str]) -> None:
         return
 
     if response.status_code != 201:
+        if response.status_code == 400 and BREVO_NOTHING_TO_ADD_MESSAGE in response.text:
+            logger.info("Contacts %s already in Brevo list (%s)", emails, list_id)
+            return
+
         logger.error(
             "Error adding contacts to Brevo (%s) %s: (%s) %s",
             list_id,

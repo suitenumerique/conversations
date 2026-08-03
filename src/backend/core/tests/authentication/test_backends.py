@@ -605,8 +605,7 @@ def test_authentication_user_added_to_brevo(monkeypatch, rf, settings):
     assert brevo_add_to_list.calls[0].request.headers["api-key"] == "test-api-key"
     assert json.loads(brevo_add_to_list.calls[0].request.body) == {"emails": [user.email]}
 
-    # Now test when activation is required: user should not be added to Brevo list
-    settings.ACTIVATION_REQUIRED = True
+    # A returning user is already in the list: Brevo must not be called again
     klass.authenticate(
         request,
         code="test-code",
@@ -616,6 +615,51 @@ def test_authentication_user_added_to_brevo(monkeypatch, rf, settings):
 
     assert len(brevo_create_contact.calls) == 1  # No new call made
     assert len(brevo_add_to_list.calls) == 1  # No new call made
+
+
+@responses.activate
+def test_post_get_or_create_user_only_syncs_new_users(settings):
+    """Only a freshly created user is pushed to the Brevo follow-up list."""
+
+    settings.BREVO_API_KEY = "test-api-key"
+    settings.BREVO_FOLLOWUP_LIST_ID = "follow-up-list-id"
+    settings.ACTIVATION_REQUIRED = False
+
+    responses.post("https://api.brevo.com/v3/contacts", status=201)
+    brevo_add_to_list = responses.post(
+        "https://api.brevo.com/v3/contacts/lists/follow-up-list-id/contacts/add",
+        status=201,
+    )
+
+    klass = OIDCAuthenticationBackend()
+    user = UserFactory()
+
+    klass.post_get_or_create_user(user, {}, is_new_user=False)
+    assert len(brevo_add_to_list.calls) == 0
+
+    klass.post_get_or_create_user(user, {}, is_new_user=True)
+    assert len(brevo_add_to_list.calls) == 1
+
+
+@responses.activate
+def test_post_get_or_create_user_not_synced_when_activation_required(settings):
+    """A new user is not pushed to the follow-up list while activation is required."""
+
+    settings.BREVO_API_KEY = "test-api-key"
+    settings.BREVO_FOLLOWUP_LIST_ID = "follow-up-list-id"
+    settings.ACTIVATION_REQUIRED = True
+
+    responses.post("https://api.brevo.com/v3/contacts", status=201)
+    brevo_add_to_list = responses.post(
+        "https://api.brevo.com/v3/contacts/lists/follow-up-list-id/contacts/add",
+        status=201,
+    )
+
+    klass = OIDCAuthenticationBackend()
+
+    klass.post_get_or_create_user(UserFactory(), {}, is_new_user=True)
+
+    assert len(brevo_add_to_list.calls) == 0
 
 
 @responses.activate
