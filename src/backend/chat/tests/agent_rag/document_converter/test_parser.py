@@ -1,5 +1,7 @@
 """Tests for BaseParser and AlbertParser."""
 
+import base64
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,7 +17,7 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 ALBERT_API_URL = "https://albert.api.etalab.gouv.fr"
 ALBERT_API_KEY = "test-key"
-ALBERT_PARSE_ENDPOINT = f"{ALBERT_API_URL}/v1/parse-beta"
+ALBERT_PARSE_ENDPOINT = f"{ALBERT_API_URL}/v1/ocr"
 
 
 @pytest.fixture(name="sample_odt")
@@ -43,16 +45,17 @@ def test_base_parser_cannot_be_instantiated():
 
 
 @responses.activate
-def test_albert_parser_pdf_success():
-    """AlbertParser should call Albert API and join page contents."""
+def test_albert_parser_pdf_success(settings):
+    """AlbertParser should call Albert's OCR endpoint and join page markdown."""
+    settings.OCR_MODEL = "test-ocr-model"
     responses.add(
         responses.POST,
         ALBERT_PARSE_ENDPOINT,
         json={
-            "data": [
-                {"content": "# Page 1"},
-                {"content": "## Page 2"},
-                {"content": "End."},
+            "pages": [
+                {"markdown": "# Page 1"},
+                {"markdown": "## Page 2"},
+                {"markdown": "End."},
             ]
         },
         status=200,
@@ -65,6 +68,18 @@ def test_albert_parser_pdf_success():
     assert result == "# Page 1\n\n## Page 2\n\nEnd."
     assert len(responses.calls) == 1
     assert responses.calls[0].request.url == ALBERT_PARSE_ENDPOINT
+
+    # The OCR endpoint takes the document inline as a base64 data URL, not a file upload.
+    payload = json.loads(responses.calls[0].request.body)
+    encoded = base64.standard_b64encode(b"pdf-bytes").decode("utf-8")
+    assert payload == {
+        "document": {
+            "type": "document_url",
+            "document_name": "report.pdf",
+            "document_url": f"data:application/pdf;base64,{encoded}",
+        },
+        "model": "test-ocr-model",
+    }
 
 
 @responses.activate

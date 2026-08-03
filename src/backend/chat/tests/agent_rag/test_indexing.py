@@ -379,8 +379,8 @@ def test_index_creates_markdown_companion_for_non_text_input():
     companion = None
     try:
         responses.post(
-            "https://albert.api.etalab.gouv.fr/v1/parse-beta",
-            json={"data": [{"content": "# Parsed PDF\n\nbody"}]},
+            "https://albert.api.etalab.gouv.fr/v1/ocr",
+            json={"pages": [{"markdown": "# Parsed PDF\n\nbody"}]},
             status=status.HTTP_200_OK,
         )
         responses.post(
@@ -434,8 +434,8 @@ def test_index_reconcile_rebuilds_missing_markdown_companion():
     companion = None
     try:
         parse_mock = responses.post(
-            "https://albert.api.etalab.gouv.fr/v1/parse-beta",
-            json={"data": [{"content": "# Parsed PDF\n\nbody"}]},
+            "https://albert.api.etalab.gouv.fr/v1/ocr",
+            json={"pages": [{"markdown": "# Parsed PDF\n\nbody"}]},
             status=status.HTTP_200_OK,
         )
         documents_mock = responses.post(
@@ -473,8 +473,8 @@ def test_index_reconcile_skips_companion_when_present(project_text_attachment):
     project_text_attachment.save(update_fields=["rag_document_id"])
 
     parse_mock = responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/parse-beta",
-        json={"data": [{"content": "unused"}]},
+        "https://albert.api.etalab.gouv.fr/v1/ocr",
+        json={"pages": [{"markdown": "unused"}]},
         status=status.HTTP_200_OK,
     )
 

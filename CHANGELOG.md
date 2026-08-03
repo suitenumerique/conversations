@@ -17,6 +17,11 @@ and this project adheres to
 - ⚡️(back) add users to the Brevo follow-up list only at signup
 - ✨(back) list conversation files on the admin conversation page
 - ⚡️(back) speed up the admin conversation list page
+- ♻️(back) parse PDFs through the current Albert OCR endpoint
+
+### Removed
+
+- 🔥(back) remove the unused Albert RAG document search module
 
 ## [0.0.21] - 2026-07-28
 

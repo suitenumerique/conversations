@@ -448,7 +448,7 @@ When a user sends a message with attachments, the system processes them differen
    - `RAG_DOCUMENT_SEARCH_BACKEND` (default `chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend`): stores the converted markdown in the configured vector index and serves search queries.
 
    **PDF parsing strategies** (per `RAG_DOCUMENT_PARSER`):
-   - `AlbertParser`: every PDF is sent unconditionally to the Albert `/v1/parse-beta` endpoint.
+   - `AlbertParser`: every PDF is sent unconditionally to the Albert `/v1/ocr` endpoint (as a base64 data URL, using `OCR_MODEL`). No local analysis, so text-based PDFs go through OCR too.
    - `AdaptivePdfParser`: runs a `pypdf`-based heuristic on the upload first (see `analyze_pdf` in `parser.py`):
      - Counts pages with extractable text and the average characters per page.
      - If `avg_chars_per_page > MIN_AVG_CHARS_FOR_TEXT_EXTRACTION` AND `text_coverage > MIN_TEXT_COVERAGE_FOR_TEXT_EXTRACTION`, the PDF is treated as a born-digital text PDF and converted **locally** via MarkItDown - no external API call.

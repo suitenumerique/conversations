@@ -20,7 +20,7 @@ When the LLM provider fails, the backend emits a typed error code in the Vercel 
 
 ## RAG / Document Parsing Errors
 
-When the document parsing/RAG pipeline fails (Albert's `/v1/parse-beta`, `/v1/collections`, `/v1/documents`, or local parsers), the backend classifies the failure and emits a typed error kind on the `document_parsing` tool result. The frontend reads this kind and displays a specific message.
+When the document parsing/RAG pipeline fails (Albert's `/v1/ocr`, `/v1/collections`, `/v1/documents`, or local parsers), the backend classifies the failure and emits a typed error kind on the `document_parsing` tool result. The frontend reads this kind and displays a specific message.
 
 ### Error mapping
 

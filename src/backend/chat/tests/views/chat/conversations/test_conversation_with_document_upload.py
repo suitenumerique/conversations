@@ -136,16 +136,8 @@ def fixture_mock_document_api():
 
     # Mock PDF parsing
     responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/parse-beta",
-        json={
-            "data": [
-                {
-                    "content": "This is the content of the PDF.",
-                    "metadata": {"document_name": "sample.pdf"},
-                }
-            ],
-            "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
-        },
+        "https://albert.api.etalab.gouv.fr/v1/ocr",
+        json={"pages": [{"markdown": "This is the content of the PDF."}]},
         status=status.HTTP_200_OK,
     )
 
@@ -224,16 +216,8 @@ def fixture_mock_odt_document_api():
 
     # Mock PDF parsing
     responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/parse-beta",
-        json={
-            "data": [
-                {
-                    "content": "This is the content of the ODT.",
-                    "metadata": {"document_name": "sample.odt"},
-                }
-            ],
-            "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
-        },
+        "https://albert.api.etalab.gouv.fr/v1/ocr",
+        json={"pages": [{"markdown": "This is the content of the ODT."}]},
         status=status.HTTP_200_OK,
     )
 

@@ -63,28 +63,35 @@ class OdtParserMixin:
 
 
 class AlbertParser(OdtParserMixin, BaseParser):
-    """Document parser using Albert API for PDFs."""
+    """Document parser using Albert API for PDFs.
 
-    endpoint = urljoin(settings.ALBERT_API_URL, "/v1/parse-beta")
+    Sends every PDF to Albert's OCR endpoint, with no local analysis. Use
+    AdaptivePdfParser instead to keep text-based PDFs out of OCR.
+    """
+
+    endpoint = urljoin(settings.ALBERT_API_URL, "/v1/ocr")
 
     def parse_pdf_document(self, name: str, content_type: str, content: bytes) -> str:
         """Parse PDF document using Albert API."""
+        file_data = base64.standard_b64encode(content).decode("utf-8")
         response = requests.post(
             self.endpoint,
             headers={
                 "Authorization": f"Bearer {settings.ALBERT_API_KEY}",
             },
-            files={
-                "file": (name, content, content_type),
-                "output_format": (None, "markdown"),
+            json={
+                "document": {
+                    "type": "document_url",
+                    "document_name": name,
+                    "document_url": f"data:{content_type};base64,{file_data}",
+                },
+                "model": settings.OCR_MODEL,
             },
             timeout=settings.ALBERT_API_PARSE_TIMEOUT,
         )
         response.raise_for_status()
 
-        return "\n\n".join(
-            document_page["content"] for document_page in response.json().get("data", [])
-        )
+        return "\n\n".join(page.get("markdown", "") for page in response.json().get("pages", []))
 
 
 METHOD_TEXT_EXTRACTION = "text_extraction"
@@ -280,5 +287,4 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
             except Exception as e:  # pylint: disable=broad-except #noqa: BLE001
                 logger.error("Failed to OCR pages %d-%d: %s", start_index + 1, end_index, str(e))
                 results.extend([""] * (end_index - start_index))
-
         return "\n\n".join(results)

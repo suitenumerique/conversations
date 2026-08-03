@@ -161,8 +161,8 @@ def test_post_conversation_with_local_pdf_document_url(
         status=200,
     )
     responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/parse-beta",
-        json={"id": "parse_id", "object": "document content"},
+        "https://albert.api.etalab.gouv.fr/v1/ocr",
+        json={"pages": [{"markdown": "document content"}]},
         status=200,
     )
     responses.post(
@@ -870,8 +870,8 @@ def test_post_conversation_with_local_not_pdf_document_url(
         status=200,
     )
     responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/parse-beta",
-        json={"id": "parse_id", "object": "document content"},
+        "https://albert.api.etalab.gouv.fr/v1/ocr",
+        json={"pages": [{"markdown": "document content"}]},
         status=200,
     )
     responses.post(
