@@ -111,12 +111,16 @@ universal = true
 
 [tool.uv]
 exclude-newer = "7 days"
+# Temporary, remove after 2026-08-07: lifts the hold-back for cryptography only,
+# so the security floor below can be locked before the global 7-day window
+# reaches 50.0.0 (published 2026-07-31). Every other package keeps the hold-back.
+exclude-newer-package = { cryptography = "2026-08-01T00:00:00Z" }
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
     "sys_platform == 'darwin'",
 ]
 override-dependencies = [
-    "cryptography>=48.0.1", # GHSA-537c-gmf6-5ccf
+    "cryptography>=50.0.0", # GHSA-g6cj-pr64-35w5
     "joserfc>=1.6.8", # CVE-2026-49852
     "pillow>=12.2.0", #CVE-2026-40192
     "python-multipart>=0.0.31", # CVE-2026-53539

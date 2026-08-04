@@ -37,7 +37,7 @@ jobs:
 
       - name: Install yarn
         if: steps.front-node_modules.outputs.cache-hit != 'true'
-        run: npm install -g yarn
+        run: npm install -g yarn@1.22.22
 
       - name: Install dependencies
         if: steps.front-node_modules.outputs.cache-hit != 'true'
@@ -75,7 +75,7 @@ jobs:
 
       - name: Install yarn
         if: steps.mail-templates.outputs.cache-hit != 'true'
-        run: npm install -g yarn
+        run: npm install -g yarn@1.22.22
 
       - name: Install node dependencies
         if: steps.mail-templates.outputs.cache-hit != 'true'
