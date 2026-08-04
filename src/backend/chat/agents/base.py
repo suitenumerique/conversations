@@ -127,6 +127,12 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
     """
     # pylint: disable=import-outside-toplevel
 
+    # Model settings declared in the LLM configuration file (temperature, top_p,
+    # max_tokens, ...). Unset fields are omitted so provider defaults still apply.
+    _configured_settings = (
+        configuration.settings.model_dump(exclude_none=True) if configuration.settings else {}
+    )
+
     match configuration.provider.kind:
         case "mistral":
             import pydantic_ai.models.mistral as mistral_models  # noqa: PLC0415
@@ -155,13 +161,19 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
                 # null and require a valid value or omission, so we pass neutral
                 # defaults to keep the request valid.
                 settings=mistral_models.MistralModelSettings(
-                    presence_penalty=0.0,
-                    frequency_penalty=0.0,
-                    stop_sequences=[],
+                    **{
+                        "presence_penalty": 0.0,
+                        "frequency_penalty": 0.0,
+                        "stop_sequences": [],
+                        **_configured_settings,
+                    }
                 ),
             )
         case "openai":
-            from pydantic_ai.models.openai import OpenAIChatModel  # noqa: PLC0415
+            from pydantic_ai.models.openai import (  # noqa: PLC0415
+                OpenAIChatModel,
+                OpenAIChatModelSettings,
+            )
             from pydantic_ai.profiles.openai import OpenAIModelProfile  # noqa: PLC0415
             from pydantic_ai.providers.openai import OpenAIProvider  # noqa: PLC0415
 
@@ -186,6 +198,10 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
             else:
                 profile = None
 
+            _openai_settings = (
+                OpenAIChatModelSettings(**_configured_settings) if _configured_settings else None
+            )
+
             if configuration.provider.co2_handling == "albert":
                 return AlbertOpenAIChatModel(
                     model_name=configuration.model_name,
@@ -194,6 +210,7 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
                         base_url=configuration.provider.base_url,
                         api_key=configuration.provider.api_key,
                     ),
+                    settings=_openai_settings,
                 )
 
             return OpenAIChatModel(
@@ -203,6 +220,7 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
                     base_url=configuration.provider.base_url,
                     api_key=configuration.provider.api_key,
                 ),
+                settings=_openai_settings,
             )
         case _:
             raise ImproperlyConfigured(
