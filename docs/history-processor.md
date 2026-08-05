@@ -11,7 +11,13 @@ Two functions in `chat/agents/history_processors.py` split the work. The Celery 
 - `history_summary` — the running summary text, injected into the model's dynamic instructions.
 - `history_summary_checkpoint` — the message index up to which the summary is valid.
 
-The model then receives the summary plus the last `CONVERSATION_SUMMARY_CONTEXT_MESSAGES` `ModelMessage` entries before the checkpoint, so recent detail is kept verbatim. Use an **even** value so the retained window starts on a user message.
+The model then receives the summary plus roughly the last `CONVERSATION_SUMMARY_CONTEXT_MESSAGES` `ModelMessage` entries before the checkpoint, so recent detail is kept verbatim. Use an **even** value so the retained window starts on a user message.
+
+That count is a **target, not a strict ceiling** — the window can end up either side of it. `build_active_history` first walks the window start *back* to the nearest user message so it never opens mid-tool-cycle, which can retain up to one complete turn more than asked. It then drops whole turns off the front of the retained tail until the window fits the conversation budget, which can retain fewer. The trigger measures that same budgeted window.
+
+Why the trim is needed: a message count is a poor proxy for token weight, so one oversized entry (a large paste, a fat tool result) can hold the window above budget on its own. The window start is derived from the checkpoint, so advancing the checkpoint cannot evict it. Without the trim the over-budget condition survives summarization and re-triggers the blocking phase on every following turn.
+
+Only the tail *before* the checkpoint is negotiable. Everything from the checkpoint on has no summary covering it yet and is kept whatever it costs, so the turn that first receives an oversized message is still sent over budget; only later turns benefit.
 
 ```text
 Full history:   [msg 1 … msg 20] [msg 21 … msg 30]   ← exceeds budget

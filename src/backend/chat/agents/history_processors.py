@@ -276,8 +276,48 @@ def _align_to_user_turn(messages: list[ModelMessage], start: int) -> int:
     return start if aligned_start is None else aligned_start
 
 
+def _next_user_turn_start(messages: list[ModelMessage], start: int, limit: int) -> int | None:
+    """Return the index of the first user turn strictly after `start`, up to
+    `limit` inclusive, or None when the range holds no user message."""
+    for index in range(start + 1, min(limit, len(messages) - 1) + 1):
+        message = messages[index]
+        if isinstance(message, ModelRequest) and any(
+            isinstance(part, UserPromptPart) for part in message.parts
+        ):
+            return index
+    return None
+
+
+def _shrink_to_budget(
+    messages: list[ModelMessage], start: int, checkpoint: int, message_token_budget: int
+) -> int:
+    """Drop whole turns off the front of the retained tail until the window fits.
+
+    `context_messages` caps the retained tail by *message count*, which is a poor
+    proxy for its token weight: one oversized entry (a large paste, a fat tool
+    result) can hold the window far above budget on its own. Advancing the
+    checkpoint cannot evict it, because the window start is derived from the
+    checkpoint, so the over-budget condition would survive summarization and
+    re-trigger the blocking summary phase every turn.
+
+    Only the pre-checkpoint tail is negotiable: everything from `checkpoint` on
+    is not covered by the summary yet and must be kept whatever it costs. Steps
+    forward turn by turn so the window still opens on a user prompt and never
+    splits a tool cycle.
+    """
+    while start < checkpoint and _estimate_history_tokens(messages[start:]) > message_token_budget:
+        next_start = _next_user_turn_start(messages, start, checkpoint)
+        if next_start is None:
+            break
+        start = next_start
+    return start
+
+
 def build_active_history(
-    messages: list[ModelMessage], summary_checkpoint: int, context_messages: int
+    messages: list[ModelMessage],
+    summary_checkpoint: int,
+    context_messages: int,
+    message_token_budget: int = 0,
 ) -> list[ModelMessage]:
     """Trim history to the runtime window: the last `context_messages` entries
     before the checkpoint, plus everything after it.
@@ -287,6 +327,13 @@ def build_active_history(
     `context_messages` entries before the checkpoint, and at most one extra turn
     more.
 
+    With a positive `message_token_budget`, that retained tail is then trimmed
+    turn by turn toward the budget (see `_shrink_to_budget`), so an oversized
+    entry in the tail cannot pin the window above it. Only messages before
+    `checkpoint` are eligible: everything from the checkpoint on has no summary
+    covering it yet and is kept whatever it costs, so the returned window can
+    still exceed the budget. Passing 0 keeps the message-count window as-is.
+
     Pure list-slicing, no LLM. This is the history the model actually sees for
     the current turn; the summarized prefix (everything before the window) is
     represented by the persisted summary instead. Never returns empty while
@@ -294,6 +341,8 @@ def build_active_history(
     """
     checkpoint = _safe_checkpoint(messages, summary_checkpoint)
     active_start = _align_to_user_turn(messages, max(0, checkpoint - max(context_messages, 1)))
+    if message_token_budget > 0:
+        active_start = _shrink_to_budget(messages, active_start, checkpoint, message_token_budget)
     active = messages[active_start:]
     if active:
         return active
@@ -301,11 +350,16 @@ def build_active_history(
 
 
 def _active_window(
-    messages: list[ModelMessage], summary_checkpoint: int, context_messages: int
+    messages: list[ModelMessage],
+    summary_checkpoint: int,
+    context_messages: int,
+    message_token_budget: int = 0,
 ) -> tuple[int, list[ModelMessage], int]:
     """Return (clamped checkpoint, active-history slice, its token estimate)."""
     checkpoint = _safe_checkpoint(messages, summary_checkpoint)
-    active_history = build_active_history(messages, checkpoint, context_messages)
+    active_history = build_active_history(
+        messages, checkpoint, context_messages, message_token_budget
+    )
     return checkpoint, active_history, _estimate_history_tokens(active_history)
 
 
@@ -379,12 +433,17 @@ def should_generate_conversation_summary(
     message_token_budget: int = 0,
     context_messages: int = 10,
 ) -> bool:
-    """Return True when active history exceeds budget and new messages can be summarized."""
+    """Return True when active history exceeds budget and new messages can be summarized.
+
+    Measures the same window `build_active_history` hands the model, budget
+    included, so a summary that lands actually clears the condition instead of
+    leaving it true for the next turn to trip over again.
+    """
     if message_token_budget <= 0:
         return False
 
     cleaned_history = safe_clean_tool_history(messages)
     checkpoint, _active, active_tokens = _active_window(
-        cleaned_history, summary_checkpoint, context_messages
+        cleaned_history, summary_checkpoint, context_messages, message_token_budget
     )
     return active_tokens > message_token_budget and len(cleaned_history) > checkpoint

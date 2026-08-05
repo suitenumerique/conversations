@@ -737,8 +737,13 @@ class Base(BraveSettings, Configuration):
     # persisted yet, so the check stays on stored history. A turn tipped over budget by the
     # new message alone is caught on the next turn; the security buffer absorbs the overflow
     # meanwhile (see ADR 0002). That history usually ends
-    # on an assistant ModelResponse. After a summary, keep the last N ModelMessage
+    # on an assistant ModelResponse. After a summary, keep roughly the last N ModelMessage
     # entries before the checkpoint. Use an even N so the window starts on a user message.
+    # N is a target, not a strict ceiling: build_active_history first walks the window start
+    # back to the nearest user message so it never opens mid-tool-cycle, which can keep up to
+    # one complete turn more than N; it then drops whole turns off that retained tail until
+    # the window fits the budget, so a single oversized entry cannot keep the history over
+    # budget (which would re-trigger summarization every turn).
     CONVERSATION_SUMMARY_CONTEXT_MESSAGES = values.PositiveIntegerValue(
         default=10,
         environ_name="CONVERSATION_SUMMARY_CONTEXT_MESSAGES",

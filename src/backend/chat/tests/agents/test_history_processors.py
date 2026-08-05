@@ -402,6 +402,98 @@ def test_build_active_history_falls_back_when_no_user_turn_precedes():
     assert result == messages[1:]
 
 
+def test_build_active_history_budget_leaves_a_fitting_window_untouched():
+    """A window already within budget is the same one the message count picks."""
+    messages = _build_turns(5)
+
+    assert history_processors.build_active_history(
+        messages, summary_checkpoint=6, context_messages=1, message_token_budget=10_000
+    ) == history_processors.build_active_history(messages, summary_checkpoint=6, context_messages=1)
+
+
+def test_build_active_history_evicts_an_oversized_retained_entry():
+    """One entry above budget must not pin the retained tail in the window."""
+    messages = [
+        ModelRequest(parts=[UserPromptPart(content=["paste " + ("x " * 4000)])]),
+        ModelResponse(parts=[TextPart(content="ok")]),
+        ModelRequest(parts=[UserPromptPart(content=["recent user"])]),
+        ModelResponse(parts=[TextPart(content="recent assistant")]),
+    ]
+
+    unbounded = history_processors.build_active_history(
+        messages, summary_checkpoint=2, context_messages=10
+    )
+    bounded = history_processors.build_active_history(
+        messages, summary_checkpoint=2, context_messages=10, message_token_budget=200
+    )
+
+    # The message count alone keeps the summarized paste; the budget evicts it.
+    assert unbounded == messages
+    assert bounded == messages[2:]
+
+
+def test_build_active_history_keeps_unsummarized_messages_over_budget():
+    """Everything after the checkpoint is absent from the summary, so it stays."""
+    messages = [
+        ModelRequest(parts=[UserPromptPart(content=["small"])]),
+        ModelResponse(parts=[TextPart(content="ok")]),
+        ModelRequest(parts=[UserPromptPart(content=["paste " + ("x " * 4000)])]),
+        ModelResponse(parts=[TextPart(content="answer")]),
+    ]
+
+    result = history_processors.build_active_history(
+        messages, summary_checkpoint=2, context_messages=10, message_token_budget=200
+    )
+
+    assert result == messages[2:]
+
+
+def test_build_active_history_budget_shrink_keeps_tool_cycles_intact():
+    """Shrinking to budget steps forward whole turns, never mid tool-cycle."""
+    messages = _build_tool_turn(1) + _build_tool_turn(2)
+
+    result = history_processors.build_active_history(
+        messages, summary_checkpoint=len(messages), context_messages=10, message_token_budget=1
+    )
+
+    assert _orphan_tool_return_ids(result) == set()
+
+
+def test_summarization_stops_re_triggering_after_an_oversized_message():
+    """A landed summary must clear the condition, not re-arm it every turn.
+
+    Replays the reported case: a pasted text far above budget, then ordinary
+    questions. The window used to keep the paste until it aged past
+    `context_messages`, so the trigger stayed true and every turn paid for a
+    blocking summarization that could not change the outcome.
+    """
+    budget = 200
+    messages = [
+        ModelRequest(parts=[UserPromptPart(content=["paste " + ("x " * 4000)])]),
+        ModelResponse(parts=[TextPart(content="ok")]),
+    ]
+    checkpoint = 0
+    fired = []
+
+    for turn in range(6):
+        fires = history_processors.should_generate_conversation_summary(
+            messages,
+            summary_checkpoint=checkpoint,
+            message_token_budget=budget,
+            context_messages=10,
+        )
+        fired.append(fires)
+        if fires:
+            # What the Celery task does: fold everything in, advance the checkpoint.
+            checkpoint = len(messages)
+        messages = messages + [
+            ModelRequest(parts=[UserPromptPart(content=[f"question-{turn}"])]),
+            ModelResponse(parts=[TextPart(content=f"answer-{turn}")]),
+        ]
+
+    assert fired == [True, False, False, False, False, False]
+
+
 def test_clean_tool_history_has_no_summary_checkpoint_behavior():
     """The pydantic-ai history processor path only cleans tools."""
     messages = _build_turns(2)

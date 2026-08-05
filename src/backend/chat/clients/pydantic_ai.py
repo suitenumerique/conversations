@@ -736,6 +736,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             cleaned_history,
             self._history_summary_checkpoint,
             settings.CONVERSATION_SUMMARY_CONTEXT_MESSAGES,
+            self._conversation_message_token_budget,
         )
 
     async def _wait_for_history_summary(
