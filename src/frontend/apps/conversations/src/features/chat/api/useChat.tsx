@@ -157,7 +157,16 @@ export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
 
   const result = useAiSdkChat({
     ...restOptions,
-    maxSteps: 3,
+    // Single step: every tool loop runs server-side inside the agent, and we
+    // register no client-side tool (no `onToolCall`/`addToolResult`), so there
+    // is nothing for the client to continue. With maxSteps > 1 the SDK
+    // auto-resubmits whenever a stream ends with a resolved tool invocation and
+    // no trailing `start_step` — which is what an interrupted turn looks like
+    // once the `summarize` tool has returned. That resubmit flips the status
+    // away from `error`, hiding the failure, and the backend answers an
+    // assistant-terminated message list with an empty stream: the bubble stays
+    // blank instead of showing an error and a retry.
+    maxSteps: 1,
     fetch: fetchAPIAdapter,
     onFinish: (message, finishOptions) => {
       if (message.annotations?.length) {

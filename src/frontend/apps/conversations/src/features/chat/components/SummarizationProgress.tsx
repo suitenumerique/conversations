@@ -14,9 +14,16 @@ const HIDE_DELAY_MS = 400;
 
 interface SummarizationProgressProps {
   done: boolean;
+  /** Called once the bar has finished its completion animation and hidden
+   * itself, so the caller can take over the slot without overlapping it.
+   * Must be referentially stable (the hide timer restarts otherwise). */
+  onHidden?: () => void;
 }
 
-export const SummarizationProgress = ({ done }: SummarizationProgressProps) => {
+export const SummarizationProgress = ({
+  done,
+  onHidden,
+}: SummarizationProgressProps) => {
   const { t } = useTranslation();
   const [progress, setProgress] = React.useState(0);
   const [hidden, setHidden] = React.useState(false);
@@ -38,9 +45,12 @@ export const SummarizationProgress = ({ done }: SummarizationProgressProps) => {
       return;
     }
     setProgress(1);
-    const timeout = setTimeout(() => setHidden(true), HIDE_DELAY_MS);
+    const timeout = setTimeout(() => {
+      setHidden(true);
+      onHidden?.();
+    }, HIDE_DELAY_MS);
     return () => clearTimeout(timeout);
-  }, [done]);
+  }, [done, onHidden]);
 
   if (hidden) {
     return null;

@@ -1,9 +1,20 @@
+import { ReadableStream } from 'node:stream/web';
+import { TextDecoder, TextEncoder } from 'node:util';
+import { deserialize, serialize } from 'node:v8';
+
 import { Message } from '@ai-sdk/ui-utils';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, renderHook, waitFor } from '@testing-library/react';
 
 import {
   isImagesSkippedEvent,
   stampImagesSkippedOnLatestUserMessage,
+  useChat,
 } from '../useChat';
+
+jest.mock('@/api', () => ({
+  fetchAPI: jest.fn(),
+}));
 
 describe('isImagesSkippedEvent', () => {
   it('accepts a chat_notice event', () => {
@@ -149,5 +160,80 @@ describe('stampImagesSkippedOnLatestUserMessage', () => {
     expect(
       (result[2].experimental_attachments![0] as { skipped?: unknown }).skipped,
     ).toEqual({ reason: 'model_text_only' });
+  });
+});
+
+// jsdom ships none of the globals the SDK uses to read a streamed response.
+// v8 serialize/deserialize stands in for structuredClone (it keeps the Date on
+// `createdAt`, which a JSON round-trip would flatten to a string).
+Object.assign(globalThis, {
+  ReadableStream,
+  TextDecoder,
+  TextEncoder,
+  structuredClone: <T,>(value: T): T => deserialize(serialize(value)) as T,
+});
+
+const CHAT_API = 'chats/conv-1/conversation/';
+
+// A turn cut short right after the `summarize` tool returned: the summary
+// landed, the answer never started, and no `f:` (start_step) closes the
+// message. That shape is what makes the SDK's multi-step continuation kick in.
+const INTERRUPTED_AFTER_SUMMARY = [
+  '9:{"toolCallId":"c1","toolName":"summarize","args":{"state":"running","summary_scope":"conversation"}}\n',
+  'a:{"toolCallId":"c1","result":{"state":"done"}}\n',
+].join('');
+
+const streamOf = (payload: string) =>
+  new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(payload));
+      controller.close();
+    },
+  });
+
+describe('useChat multi-step continuation', () => {
+  const fetchAPIMock = jest.requireMock('@/api').fetchAPI as jest.Mock;
+
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      {children}
+    </QueryClientProvider>
+  );
+
+  it('does not re-POST the turn when a stream ends on a resolved tool call', async () => {
+    const chatCalls: string[] = [];
+    fetchAPIMock.mockImplementation((url: string) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      chatCalls.push(url);
+      return Promise.resolve({
+        ok: true,
+        body: streamOf(INTERRUPTED_AFTER_SUMMARY),
+      });
+    });
+
+    const onError = jest.fn();
+    const { result } = renderHook(
+      () => useChat({ id: 'conv-1', api: CHAT_API, onError }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      await result.current.append({ role: 'user', content: 'hello' });
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(onError).not.toHaveBeenCalled();
+
+    // A second POST would carry an assistant-terminated message list, which the
+    // backend answers with an empty stream — leaving the bubble blank.
+    expect(chatCalls).toEqual([CHAT_API]);
   });
 });

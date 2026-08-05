@@ -60,4 +60,19 @@ describe('SummarizationProgress', () => {
       screen.queryByTestId('summarization-progress'),
     ).not.toBeInTheDocument();
   });
+
+  it('calls onHidden once the bar has hidden itself', () => {
+    const onHidden = jest.fn();
+    const { rerender } = render(
+      <SummarizationProgress done={false} onHidden={onHidden} />,
+    );
+
+    rerender(<SummarizationProgress done={true} onHidden={onHidden} />);
+    expect(onHidden).not.toHaveBeenCalled();
+
+    act(() => {
+      jest.advanceTimersByTime(400);
+    });
+    expect(onHidden).toHaveBeenCalledTimes(1);
+  });
 });

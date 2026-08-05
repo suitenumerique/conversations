@@ -304,6 +304,23 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     chatErrorType === 'summarization_failed' &&
     !!conversationSummarizeInvocation;
 
+  const [isSummarizationBarHidden, setIsSummarizationBarHidden] =
+    React.useState(false);
+  const handleSummarizationBarHidden = React.useCallback(
+    () => setIsSummarizationBarHidden(true),
+    [],
+  );
+
+  // Once the summary lands, the turn keeps streaming with an empty bubble until
+  // the model emits its first answer token. Without this the progress bar just
+  // vanishes and nothing replaces it, which reads as a stall.
+  const showPostSummarizationLoader =
+    isCurrentlyStreaming &&
+    status === 'streaming' &&
+    isSummarizationBarHidden &&
+    !message.content &&
+    !activeToolInvocation;
+
   // Memoize the streaming content split to avoid recreating components in JSX
   const { completedBlocks, pending } = React.useMemo(() => {
     // When not streaming, everything is completed as a single block array
@@ -434,9 +451,29 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 >
                   <SummarizationProgress
                     done={conversationSummarizeInvocation.state === 'result'}
+                    onHidden={handleSummarizationBarHidden}
                   />
                 </Box>
               )}
+            {showPostSummarizationLoader && (
+              <Box
+                $direction="row"
+                $align="center"
+                $gap="6px"
+                $width="100%"
+                $maxWidth="var(--chat-content-max-width, 750px)"
+                $margin={{
+                  all: 'auto',
+                  top: 'base',
+                  bottom: 'md',
+                }}
+              >
+                <Loader />
+                <Text $variation="600" $size="md">
+                  {t('Thinking...')}
+                </Text>
+              </Box>
+            )}
             {summarizationFailed && onRetry && (
               <Box
                 $width="100%"
@@ -584,6 +621,17 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
 
 MessageItemComponent.displayName = 'MessageItem';
 
+// Tool invocations go from `call` to `result` in place, without changing the
+// parts count, so their states need their own signature: the summarization
+// progress bar and the loader that replaces it hang on that transition.
+const getToolInvocationStates = (message: Message): string =>
+  (message.parts ?? [])
+    .filter(
+      (part): part is ToolInvocationUIPart => part.type === 'tool-invocation',
+    )
+    .map((part) => part.toolInvocation.state)
+    .join(',');
+
 // Custom comparison function for React.memo
 // Only re-render when props that affect rendering change
 const arePropsEqual = (
@@ -612,6 +660,12 @@ const arePropsEqual = (
   const prevPartsLength = prevProps.message.parts?.length ?? 0;
   const nextPartsLength = nextProps.message.parts?.length ?? 0;
   if (prevPartsLength !== nextPartsLength) {
+    return false;
+  }
+  if (
+    getToolInvocationStates(prevProps.message) !==
+    getToolInvocationStates(nextProps.message)
+  ) {
     return false;
   }
 

@@ -381,14 +381,16 @@ describe('MessageItem', () => {
     getMetadata: jest.fn(),
   };
 
+  const withProviders = (ui: React.ReactNode) => (
+    <CunninghamProvider>
+      <ToastProvider>
+        <Suspense fallback={null}>{ui}</Suspense>
+      </ToastProvider>
+    </CunninghamProvider>
+  );
+
   const renderWithProviders = (ui: React.ReactNode) => {
-    return render(
-      <CunninghamProvider>
-        <ToastProvider>
-          <Suspense fallback={null}>{ui}</Suspense>
-        </ToastProvider>
-      </CunninghamProvider>,
-    );
+    return render(withProviders(ui));
   };
 
   beforeEach(() => {
@@ -610,6 +612,10 @@ describe('MessageItem', () => {
   });
 
   describe('summarization progress', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
     const conversationSummarizeMessage = {
       id: 'msg-sum',
       role: 'assistant' as const,
@@ -702,6 +708,101 @@ describe('MessageItem', () => {
 
       await userEvent.click(screen.getByRole('button', { name: /retry/i }));
       expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes over with a spinner once the progress bar has hidden itself', async () => {
+      jest.useFakeTimers();
+      const summarizedMessage = {
+        ...conversationSummarizeMessage,
+        parts: [
+          {
+            type: 'tool-invocation' as const,
+            toolInvocation: {
+              toolCallId: 'call-1',
+              toolName: 'summarize',
+              state: 'result' as const,
+              args: { state: 'running', summary_scope: 'conversation' },
+              result: { state: 'done' },
+            },
+          },
+        ],
+      };
+
+      const { rerender } = renderWithProviders(
+        <MessageItem
+          {...defaultProps}
+          message={conversationSummarizeMessage}
+          status="streaming"
+          isLastAssistantMessage={true}
+        />,
+      );
+
+      // The summary result landed: the bar completes but is still on screen.
+      rerender(
+        withProviders(
+          <MessageItem
+            {...defaultProps}
+            message={summarizedMessage}
+            status="streaming"
+            isLastAssistantMessage={true}
+          />,
+        ),
+      );
+      expect(screen.getByTestId('summarization-progress')).toBeInTheDocument();
+      expect(screen.queryByText('Thinking...')).not.toBeInTheDocument();
+
+      // Once it hides, the spinner covers the wait for the first answer token.
+      act(() => {
+        jest.advanceTimersByTime(400);
+      });
+      expect(
+        screen.queryByTestId('summarization-progress'),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText('Thinking...')).toBeInTheDocument();
+    });
+
+    it('drops the spinner once the answer starts streaming', async () => {
+      jest.useFakeTimers();
+      const summarizedMessage = {
+        ...conversationSummarizeMessage,
+        parts: [
+          {
+            type: 'tool-invocation' as const,
+            toolInvocation: {
+              toolCallId: 'call-1',
+              toolName: 'summarize',
+              state: 'result' as const,
+              args: { state: 'running', summary_scope: 'conversation' },
+              result: { state: 'done' },
+            },
+          },
+        ],
+      };
+
+      const { rerender } = renderWithProviders(
+        <MessageItem
+          {...defaultProps}
+          message={summarizedMessage}
+          status="streaming"
+          isLastAssistantMessage={true}
+        />,
+      );
+      act(() => {
+        jest.advanceTimersByTime(400);
+      });
+      expect(screen.getByText('Thinking...')).toBeInTheDocument();
+
+      rerender(
+        withProviders(
+          <MessageItem
+            {...defaultProps}
+            message={{ ...summarizedMessage, content: 'Here is the answer' }}
+            status="streaming"
+            isLastAssistantMessage={true}
+          />,
+        ),
+      );
+      expect(screen.queryByText('Thinking...')).not.toBeInTheDocument();
     });
 
     it('does not render the summarization error for other error types', async () => {
