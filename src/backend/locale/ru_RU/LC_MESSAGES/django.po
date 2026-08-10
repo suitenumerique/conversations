@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-07-23 11:24+0000\n"
-"PO-Revision-Date: 2026-07-23 13:09\n"
+"POT-Creation-Date: 2026-08-06 09:47+0000\n"
+"PO-Revision-Date: 2026-08-10 12:26\n"
 "Last-Translator: \n"
 "Language-Team: Russian\n"
 "Language: ru_RU\n"
@@ -255,7 +255,7 @@ msgstr "Служба недоступна"
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
 msgstr "В настоящее время сервис недоступен из-за чрезмерной нагрузки. Команда работает над скорейшим восстановлением работы Помощника."
 
-#: chat/clients/pydantic_ai.py:1153
+#: chat/clients/pydantic_ai.py:1320
 msgid "Internal Documentation of the AI Assistant"
 msgstr "Внутренняя документация ИИ помощника"
 
@@ -272,7 +272,7 @@ msgstr "В этом проекте уже больше %(cap)d файлов. У�
 #: chat/views/edit_in_docs.py:35
 #, python-format
 msgid "[L'Assistant] New document %(date)s"
-msgstr ""
+msgstr "[L'Assistant] Новый документ %(date)s"
 
 #: core/admin.py:30
 msgid "Personal info"
