@@ -1,9 +1,9 @@
 """Constants and schemas for the Albert RAG agent from Albert API codebase."""
 
 from enum import Enum
-from typing import Annotated, Any, Dict, List, Literal, Optional, Self
+from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, StringConstraints, model_validator
+from pydantic import BaseModel, Field
 
 
 # - app/schemas/chunks.py
@@ -89,49 +89,6 @@ class SearchMethod(str, Enum):
     HYBRID = "hybrid"
     SEMANTIC = "semantic"
     LEXICAL = "lexical"
-
-
-class SearchArgs(BaseModel):
-    """Model representing the arguments for a search request in the Albert API."""
-
-    collections: List[Any] = Field(default=[], description="List of collections ID")
-    rff_k: int = Field(default=20, description="k constant in RFF algorithm")
-    k: int = Field(gt=0, default=4, description="Number of results to return")
-    method: SearchMethod = Field(default=SearchMethod.SEMANTIC)
-    score_threshold: Optional[float] = Field(
-        default=0.0,
-        ge=0.0,
-        le=1.0,
-        description=(
-            "Score of cosine similarity threshold for filtering results, "
-            "only available for semantic search method."
-        ),
-    )
-    web_search: bool = Field(
-        default=False, description="Whether add internet search to the results."
-    )
-    web_search_k: int = Field(default=5, description="Number of results to return for web search.")
-
-    @model_validator(mode="after")
-    def score_threshold_filter(self) -> Self:
-        """Validate the score threshold based on the search method."""
-        if self.score_threshold and self.method not in (
-            SearchMethod.SEMANTIC,
-            SearchMethod.MULTIAGENT,
-        ):
-            raise ValueError(
-                "Score threshold is only available for semantic and multiagent search methods."
-            )
-        return self
-
-
-class SearchRequest(SearchArgs):
-    """Model representing a search request in the Albert API."""
-
-    prompt: Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, min_length=1),
-    ] = Field(description="Prompt related to the search")
 
 
 class Search(BaseModel):

@@ -5,17 +5,23 @@
 The Brave web search tools enable the conversation agent to search the web using the [Brave Search API](https://brave.com/search/api/). 
 Brave Search is a privacy-focused search engine that provides comprehensive web search results.
 
-This documentation covers three related tools:
+This documentation covers two related tools:
 1. **`web_search_brave`** - Standard web search with optional summarization
 2. **`web_search_brave_with_document_backend`** - Web search with RAG-based document processing
-3. **`web_search_albert_rag`** - ⚠️ **Deprecated** - Use `web_search_brave_with_document_backend` instead
+
+> **Migration note:** web search is no longer selected through a model's `tools` list. The agent
+> now exposes a single tool named `web_search`, whose implementation comes from the model's
+> `web_search` setting (a dotted path, imported and registered at runtime), for example:
+> `"web_search": "chat.tools.web_search_brave.web_search_brave_llm_context"`.
+> The old names `web_search_brave`, `web_search_brave_with_document_backend` and
+> `web_search_albert_rag` are still accepted in `tools` for backward compatibility only: the
+> entries are ignored (stripped, with a warning logged) so old configurations keep loading.
 
 ## Table of Contents
 
 - [Common Configuration](#common-configuration)
 - [web_search_brave](#web_search_brave)
 - [web_search_brave_with_document_backend](#web_search_brave_with_document_backend)
-- [Deprecated: web_search_albert_rag](#deprecated-web_search_albert_rag)
 - [Comparison](#comparison)
 - [Best Practices](#best-practices)
 - [Troubleshooting](#troubleshooting)
@@ -438,33 +444,6 @@ RAG_DOCUMENT_SEARCH_BACKEND=chat.agent_rag.document_rag_backends.custom_backend.
 | Processing        | Simpler, faster                | More intelligent, slower               |
 | Cost              | Lower                          | Higher (RAG processing)                |
 | Best For          | General search                 | Deep research, technical queries       |
-
----
-
-## Deprecated: web_search_albert_rag
-
-### ⚠️ Deprecation Notice
-
-The `web_search_albert_rag` tool is **deprecated** and should not be used in new implementations.
-
-**Replacement**: Use `web_search_brave_with_document_backend` instead, which provides:
-- Better performance
-- More control over the RAG backend
-- Temporary collections (no cleanup issues)
-- Token usage tracking
-- Parallel processing support
-
-### Why Deprecated?
-
-- Limited to Albert API only
-- No control over document backend
-- Less flexible than the new approach
-- Maintenance burden
-
-### Timeline
-
-- **Current**: Still functional but not recommended
-- **Future**: Will be removed in a future version
 
 ---
 

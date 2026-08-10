@@ -81,11 +81,6 @@ def ai_settings(settings):
     settings.RAG_DOCUMENT_SEARCH_BACKEND = (
         "chat.agent_rag.document_rag_backends.albert_rag_backend.AlbertRagBackend"
     )
-    settings.RAG_WEB_SEARCH_PROMPT_UPDATE = (
-        "Based on the following document contents:\n\n{search_results}\n\n"
-        "Please answer the user's question: {user_prompt}"
-    )
-
     settings.AI_AGENT_INSTRUCTIONS = "You are a helpful test assistant :)"
 
     return settings

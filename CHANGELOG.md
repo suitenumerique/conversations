@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [unreleased]
+
+### Removed
+
+- 🔥(back) remove the unused Albert web search manager and its tool
+- 🔥(back) remove the unused RAG_WEB_SEARCH_PROMPT_UPDATE setting
+
 ## [0.0.22] - 2026-08-10
 
 ### Added
@@ -23,7 +30,7 @@ and this project adheres to
 ### Removed
 
 - 🔥(back) remove the unused Albert RAG document search module
- 
+
 ## [0.0.21] - 2026-07-28
 
 ### Changed

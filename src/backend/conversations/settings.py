@@ -874,65 +874,6 @@ class Base(BraveSettings, Configuration):
         environ_prefix=None,
     )
 
-    # Web search
-    RAG_WEB_SEARCH_PROMPT_UPDATE = values.Value(
-        """
-You are a subject-matter expert assistant. 
-You are given :
- - web search result(s) or raw webpage text that may contain navigation, menus, comments, 
-   category names, and other unrelated page details.
- - document(s) that may contain text, images, and metadata, formatted in markdown.
-
-**Your mission:**
-- Use ONLY the main informational content that directly and factually answers the user's explicit 
-  question.
-- *Completely ignore and do NOT mention* any of the following in your answer:
-    - Web page or site structure
-    - Navigation elements, headers, menus, search bars, categories
-    - Lists of links, footers, or any site design features
-    - Any meta-observations about how the content is organized
-- NEVER include sections titled “Website Structure”, “Format”, “Layout”, or similar.
-- NEVER narrate, summarize, or analyze how the website is arranged or how links are presented.
-- If given a block of mixed web text, locate the relevant information AT THE SENTENCE LEVEL; 
-  include ONLY those sentences (possibly paraphrased) that respond to the user’s direct question.
-- If the relevant answer cannot be found in the content, simply state: “The provided content 
-  does not contain information directly answering the question.” Do not speculate or elaborate.
-
-#### Example output:
-
-> - John Doe criticized Jane the prime minister for "the absence of consultation" with other 
-    political forces regarding the 2025 the government budget, focusing on economic policy and 
-    spending plans.
-> - The country unemployment insurance system is noted as more generous than other neighbor's 
-    systems.
-> - [If more is needed, continue, but only with factual statements explicitly present in the 
-    provided content. Stop when unrelated content begins.]
-
-**Do NOT:**
-- Discuss the page’s design, link structure, main/secondary categories, branding, or site 
-  navigation tools.
-- Invent summaries for structure or offer general commentary about the website.
-
-{search_results}
-
-USER QUESTION:
-
-{user_prompt}
-        """,
-        environ_name="RAG_WEB_SEARCH_PROMPT_UPDATE",
-        environ_prefix=None,
-    )
-    RAG_WEB_SEARCH_MAX_RESULTS = values.PositiveIntegerValue(
-        default=5,
-        environ_name="RAG_WEB_SEARCH_MAX_RESULTS",
-        environ_prefix=None,
-    )
-    RAG_WEB_SEARCH_CHUNK_NUMBER = values.PositiveIntegerValue(
-        default=4,
-        environ_name="RAG_WEB_SEARCH_CHUNK_NUMBER",
-        environ_prefix=None,
-    )
-
     # OCR settings for AdaptivePdfParser
     OCR_HRID = values.Value(
         default="etalab-plateform-mistral-medium-2508",
@@ -1615,10 +1556,6 @@ class Test(Base):
     # Kept as short placeholders instead of Base's large production prompts;
     # tests that assert on prompt content override these explicitly.
     AI_AGENT_INSTRUCTIONS = "You are a helpful assistant."
-
-    RAG_WEB_SEARCH_PROMPT_UPDATE = (
-        "Answer using the search results:\n{search_results}\nQuestion: {user_prompt}"
-    )
 
     # -- Logging ---------------------------------------------------------------
     LOGGING = {
