@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [unreleased]
 
+### Added
+
+- 💄(settings) move analytics settings to general
+
 ### Removed
 
 - 🔥(back) remove the unused Albert web search manager and its tool

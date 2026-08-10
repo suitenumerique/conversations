@@ -93,6 +93,7 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
           <Box
             $direction={isMobile ? 'column' : 'row'}
             $justify="space-between"
+            $padding={{ bottom: 'base' }}
             $align={isMobile ? 'flex-start' : 'flex-end'}
           >
             <Box $css="min-width: 70%;">
@@ -112,6 +113,65 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
             >
               {selectedColorModeLabel}
             </DropdownMenu>
+          </Box>
+
+          <Box $gap="2xs">
+            <Text
+              $size="md"
+              $weight="500"
+              $theme="greyscale"
+              $variation="850"
+              $padding={{ top: 'xs' }}
+            >
+              {t('Allow conversation analysis')}
+            </Text>
+            <Box $direction="row" $justify="space-between" $align="center">
+              <Box $css="max-width: 70%;">
+                <Text
+                  $css={`
+                  display: inline-block;
+                `}
+                  $size="xs"
+                  $theme="greyscale"
+                  $variation="600"
+                  $weight="400"
+                  $padding={{ bottom: 'sm' }}
+                >
+                  {t(
+                    'If enabled, this allows us to analyse your exchanges to improve the Assistant. If disabled, all conversations remain confidential and are not used in any way. ',
+                  )}
+                  <StyledLink
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={t(
+                      'Learn more about data usage (open in new tab)',
+                    )}
+                    href="https://docs.numerique.gouv.fr/docs/53d1dfb9-481d-4a68-b75c-7208c03d4dec/"
+                    $css={`
+                    display: inline;
+                    color: var(--c--contextuals--content--semantic--neutral--primary);
+                    text-decoration: underline;
+                    text-underline-offset: 2px;
+                    &:focus-visible {
+                      outline: 2px solid var(--c--globals--colors--brand-400);
+                      outline-offset: 2px;
+                      border-radius: 4px;
+                    }
+                  `}
+                  >
+                    {t('Learn more about data usage.')}
+                  </StyledLink>
+                </Text>
+              </Box>
+              <ToggleSwitch
+                checked={user?.allow_conversation_analytics ?? false}
+                onChange={() =>
+                  void handleToggleChange('allow_conversation_analytics')
+                }
+                disabled={isPending}
+                aria-label={t('Allow conversation analysis')}
+              />
+            </Box>
           </Box>
         </Box>
       </>
@@ -159,65 +219,6 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
               onChange={() => void handleToggleChange('allow_smart_web_search')}
               disabled={isPending}
               aria-label={t('Automatic web search')}
-            />
-          </Box>
-        </Box>
-
-        <Box $gap="2xs">
-          <Text
-            $size="md"
-            $weight="500"
-            $theme="greyscale"
-            $variation="850"
-            $padding={{ top: 'xs' }}
-          >
-            {t('Allow conversation analysis')}
-          </Text>
-          <Box $direction="row" $justify="space-between" $align="center">
-            <Box $css="max-width: 70%;">
-              <Text
-                $css={`
-                  display: inline-block;
-                `}
-                $size="xs"
-                $theme="greyscale"
-                $variation="600"
-                $weight="400"
-                $padding={{ bottom: 'sm' }}
-              >
-                {t(
-                  'If enabled, this allows us to analyse your exchanges to improve the Assistant. If disabled, all conversations remain confidential and are not used in any way. ',
-                )}
-                <StyledLink
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={t(
-                    'Learn more about data usage (open in new tab)',
-                  )}
-                  href="https://docs.numerique.gouv.fr/docs/53d1dfb9-481d-4a68-b75c-7208c03d4dec/"
-                  $css={`
-                    display: inline;
-                    color: var(--c--contextuals--content--semantic--neutral--primary);
-                    text-decoration: underline;
-                    text-underline-offset: 2px;
-                    &:focus-visible {
-                      outline: 2px solid var(--c--globals--colors--brand-400);
-                      outline-offset: 2px;
-                      border-radius: 4px;
-                    }
-                  `}
-                >
-                  {t('Learn more about data usage.')}
-                </StyledLink>
-              </Text>
-            </Box>
-            <ToggleSwitch
-              checked={user?.allow_conversation_analytics ?? false}
-              onChange={() =>
-                void handleToggleChange('allow_conversation_analytics')
-              }
-              disabled={isPending}
-              aria-label={t('Allow conversation analysis')}
             />
           </Box>
         </Box>
