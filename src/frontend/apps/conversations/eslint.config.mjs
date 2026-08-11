@@ -1,6 +1,5 @@
-import { nextConfig } from 'eslint-config-conversations/next.mjs';
+import { appConfig } from 'eslint-config-conversations/app.mjs';
 
-export default nextConfig({
+export default appConfig({
   tsconfigRootDir: import.meta.dirname,
-  nextRootDir: import.meta.dirname,
 });

@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import WarningFilledIcon from '@/assets/icons/uikit-custom/warning-filled.svg';
+import WarningFilledIcon from '@/assets/icons/uikit-custom/warning-filled.svg?react';
 import { Box, Loader, Text } from '@/components';
 import { useToast } from '@/components/ToastProvider';
 import { useConfig, useFeatureEnabled } from '@/core';
@@ -25,7 +25,7 @@ import { useFileDragDrop } from '@/features/chat/hooks/useFileDragDrop';
 import { useFileUrls } from '@/features/chat/hooks/useFileUrls';
 import { useResponsiveStore } from '@/stores';
 
-import FilesIcon from '../assets/files.svg';
+import FilesIcon from '../assets/files.svg?react';
 
 import { AttachmentList } from './AttachmentList';
 import { ScrollDown } from './ScrollDown';

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Box, Loader, Text } from '@/components';
 
-import ChatBubblesIllustration from '../assets/chat-bubbles-illustration.svg';
+import ChatBubblesIllustration from '../assets/chat-bubbles-illustration.svg?react';
 
 import { DocumentParsingErrorBox } from './DocumentParsingErrorBox';
 

@@ -1,7 +1,7 @@
-import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { InView } from 'react-intersection-observer';
+import { useNavigate } from 'react-router';
 import { useDebouncedCallback } from 'use-debounce';
 
 import { Box } from '@/components';
@@ -14,6 +14,7 @@ import { useInfiniteConversations } from '@/features/chat/api/useConversations';
 import { ChatConversation } from '@/features/chat/types';
 import { LeftPanelConversationItem } from '@/features/left-panel/components/left-panel/LeftPanelConversationItem';
 import { useResponsiveStore } from '@/stores';
+import { useConversationRouteId } from '@/utils';
 
 type LeftPanelSearchProps = {
   onSearchChange?: (hasSearch: boolean) => void;
@@ -21,12 +22,11 @@ type LeftPanelSearchProps = {
 
 export const LeftPanelSearch = ({ onSearchChange }: LeftPanelSearchProps) => {
   const { t } = useTranslation();
-  const router = useRouter();
-  const params = useParams();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const { isDesktop: _isDesktop } = useResponsiveStore();
 
-  const currentConversationId = params?.id as string;
+  const currentConversationId = useConversationRouteId();
 
   const { data, fetchNextPage, hasNextPage } = useInfiniteConversations({
     page: 1,
@@ -39,7 +39,7 @@ export const LeftPanelSearch = ({ onSearchChange }: LeftPanelSearchProps) => {
   }, 300);
 
   const handleSelect = (conversation: ChatConversation) => {
-    router.push(`/chat/${conversation.id}`);
+    void navigate(`/chat/${conversation.id}`);
   };
 
   const conversationsData: QuickSearchData<ChatConversation> = useMemo(() => {

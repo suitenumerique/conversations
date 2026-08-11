@@ -1,5 +1,5 @@
 import type { Client } from '@sentry/core';
-import * as Sentry from '@sentry/nextjs';
+import * as Sentry from '@sentry/react';
 import { create } from 'zustand';
 
 import packageJson from '../../package.json';

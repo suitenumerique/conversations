@@ -12,9 +12,11 @@ and this project adheres to
 
 - 💄(settings) move analytics settings to general
 
-## Changed
+### Changed
 
 - ⬆️(back) migrate to pydantic-ai 2.x
+- 🏗️(front) migrate the frontend from Next.js to Vite and React Router
+- 🏗️(front) rename the frontend build variables from the NEXT_PUBLIC_ prefix to VITE_
 
 ### Removed
 

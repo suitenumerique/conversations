@@ -1,17 +1,20 @@
-import dynamic from 'next/dynamic';
+import { Suspense, lazy } from 'react';
 
-const Lottie = dynamic(() => import('lottie-react'), { ssr: false });
 import searchingAnimation from '@/assets/lotties/searching';
+
+const Lottie = lazy(() => import('lottie-react'));
 
 export function Loader() {
   return (
     <div role="status">
-      <Lottie
-        animationData={searchingAnimation}
-        loop
-        autoplay
-        style={{ width: 24, height: 24 }}
-      />
+      <Suspense fallback={null}>
+        <Lottie
+          animationData={searchingAnimation}
+          loop
+          autoplay
+          style={{ width: 24, height: 24 }}
+        />
+      </Suspense>
     </div>
   );
 }

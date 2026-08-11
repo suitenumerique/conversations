@@ -1,5 +1,4 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import Image from 'next/image';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -57,11 +56,15 @@ export const ModelSelector = ({
             position: relative;
           `}
         >
-          <Image
+          <img
             src={`${model.icon}`}
             alt={model.human_readable_name}
-            fill
+            // Reproduces next/image's `fill`: cover the positioned parent.
             style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
               objectFit: 'cover',
             }}
           />

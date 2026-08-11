@@ -6,5 +6,5 @@ module.exports = {
     'no-descending-specificity': null,
     'keyframe-block-no-duplicate-selectors': null,
   },
-  ignoreFiles: ['out/**/*'],
+  ignoreFiles: ['dist/**/*'],
 };

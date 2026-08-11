@@ -1,5 +1,4 @@
 import { useQueryClient } from '@tanstack/react-query';
-import Image from 'next/image';
 import { useEffect } from 'react';
 import styled from 'styled-components';
 
@@ -215,13 +214,7 @@ export const MaintenancePage = ({ maintenance }: Props) => {
           </Row>
         </Container>
         <Footer>
-          <Image
-            width={66}
-            height={24}
-            src={MARIANNE_PNG}
-            alt="Marianne"
-            unoptimized
-          />
+          <img width={66} height={24} src={MARIANNE_PNG} alt="Marianne" />
         </Footer>
       </Main>
     </Root>

@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 
 import { SummarizationProgress } from '../SummarizationProgress';
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
   }),
@@ -10,11 +10,11 @@ jest.mock('react-i18next', () => ({
 
 describe('SummarizationProgress', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('renders the label and starts near zero', () => {
@@ -29,7 +29,7 @@ describe('SummarizationProgress', () => {
     render(<SummarizationProgress done={false} />);
 
     act(() => {
-      jest.advanceTimersByTime(30000); // one time constant
+      vi.advanceTimersByTime(30000); // one time constant
     });
     const fill = screen.getByTestId('summarization-progress-fill');
     const afterOneTau = parseInt(fill.style.width, 10);
@@ -37,7 +37,7 @@ describe('SummarizationProgress', () => {
     expect(afterOneTau).toBeLessThan(95);
 
     act(() => {
-      jest.advanceTimersByTime(120000);
+      vi.advanceTimersByTime(120000);
     });
     expect(parseInt(fill.style.width, 10)).toBeLessThanOrEqual(95);
   });
@@ -45,7 +45,7 @@ describe('SummarizationProgress', () => {
   it('snaps to 100% on done and hides shortly after', () => {
     const { rerender } = render(<SummarizationProgress done={false} />);
     act(() => {
-      jest.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(3000);
     });
 
     rerender(<SummarizationProgress done={true} />);
@@ -54,7 +54,7 @@ describe('SummarizationProgress', () => {
     );
 
     act(() => {
-      jest.advanceTimersByTime(400);
+      vi.advanceTimersByTime(400);
     });
     expect(
       screen.queryByTestId('summarization-progress'),
@@ -62,7 +62,7 @@ describe('SummarizationProgress', () => {
   });
 
   it('calls onHidden once the bar has hidden itself', () => {
-    const onHidden = jest.fn();
+    const onHidden = vi.fn();
     const { rerender } = render(
       <SummarizationProgress done={false} onHidden={onHidden} />,
     );
@@ -71,7 +71,7 @@ describe('SummarizationProgress', () => {
     expect(onHidden).not.toHaveBeenCalled();
 
     act(() => {
-      jest.advanceTimersByTime(400);
+      vi.advanceTimersByTime(400);
     });
     expect(onHidden).toHaveBeenCalledTimes(1);
   });

@@ -40,10 +40,10 @@ FROM conversations AS conversations-builder
 WORKDIR /home/frontend/apps/conversations
 
 ARG API_ORIGIN
-ENV NEXT_PUBLIC_API_ORIGIN=${API_ORIGIN}
+ENV VITE_API_ORIGIN=${API_ORIGIN}
 
 ARG PRODUCT_NAME
-ENV NEXT_PUBLIC_PRODUCT_NAME=${PRODUCT_NAME}
+ENV VITE_PRODUCT_NAME=${PRODUCT_NAME}
 
 RUN yarn build
 
@@ -62,7 +62,7 @@ ARG DOCKER_USER
 USER ${DOCKER_USER}
 
 COPY --from=conversations-builder \
-    /home/frontend/apps/conversations/out \
+    /home/frontend/apps/conversations/dist \
     /usr/share/nginx/html
 
 COPY ./src/frontend/apps/conversations/conf/default.conf /etc/nginx/conf.d

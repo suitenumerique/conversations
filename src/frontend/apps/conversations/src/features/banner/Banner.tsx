@@ -2,7 +2,7 @@ import { Button, Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import React, { ComponentType, SVGProps, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import WarningFilledIcon from '@/assets/icons/uikit-custom/warning-filled.svg';
+import WarningFilledIcon from '@/assets/icons/uikit-custom/warning-filled.svg?react';
 import { Box, Icon, Text } from '@/components';
 import { BannerLevel, StatusBanner } from '@/core/config/api/useConfig';
 

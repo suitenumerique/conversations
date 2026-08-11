@@ -1,6 +1,6 @@
 import { Button, Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { t } from 'i18next';
-import { useRouter } from 'next/router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { Box, Text, useToast } from '@/components';
 import { useRemoveProject } from '@/features/chat/api/useRemoveProject';
@@ -15,15 +15,16 @@ export const ModalRemoveProject = ({
   project,
 }: ModalRemoveProjectProps) => {
   const { showToast } = useToast();
-  const { push, pathname } = useRouter();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const { mutate: removeProject, isPending: isRemoving } = useRemoveProject({
     onSuccess: () => {
       showToast('success', t('The project has been deleted.'), undefined, 4000);
-      if (pathname === '/') {
+      if (pathname.replace(/\/+$/, '') === '') {
         onClose();
       } else {
-        void push('/');
+        void navigate('/');
       }
     },
     onError: (error) => {

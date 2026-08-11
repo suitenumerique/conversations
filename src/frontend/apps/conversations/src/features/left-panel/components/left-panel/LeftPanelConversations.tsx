@@ -1,15 +1,14 @@
-import { useRouter } from 'next/router';
 import { useTranslation } from 'react-i18next';
 
 import { Box, InfiniteScroll, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { useInfiniteConversations } from '@/features/chat/api/useConversations';
 import { LeftPanelConversationItem } from '@/features/left-panel/components/left-panel/LeftPanelConversationItem';
+import { useConversationRouteId } from '@/utils';
 
 export const LeftPanelConversations = () => {
   const { t } = useTranslation();
-  const router = useRouter();
-  const { id } = router.query;
+  const id = useConversationRouteId();
 
   const { spacingsTokens } = useCunninghamTheme();
 

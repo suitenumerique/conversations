@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled, { css } from 'styled-components';
@@ -9,7 +8,7 @@ import { useCunninghamTheme } from '@/cunningham';
 
 import { Title } from '../header';
 
-import IconLink from './assets/external-link.svg';
+import IconLink from './assets/external-link.svg?react';
 import { ContentType } from './types';
 
 const BlueStripe = styled.div`
@@ -90,13 +89,10 @@ export const Footer = () => {
                   $height="fit-content"
                 >
                   {logo?.src && (
-                    <Image
+                    <img
                       className="c__image-system-filter"
-                      priority
                       src={logo.src}
                       alt={logo?.alt || t('Logo')}
-                      width={0}
-                      height={0}
                       style={{ width: logo?.width || 'auto', height: 'auto' }}
                     />
                   )}

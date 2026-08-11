@@ -7,7 +7,7 @@ import { AppWrapper } from '@/tests/utils';
 
 import { useAuth } from '../useAuth';
 
-const trackEventMock = jest.fn();
+const trackEventMock = vi.fn();
 const flag = true;
 class TestAnalytic extends AbstractAnalytic {
   public constructor() {
@@ -31,19 +31,16 @@ class TestAnalytic extends AbstractAnalytic {
   }
 }
 
-jest.mock('next/router', () => ({
-  ...jest.requireActual('next/router'),
-  useRouter: () => ({
-    pathname: '/dashboard',
-    replace: jest.fn(),
-  }),
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useLocation: () => ({ pathname: '/dashboard' }),
 }));
 
 const dummyUser = { id: '123', email: 'test@example.com', sub: 'test-sub' };
 
 describe('useAuth hook - trackEvent effect', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     fetchMock.restore();
   });
 

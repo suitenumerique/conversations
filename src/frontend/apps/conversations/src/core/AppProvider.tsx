@@ -1,12 +1,13 @@
+import { CunninghamProvider } from '@gouvfr-lasuite/cunningham-react';
 import {
   QueryCache,
   QueryClient,
   QueryClientProvider,
 } from '@tanstack/react-query';
-import dynamic from 'next/dynamic';
 import { useEffect } from 'react';
 
 import { isAPIError } from '@/api';
+import { ToastProvider } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { Auth, KEY_AUTH, setAuthUrl } from '@/features/auth';
 import { useResponsiveStore } from '@/stores';
@@ -14,19 +15,9 @@ import { useResponsiveStore } from '@/stores';
 import { ConfigProvider } from './config';
 import { KEY_CONFIG } from './config/api/useConfig';
 
-// Client-only providers
-const ToastProviderNoSSR = dynamic(
-  () => import('@/components').then((mod) => ({ default: mod.ToastProvider })),
-  { ssr: false, loading: () => null },
-);
-
-const CunninghamProviderNoSSR = dynamic(
-  () =>
-    import('@gouvfr-lasuite/cunningham-react').then((mod) => ({
-      default: mod.CunninghamProvider,
-    })),
-  { ssr: false },
-);
+// Both providers used to be loaded through next/dynamic with `ssr: false`.
+// There is no SSR any more, and both are needed for the first paint, so
+// deferring them would only add a round trip.
 
 const isMaintenanceError = (error: unknown): boolean =>
   isAPIError(error) &&
@@ -78,13 +69,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <CunninghamProviderNoSSR theme={theme}>
+      <CunninghamProvider theme={theme}>
         <ConfigProvider>
-          <ToastProviderNoSSR>
+          <ToastProvider>
             <Auth>{children}</Auth>
-          </ToastProviderNoSSR>
+          </ToastProvider>
         </ConfigProvider>
-      </CunninghamProviderNoSSR>
+      </CunninghamProvider>
     </QueryClientProvider>
   );
 }

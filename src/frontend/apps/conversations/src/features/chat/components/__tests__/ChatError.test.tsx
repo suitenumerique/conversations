@@ -7,11 +7,12 @@ import { ChatError } from '../ChatError';
 
 let mockStatusPageUrl: string | undefined = 'https://status.example.com';
 
-jest.mock('next/router', () => ({
-  useRouter: () => ({ push: jest.fn() }),
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useNavigate: () => vi.fn(),
 }));
 
-jest.mock('@/core', () => ({
+vi.mock('@/core', () => ({
   useConfig: () => ({
     data: { STATUS_PAGE_URL: mockStatusPageUrl },
   }),
@@ -26,7 +27,7 @@ describe('ChatError', () => {
       <ChatError
         errorType="generic"
         hasLastSubmission={true}
-        onRetry={jest.fn()}
+        onRetry={vi.fn()}
       />,
       { wrapper: AppWrapper },
     );
@@ -42,7 +43,7 @@ describe('ChatError', () => {
       <ChatError
         errorType="generic"
         hasLastSubmission={false}
-        onRetry={jest.fn()}
+        onRetry={vi.fn()}
       />,
       { wrapper: AppWrapper },
     );
@@ -60,7 +61,7 @@ describe('ChatError', () => {
       <ChatError
         errorType="model_unavailable"
         hasLastSubmission={false}
-        onRetry={jest.fn()}
+        onRetry={vi.fn()}
       />,
       { wrapper: AppWrapper },
     );
@@ -80,7 +81,7 @@ describe('ChatError', () => {
       <ChatError
         errorType="model_rate_limited"
         hasLastSubmission={false}
-        onRetry={jest.fn()}
+        onRetry={vi.fn()}
       />,
       { wrapper: AppWrapper },
     );
@@ -100,7 +101,7 @@ describe('ChatError', () => {
       <ChatError
         errorType="model_connection_error"
         hasLastSubmission={false}
-        onRetry={jest.fn()}
+        onRetry={vi.fn()}
       />,
       { wrapper: AppWrapper },
     );
@@ -121,7 +122,7 @@ describe('ChatError', () => {
       <ChatError
         errorType="model_unavailable"
         hasLastSubmission={false}
-        onRetry={jest.fn()}
+        onRetry={vi.fn()}
       />,
       { wrapper: AppWrapper },
     );

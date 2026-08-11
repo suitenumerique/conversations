@@ -5,7 +5,7 @@ import { css } from 'styled-components';
 import { BoxButton, Icon } from '@/components';
 import { useResponsiveStore } from '@/stores';
 
-import ProConnectImg from '../assets/button-proconnect.svg';
+import ProConnectImg from '../assets/button-proconnect.svg?react';
 import { useAuth } from '../hooks';
 import { gotoLogin, gotoLogout } from '../utils';
 
