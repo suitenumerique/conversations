@@ -10,7 +10,8 @@ describe('config', () => {
   });
 
   it('uses env origin if available', () => {
-    process.env.NEXT_PUBLIC_API_ORIGIN = 'https://env.example.com';
+    vi.stubEnv('VITE_API_ORIGIN', 'https://env.example.com');
     expect(baseApiUrl('3.0')).toBe('https://env.example.com/api/v3.0/');
+    vi.unstubAllEnvs();
   });
 });

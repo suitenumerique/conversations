@@ -2,15 +2,15 @@ import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import IconAssistant from '@/assets/logo/logomark.svg';
+import IconAssistant from '@/assets/logo/logomark.svg?react';
 import { Box, Icon, Text } from '@/components';
 import { productName, useConfig } from '@/core';
 import { useCunninghamTheme } from '@/cunningham';
 import { gotoLogin } from '@/features/auth';
 import { useResponsiveStore } from '@/stores';
 
-import BannerDarkMode from '../assets/banner-dark.svg';
-import Banner from '../assets/banner.svg';
+import BannerDarkMode from '../assets/banner-dark.svg?react';
+import Banner from '../assets/banner.svg?react';
 
 import { getHeaderHeight } from './HomeHeader';
 

@@ -1,18 +1,17 @@
-import { useRouter } from 'next/router';
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router';
 
 import { ActivationPage, useAuth } from '@/features/auth';
-import { NextPageWithLayout } from '@/types/next';
 
-const Page: NextPageWithLayout = () => {
+const Page = () => {
   const { authenticated, isLoading } = useAuth();
-  const { replace } = useRouter();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!isLoading && !authenticated) {
-      void replace('/');
+      void navigate('/', { replace: true });
     }
-  }, [authenticated, isLoading, replace]);
+  }, [authenticated, isLoading, navigate]);
 
   if (isLoading || !authenticated) {
     return null;

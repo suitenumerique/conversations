@@ -2,7 +2,7 @@ import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import SettingsIcon from '@/assets/icons/uikit-custom/gear-rounded.svg';
+import SettingsIcon from '@/assets/icons/uikit-custom/gear-rounded.svg?react';
 
 import { SettingsModal } from './SettingsModal';
 

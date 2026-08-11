@@ -1,5 +1,5 @@
-import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router';
 
 import { useAnalytics } from '@/libs';
 
@@ -14,7 +14,7 @@ const regexpUrlsAuth = [
 
 export const useAuth = () => {
   const { data: user, ...authStates } = useAuthQuery();
-  const { pathname } = useRouter();
+  const { pathname } = useLocation();
   const { trackEvent } = useAnalytics();
   const [hasTracked, setHasTracked] = useState(authStates.isFetched);
   const [pathAllowed, setPathAllowed] = useState<boolean>(

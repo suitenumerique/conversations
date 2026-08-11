@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import DocsIcon from '@/assets/icons/icon-docs.svg';
+import DocsIcon from '@/assets/icons/icon-docs.svg?react';
 import { Box, BoxButton, DropButton, Icon, Text, useToast } from '@/components';
 import { editInDocs } from '@/features/chat/api/useEditInDocs';
 

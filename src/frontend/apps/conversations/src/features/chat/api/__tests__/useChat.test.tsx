@@ -5,6 +5,9 @@ import { deserialize, serialize } from 'node:v8';
 import { Message } from '@ai-sdk/ui-utils';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import type { Mock } from 'vitest';
+
+import { fetchAPI } from '@/api';
 
 import {
   isImagesSkippedEvent,
@@ -12,8 +15,8 @@ import {
   useChat,
 } from '../useChat';
 
-jest.mock('@/api', () => ({
-  fetchAPI: jest.fn(),
+vi.mock('@/api', () => ({
+  fetchAPI: vi.fn(),
 }));
 
 describe('isImagesSkippedEvent', () => {
@@ -192,7 +195,9 @@ const streamOf = (payload: string) =>
   });
 
 describe('useChat multi-step continuation', () => {
-  const fetchAPIMock = jest.requireMock('@/api').fetchAPI as jest.Mock;
+  // Cast away the signature: the stubs below return partial Response objects,
+  // as they did under the previous `jest.Mock` cast.
+  const fetchAPIMock = vi.mocked(fetchAPI) as unknown as Mock;
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider
@@ -220,7 +225,7 @@ describe('useChat multi-step continuation', () => {
       });
     });
 
-    const onError = jest.fn();
+    const onError = vi.fn();
     const { result } = renderHook(
       () => useChat({ id: 'conv-1', api: CHAT_API, onError }),
       { wrapper },

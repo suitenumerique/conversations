@@ -1,25 +1,25 @@
 import { ComponentType, SVGProps } from 'react';
 
-import BookIcon from '@/assets/icons/uikit-custom/book-filled.svg';
-import BookmarkIcon from '@/assets/icons/uikit-custom/bookmark-filled.svg';
-import CarIcon from '@/assets/icons/uikit-custom/car-filled.svg';
-import ChartIcon from '@/assets/icons/uikit-custom/chart-filled.svg';
-import CheckmarkIcon from '@/assets/icons/uikit-custom/checkmark-filled.svg';
-import EuroIcon from '@/assets/icons/uikit-custom/euro-filled.svg';
-import FileIcon from '@/assets/icons/uikit-custom/file-filled.svg';
-import FolderIcon from '@/assets/icons/uikit-custom/folder-filled.svg';
-import GearIcon from '@/assets/icons/uikit-custom/gear-rounded-filled.svg';
-import JusticeIcon from '@/assets/icons/uikit-custom/justice-filled.svg';
-import KeyIcon from '@/assets/icons/uikit-custom/key-filled.svg';
-import LaSuiteIcon from '@/assets/icons/uikit-custom/lasuite-filled.svg';
-import MegaphoneIcon from '@/assets/icons/uikit-custom/megaphone-filled.svg';
-import MusicIcon from '@/assets/icons/uikit-custom/music-filled.svg';
-import PaletteIcon from '@/assets/icons/uikit-custom/palette-filled.svg';
-import PersoIcon from '@/assets/icons/uikit-custom/perso-filled.svg';
-import PhotoIcon from '@/assets/icons/uikit-custom/picture-filled.svg';
-import PuzzleIcon from '@/assets/icons/uikit-custom/puzzle-filled.svg';
-import StarIcon from '@/assets/icons/uikit-custom/star-filled.svg';
-import TerminalIcon from '@/assets/icons/uikit-custom/terminal-filled.svg';
+import BookIcon from '@/assets/icons/uikit-custom/book-filled.svg?react';
+import BookmarkIcon from '@/assets/icons/uikit-custom/bookmark-filled.svg?react';
+import CarIcon from '@/assets/icons/uikit-custom/car-filled.svg?react';
+import ChartIcon from '@/assets/icons/uikit-custom/chart-filled.svg?react';
+import CheckmarkIcon from '@/assets/icons/uikit-custom/checkmark-filled.svg?react';
+import EuroIcon from '@/assets/icons/uikit-custom/euro-filled.svg?react';
+import FileIcon from '@/assets/icons/uikit-custom/file-filled.svg?react';
+import FolderIcon from '@/assets/icons/uikit-custom/folder-filled.svg?react';
+import GearIcon from '@/assets/icons/uikit-custom/gear-rounded-filled.svg?react';
+import JusticeIcon from '@/assets/icons/uikit-custom/justice-filled.svg?react';
+import KeyIcon from '@/assets/icons/uikit-custom/key-filled.svg?react';
+import LaSuiteIcon from '@/assets/icons/uikit-custom/lasuite-filled.svg?react';
+import MegaphoneIcon from '@/assets/icons/uikit-custom/megaphone-filled.svg?react';
+import MusicIcon from '@/assets/icons/uikit-custom/music-filled.svg?react';
+import PaletteIcon from '@/assets/icons/uikit-custom/palette-filled.svg?react';
+import PersoIcon from '@/assets/icons/uikit-custom/perso-filled.svg?react';
+import PhotoIcon from '@/assets/icons/uikit-custom/picture-filled.svg?react';
+import PuzzleIcon from '@/assets/icons/uikit-custom/puzzle-filled.svg?react';
+import StarIcon from '@/assets/icons/uikit-custom/star-filled.svg?react';
+import TerminalIcon from '@/assets/icons/uikit-custom/terminal-filled.svg?react';
 
 export const PROJECT_COLORS: Record<string, string> = {
   color_1: 'red-500',

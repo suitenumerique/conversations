@@ -1,34 +1,27 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import Head from 'next/head';
-import { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 
-import Icon404 from '@/assets/icons/icon-404.svg';
+import Icon404 from '@/assets/icons/icon-404.svg?react';
 import { Box, Icon, StyledLink, Text } from '@/components';
 import { productName } from '@/core';
-import { PageLayout } from '@/layouts';
-import { NextPageWithLayout } from '@/types/next';
+import { useDocumentTitle } from '@/utils';
 
 const StyledButton = styled(Button)`
   width: fit-content;
 `;
 
-const Page: NextPageWithLayout = () => {
+const Page = () => {
   const { t } = useTranslation();
+
+  useDocumentTitle(`${t('Page Not Found - Error 404')} - ${productName}`);
 
   return (
     <>
-      <Head>
-        <title>
-          {t('Page Not Found - Error 404')} - {productName}
-        </title>
-        <meta
-          property="og:title"
-          content={`${t('Page Not Found - Error 404')} - ${productName}`}
-          key="title"
-        />
-      </Head>
+      <meta
+        property="og:title"
+        content={`${t('Page Not Found - Error 404')} - ${productName}`}
+      />
       <Box
         $align="center"
         $margin="auto"
@@ -60,10 +53,6 @@ const Page: NextPageWithLayout = () => {
       </Box>
     </>
   );
-};
-
-Page.getLayout = function getLayout(page: ReactElement) {
-  return <PageLayout withFooter={false}>{page}</PageLayout>;
 };
 
 export default Page;

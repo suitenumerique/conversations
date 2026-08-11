@@ -5,13 +5,13 @@ import { ChatConversation } from '@/features/chat/types';
 
 import { QuickSearchResultItem } from '../QuickSearchResultItem';
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
     i18n: { language: 'en' },
   }),
 }));
-jest.mock('i18next', () => ({
+vi.mock('i18next', () => ({
   t: (key: string) => key,
 }));
 

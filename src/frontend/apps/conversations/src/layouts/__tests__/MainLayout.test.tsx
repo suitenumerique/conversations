@@ -5,33 +5,33 @@ import { AppWrapper } from '@/tests/utils';
 
 import { MainLayout } from '../MainLayout';
 
-jest.mock('@/stores', () => ({
+vi.mock('@/stores', () => ({
   useResponsiveStore: () => ({ isDesktop: true, isMobile: false }),
 }));
 
-jest.mock('@/features/chat/stores/useChatPreferencesStore', () => ({
+vi.mock('@/features/chat/stores/useChatPreferencesStore', () => ({
   useChatPreferencesStore: () => ({ isPanelOpen: false }),
 }));
 
-const mockUseConfig = jest.fn();
-jest.mock('@/core/config', () => ({
+const mockUseConfig = vi.fn();
+vi.mock('@/core/config', () => ({
   useConfig: () => mockUseConfig(),
 }));
 
-const mockUseAssistantHealth = jest.fn();
-jest.mock('@/features/chat/api/useAssistantHealth', () => ({
+const mockUseAssistantHealth = vi.fn();
+vi.mock('@/features/chat/api/useAssistantHealth', () => ({
   useAssistantHealth: () => mockUseAssistantHealth(),
 }));
 
-jest.mock('@/features/header', () => ({
+vi.mock('@/features/header', () => ({
   Header: () => <div data-testid="header" />,
 }));
 
-jest.mock('@/features/left-panel', () => ({
+vi.mock('@/features/left-panel', () => ({
   LeftPanel: () => <div data-testid="left-panel" />,
 }));
 
-jest.mock('@/features/banner', () => ({
+vi.mock('@/features/banner', () => ({
   BannerStack: ({ banners }: { banners: { title: string }[] }) => (
     <div data-testid="banner-stack">
       {(banners ?? []).map((b, i) => (

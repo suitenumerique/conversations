@@ -8,8 +8,8 @@ import { ChatConversation } from '@/features/chat/types';
 import { PROJECT_ICONS } from '@/features/left-panel/components/projects/project-constants';
 import { getRelativeTime } from '@/utils';
 
-import ArrowForwardIcon from './assets/arrow-forward.svg';
-import BubbleIcon from './assets/bubble.svg';
+import ArrowForwardIcon from './assets/arrow-forward.svg?react';
+import BubbleIcon from './assets/bubble.svg?react';
 
 const descriptionCss = css`
   font-weight: 400;

@@ -5,7 +5,7 @@ import '@/i18n/initI18n';
 
 import { InputChatActions } from '../InputChatAction';
 
-jest.mock('../ModelSelector', () => ({
+vi.mock('../ModelSelector', () => ({
   ModelSelector: ({ onModelSelect }: { onModelSelect: () => void }) => (
     <button onClick={onModelSelect} data-testid="model-selector">
       Model Selector
@@ -13,7 +13,7 @@ jest.mock('../ModelSelector', () => ({
   ),
 }));
 
-jest.mock('../SendButton', () => ({
+vi.mock('../SendButton', () => ({
   SendButton: ({
     onClick,
     disabled,
@@ -40,7 +40,7 @@ const defaultProps = {
   isUploadingFiles: false,
   isMobile: false,
   forceWebSearch: false,
-  onAttachClick: jest.fn(),
+  onAttachClick: vi.fn(),
   selectedModel: null,
   status: null,
   inputHasContent: true,
@@ -48,7 +48,7 @@ const defaultProps = {
 
 describe('InputChatActions', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should render attach file button', () => {
@@ -62,7 +62,7 @@ describe('InputChatActions', () => {
 
   it('should call onAttachClick when attach button is clicked', async () => {
     const user = userEvent.setup();
-    const onAttachClick = jest.fn();
+    const onAttachClick = vi.fn();
     render(
       <InputChatActions {...defaultProps} onAttachClick={onAttachClick} />,
     );
@@ -95,7 +95,7 @@ describe('InputChatActions', () => {
   });
 
   it('should render web search button when onWebSearchToggle is provided', () => {
-    const onWebSearchToggle = jest.fn();
+    const onWebSearchToggle = vi.fn();
     render(
       <InputChatActions
         {...defaultProps}
@@ -120,7 +120,7 @@ describe('InputChatActions', () => {
 
   it('should call onWebSearchToggle when web search button is clicked', async () => {
     const user = userEvent.setup();
-    const onWebSearchToggle = jest.fn();
+    const onWebSearchToggle = vi.fn();
     render(
       <InputChatActions
         {...defaultProps}
@@ -140,7 +140,7 @@ describe('InputChatActions', () => {
       <InputChatActions
         {...defaultProps}
         webSearchEnabled={false}
-        onWebSearchToggle={jest.fn()}
+        onWebSearchToggle={vi.fn()}
       />,
     );
 
@@ -150,7 +150,7 @@ describe('InputChatActions', () => {
   });
 
   it('should render model selector when onModelSelect is provided', () => {
-    const onModelSelect = jest.fn();
+    const onModelSelect = vi.fn();
     render(
       <InputChatActions {...defaultProps} onModelSelect={onModelSelect} />,
     );
@@ -194,7 +194,7 @@ describe('InputChatActions', () => {
         {...defaultProps}
         isMobile={true}
         forceWebSearch={true}
-        onWebSearchToggle={jest.fn()}
+        onWebSearchToggle={vi.fn()}
       />,
     );
 
@@ -207,7 +207,7 @@ describe('InputChatActions', () => {
         {...defaultProps}
         isMobile={false}
         forceWebSearch={true}
-        onWebSearchToggle={jest.fn()}
+        onWebSearchToggle={vi.fn()}
       />,
     );
 

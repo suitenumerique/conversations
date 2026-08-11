@@ -7,11 +7,11 @@ import { SuggestionCarousel } from '../SuggestionCarousel';
 
 describe('SuggestionCarousel', () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(async () => {
-    jest.useRealTimers();
+    vi.useRealTimers();
     await i18next.changeLanguage('en');
   });
 
@@ -47,7 +47,7 @@ describe('SuggestionCarousel', () => {
   });
 
   it('should start the interval when messagesLength is 0', () => {
-    const setIntervalSpy = jest.spyOn(global, 'setInterval');
+    const setIntervalSpy = vi.spyOn(global, 'setInterval');
 
     render(<SuggestionCarousel messagesLength={0} />);
 
@@ -57,7 +57,7 @@ describe('SuggestionCarousel', () => {
   });
 
   it('should not start interval when messagesLength is greater than 0', () => {
-    const setIntervalSpy = jest.spyOn(global, 'setInterval');
+    const setIntervalSpy = vi.spyOn(global, 'setInterval');
 
     render(<SuggestionCarousel messagesLength={1} />);
 
@@ -67,7 +67,7 @@ describe('SuggestionCarousel', () => {
   });
 
   it('should clear interval on unmount', () => {
-    const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
+    const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
 
     const { unmount } = render(<SuggestionCarousel messagesLength={0} />);
     unmount();

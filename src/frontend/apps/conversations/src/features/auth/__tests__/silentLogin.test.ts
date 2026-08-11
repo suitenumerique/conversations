@@ -2,24 +2,24 @@ import { navigate } from '@/utils/system';
 
 import { attemptSilentLogin, canAttemptSilentLogin } from '../silentLogin';
 
-jest.mock('@/utils/system', () => ({
-  ...jest.requireActual('@/utils/system'),
-  navigate: jest.fn(),
+vi.mock('@/utils/system', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/system')>()),
+  navigate: vi.fn(),
 }));
 
-const mockNavigate = jest.mocked(navigate);
+const mockNavigate = vi.mocked(navigate);
 
 const SILENT_LOGIN_RETRY_KEY = 'silent-login-retry';
 
 describe('silentLogin', () => {
   beforeEach(() => {
     localStorage.clear();
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     mockNavigate.mockClear();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   describe('canAttemptSilentLogin', () => {
@@ -28,25 +28,25 @@ describe('silentLogin', () => {
     });
 
     it('returns false within the retry interval', () => {
-      jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
       attemptSilentLogin(30);
 
-      jest.setSystemTime(new Date('2026-01-01T00:00:15Z'));
+      vi.setSystemTime(new Date('2026-01-01T00:00:15Z'));
       expect(canAttemptSilentLogin()).toBe(false);
     });
 
     it('returns true after the retry interval expires', () => {
-      jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
       attemptSilentLogin(30);
 
-      jest.setSystemTime(new Date('2026-01-01T00:00:31Z'));
+      vi.setSystemTime(new Date('2026-01-01T00:00:31Z'));
       expect(canAttemptSilentLogin()).toBe(true);
     });
   });
 
   describe('attemptSilentLogin', () => {
     it('sets the retry throttle in localStorage', () => {
-      jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
       attemptSilentLogin(30);
 
       const stored = localStorage.getItem(SILENT_LOGIN_RETRY_KEY);
@@ -64,11 +64,11 @@ describe('silentLogin', () => {
     });
 
     it('does nothing if retry is not allowed', () => {
-      jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+      vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
       attemptSilentLogin(30);
       mockNavigate.mockClear();
 
-      jest.setSystemTime(new Date('2026-01-01T00:00:10Z'));
+      vi.setSystemTime(new Date('2026-01-01T00:00:10Z'));
       attemptSilentLogin(30);
 
       expect(mockNavigate).not.toHaveBeenCalled();

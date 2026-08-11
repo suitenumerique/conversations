@@ -3,23 +3,29 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import fetchMock from 'fetch-mock';
+import type { Mock } from 'vitest';
 
 import { useToast } from '@/components';
 
 import { ModalRemoveProject } from '../ModalRemoveProject';
 
-jest.mock('@/components', () => ({
-  ...jest.requireActual('@/components'),
-  useToast: jest.fn(),
+vi.mock('@/components', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components')>()),
+  useToast: vi.fn(),
 }));
 
-const mockPush = jest.fn();
-let mockPathname = '/';
-jest.mock('next/router', () => ({
-  useRouter: () => ({ push: mockPush, pathname: mockPathname }),
+const { mockNavigate, routerState } = vi.hoisted(() => ({
+  mockNavigate: vi.fn(),
+  routerState: { pathname: '/' },
 }));
 
-jest.mock('react-i18next', () => ({
+vi.mock('react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router')>()),
+  useNavigate: () => mockNavigate,
+  useLocation: () => ({ pathname: routerState.pathname }),
+}));
+
+vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       if (options) {
@@ -32,7 +38,7 @@ jest.mock('react-i18next', () => ({
     },
   }),
 }));
-jest.mock('i18next', () => ({
+vi.mock('i18next', () => ({
   t: (key: string, options?: Record<string, string>) => {
     if (options) {
       return Object.entries(options).reduce(
@@ -61,15 +67,15 @@ const renderWithProviders = (component: React.ReactNode) => {
 };
 
 describe('ModalRemoveProject', () => {
-  const mockOnClose = jest.fn();
-  const mockShowToast = jest.fn();
+  const mockOnClose = vi.fn();
+  const mockShowToast = vi.fn();
   const project = { id: 'proj-123', title: 'My Project' };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     fetchMock.restore();
-    mockPathname = '/';
-    (useToast as jest.Mock).mockReturnValue({
+    routerState.pathname = '/';
+    (useToast as Mock).mockReturnValue({
       showToast: mockShowToast,
     });
   });
@@ -93,7 +99,7 @@ describe('ModalRemoveProject', () => {
 
   it('shows success toast and navigates home on success when not on home', async () => {
     const user = userEvent.setup();
-    mockPathname = '/chat/some-id';
+    routerState.pathname = '/chat/some-id';
     fetchMock.delete(`${API_BASE}projects/proj-123/`, 204);
 
     renderWithProviders(
@@ -110,7 +116,7 @@ describe('ModalRemoveProject', () => {
         4000,
       );
     });
-    expect(mockPush).toHaveBeenCalledWith('/');
+    expect(mockNavigate).toHaveBeenCalledWith('/');
     expect(mockOnClose).not.toHaveBeenCalled();
   });
 
@@ -119,7 +125,7 @@ describe('ModalRemoveProject', () => {
     // doesn't redundantly navigate - it just closes modal and shows the toast
 
     const user = userEvent.setup();
-    mockPathname = '/';
+    routerState.pathname = '/';
     fetchMock.delete(`${API_BASE}projects/proj-123/`, 204);
 
     renderWithProviders(
@@ -137,6 +143,6 @@ describe('ModalRemoveProject', () => {
       );
     });
     expect(mockOnClose).toHaveBeenCalled();
-    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

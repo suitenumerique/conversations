@@ -1,5 +1,4 @@
 import { Loader } from '@gouvfr-lasuite/cunningham-react';
-import Head from 'next/head';
 import { PropsWithChildren, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -102,9 +101,14 @@ export const ConfigProvider = ({ children }: PropsWithChildren) => {
   return (
     <>
       {conf?.FRONTEND_CSS_URL && (
-        <Head>
-          <link rel="stylesheet" href={conf?.FRONTEND_CSS_URL} />
-        </Head>
+        // React only hoists a stylesheet into <head> when it carries a
+        // precedence; without it the tag stays where it is rendered and the
+        // custom theme never applies.
+        <link
+          rel="stylesheet"
+          href={conf?.FRONTEND_CSS_URL}
+          precedence="default"
+        />
       )}
       <AnalyticsProvider>{children}</AnalyticsProvider>
     </>

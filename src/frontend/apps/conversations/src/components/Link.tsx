@@ -1,5 +1,5 @@
-import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router';
 import styled, { RuleSet } from 'styled-components';
 
 interface StyledLinkProps {
@@ -20,9 +20,9 @@ interface Props extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
 }
 
 /**
- * Link that avoids re-renders from Next.js router context.
+ * Link that avoids re-renders from the router context.
  *
- * Use instead of Next.js `Link` in large lists (sidebars, tables) where
+ * Use instead of react-router's `Link` in large lists (sidebars, tables) where
  * router-triggered re-renders cause performance issues.
  *
  * Warning: No automatic prefetching.
@@ -33,13 +33,13 @@ export const StyledLink = memo(function StyledLink({
   onClick,
   ...props
 }: Props) {
-  const router = useRouter();
-  const routerRef = useRef(router);
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
 
   // avoid rerenders
   useEffect(() => {
-    routerRef.current = router;
-  }, [router]);
+    navigateRef.current = navigate;
+  }, [navigate]);
 
   // Memoized click handler to maintain stable reference across re-renders.
   // Necessary for memo() to work correctly
@@ -56,7 +56,7 @@ export const StyledLink = memo(function StyledLink({
 
       e.preventDefault();
       onClick?.(e);
-      routerRef.current.push(href);
+      void navigateRef.current(href);
     },
     [href, onClick, props.target],
   );

@@ -1,6 +1,6 @@
 import { Button, Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { t } from 'i18next';
-import { useRouter } from 'next/router';
+import { useLocation, useNavigate } from 'react-router';
 
 import { Box, Text, useToast } from '@/components';
 import { useRemoveConversation } from '@/features/chat/api/useRemoveConversation';
@@ -15,7 +15,8 @@ export const ModalRemoveConversation = ({
   conversation,
 }: ModalRemoveConversationProps) => {
   const { showToast } = useToast();
-  const { push, pathname } = useRouter();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const { mutate: removeDoc } = useRemoveConversation({
     onSuccess: () => {
@@ -25,10 +26,10 @@ export const ModalRemoveConversation = ({
         undefined,
         4000,
       );
-      if (pathname === '/') {
+      if (pathname.replace(/\/+$/, '') === '') {
         onClose();
       } else {
-        void push('/');
+        void navigate('/');
       }
     },
   });

@@ -1,6 +1,9 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import Script from 'next/script';
 import { useCallback, useEffect, useRef } from 'react';
+
+const WIDGET_SCRIPT_ID = 'lasuite-lagaufre-widget';
+const WIDGET_SCRIPT_SRC =
+  'https://static.suite.anct.gouv.fr/widgets/lagaufre.js';
 
 declare global {
   interface Window {
@@ -79,6 +82,23 @@ export const LaGaufre = () => {
     setTimeout(applyZIndex, 500);
   }, [initLaGaufre]);
 
+  // Replaces next/script `lazyOnload`: inject the widget once, after the
+  // button exists, and re-init when it finishes loading.
+  useEffect(() => {
+    const existing = document.getElementById(WIDGET_SCRIPT_ID);
+    if (existing) {
+      initLaGaufre();
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = WIDGET_SCRIPT_ID;
+    script.src = WIDGET_SCRIPT_SRC;
+    script.async = true;
+    script.addEventListener('load', initLaGaufre);
+    document.body.appendChild(script);
+  }, [initLaGaufre]);
+
   return (
     <>
       <div data-gaufre-button-wrapper>
@@ -115,13 +135,6 @@ export const LaGaufre = () => {
           </svg>
         </Button>
       </div>
-      <Script
-        src="https://static.suite.anct.gouv.fr/widgets/lagaufre.js"
-        strategy="lazyOnload"
-        onLoad={() => {
-          initLaGaufre();
-        }}
-      />
     </>
   );
 };

@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart TD
-    User -- HTTP --> Front("Frontend (NextJS SPA)")
+    User -- HTTP --> Front("Frontend (Vite SPA)")
     Front -- REST API --> Back("Backend (Django)")
     Front -- OIDC --> Back -- OIDC ---> OIDC("Keycloak / ProConnect")
     Back --> DB("Database (PostgreSQL)")

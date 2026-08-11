@@ -1,9 +1,9 @@
 import { Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { keepPreviousData } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { InView } from 'react-intersection-observer';
+import { useNavigate } from 'react-router';
 import { useDebouncedCallback } from 'use-debounce';
 
 import { Box } from '@/components';
@@ -28,7 +28,7 @@ export const LeftPanelSearchModal = ({
   onClose,
 }: LeftPanelSearchModalProps) => {
   const { t } = useTranslation();
-  const router = useRouter();
+  const navigate = useNavigate();
   const [inputValue, setInputValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -83,10 +83,10 @@ export const LeftPanelSearchModal = ({
 
   const handleSelect = useCallback(
     (conversation: ChatConversation) => {
-      router.push(`/chat/${conversation.id}`);
+      void navigate(`/chat/${conversation.id}`);
       handleClose();
     },
-    [router, handleClose],
+    [navigate, handleClose],
   );
 
   const renderElement = useCallback(

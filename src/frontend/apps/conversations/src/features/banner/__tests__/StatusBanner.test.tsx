@@ -4,9 +4,9 @@ import { AppWrapper } from '@/tests/utils';
 
 import { StatusBanner } from '../StatusBanner';
 
-const mockUseConfig = jest.fn();
+const mockUseConfig = vi.fn();
 
-jest.mock('@/core/config', () => ({
+vi.mock('@/core/config', () => ({
   useConfig: () => mockUseConfig(),
 }));
 

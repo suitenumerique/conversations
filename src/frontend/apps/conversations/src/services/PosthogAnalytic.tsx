@@ -1,7 +1,7 @@
-import { Router } from 'next/router';
 import posthog from 'posthog-js';
 import { PostHogProvider as PHProvider } from 'posthog-js/react';
-import { JSX, PropsWithChildren, ReactNode, useEffect } from 'react';
+import { JSX, PropsWithChildren, ReactNode, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router';
 
 import { AbstractAnalytic, AnalyticEvent } from '@/libs/';
 
@@ -48,6 +48,9 @@ export function PostHogProvider({
   children,
   conf,
 }: PropsWithChildren<PostHogProviderProps>) {
+  const { pathname } = useLocation();
+  const isInitialLocation = useRef(true);
+
   useEffect(() => {
     if (!conf?.id || !conf?.host || posthog.__loaded) {
       return;
@@ -57,22 +60,26 @@ export function PostHogProvider({
       api_host: conf.host,
       person_profiles: 'always',
       loaded: (posthog) => {
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env.DEV) {
           posthog.debug();
         }
       },
       capture_pageview: false,
       capture_pageleave: true,
     });
-
-    const handleRouteChange = () => posthog?.capture('$pageview');
-
-    Router.events.on('routeChangeComplete', handleRouteChange);
-
-    return () => {
-      Router.events.off('routeChangeComplete', handleRouteChange);
-    };
   }, [conf?.host, conf?.id]);
+
+  useEffect(() => {
+    // Next's `routeChangeComplete` never fired for the first page load, so the
+    // landing page view was not captured. Kept as-is to keep the migration
+    // behaviour-neutral: remove this guard to start counting it.
+    if (isInitialLocation.current) {
+      isInitialLocation.current = false;
+      return;
+    }
+
+    posthog?.capture('$pageview');
+  }, [pathname]);
 
   return <PHProvider client={posthog}>{children}</PHProvider>;
 }

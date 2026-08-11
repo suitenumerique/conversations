@@ -1,36 +1,31 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+The Conversations front-end: a client-rendered SPA built with [Vite](https://vite.dev/), React and [React Router](https://reactrouter.com/) in declarative mode.
 
 ## Getting Started
 
-First, run the development server:
+Run the development server:
 
 ```bash
-npm run dev
-# or
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Routing lives in `src/App.tsx`; page components are in `src/pages/`.
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+## Scripts
 
-## Learn More
+| Command           | What it does                                               |
+| ----------------- | ---------------------------------------------------------- |
+| `yarn dev`        | Vite dev server on port 3000                               |
+| `yarn build`      | Format check, stylelint, type-check, then build to `dist/` |
+| `yarn start`      | Serve the production build locally (`vite preview`)        |
+| `yarn test`       | Run the Vitest suite                                       |
+| `yarn test:watch` | Vitest in watch mode                                       |
+| `yarn lint`       | Type-check and lint                                        |
 
-To learn more about Next.js, take a look at the following resources:
+## Environment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Build-time variables use the `VITE_` prefix and are read through `import.meta.env`:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+- `VITE_API_ORIGIN` - backend origin; falls back to the current origin.
+- `VITE_PRODUCT_NAME` - product name shown in the UI.

@@ -8,8 +8,8 @@ import {
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import ArrowUpRightIcon from '@/assets/icons/uikit-custom/arrow-up-right.svg';
-import LeavesIcon from '@/assets/icons/uikit-custom/leaves.svg';
+import ArrowUpRightIcon from '@/assets/icons/uikit-custom/arrow-up-right.svg?react';
+import LeavesIcon from '@/assets/icons/uikit-custom/leaves.svg?react';
 import { Box, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { useResponsiveStore } from '@/stores';

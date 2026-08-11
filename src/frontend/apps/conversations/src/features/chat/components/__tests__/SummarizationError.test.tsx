@@ -7,7 +7,7 @@ import { SummarizationError } from '../SummarizationError';
 
 describe('SummarizationError', () => {
   it('renders the failure message and a retry button', () => {
-    render(<SummarizationError onRetry={jest.fn()} />, { wrapper: AppWrapper });
+    render(<SummarizationError onRetry={vi.fn()} />, { wrapper: AppWrapper });
 
     expect(
       screen.getByText('Summarization failed. Please try again later.'),
@@ -16,7 +16,7 @@ describe('SummarizationError', () => {
   });
 
   it('calls onRetry when the retry button is clicked', () => {
-    const onRetry = jest.fn();
+    const onRetry = vi.fn();
     render(<SummarizationError onRetry={onRetry} />, { wrapper: AppWrapper });
 
     fireEvent.click(screen.getByRole('button', { name: /retry/i }));

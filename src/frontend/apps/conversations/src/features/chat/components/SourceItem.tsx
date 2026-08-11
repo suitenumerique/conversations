@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 
 import { Box, StyledLink } from '@/components';
@@ -136,7 +135,7 @@ export const SourceItem: React.FC<SourceItemProps> = ({ url, metadata }) => {
 
     return (
       <Box>
-        <Image
+        <img
           src={favicon}
           alt="Favicon"
           width={16}

@@ -3,7 +3,7 @@ import { DropdownMenu, type DropdownMenuItem } from '@gouvfr-lasuite/ui-kit';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import QuestionMarkCircleIcon from '@/assets/icons/uikit-custom/question-mark-circle.svg';
+import QuestionMarkCircleIcon from '@/assets/icons/uikit-custom/question-mark-circle.svg?react';
 import { Icon } from '@/components';
 import { useConfig } from '@/core/config/api/useConfig';
 

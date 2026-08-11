@@ -1,11 +1,10 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'next/router';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { css } from 'styled-components';
 
-import LeftPanelIcon from '@/assets/icons/left-panel-bold.svg';
+import LeftPanelIcon from '@/assets/icons/left-panel-bold.svg?react';
 import { Box, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import {
@@ -18,6 +17,7 @@ import {
   PROJECT_COLORS,
   PROJECT_ICONS,
 } from '@/features/left-panel/components/projects/project-constants';
+import { useConversationRouteId } from '@/utils';
 
 const conversationTitleCss = css`
   display: block;
@@ -31,12 +31,10 @@ const conversationTitleCss = css`
 
 export const ButtonToggleLeftPanel = () => {
   const { t } = useTranslation();
-  const router = useRouter();
   const { colorsTokens } = useCunninghamTheme();
   const { data: projects } = useInfiniteProjects({ page: 1, page_size: 100 });
   const { isPanelOpen, togglePanel } = useChatPreferencesStore();
-  const currentConversationId =
-    typeof router.query.id === 'string' ? router.query.id : undefined;
+  const currentConversationId = useConversationRouteId();
   const { data: currentConversation } = useQuery({
     queryKey: [KEY_CONVERSATION, currentConversationId],
     queryFn: () => {

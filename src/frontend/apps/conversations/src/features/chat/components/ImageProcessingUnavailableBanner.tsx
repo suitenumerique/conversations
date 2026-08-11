@@ -2,7 +2,7 @@ import { Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import WarningFilledIcon from '@/assets/icons/uikit-custom/warning-filled.svg';
+import WarningFilledIcon from '@/assets/icons/uikit-custom/warning-filled.svg?react';
 import { Box, Icon, Text } from '@/components';
 
 interface ImageProcessingUnavailableBannerProps {

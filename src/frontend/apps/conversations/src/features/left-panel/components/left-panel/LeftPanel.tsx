@@ -1,5 +1,4 @@
-import dynamic from 'next/dynamic';
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { createGlobalStyle, css } from 'styled-components';
 
 import { Box, SeparatedSection } from '@/components';
@@ -19,10 +18,10 @@ const MobileLeftPanelStyle = createGlobalStyle`
   }
 `;
 
-const UserInfo = dynamic(
-  () =>
-    import('@/features/auth/components/UserInfo').then((mod) => mod.UserInfo),
-  { ssr: false },
+const UserInfo = lazy(() =>
+  import('@/features/auth/components/UserInfo').then((mod) => ({
+    default: mod.UserInfo,
+  })),
 );
 
 export const LeftPanel = () => {
@@ -134,7 +133,9 @@ export const LeftPanel = () => {
                   $align="center"
                 >
                   {showLaGaufre && <LaGaufre />}
-                  <UserInfo />
+                  <Suspense fallback={null}>
+                    <UserInfo />
+                  </Suspense>
                 </Box>
               </Box>
             </Box>
