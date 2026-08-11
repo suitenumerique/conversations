@@ -129,10 +129,11 @@ export const MoreActionsButton = ({
             </Text>
           </Box>
           <Icon
-            iconName="open_in_new"
+            iconName="arrow_outward"
             $size="16px"
             $theme="neutral"
-            $variation={isLoading ? 'tertiary' : 'primary'}
+            variant="outlined"
+            $variation="tertiary"
             aria-hidden="true"
           />
         </BoxButton>
