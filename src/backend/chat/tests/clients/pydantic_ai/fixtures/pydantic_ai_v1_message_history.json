@@ -1,0 +1,473 @@
+{
+  "text_only": [
+    {
+      "parts": [
+        {
+          "content": "Bonjour",
+          "timestamp": "2026-03-14T09:15:00Z",
+          "part_kind": "user-prompt"
+        }
+      ],
+      "timestamp": "2026-03-14T09:15:00Z",
+      "instructions": "You are a helpful assistant.",
+      "kind": "request",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null
+    },
+    {
+      "parts": [
+        {
+          "content": "Bonjour !",
+          "id": null,
+          "provider_name": null,
+          "provider_details": null,
+          "part_kind": "text"
+        }
+      ],
+      "usage": {
+        "input_tokens": 120,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0,
+        "output_tokens": 42,
+        "input_audio_tokens": 0,
+        "cache_audio_read_tokens": 0,
+        "output_audio_tokens": 0,
+        "details": {
+          "co2_impact_factor_20": 730
+        }
+      },
+      "model_name": "albert-large",
+      "timestamp": "2026-03-14T09:15:00Z",
+      "kind": "response",
+      "provider_name": "albert_openai",
+      "provider_url": null,
+      "provider_details": null,
+      "provider_response_id": "chatcmpl-1",
+      "finish_reason": "stop",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null,
+      "state": "complete"
+    }
+  ],
+  "tool_call_with_sources_metadata": [
+    {
+      "parts": [
+        {
+          "content": "Que dit le rapport ?",
+          "timestamp": "2026-03-14T09:15:00Z",
+          "part_kind": "user-prompt"
+        }
+      ],
+      "timestamp": "2026-03-14T09:15:00Z",
+      "instructions": "You are a helpful assistant.",
+      "kind": "request",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null
+    },
+    {
+      "parts": [
+        {
+          "tool_name": "document_search_rag",
+          "args": {
+            "query": "rapport"
+          },
+          "tool_call_id": "call_abc123",
+          "tool_kind": null,
+          "id": null,
+          "provider_name": null,
+          "provider_details": null,
+          "part_kind": "tool-call"
+        }
+      ],
+      "usage": {
+        "input_tokens": 120,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0,
+        "output_tokens": 42,
+        "input_audio_tokens": 0,
+        "cache_audio_read_tokens": 0,
+        "output_audio_tokens": 0,
+        "details": {
+          "co2_impact_factor_20": 730
+        }
+      },
+      "model_name": "albert-large",
+      "timestamp": "2026-03-14T09:15:00Z",
+      "kind": "response",
+      "provider_name": "albert_openai",
+      "provider_url": null,
+      "provider_details": null,
+      "provider_response_id": null,
+      "finish_reason": "tool_call",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null,
+      "state": "complete"
+    },
+    {
+      "parts": [
+        {
+          "tool_name": "document_search_rag",
+          "content": "Extrait du rapport.",
+          "tool_call_id": "call_abc123",
+          "tool_kind": null,
+          "metadata": {
+            "sources": [
+              {
+                "document_name": "rapport.md",
+                "chunk_id": 7,
+                "score": 0.82
+              }
+            ]
+          },
+          "timestamp": "2026-03-14T09:15:00Z",
+          "outcome": "success",
+          "part_kind": "tool-return"
+        }
+      ],
+      "timestamp": "2026-03-14T09:15:00Z",
+      "instructions": "You are a helpful assistant.",
+      "kind": "request",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null
+    },
+    {
+      "parts": [
+        {
+          "content": "Le rapport dit ceci.",
+          "id": null,
+          "provider_name": null,
+          "provider_details": null,
+          "part_kind": "text"
+        }
+      ],
+      "usage": {
+        "input_tokens": 120,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0,
+        "output_tokens": 42,
+        "input_audio_tokens": 0,
+        "cache_audio_read_tokens": 0,
+        "output_audio_tokens": 0,
+        "details": {
+          "co2_impact_factor_20": 730
+        }
+      },
+      "model_name": "albert-large",
+      "timestamp": "2026-03-14T09:15:00Z",
+      "kind": "response",
+      "provider_name": null,
+      "provider_url": null,
+      "provider_details": null,
+      "provider_response_id": null,
+      "finish_reason": "stop",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null,
+      "state": "complete"
+    }
+  ],
+  "thinking": [
+    {
+      "parts": [
+        {
+          "content": "Explique.",
+          "timestamp": "2026-03-14T09:15:00Z",
+          "part_kind": "user-prompt"
+        }
+      ],
+      "timestamp": "2026-03-14T09:15:00Z",
+      "instructions": "You are a helpful assistant.",
+      "kind": "request",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null
+    },
+    {
+      "parts": [
+        {
+          "content": "L'utilisateur veut une explication.",
+          "id": null,
+          "signature": null,
+          "provider_name": null,
+          "provider_details": null,
+          "part_kind": "thinking"
+        },
+        {
+          "content": "Voici l'explication.",
+          "id": null,
+          "provider_name": null,
+          "provider_details": null,
+          "part_kind": "text"
+        }
+      ],
+      "usage": {
+        "input_tokens": 120,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0,
+        "output_tokens": 42,
+        "input_audio_tokens": 0,
+        "cache_audio_read_tokens": 0,
+        "output_audio_tokens": 0,
+        "details": {
+          "co2_impact_factor_20": 730
+        }
+      },
+      "model_name": "mistral-medium-2508",
+      "timestamp": "2026-03-14T09:15:00Z",
+      "kind": "response",
+      "provider_name": "mistral",
+      "provider_url": null,
+      "provider_details": null,
+      "provider_response_id": null,
+      "finish_reason": "stop",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null,
+      "state": "complete"
+    }
+  ],
+  "media_content": [
+    {
+      "parts": [
+        {
+          "content": [
+            "Que vois-tu ?",
+            {
+              "url": "https://s3.example/img.png?sig=x",
+              "force_download": false,
+              "vendor_metadata": null,
+              "kind": "image-url",
+              "media_type": "image/png",
+              "identifier": "photo.png"
+            },
+            {
+              "url": "https://s3.example/doc.pdf?sig=y",
+              "force_download": false,
+              "vendor_metadata": null,
+              "kind": "document-url",
+              "media_type": "application/pdf",
+              "identifier": "doc.pdf"
+            },
+            {
+              "data": "iVBORw0KGgo=",
+              "media_type": "image/png",
+              "vendor_metadata": null,
+              "kind": "binary",
+              "identifier": "4caece"
+            }
+          ],
+          "timestamp": "2026-03-14T09:15:00Z",
+          "part_kind": "user-prompt"
+        }
+      ],
+      "timestamp": "2026-03-14T09:15:00Z",
+      "instructions": "You are a helpful assistant.",
+      "kind": "request",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null
+    },
+    {
+      "parts": [
+        {
+          "content": "Une image et un document.",
+          "id": null,
+          "provider_name": null,
+          "provider_details": null,
+          "part_kind": "text"
+        }
+      ],
+      "usage": {
+        "input_tokens": 120,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0,
+        "output_tokens": 42,
+        "input_audio_tokens": 0,
+        "cache_audio_read_tokens": 0,
+        "output_audio_tokens": 0,
+        "details": {
+          "co2_impact_factor_20": 730
+        }
+      },
+      "model_name": "albert-large",
+      "timestamp": "2026-03-14T09:15:00Z",
+      "kind": "response",
+      "provider_name": null,
+      "provider_url": null,
+      "provider_details": null,
+      "provider_response_id": null,
+      "finish_reason": "stop",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null,
+      "state": "complete"
+    }
+  ],
+  "retry_prompt": [
+    {
+      "parts": [
+        {
+          "content": "Meteo ?",
+          "timestamp": "2026-03-14T09:15:00Z",
+          "part_kind": "user-prompt"
+        }
+      ],
+      "timestamp": "2026-03-14T09:15:00Z",
+      "instructions": "You are a helpful assistant.",
+      "kind": "request",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null
+    },
+    {
+      "parts": [
+        {
+          "tool_name": "get_weather",
+          "args": "{bad json",
+          "tool_call_id": "call_r1",
+          "tool_kind": null,
+          "id": null,
+          "provider_name": null,
+          "provider_details": null,
+          "part_kind": "tool-call"
+        }
+      ],
+      "usage": {
+        "input_tokens": 120,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0,
+        "output_tokens": 42,
+        "input_audio_tokens": 0,
+        "cache_audio_read_tokens": 0,
+        "output_audio_tokens": 0,
+        "details": {
+          "co2_impact_factor_20": 730
+        }
+      },
+      "model_name": "albert-large",
+      "timestamp": "2026-03-14T09:15:00Z",
+      "kind": "response",
+      "provider_name": null,
+      "provider_url": null,
+      "provider_details": null,
+      "provider_response_id": null,
+      "finish_reason": "tool_call",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null,
+      "state": "complete"
+    },
+    {
+      "parts": [
+        {
+          "content": "Invalid JSON in tool arguments.",
+          "tool_name": "get_weather",
+          "tool_call_id": "call_r1",
+          "timestamp": "2026-03-14T09:15:00Z",
+          "part_kind": "retry-prompt"
+        }
+      ],
+      "timestamp": "2026-03-14T09:15:00Z",
+      "instructions": "You are a helpful assistant.",
+      "kind": "request",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null
+    },
+    {
+      "parts": [
+        {
+          "content": "Je ne peux pas repondre.",
+          "id": null,
+          "provider_name": null,
+          "provider_details": null,
+          "part_kind": "text"
+        }
+      ],
+      "usage": {
+        "input_tokens": 120,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0,
+        "output_tokens": 42,
+        "input_audio_tokens": 0,
+        "cache_audio_read_tokens": 0,
+        "output_audio_tokens": 0,
+        "details": {
+          "co2_impact_factor_20": 730
+        }
+      },
+      "model_name": "albert-large",
+      "timestamp": "2026-03-14T09:15:00Z",
+      "kind": "response",
+      "provider_name": null,
+      "provider_url": null,
+      "provider_details": null,
+      "provider_response_id": null,
+      "finish_reason": "stop",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null,
+      "state": "complete"
+    }
+  ],
+  "synthetic_ok_response": [
+    {
+      "parts": [
+        {
+          "tool_name": "web_search",
+          "content": "resultats",
+          "tool_call_id": "call_ok",
+          "tool_kind": null,
+          "metadata": null,
+          "timestamp": "2026-03-14T09:15:00Z",
+          "outcome": "success",
+          "part_kind": "tool-return"
+        }
+      ],
+      "timestamp": "2026-03-14T09:15:00Z",
+      "instructions": "You are a helpful assistant.",
+      "kind": "request",
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null
+    },
+    {
+      "parts": [
+        {
+          "content": "ok",
+          "id": null,
+          "provider_name": null,
+          "provider_details": null,
+          "part_kind": "text"
+        }
+      ],
+      "usage": {
+        "input_tokens": 0,
+        "cache_write_tokens": 0,
+        "cache_read_tokens": 0,
+        "output_tokens": 0,
+        "input_audio_tokens": 0,
+        "cache_audio_read_tokens": 0,
+        "output_audio_tokens": 0,
+        "details": {}
+      },
+      "model_name": null,
+      "timestamp": "2026-03-14T09:15:00Z",
+      "kind": "response",
+      "provider_name": null,
+      "provider_url": null,
+      "provider_details": null,
+      "provider_response_id": null,
+      "finish_reason": null,
+      "run_id": null,
+      "conversation_id": null,
+      "metadata": null,
+      "state": "complete"
+    }
+  ]
+}

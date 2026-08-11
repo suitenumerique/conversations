@@ -1501,6 +1501,7 @@ def test_post_conversation_with_existing_tool_history(
             }
         ],
         "run_id": _run_id,
+        "state": "complete",
         "timestamp": "2025-07-25T10:36:35.297675Z",
     }
 
@@ -1567,6 +1568,7 @@ def test_post_conversation_with_existing_tool_history(
             }
         ],
         "run_id": _run_id,
+        "state": "complete",
         "timestamp": "2025-07-25T10:36:35.297675Z",
     }
 

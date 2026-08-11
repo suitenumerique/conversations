@@ -517,6 +517,7 @@ def test_post_conversation_with_document_upload(
             },
         ],
         "run_id": _run_id,
+        "state": "complete",
         "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[1] == {
@@ -581,6 +582,7 @@ def test_post_conversation_with_document_upload(
             }
         ],
         "run_id": _run_id,
+        "state": "complete",
         "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[3] == {
@@ -855,6 +857,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             },
         ],
         "run_id": _run_id,
+        "state": "complete",
         "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[1] == {
@@ -913,6 +916,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             }
         ],
         "run_id": _run_id,
+        "state": "complete",
         "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[3] == {
@@ -1118,6 +1122,7 @@ def test_post_conversation_with_odt_document_upload(
             },
         ],
         "run_id": _run_id,
+        "state": "complete",
         "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[1] == {
@@ -1182,6 +1187,7 @@ def test_post_conversation_with_odt_document_upload(
             }
         ],
         "run_id": _run_id,
+        "state": "complete",
         "timestamp": timezone_now,
     }
     assert chat_conversation.pydantic_messages[3] == {

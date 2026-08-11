@@ -17,62 +17,6 @@ from chat.tools import get_pydantic_tools_by_name
 logger = logging.getLogger(__name__)
 
 
-def _patch_mistral_streaming_map_content():
-    """Monkey-patch pydantic_ai.models.mistral._map_content to handle citations.
-
-    The original _map_content raises exceptions when responses contain
-    citation/reference data, which happens anytime we use web search or
-    other RAG tools (https://docs.mistral.ai/capabilities/citations/).
-    We replace it with a safe version that extracts text and thinking
-    chunks while ignoring unsupported data types.
-
-    ⚠ WARNING: this is a monkey patch and may break if the original function
-    changes in future versions of pydantic_ai. Current version: v1.0.18
-    """
-    # pylint: disable=import-outside-toplevel,protected-access
-    import pydantic_ai.models.mistral as mistral_models  # noqa: PLC0415
-    from mistralai.client.models import TextChunk as MistralTextChunk  # noqa: PLC0415
-    from mistralai.client.models import ThinkChunk as MistralThinkChunk  # noqa: PLC0415
-    from mistralai.client.types.basemodel import Unset as MistralUnset  # noqa: PLC0415
-
-    if getattr(mistral_models, "__safe_map_patched__", False):
-        return
-
-    def _safe_map_content(content):
-        text: str | None = None
-        thinking: list[str] = []
-
-        if isinstance(content, MistralUnset) or not content:
-            return None, []
-
-        if isinstance(content, list):
-            for chunk in content:
-                if isinstance(chunk, MistralTextChunk):
-                    text = (text or "") + chunk.text
-                elif isinstance(chunk, MistralThinkChunk):
-                    for thought in chunk.thinking:
-                        if thought.type == "text":  # pragma: no branch
-                            thinking.append(thought.text)
-                else:
-                    logger.info(  # pragma: no cover
-                        "Other data types like (Image, Reference) are not yet supported,  got %s",
-                        type(chunk),
-                    )
-        elif isinstance(content, str):
-            text = content
-
-        # Note: Check len to handle potential mismatch between function calls and
-        # responses from the API.
-        # (`msg: not the same number of function class and responses`)
-        if text == "":  # pragma: no cover
-            text = None
-
-        return text, thinking
-
-    mistral_models._map_content = _safe_map_content  # noqa: SLF001
-    mistral_models.__safe_map_patched__ = True
-
-
 def _patch_openai_streaming_list_content():
     """Monkey-patch OpenAIStreamedResponse._map_text_delta to normalize list content.
 
@@ -85,7 +29,7 @@ def _patch_openai_streaming_list_content():
     We normalize list content to str before delegating to the original method.
 
     ⚠ WARNING: this is a monkey patch and may break if the original function
-    changes in future versions of pydantic_ai. Current version: v1.77.0
+    changes in future versions of pydantic_ai. Current version: v2.22.0
     """
     # pylint: disable=import-outside-toplevel,protected-access
     import pydantic_ai.models.openai as openai_models  # noqa: PLC0415
@@ -131,8 +75,6 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
         case "mistral":
             import pydantic_ai.models.mistral as mistral_models  # noqa: PLC0415
             from pydantic_ai.providers.mistral import MistralProvider  # noqa: PLC0415
-
-            _patch_mistral_streaming_map_content()
 
             return mistral_models.MistralModel(
                 model_name=configuration.model_name,

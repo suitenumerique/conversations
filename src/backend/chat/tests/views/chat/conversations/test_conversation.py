@@ -97,6 +97,7 @@ def _make_pydantic_request(  # pylint: disable=too-many-arguments,too-many-posit
         "metadata": None,
         "parts": [{"content": content, "part_kind": "user-prompt", "timestamp": timestamp}],
         "run_id": run_id,
+        "state": "complete",
         "timestamp": timestamp,
     }
 
@@ -630,6 +631,7 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
                 }
             ],
             "run_id": _run_id,
+            "state": "complete",
             "timestamp": FROZEN_TIMESTAMP,
         },
         _make_pydantic_text_response(
@@ -792,6 +794,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
                 }
             ],
             "run_id": _run_id,
+            "state": "complete",
             "timestamp": FROZEN_TIMESTAMP,
         },
         _make_pydantic_text_response(

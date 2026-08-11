@@ -344,6 +344,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     settings=InstrumentationSettings(
                         include_binary_content=self._store_analytics,
                         include_content=self._store_analytics,
+                        # Pin the OpenTelemetry schema pydantic-ai emitted before 2.x
+                        # (default is now version 5 with `gen_ai.aggregated_usage.*`
+                        # attribute names). Keeps existing Langfuse dashboards working;
+                        # moving to the newer schema is a separate, deliberate change.
+                        version=2,
+                        use_aggregated_usage_attribute_names=False,
                     )
                 )
             )
@@ -624,9 +630,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         model = self.conversation_agent.model
         if isinstance(model, Model):
-            model_supports_thinking = model.profile.supports_thinking
+            model_supports_thinking = model.profile.get("supports_thinking")
         else:
-            model_supports_thinking = infer_model_profile(model).supports_thinking
+            model_supports_thinking = infer_model_profile(model).get("supports_thinking")
         if not model_supports_thinking:
             history = _strip_thinking_parts(history)
 

@@ -12,6 +12,10 @@ and this project adheres to
 
 - 💄(settings) move analytics settings to general
 
+## Changed
+
+- ⬆️(back) migrate to pydantic-ai 2.x
+
 ### Removed
 
 - 🔥(back) remove the unused Albert web search manager and its tool

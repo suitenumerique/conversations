@@ -305,6 +305,7 @@ def test_post_conversation_with_local_pdf_document_url(
                 },
             ],
             "run_id": _run_id,
+            "state": "complete",
             "timestamp": timestamp,
         },
         {
@@ -805,6 +806,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                 }
             ],
             "run_id": _run_id,
+            "state": "complete",
             "timestamp": "2025-10-18T20:48:20.286204Z",
         },
         {
@@ -1025,6 +1027,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
                 },
             ],
             "run_id": _run_id,
+            "state": "complete",
             "timestamp": timestamp,
         },
         {

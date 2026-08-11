@@ -123,7 +123,7 @@ def test_albert_chat_model_uses_albert_streamed_response_cls():
     """AlbertOpenAIChatModel._streamed_response_cls returns AlbertOpenAIStreamedResponse."""
     model = AlbertOpenAIChatModel(
         model_name="test-model",
-        profile="test-profile",
+        profile=None,
         provider=AlbertOpenAIProvider(
             base_url="https://test-albert-api.com",
             api_key="test-api-key",

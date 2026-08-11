@@ -5,8 +5,9 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from mistralai.client.models import ReferenceChunk, TextChunk, ThinkChunk
 from pydantic_ai.capabilities import Hooks
-from pydantic_ai.models.mistral import MistralModel
+from pydantic_ai.models.mistral import MistralModel, _map_content
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIStreamedResponse
 
 from chat.agents.base import BaseAgent
@@ -117,9 +118,24 @@ def test_custom_model_mistral(settings):
 
     assert isinstance(agent._model, MistralModel)
 
-    import pydantic_ai.models.mistral as mistral_models  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
 
-    assert mistral_models.__safe_map_patched__ is True  # pylint: disable=protected-access
+def test_mistral_map_content_handles_citation_chunks():
+    """pydantic-ai tolerates the reference chunks Mistral emits alongside citations.
+
+    Mistral returns citation/reference data whenever web search or a RAG tool is used
+    (https://docs.mistral.ai/capabilities/citations/). Older pydantic-ai versions raised
+    on those chunks, which we worked around with a monkey patch on `_map_content`;
+    upstream handles them since 2.x, so the patch is gone and this test guards the
+    behavior we depend on.
+    """
+    content = [
+        TextChunk(text="Hello "),
+        ReferenceChunk(reference_ids=[1, 2]),
+        ThinkChunk(thinking=[TextChunk(text="pondering")]),
+        TextChunk(text="world"),
+    ]
+
+    assert _map_content(content) == ("Hello world", ["pondering"])
 
 
 def test_custom_model_mistral_neutral_sampling_defaults(settings):
@@ -183,9 +199,9 @@ def test_custom_model_openai_profile(settings):
     agent = BaseAgent(model_hrid="openai-model")
 
     assert isinstance(agent._model, OpenAIChatModel)
-    assert agent._model.profile.supports_tools is True
-    assert agent._model.profile.supports_json_schema_output is False
-    assert agent._model.profile.supports_json_object_output is True
+    assert agent._model.profile["supports_tools"] is True
+    assert agent._model.profile["supports_json_schema_output"] is False
+    assert agent._model.profile["supports_json_object_output"] is True
 
 
 def test_custom_model_albert(settings):
