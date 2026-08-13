@@ -643,7 +643,6 @@ The LLM should evaluate sources critically.
 ## See Also
 
 - [Tools Overview](../tools.md)
-- [Tavily Web Search Tool](web_search_tavily.md)
 - [LLM Configuration](../llm-configuration.md)
 - [Environment Variables](../env.md)
 - [Brave Search API Documentation](https://brave.com/search/api/)

@@ -1136,23 +1136,6 @@ Never use unescaped dollar delimiters for mathematical notation.""",
         environ_prefix=None,
     )
 
-    # Tavily API
-    TAVILY_API_KEY = values.Value(
-        None,  # Tavily API key is not set by default
-        environ_name="TAVILY_API_KEY",
-        environ_prefix=None,
-    )
-    TAVILY_MAX_RESULTS = values.PositiveIntegerValue(
-        default=5,
-        environ_name="TAVILY_MAX_RESULTS",
-        environ_prefix=None,
-    )
-    TAVILY_API_TIMEOUT = values.PositiveIntegerValue(
-        default=10,  # seconds
-        environ_name="TAVILY_API_TIMEOUT",
-        environ_prefix=None,
-    )
-
     # Albert API
     ALBERT_API_KEY = values.Value(
         None,  # Albert API key is not set by default

@@ -63,7 +63,6 @@ We want to add dynamic loading in the future.
 | Tool Name                                | Description                                                   | Documentation                                                               |
 |------------------------------------------|---------------------------------------------------------------|-----------------------------------------------------------------------------|
 | `get_current_weather`                    | Fake weather tool for testing purposes                        | [Details](tools/get_current_weather.md)                                     |
-| `web_search_tavily`                      | Web search using Tavily API                                   | [Details](tools/web_search_tavily.md)                                       |
 | `web_search_brave`                       | Web search using Brave Search API with optional summarization | [Details](tools/web_search_brave.md)                                        |
 | `web_search_brave_with_document_backend` | Web search using Brave with RAG-based document processing     | [Details](tools/web_search_brave.md#web_search_brave_with_document_backend) |
 
