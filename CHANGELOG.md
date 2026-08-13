@@ -19,6 +19,7 @@ and this project adheres to
 - 🏗️(front) rename frontend build var from the NEXT_PUBLIC_ prefix to VITE_
 - 💬(back) rewrite the default agent instructions and tool descriptions
 - 💄(front) correct icon Docs button
+- ♻️(back) use httpx as the single HTTP client for outbound calls
 
 ### Removed
 

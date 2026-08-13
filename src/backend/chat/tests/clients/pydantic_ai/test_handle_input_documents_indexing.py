@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock
 
 from django.utils import timezone
 
+import httpx
 import pytest
-import requests
 from asgiref.sync import sync_to_async
 from pydantic_ai.messages import BinaryContent
 
@@ -117,11 +117,11 @@ async def test_no_busy_error_when_indexing_claim_timed_out():
 # --------------------------------------------------------------------------- #
 
 
-def _http_error(status_code: int) -> requests.HTTPError:
-    """Build a requests.HTTPError whose response carries the given status code."""
-    response = requests.Response()
-    response.status_code = status_code
-    return requests.HTTPError(response=response)
+def _http_error(status_code: int) -> httpx.HTTPStatusError:
+    """Build an httpx.HTTPStatusError whose response carries the given status code."""
+    request = httpx.Request("POST", "https://albert.example.com/v1/documents")
+    response = httpx.Response(status_code, request=request)
+    return httpx.HTTPStatusError(f"HTTP {status_code}", request=request, response=response)
 
 
 async def _collect_handle_input_documents(service, exc):
@@ -166,11 +166,11 @@ async def test_handle_input_documents_emits_rag_unavailable_on_500(caplog):
 
 @pytest.mark.asyncio
 async def test_handle_input_documents_emits_rag_connection_error_on_network_failure():
-    """A requests.ConnectionError surfaces as kind=rag_connection_error."""
+    """An httpx.ConnectError surfaces as kind=rag_connection_error."""
     conversation = await sync_to_async(ChatConversationFactory)()
     service = AIAgentService(conversation, user=conversation.owner)
 
-    events = await _collect_handle_input_documents(service, requests.ConnectionError("no route"))
+    events = await _collect_handle_input_documents(service, httpx.ConnectError("no route"))
 
     result = _tool_result(events).result
     assert result["kind"] == "rag_connection_error"

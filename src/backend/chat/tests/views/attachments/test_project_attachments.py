@@ -7,8 +7,9 @@ from unittest import mock
 from django.core.files.storage import default_storage
 from django.test import override_settings
 
+import httpx
 import pytest
-import responses
+import respx
 from rest_framework import status as http_status
 
 from core.file_upload.enums import AttachmentStatus, FileUploadMode
@@ -393,7 +394,7 @@ def test_project_attachment_delete_success(api_client):
     assert not models.ChatConversationAttachment.objects.filter(pk=attachment.pk).exists()
 
 
-@responses.activate
+@respx.mock
 def test_project_attachment_delete_drops_rag_document(api_client, albert_settings):
     """Deleting an indexed attachment removes its document from the RAG collection."""
     project = factories.ChatProjectFactory(collection_id="42")
@@ -402,9 +403,8 @@ def test_project_attachment_delete_drops_rag_document(api_client, albert_setting
         rag_document_id="123",
     )
     api_client.force_login(project.owner)
-    delete_doc_mock = responses.delete(
-        f"{albert_settings.ALBERT_API_URL}/v1/documents/123",
-        status=http_status.HTTP_204_NO_CONTENT,
+    delete_doc_mock = respx.delete(f"{albert_settings.ALBERT_API_URL}/v1/documents/123").mock(
+        return_value=httpx.Response(http_status.HTTP_204_NO_CONTENT)
     )
 
     url = f"/api/v1.0/projects/{project.pk}/attachments/{attachment.pk!s}/"
@@ -415,7 +415,7 @@ def test_project_attachment_delete_drops_rag_document(api_client, albert_setting
     assert not models.ChatConversationAttachment.objects.filter(pk=attachment.pk).exists()
 
 
-@responses.activate
+@respx.mock
 def test_project_attachment_delete_skips_backend_when_no_doc_id(api_client, albert_settings):
     """An attachment without rag_document_id (image, Find backend) skips the backend call."""
     project = factories.ChatProjectFactory(collection_id="42")
@@ -424,9 +424,8 @@ def test_project_attachment_delete_skips_backend_when_no_doc_id(api_client, albe
         rag_document_id=None,
     )
     api_client.force_login(project.owner)
-    delete_doc_mock = responses.delete(
-        f"{albert_settings.ALBERT_API_URL}/v1/documents/anything",
-        status=http_status.HTTP_204_NO_CONTENT,
+    delete_doc_mock = respx.delete(f"{albert_settings.ALBERT_API_URL}/v1/documents/anything").mock(
+        return_value=httpx.Response(http_status.HTTP_204_NO_CONTENT)
     )
 
     url = f"/api/v1.0/projects/{project.pk}/attachments/{attachment.pk!s}/"
@@ -437,7 +436,7 @@ def test_project_attachment_delete_skips_backend_when_no_doc_id(api_client, albe
     assert not models.ChatConversationAttachment.objects.filter(pk=attachment.pk).exists()
 
 
-@responses.activate
+@respx.mock
 def test_project_attachment_delete_succeeds_when_backend_fails(api_client, albert_settings, caplog):
     """A backend failure is logged but does not block the attachment delete."""
     project = factories.ChatProjectFactory(collection_id="42")
@@ -446,9 +445,8 @@ def test_project_attachment_delete_succeeds_when_backend_fails(api_client, alber
         rag_document_id="123",
     )
     api_client.force_login(project.owner)
-    responses.delete(
-        f"{albert_settings.ALBERT_API_URL}/v1/documents/123",
-        status=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+    respx.delete(f"{albert_settings.ALBERT_API_URL}/v1/documents/123").mock(
+        return_value=httpx.Response(http_status.HTTP_500_INTERNAL_SERVER_ERROR)
     )
     caplog.set_level(logging.ERROR, logger="chat.views")
 
@@ -460,7 +458,7 @@ def test_project_attachment_delete_succeeds_when_backend_fails(api_client, alber
     assert any("Failed to delete RAG document 123" in record.message for record in caplog.records)
 
 
-@responses.activate
+@respx.mock
 def test_project_attachment_delete_removes_markdown_companion(api_client, albert_settings):
     """Deleting the original drops its hidden markdown companion row too.
 
@@ -490,9 +488,8 @@ def test_project_attachment_delete_removes_markdown_companion(api_client, albert
         content_type="text/markdown",
         conversion_from=None,
     )
-    responses.delete(
-        f"{albert_settings.ALBERT_API_URL}/v1/documents/123",
-        status=http_status.HTTP_204_NO_CONTENT,
+    respx.delete(f"{albert_settings.ALBERT_API_URL}/v1/documents/123").mock(
+        return_value=httpx.Response(http_status.HTTP_204_NO_CONTENT)
     )
     api_client.force_login(project.owner)
 
@@ -506,7 +503,7 @@ def test_project_attachment_delete_removes_markdown_companion(api_client, albert
     assert models.ChatConversationAttachment.objects.filter(pk=unrelated.pk).exists()
 
 
-@responses.activate
+@respx.mock
 def test_project_attachment_delete_runs_rag_before_s3(api_client, albert_settings):
     """`perform_destroy` must remove the RAG document before deleting the S3 blob.
 
@@ -520,9 +517,8 @@ def test_project_attachment_delete_runs_rag_before_s3(api_client, albert_setting
         rag_document_id="123",
     )
     api_client.force_login(project.owner)
-    responses.delete(
-        f"{albert_settings.ALBERT_API_URL}/v1/documents/123",
-        status=http_status.HTTP_204_NO_CONTENT,
+    respx.delete(f"{albert_settings.ALBERT_API_URL}/v1/documents/123").mock(
+        return_value=httpx.Response(http_status.HTTP_204_NO_CONTENT)
     )
 
     call_order = []

@@ -14,7 +14,6 @@ from django.utils import formats, timezone
 
 import httpx
 import pytest
-import responses
 import respx
 from dirty_equals import IsUUID
 from freezegun import freeze_time
@@ -123,24 +122,22 @@ def fixture_mock_document_api():
     search_method = "semantic"
     search_score = 0.9
 
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/collections",
-        json={"id": "123", "name": "test-collection"},
-        status=status.HTTP_200_OK,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+        return_value=httpx.Response(
+            status.HTTP_200_OK, json={"id": "123", "name": "test-collection"}
+        )
     )
 
     # Mock PDF parsing
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/ocr",
-        json={"pages": [{"markdown": "This is the content of the PDF."}]},
-        status=status.HTTP_200_OK,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/ocr").mock(
+        return_value=httpx.Response(
+            status.HTTP_200_OK, json={"pages": [{"markdown": "This is the content of the PDF."}]}
+        )
     )
 
     # Mock document upload
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"id": 456},
-        status=status.HTTP_201_CREATED,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 456})
     )
 
     # Mock document search. AlbertRagBackend.asearch calls this endpoint via
@@ -159,35 +156,29 @@ def fixture_mock_document_api():
         ],
         "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
     }
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/search",
-        json=search_response_body,
-        status=status.HTTP_200_OK,
-    )
     respx.post("https://albert.api.etalab.gouv.fr/v1/search").mock(
         return_value=httpx.Response(status.HTTP_200_OK, json=search_response_body)
     )
 
     # Mock document indexing (Find API)
-    responses.post(
-        "https://app-find/api/v1.0/documents/index/",
-        json={"id": "456", "status": "indexed"},
-        status=status.HTTP_200_OK,
+    respx.post("https://app-find/api/v1.0/documents/index/").mock(
+        return_value=httpx.Response(status.HTTP_200_OK, json={"id": "456", "status": "indexed"})
     )
 
     # Mock document search (Find API)
-    responses.post(
-        "https://app-find/api/v1.0/documents/search/",
-        json=[
-            {
-                "_source": {
-                    "title.fr": document_name,
-                    "content.fr": document_content,
-                },
-                "_score": search_score,
-            }
-        ],
-        status=status.HTTP_200_OK,
+    respx.post("https://app-find/api/v1.0/documents/search/").mock(
+        return_value=httpx.Response(
+            status.HTTP_200_OK,
+            json=[
+                {
+                    "_source": {
+                        "title.fr": document_name,
+                        "content.fr": document_content,
+                    },
+                    "_score": search_score,
+                }
+            ],
+        )
     )
 
 
@@ -203,24 +194,22 @@ def fixture_mock_odt_document_api():
     search_method = "semantic"
     search_score = 0.9
 
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/collections",
-        json={"id": "123", "name": "test-collection"},
-        status=status.HTTP_200_OK,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+        return_value=httpx.Response(
+            status.HTTP_200_OK, json={"id": "123", "name": "test-collection"}
+        )
     )
 
     # Mock PDF parsing
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/ocr",
-        json={"pages": [{"markdown": "This is the content of the ODT."}]},
-        status=status.HTTP_200_OK,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/ocr").mock(
+        return_value=httpx.Response(
+            status.HTTP_200_OK, json={"pages": [{"markdown": "This is the content of the ODT."}]}
+        )
     )
 
     # Mock document upload
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"id": 456},
-        status=status.HTTP_201_CREATED,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 456})
     )
 
     # Mock document search (sync via responses, async via respx).
@@ -238,35 +227,29 @@ def fixture_mock_odt_document_api():
         ],
         "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": completion_tokens},
     }
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/search",
-        json=search_response_body,
-        status=status.HTTP_200_OK,
-    )
     respx.post("https://albert.api.etalab.gouv.fr/v1/search").mock(
         return_value=httpx.Response(status.HTTP_200_OK, json=search_response_body)
     )
 
     # Mock document indexing (Find API)
-    responses.post(
-        "https://app-find/api/v1.0/documents/index/",
-        json={"id": "456", "status": "indexed"},
-        status=status.HTTP_200_OK,
+    respx.post("https://app-find/api/v1.0/documents/index/").mock(
+        return_value=httpx.Response(status.HTTP_200_OK, json={"id": "456", "status": "indexed"})
     )
 
     # Mock document search (Find API)
-    responses.post(
-        "https://app-find/api/v1.0/documents/search/",
-        json=[
-            {
-                "_source": {
-                    "title.fr": document_name,
-                    "content.fr": document_content,
-                },
-                "_score": search_score,
-            }
-        ],
-        status=status.HTTP_200_OK,
+    respx.post("https://app-find/api/v1.0/documents/search/").mock(
+        return_value=httpx.Response(
+            status.HTTP_200_OK,
+            json=[
+                {
+                    "_source": {
+                        "title.fr": document_name,
+                        "content.fr": document_content,
+                    },
+                    "_score": search_score,
+                }
+            ],
+        )
     )
 
 
@@ -349,7 +332,7 @@ def fixture_mock_openai_stream():
     return route
 
 
-@responses.activate
+@respx.mock
 @respx.mock
 @freeze_time()
 def test_post_conversation_with_document_upload(
@@ -620,7 +603,7 @@ def test_post_conversation_with_document_upload(
     }
 
 
-@responses.activate
+@respx.mock
 @respx.mock
 @freeze_time("2025-07-25T10:36:35.297675Z")
 def test_post_conversation_with_document_upload_feature_disabled(
@@ -691,7 +674,7 @@ def test_post_conversation_with_document_upload_feature_disabled(
     assert "Document upload feature is disabled, ignoring input documents." in caplog.text
 
 
-@responses.activate
+@respx.mock
 @respx.mock
 @freeze_time()
 def test_post_conversation_with_document_upload_summarize(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
@@ -954,7 +937,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     }
 
 
-@responses.activate
+@respx.mock
 @respx.mock
 @freeze_time()
 def test_post_conversation_with_odt_document_upload(

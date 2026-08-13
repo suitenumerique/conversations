@@ -10,8 +10,9 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.utils import timezone
 
+import httpx
 import pytest
-import responses
+import respx
 from pydantic_ai.exceptions import ModelHTTPError
 from rest_framework import status
 
@@ -44,7 +45,7 @@ def ai_settings(settings):
     return settings
 
 
-@responses.activate
+@respx.mock
 def test_index_project_attachment_task_indexes_attachment():
     """The task resolves the id and indexes the file into the project collection."""
     saved_name = default_storage.save("task-rag-test.txt", ContentFile(b"Hello task content"))
@@ -55,15 +56,11 @@ def test_index_project_attachment_task_indexes_attachment():
         upload_state=AttachmentStatus.READY,
     )
     try:
-        responses.post(
-            "https://albert.api.etalab.gouv.fr/v1/collections",
-            json={"id": "42"},
-            status=status.HTTP_200_OK,
+        respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+            return_value=httpx.Response(status.HTTP_200_OK, json={"id": "42"})
         )
-        responses.post(
-            "https://albert.api.etalab.gouv.fr/v1/documents",
-            json={"id": 1},
-            status=status.HTTP_201_CREATED,
+        respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+            return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 1})
         )
 
         index_project_attachment_task.delay(attachment.pk)
@@ -80,17 +77,15 @@ def test_index_project_attachment_task_ignores_missing_attachment():
     index_project_attachment_task.delay(999999)
 
 
-@responses.activate
+@respx.mock
 def test_parse_and_store_conversation_document_task_returns_parsed_and_id():
     """The task reads the file from storage, parses + stores it, and returns (content, id)."""
     saved_name = default_storage.save(
         "conv-task-test.txt", ContentFile(b"Hello conversation content")
     )
     try:
-        responses.post(
-            "https://albert.api.etalab.gouv.fr/v1/documents",
-            json={"id": 7},
-            status=status.HTTP_201_CREATED,
+        respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+            return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 7})
         )
 
         parsed_content, rag_document_id = parse_and_store_conversation_document_task.delay(

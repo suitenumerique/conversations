@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from django.core.management import call_command
 from django.utils import timezone
 
+import httpx
 import pytest
-import requests
 
 from chat.enums import CollectionIndexState
 from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
@@ -163,7 +163,7 @@ def test_treats_404_as_deindexed():
     )
 
     response = MagicMock(status_code=404)
-    error = requests.HTTPError("404 Not Found", response=response)
+    error = httpx.HTTPStatusError("404 Not Found", request=MagicMock(), response=response)
     mock_instance = MagicMock()
     mock_instance.delete_collection.side_effect = error
     mock_backend_cls = MagicMock(return_value=mock_instance)

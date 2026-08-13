@@ -12,7 +12,6 @@ test suite a single place to lock down the status-code → kind mapping.
 """
 
 import httpx
-import requests
 
 # LLM-side error codes (also used by the frontend ChatErrorType union).
 MODEL_RATE_LIMITED = "model_rate_limited"
@@ -60,13 +59,13 @@ def resolve_llm_error_code(status_code: int | None) -> str | None:
 def resolve_rag_error_code(exc: Exception) -> str:
     """Map a RAG pipeline exception to a typed error code for the frontend.
 
-    Handles both ``requests`` (sync Albert calls) and ``httpx`` (async Albert
-    calls) exception hierarchies, plus the local-parser / missing-id paths that
-    raise non-HTTP exceptions.
+    Handles the ``httpx`` exception hierarchy shared by the sync and async
+    Albert calls, plus the local-parser / missing-id paths that raise non-HTTP
+    exceptions.
     """
     status_code = getattr(getattr(exc, "response", None), "status_code", None)
     if status_code is None:
-        if isinstance(exc, (requests.ConnectionError, requests.Timeout, httpx.RequestError)):
+        if isinstance(exc, httpx.RequestError):
             return RAG_CONNECTION_ERROR
         return RAG_ERROR
     if status_code in RAG_STATUS_TO_ERROR_CODE:

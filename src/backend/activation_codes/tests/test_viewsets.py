@@ -6,8 +6,9 @@ from unittest.mock import patch
 
 from django.utils import timezone
 
+import httpx
 import pytest
-import responses
+import respx
 from rest_framework import status
 
 from core.factories import UserFactory
@@ -324,23 +325,20 @@ def test_validate_code_registered_user(api_client):
     assert _registration.user_activation.activation_code == activation_code
 
 
-@responses.activate
+@respx.mock
 @pytest.mark.django_db
 def test_register_email_success_brevo(api_client, settings):
     """Test successfully registering an email and notify Brevo."""
     settings.BREVO_API_KEY = "test_brevo_api_key"
     settings.BREVO_WAITING_LIST_ID = "test_waiting_list_id"
 
-    brevo_create_contact = responses.post(
-        "https://api.brevo.com/v3/contacts",
-        status=200,
+    brevo_create_contact = respx.post("https://api.brevo.com/v3/contacts").mock(
+        return_value=httpx.Response(200)
     )
 
-    brevo_mock = responses.post(
-        "https://api.brevo.com/v3/contacts/lists/test_waiting_list_id/contacts/add",
-        json={"message": "Contacts added successfully"},
-        status=201,
-    )
+    brevo_mock = respx.post(
+        "https://api.brevo.com/v3/contacts/lists/test_waiting_list_id/contacts/add"
+    ).mock(return_value=httpx.Response(201, json={"message": "Contacts added successfully"}))
 
     user = UserFactory()
     api_client.force_authenticate(user=user)
@@ -357,14 +355,14 @@ def test_register_email_success_brevo(api_client, settings):
 
     assert len(brevo_create_contact.calls) == 1
     assert brevo_create_contact.calls[0].request.headers["api-key"] == "test_brevo_api_key"
-    assert json.loads(brevo_create_contact.calls[0].request.body) == {
+    assert json.loads(brevo_create_contact.calls[0].request.content) == {
         "email": user.email,
         "updateEnabled": True,
     }
 
     assert len(brevo_mock.calls) == 1
     assert brevo_mock.calls[0].request.headers["api-key"] == "test_brevo_api_key"
-    assert json.loads(brevo_mock.calls[0].request.body) == {"emails": [user.email]}
+    assert json.loads(brevo_mock.calls[0].request.content) == {"emails": [user.email]}
 
     # Register again to test idempotency
     response = api_client.post(
@@ -377,22 +375,20 @@ def test_register_email_success_brevo(api_client, settings):
     assert len(brevo_mock.calls) == 1  # No new call made
 
 
-@responses.activate
+@respx.mock
 @pytest.mark.django_db
 def test_register_email_success_brevo_fails(api_client, settings):
     """Test successfully registering an email, even if Brevo fails."""
     settings.BREVO_API_KEY = "test_brevo_api_key"
     settings.BREVO_WAITING_LIST_ID = "test_waiting_list_id"
 
-    _brevo_create_contact = responses.post(
-        "https://api.brevo.com/v3/contacts",
-        status=200,
+    _brevo_create_contact = respx.post("https://api.brevo.com/v3/contacts").mock(
+        return_value=httpx.Response(200)
     )
 
-    brevo_mock = responses.post(
-        "https://api.brevo.com/v3/contacts/lists/test_waiting_list_id/contacts/add",
-        status=400,
-    )
+    brevo_mock = respx.post(
+        "https://api.brevo.com/v3/contacts/lists/test_waiting_list_id/contacts/add"
+    ).mock(return_value=httpx.Response(400))
 
     user = UserFactory()
     api_client.force_authenticate(user=user)

@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 from django.utils import formats, timezone
 
+import httpx
 import pytest
-import requests
 from rest_framework import status
 
 from core.factories import UserFactory
@@ -305,7 +305,7 @@ def test_edit_in_docs_docs_service_unavailable_returns_503(
 
     with patch(
         "chat.views.edit_in_docs.DocsClient.create_document",
-        side_effect=requests.exceptions.ConnectionError("Docs unreachable"),
+        side_effect=httpx.ConnectError("Docs unreachable"),
     ):
         response = api_client.post(url, data={"message_id": "assistant-message-1"}, format="json")
 
@@ -314,11 +314,10 @@ def test_edit_in_docs_docs_service_unavailable_returns_503(
 
 
 def _http_error(docs_status):
-    """Build a requests.HTTPError carrying a response with the given status."""
-    response = requests.Response()
-    response.status_code = docs_status
-    response._content = b"docs error body"  # pylint: disable=protected-access
-    return requests.exceptions.HTTPError(response=response)
+    """Build an httpx.HTTPStatusError carrying a response with the given status."""
+    request = httpx.Request("POST", "http://docs.example.com/external_api/v1.0/documents/")
+    response = httpx.Response(docs_status, content=b"docs error body", request=request)
+    return httpx.HTTPStatusError(f"HTTP {docs_status}", request=request, response=response)
 
 
 @pytest.mark.parametrize(

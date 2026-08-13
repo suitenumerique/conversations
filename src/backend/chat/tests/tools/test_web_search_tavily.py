@@ -2,8 +2,9 @@
 
 import json
 
+import httpx
 import pytest
-import responses
+import respx
 
 from chat.tools.web_search_tavily import web_search_tavily
 
@@ -18,19 +19,19 @@ def tavily_settings(settings):
     settings.TAVILY_API_TIMEOUT = 5
 
 
-@responses.activate
+@respx.mock
 def test_agent_web_search_tavily_success():
     """Test successful Tavily web search."""
-    responses.add(
-        responses.POST,
-        TAVILY_URL,
-        json={
-            "results": [
-                {"url": "https://example.com/1", "title": "Result 1", "content": "Snippet 1"},
-                {"url": "https://example.com/2", "title": "Result 2", "content": "Snippet 2"},
-            ]
-        },
-        status=200,
+    respx.post(TAVILY_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "results": [
+                    {"url": "https://example.com/1", "title": "Result 1", "content": "Snippet 1"},
+                    {"url": "https://example.com/2", "title": "Result 2", "content": "Snippet 2"},
+                ]
+            },
+        )
     )
     results = web_search_tavily("test query")
     assert results == [
@@ -39,34 +40,26 @@ def test_agent_web_search_tavily_success():
     ]
 
     # Check request payload
-    tavily_request = responses.calls[0].request
-    payload = json.loads(tavily_request.body.decode("utf-8"))
+    tavily_request = respx.calls[0].request
+    payload = json.loads(tavily_request.content.decode("utf-8"))
     assert payload["query"] == "test query"
     assert payload["api_key"] == "test_api_key"
     assert payload["max_results"] == 3
 
 
-@responses.activate
+@respx.mock
 def test_agent_web_search_tavily_empty_results():
     """Test Tavily web search with no results."""
-    responses.add(
-        responses.POST,
-        TAVILY_URL,
-        json={"results": []},
-        status=200,
-    )
+    respx.post(TAVILY_URL).mock(return_value=httpx.Response(200, json={"results": []}))
     results = web_search_tavily("no results query")
     assert results == []
 
 
-@responses.activate
+@respx.mock
 def test_agent_web_search_tavily_http_error():
     """Test Tavily web search with HTTP error."""
-    responses.add(
-        responses.POST,
-        TAVILY_URL,
-        status=500,
-        json={"error": "Internal Server Error"},
+    respx.post(TAVILY_URL).mock(
+        return_value=httpx.Response(500, json={"error": "Internal Server Error"})
     )
     with pytest.raises(Exception) as exc:
         web_search_tavily("error query")

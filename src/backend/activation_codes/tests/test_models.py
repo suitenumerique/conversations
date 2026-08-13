@@ -7,8 +7,9 @@ from django.core.exceptions import ValidationError
 from django.db.models import ProtectedError
 from django.utils import timezone
 
+import httpx
 import pytest
-import responses
+import respx
 
 from core.factories import UserFactory
 
@@ -279,7 +280,7 @@ def test_user_activation_ordering():
     assert activations == [activation2, activation1]
 
 
-@responses.activate
+@respx.mock
 @pytest.mark.django_db(transaction=True)
 def test_activation_code_use_success_notify_brevo(settings):
     """Test successfully using an activation code and notify Brevo."""
@@ -287,22 +288,17 @@ def test_activation_code_use_success_notify_brevo(settings):
     settings.BREVO_WAITING_LIST_ID = "test_waiting_list_id"
     settings.BREVO_FOLLOWUP_LIST_ID = "test_followup_list_name"
 
-    brevo_remove_mock = responses.post(
-        "https://api.brevo.com/v3/contacts/lists/test_waiting_list_id/contacts/remove",
-        json={"message": "Contacts added successfully"},
-        status=201,
+    brevo_remove_mock = respx.post(
+        "https://api.brevo.com/v3/contacts/lists/test_waiting_list_id/contacts/remove"
+    ).mock(return_value=httpx.Response(201, json={"message": "Contacts added successfully"}))
+
+    brevo_create_contact = respx.post("https://api.brevo.com/v3/contacts").mock(
+        return_value=httpx.Response(200)
     )
 
-    brevo_create_contact = responses.post(
-        "https://api.brevo.com/v3/contacts",
-        status=200,
-    )
-
-    brevo_add_mock = responses.post(
-        "https://api.brevo.com/v3/contacts/lists/test_followup_list_name/contacts/add",
-        json={"message": "Contacts added successfully"},
-        status=201,
-    )
+    brevo_add_mock = respx.post(
+        "https://api.brevo.com/v3/contacts/lists/test_followup_list_name/contacts/add"
+    ).mock(return_value=httpx.Response(201, json={"message": "Contacts added successfully"}))
 
     user = UserFactory()
     registration = UserRegistrationRequest.objects.create(user=user)
@@ -314,15 +310,15 @@ def test_activation_code_use_success_notify_brevo(settings):
 
     assert len(brevo_remove_mock.calls) == 1
     assert brevo_remove_mock.calls[0].request.headers["api-key"] == "test_brevo_api_key"
-    assert json.loads(brevo_remove_mock.calls[0].request.body) == {"emails": [user.email]}
+    assert json.loads(brevo_remove_mock.calls[0].request.content) == {"emails": [user.email]}
 
     assert len(brevo_create_contact.calls) == 1
     assert brevo_create_contact.calls[0].request.headers["api-key"] == "test_brevo_api_key"
-    assert json.loads(brevo_create_contact.calls[0].request.body) == {
+    assert json.loads(brevo_create_contact.calls[0].request.content) == {
         "email": user.email,
         "updateEnabled": True,
     }
 
     assert len(brevo_add_mock.calls) == 1
     assert brevo_add_mock.calls[0].request.headers["api-key"] == "test_brevo_api_key"
-    assert json.loads(brevo_add_mock.calls[0].request.body) == {"emails": [user.email]}
+    assert json.loads(brevo_add_mock.calls[0].request.content) == {"emails": [user.email]}

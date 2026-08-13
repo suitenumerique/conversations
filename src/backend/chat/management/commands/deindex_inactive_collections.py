@@ -10,7 +10,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 from django.utils.module_loading import import_string
 
-import requests
+import httpx
 
 from chat.enums import CollectionIndexState
 from chat.models import ChatConversation, ChatConversationAttachment
@@ -45,7 +45,7 @@ def _deindex_one(conv, *, backend_cls, threshold):
     try:
         backend_cls(collection_id=conv.collection_id).delete_collection()
     except Exception as exc:  # pylint: disable=broad-except
-        if isinstance(exc, requests.HTTPError):
+        if isinstance(exc, httpx.HTTPStatusError):
             response = exc.response
             if response is not None and response.status_code == 404:
                 # Collection already gone on the backend — the earlier

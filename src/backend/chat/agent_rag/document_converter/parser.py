@@ -9,7 +9,7 @@ from urllib.parse import urljoin
 
 from django.conf import settings
 
-import requests
+import httpx
 from pypdf import PdfReader, PdfWriter
 
 from chat.agent_rag.document_converter.guards import guard_pdf_page_count, guard_zip_bomb
@@ -74,7 +74,7 @@ class AlbertParser(OdtParserMixin, BaseParser):
     def parse_pdf_document(self, name: str, content_type: str, content: bytes) -> str:
         """Parse PDF document using Albert API."""
         file_data = base64.standard_b64encode(content).decode("utf-8")
-        response = requests.post(
+        response = httpx.post(
             self.endpoint,
             headers={
                 "Authorization": f"Bearer {settings.ALBERT_API_KEY}",
@@ -232,7 +232,7 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
         last_exception = None
         for attempt in range(self.max_retries):
             try:
-                response = requests.post(
+                response = httpx.post(
                     self.endpoint,
                     headers=self.headers,
                     json=payload,
@@ -243,7 +243,7 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
                 pages = response.json().get("pages", [])
                 return [page.get("markdown", "") for page in pages]
 
-            except (requests.Timeout, requests.RequestException) as e:
+            except httpx.HTTPError as e:
                 last_exception = e
                 if attempt < self.max_retries - 1:
                     logger.warning(

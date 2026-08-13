@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-import requests
 from asgiref.sync import sync_to_async
 
 from core.file_upload.enums import AttachmentStatus
@@ -519,11 +518,11 @@ async def test_reindex_all_failures_sets_error_and_saves_collection_id():
     assert conversation.collection_id == "col-new"
 
 
-def _http_error(status_code: int) -> requests.HTTPError:
-    """Build a requests.HTTPError whose response carries the given status code."""
-    response = requests.Response()
-    response.status_code = status_code
-    return requests.HTTPError(response=response)
+def _http_error(status_code: int) -> httpx.HTTPStatusError:
+    """Build an httpx.HTTPStatusError whose response carries the given status code."""
+    request = httpx.Request("POST", "https://albert.example.com/v1/documents")
+    response = httpx.Response(status_code, request=request)
+    return httpx.HTTPStatusError(f"HTTP {status_code}", request=request, response=response)
 
 
 async def _run_reindex_with_collection_failure(conversation, exc):

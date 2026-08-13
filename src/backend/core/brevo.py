@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from django.conf import settings
 
-import requests
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +40,12 @@ def create_contact_in_brevo(email: str) -> bool:
         "updateEnabled": True,
     }
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=5)
-    except requests.RequestException as e:
+        response = httpx.post(url, json=payload, headers=headers, timeout=5)
+    except httpx.HTTPError as e:
         logger.exception(e)
         return False
 
-    if not response.ok:
+    if not response.is_success:
         logger.error(
             "Error creating contact in Brevo %s: (%s) %s",
             email,
@@ -88,8 +88,8 @@ def add_user_to_brevo_list(emails: List[str], list_id: Optional[str]) -> None:
         "emails": emails,
     }
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=5)
-    except requests.RequestException as e:
+        response = httpx.post(url, json=payload, headers=headers, timeout=5)
+    except httpx.HTTPError as e:
         logger.exception(e)
         return
 
@@ -131,8 +131,8 @@ def remove_user_from_brevo_list(emails: List[str], list_id: Optional[str]) -> No
         "emails": emails,
     }
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=5)
-    except requests.RequestException as e:
+        response = httpx.post(url, json=payload, headers=headers, timeout=5)
+    except httpx.HTTPError as e:
         logger.exception(e)
         return
     if response.status_code != 201:

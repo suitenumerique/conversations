@@ -521,6 +521,7 @@ dependencies = [
     { name = "drf-spectacular" },
     { name = "factory-boy" },
     { name = "gunicorn" },
+    { name = "httpx" },
     { name = "jsonschema" },
     { name = "langfuse" },
     { name = "lxml" },
@@ -537,7 +538,6 @@ dependencies = [
     { name = "pypdf" },
     { name = "python-magic" },
     { name = "redis" },
-    { name = "requests" },
     { name = "semchunk" },
     { name = "sentry-sdk" },
     { name = "tiktoken" },
@@ -570,7 +570,6 @@ dev = [
     { name = "responses" },
     { name = "respx" },
     { name = "ruff" },
-    { name = "types-requests" },
 ]
 
 [package.metadata]
@@ -600,6 +599,7 @@ requires-dist = [
     { name = "factory-boy", specifier = "==3.3.3" },
     { name = "freezegun", marker = "extra == 'dev'", specifier = "==1.5.5" },
     { name = "gunicorn", specifier = "==26.0.0" },
+    { name = "httpx", specifier = "==0.28.1" },
     { name = "ipdb", marker = "extra == 'dev'", specifier = "==0.13.13" },
     { name = "ipython", marker = "extra == 'dev'", specifier = "==9.14.1" },
     { name = "jsonschema", specifier = "==4.26.0" },
@@ -629,7 +629,6 @@ requires-dist = [
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = "==3.8.0" },
     { name = "python-magic", specifier = "==0.4.27" },
     { name = "redis", specifier = "<6.0.0" },
-    { name = "requests", specifier = "==2.34.2" },
     { name = "responses", marker = "extra == 'dev'", specifier = "==0.26.1" },
     { name = "respx", marker = "extra == 'dev'", specifier = "==0.23.1" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.15.16" },
@@ -637,7 +636,6 @@ requires-dist = [
     { name = "sentry-sdk", specifier = "==2.61.1" },
     { name = "tiktoken", specifier = "==0.13.0" },
     { name = "trafilatura", specifier = "==2.1.0" },
-    { name = "types-requests", marker = "extra == 'dev'", specifier = "==2.33.0.20260518" },
     { name = "uvicorn", specifier = "==0.49.0" },
     { name = "whitenoise", specifier = "==6.12.0" },
 ]
@@ -3284,18 +3282,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/53/a3/1585216310e344e8102c22482f6060c7a6ea0322b63e026372e6dcefcfd6/truststore-0.10.4.tar.gz", hash = "sha256:9d91bd436463ad5e4ee4aba766628dd6cd7010cf3e2461756b3303710eebc301", size = 26169, upload-time = "2025-08-12T18:49:02.73Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/19/97/56608b2249fe206a67cd573bc93cd9896e1efb9e98bce9c163bcdc704b88/truststore-0.10.4-py3-none-any.whl", hash = "sha256:adaeaecf1cbb5f4de3b1959b42d41f6fab57b2b1666adb59e89cb0b53361d981", size = 18660, upload-time = "2025-08-12T18:49:01.46Z" },
-]
-
-[[package]]
-name = "types-requests"
-version = "2.33.0.20260518"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e0/01/c5a19253fe1ac159159ddf9a3a07cec8bb5e486ec4d9002ad2821da0e5d2/types_requests-2.33.0.20260518.tar.gz", hash = "sha256:df7bd3bfe0ca8402dfb841e7d9be714bb5578203283d66d7dc4ef69343449a5e", size = 24752, upload-time = "2026-05-18T06:07:37.966Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/1c/bc/b139710a3b6018f7fb2b9508b35c8af564e61bf2bf4fa619d088f3e16f85/types_requests-2.33.0.20260518-py3-none-any.whl", hash = "sha256:626d697d1adaaff76e2044dc8c5c051d8f21abc157bdfe204a75558076fe0bf0", size = 21391, upload-time = "2026-05-18T06:07:37.044Z" },
 ]
 
 [[package]]

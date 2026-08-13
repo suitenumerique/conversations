@@ -2,7 +2,8 @@
 
 import logging
 
-import responses
+import httpx
+import respx
 
 from core.brevo import add_user_to_brevo_list
 
@@ -17,15 +18,14 @@ def brevo_logs(caplog):
     return [record.levelno for record in caplog.records if record.name == "core.brevo"]
 
 
-@responses.activate
+@respx.mock
 def test_add_user_to_brevo_list_success(settings, caplog):
     """Adding a new contact to a list is not logged."""
     settings.BREVO_API_KEY = "test-api-key"
 
-    responses.post("https://api.brevo.com/v3/contacts", status=201)
-    add_to_list = responses.post(
-        "https://api.brevo.com/v3/contacts/lists/list-id/contacts/add",
-        status=201,
+    respx.post("https://api.brevo.com/v3/contacts").mock(return_value=httpx.Response(201))
+    add_to_list = respx.post("https://api.brevo.com/v3/contacts/lists/list-id/contacts/add").mock(
+        return_value=httpx.Response(201)
     )
 
     with caplog.at_level(logging.INFO, logger="core.brevo"):
@@ -35,7 +35,7 @@ def test_add_user_to_brevo_list_success(settings, caplog):
     assert brevo_logs(caplog) == []
 
 
-@responses.activate
+@respx.mock
 def test_add_user_to_brevo_list_already_in_list_is_not_an_error(settings, caplog):
     """
     Brevo answers 400 when the contact is already in the list.
@@ -46,11 +46,9 @@ def test_add_user_to_brevo_list_already_in_list_is_not_an_error(settings, caplog
     """
     settings.BREVO_API_KEY = "test-api-key"
 
-    responses.post("https://api.brevo.com/v3/contacts", status=204)
-    responses.post(
-        "https://api.brevo.com/v3/contacts/lists/list-id/contacts/add",
-        json=ALREADY_IN_LIST_BODY,
-        status=400,
+    respx.post("https://api.brevo.com/v3/contacts").mock(return_value=httpx.Response(204))
+    respx.post("https://api.brevo.com/v3/contacts/lists/list-id/contacts/add").mock(
+        return_value=httpx.Response(400, json=ALREADY_IN_LIST_BODY)
     )
 
     with caplog.at_level(logging.INFO, logger="core.brevo"):
@@ -59,16 +57,14 @@ def test_add_user_to_brevo_list_already_in_list_is_not_an_error(settings, caplog
     assert brevo_logs(caplog) == [logging.INFO]
 
 
-@responses.activate
+@respx.mock
 def test_add_user_to_brevo_list_genuine_failure_still_logs_an_error(settings, caplog):
     """Any other Brevo failure is still reported as an error."""
     settings.BREVO_API_KEY = "test-api-key"
 
-    responses.post("https://api.brevo.com/v3/contacts", status=204)
-    responses.post(
-        "https://api.brevo.com/v3/contacts/lists/list-id/contacts/add",
-        json={"code": "unauthorized", "message": "Key not found"},
-        status=401,
+    respx.post("https://api.brevo.com/v3/contacts").mock(return_value=httpx.Response(204))
+    respx.post("https://api.brevo.com/v3/contacts/lists/list-id/contacts/add").mock(
+        return_value=httpx.Response(401, json={"code": "unauthorized", "message": "Key not found"})
     )
 
     with caplog.at_level(logging.INFO, logger="core.brevo"):
@@ -77,16 +73,16 @@ def test_add_user_to_brevo_list_genuine_failure_still_logs_an_error(settings, ca
     assert brevo_logs(caplog) == [logging.ERROR]
 
 
-@responses.activate
+@respx.mock
 def test_add_user_to_brevo_list_other_400_still_logs_an_error(settings, caplog):
     """A 400 that is not the 'already in list' one is still an error."""
     settings.BREVO_API_KEY = "test-api-key"
 
-    responses.post("https://api.brevo.com/v3/contacts", status=204)
-    responses.post(
-        "https://api.brevo.com/v3/contacts/lists/list-id/contacts/add",
-        json={"code": "invalid_parameter", "message": "Invalid list id"},
-        status=400,
+    respx.post("https://api.brevo.com/v3/contacts").mock(return_value=httpx.Response(204))
+    respx.post("https://api.brevo.com/v3/contacts/lists/list-id/contacts/add").mock(
+        return_value=httpx.Response(
+            400, json={"code": "invalid_parameter", "message": "Invalid list id"}
+        )
     )
 
     with caplog.at_level(logging.INFO, logger="core.brevo"):

@@ -12,8 +12,8 @@ and exercises the real backend class. Verifies:
 
 import json
 
+import httpx
 import pytest
-import responses
 import respx
 from httpx import Response
 
@@ -54,36 +54,32 @@ def _one_result_albert_response():
 # Sync search
 
 
-@responses.activate
+@respx.mock
 def test_search_without_filter_does_not_send_metadata_filters(albert_backend):
     """No document_name -> request body has no metadata_filters key."""
-    responses.post(
-        url=SEARCH_URL,
-        json=_one_result_albert_response(),
-        status=200,
+    respx.post(SEARCH_URL).mock(
+        return_value=httpx.Response(200, json=_one_result_albert_response())
     )
 
     albert_backend.search("any query")
 
-    assert len(responses.calls) == 1
-    payload = json.loads(responses.calls[0].request.body)
+    assert len(respx.calls) == 1
+    payload = json.loads(respx.calls[0].request.content)
     assert "metadata_filters" not in payload
     assert payload["query"] == "any query"
     assert payload["collection_ids"] == [123]
 
 
-@responses.activate
+@respx.mock
 def test_search_with_filter_sends_metadata_filters(albert_backend):
     """document_name -> request body carries the metadata_filters dict."""
-    responses.post(
-        url=SEARCH_URL,
-        json=_one_result_albert_response(),
-        status=200,
+    respx.post(SEARCH_URL).mock(
+        return_value=httpx.Response(200, json=_one_result_albert_response())
     )
 
     albert_backend.search("any query", document_name="report.pdf")
 
-    payload = json.loads(responses.calls[0].request.body)
+    payload = json.loads(respx.calls[0].request.content)
     assert payload["metadata_filters"] == {
         "key": "document_name",
         "value": "report.pdf",
@@ -91,53 +87,43 @@ def test_search_with_filter_sends_metadata_filters(albert_backend):
     }
 
 
-@responses.activate
+@respx.mock
 def test_search_with_filter_empty_returns_empty_no_recursion(albert_backend, caplog):
     """
     Filtered search returning empty must NOT recurse into an unfiltered call.
     Regression test for the silent-fallback removal.
     """
-    responses.post(
-        url=SEARCH_URL,
-        json=_empty_albert_response(),
-        status=200,
-    )
+    respx.post(SEARCH_URL).mock(return_value=httpx.Response(200, json=_empty_albert_response()))
 
     with caplog.at_level("INFO", logger="chat.agent_rag.document_rag_backends.albert_rag_backend"):
         results = albert_backend.search("any query", document_name="missing.pdf")
 
     assert results.data == []
     # Exactly one HTTP call: no recursive unfiltered retry.
-    assert len(responses.calls) == 1
+    assert len(respx.calls) == 1
     # And the empty-with-filter case is announced at info level.
     assert any("returned no results" in r.message for r in caplog.records)
 
 
-@responses.activate
+@respx.mock
 def test_search_without_filter_empty_returns_empty(albert_backend, caplog):
     """Unfiltered empty result returns empty RAGWebResults; no info log."""
-    responses.post(
-        url=SEARCH_URL,
-        json=_empty_albert_response(),
-        status=200,
-    )
+    respx.post(SEARCH_URL).mock(return_value=httpx.Response(200, json=_empty_albert_response()))
 
     with caplog.at_level("INFO", logger="chat.agent_rag.document_rag_backends.albert_rag_backend"):
         results = albert_backend.search("any query")
 
     assert results.data == []
-    assert len(responses.calls) == 1
+    assert len(respx.calls) == 1
     # The "returned no results" info log is only for filtered searches.
     assert not any("returned no results" in r.message for r in caplog.records)
 
 
-@responses.activate
+@respx.mock
 def test_search_returns_results_with_usage(albert_backend):
     """A successful search maps Albert chunks to RAGWebResult and propagates usage."""
-    responses.post(
-        url=SEARCH_URL,
-        json=_one_result_albert_response(),
-        status=200,
+    respx.post(SEARCH_URL).mock(
+        return_value=httpx.Response(200, json=_one_result_albert_response())
     )
 
     results = albert_backend.search("any query")

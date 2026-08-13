@@ -7,8 +7,9 @@ import zipfile
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
+import httpx
 import pytest
-import responses
+import respx
 from rest_framework import status
 
 from core.file_upload.enums import AttachmentStatus
@@ -87,17 +88,17 @@ def test_is_indexable_for_rag_skips_companion_markdown():
     assert is_indexable_for_rag(attachment) is False
 
 
-@responses.activate
+@respx.mock
 def test_index_skips_attachment_without_project():
     """Conversation-scoped attachments are silently skipped."""
     attachment = factories.ChatConversationAttachmentFactory(content_type="text/plain")
 
     index_project_attachment(attachment)
 
-    assert len(responses.calls) == 0
+    assert len(respx.calls) == 0
 
 
-@responses.activate
+@respx.mock
 def test_index_skips_image_attachment(project_text_attachment):
     """Image attachments are skipped: no HTTP call, no collection created."""
     project_text_attachment.content_type = "image/png"
@@ -105,23 +106,19 @@ def test_index_skips_image_attachment(project_text_attachment):
 
     index_project_attachment(project_text_attachment)
 
-    assert len(responses.calls) == 0
+    assert len(respx.calls) == 0
     project_text_attachment.project.refresh_from_db()
     assert project_text_attachment.project.collection_id is None
 
 
-@responses.activate
+@respx.mock
 def test_index_creates_collection_when_project_has_none(project_text_attachment):
     """First indexable file in a fresh project triggers collection creation."""
-    create_mock = responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/collections",
-        json={"id": "42"},
-        status=status.HTTP_200_OK,
+    create_mock = respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+        return_value=httpx.Response(status.HTTP_200_OK, json={"id": "42"})
     )
-    documents_mock = responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"id": 1},
-        status=status.HTTP_201_CREATED,
+    documents_mock = respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 1})
     )
 
     index_project_attachment(project_text_attachment)
@@ -136,21 +133,17 @@ def test_index_creates_collection_when_project_has_none(project_text_attachment)
     assert documents_mock.call_count == 1
 
 
-@responses.activate
+@respx.mock
 def test_index_reuses_existing_project_collection(project_text_attachment):
     """A project that already has a collection_id is not asked to create another."""
     project_text_attachment.project.collection_id = "999"
     project_text_attachment.project.save(update_fields=["collection_id"])
 
-    create_mock = responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/collections",
-        json={"id": "should-not-be-called"},
-        status=status.HTTP_200_OK,
+    create_mock = respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+        return_value=httpx.Response(status.HTTP_200_OK, json={"id": "should-not-be-called"})
     )
-    documents_mock = responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"id": 1},
-        status=status.HTTP_201_CREATED,
+    documents_mock = respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 1})
     )
 
     index_project_attachment(project_text_attachment)
@@ -161,19 +154,15 @@ def test_index_reuses_existing_project_collection(project_text_attachment):
     assert documents_mock.call_count == 1
 
 
-@responses.activate
+@respx.mock
 def test_index_swallows_backend_errors(project_text_attachment, settings, caplog):
     """Backend failures must be logged but never raised."""
     settings.RAG_STORE_RETRY_DELAY_SECONDS = 0  # 500 triggers a retry; don't sleep
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/collections",
-        json={"id": "42"},
-        status=status.HTTP_200_OK,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+        return_value=httpx.Response(status.HTTP_200_OK, json={"id": "42"})
     )
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"error": "kaboom"},
-        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(status.HTTP_500_INTERNAL_SERVER_ERROR, json={"error": "kaboom"})
     )
     caplog.set_level(logging.ERROR, logger="chat.agent_rag.indexing")
 
@@ -187,22 +176,18 @@ def test_index_swallows_backend_errors(project_text_attachment, settings, caplog
     assert project_text_attachment.upload_state == AttachmentStatus.READY
 
 
-@responses.activate
+@respx.mock
 def test_index_fails_when_backend_returns_no_document_id(project_text_attachment):
     """A falsy document id must fail (FAILED), not leave the row stuck in INDEXING.
 
     The INDEXED transition and the idempotency guard both key off
     rag_document_id, so a missing id would otherwise wedge the row in INDEXING.
     """
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/collections",
-        json={"id": "42"},
-        status=status.HTTP_200_OK,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+        return_value=httpx.Response(status.HTTP_200_OK, json={"id": "42"})
     )
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"id": ""},
-        status=status.HTTP_201_CREATED,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": ""})
     )
 
     index_project_attachment(project_text_attachment)
@@ -214,7 +199,7 @@ def test_index_fails_when_backend_returns_no_document_id(project_text_attachment
     assert project_text_attachment.upload_state == AttachmentStatus.READY
 
 
-@responses.activate
+@respx.mock
 def test_index_failure_captures_albert_response_body(project_text_attachment, settings, caplog):
     """A failed store logs and stores the Albert response body (the real reason),
     plus the file identity, instead of a generic exception string."""
@@ -222,10 +207,11 @@ def test_index_failure_captures_albert_response_body(project_text_attachment, se
     project_text_attachment.project.collection_id = "999"
     project_text_attachment.project.save(update_fields=["collection_id"])
 
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"detail": "model albert-large is overloaded"},
-        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            json={"detail": "model albert-large is overloaded"},
+        )
     )
     caplog.set_level(logging.ERROR, logger="chat.agent_rag.indexing")
 
@@ -240,89 +226,77 @@ def test_index_failure_captures_albert_response_body(project_text_attachment, se
     assert "model albert-large is overloaded" in caplog.text
 
 
-@responses.activate
+@respx.mock
 def test_index_retries_once_on_transient_store_error(project_text_attachment, settings):
     """A transient 5xx on the store call is retried once, then succeeds."""
     settings.RAG_STORE_RETRY_DELAY_SECONDS = 0  # don't actually sleep in tests
     project_text_attachment.project.collection_id = "999"
     project_text_attachment.project.save(update_fields=["collection_id"])
 
-    # responses returns registered mocks in order: first call 503, retry 201.
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"error": "flaky"},
-        status=status.HTTP_503_SERVICE_UNAVAILABLE,
-    )
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"id": 1},
-        status=status.HTTP_201_CREATED,
+    # respx returns the side effects in order: first call 503, retry 201.
+    respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        side_effect=[
+            httpx.Response(status.HTTP_503_SERVICE_UNAVAILABLE, json={"error": "flaky"}),
+            httpx.Response(status.HTTP_201_CREATED, json={"id": 1}),
+        ]
     )
 
     index_project_attachment(project_text_attachment)
 
-    assert len(responses.calls) == 2  # initial attempt + one retry
+    assert len(respx.calls) == 2  # initial attempt + one retry
     project_text_attachment.refresh_from_db()
     assert project_text_attachment.index_state == AttachmentIndexState.INDEXED
     assert project_text_attachment.rag_document_id == "1"
     assert project_text_attachment.processing_error is None
 
 
-@responses.activate
+@respx.mock
 def test_index_does_not_retry_on_client_error(project_text_attachment):
     """A 4xx store error is permanent for this input: no retry, straight to FAILED."""
     project_text_attachment.project.collection_id = "999"
     project_text_attachment.project.save(update_fields=["collection_id"])
 
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"error": "bad request"},
-        status=status.HTTP_400_BAD_REQUEST,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(status.HTTP_400_BAD_REQUEST, json={"error": "bad request"})
     )
 
     index_project_attachment(project_text_attachment)
 
-    assert len(responses.calls) == 1  # no retry
+    assert len(respx.calls) == 1  # no retry
     project_text_attachment.refresh_from_db()
     assert project_text_attachment.index_state == AttachmentIndexState.FAILED
 
 
-@responses.activate
+@respx.mock
 def test_index_does_not_retry_on_missing_document_id(project_text_attachment):
     """A 200 with no id means the chunks were stored; retrying would duplicate
     them, so it fails fast to FAILED instead of retrying."""
     project_text_attachment.project.collection_id = "999"
     project_text_attachment.project.save(update_fields=["collection_id"])
 
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"id": ""},
-        status=status.HTTP_201_CREATED,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": ""})
     )
 
     index_project_attachment(project_text_attachment)
 
-    assert len(responses.calls) == 1  # no retry
+    assert len(respx.calls) == 1  # no retry
     project_text_attachment.refresh_from_db()
     assert project_text_attachment.index_state == AttachmentIndexState.FAILED
     assert not project_text_attachment.rag_document_id
 
 
-@responses.activate
+@respx.mock
 def test_index_is_idempotent_when_already_indexed(project_text_attachment):
     """An attachment that already carries a rag_document_id is not re-parsed."""
     project_text_attachment.rag_document_id = "777"
     project_text_attachment.save(update_fields=["rag_document_id"])
 
-    create_mock = responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/collections",
-        json={"id": "42"},
-        status=status.HTTP_200_OK,
+    create_mock = respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+        return_value=httpx.Response(status.HTTP_200_OK, json={"id": "42"})
     )
-    documents_mock = responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"id": 999},
-        status=status.HTTP_201_CREATED,
+    documents_mock = respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 999})
     )
 
     index_project_attachment(project_text_attachment)
@@ -359,7 +333,7 @@ def test_index_reconcile_clears_stale_processing_error(project_text_attachment):
     assert project_text_attachment.processing_error is None
 
 
-@responses.activate
+@respx.mock
 def test_index_creates_markdown_companion_for_non_text_input():
     """Non-text inputs (e.g. PDF) get a hidden markdown companion attachment.
 
@@ -378,20 +352,16 @@ def test_index_creates_markdown_companion_for_non_text_input():
     )
     companion = None
     try:
-        responses.post(
-            "https://albert.api.etalab.gouv.fr/v1/ocr",
-            json={"pages": [{"markdown": "# Parsed PDF\n\nbody"}]},
-            status=status.HTTP_200_OK,
+        respx.post("https://albert.api.etalab.gouv.fr/v1/ocr").mock(
+            return_value=httpx.Response(
+                status.HTTP_200_OK, json={"pages": [{"markdown": "# Parsed PDF\n\nbody"}]}
+            )
         )
-        responses.post(
-            "https://albert.api.etalab.gouv.fr/v1/collections",
-            json={"id": "42"},
-            status=status.HTTP_200_OK,
+        respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+            return_value=httpx.Response(status.HTTP_200_OK, json={"id": "42"})
         )
-        responses.post(
-            "https://albert.api.etalab.gouv.fr/v1/documents",
-            json={"id": 1},
-            status=status.HTTP_201_CREATED,
+        respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+            return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 1})
         )
 
         index_project_attachment(attachment)
@@ -414,7 +384,7 @@ def test_index_creates_markdown_companion_for_non_text_input():
             default_storage.delete(companion.key)
 
 
-@responses.activate
+@respx.mock
 def test_index_reconcile_rebuilds_missing_markdown_companion():
     """The idempotent reconcile re-writes a companion a prior run failed to store.
 
@@ -433,15 +403,13 @@ def test_index_reconcile_rebuilds_missing_markdown_companion():
     )
     companion = None
     try:
-        parse_mock = responses.post(
-            "https://albert.api.etalab.gouv.fr/v1/ocr",
-            json={"pages": [{"markdown": "# Parsed PDF\n\nbody"}]},
-            status=status.HTTP_200_OK,
+        parse_mock = respx.post("https://albert.api.etalab.gouv.fr/v1/ocr").mock(
+            return_value=httpx.Response(
+                status.HTTP_200_OK, json={"pages": [{"markdown": "# Parsed PDF\n\nbody"}]}
+            )
         )
-        documents_mock = responses.post(
-            "https://albert.api.etalab.gouv.fr/v1/documents",
-            json={"id": 1},
-            status=status.HTTP_201_CREATED,
+        documents_mock = respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+            return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 1})
         )
 
         index_project_attachment(attachment)
@@ -462,7 +430,7 @@ def test_index_reconcile_rebuilds_missing_markdown_companion():
             default_storage.delete(companion.key)
 
 
-@responses.activate
+@respx.mock
 def test_index_reconcile_skips_companion_when_present(project_text_attachment):
     """Reconcile does no parse work when the companion already exists.
 
@@ -472,10 +440,8 @@ def test_index_reconcile_skips_companion_when_present(project_text_attachment):
     project_text_attachment.rag_document_id = "already-stored"
     project_text_attachment.save(update_fields=["rag_document_id"])
 
-    parse_mock = responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/ocr",
-        json={"pages": [{"markdown": "unused"}]},
-        status=status.HTTP_200_OK,
+    parse_mock = respx.post("https://albert.api.etalab.gouv.fr/v1/ocr").mock(
+        return_value=httpx.Response(status.HTTP_200_OK, json={"pages": [{"markdown": "unused"}]})
     )
 
     index_project_attachment(project_text_attachment)
@@ -483,7 +449,7 @@ def test_index_reconcile_skips_companion_when_present(project_text_attachment):
     assert parse_mock.call_count == 0
 
 
-@responses.activate
+@respx.mock
 def test_index_rejects_zip_bomb_and_marks_failed(settings):
     """A decompression-bomb project attachment is rejected before it is stored.
 
@@ -506,15 +472,11 @@ def test_index_rejects_zip_bomb_and_marks_failed(settings):
         upload_state=AttachmentStatus.READY,
     )
 
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/collections",
-        json={"id": "42"},
-        status=status.HTTP_200_OK,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+        return_value=httpx.Response(status.HTTP_200_OK, json={"id": "42"})
     )
-    documents_mock = responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"id": 1},
-        status=status.HTTP_201_CREATED,
+    documents_mock = respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 1})
     )
 
     try:
@@ -532,18 +494,14 @@ def test_index_rejects_zip_bomb_and_marks_failed(settings):
         default_storage.delete(saved_name)
 
 
-@responses.activate
+@respx.mock
 def test_index_does_not_create_companion_for_text_input(project_text_attachment):
     """A text/* input goes straight to the backend - no companion attachment."""
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/collections",
-        json={"id": "42"},
-        status=status.HTTP_200_OK,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+        return_value=httpx.Response(status.HTTP_200_OK, json={"id": "42"})
     )
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"id": 1},
-        status=status.HTTP_201_CREATED,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 1})
     )
 
     index_project_attachment(project_text_attachment)

@@ -43,6 +43,7 @@ dependencies = [
     "dockerflow==2026.3.4",
     "factory_boy==3.3.3",
     "gunicorn==26.0.0",
+    "httpx==0.28.1",
     "jsonschema==4.26.0",
     "langfuse==4.7.1",
     "lxml==6.1.1",
@@ -57,7 +58,6 @@ dependencies = [
     "PyJWT==2.13.0",
     "python-magic==0.4.27",
     "redis<6.0.0",
-    "requests==2.34.2",
     "semchunk==4.0.0",
     "sentry-sdk==2.61.1",
     "trafilatura==2.1.0",
@@ -98,7 +98,6 @@ dev = [
     "responses==0.26.1",
     "respx==0.23.1",
     "ruff==0.15.16",
-    "types-requests==2.33.0.20260518",
     "debugpy>=1.8.20",
 ]
 

@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from django.conf import settings
 from django.core.exceptions import PermissionDenied
 
-import requests
+import httpx
 
 
 class DocsClient:
@@ -40,7 +40,7 @@ class DocsClient:
         # Strip path separators and control characters so the title is a safe filename.
         safe_title = re.sub(r"[/\\\x00-\x1f]", " ", title).strip() or "document"
         file.name = f"{safe_title}.md"
-        response = requests.post(
+        response = httpx.post(
             urljoin(self.api_url, "documents/"),
             headers={"Authorization": f"Bearer {access_token}"},
             files={"file": (file.name, file, "text/markdown")},

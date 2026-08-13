@@ -10,8 +10,9 @@ from unittest.mock import ANY
 from django.core.files.storage import default_storage
 from django.utils import formats, timezone
 
+import httpx
 import pytest
-import responses
+import respx
 from dirty_equals import IsUUID
 from freezegun import freeze_time
 from pydantic_ai import ModelRequest, RequestUsage
@@ -142,7 +143,7 @@ def fixture_sample_document_content():
     )
 
 
-@responses.activate
+@respx.mock
 @freeze_time()
 def test_post_conversation_with_local_pdf_document_url(
     # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -155,25 +156,16 @@ def test_post_conversation_with_local_pdf_document_url(
     Test POST to /api/v1/chats/{pk}/conversation/ with a document URL.
     """
 
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/collections",
-        json={"id": 123, "object": "collection"},
-        status=200,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+        return_value=httpx.Response(200, json={"id": 123, "object": "collection"})
     )
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/ocr",
-        json={"pages": [{"markdown": "document content"}]},
-        status=200,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/ocr").mock(
+        return_value=httpx.Response(200, json={"pages": [{"markdown": "document content"}]})
     )
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"id": "document_id", "object": "document"},
-        status=200,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(200, json={"id": "document_id", "object": "document"})
     )
-    responses.post(
-        "https://app-find/api/v1.0/documents/index/",
-        status=200,
-    )
+    respx.post("https://app-find/api/v1.0/documents/index/").mock(return_value=httpx.Response(200))
 
     chat_conversation = ChatConversationFactory(owner__language="en-us")
     api_client.force_authenticate(user=chat_conversation.owner)
@@ -845,7 +837,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
     ]
 
 
-@responses.activate
+@respx.mock
 @freeze_time()
 @pytest.mark.parametrize(
     "file_name,content_type",
@@ -866,25 +858,16 @@ def test_post_conversation_with_local_not_pdf_document_url(
     """
     Test POST to /api/v1/chats/{pk}/conversation/ with a document URL.
     """
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/collections",
-        json={"id": 123, "object": "collection"},
-        status=200,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/collections").mock(
+        return_value=httpx.Response(200, json={"id": 123, "object": "collection"})
     )
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/ocr",
-        json={"pages": [{"markdown": "document content"}]},
-        status=200,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/ocr").mock(
+        return_value=httpx.Response(200, json={"pages": [{"markdown": "document content"}]})
     )
-    responses.post(
-        "https://albert.api.etalab.gouv.fr/v1/documents",
-        json={"id": "document_id", "object": "document"},
-        status=200,
+    respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+        return_value=httpx.Response(200, json={"id": "document_id", "object": "document"})
     )
-    responses.post(
-        "https://app-find/api/v1.0/documents/index/",
-        status=200,
-    )
+    respx.post("https://app-find/api/v1.0/documents/index/").mock(return_value=httpx.Response(200))
 
     chat_conversation = ChatConversationFactory(owner__language="en-us", collection_id="123")
     api_client.force_authenticate(user=chat_conversation.owner)

@@ -3,8 +3,9 @@
 import logging
 from unittest import mock
 
+import httpx
 import pytest
-import responses
+import respx
 from botocore.exceptions import ClientError
 from rest_framework import status
 
@@ -88,13 +89,12 @@ def test_delete_project_user_anonymous(api_client):
     assert ChatProject.objects.filter(id=project.pk).exists()
 
 
-@responses.activate
+@respx.mock
 def test_delete_project_drops_rag_collection(api_client, albert_settings):
     """Deleting a project removes its RAG collection on the backend."""
     project = ChatProjectFactory(collection_id="42")
-    delete_mock = responses.delete(
-        f"{albert_settings.ALBERT_API_URL}/v1/collections/42",
-        status=status.HTTP_204_NO_CONTENT,
+    delete_mock = respx.delete(f"{albert_settings.ALBERT_API_URL}/v1/collections/42").mock(
+        return_value=httpx.Response(status.HTTP_204_NO_CONTENT)
     )
 
     api_client.force_login(project.owner)
@@ -105,13 +105,12 @@ def test_delete_project_drops_rag_collection(api_client, albert_settings):
     assert not ChatProject.objects.filter(id=project.pk).exists()
 
 
-@responses.activate
+@respx.mock
 def test_delete_project_without_collection_skips_backend(api_client, albert_settings):
     """A project that never indexed anything must not call the RAG backend."""
     project = ChatProjectFactory(collection_id=None)
-    delete_mock = responses.delete(
-        f"{albert_settings.ALBERT_API_URL}/v1/collections/anything",
-        status=status.HTTP_204_NO_CONTENT,
+    delete_mock = respx.delete(f"{albert_settings.ALBERT_API_URL}/v1/collections/anything").mock(
+        return_value=httpx.Response(status.HTTP_204_NO_CONTENT)
     )
 
     api_client.force_login(project.owner)
@@ -122,13 +121,12 @@ def test_delete_project_without_collection_skips_backend(api_client, albert_sett
     assert not ChatProject.objects.filter(id=project.pk).exists()
 
 
-@responses.activate
+@respx.mock
 def test_delete_project_succeeds_when_backend_fails(api_client, albert_settings, caplog):
     """A backend failure must be logged but must not block the project delete."""
     project = ChatProjectFactory(collection_id="42")
-    responses.delete(
-        f"{albert_settings.ALBERT_API_URL}/v1/collections/42",
-        status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    respx.delete(f"{albert_settings.ALBERT_API_URL}/v1/collections/42").mock(
+        return_value=httpx.Response(status.HTTP_500_INTERNAL_SERVER_ERROR)
     )
     caplog.set_level(logging.ERROR, logger="chat.views")
 

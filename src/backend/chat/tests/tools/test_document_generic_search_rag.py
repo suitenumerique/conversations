@@ -89,6 +89,7 @@ def test_get_specific_rag_search_tool_config_with_enabled_features(settings):
     }
 
 
+# PostHog calls its flags endpoint through `requests`, so this one stays on `responses`.
 @responses.activate
 def test_get_specific_rag_search_tool_config_with_dynamic_features(settings, posthog):
     """Test get_specific_rag_search_tool_config with dynamic features."""

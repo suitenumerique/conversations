@@ -2,7 +2,7 @@
 
 from django.conf import settings
 
-import requests
+import httpx
 
 
 def web_search_tavily(query: str) -> list[dict]:
@@ -21,7 +21,7 @@ def web_search_tavily(query: str) -> list[dict]:
         "api_key": settings.TAVILY_API_KEY,
         "max_results": settings.TAVILY_MAX_RESULTS,
     }
-    response = requests.post(url, json=data, timeout=settings.TAVILY_API_TIMEOUT)
+    response = httpx.post(url, json=data, timeout=settings.TAVILY_API_TIMEOUT)
     response.raise_for_status()
 
     json_response = response.json()

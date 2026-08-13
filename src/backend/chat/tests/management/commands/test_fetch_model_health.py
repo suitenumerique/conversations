@@ -7,9 +7,9 @@ from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
+import httpx
 import pytest
-import requests as requests_lib
-import responses as responses_lib
+import respx
 
 from core.models import ModelHealthSettings
 
@@ -25,23 +25,24 @@ def _clear_cache_between_tests(clear_cache):  # pylint: disable=unused-argument
 
 
 @pytest.mark.django_db
-@responses_lib.activate
+@respx.mock
 def test_fetch_model_health_inserts_rows_and_sets_cache():
     """On success: one DB row per model + Redis key set, Bearer token sent."""
-    responses_lib.add(
-        responses_lib.GET,
-        ALBERT_HEALTH_URL,
-        json={
-            "data": [
-                {"id": "BAAI/bge-m3", "status": "green"},
-                {"id": "mistral-medium-2508", "status": "red"},
-            ]
-        },
+    respx.get(ALBERT_HEALTH_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"id": "BAAI/bge-m3", "status": "green"},
+                    {"id": "mistral-medium-2508", "status": "red"},
+                ]
+            },
+        )
     )
 
     call_command("fetch_model_health", "--provider", "albert")
 
-    assert responses_lib.calls[0].request.headers["Authorization"] == "Bearer test-key"
+    assert respx.calls[0].request.headers["Authorization"] == "Bearer test-key"
     assert ModelHealth.objects.count() == 2
     row = ModelHealth.objects.get(provider="albert", model_id="BAAI/bge-m3")
     assert row.status == "green"
@@ -50,23 +51,23 @@ def test_fetch_model_health_inserts_rows_and_sets_cache():
 
 
 @pytest.mark.django_db
-@responses_lib.activate
+@respx.mock
 def test_fetch_model_health_no_api_key_sends_no_auth_header(settings):
     """When ALBERT_API_KEY is None, no Authorization header is sent."""
     settings.ALBERT_API_KEY = None
 
-    responses_lib.add(responses_lib.GET, ALBERT_HEALTH_URL, json={"data": []})
+    respx.get(ALBERT_HEALTH_URL).mock(return_value=httpx.Response(200, json={"data": []}))
 
     call_command("fetch_model_health", "--provider", "albert")
 
-    assert "Authorization" not in responses_lib.calls[0].request.headers
+    assert "Authorization" not in respx.calls[0].request.headers
 
 
 @pytest.mark.django_db
-@responses_lib.activate
+@respx.mock
 def test_fetch_model_health_http_error_leaves_db_and_cache_untouched():
     """On HTTP error: no DB rows created, no cache writes, CommandError raised."""
-    responses_lib.add(responses_lib.GET, ALBERT_HEALTH_URL, status=500)
+    respx.get(ALBERT_HEALTH_URL).mock(return_value=httpx.Response(500))
 
     with pytest.raises(CommandError):
         call_command("fetch_model_health", "--provider", "albert")
@@ -77,14 +78,10 @@ def test_fetch_model_health_http_error_leaves_db_and_cache_untouched():
 
 
 @pytest.mark.django_db
-@responses_lib.activate
+@respx.mock
 def test_fetch_model_health_timeout_raises_command_error():
     """On network timeout: CommandError raised, DB untouched."""
-    responses_lib.add(
-        responses_lib.GET,
-        ALBERT_HEALTH_URL,
-        body=requests_lib.Timeout("timed out"),
-    )
+    respx.get(ALBERT_HEALTH_URL).mock(side_effect=httpx.TimeoutException("timed out"))
 
     with pytest.raises(CommandError):
         call_command("fetch_model_health", "--provider", "albert")
@@ -119,10 +116,10 @@ def test_skip_when_lock_present():
 
 
 @pytest.mark.django_db
-@responses_lib.activate
+@respx.mock
 def test_lock_acquired_on_run():
     """After a successful run, the Redis lock key is present."""
-    responses_lib.add(responses_lib.GET, ALBERT_HEALTH_URL, json={"data": []})
+    respx.get(ALBERT_HEALTH_URL).mock(return_value=httpx.Response(200, json={"data": []}))
 
     call_command("fetch_model_health", "--provider", "albert")
 
@@ -130,15 +127,13 @@ def test_lock_acquired_on_run():
 
 
 @pytest.mark.django_db
-@responses_lib.activate
+@respx.mock
 def test_no_new_row_if_status_unchanged(settings):
     """Same status on second run → still 1 row (no new insert)."""
     settings.ALBERT_API_KEY = None
 
-    responses_lib.add(
-        responses_lib.GET,
-        ALBERT_HEALTH_URL,
-        json={"data": [{"id": "BAAI/bge-m3", "status": "green"}]},
+    respx.get(ALBERT_HEALTH_URL).mock(
+        return_value=httpx.Response(200, json={"data": [{"id": "BAAI/bge-m3", "status": "green"}]})
     )
     call_command("fetch_model_health", "--provider", "albert")
 
@@ -146,10 +141,8 @@ def test_no_new_row_if_status_unchanged(settings):
 
     cache.delete("model_health:poll_lock:albert")
 
-    responses_lib.add(
-        responses_lib.GET,
-        ALBERT_HEALTH_URL,
-        json={"data": [{"id": "BAAI/bge-m3", "status": "green"}]},
+    respx.get(ALBERT_HEALTH_URL).mock(
+        return_value=httpx.Response(200, json={"data": [{"id": "BAAI/bge-m3", "status": "green"}]})
     )
     call_command("fetch_model_health", "--provider", "albert")
 
@@ -157,15 +150,13 @@ def test_no_new_row_if_status_unchanged(settings):
 
 
 @pytest.mark.django_db
-@responses_lib.activate
+@respx.mock
 def test_new_row_if_status_changed(settings):
     """Status changes green → red → 2 rows in DB."""
     settings.ALBERT_API_KEY = None
 
-    responses_lib.add(
-        responses_lib.GET,
-        ALBERT_HEALTH_URL,
-        json={"data": [{"id": "BAAI/bge-m3", "status": "green"}]},
+    respx.get(ALBERT_HEALTH_URL).mock(
+        return_value=httpx.Response(200, json={"data": [{"id": "BAAI/bge-m3", "status": "green"}]})
     )
     call_command("fetch_model_health", "--provider", "albert")
 
@@ -173,10 +164,8 @@ def test_new_row_if_status_changed(settings):
 
     cache.delete("model_health:poll_lock:albert")
 
-    responses_lib.add(
-        responses_lib.GET,
-        ALBERT_HEALTH_URL,
-        json={"data": [{"id": "BAAI/bge-m3", "status": "red"}]},
+    respx.get(ALBERT_HEALTH_URL).mock(
+        return_value=httpx.Response(200, json={"data": [{"id": "BAAI/bge-m3", "status": "red"}]})
     )
     call_command("fetch_model_health", "--provider", "albert")
 
@@ -185,15 +174,18 @@ def test_new_row_if_status_changed(settings):
 
 
 @pytest.mark.django_db
-@responses_lib.activate
+@respx.mock
 def test_cache_invalidated_for_removed_models(settings):
     """Models absent from the API response have their cache keys deleted."""
     settings.ALBERT_API_KEY = None
 
-    responses_lib.add(
-        responses_lib.GET,
-        ALBERT_HEALTH_URL,
-        json={"data": [{"id": "model-a", "status": "green"}, {"id": "model-b", "status": "green"}]},
+    respx.get(ALBERT_HEALTH_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [{"id": "model-a", "status": "green"}, {"id": "model-b", "status": "green"}]
+            },
+        )
     )
     call_command("fetch_model_health", "--provider", "albert")
 
@@ -202,10 +194,8 @@ def test_cache_invalidated_for_removed_models(settings):
 
     cache.delete("model_health:poll_lock:albert")
 
-    responses_lib.add(
-        responses_lib.GET,
-        ALBERT_HEALTH_URL,
-        json={"data": [{"id": "model-a", "status": "green"}]},
+    respx.get(ALBERT_HEALTH_URL).mock(
+        return_value=httpx.Response(200, json={"data": [{"id": "model-a", "status": "green"}]})
     )
     call_command("fetch_model_health", "--provider", "albert")
 
@@ -214,17 +204,21 @@ def test_cache_invalidated_for_removed_models(settings):
 
 
 @pytest.mark.django_db
-@responses_lib.activate
+@respx.mock
 def test_unknown_status_skipped_with_warning(settings, caplog):
     """Items with unknown status values are skipped — no DB row, no cache write."""
     settings.ALBERT_API_KEY = None
 
-    responses_lib.add(
-        responses_lib.GET,
-        ALBERT_HEALTH_URL,
-        json={
-            "data": [{"id": "model-a", "status": "purple"}, {"id": "model-b", "status": "green"}]
-        },
+    respx.get(ALBERT_HEALTH_URL).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"id": "model-a", "status": "purple"},
+                    {"id": "model-b", "status": "green"},
+                ]
+            },
+        )
     )
 
     with caplog.at_level(logging.WARNING):
@@ -238,15 +232,13 @@ def test_unknown_status_skipped_with_warning(settings, caplog):
 
 
 @pytest.mark.django_db
-@responses_lib.activate
+@respx.mock
 def test_legacy_orange_status_mapped_to_yellow(settings):
     """A provider still emitting the legacy 'orange' status is stored as 'yellow'."""
     settings.ALBERT_API_KEY = None
 
-    responses_lib.add(
-        responses_lib.GET,
-        ALBERT_HEALTH_URL,
-        json={"data": [{"id": "model-a", "status": "orange"}]},
+    respx.get(ALBERT_HEALTH_URL).mock(
+        return_value=httpx.Response(200, json={"data": [{"id": "model-a", "status": "orange"}]})
     )
 
     call_command("fetch_model_health", "--provider", "albert")

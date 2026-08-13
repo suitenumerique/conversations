@@ -8,8 +8,8 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from django.utils import timezone
 
+import httpx
 import pytest
-import requests
 from freezegun import freeze_time
 
 from core.factories import UserFactory
@@ -77,7 +77,7 @@ def test_api_media_auth_owner(api_client):
 
     s3_url = urlparse(settings.AWS_S3_ENDPOINT_URL)
     file_url = f"{settings.AWS_S3_ENDPOINT_URL:s}/conversations-media-storage/{attachment.key:s}"
-    response = requests.get(
+    response = httpx.get(
         file_url,
         headers={
             "authorization": authorization,

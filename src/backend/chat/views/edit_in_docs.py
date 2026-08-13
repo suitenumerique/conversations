@@ -12,7 +12,7 @@ from django.conf import settings
 from django.utils import formats, timezone
 from django.utils.translation import gettext as _
 
-import requests as http_requests
+import httpx
 from rest_framework import decorators, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -142,11 +142,11 @@ class EditInDocsMixin:
                 content=content,
                 session=request.session,  # for OIDC token
             )
-        except http_requests.exceptions.HTTPError as exc:
+        except httpx.HTTPStatusError as exc:
             # Docs answered with a 4xx/5xx — map it to a meaningful client status
             # instead of masking everything as 503.
             return _docs_http_error_response(exc)
-        except http_requests.exceptions.RequestException as exc:
+        except httpx.RequestError as exc:
             # Transport failure (connection refused, timeout, DNS) — Docs unreachable.
             logger.exception("Docs service unreachable during edit-in-docs: %s", exc)
             return Response(

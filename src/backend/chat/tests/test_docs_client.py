@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 from django.core.exceptions import PermissionDenied
 
+import httpx
 import pytest
-import requests
 
 from chat.docs_client import DocsClient
 
@@ -75,7 +75,7 @@ def test_create_document_success(docs_client):
     fake_response = MagicMock()
     fake_response.json.return_value = {"id": "doc-abc", "url": "http://docs.example.com/doc-abc"}
 
-    with patch("requests.post", return_value=fake_response) as mock_post:
+    with patch("httpx.post", return_value=fake_response) as mock_post:
         result = docs_client.create_document(
             title="My Document", content="# Hello\n\nWorld", session=session
         )
@@ -90,7 +90,7 @@ def test_create_document_posts_to_correct_url(docs_client):
     fake_response = MagicMock()
     fake_response.json.return_value = {"id": "doc-abc"}
 
-    with patch("requests.post", return_value=fake_response) as mock_post:
+    with patch("httpx.post", return_value=fake_response) as mock_post:
         docs_client.create_document(title="Title", content="body", session=session)
 
     call_args = mock_post.call_args
@@ -103,7 +103,7 @@ def test_create_document_sends_bearer_token(docs_client):
     fake_response = MagicMock()
     fake_response.json.return_value = {"id": "doc-abc"}
 
-    with patch("requests.post", return_value=fake_response) as mock_post:
+    with patch("httpx.post", return_value=fake_response) as mock_post:
         docs_client.create_document(title="Title", content="body", session=session)
 
     headers = mock_post.call_args.kwargs["headers"]
@@ -116,7 +116,7 @@ def test_create_document_sends_markdown_file(docs_client):
     fake_response = MagicMock()
     fake_response.json.return_value = {"id": "doc-abc"}
 
-    with patch("requests.post", return_value=fake_response) as mock_post:
+    with patch("httpx.post", return_value=fake_response) as mock_post:
         docs_client.create_document(title="My Doc", content="# Hello", session=session)
 
     files = mock_post.call_args.kwargs["files"]
@@ -128,12 +128,12 @@ def test_create_document_sends_markdown_file(docs_client):
 
 
 def test_create_document_uses_configured_timeout(docs_client):
-    """create_document passes the configured timeout to requests.post."""
+    """create_document passes the configured timeout to httpx.post."""
     session = {"oidc_access_token": "tok"}
     fake_response = MagicMock()
     fake_response.json.return_value = {"id": "doc-abc"}
 
-    with patch("requests.post", return_value=fake_response) as mock_post:
+    with patch("httpx.post", return_value=fake_response) as mock_post:
         docs_client.create_document(title="T", content="c", session=session)
 
     assert mock_post.call_args.kwargs["timeout"] == 10
@@ -143,10 +143,12 @@ def test_create_document_raises_on_http_error(docs_client):
     """create_document propagates HTTPError from raise_for_status."""
     session = {"oidc_access_token": "tok"}
     fake_response = MagicMock()
-    fake_response.raise_for_status.side_effect = requests.exceptions.HTTPError("403 Forbidden")
+    fake_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "403 Forbidden", request=MagicMock(), response=MagicMock()
+    )
 
-    with patch("requests.post", return_value=fake_response):
-        with pytest.raises(requests.exceptions.HTTPError):
+    with patch("httpx.post", return_value=fake_response):
+        with pytest.raises(httpx.HTTPStatusError):
             docs_client.create_document(title="T", content="c", session=session)
 
 

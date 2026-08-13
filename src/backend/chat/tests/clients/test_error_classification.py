@@ -2,7 +2,6 @@
 
 import httpx
 import pytest
-import requests
 
 from chat.clients.error_classification import (
     resolve_llm_error_code,
@@ -10,11 +9,11 @@ from chat.clients.error_classification import (
 )
 
 
-def _http_error(status_code: int) -> requests.HTTPError:
-    """Build a requests.HTTPError whose response carries the given status code."""
-    response = requests.Response()
-    response.status_code = status_code
-    return requests.HTTPError(response=response)
+def _http_error(status_code: int) -> httpx.HTTPStatusError:
+    """Build an httpx.HTTPStatusError whose response carries the given status code."""
+    request = httpx.Request("POST", "https://albert.example.com/v1/documents")
+    response = httpx.Response(status_code, request=request)
+    return httpx.HTTPStatusError(f"HTTP {status_code}", request=request, response=response)
 
 
 @pytest.mark.parametrize(
@@ -49,8 +48,6 @@ def test_resolve_llm_error_code(status_code, expected):
         (_http_error(404), "rag_internal_error"),
         (_http_error(403), "rag_internal_error"),
         (_http_error(422), "rag_internal_error"),
-        (requests.ConnectionError("boom"), "rag_connection_error"),
-        (requests.Timeout("boom"), "rag_connection_error"),
         (httpx.ConnectError("boom"), "rag_connection_error"),
         (httpx.ReadTimeout("boom"), "rag_connection_error"),
         (ValueError("local parse failed"), "rag_error"),

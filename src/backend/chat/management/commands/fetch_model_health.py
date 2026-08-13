@@ -6,7 +6,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.management.base import BaseCommand, CommandError
 
-import requests
+import httpx
 
 from core.models import ModelHealthSettings
 
@@ -87,9 +87,9 @@ class Command(BaseCommand):
             headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
             try:
-                response = requests.get(url, headers=headers, timeout=timeout)
+                response = httpx.get(url, headers=headers, timeout=timeout)
                 response.raise_for_status()
-            except requests.RequestException as exc:
+            except httpx.HTTPError as exc:
                 logger.exception("Failed to fetch model health for provider %s: %s", provider, exc)
                 raise CommandError(str(exc)) from exc
 

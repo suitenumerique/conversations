@@ -28,7 +28,7 @@ from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils.module_loading import import_string
 
-import requests
+import httpx
 
 from core.file_upload.enums import AttachmentStatus
 
@@ -108,9 +108,9 @@ def _is_transient_rag_error(exc: Exception) -> bool:
     the chunks were already stored - retrying would duplicate them - so both skip
     the retry and fall through to the FAILED path.
     """
-    if isinstance(exc, (requests.ConnectionError, requests.Timeout)):
+    if isinstance(exc, (httpx.NetworkError, httpx.TimeoutException)):
         return True
-    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None:
         return exc.response.status_code == 429 or exc.response.status_code >= 500
     return False
 
@@ -128,7 +128,7 @@ def _albert_error_detail(exc: Exception) -> str:
     limit, validation message, model unavailable). Surface the status code and a
     truncated body when available; otherwise fall back to `str(exc)`.
     """
-    if isinstance(exc, requests.HTTPError) and exc.response is not None:
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response is not None:
         body = (exc.response.text or "").strip()
         detail = f"HTTP {exc.response.status_code}"
         return f"{detail}: {body[:_ERROR_DETAIL_MAX_CHARS]}" if body else detail
