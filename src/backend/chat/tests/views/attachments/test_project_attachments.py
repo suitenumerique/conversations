@@ -243,7 +243,7 @@ def test_project_attachment_retrieve_success(api_client, upload_state, expected_
 
 
 @override_settings(POSTHOG_KEY="test_key")
-@mock.patch("chat.views.attachments.posthog")
+@mock.patch("core.analytics.posthog")
 @mock.patch("chat.views.attachments.malware_detection.analyse_file")
 def test_project_upload_ended_success(mock_analyse_file, mock_posthog, api_client):
     """The 'upload_ended' action should change the attachment state and trigger analysis."""
@@ -278,6 +278,9 @@ def test_project_upload_ended_success(mock_analyse_file, mock_posthog, api_clien
         project_id=attachment.project.pk,
     )
     mock_posthog.capture.assert_called_once()
+    # Conversation and project uploads share this action: without the holder
+    # they are indistinguishable in PostHog.
+    assert mock_posthog.capture.call_args.kwargs["properties"]["holder"] == "project"
 
 
 def test_project_upload_ended_not_pending(api_client):

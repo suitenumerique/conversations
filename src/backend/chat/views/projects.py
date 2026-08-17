@@ -8,6 +8,7 @@ from django.utils.module_loading import import_string
 
 from rest_framework import filters, permissions, viewsets
 
+from core.analytics import capture_event
 from core.api.viewsets import Pagination
 
 from activation_codes.permissions import IsActivatedUser
@@ -44,6 +45,30 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
             if self.request.user.is_authenticated
             else self.queryset.none()
         )
+
+    @staticmethod
+    def _event_properties(project):
+        """Describe a project for analytics, without leaking its title."""
+        return {
+            "id": str(project.pk),
+            "icon": project.icon,
+            "color": project.color,
+            "has_instructions": bool(project.llm_instructions),
+        }
+
+    def _capture(self, event, project):
+        """Report a project lifecycle event, without leaking the project title."""
+        capture_event(event, self.request.user.pk, properties=self._event_properties(project))
+
+    def perform_create(self, serializer):
+        """Create the project, then report it."""
+        project = serializer.save()
+        self._capture("project_created", project)
+
+    def perform_update(self, serializer):
+        """Update the project, then report it."""
+        project = serializer.save()
+        self._capture("project_updated", project)
 
     def perform_destroy(self, instance):
         """Delete a project, its conversations, RAG collections, and S3 blobs.
@@ -101,4 +126,8 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
                     instance.pk,
                 )
         _bulk_delete_s3_blobs(attachment_keys)
+        # Snapshotted first because `instance.delete()` clears `instance.pk`, but
+        # only reported once the delete succeeded, so a failed one stays silent.
+        properties = self._event_properties(instance)
         instance.delete()
+        capture_event("project_deleted", self.request.user.pk, properties=properties)

@@ -17,6 +17,8 @@ from rest_framework import decorators, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
+from core.analytics import capture_event
+
 from chat import serializers
 from chat.docs_client import DocsClient
 from chat.views.helpers import conditional_refresh_oidc_token
@@ -88,6 +90,23 @@ def _docs_http_error_response(exc):
 class EditInDocsMixin:
     """Adds the ``edit-in-docs`` action to a conversation viewset."""
 
+    @staticmethod
+    def _capture_export(request, outcome, docs_status=None):
+        """Report the outcome of a Docs export.
+
+        Docs is called from here, so the browser only ever learns "it failed";
+        the outcome (and the status Docs answered with) is only knowable here.
+        """
+        capture_event(
+            "conversation_exported_to_docs",
+            request.user.pk,
+            properties={
+                "success": outcome == "success",
+                "outcome": outcome,
+                "docs_status": docs_status,
+            },
+        )
+
     @conditional_refresh_oidc_token
     @decorators.action(
         methods=["post"], detail=True, url_path="edit-in-docs", url_name="edit-in-docs"
@@ -145,14 +164,19 @@ class EditInDocsMixin:
         except httpx.HTTPStatusError as exc:
             # Docs answered with a 4xx/5xx — map it to a meaningful client status
             # instead of masking everything as 503.
+            docs_status = exc.response.status_code if exc.response is not None else None
+            self._capture_export(request, "docs_http_error", docs_status=docs_status)
             return _docs_http_error_response(exc)
         except httpx.RequestError as exc:
             # Transport failure (connection refused, timeout, DNS) — Docs unreachable.
             logger.exception("Docs service unreachable during edit-in-docs: %s", exc)
+            self._capture_export(request, "docs_unreachable")
             return Response(
                 {"detail": "Docs service is currently unavailable. Please try again later."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
+
+        self._capture_export(request, "success")
 
         return Response(
             {

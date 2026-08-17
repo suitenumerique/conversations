@@ -1,7 +1,9 @@
 import { CunninghamProvider } from '@gouvfr-lasuite/cunningham-react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Fragment } from 'react';
 
+import { AbstractAnalytic, AnalyticEvent, Analytics } from '@/libs';
 import { useResponsiveStore } from '@/stores';
 
 import { buildImpactCo2ComparateurUrl } from '../../utils/impactCo2';
@@ -22,6 +24,22 @@ vi.mock('@/stores', () => ({
 }));
 
 const mockUseResponsiveStore = vi.mocked(useResponsiveStore);
+
+const trackEventMock = vi.fn();
+
+class TestAnalytic extends AbstractAnalytic {
+  public Provider() {
+    return <Fragment />;
+  }
+
+  public trackEvent(evt: AnalyticEvent) {
+    trackEventMock(evt);
+  }
+
+  public isFeatureFlagActivated(): boolean {
+    return true;
+  }
+}
 
 const setResponsive = (isMobile: boolean) =>
   mockUseResponsiveStore.mockReturnValue({
@@ -44,6 +62,9 @@ const renderIndicator = () =>
 
 describe('MessageEnergyIndicator', () => {
   beforeEach(() => {
+    trackEventMock.mockClear();
+    Analytics.clearAnalytics();
+    new TestAnalytic();
     setResponsive(false);
   });
 
@@ -78,6 +99,20 @@ describe('MessageEnergyIndicator', () => {
     await user.click(screen.getByRole('button', { name: 'OK' }));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('captures the carbon footprint opening, not the mere render', async () => {
+    const user = userEvent.setup();
+    renderIndicator();
+
+    expect(trackEventMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByLabelText('Carbon impact'));
+
+    expect(trackEventMock).toHaveBeenCalledWith({
+      eventName: 'carbon_footprint_opened',
+      properties: { co2_impact_kg: TEST_CO2_IMPACT_KG },
+    });
   });
 
   it('renders the impactco2 widget container in the modal', async () => {

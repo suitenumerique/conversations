@@ -399,3 +399,87 @@ def test_conditional_refresh_passthrough_when_refresh_disabled(settings):
         return None
 
     assert conditional_refresh_oidc_token(action) is action
+
+
+# ---------------------------------------------------------------------------
+# Analytics
+# ---------------------------------------------------------------------------
+def _export_the_message(api_client, conversation, settings, create_document):
+    """Drive one edit-in-docs export and return the PostHog capture mock."""
+    settings.DOCS_BASE_URL = "http://docs.example.com/"
+    settings.OIDC_STORE_ACCESS_TOKEN = True
+    settings.POSTHOG_KEY = {"id": "key", "host": "https://posthog.test"}
+
+    api_client.force_login(conversation.owner)
+    session = api_client.session
+    session["oidc_access_token"] = "test-token"
+    session.save()
+
+    url = f"/api/v1.0/chats/{conversation.pk}/edit-in-docs/"
+    with (
+        patch("chat.views.edit_in_docs.DocsClient.create_document", create_document),
+        patch("core.analytics.posthog") as mock_posthog,
+    ):
+        api_client.post(url, data={"message_id": "assistant-message-1"}, format="json")
+
+    return mock_posthog
+
+
+def test_edit_in_docs_captures_a_successful_export(
+    api_client, settings, conversation_with_messages
+):
+    """A successful export reports success, attributed to the exporting user."""
+    conversation = conversation_with_messages
+
+    mock_posthog = _export_the_message(
+        api_client, conversation, settings, MagicMock(return_value={"id": "doc-123"})
+    )
+
+    mock_posthog.capture.assert_called_once()
+    call = mock_posthog.capture.call_args
+    assert call.args[0] == "conversation_exported_to_docs"
+    assert call.kwargs["distinct_id"] == str(conversation.owner.pk)
+    assert call.kwargs["properties"] == {
+        "success": True,
+        "outcome": "success",
+        "docs_status": None,
+    }
+
+
+def test_edit_in_docs_captures_the_status_docs_answered_with(
+    api_client, settings, conversation_with_messages
+):
+    """The Docs status is only knowable server-side, so the failure event carries it."""
+    mock_posthog = _export_the_message(
+        api_client,
+        conversation_with_messages,
+        settings,
+        MagicMock(side_effect=_http_error(status.HTTP_403_FORBIDDEN)),
+    )
+
+    call = mock_posthog.capture.call_args
+    assert call.args[0] == "conversation_exported_to_docs"
+    assert call.kwargs["properties"] == {
+        "success": False,
+        "outcome": "docs_http_error",
+        "docs_status": status.HTTP_403_FORBIDDEN,
+    }
+
+
+def test_edit_in_docs_captures_an_unreachable_docs(
+    api_client, settings, conversation_with_messages
+):
+    """A transport failure is reported apart from a Docs-side rejection."""
+    mock_posthog = _export_the_message(
+        api_client,
+        conversation_with_messages,
+        settings,
+        MagicMock(side_effect=httpx.RequestError("connection refused")),
+    )
+
+    call = mock_posthog.capture.call_args
+    assert call.kwargs["properties"] == {
+        "success": False,
+        "outcome": "docs_unreachable",
+        "docs_status": None,
+    }

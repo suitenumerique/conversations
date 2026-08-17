@@ -508,3 +508,83 @@ async def test_run_agent_fails_when_summary_never_lands(ui_messages):
             _ = [event async for event in service._run_agent(ui_messages)]
 
     task.delay.assert_called_once_with(str(conversation.pk))
+
+
+def _captured_events(mock_posthog):
+    """The PostHog event names captured, in order."""
+    return [call.args[0] for call in mock_posthog.capture.call_args_list]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_captures_the_summarization_funnel(ui_messages, settings):
+    """A summarized turn reports its start and its success, attributed to the user."""
+    settings.POSTHOG_KEY = {"id": "key", "host": "https://posthog.test"}
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+
+    with (
+        _run_agent_patches(service),
+        patch(
+            "chat.clients.pydantic_ai.should_generate_conversation_summary",
+            side_effect=[True, False],  # over budget, then the summary lands
+        ),
+        patch("chat.clients.pydantic_ai.summarize_conversation_history"),
+        patch.object(service, "_wait_for_history_summary", side_effect=_empty_async_gen),
+        patch("core.analytics.posthog") as mock_posthog,
+    ):
+        _ = [event async for event in service._run_agent(ui_messages)]
+
+    assert _captured_events(mock_posthog) == [
+        "conversation_summarization_started",
+        "conversation_summarization_succeeded",
+    ]
+    success = mock_posthog.capture.call_args_list[1]
+    assert success.kwargs["distinct_id"] == str(conversation.owner.pk)
+    assert success.kwargs["properties"]["conversation_id"] == str(conversation.pk)
+    assert success.kwargs["properties"]["waited_seconds"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_run_agent_captures_the_summarization_failure(ui_messages, settings):
+    """A turn that fails for want of a summary reports the failure after the start."""
+    settings.POSTHOG_KEY = {"id": "key", "host": "https://posthog.test"}
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+
+    with (
+        _run_agent_patches(service),
+        patch(
+            "chat.clients.pydantic_ai.should_generate_conversation_summary",
+            side_effect=[True, True],  # still over budget after the fruitless wait
+        ),
+        patch("chat.clients.pydantic_ai.summarize_conversation_history"),
+        patch.object(service, "_wait_for_history_summary", side_effect=_empty_async_gen),
+        patch("core.analytics.posthog") as mock_posthog,
+    ):
+        with pytest.raises(SummarizationRequiredError):
+            _ = [event async for event in service._run_agent(ui_messages)]
+
+    assert _captured_events(mock_posthog) == [
+        "conversation_summarization_started",
+        "conversation_summarization_failed",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_captures_nothing_without_summarization(ui_messages, settings):
+    """A turn that stays within budget reports no summarization event at all."""
+    settings.POSTHOG_KEY = {"id": "key", "host": "https://posthog.test"}
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+
+    with (
+        _run_agent_patches(service),
+        patch(
+            "chat.clients.pydantic_ai.should_generate_conversation_summary",
+            return_value=False,
+        ),
+        patch("core.analytics.posthog") as mock_posthog,
+    ):
+        _ = [event async for event in service._run_agent(ui_messages)]
+
+    mock_posthog.capture.assert_not_called()

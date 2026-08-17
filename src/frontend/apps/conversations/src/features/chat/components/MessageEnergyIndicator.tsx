@@ -12,6 +12,7 @@ import ArrowUpRightIcon from '@/assets/icons/uikit-custom/arrow-up-right.svg?rea
 import LeavesIcon from '@/assets/icons/uikit-custom/leaves.svg?react';
 import { Box, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
+import { useAnalytics } from '@/libs';
 import { useResponsiveStore } from '@/stores';
 
 import {
@@ -40,6 +41,7 @@ export const MessageEnergyIndicator = ({
   const { isMobile } = useResponsiveStore();
   const theme = useCunninghamTheme((state) => state.theme);
   const modal = useModal();
+  const { trackEvent } = useAnalytics();
   const impactLabel = t('This request: {{co2}}', {
     co2: formatCo2Impact(co2ImpactKg),
   });
@@ -71,6 +73,14 @@ export const MessageEnergyIndicator = ({
     [dataSearch],
   );
 
+  const handleOpen = () => {
+    trackEvent({
+      eventName: 'carbon_footprint_opened',
+      properties: { co2_impact_kg: co2ImpactKg },
+    });
+    modal.open();
+  };
+
   const button = (
     <Button
       size="nano"
@@ -80,7 +90,7 @@ export const MessageEnergyIndicator = ({
       data-testid="message-energy-indicator"
       icon={<LeavesIcon width={14} height={14} aria-hidden />}
       className="c__button--neutral action-chat-button"
-      onClick={() => modal.open()}
+      onClick={handleOpen}
     />
   );
 

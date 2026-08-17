@@ -11,12 +11,12 @@ from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
 import magic
-import posthog
 from lasuite.malware_detection import malware_detection
 from rest_framework import decorators, mixins, permissions, status, viewsets
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
+from core.analytics import capture_event
 from core.api.viewsets import SerializerPerActionMixin
 from core.file_upload import enums
 from core.file_upload.enums import AttachmentStatus
@@ -149,17 +149,19 @@ class BaseAttachmentViewSet(
 
         serializer = self.get_serializer(attachment)
 
-        if settings.POSTHOG_KEY:
-            posthog.capture(
-                "item_uploaded",
-                distinct_id=str(request.user.pk),  # same as set by the frontend
-                properties={
-                    "id": attachment.pk,
-                    "file_name": attachment.file_name,
-                    "size": attachment.size,
-                    "mimetype": attachment.content_type,
-                },
-            )
+        capture_event(
+            "item_uploaded",
+            request.user.pk,
+            properties={
+                "id": attachment.pk,
+                "file_name": attachment.file_name,
+                "size": attachment.size,
+                "mimetype": attachment.content_type,
+                # Both subclasses share this action, so without the holder the
+                # project and conversation uploads are indistinguishable.
+                "holder": self.holder_field,
+            },
+        )
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -227,18 +229,18 @@ class BaseAttachmentViewSet(
             **self._malware_kwargs(),
         )
 
-        if settings.POSTHOG_KEY:
-            posthog.capture(
-                "item_uploaded_backend",
-                distinct_id=str(request.user.pk),
-                properties={
-                    "id": attachment.pk,
-                    "file_name": attachment.file_name,
-                    "size": attachment.size,
-                    "mimetype": attachment.content_type,
-                    "mode": settings.FILE_UPLOAD_MODE,
-                },
-            )
+        capture_event(
+            "item_uploaded_backend",
+            request.user.pk,
+            properties={
+                "id": attachment.pk,
+                "file_name": attachment.file_name,
+                "size": attachment.size,
+                "mimetype": attachment.content_type,
+                "mode": settings.FILE_UPLOAD_MODE,
+                "holder": self.holder_field,
+            },
+        )
 
         serializer = self.get_serializer(attachment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

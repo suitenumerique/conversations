@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - 💄(settings) move analytics settings to general
+- 📈(posthog) track projects, Docs export, summarization and co2 footprint
 
 ### Changed
 

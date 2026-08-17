@@ -24,7 +24,16 @@ export class PostHogAnalytic extends AbstractAnalytic {
       if (evt.sub) {
         posthog.alias(evt.sub, evt.id);
       }
+      return;
     }
+
+    // `click` is a legacy placeholder that nothing emits and that carries no
+    // payload worth capturing.
+    if (evt.eventName === 'click') {
+      return;
+    }
+
+    posthog.capture(evt.eventName, evt.properties);
   }
 
   public isFeatureFlagActivated(flagName: string): boolean {

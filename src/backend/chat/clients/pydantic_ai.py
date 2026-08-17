@@ -126,6 +126,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models import Model, infer_model_profile
 
+from core.analytics import acapture_event
 from core.feature_flags.helpers import is_feature_enabled
 
 from chat import models
@@ -811,6 +812,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
         if should_emit_summary_event:
             tool_call_id = str(uuid.uuid4())
+            summarization_started_at = time.monotonic()
+            # Reported before the yield: the consumer may drop the stream there,
+            # which would kill this generator and lose the start of the funnel.
+            await acapture_event(
+                "conversation_summarization_started",
+                self.user.pk,
+                properties={"conversation_id": str(self.conversation.pk)},
+            )
             yield events_v4.ToolCallPart(
                 tool_call_id=tool_call_id,
                 tool_name="summarize",
@@ -835,9 +844,25 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 context_messages=settings.CONVERSATION_SUMMARY_CONTEXT_MESSAGES,
             ):
                 # No summary landed and still over budget: no degraded turn.
+                await acapture_event(
+                    "conversation_summarization_failed",
+                    self.user.pk,
+                    properties={
+                        "conversation_id": str(self.conversation.pk),
+                        "waited_seconds": round(time.monotonic() - summarization_started_at, 3),
+                    },
+                )
                 raise SummarizationRequiredError(
                     "Conversation summary did not land while the history exceeds the budget."
                 )
+            await acapture_event(
+                "conversation_summarization_succeeded",
+                self.user.pk,
+                properties={
+                    "conversation_id": str(self.conversation.pk),
+                    "waited_seconds": round(time.monotonic() - summarization_started_at, 3),
+                },
+            )
             yield events_v4.ToolResultPart(
                 tool_call_id=tool_call_id,
                 result={"state": "done"},

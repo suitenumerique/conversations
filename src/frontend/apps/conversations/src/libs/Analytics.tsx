@@ -10,7 +10,33 @@ type AnalyticEventUser = {
   sub?: string;
 };
 
-export type AnalyticEvent = AnalyticEventClick | AnalyticEventUser;
+/**
+ * Product events forwarded as-is to the analytics backends. Listed here so
+ * every captured name is discoverable from a single place, and so a typo in a
+ * call site fails the build instead of creating a stray event.
+ *
+ * Only purely client-side interactions belong here: anything that maps to an
+ * API call is captured by the backend instead, where the outcome is known for
+ * certain and no ad blocker can drop it.
+ *
+ * Properties must stay free of user content (no titles, file names, prompts).
+ */
+export type AnalyticFeatureEventName = 'carbon_footprint_opened';
+
+export type AnalyticEventProperties = Record<
+  string,
+  string | number | boolean | undefined
+>;
+
+type AnalyticEventFeature = {
+  eventName: AnalyticFeatureEventName;
+  properties?: AnalyticEventProperties;
+};
+
+export type AnalyticEvent =
+  | AnalyticEventClick
+  | AnalyticEventUser
+  | AnalyticEventFeature;
 
 export abstract class AbstractAnalytic {
   public constructor() {
