@@ -22,6 +22,7 @@ and this project adheres to
 - 💄(front) correct icon Docs button
 - ♻️(back) use httpx as the single HTTP client for outbound calls
 - ⬆️(back) update django, pypdf and pydantic-settings
+- ⚡️(front) read the cached config once per page load i/o on every render
 
 ### Removed
 
@@ -56,7 +57,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(back) align Albert RAG document upload and search with the current API
-
+ 
 ## [0.0.20] - 2026-07-23
 
 ### Added
