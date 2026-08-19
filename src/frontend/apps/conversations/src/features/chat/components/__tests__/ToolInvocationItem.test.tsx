@@ -18,11 +18,11 @@ const renderResultError = (kind?: string) =>
   render(
     <ToolInvocationItem
       toolInvocation={{
+        type: 'tool-document_parsing',
         toolCallId: 'test-id',
-        toolName: 'document_parsing',
-        state: 'result',
-        args: {},
-        result: {
+        state: 'output-available',
+        input: {},
+        output: {
           state: 'error',
           ...(kind ? { kind } : {}),
           error: 'whatever',
@@ -37,14 +37,14 @@ describe('ToolInvocationItem', () => {
   });
 
   describe('conversation_resume', () => {
-    it('shows the resuming loader when state is call', () => {
+    it('shows the resuming loader when the input is available', () => {
       render(
         <ToolInvocationItem
           toolInvocation={{
+            type: 'tool-conversation_resume',
             toolCallId: 'test-id',
-            toolName: 'conversation_resume',
-            state: 'call',
-            args: {},
+            state: 'input-available',
+            input: {},
           }}
         />,
       );
@@ -59,15 +59,15 @@ describe('ToolInvocationItem', () => {
       ).toBeInTheDocument();
     });
 
-    it('renders nothing when state is result', () => {
+    it('renders nothing when the output is available', () => {
       const { container } = render(
         <ToolInvocationItem
           toolInvocation={{
+            type: 'tool-conversation_resume',
             toolCallId: 'test-id',
-            toolName: 'conversation_resume',
-            state: 'result',
-            args: {},
-            result: { state: 'done' },
+            state: 'output-available',
+            input: {},
+            output: { state: 'done' },
           }}
         />,
       );

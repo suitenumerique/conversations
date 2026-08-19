@@ -28,12 +28,13 @@ and this project adheres to
 - ✨(back) sort conversations by stored size in the admin list
 - 🚸(back) show 200 conversations per admin list page for bulk actions
 - ♻️(back) split the settings module into per-domain configuration mixins
+- ⬆️(chat) upgrade the Vercel AI SDK from v4 to v5
 
 ### Fixed
 
 - 🐛(front) fix the frontend dev container failing to start
 - 🐛(back) read the OIDC_CREATE_USER setting from its documented env var
-
+ 
 ### Removed
 
 - 🔥(back) remove the unused Albert web search manager and its tool

@@ -2,9 +2,9 @@ import { ReadableStream } from 'node:stream/web';
 import { TextDecoder, TextEncoder } from 'node:util';
 import { deserialize, serialize } from 'node:v8';
 
-import { Message } from '@ai-sdk/ui-utils';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { FileUIPart, UIMessage } from 'ai';
 import type { Mock } from 'vitest';
 
 import { fetchAPI } from '@/api';
@@ -70,28 +70,34 @@ describe('isImagesSkippedEvent', () => {
   });
 });
 
-const makeUserMessage = (
-  id: string,
-  attachments: Message['experimental_attachments'],
-): Message => ({
+const filePart = (
+  filename: string,
+  mediaType: string,
+  url: string,
+  extra: Record<string, unknown> = {},
+): FileUIPart => ({ type: 'file', filename, mediaType, url, ...extra });
+
+const makeUserMessage = (id: string, files: FileUIPart[]): UIMessage => ({
   id,
   role: 'user',
-  content: 'hi',
-  experimental_attachments: attachments,
+  parts: [{ type: 'text', text: 'hi' }, ...files],
 });
 
-const makeAssistantMessage = (id: string): Message => ({
+const makeAssistantMessage = (id: string): UIMessage => ({
   id,
   role: 'assistant',
-  content: 'hello',
+  parts: [{ type: 'text', text: 'hello' }],
 });
 
+const filePartsOf = (message: UIMessage): FileUIPart[] =>
+  message.parts.filter((part): part is FileUIPart => part.type === 'file');
+
 describe('stampImagesSkippedOnLatestUserMessage', () => {
-  it('stamps skipped on every image attachment of the latest user message', () => {
-    const messages: Message[] = [
+  it('stamps skipped on every image file part of the latest user message', () => {
+    const messages: UIMessage[] = [
       makeUserMessage('1', [
-        { name: 'a.png', contentType: 'image/png', url: 'http://a' },
-        { name: 'b.pdf', contentType: 'application/pdf', url: 'http://b' },
+        filePart('a.png', 'image/png', 'http://a'),
+        filePart('b.pdf', 'application/pdf', 'http://b'),
       ]),
       makeAssistantMessage('2'),
     ];
@@ -99,21 +105,19 @@ describe('stampImagesSkippedOnLatestUserMessage', () => {
     const result = stampImagesSkippedOnLatestUserMessage(messages);
 
     expect(result).not.toBe(messages);
-    const updatedAttachments = result[0].experimental_attachments!;
-    expect(updatedAttachments[0]).toMatchObject({
-      name: 'a.png',
+    const updatedFiles = filePartsOf(result[0]);
+    expect(updatedFiles[0]).toMatchObject({
+      filename: 'a.png',
       skipped: { reason: 'model_text_only' },
     });
-    expect(updatedAttachments[1]).toMatchObject({ name: 'b.pdf' });
-    expect((updatedAttachments[1] as { skipped?: unknown }).skipped).toBe(
-      undefined,
-    );
+    expect(updatedFiles[1]).toMatchObject({ filename: 'b.pdf' });
+    expect((updatedFiles[1] as { skipped?: unknown }).skipped).toBe(undefined);
   });
 
   it('returns the same reference when no images are present', () => {
-    const messages: Message[] = [
+    const messages: UIMessage[] = [
       makeUserMessage('1', [
-        { name: 'doc.pdf', contentType: 'application/pdf', url: 'http://x' },
+        filePart('doc.pdf', 'application/pdf', 'http://x'),
       ]),
     ];
 
@@ -121,18 +125,12 @@ describe('stampImagesSkippedOnLatestUserMessage', () => {
   });
 
   it('returns the same reference when images are already stamped', () => {
-    const messages: Message[] = [
+    const messages: UIMessage[] = [
       makeUserMessage('1', [
-        {
-          name: 'a.png',
-          contentType: 'image/png',
-          url: 'http://a',
-          // already stamped by an earlier event
-          ...({ skipped: { reason: 'model_text_only' } } as Record<
-            string,
-            unknown
-          >),
-        },
+        // already stamped by an earlier event
+        filePart('a.png', 'image/png', 'http://a', {
+          skipped: { reason: 'model_text_only' },
+        }),
       ]),
     ];
 
@@ -140,20 +138,16 @@ describe('stampImagesSkippedOnLatestUserMessage', () => {
   });
 
   it('returns the same reference when there is no user message', () => {
-    const messages: Message[] = [makeAssistantMessage('1')];
+    const messages: UIMessage[] = [makeAssistantMessage('1')];
 
     expect(stampImagesSkippedOnLatestUserMessage(messages)).toBe(messages);
   });
 
   it('only touches the latest user message', () => {
-    const messages: Message[] = [
-      makeUserMessage('1', [
-        { name: 'old.png', contentType: 'image/png', url: 'http://old' },
-      ]),
+    const messages: UIMessage[] = [
+      makeUserMessage('1', [filePart('old.png', 'image/png', 'http://old')]),
       makeAssistantMessage('2'),
-      makeUserMessage('3', [
-        { name: 'new.png', contentType: 'image/png', url: 'http://new' },
-      ]),
+      makeUserMessage('3', [filePart('new.png', 'image/png', 'http://new')]),
     ];
 
     const result = stampImagesSkippedOnLatestUserMessage(messages);
@@ -161,7 +155,7 @@ describe('stampImagesSkippedOnLatestUserMessage', () => {
     expect(result[0]).toBe(messages[0]); // untouched
     expect(result[2]).not.toBe(messages[2]);
     expect(
-      (result[2].experimental_attachments![0] as { skipped?: unknown }).skipped,
+      (filePartsOf(result[2])[0] as { skipped?: unknown }).skipped,
     ).toEqual({ reason: 'model_text_only' });
   });
 });
@@ -179,11 +173,14 @@ Object.assign(globalThis, {
 const CHAT_API = 'chats/conv-1/conversation/';
 
 // A turn cut short right after the `summarize` tool returned: the summary
-// landed, the answer never started, and no `f:` (start_step) closes the
-// message. That shape is what makes the SDK's multi-step continuation kick in.
+// landed, the answer never started, and no `finish` closes the message. That
+// shape is what an SDK configured to continue multi-step turns would re-POST.
 const INTERRUPTED_AFTER_SUMMARY = [
-  '9:{"toolCallId":"c1","toolName":"summarize","args":{"state":"running","summary_scope":"conversation"}}\n',
-  'a:{"toolCallId":"c1","result":{"state":"done"}}\n',
+  'data: {"type":"start"}\n\n',
+  'data: {"type":"tool-input-available","toolCallId":"c1","toolName":"summarize"',
+  ',"input":{"state":"running","summary_scope":"conversation"}}\n\n',
+  'data: {"type":"tool-output-available","toolCallId":"c1","output":{"state":"done"}}\n\n',
+  'data: [DONE]\n\n',
 ].join('');
 
 const streamOf = (payload: string) =>
@@ -232,7 +229,7 @@ describe('useChat multi-step continuation', () => {
     );
 
     await act(async () => {
-      await result.current.append({ role: 'user', content: 'hello' });
+      await result.current.sendMessage({ text: 'hello' });
     });
     await waitFor(() => expect(result.current.status).toBe('ready'));
     expect(onError).not.toHaveBeenCalled();
@@ -240,5 +237,96 @@ describe('useChat multi-step continuation', () => {
     // A second POST would carry an assistant-terminated message list, which the
     // backend answers with an empty stream — leaving the bubble blank.
     expect(chatCalls).toEqual([CHAT_API]);
+  });
+});
+
+// The exact frames the backend emits for a turn with a tool call, a source, a
+// cooldown notice and a CO2 impact — copied from the encoder's golden test.
+const FULL_TURN = [
+  'data: {"type":"start","messageId":"trace-abc"}\n\n',
+  'data: {"type":"tool-input-available","toolCallId":"c1","toolName":"document_search_rag"',
+  ',"input":{"query":"what?"}}\n\n',
+  'data: {"type":"source-url","sourceId":"s1","url":"https://example.test"}\n\n',
+  'data: {"type":"tool-output-available","toolCallId":"c1","output":{"state":"done"}}\n\n',
+  'data: {"type":"text-start","id":"0"}\n\n',
+  'data: {"type":"text-delta","id":"0","delta":"Hello"}\n\n',
+  'data: {"type":"text-delta","id":"0","delta":" there"}\n\n',
+  'data: {"type":"text-end","id":"0"}\n\n',
+  'data: {"type":"data-cooldown","data":{"type":"cooldown","seconds":30}',
+  ',"transient":true}\n\n',
+  'data: {"type":"data-images-skipped","data":{"type":"images_skipped"',
+  ',"kind":"chat_notice","reason":"model_text_only"},"transient":true}\n\n',
+  'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":10',
+  ',"completionTokens":3,"co2Impact":0.5},"co2_impact":0.5}}\n\n',
+  'data: [DONE]\n\n',
+].join('');
+
+describe('useChat against a backend stream', () => {
+  const fetchAPIMock = vi.mocked(fetchAPI) as unknown as Mock;
+
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      {children}
+    </QueryClientProvider>
+  );
+
+  it('builds the message, its metadata and the transient notices', async () => {
+    fetchAPIMock.mockImplementation((url: string) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      return Promise.resolve({ ok: true, body: streamOf(FULL_TURN) });
+    });
+
+    const onImagesSkipped = vi.fn();
+    const { result } = renderHook(
+      () => useChat({ id: 'conv-1', api: CHAT_API, onImagesSkipped }),
+      { wrapper },
+    );
+
+    // Let the chat-cooldown query settle first: it resets cooldownUntil, and
+    // landing after the stream would clobber the value the frame carries.
+    await waitFor(() =>
+      expect(fetchAPIMock).toHaveBeenCalledWith('chat-cooldown/'),
+    );
+
+    await act(async () => {
+      await result.current.sendMessage({ text: 'hello' });
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    const assistant = result.current.messages.at(-1)!;
+    // The message id the backend announced, which the feedback buttons key on.
+    expect(assistant.id).toBe('trace-abc');
+    expect(assistant.parts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'text', text: 'Hello there' }),
+        expect.objectContaining({
+          type: 'source-url',
+          sourceId: 's1',
+          url: 'https://example.test',
+        }),
+        expect.objectContaining({
+          type: 'tool-document_search_rag',
+          state: 'output-available',
+          output: { state: 'done' },
+        }),
+      ]),
+    );
+    expect(assistant.metadata).toMatchObject({ co2_impact: 0.5 });
+
+    // Transient data parts reach the callbacks without polluting the message.
+    expect(onImagesSkipped).toHaveBeenCalledWith('chat_notice');
+    expect(result.current.cooldownUntil).toBeGreaterThan(Date.now());
+    expect(assistant.parts.some((part) => part.type.startsWith('data-'))).toBe(
+      false,
+    );
   });
 });

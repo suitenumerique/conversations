@@ -1,5 +1,11 @@
-import { Message, SourceUIPart, ToolInvocationUIPart } from '@ai-sdk/ui-utils';
 import { Button } from '@gouvfr-lasuite/cunningham-react';
+import {
+  SourceUrlUIPart,
+  ToolUIPart,
+  UIMessage,
+  getToolName,
+  isToolUIPart,
+} from 'ai';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -8,6 +14,7 @@ import ClipboardIcon from '@/assets/icons/uikit-custom/clipboard.svg?react';
 import SourcesIcon from '@/assets/icons/uikit-custom/sources.svg?react';
 import { Box, Loader, Text } from '@/components';
 import { useConfig } from '@/core/config';
+import { SkippableFileUIPart } from '@/features/chat/api/useChat';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import {
@@ -20,6 +27,7 @@ import { SummarizationError } from '@/features/chat/components/SummarizationErro
 import { SummarizationProgress } from '@/features/chat/components/SummarizationProgress';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
 import { getMessageCo2Impact } from '@/features/chat/utils/getMessageCo2Impact';
+import { getMessageText } from '@/features/chat/utils/getMessageText';
 
 import { ChatErrorType } from './ChatError';
 
@@ -172,7 +180,7 @@ export const splitStreamingContent = (content: string): StreamingContent => {
 };
 
 export interface MessageItemProps {
-  message: Message;
+  message: UIMessage;
   isLastMessage: boolean;
   isLastAssistantMessage: boolean;
   isFirstConversationMessage: boolean;
@@ -239,66 +247,71 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
 
   const co2ImpactKg = getMessageCo2Impact(message);
 
-  const sourceParts = React.useMemo(() => {
-    if (!message.parts) {
-      return [];
-    }
-    return message.parts.filter(
-      (part): part is SourceUIPart => part.type === 'source',
-    );
-  }, [message.parts]);
-
-  const toolInvocationParts = React.useMemo(() => {
-    if (!message.parts) {
-      return [];
-    }
-    return message.parts.filter(
-      (part): part is ToolInvocationUIPart => part.type === 'tool-invocation',
-    );
-  }, [message.parts]);
-
-  const hasTextContent = React.useMemo(
+  const sourceParts = React.useMemo(
     () =>
-      (message.parts ?? []).some(
-        (part) => part.type === 'text' && part.text.trim().length > 0,
-      ) ||
-      // Older/hydrated messages render from `message.content` without populated
-      // text parts — fall back to it so they keep the "Edit in Docs" action.
-      (message.content?.trim().length ?? 0) > 0,
-    [message.parts, message.content],
+      message.parts.filter(
+        (part): part is SourceUrlUIPart => part.type === 'source-url',
+      ),
+    [message.parts],
   );
 
-  const hasNonDocumentParsingTool = React.useMemo(() => {
-    return toolInvocationParts.some(
-      (part) =>
-        part.toolInvocation.toolName !== 'document_parsing' &&
-        part.toolInvocation.toolName !== 'conversation_resume',
-    );
-  }, [toolInvocationParts]);
+  const toolInvocationParts = React.useMemo(
+    () => message.parts.filter(isToolUIPart),
+    [message.parts],
+  );
 
-  const activeToolInvocation = React.useMemo(() => {
-    const tool = [...toolInvocationParts]
-      .reverse()
-      .find(
+  const attachments = React.useMemo(
+    () =>
+      message.parts
+        .filter((part) => part.type === 'file')
+        .map((part) => ({
+          name: part.filename,
+          contentType: part.mediaType,
+          url: part.url,
+          skipped: (part as SkippableFileUIPart).skipped,
+        })),
+    [message.parts],
+  );
+
+  const textContent = React.useMemo(() => getMessageText(message), [message]);
+
+  const hasTextContent = textContent.trim().length > 0;
+
+  const hasNonDocumentParsingTool = React.useMemo(
+    () =>
+      toolInvocationParts.some(
         (part) =>
-          part.toolInvocation.toolName !== 'document_parsing' &&
-          part.toolInvocation.state !== 'result' &&
-          part.toolInvocation.toolName !== 'conversation_resume',
-      );
-    return tool?.toolInvocation;
-  }, [toolInvocationParts]);
+          getToolName(part) !== 'document_parsing' &&
+          getToolName(part) !== 'conversation_resume',
+      ),
+    [toolInvocationParts],
+  );
 
-  const conversationSummarizeInvocation = React.useMemo(() => {
-    const part = [...toolInvocationParts]
-      .reverse()
-      .find(
-        (p) =>
-          p.toolInvocation.toolName === 'summarize' &&
-          (p.toolInvocation.args as { summary_scope?: string })
-            ?.summary_scope === 'conversation',
-      );
-    return part?.toolInvocation;
-  }, [toolInvocationParts]);
+  const activeToolInvocation = React.useMemo(
+    () =>
+      [...toolInvocationParts]
+        .reverse()
+        .find(
+          (part) =>
+            getToolName(part) !== 'document_parsing' &&
+            part.state !== 'output-available' &&
+            getToolName(part) !== 'conversation_resume',
+        ),
+    [toolInvocationParts],
+  );
+
+  const conversationSummarizeInvocation = React.useMemo(
+    () =>
+      [...toolInvocationParts]
+        .reverse()
+        .find(
+          (part) =>
+            getToolName(part) === 'summarize' &&
+            (part.input as { summary_scope?: string })?.summary_scope ===
+              'conversation',
+        ),
+    [toolInvocationParts],
+  );
 
   // The summary phase failed the turn: the backend emits the `summarize`
   // tool-call before it can fail, so the invocation is still present here and
@@ -323,7 +336,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     isCurrentlyStreaming &&
     status === 'streaming' &&
     isSummarizationBarHidden &&
-    !message.content &&
+    !textContent &&
     !activeToolInvocation;
 
   // Memoize the streaming content split to avoid recreating components in JSX
@@ -331,12 +344,12 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     // When not streaming, everything is completed as a single block array
     if (!isCurrentlyStreaming) {
       return {
-        completedBlocks: splitIntoBlocks(message.content),
+        completedBlocks: splitIntoBlocks(textContent),
         pending: '',
       };
     }
-    return splitStreamingContent(message.content);
-  }, [isCurrentlyStreaming, message.content]);
+    return splitStreamingContent(textContent);
+  }, [isCurrentlyStreaming, textContent]);
 
   const handleCopy = React.useCallback(() => {
     const html = contentRef.current?.innerHTML;
@@ -349,20 +362,20 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
       // while code editors and plain-text apps use text/plain (raw markdown).
       const item = new ClipboardItem({
         'text/html': new Blob([html], { type: 'text/html' }),
-        'text/plain': new Blob([message.content], { type: 'text/plain' }),
+        'text/plain': new Blob([textContent], { type: 'text/plain' }),
       });
       navigator.clipboard.write([item]).then(
         () => showCopiedState(),
         () => {
-          onCopyToClipboard(message.content);
+          onCopyToClipboard(textContent);
           showCopiedState();
         },
       );
     } else {
-      onCopyToClipboard(message.content);
+      onCopyToClipboard(textContent);
       showCopiedState();
     }
-  }, [contentRef, message.content, onCopyToClipboard, showCopiedState]);
+  }, [contentRef, textContent, onCopyToClipboard, showCopiedState]);
 
   const handleOpenSources = React.useCallback(() => {
     onOpenSources(message.id);
@@ -391,15 +404,11 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
         $display="block"
         $width={`${message.role === 'user' ? 'auto' : '100%'}`}
       >
-        {message.experimental_attachments &&
-          message.experimental_attachments.length > 0 && (
-            <Box>
-              <AttachmentList
-                attachments={message.experimental_attachments}
-                isReadOnly={true}
-              />
-            </Box>
-          )}
+        {attachments.length > 0 && (
+          <Box>
+            <AttachmentList attachments={attachments} isReadOnly={true} />
+          </Box>
+        )}
         <Box
           className={`chatMessage ${message.role === 'user' ? 'chatMessage--user' : 'chatMessage--assistant'}`}
           style={
@@ -409,7 +418,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
           }
         >
           {/* Message content */}
-          {message.content && (
+          {textContent && (
             <Box
               ref={contentRef}
               className="mainContent-chat"
@@ -431,7 +440,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   $theme="greyscale"
                   $variation="850"
                 >
-                  {message.content}
+                  {textContent}
                 </Text>
               ) : (
                 // Render completed blocks as markdown, pending block as plain text
@@ -455,7 +464,10 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   }}
                 >
                   <SummarizationProgress
-                    done={conversationSummarizeInvocation.state === 'result'}
+                    done={
+                      conversationSummarizeInvocation.state ===
+                      'output-available'
+                    }
                     onHidden={handleSummarizationBarHidden}
                   />
                 </Box>
@@ -512,7 +524,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 >
                   <Loader />
                   <Text $variation="600" $size="md">
-                    {activeToolInvocation.toolName === 'summarize'
+                    {getToolName(activeToolInvocation) === 'summarize'
                       ? t('Summarizing...')
                       : t('Search...')}
                   </Text>
@@ -522,7 +534,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
               isLastAssistantMessage ? (
                 <ToolInvocationItem
                   key={`tool-invocation-${partIndex}`}
-                  toolInvocation={part.toolInvocation}
+                  toolInvocation={part}
                   status={status}
                   hideSearchLoader={true}
                 />
@@ -609,19 +621,27 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
 
 MessageItemComponent.displayName = 'MessageItem';
 
-// Tool invocations go from `call` to `result` in place, without changing the
+// Tool invocations advance through their states in place, without changing the
 // parts count, so their states need their own signature: the summarization
 // progress bar and the loader that replaces it hang on that transition.
-const getToolInvocationStates = (message: Message): string =>
-  (message.parts ?? [])
-    .filter(
-      (part): part is ToolInvocationUIPart => part.type === 'tool-invocation',
-    )
-    .map((part) => part.toolInvocation.state)
+const getToolInvocationStates = (message: UIMessage): string =>
+  message.parts
+    .filter(isToolUIPart)
+    .map((part: ToolUIPart) => part.state)
     .join(',');
 
-const getSourcePartsCount = (message: Message): number =>
-  (message.parts ?? []).filter((part) => part.type === 'source').length;
+const getSourcePartsCount = (message: UIMessage): number =>
+  message.parts.filter((part) => part.type === 'source-url').length;
+
+const getFilePartsCount = (message: UIMessage): number =>
+  message.parts.filter((part) => part.type === 'file').length;
+
+// The backend can mark an image as skipped after the message was rendered, which
+// only mutates the part in place - the part count stays the same.
+const getSkippedFilePartsCount = (message: UIMessage): number =>
+  message.parts.filter(
+    (part) => part.type === 'file' && (part as SkippableFileUIPart).skipped,
+  ).length;
 
 // Custom comparison function for React.memo
 // Only re-render when props that affect rendering change
@@ -633,7 +653,7 @@ const arePropsEqual = (
   if (prevProps.message.id !== nextProps.message.id) {
     return false;
   }
-  if (prevProps.message.content !== nextProps.message.content) {
+  if (getMessageText(prevProps.message) !== getMessageText(nextProps.message)) {
     return false;
   }
   if (prevProps.message.role !== nextProps.message.role) {
@@ -648,8 +668,8 @@ const arePropsEqual = (
   }
 
   // Check parts changes (for streaming tool invocations and sources)
-  const prevPartsLength = prevProps.message.parts?.length ?? 0;
-  const nextPartsLength = nextProps.message.parts?.length ?? 0;
+  const prevPartsLength = prevProps.message.parts.length;
+  const nextPartsLength = nextProps.message.parts.length;
   if (prevPartsLength !== nextPartsLength) {
     return false;
   }
@@ -667,11 +687,17 @@ const arePropsEqual = (
   }
 
   // Check attachments
-  const prevAttachmentsLength =
-    prevProps.message.experimental_attachments?.length ?? 0;
-  const nextAttachmentsLength =
-    nextProps.message.experimental_attachments?.length ?? 0;
-  if (prevAttachmentsLength !== nextAttachmentsLength) {
+  if (
+    getFilePartsCount(prevProps.message) !==
+    getFilePartsCount(nextProps.message)
+  ) {
+    return false;
+  }
+
+  if (
+    getSkippedFilePartsCount(prevProps.message) !==
+    getSkippedFilePartsCount(nextProps.message)
+  ) {
     return false;
   }
 
