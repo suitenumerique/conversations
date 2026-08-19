@@ -135,14 +135,6 @@ class ChatConversationRequestSerializer(serializers.Serializer):
     See ChatViewSet().post_conversation(...) method for more details.
     """
 
-    protocol = serializers.CharField(
-        required=False,
-        default="data",
-        help_text="Protocol version to use for the conversation (text or data).",
-        allow_blank=True,
-        trim_whitespace=True,
-    )
-
     force_web_search = serializers.BooleanField(
         required=False,
         default=False,
@@ -163,12 +155,6 @@ class ChatConversationRequestSerializer(serializers.Serializer):
     def create(self, validated_data):
         """Create method is not applicable in this context."""
         raise NotImplementedError("`create()` should not be used in this context.")
-
-    def validate_protocol(self, value):
-        """Validate the protocol field."""
-        if value not in ["text", "data"]:
-            raise serializers.ValidationError("Protocol must be either 'text' or 'data'.")
-        return value
 
     def validate_model_hrid(self, value):
         """Validate the model_hrid field."""

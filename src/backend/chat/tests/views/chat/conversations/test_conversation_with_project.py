@@ -15,11 +15,14 @@ from chat.tools.descriptions import SELF_DOCUMENTATION_SYSTEM_PROMPT
 pytestmark = pytest.mark.django_db(transaction=True)
 
 _HELLO_THERE_STREAM = (
-    '0:"Hello"\n'
-    '0:" there"\n'
-    'f:{"messageId":"<mocked_uuid>"}\n'
-    'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0,'
-    '"co2Impact":0.0}}\n'
+    'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+    'data: {"type":"text-start","id":"0"}\n\n'
+    'data: {"type":"text-delta","id":"0","delta":"Hello"}\n\n'
+    'data: {"type":"text-delta","id":"0","delta":" there"}\n\n'
+    'data: {"type":"text-end","id":"0"}\n\n'
+    'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":0,"completionTokens":0'
+    ',"co2Impact":0.0}}}\n\n'
+    "data: [DONE]\n\n"
 )
 
 
@@ -92,7 +95,7 @@ def test_post_conversation_includes_project_llm_instructions(
     else:
         conversation = ChatConversationFactory(owner__language="en-us")
 
-    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/"
     api_client.force_login(conversation.owner)
     response = api_client.post(url, project_hello_data, format="json")
 

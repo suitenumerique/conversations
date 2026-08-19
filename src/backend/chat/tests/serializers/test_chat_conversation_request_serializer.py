@@ -38,32 +38,6 @@ def test_chat_conversation_request_serializer_default():
     assert serializer.validated_data == {
         "force_web_search": False,
         "model_hrid": None,
-        "protocol": "data",
-    }
-
-
-@pytest.mark.parametrize(
-    "protocol",
-    ["data", "text"],
-)
-def test_chat_conversation_request_serializer_protocol_valid(protocol):
-    """
-    Test that the serializer accepts valid protocol values ('data', 'text').
-    """
-    serializer = serializers.ChatConversationRequestSerializer(data={"protocol": protocol})
-    assert serializer.is_valid()
-
-
-def test_chat_conversation_request_serializer_protocol_invalid():
-    """
-    Test that the serializer rejects invalid protocol values.
-    """
-    serializer = serializers.ChatConversationRequestSerializer(data={"protocol": "invalid"})
-    assert not serializer.is_valid()
-    assert serializer.errors == {
-        "protocol": [
-            ErrorDetail(string="Protocol must be either 'text' or 'data'.", code="invalid")
-        ]
     }
 
 

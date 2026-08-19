@@ -13,8 +13,8 @@ changes are needed in views.py or tests.
    If the conversation belongs to a project with custom LLM instructions,
    they are injected as a dynamic agent instruction.
 
-2. **Streaming Entry Points**: `stream_text()` or `stream_data()` are called
-   with user messages. These wrap async generators for sync consumption.
+2. **Streaming Entry Point**: `stream_data()` is called with user messages.
+   It wraps the async generator for sync consumption.
 
 3. **Agent Execution** (`_run_agent`):
    a. Validate last message is from user
@@ -54,13 +54,13 @@ Documents attached to messages go through several stages:
 
 Events flow through several layers:
 
-    _run_agent (yields events)
+    _run_agent (yields v4 events)
         ↓
-    _stream_content (applies encoder)
+    _stream_content (translates to v5, applies encoder)
         ↓
-    stream_text_async / stream_data_async
+    stream_data_async
         ↓
-    stream_text / stream_data (sync wrapper)
+    stream_data (sync wrapper)
 
 The `StreamingState` dataclass tracks mutable state across the streaming process:
 - `tool_is_streaming`: Prevents duplicate tool call events when streaming deltas
@@ -85,7 +85,7 @@ import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack
 from io import BytesIO
-from typing import AsyncGenerator, Callable, Dict, List, Optional, Tuple, Union
+from typing import AsyncGenerator, Dict, List, Optional, Tuple, Union
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -146,8 +146,8 @@ from chat.agents.local_media_url_processors import (
     update_local_urls,
 )
 from chat.ai_sdk_types import (
-    LanguageModelV1Source,
-    SourceUIPart,
+    FileUIPart,
+    SourceUrlUIPart,
     UIMessage,
 )
 from chat.clients.async_to_sync import convert_async_generator_to_sync
@@ -202,6 +202,8 @@ from chat.tools.document_summarize import document_summarize, document_summarize
 from chat.tools.self_documentation import build_self_documentation_payload
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
+from chat.vercel_ai_sdk.encoder.encoder import DONE_FRAME
+from chat.vercel_ai_sdk.encoder.v4_to_v5 import V4ToV5Translator
 
 # Keep at the top of the file to avoid mocking issues
 document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
@@ -254,20 +256,22 @@ def _strip_thinking_parts(history: list[ModelMessage]) -> list[ModelMessage]:
 
 
 def iter_image_attachments(messages: list[UIMessage]):
-    """Yield each image-like attachment across the given messages.
+    """Yield each image-like file part across the given messages.
 
     Single source of truth for the "is this attachment an image?" predicate
     used by readers (``list_images``) and writers (``_mark_image_attachments_skipped``).
     """
     for message in messages:
-        for attachment in message.experimental_attachments or []:
-            if (attachment.contentType or "").startswith(IMAGE_MIME_PREFIX):
-                yield attachment
+        for part in message.parts or []:
+            if isinstance(part, FileUIPart) and (part.mediaType or "").startswith(
+                IMAGE_MIME_PREFIX
+            ):
+                yield part
 
 
 def list_images(messages: list[UIMessage]) -> list[str]:
     """Return names of every image attachment across the message history."""
-    return [a.name for a in iter_image_attachments(messages) if a.name is not None]
+    return [part.filename for part in iter_image_attachments(messages) if part.filename]
 
 
 def _extract_co2_from_usage(usage: RunUsage) -> float:
@@ -315,7 +319,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._langfuse_available = settings.LANGFUSE_ENABLED
         self._store_analytics = self._langfuse_available and user.allow_conversation_analytics
         self._langfuse_span = None
-        self.event_encoder = EventEncoder(CURRENT_EVENT_ENCODER_VERSION)  # We use v4 for now
+        self.event_encoder = EventEncoder(CURRENT_EVENT_ENCODER_VERSION)
+        # Id of the assistant message of the current stream, announced to the
+        # client in the `start` frame and persisted with the message. Set per
+        # stream by _stream_content.
+        self._model_response_message_id: str | None = None
 
         self._support_streaming = True
         if (streaming := self.model_configuration.supports_streaming) is not None:
@@ -394,10 +402,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # Public streaming API (unchanged signatures)
     # --------------------------------------------------------------------- #
 
-    def stream_text(self, messages: List[UIMessage], force_web_search: bool = False):
-        """Return only the assistant text deltas (legacy text mode)."""
-        return convert_async_generator_to_sync(self.stream_text_async(messages, force_web_search))
-
     def stream_data(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return Vercel-AI-SDK formatted events."""
         return convert_async_generator_to_sync(self.stream_data_async(messages, force_web_search))
@@ -430,7 +434,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
     @staticmethod
     def _mark_image_attachments_skipped(user_message: UIMessage) -> bool:
-        """Stamp a ``skipped`` marker on every image-like attachment.
+        """Stamp a ``skipped`` marker on every image-like file part.
 
         Returns True if at least one attachment was marked. The persisted user
         bubble keeps the image attachments (filenames + URLs) so the frontend
@@ -478,11 +482,29 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 "can't read images."
             )
 
+    def _new_model_response_message_id(self) -> str:
+        """Build the id of the assistant message about to be streamed.
+
+        Prefixed with the Langfuse trace id when tracing is on: the frontend
+        keys its feedback buttons on that prefix to score the exact trace. The
+        id is minted at stream start because v5 pins the message identity on the
+        `start` frame — changing it mid-stream would fork the message in two.
+        """
+        if not self._langfuse_available:
+            return str(uuid.uuid4())
+        trace_id = get_client().get_current_trace_id()
+        if not trace_id:
+            # No active trace: a `trace-None` id would make the frontend offer
+            # feedback buttons that score a trace which does not exist.
+            return str(uuid.uuid4())
+        return f"trace-{trace_id}"
+
     async def _stream_content(  # noqa: PLR0912  # pylint: disable=too-many-branches
-        self, messages: List[UIMessage], force_web_search: bool = False, encoder_fn: Callable = None
+        self, messages: List[UIMessage], force_web_search: bool = False
     ):
-        """Common streaming logic with configurable encoder."""
+        """Stream the agent run as a Vercel AI SDK UI message stream."""
         await self._clean()
+        translator = V4ToV5Translator()
         with ExitStack() as stack:
             if self._langfuse_available:
                 stack.enter_context(
@@ -498,10 +520,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     get_client().start_as_current_observation(name="conversation", as_type="span")
                 )
 
+            self._model_response_message_id = self._new_model_response_message_id()
+            yield self.event_encoder.encode(
+                events_v5.MessageStartEvent(messageId=self._model_response_message_id)
+            )
+
             try:
                 async for event in self._run_agent(messages, force_web_search):
-                    if stream_text := encoder_fn(event):
-                        yield stream_text
+                    for translated in translator.translate(event):
+                        yield self.event_encoder.encode(translated)
             except (ModelHTTPError, HTTPValidationError, SDKError) as exc:
                 # HTTPValidationError and SDKError are mistral-specific exceptions not
                 # wrapped by pydantic_ai into ModelHTTPError.
@@ -520,10 +547,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 if messages:
                     await self._persist_user_message_on_error(messages[-1])
                 error_event = events_v4.ErrorPart(error=error_code)
-                if encoded := encoder_fn(error_event):
-                    yield encoded
-                else:
-                    raise
+                for translated in translator.translate(error_event):
+                    yield self.event_encoder.encode(translated)
             except ModelAPIError as exc:
                 logger.warning(
                     "LLM provider connection error for conversation %s: %s",
@@ -533,10 +558,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 if messages:
                     await self._persist_user_message_on_error(messages[-1])
                 error_event = events_v4.ErrorPart(error="model_connection_error")
-                if encoded := encoder_fn(error_event):
-                    yield encoded
-                else:
-                    raise
+                for translated in translator.translate(error_event):
+                    yield self.event_encoder.encode(translated)
             except SummarizationRequiredError as exc:
                 logger.error(
                     "Summarization required but failed for conversation %s: %s",
@@ -546,24 +569,17 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 if messages:
                     await self._persist_user_message_on_error(messages[-1])
                 error_event = events_v4.ErrorPart(error="summarization_failed")
-                if encoded := encoder_fn(error_event):
-                    yield encoded
-                else:
-                    raise
+                for translated in translator.translate(error_event):
+                    yield self.event_encoder.encode(translated)
 
-    async def stream_text_async(self, messages: List[UIMessage], force_web_search: bool = False):
-        """Return only the assistant text deltas (legacy text mode)."""
-        async for chunk in self._stream_content(
-            messages, force_web_search, encoder_fn=self.event_encoder.encode_text
-        ):
-            yield chunk
+            for translated in translator.flush():
+                yield self.event_encoder.encode(translated)
+            yield DONE_FRAME
 
     async def stream_data_async(self, messages: List[UIMessage], force_web_search: bool = False):
         """Return Vercel-AI-SDK formatted events."""
 
-        async for chunk in self._stream_content(
-            messages, force_web_search, encoder_fn=self.event_encoder.encode
-        ):
+        async for chunk in self._stream_content(messages, force_web_search):
             yield chunk
 
     async def _agent_stop_streaming(self, force_cache_check: Optional[bool] = False) -> None:
@@ -938,7 +954,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         return False
 
     async def _process_agent_nodes(
-        self, run, state: StreamingState, langfuse
+        self, run, state: StreamingState
     ) -> AsyncGenerator[events_v4.Event, None]:
         """
         Process nodes from the Pydantic-AI agent iteration loop.
@@ -953,8 +969,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
           - Executes tools and yields results
           - Collects source citations into state.ui_sources
         - **EndNode**: The agent run is complete
-          - Sets state.model_response_message_id for Langfuse linking
-          - Yields StartStepPart with the message ID
+          - Sets state.model_response_message_id (minted at stream start) so
+            the persisted message keeps the id the client was given
 
         This method delegates to specialized handlers for each node type,
         passing the shared StreamingState to track cross-node state.
@@ -982,7 +998,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             elif Agent.is_end_node(node):
                 # Once an End node is reached, the agent run is complete
                 logger.debug("v: %s", dataclasses.asdict(node))
-                yield self._handle_end_node(node, langfuse, state)
+                self._handle_end_node(node, state)
 
     async def _fetch_document_data(
         self, document: "BinaryContent | DocumentUrl"
@@ -1510,15 +1526,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     if isinstance(event.part, ToolReturnPart):
                         if event.part.metadata and (sources := event.part.metadata.get("sources")):
                             for source_url in sources:
-                                url_source = LanguageModelV1Source(
-                                    sourceType="url",
-                                    id=str(uuid.uuid4()),
-                                    url=source_url,
-                                    providerMetadata={},
+                                source_id = str(uuid.uuid4())
+                                state.ui_sources.append(
+                                    SourceUrlUIPart(
+                                        type="source-url", sourceId=source_id, url=source_url
+                                    )
                                 )
-                                _new_source_ui = SourceUIPart(type="source", source=url_source)
-                                state.ui_sources.append(_new_source_ui)
-                                yield events_v4.SourcePart(**_new_source_ui.source.model_dump())
+                                yield events_v4.SourcePart(id=source_id, url=source_url)
                         yield events_v4.ToolResultPart(
                             tool_call_id=event.tool_call_id, result=event.part.content
                         )
@@ -1534,17 +1548,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                             dataclasses.asdict(event.part),
                         )
 
-    def _handle_end_node(self, node, langfuse, state: StreamingState) -> events_v4.StartStepPart:
+    def _handle_end_node(self, node, state: StreamingState) -> None:
         """Handle end node - set message ID."""
         logger.debug("End node: %s", dataclasses.asdict(node))
         if state.model_response_message_id:
             logger.error("_model_response_message_id already set")
-        state.model_response_message_id = (
-            str(uuid.uuid4())
-            if not self._langfuse_available
-            else f"trace-{langfuse.get_current_trace_id()}"
-        )
-        return events_v4.StartStepPart(message_id=state.model_response_message_id)
+        # Minted (and streamed) by _stream_content: the persisted message must
+        # carry the same id the client already assigned to the live one.
+        state.model_response_message_id = self._model_response_message_id
 
     async def _generate_title_if_needed(self) -> str | None:
         """Generate and set title if auto-title conditions are met."""
@@ -1635,8 +1646,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 ]
             )
         self._update_langfuse_trace(run_output)
-        # Stream the same CO2 annotation _prepare_update_conversation persisted,
-        # so the live message matches what a reload hydrates from the database.
+        # Stream the CO2 annotation _prepare_update_conversation persists, so the
+        # live message carries it like a reload does. Only that key is stored:
+        # the usage in the finish frame below is streamed but never persisted.
         if message_co2_impact:
             yield events_v4.MessageAnnotationPart(annotations=[{"co2_impact": message_co2_impact}])
         # Vercel finish message
@@ -1657,10 +1669,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """Run the Pydantic AI agent and stream events."""
         if not messages or messages[-1].role != "user":
             return
-
-        # Trace-level attributes are propagated by `_stream_content` via
-        # `propagate_attributes`; `langfuse` is kept for downstream helpers.
-        langfuse = get_client() if self._langfuse_available else None
 
         (
             user_prompt,
@@ -1755,7 +1763,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 toolsets=mcp_servers,
             ) as run:
                 state = StreamingState()
-                async for event in self._process_agent_nodes(run, state, langfuse):
+                async for event in self._process_agent_nodes(run, state):
                     yield event
 
                 # Extract values from run before exiting the context manager
@@ -1808,7 +1816,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         *,
         final_output: List[ModelRequest | ModelMessage],
         usage: Dict[str, Union[int, float]],
-        ui_sources: Optional[List[SourceUIPart]] = None,
+        ui_sources: Optional[List[SourceUrlUIPart]] = None,
         model_response_message_id: str | None = None,
         image_actions: Optional[ImagePostRunActions] = None,
     ):  # pylint: disable=too-many-arguments
@@ -1823,7 +1831,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             usage (Dict[str, Union[int, float]]): Token and CO2 usage statistics
             (mutated in-place to accumulate across turns).
             model_response_message_id (str | None): Message ID
-            ui_sources (List[SourceUIPart]): Optional UI sources to include in the conversation.
+            ui_sources (List[SourceUrlUIPart]): Optional UI sources to include.
             image_actions (ImagePostRunActions | None): Per-turn image-URL
             surgery to apply before persistence (rewrite presigned URLs back
             to durable form for in-message images, drop pinned project
@@ -1854,9 +1862,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         co2_impact = usage["co2_impact"]
         if co2_impact:
-            if _output_ui_message.annotations is None:
-                _output_ui_message.annotations = []
-            _output_ui_message.annotations.append({"co2_impact": co2_impact})
+            _output_ui_message.metadata = {
+                **(_output_ui_message.metadata or {}),
+                "co2_impact": co2_impact,
+            }
 
         usage["co2_impact"] += self.conversation.agent_usage.get("co2_impact", 0)
         usage["promptTokens"] += self.conversation.agent_usage.get("promptTokens", 0)

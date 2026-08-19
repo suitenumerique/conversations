@@ -3,7 +3,19 @@
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
+
+TOOL_PART_PREFIX = "tool-"
+
+# Stand-in for a v4 attachment stored without a content type.
+DEFAULT_MEDIA_TYPE = "application/octet-stream"
+
+# v4 tool-invocation states, mapped to their v5 equivalent.
+TOOL_STATE_V4_TO_V5 = {
+    "partial-call": "input-streaming",
+    "call": "input-available",
+    "result": "output-available",
+}
 
 # JSONValue type
 JSONValue = Union[None, str, int, float, bool, Dict[str, Any], List[Any]]
@@ -158,26 +170,45 @@ class ReasoningUIPart(BaseModel):
 
     Attributes:
         type: The type of UI part, fixed to 'reasoning'.
-        reasoning: The reasoning text.
-        details: List of reasoning details.
+        text: The reasoning text.
     """
 
     type: Literal["reasoning"]
-    reasoning: str
-    details: List[ReasoningDetail]
+    text: str
 
 
-class ToolInvocationUIPart(BaseModel):
+class ToolUIPart(BaseModel):
     """
     Represents a tool invocation part of a message.
 
     Attributes:
-        type: The type of UI part, fixed to 'tool-invocation'.
-        toolInvocation: The tool invocation details.
+        type: The type of UI part, ``tool-<toolName>``.
+        toolCallId: A unique identifier for the tool call.
+        state: How far the invocation got.
+        input: The arguments the tool was called with.
+        output: The result the tool returned, once it has one.
+        errorText: The failure message, when the invocation errored.
     """
 
-    type: Literal["tool-invocation"]
-    toolInvocation: ToolInvocation
+    type: str
+    toolCallId: str
+    state: Literal["input-streaming", "input-available", "output-available", "output-error"]
+    input: Optional[Any] = None
+    output: Optional[Any] = None
+    errorText: Optional[str] = None
+
+    @field_validator("type")
+    @classmethod
+    def _check_tool_type(cls, value: str) -> str:
+        """The part type carries the tool name, so it must be prefixed."""
+        if not value.startswith(TOOL_PART_PREFIX) or value == TOOL_PART_PREFIX:
+            raise ValueError(f"Tool part type must be '{TOOL_PART_PREFIX}<name>', got {value!r}")
+        return value
+
+    @property
+    def tool_name(self) -> str:
+        """The name of the invoked tool."""
+        return self.type[len(TOOL_PART_PREFIX) :]
 
 
 class LanguageModelV1Source(BaseModel):
@@ -199,17 +230,21 @@ class LanguageModelV1Source(BaseModel):
     providerMetadata: Dict[str, Any]  # LanguageModelV1ProviderMetadata
 
 
-class SourceUIPart(BaseModel):
+class SourceUrlUIPart(BaseModel):
     """
-    Represents a source part of a message.
+    Represents a URL source part of a message.
 
     Attributes:
-        type: The type of UI part, fixed to 'source'.
-        source: The source information.
+        type: The type of UI part, fixed to 'source-url'.
+        sourceId: The ID of the source.
+        url: The URL of the source.
+        title: The title of the source.
     """
 
-    type: Literal["source"]
-    source: LanguageModelV1Source
+    type: Literal["source-url"]
+    sourceId: str
+    url: str
+    title: Optional[str] = None
 
 
 class FileUIPart(BaseModel):
@@ -218,13 +253,20 @@ class FileUIPart(BaseModel):
 
     Attributes:
         type: The type of UI part, fixed to 'file'.
-        mimeType: The MIME type of the file.
-        data: The file data.
+        mediaType: The MIME type of the file.
+        url: The file URL, either hosted or a data URL.
+        filename: Optional name of the file.
+        skipped: Optional marker stamped by the backend when this file was kept
+            on the persisted message but excluded from what the model saw, e.g.
+            an image attached to a chat now pinned to a text-only model.
+            Shape: ``{"reason": "<short_code>"}``.
     """
 
     type: Literal["file"]
-    mimeType: str
-    data: str
+    mediaType: str
+    url: str
+    filename: Optional[str] = None
+    skipped: Optional[Dict[str, Any]] = None
 
 
 class StepStartUIPart(BaseModel):
@@ -241,11 +283,101 @@ class StepStartUIPart(BaseModel):
 UIPart = Union[
     TextUIPart,
     ReasoningUIPart,
-    ToolInvocationUIPart,
-    SourceUIPart,
+    ToolUIPart,
+    SourceUrlUIPart,
     FileUIPart,
     StepStartUIPart,
 ]
+
+
+def upconvert_v4_message(message: Dict[str, Any]) -> Dict[str, Any]:
+    """Bring a v4-shaped message dict up to the v5 shape, in place.
+
+    Conversations stored before the SDK v5 upgrade (and any client still posting
+    v4 messages) go through this on their way in; it is idempotent, so a v5
+    message passes through untouched.
+    """
+    parts = [_upconvert_v4_part(part) for part in message.get("parts") or []]
+
+    # v5 carries files as parts rather than a message-level list. `contentType`
+    # was optional in v4 while `mediaType` is required here, and this runs on
+    # every read: without a fallback one such attachment would fail validation
+    # and take down the whole conversation.
+    for attachment in message.pop("experimental_attachments", None) or []:
+        parts.append(
+            {
+                "type": "file",
+                "mediaType": attachment.get("contentType") or DEFAULT_MEDIA_TYPE,
+                "url": attachment.get("url"),
+                "filename": attachment.get("name"),
+                "skipped": attachment.get("skipped"),
+            }
+        )
+
+    # The deprecated `content` was the only text of messages stored before parts
+    # were populated; keep it readable by giving it a part of its own.
+    content = message.get("content")
+    if content and not any(_part_type(part) == "text" for part in parts):
+        parts.insert(0, {"type": "text", "text": content})
+
+    message["parts"] = parts
+
+    # Annotations became message metadata; this is where the CO2 impact lives.
+    annotations = message.pop("annotations", None)
+    if annotations:
+        metadata = dict(message.get("metadata") or {})
+        for annotation in annotations:
+            if isinstance(annotation, dict):
+                metadata.update(annotation)
+        message["metadata"] = metadata
+
+    return message
+
+
+def _part_type(part: Any) -> Optional[str]:
+    """The ``type`` of a part, which may still be a raw dict or already a model."""
+    return part.get("type") if isinstance(part, dict) else getattr(part, "type", None)
+
+
+def _upconvert_v4_part(part: Dict[str, Any]) -> Dict[str, Any]:
+    """Bring a single v4 message part up to its v5 shape."""
+    if not isinstance(part, dict):
+        return part
+
+    part_type = part.get("type")
+
+    if part_type == "tool-invocation":
+        invocation = part.get("toolInvocation") or {}
+        upconverted = {
+            "type": f"{TOOL_PART_PREFIX}{invocation.get('toolName')}",
+            "toolCallId": invocation.get("toolCallId"),
+            "state": TOOL_STATE_V4_TO_V5.get(invocation.get("state"), "output-available"),
+            "input": invocation.get("args"),
+        }
+        if "result" in invocation:
+            upconverted["output"] = invocation["result"]
+        return upconverted
+
+    if part_type == "reasoning" and "text" not in part:
+        return {"type": "reasoning", "text": part.get("reasoning", "")}
+
+    if part_type == "source":
+        source = part.get("source") or {}
+        return {
+            "type": "source-url",
+            "sourceId": source.get("id"),
+            "url": source.get("url"),
+            "title": source.get("title"),
+        }
+
+    if part_type == "file" and "data" in part:
+        return {
+            "type": "file",
+            "mediaType": part.get("mimeType"),
+            "url": f"data:{part.get('mimeType')};base64,{part['data']}",
+        }
+
+    return part
 
 
 # Message and related types
@@ -256,22 +388,25 @@ class Message(BaseModel):
     Attributes:
         id: A unique identifier for the message.
         createdAt: Optional timestamp when the message was created.
-        experimental_attachments: Optional list of attachments.
         role: The role of the sender (system, user, assistant, or data).
-        annotations: Optional list of annotations.
+        metadata: Optional per-message metadata (token usage, CO2 impact...).
         parts: Optional list of UI parts that make up the message content.
     """
 
     id: str
     createdAt: Optional[datetime] = None
-    content: str  # deprecated, use parts instead
-    reasoning: Optional[str] = None  # deprecated, use parts instead
-    experimental_attachments: Optional[List[Attachment]] = None
+    content: Optional[str] = None  # deprecated, use parts instead
     role: Literal["system", "user", "assistant", "data"]
-    # data: Optional[JSONValue] = None
-    annotations: Optional[List[JSONValue]] = None
-    toolInvocations: Optional[List[ToolInvocation]] = None  # deprecated, use parts instead
+    metadata: Optional[Dict[str, Any]] = None
     parts: Optional[List[UIPart]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _upconvert(cls, value):
+        """Accept v4-shaped messages: stored history and older clients send them."""
+        if isinstance(value, dict):
+            return upconvert_v4_message(dict(value))
+        return value
 
 
 class UIMessage(Message):

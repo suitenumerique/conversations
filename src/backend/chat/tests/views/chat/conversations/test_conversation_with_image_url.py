@@ -21,7 +21,7 @@ from rest_framework import status
 
 from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.ai_sdk_types import (
-    Attachment,
+    FileUIPart,
     TextUIPart,
     UIMessage,
 )
@@ -75,13 +75,7 @@ def test_post_conversation_with_local_image_url(
                 text="What is in this image?",
                 type="text",
             ),
-        ],
-        experimental_attachments=[
-            Attachment(
-                name="sample.png",
-                contentType="image/png",
-                url=image_url,
-            )
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url),
         ],
     )
 
@@ -129,7 +123,7 @@ def test_post_conversation_with_local_image_url(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -139,10 +133,14 @@ def test_post_conversation_with_local_image_url(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '0:"This is an image of a single pixel."\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":9,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"This is an image of a single pixel."}\n'
+        "\n"
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":50,"completionToke'
+        'ns":9,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # Check that the conversation was updated
@@ -154,15 +152,10 @@ def test_post_conversation_with_local_image_url(
         id=chat_conversation.messages[0].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="What is in this image?",
-        reasoning=None,
-        experimental_attachments=[
-            Attachment(name="sample.png", contentType="image/png", url=image_url)
-        ],
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="What is in this image?"),
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url),
         ],
     )
 
@@ -171,11 +164,7 @@ def test_post_conversation_with_local_image_url(
         id=chat_conversation.messages[1].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="This is an image of a single pixel.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="This is an image of a single pixel."),
         ],
@@ -273,13 +262,7 @@ def test_post_conversation_with_local_image_wrong_url(
                 text="What is in this image?",
                 type="text",
             ),
-        ],
-        experimental_attachments=[
-            Attachment(
-                name="sample.png",
-                contentType="image/png",
-                url=image_url,
-            )
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url),
         ],
     )
 
@@ -322,7 +305,7 @@ def test_post_conversation_with_local_image_wrong_url(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -332,10 +315,13 @@ def test_post_conversation_with_local_image_wrong_url(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '0:"cannot read image."\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":4,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"cannot read image."}\n\n'
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":50,"completionToke'
+        'ns":4,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # We don't check conversation messages here because the LLM would
@@ -365,13 +351,7 @@ def test_post_conversation_with_remote_image_url(
                 text="What is in this image?",
                 type="text",
             ),
-        ],
-        experimental_attachments=[
-            Attachment(
-                name="sample.png",
-                contentType="image/png",
-                url=image_url,
-            )
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url),
         ],
     )
 
@@ -414,7 +394,7 @@ def test_post_conversation_with_remote_image_url(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -424,10 +404,14 @@ def test_post_conversation_with_remote_image_url(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '0:"This is an image of a single pixel."\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":9,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"This is an image of a single pixel."}\n'
+        "\n"
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":50,"completionToke'
+        'ns":9,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # Check that the conversation was updated
@@ -439,15 +423,10 @@ def test_post_conversation_with_remote_image_url(
         id=chat_conversation.messages[0].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="What is in this image?",
-        reasoning=None,
-        experimental_attachments=[
-            Attachment(name="sample.png", contentType="image/png", url=image_url)
-        ],
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="What is in this image?"),
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url),
         ],
     )
 
@@ -456,11 +435,7 @@ def test_post_conversation_with_remote_image_url(
         id=chat_conversation.messages[1].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="This is an image of a single pixel.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="This is an image of a single pixel."),
         ],
@@ -486,26 +461,19 @@ def test_post_conversation_with_local_image_url_in_history(
                 id=str(uuid.uuid4()),
                 createdAt=timezone.now(),
                 content="What is in this image?",
-                reasoning=None,
-                experimental_attachments=[
-                    Attachment(name="sample.png", contentType="image/png", url=image_url)
-                ],
                 role="user",
-                annotations=None,
-                toolInvocations=None,
                 parts=[
                     TextUIPart(type="text", text="What is in this image?"),
+                    FileUIPart(
+                        type="file", filename="sample.png", mediaType="image/png", url=image_url
+                    ),
                 ],
             ),
             UIMessage(
                 id=str(uuid.uuid4()),
                 createdAt=timezone.now(),
                 content="This is an image of a single pixel.",
-                reasoning=None,
-                experimental_attachments=None,
                 role="assistant",
-                annotations=None,
-                toolInvocations=None,
                 parts=[
                     TextUIPart(type="text", text="This is an image of a single pixel."),
                 ],
@@ -649,7 +617,7 @@ def test_post_conversation_with_local_image_url_in_history(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -659,10 +627,14 @@ def test_post_conversation_with_local_image_url_in_history(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '0:"This is an image of square, very small and nice."\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":11,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"This is an image of square, very small '
+        'and nice."}\n\n'
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":50,"completionToke'
+        'ns":11,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # Check that the conversation was updated
@@ -674,15 +646,10 @@ def test_post_conversation_with_local_image_url_in_history(
         id=chat_conversation.messages[0].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="What is in this image?",
-        reasoning=None,
-        experimental_attachments=[
-            Attachment(name="sample.png", contentType="image/png", url=image_url)
-        ],
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="What is in this image?"),
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url),
         ],
     )
 
@@ -691,11 +658,7 @@ def test_post_conversation_with_local_image_url_in_history(
         id=chat_conversation.messages[1].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="This is an image of a single pixel.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="This is an image of a single pixel."),
         ],
@@ -706,11 +669,7 @@ def test_post_conversation_with_local_image_url_in_history(
         id=chat_conversation.messages[2].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="Give more details about this image.",
-        reasoning=None,
-        experimental_attachments=None,
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="Give more details about this image."),
         ],
@@ -721,11 +680,7 @@ def test_post_conversation_with_local_image_url_in_history(
         id=chat_conversation.messages[3].id,  # don't test the value directly
         createdAt=timezone.now(),
         content="This is an image of square, very small and nice.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="This is an image of square, very small and nice."),
         ],

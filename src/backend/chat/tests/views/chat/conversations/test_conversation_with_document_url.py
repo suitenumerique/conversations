@@ -30,7 +30,7 @@ from core.file_upload.enums import AttachmentStatus
 
 from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.ai_sdk_types import (
-    Attachment,
+    FileUIPart,
     TextUIPart,
     UIMessage,
 )
@@ -190,13 +190,9 @@ def test_post_conversation_with_local_pdf_document_url(
                 text="What is in this document?",
                 type="text",
             ),
-        ],
-        experimental_attachments=[
-            Attachment(
-                name="sample.pdf",
-                contentType="application/pdf",
-                url=document_url,
-            )
+            FileUIPart(
+                type="file", filename="sample.pdf", mediaType="application/pdf", url=document_url
+            ),
         ],
     )
 
@@ -222,7 +218,7 @@ def test_post_conversation_with_local_pdf_document_url(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -232,13 +228,18 @@ def test_post_conversation_with_local_pdf_document_url(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
-        'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
-        '0:"This is a document about a single pixel."\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":9,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"tool-input-available","toolCallId":"XXX","toolName":"document_parsing'
+        '","input":{"documents":[{"identifier":"sample.pdf"}]}}\n\n'
+        'data: {"type":"tool-output-available","toolCallId":"XXX","output":{"state":"done"}}'
+        "\n\n"
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"This is a document about a single pixel'
+        '."}\n\n'
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":50,"completionToke'
+        'ns":9,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # Check that the conversation was updated
@@ -250,11 +251,8 @@ def test_post_conversation_with_local_pdf_document_url(
         id=chat_conversation.messages[0].id,
         createdAt=timezone.now(),
         content="What is in this document?",
-        reasoning=None,
         experimental_attachments=None,  # We should fix this, but for now document appears in source
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="What is in this document?"),
         ],
@@ -265,11 +263,7 @@ def test_post_conversation_with_local_pdf_document_url(
         id=chat_conversation.messages[1].id,
         createdAt=timezone.now(),
         content="This is a document about a single pixel.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="This is a document about a single pixel."),
         ],
@@ -358,13 +352,9 @@ def test_post_conversation_with_local_document_wrong_url(
                 text="What is in this document?",
                 type="text",
             ),
-        ],
-        experimental_attachments=[
-            Attachment(
-                name="sample.pdf",
-                contentType="application/pdf",
-                url=document_url,
-            )
+            FileUIPart(
+                type="file", filename="sample.pdf", mediaType="application/pdf", url=document_url
+            ),
         ],
     )
 
@@ -381,7 +371,7 @@ def test_post_conversation_with_local_document_wrong_url(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -391,13 +381,14 @@ def test_post_conversation_with_local_document_wrong_url(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
-        'a:{"toolCallId":"XXX",'
-        '"result":{"state":"error","kind":"rag_error","error":"Document '
-        'URL does not belong to the conversation."}}\n'
-        'd:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"tool-input-available","toolCallId":"XXX","toolName":"document_parsing'
+        '","input":{"documents":[{"identifier":"sample.pdf"}]}}\n\n'
+        'data: {"type":"tool-output-available","toolCallId":"XXX","output":{"state":"error","'
+        'kind":"rag_error","error":"Document URL does not belong to the conversation."}}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":0,"completionToken'
+        's":0,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # Check that the conversation was not updated
@@ -427,13 +418,9 @@ def test_post_conversation_with_remote_document_url(
                 text="What is in this document?",
                 type="text",
             ),
-        ],
-        experimental_attachments=[
-            Attachment(
-                name="sample.pdf",
-                contentType="application/pdf",
-                url=document_url,
-            )
+            FileUIPart(
+                type="file", filename="sample.pdf", mediaType="application/pdf", url=document_url
+            ),
         ],
     )
 
@@ -450,7 +437,7 @@ def test_post_conversation_with_remote_document_url(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -460,13 +447,14 @@ def test_post_conversation_with_remote_document_url(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
-        'a:{"toolCallId":"XXX",'
-        '"result":{"state":"error","kind":"rag_error","error":"External document '
-        'URL are not accepted yet."}}\n'
-        'd:{"finishReason":"error","usage":{"promptTokens":0,"completionTokens":0,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"tool-input-available","toolCallId":"XXX","toolName":"document_parsing'
+        '","input":{"documents":[{"identifier":"sample.pdf"}]}}\n\n'
+        'data: {"type":"tool-output-available","toolCallId":"XXX","output":{"state":"error","'
+        'kind":"rag_error","error":"External document URL are not accepted yet."}}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":0,"completionToken'
+        's":0,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # Check that the conversation was not updated
@@ -501,26 +489,22 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                 id=str(uuid.uuid4()),
                 createdAt=timezone.now(),
                 content="What is in this document?",
-                reasoning=None,
-                experimental_attachments=[
-                    Attachment(name="sample.pdf", contentType="application/pdf", url=document_url)
-                ],
                 role="user",
-                annotations=None,
-                toolInvocations=None,
                 parts=[
                     TextUIPart(type="text", text="What is in this document?"),
+                    FileUIPart(
+                        type="file",
+                        filename="sample.pdf",
+                        mediaType="application/pdf",
+                        url=document_url,
+                    ),
                 ],
             ),
             UIMessage(
                 id=str(uuid.uuid4()),
                 createdAt=timezone.now(),
                 content="This is a document about a single pixel.",
-                reasoning=None,
-                experimental_attachments=None,
                 role="assistant",
-                annotations=None,
-                toolInvocations=None,
                 parts=[
                     TextUIPart(type="text", text="This is a document about a single pixel."),
                 ],
@@ -652,7 +636,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -662,10 +646,14 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '0:"This is a document of square, very small and nice."\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":11,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"This is a document of square, very smal'
+        'l and nice."}\n\n'
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":50,"completionToke'
+        'ns":11,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # Check that the conversation was updated
@@ -677,15 +665,12 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         id=chat_conversation.messages[0].id,
         createdAt=timezone.now(),
         content="What is in this document?",
-        reasoning=None,
-        experimental_attachments=[
-            Attachment(name="sample.pdf", contentType="application/pdf", url=document_url)
-        ],
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="What is in this document?"),
+            FileUIPart(
+                type="file", filename="sample.pdf", mediaType="application/pdf", url=document_url
+            ),
         ],
     )
 
@@ -694,11 +679,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         id=chat_conversation.messages[1].id,
         createdAt=timezone.now(),
         content="This is a document about a single pixel.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="This is a document about a single pixel."),
         ],
@@ -709,11 +690,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         id=chat_conversation.messages[2].id,
         createdAt=timezone.now(),
         content="Give more details about this document.",
-        reasoning=None,
-        experimental_attachments=None,
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="Give more details about this document."),
         ],
@@ -724,11 +701,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         id=chat_conversation.messages[3].id,
         createdAt=timezone.now(),
         content="This is a document of square, very small and nice.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="This is a document of square, very small and nice."),
         ],
@@ -893,13 +866,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
                 text="What is in this document?",
                 type="text",
             ),
-        ],
-        experimental_attachments=[
-            Attachment(
-                name=file_name,
-                contentType=content_type,
-                url=document_url,
-            )
+            FileUIPart(type="file", filename=file_name, mediaType=content_type, url=document_url),
         ],
     )
 
@@ -935,7 +902,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -945,13 +912,16 @@ def test_post_conversation_with_local_not_pdf_document_url(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        f'"args":{{"documents":[{{"identifier":"{file_name}"}}]}}}}\n'
-        'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
-        '0:"This is a document about you."\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":50,"completionTokens":7,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"tool-input-available","toolCallId":"XXX","toolName":"document_parsing"'
+        f',"input":{{"documents":[{{"identifier":"{file_name}"}}]}}}}\n\n'
+        'data: {"type":"tool-output-available","toolCallId":"XXX","output":{"state":"done"}}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"This is a document about you."}\n\n'
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":50,"completionTokens":7'
+        ',"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # Check that the conversation was updated
@@ -963,11 +933,8 @@ def test_post_conversation_with_local_not_pdf_document_url(
         id=chat_conversation.messages[0].id,
         createdAt=timezone.now(),
         content="What is in this document?",
-        reasoning=None,
         experimental_attachments=None,  # We should fix this, but for now document appears in source
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="What is in this document?"),
         ],
@@ -978,11 +945,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
         id=chat_conversation.messages[1].id,
         createdAt=timezone.now(),
         content="This is a document about you.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
             TextUIPart(type="text", text="This is a document about you."),
         ],

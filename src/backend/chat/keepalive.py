@@ -15,23 +15,20 @@ from typing import AsyncIterator, Iterator
 
 from django.conf import settings
 
-from .vercel_ai_sdk.core.events_v4 import DataPart as V4DataPart
 from .vercel_ai_sdk.core.events_v5 import DataPart as V5DataPart
-from .vercel_ai_sdk.encoder import (
-    CURRENT_EVENT_ENCODER_VERSION,
-    EventEncoder,
-    EventEncoderVersion,
-)
+from .vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
+from .vercel_ai_sdk.encoder.v4_to_v5 import data_part_type
 
 logger = logging.getLogger(__name__)
 
 
 def get_keepalive_message() -> str:
-    """Generate a keepalive message based on encoder/SDK version."""
-    if CURRENT_EVENT_ENCODER_VERSION == EventEncoderVersion.V4:
-        event = V4DataPart(data=[{"status": "WAITING"}])
-    else:
-        event = V5DataPart(data={"status": "WAITING"})
+    """Generate a keepalive message.
+
+    Transient, so the client hands it to `onData` and never adds it to the
+    message: it exists only to keep the connection warm.
+    """
+    event = V5DataPart(type=data_part_type("keepalive"), data={"status": "WAITING"})
     encoder = EventEncoder(CURRENT_EVENT_ENCODER_VERSION)
     return encoder.encode(event)
 
@@ -163,6 +160,12 @@ def stream_with_keepalive_sync(stream: Iterator[str]) -> Iterator[str]:
             # Re-raise from consume_stream
             if isinstance(item, Exception):
                 raise item
+
+            # The keepalive thread can queue a message while the source stream is
+            # finishing, which would put it after the terminator frame. Nothing
+            # needs keeping alive once the stream is done, so drop it.
+            if item == keepalive_message and stream_done.is_set():
+                continue
 
             yield item
             last_yield_time[0] = get_current_time()

@@ -26,12 +26,10 @@ from core.feature_flags.flags import FeatureToggle
 from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
 from chat.agents.summarize import SummarizationAgent
 from chat.ai_sdk_types import (
-    Attachment,
-    LanguageModelV1Source,
-    SourceUIPart,
+    FileUIPart,
+    SourceUrlUIPart,
     TextUIPart,
-    ToolInvocationCall,
-    ToolInvocationUIPart,
+    ToolUIPart,
     UIMessage,
 )
 from chat.constants import ACCESS_TOOL_CALL_ONLY
@@ -369,13 +367,9 @@ def test_post_conversation_with_document_upload(
                 text="What does the document say?",
                 type="text",
             ),
-        ],
-        experimental_attachments=[
-            Attachment(
-                name="sample.pdf",
-                contentType="application/pdf",
-                url=document_url,
-            )
+            FileUIPart(
+                type="file", filename="sample.pdf", mediaType="application/pdf", url=document_url
+            ),
         ],
     )
 
@@ -400,7 +394,7 @@ def test_post_conversation_with_document_upload(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -410,20 +404,25 @@ def test_post_conversation_with_document_upload(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
-        'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
-        'b:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_rag"}\n'
-        '9:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_rag",'
-        '"args":{"query":"What does the document say?"}}\n'
-        'h:{"sourceType":"url","id":"<mocked_uuid>","url":"sample.pdf","title":null,'
-        '"providerMetadata":{}}\n'
-        'a:{"toolCallId":"pyd_ai_YYY","result":[{"url":"sample.pdf","content":"This '
-        'is the content of the PDF.","score":0.9}]}\n'
-        "0:\"From the document, I can see that it says 'Hello PDF'.\"\n"
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":100,"completionTokens":20,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"tool-input-available","toolCallId":"XXX","toolName":"document_parsing'
+        '","input":{"documents":[{"identifier":"sample.pdf"}]}}\n\n'
+        'data: {"type":"tool-output-available","toolCallId":"XXX","output":{"state":"done"}}'
+        "\n\n"
+        'data: {"type":"tool-input-start","toolCallId":"pyd_ai_YYY","toolName":"document_sear'
+        'ch_rag"}\n\n'
+        'data: {"type":"tool-input-available","toolCallId":"pyd_ai_YYY","toolName":"document_'
+        'search_rag","input":{"query":"What does the document say?"}}\n\n'
+        'data: {"type":"source-url","sourceId":"<mocked_uuid>","url":"sample.pdf"}\n\n'
+        'data: {"type":"tool-output-available","toolCallId":"pyd_ai_YYY","output":[{"url":"sa'
+        'mple.pdf","content":"This is the content of the PDF.","score":0.9}]}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"From the document, I can see that it sa'
+        "ys 'Hello PDF'.\"}\n\n"
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":100,"completionTok'
+        'ens":20,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # Check that the conversation was updated
@@ -435,11 +434,7 @@ def test_post_conversation_with_document_upload(
         id=chat_conversation.messages[0].id,
         createdAt=timezone.now(),
         content="What does the document say?",
-        reasoning=None,
-        experimental_attachments=None,
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[TextUIPart(type="text", text="What does the document say?")],
     )
 
@@ -448,32 +443,19 @@ def test_post_conversation_with_document_upload(
         id=chat_conversation.messages[1].id,
         createdAt=timezone.now(),
         content="From the document, I can see that it says 'Hello PDF'.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
-            ToolInvocationUIPart(
-                type="tool-invocation",
-                toolInvocation=ToolInvocationCall(
-                    toolCallId=chat_conversation.messages[1].parts[0].toolInvocation.toolCallId,
-                    toolName="document_search_rag",
-                    args={"query": "What does the document say?"},
-                    state="call",
-                    step=None,
-                ),
+            ToolUIPart(
+                type="tool-document_search_rag",
+                toolCallId=chat_conversation.messages[1].parts[0].toolCallId,
+                state="input-available",
+                input={"query": "What does the document say?"},
             ),
             TextUIPart(type="text", text="From the document, I can see that it says 'Hello PDF'."),
-            SourceUIPart(
-                type="source",
-                source=LanguageModelV1Source(
-                    sourceType="url",
-                    id=chat_conversation.messages[1].parts[2].source.id,
-                    url="sample.pdf",
-                    title=None,
-                    providerMetadata={},
-                ),
+            SourceUrlUIPart(
+                type="source-url",
+                sourceId=chat_conversation.messages[1].parts[2].sourceId,
+                url="sample.pdf",
             ),
         ],
     )
@@ -637,13 +619,9 @@ def test_post_conversation_with_document_upload_feature_disabled(
                 text="What does the document say?",
                 type="text",
             ),
-        ],
-        experimental_attachments=[
-            Attachment(
-                name="sample.pdf",
-                contentType="application/pdf",
-                url=document_url,
-            )
+            FileUIPart(
+                type="file", filename="sample.pdf", mediaType="application/pdf", url=document_url
+            ),
         ],
     )
 
@@ -655,7 +633,7 @@ def test_post_conversation_with_document_upload_feature_disabled(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -664,11 +642,15 @@ def test_post_conversation_with_document_upload_feature_disabled(
     # Replace UUIDs with placeholders for assertion
     response_content = replace_uuids_with_placeholder(response_content)
     assert response_content == (
-        '0:"From the document, I can see that "\n'
-        "0:\"it says 'Hello PDF'.\"\n"
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":150,"completionTokens":25,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"From the document, I can see that "}\n'
+        "\n"
+        'data: {"type":"text-delta","id":"0","delta":"it says \'Hello PDF\'."}\n\n'
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":150,"completionTok'
+        'ens":25,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
     # This behavior must be improved in the future to inform the user properly
     assert "Document upload feature is disabled, ignoring input documents." in caplog.text
@@ -711,13 +693,9 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
                 text="Make a summary of this document.",
                 type="text",
             ),
-        ],
-        experimental_attachments=[
-            Attachment(
-                name="sample.pdf",
-                contentType="application/pdf",
-                url=document_url,
-            )
+            FileUIPart(
+                type="file", filename="sample.pdf", mediaType="application/pdf", url=document_url
+            ),
         ],
     )
 
@@ -742,7 +720,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -752,19 +730,25 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        '"args":{"documents":[{"identifier":"sample.pdf"}]}}\n'
-        'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
-        'b:{"toolCallId":"pyd_ai_YYY","toolName":"summarize"}\n'
-        '9:{"toolCallId":"pyd_ai_YYY","toolName":"summarize","args":{}}\n'
-        'h:{"sourceType":"url","id":"<mocked_uuid>","url":"sample.pdf.md",'
-        '"title":null,"providerMetadata":{}}\n'
-        'a:{"toolCallId":"pyd_ai_YYY","result":"The '
-        'document discusses various topics."}\n'
-        '0:"The document discusses various topics."\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":287,"completionTokens":19,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"tool-input-available","toolCallId":"XXX","toolName":"document_parsing'
+        '","input":{"documents":[{"identifier":"sample.pdf"}]}}\n\n'
+        'data: {"type":"tool-output-available","toolCallId":"XXX","output":{"state":"done"}}'
+        "\n\n"
+        'data: {"type":"tool-input-start","toolCallId":"pyd_ai_YYY","toolName":"summarize"}\n'
+        "\n"
+        'data: {"type":"tool-input-available","toolCallId":"pyd_ai_YYY","toolName":"summarize'
+        '","input":{}}\n\n'
+        'data: {"type":"source-url","sourceId":"<mocked_uuid>","url":"sample.pdf.md"}\n\n'
+        'data: {"type":"tool-output-available","toolCallId":"pyd_ai_YYY","output":"The docume'
+        'nt discusses various topics."}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"The document discusses various topics."'
+        "}\n\n"
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":287,"completionTok'
+        'ens":19,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # Check that the conversation was updated
@@ -776,11 +760,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         id=chat_conversation.messages[0].id,
         createdAt=timezone.now(),
         content="Make a summary of this document.",
-        reasoning=None,
-        experimental_attachments=None,
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[TextUIPart(type="text", text="Make a summary of this document.")],
     )
 
@@ -789,32 +769,19 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         id=chat_conversation.messages[1].id,
         createdAt=timezone.now(),
         content="The document discusses various topics.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
-            ToolInvocationUIPart(
-                type="tool-invocation",
-                toolInvocation=ToolInvocationCall(
-                    toolCallId=chat_conversation.messages[1].parts[0].toolInvocation.toolCallId,
-                    toolName="summarize",
-                    args={},
-                    state="call",
-                    step=None,
-                ),
+            ToolUIPart(
+                type="tool-summarize",
+                toolCallId=chat_conversation.messages[1].parts[0].toolCallId,
+                state="input-available",
+                input={},
             ),
             TextUIPart(type="text", text="The document discusses various topics."),
-            SourceUIPart(
-                type="source",
-                source=LanguageModelV1Source(
-                    sourceType="url",
-                    id=chat_conversation.messages[1].parts[2].source.id,
-                    url="sample.pdf.md",  # might be fixed in the future
-                    title=None,
-                    providerMetadata={},
-                ),
+            SourceUrlUIPart(
+                type="source-url",
+                sourceId=chat_conversation.messages[1].parts[2].sourceId,
+                url="sample.pdf.md",
             ),
         ],
     )
@@ -974,13 +941,12 @@ def test_post_conversation_with_odt_document_upload(
                 text="What does the document say?",
                 type="text",
             ),
-        ],
-        experimental_attachments=[
-            Attachment(
-                name="sample.odt",
-                contentType="application/vnd.oasis.opendocument.text",
+            FileUIPart(
+                type="file",
+                filename="sample.odt",
+                mediaType="application/vnd.oasis.opendocument.text",
                 url=document_url,
-            )
+            ),
         ],
     )
 
@@ -1005,7 +971,7 @@ def test_post_conversation_with_odt_document_upload(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -1015,20 +981,25 @@ def test_post_conversation_with_odt_document_upload(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '9:{"toolCallId":"XXX","toolName":"document_parsing",'
-        '"args":{"documents":[{"identifier":"sample.odt"}]}}\n'
-        'a:{"toolCallId":"XXX","result":{"state":"done"}}\n'
-        'b:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_rag"}\n'
-        '9:{"toolCallId":"pyd_ai_YYY","toolName":"document_search_rag",'
-        '"args":{"query":"What does the document say?"}}\n'
-        'h:{"sourceType":"url","id":"<mocked_uuid>","url":"sample.odt","title":null,'
-        '"providerMetadata":{}}\n'
-        'a:{"toolCallId":"pyd_ai_YYY","result":[{"url":"sample.odt","content":"This '
-        'is the content of the ODT.","score":0.9}]}\n'
-        "0:\"From the document, I can see that it says 'Hello ODT'.\"\n"
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":100,"completionTokens":20,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"tool-input-available","toolCallId":"XXX","toolName":"document_parsing'
+        '","input":{"documents":[{"identifier":"sample.odt"}]}}\n\n'
+        'data: {"type":"tool-output-available","toolCallId":"XXX","output":{"state":"done"}}'
+        "\n\n"
+        'data: {"type":"tool-input-start","toolCallId":"pyd_ai_YYY","toolName":"document_sear'
+        'ch_rag"}\n\n'
+        'data: {"type":"tool-input-available","toolCallId":"pyd_ai_YYY","toolName":"document_'
+        'search_rag","input":{"query":"What does the document say?"}}\n\n'
+        'data: {"type":"source-url","sourceId":"<mocked_uuid>","url":"sample.odt"}\n\n'
+        'data: {"type":"tool-output-available","toolCallId":"pyd_ai_YYY","output":[{"url":"sa'
+        'mple.odt","content":"This is the content of the ODT.","score":0.9}]}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"From the document, I can see that it sa'
+        "ys 'Hello ODT'.\"}\n\n"
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":100,"completionTok'
+        'ens":20,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # Check that the conversation was updated
@@ -1040,11 +1011,7 @@ def test_post_conversation_with_odt_document_upload(
         id=chat_conversation.messages[0].id,
         createdAt=timezone.now(),
         content="What does the document say?",
-        reasoning=None,
-        experimental_attachments=None,
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[TextUIPart(type="text", text="What does the document say?")],
     )
 
@@ -1053,32 +1020,19 @@ def test_post_conversation_with_odt_document_upload(
         id=chat_conversation.messages[1].id,
         createdAt=timezone.now(),
         content="From the document, I can see that it says 'Hello ODT'.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
-            ToolInvocationUIPart(
-                type="tool-invocation",
-                toolInvocation=ToolInvocationCall(
-                    toolCallId=chat_conversation.messages[1].parts[0].toolInvocation.toolCallId,
-                    toolName="document_search_rag",
-                    args={"query": "What does the document say?"},
-                    state="call",
-                    step=None,
-                ),
+            ToolUIPart(
+                type="tool-document_search_rag",
+                toolCallId=chat_conversation.messages[1].parts[0].toolCallId,
+                state="input-available",
+                input={"query": "What does the document say?"},
             ),
             TextUIPart(type="text", text="From the document, I can see that it says 'Hello ODT'."),
-            SourceUIPart(
-                type="source",
-                source=LanguageModelV1Source(
-                    sourceType="url",
-                    id=chat_conversation.messages[1].parts[2].source.id,
-                    url="sample.odt",
-                    title=None,
-                    providerMetadata={},
-                ),
+            SourceUrlUIPart(
+                type="source-url",
+                sourceId=chat_conversation.messages[1].parts[2].sourceId,
+                url="sample.odt",
             ),
         ],
     )
