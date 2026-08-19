@@ -26,12 +26,10 @@ from pydantic_ai.messages import (
 )
 
 from chat.ai_sdk_types import (
-    Attachment,
-    ReasoningDetailText,
+    FileUIPart,
     ReasoningUIPart,
     TextUIPart,
-    ToolInvocationCall,
-    ToolInvocationUIPart,
+    ToolUIPart,
     UIMessage,
 )
 from chat.clients.pydantic_ui_message_converter import model_message_to_ui_message
@@ -86,14 +84,11 @@ def test_model_message_to_ui_message_tool_call_full():
         role="assistant",
         content="",
         parts=[
-            ToolInvocationUIPart(
-                type="tool-invocation",
-                toolInvocation=ToolInvocationCall(
-                    state="call",
-                    toolCallId="id1",
-                    toolName="tool",
-                    args=args,
-                ),
+            ToolUIPart(
+                type="tool-tool",
+                toolCallId="id1",
+                state="input-available",
+                input=args,
             )
         ],
         createdAt=timezone.now(),
@@ -110,13 +105,7 @@ def test_model_message_to_ui_message_reasoning_full():
         id=str(uuid.uuid4()),  # not used in comparison
         role="assistant",
         content="",
-        parts=[
-            ReasoningUIPart(
-                type="reasoning",
-                reasoning="reason",
-                details=[ReasoningDetailText(type="text", text="reason", signature="sig")],
-            )
-        ],
+        parts=[ReasoningUIPart(type="reasoning", text="reason")],
         createdAt=timezone.now(),
     )
     result = model_message_to_ui_message(model_message)
@@ -128,10 +117,7 @@ def test_model_message_to_ui_message_reasoning_full():
     parts_list = list(result.parts)
     part = parts_list[0]
     assert isinstance(part, ReasoningUIPart)
-    assert part.reasoning == "reason"
-    assert part.details[0].type == "text"
-    assert part.details[0].text == "reason"
-    assert part.details[0].signature == "sig"
+    assert part.text == "reason"
 
 
 def test_model_message_to_ui_message_binary_content():
@@ -151,11 +137,11 @@ def test_model_message_to_ui_message_binary_content():
 
     result = model_message_to_ui_message(model_message)
     assert result.role == "user"
-    assert result.parts == [TextUIPart(type="text", text="What do you see?")]
-    assert result.experimental_attachments == [
-        Attachment(
-            name=None,
-            contentType="application/octet-stream",
+    assert result.parts == [
+        TextUIPart(type="text", text="What do you see?"),
+        FileUIPart(
+            type="file",
+            mediaType="application/octet-stream",
             url="data:application/octet-stream;base64,Ymlu",
         ),
     ]
@@ -177,12 +163,13 @@ def test_model_message_to_ui_message_image_url():
 
     result = model_message_to_ui_message(model_message)
     assert result.role == "user"
-    assert result.parts == [TextUIPart(type="text", text="What do you see?")]
-    assert result.experimental_attachments == [
-        Attachment(
-            name="doc1.png",
-            contentType="image/png",
+    assert result.parts == [
+        TextUIPart(type="text", text="What do you see?"),
+        FileUIPart(
+            type="file",
+            mediaType="image/png",
             url="/media/documents/doc1.png",
+            filename="doc1.png",
         ),
     ]
 
@@ -207,12 +194,13 @@ def test_model_message_to_ui_message_document_url():
 
     result = model_message_to_ui_message(model_message)
     assert result.role == "user"
-    assert result.parts == [TextUIPart(type="text", text="Summarize this")]
-    assert result.experimental_attachments == [
-        Attachment(
-            name="doc1.pdf",
-            contentType="application/pdf",
+    assert result.parts == [
+        TextUIPart(type="text", text="Summarize this"),
+        FileUIPart(
+            type="file",
+            mediaType="application/pdf",
             url="/media/documents/doc1.pdf",
+            filename="doc1.pdf",
         ),
     ]
 
@@ -306,8 +294,8 @@ def test_model_message_to_ui_message_tool_call_args_str():
     result = model_message_to_ui_message(model_message)
     parts_list = list(result.parts)
     part = parts_list[0]
-    assert isinstance(part, ToolInvocationUIPart)
-    assert part.toolInvocation.args == args
+    assert isinstance(part, ToolUIPart)
+    assert part.input == args
 
 
 def test_model_message_to_ui_message_with_reasoning_signature_none():
@@ -317,7 +305,7 @@ def test_model_message_to_ui_message_with_reasoning_signature_none():
     parts_list = list(result.parts)
     part = parts_list[0]
     assert isinstance(part, ReasoningUIPart)
-    assert part.details[0].signature is None
+    assert part.text == "reason"
 
 
 def test_model_message_to_ui_message_created_at_response():

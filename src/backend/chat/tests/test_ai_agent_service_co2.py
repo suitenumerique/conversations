@@ -62,12 +62,12 @@ def final_output_fixture():
     return [ModelResponse(parts=[TextPart(content="Hello")], kind="response")]
 
 
-# --- _prepare_update_conversation: per-message annotation ---
+# --- _prepare_update_conversation: per-message metadata ---
 
 
 @pytest.mark.parametrize("co2_impact", [500, 123])
-def test_co2_annotation_added_when_nonzero(conversation, service, final_output, co2_impact):
-    """An annotation with the co2_impact value is added to the assistant message."""
+def test_co2_metadata_added_when_nonzero(conversation, service, final_output, co2_impact):
+    """The co2_impact value is added to the assistant message metadata."""
     service._prepare_update_conversation(
         final_output=final_output,
         usage={"promptTokens": 10, "completionTokens": 5, "co2_impact": co2_impact},
@@ -75,11 +75,11 @@ def test_co2_annotation_added_when_nonzero(conversation, service, final_output, 
     )
 
     assistant_msg = conversation.messages[-1]
-    assert {"co2_impact": pytest.approx(float(co2_impact))} in (assistant_msg.annotations or [])
+    assert assistant_msg.metadata == {"co2_impact": pytest.approx(float(co2_impact))}
 
 
-def test_no_co2_annotation_when_zero(conversation, service, final_output):
-    """No co2_impact annotation is added when co2_impact is 0."""
+def test_no_co2_metadata_when_zero(conversation, service, final_output):
+    """No co2_impact metadata is added when co2_impact is 0."""
     service._prepare_update_conversation(
         final_output=final_output,
         usage={"promptTokens": 10, "completionTokens": 5, "co2_impact": 0},
@@ -87,8 +87,7 @@ def test_no_co2_annotation_when_zero(conversation, service, final_output):
     )
 
     assistant_msg = conversation.messages[-1]
-    co2_annotations = [a for a in (assistant_msg.annotations or []) if "co2_impact" in a]
-    assert co2_annotations == []
+    assert "co2_impact" not in (assistant_msg.metadata or {})
 
 
 # --- _prepare_update_conversation: cumulative usage across runs ---

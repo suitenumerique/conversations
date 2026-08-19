@@ -9,12 +9,10 @@ from rest_framework.exceptions import ErrorDetail
 
 from chat import serializers
 from chat.ai_sdk_types import (
-    Attachment,
-    LanguageModelV1Source,
-    SourceUIPart,
+    FileUIPart,
+    SourceUrlUIPart,
     TextUIPart,
-    ToolInvocationResult,
-    ToolInvocationUIPart,
+    ToolUIPart,
     UIMessage,
 )
 from chat.llm_configuration import LLModel, LLMProvider
@@ -76,11 +74,7 @@ def test_chat_conversation_input_serializer_simple_message():
                 id="yuPoOuBkKA4FnKvk",
                 createdAt=_created_at,
                 content="Hello",
-                reasoning=None,
-                experimental_attachments=None,
                 role="user",
-                annotations=None,
-                toolInvocations=None,
                 parts=[TextUIPart(type="text", text="Hello")],
             )
         ]
@@ -180,7 +174,7 @@ def test_chat_conversation_input_serializer_invalid_created_at():
 
 def test_chat_conversation_input_serializer_missing_parts():
     """
-    Ensure serializer fails validation if the 'parts' field is missing from a message.
+    A message with no parts is accepted: its deprecated `content` becomes a text part.
     """
     serializer = serializers.ChatConversationInputSerializer(
         data={
@@ -194,24 +188,8 @@ def test_chat_conversation_input_serializer_missing_parts():
             ]
         }
     )
-    assert not serializer.is_valid()
-    assert serializer.errors["messages"] == [
-        {
-            "input": {
-                "content": ErrorDetail(string="Hello", code="invalid"),
-                "createdAt": ErrorDetail(string="2025-07-03T15:22:17.105Z", code="invalid"),
-                "id": ErrorDetail(string="1", code="invalid"),
-                "role": ErrorDetail(string="user", code="invalid"),
-            },
-            "loc": [
-                ErrorDetail(string="0", code="invalid"),
-                ErrorDetail(string="parts", code="invalid"),
-            ],
-            "msg": ErrorDetail(string="Field required", code="invalid"),
-            "type": ErrorDetail(string="missing", code="invalid"),
-            "url": ErrorDetail(string="https://errors.pydantic.dev/2.13/v/missing", code="invalid"),
-        }
-    ]
+    assert serializer.is_valid()
+    assert serializer.validated_data["messages"][0].parts == [TextUIPart(type="text", text="Hello")]
 
 
 def test_chat_conversation_input_serializer_multiple_messages():
@@ -330,23 +308,22 @@ def test_chat_conversation_input_serializer_with_attachments():
         }
     )
     assert serializer.is_valid()
+    # The v4 attachment is upconverted to a v5 file part.
     assert serializer.validated_data["messages"] == [
         UIMessage(
             id="7x3hLsq6rB3xp91T",
             createdAt=_created_at,
             content="How's the weather in this image?",
-            reasoning=None,
-            experimental_attachments=[
-                Attachment(
-                    name="weather.jpg",
-                    contentType="image/png",
-                    url="data:image/png;base64,iVBORw0KGgoAAAAN...",
-                )
-            ],
             role="user",
-            annotations=None,
-            toolInvocations=None,
-            parts=[TextUIPart(type="text", text="How's the weather in this image?")],
+            parts=[
+                TextUIPart(type="text", text="How's the weather in this image?"),
+                FileUIPart(
+                    type="file",
+                    filename="weather.jpg",
+                    mediaType="image/png",
+                    url="data:image/png;base64,iVBORw0KGgoAAAAN...",
+                ),
+            ],
         )
     ]
 
@@ -403,32 +380,19 @@ def test_chat_conversation_input_serializer_with_source():
             id="e7K0fIPCfsMHr72C",
             createdAt=_created_at,
             content="Qui est Jean Valjean ?",
-            reasoning=None,
-            experimental_attachments=None,
             role="user",
-            annotations=None,
-            toolInvocations=None,
             parts=[TextUIPart(type="text", text="Qui est Jean Valjean ?")],
         ),
         UIMessage(
             id="ni646jbPmW8fQ9zm",
             createdAt=_created_at,
             content="Jean Valjean est génial.",
-            reasoning=None,
-            experimental_attachments=None,
             role="assistant",
-            annotations=None,
-            toolInvocations=None,
             parts=[
-                SourceUIPart(
-                    type="source",
-                    source=LanguageModelV1Source(
-                        sourceType="url",
-                        id="c2b834e7-0cdf-4dfb-b0ce-4e0a50d0fa5a",
-                        url="https://touslesjeans.example.com/",
-                        title=None,
-                        providerMetadata={},
-                    ),
+                SourceUrlUIPart(
+                    type="source-url",
+                    sourceId="c2b834e7-0cdf-4dfb-b0ce-4e0a50d0fa5a",
+                    url="https://touslesjeans.example.com/",
                 ),
                 TextUIPart(type="text", text="Jean Valjean est génial."),
             ],
@@ -437,11 +401,7 @@ def test_chat_conversation_input_serializer_with_source():
             id="JKiIRnWwFE9hL2Cb",
             createdAt=_created_at,
             content="Quel est son parcours ?",
-            reasoning=None,
-            experimental_attachments=None,
             role="user",
-            annotations=None,
-            toolInvocations=None,
             parts=[TextUIPart(type="text", text="Quel est son parcours ?")],
         ),
     ]
@@ -498,33 +458,21 @@ def test_chat_conversation_input_serializer_with_tool():
             id="e7K0fIPCfsMHr72C",
             createdAt=_created_at,
             content="Weather in Paris?",
-            reasoning=None,
-            experimental_attachments=None,
             role="user",
-            annotations=None,
-            toolInvocations=None,
             parts=[TextUIPart(type="text", text="Weather in Paris?")],
         ),
         UIMessage(
             id="ni646jbPmW8fQ9zm",
             createdAt=_created_at,
             content="It beautiful.",
-            reasoning=None,
-            experimental_attachments=None,
             role="assistant",
-            annotations=None,
-            toolInvocations=None,
             parts=[
-                ToolInvocationUIPart(
-                    type="tool-invocation",
-                    toolInvocation=ToolInvocationResult(
-                        toolCallId="tool-invocation-id",
-                        toolName="weather",
-                        args={"location": "Paris, France"},
-                        result={"temperature": "25", "condition": "sunny"},
-                        state="result",
-                        step=None,
-                    ),
+                ToolUIPart(
+                    type="tool-weather",
+                    toolCallId="tool-invocation-id",
+                    state="output-available",
+                    input={"location": "Paris, France"},
+                    output={"temperature": "25", "condition": "sunny"},
                 )
             ],
         ),
@@ -532,11 +480,7 @@ def test_chat_conversation_input_serializer_with_tool():
             id="JKiIRnWwFE9hL2Cb",
             createdAt=_created_at,
             content="Nice",
-            reasoning=None,
-            experimental_attachments=None,
             role="user",
-            annotations=None,
-            toolInvocations=None,
             parts=[TextUIPart(type="text", text="Nice")],
         ),
     ]

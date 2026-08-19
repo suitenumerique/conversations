@@ -7,7 +7,7 @@ import pytest
 from core.file_upload.enums import AttachmentStatus
 
 from chat import serializers
-from chat.ai_sdk_types import Attachment, TextUIPart, UIMessage
+from chat.ai_sdk_types import FileUIPart, TextUIPart, UIMessage
 from chat.factories import (
     ChatConversationFactory,
     ChatProjectAttachmentFactory,
@@ -22,10 +22,9 @@ def _image_message(name: str, msg_id: str = "1") -> UIMessage:
     return UIMessage(
         id=msg_id,
         role="user",
-        content="here",
-        parts=[TextUIPart(text="here", type="text")],
-        experimental_attachments=[
-            Attachment(name=name, contentType="image/png", url=f"/media-key/{name}")
+        parts=[
+            TextUIPart(text="here", type="text"),
+            FileUIPart(type="file", filename=name, mediaType="image/png", url=f"/media-key/{name}"),
         ],
     )
 

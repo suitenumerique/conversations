@@ -40,6 +40,7 @@ and this project adheres to
 - 🔥(back) remove the unused RAG_WEB_SEARCH_PROMPT_UPDATE setting
 - 🔥(back) remove the unused Tavily web search tool
 - 🔥(back) remove the activation code gate, keeping past records for history
+- 🔥(back) remove the unused text streaming protocol
 
 ## [0.0.22] - 2026-08-10
 

@@ -14,10 +14,9 @@ from rest_framework import status
 
 from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION, TitleGenerationAgent
 from chat.ai_sdk_types import (
-    Attachment,
+    FileUIPart,
     TextUIPart,
-    ToolInvocationCall,
-    ToolInvocationUIPart,
+    ToolUIPart,
     UIMessage,
 )
 from chat.factories import ChatConversationFactory
@@ -49,11 +48,7 @@ def build__history_conversation_ui_messages(history_timestamp):
             id="prev-user-msg-1",
             createdAt=history_timestamp,
             content="How does machine learning work?",
-            reasoning=None,
-            experimental_attachments=None,
             role="user",
-            annotations=None,
-            toolInvocations=None,
             parts=[TextUIPart(type="text", text="How does machine learning work?")],
         ),
         UIMessage(
@@ -63,11 +58,7 @@ def build__history_conversation_ui_messages(history_timestamp):
                 "Machine learning is a branch of artificial intelligence "
                 "that focuses on building systems that learn from data."
             ),
-            reasoning=None,
-            experimental_attachments=None,
             role="assistant",
-            annotations=None,
-            toolInvocations=None,
             parts=[
                 TextUIPart(
                     type="text",
@@ -82,11 +73,7 @@ def build__history_conversation_ui_messages(history_timestamp):
             id="prev-user-msg-2",
             createdAt=history_timestamp.replace(minute=32),
             content="What are neural networks?",
-            reasoning=None,
-            experimental_attachments=None,
             role="user",
-            annotations=None,
-            toolInvocations=None,
             parts=[TextUIPart(type="text", text="What are neural networks?")],
         ),
         UIMessage(
@@ -96,11 +83,7 @@ def build__history_conversation_ui_messages(history_timestamp):
                 "Neural networks are computing systems inspired by the "
                 "biological neural networks in animal brains."
             ),
-            reasoning=None,
-            experimental_attachments=None,
             role="assistant",
-            annotations=None,
-            toolInvocations=None,
             parts=[
                 TextUIPart(
                     type="text",
@@ -312,7 +295,7 @@ def test_post_conversation_data_protocol_with_history(
 ):
     """Test posting messages to a conversation with history using the 'data' protocol."""
 
-    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/"
     data = {
         "messages": [
             {
@@ -330,7 +313,7 @@ def test_post_conversation_data_protocol_with_history(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -340,11 +323,14 @@ def test_post_conversation_data_protocol_with_history(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '0:"Hello"\n'
-        '0:" there"\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"Hello"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":" there"}\n\n'
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":0,"completionToken'
+        's":0,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     assert mock_openai_stream.called
@@ -378,11 +364,7 @@ def test_post_conversation_data_protocol_with_history(
         id=history_conversation.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello",
-        reasoning=None,
-        experimental_attachments=None,
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[TextUIPart(type="text", text="Hello")],
     )
 
@@ -391,91 +373,12 @@ def test_post_conversation_data_protocol_with_history(
         id=history_conversation.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello there",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[TextUIPart(type="text", text="Hello there")],
     )
 
     # Verify that the pydantic_messages were appended correctly
     assert len(history_conversation.pydantic_messages) == 6  # Original 4 + 2 new ones
-
-
-@freeze_time("2025-07-25T10:36:35.297675Z")
-@respx.mock
-def test_post_conversation_text_protocol_with_history(
-    api_client, mock_openai_stream, history_conversation
-):
-    """Test posting messages to a conversation with history using the 'text' protocol."""
-    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=text"
-    data = {
-        "messages": [
-            {
-                "id": "yuPoOuBkKA4FnKvk",
-                "role": "user",
-                "parts": [{"text": "Hello", "type": "text"}],
-                "content": "Hello",
-                "createdAt": "2025-07-03T15:22:17.105Z",
-            }
-        ]
-    }
-    api_client.force_login(history_conversation.owner)
-
-    response = api_client.post(url, data, format="json")
-
-    assert response.status_code == status.HTTP_200_OK
-    assert response.get("Content-Type") == "text/event-stream"
-    assert response.streaming
-
-    response_content = b"".join(response.streaming_content).decode("utf-8")
-    assert response_content == "Hello there"
-
-    assert mock_openai_stream.called
-
-    # Verify the conversation still has its history plus the new messages
-    history_conversation.refresh_from_db()
-    # The UI messages should only include the most recent one (sent from frontend)
-    assert history_conversation.ui_messages == [
-        {
-            "content": "Hello",
-            "createdAt": "2025-07-03T15:22:17.105Z",
-            "id": "yuPoOuBkKA4FnKvk",
-            "parts": [{"text": "Hello", "type": "text"}],
-            "role": "user",
-        }
-    ]
-
-    # But the messages field should have 6 messages - 4 from history + 2 new ones
-    assert len(history_conversation.messages) == 6
-
-    # Verify the most recent messages are the new ones
-    assert history_conversation.messages[4].id == IsUUID(4)
-    assert history_conversation.messages[4] == UIMessage(
-        id=history_conversation.messages[4].id,
-        createdAt=timezone.now(),  # Mocked timestamp
-        content="Hello",
-        reasoning=None,
-        experimental_attachments=None,
-        role="user",
-        annotations=None,
-        toolInvocations=None,
-        parts=[TextUIPart(type="text", text="Hello")],
-    )
-
-    assert history_conversation.messages[5].id == IsUUID(4)
-    assert history_conversation.messages[5] == UIMessage(
-        id=history_conversation.messages[5].id,
-        createdAt=timezone.now(),  # Mocked timestamp
-        content="Hello there",
-        reasoning=None,
-        experimental_attachments=None,
-        role="assistant",
-        annotations=None,
-        toolInvocations=None,
-        parts=[TextUIPart(type="text", text="Hello there")],
-    )
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
@@ -486,7 +389,7 @@ def test_post_conversation_with_image_with_history(
     """
     Ensure an image URL is correctly forwarded to the AI service with a conversation with history.
     """
-    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/"
 
     data = {
         "messages": [
@@ -516,7 +419,7 @@ def test_post_conversation_with_image_with_history(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -526,11 +429,14 @@ def test_post_conversation_with_image_with_history(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '0:"I see a cat"\n'
-        '0:" in the picture."\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
-        ',"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"I see a cat"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":" in the picture."}\n\n'
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":0,"completionToken'
+        's":0,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # --- Verify the outgoing HTTP request body contains the image ---
@@ -580,22 +486,19 @@ def test_post_conversation_with_image_with_history(
         id=history_conversation.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello, what do you see on this picture?",
-        reasoning=None,
-        experimental_attachments=[
-            Attachment(
-                name=None,
-                contentType="image/png",
+        role="user",
+        parts=[
+            TextUIPart(type="text", text="Hello, what do you see on this picture?"),
+            FileUIPart(
+                type="file",
+                mediaType="image/png",
                 url=(
                     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+w"
                     "SzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEA"
                     "AAAASUVORK5CYII="
                 ),
-            )
+            ),
         ],
-        role="user",
-        annotations=None,
-        toolInvocations=None,
-        parts=[TextUIPart(type="text", text="Hello, what do you see on this picture?")],
     )
 
     assert history_conversation.messages[5].id == IsUUID(4)
@@ -603,11 +506,7 @@ def test_post_conversation_with_image_with_history(
         id=history_conversation.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="I see a cat in the picture.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[TextUIPart(type="text", text="I see a cat in the picture.")],
     )
 
@@ -622,7 +521,7 @@ def test_post_conversation_tool_call_with_history(
     """
     settings.AI_AGENT_TOOLS = ["get_current_weather"]
 
-    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/"
 
     data = {
         "messages": [
@@ -641,7 +540,7 @@ def test_post_conversation_tool_call_with_history(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -651,16 +550,20 @@ def test_post_conversation_tool_call_with_history(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":'
-        '"get_current_weather"}\n'
-        'c:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","argsTextDelta":'
-        '"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n'
-        'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":{"location":'
-        '"Paris","temperature":22,"unit":"celsius"}}\n'
-        '0:"The current weather in Paris is nice"\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
-        ',"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"tool-input-start","toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","to'
+        'olName":"get_current_weather"}\n\n'
+        'data: {"type":"tool-input-delta","toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","in'
+        'putTextDelta":"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n\n'
+        'data: {"type":"tool-output-available","toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47'
+        '","output":{"location":"Paris","temperature":22,"unit":"celsius"}}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"The current weather in Paris is nice"}'
+        "\n\n"
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":0,"completionToken'
+        's":0,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # --- Verify the outgoing HTTP request body ---
@@ -696,11 +599,7 @@ def test_post_conversation_tool_call_with_history(
         id=history_conversation.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Weather in Paris?",
-        reasoning=None,
-        experimental_attachments=None,
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[TextUIPart(type="text", text="Weather in Paris?")],
     )
 
@@ -709,21 +608,13 @@ def test_post_conversation_tool_call_with_history(
         id=history_conversation.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="The current weather in Paris is nice",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
-            ToolInvocationUIPart(
-                type="tool-invocation",
-                toolInvocation=ToolInvocationCall(
-                    toolCallId="xLDcIljdsDrz0idal7tATWSMm2jhMj47",
-                    toolName="get_current_weather",
-                    args={"unit": "celsius", "location": "Paris"},
-                    state="call",
-                    step=None,
-                ),
+            ToolUIPart(
+                type="tool-get_current_weather",
+                toolCallId="xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                state="input-available",
+                input={"unit": "celsius", "location": "Paris"},
             ),
             TextUIPart(type="text", text="The current weather in Paris is nice"),
         ],
@@ -745,7 +636,7 @@ def test_post_conversation_tool_call_fails_with_history(
     conversation with history.
     """
 
-    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/"
 
     data = {
         "messages": [
@@ -764,7 +655,7 @@ def test_post_conversation_tool_call_fails_with_history(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -775,7 +666,7 @@ def test_post_conversation_tool_call_fails_with_history(
 
     assert "Unknown tool name: 'get_current_weather'." in response_content
     assert "self_documentation" in response_content
-    assert '0:"I cannot give you an answer to that."' in response_content
+    assert '"delta":"I cannot give you an answer to that."' in response_content
 
     # --- Verify the outgoing HTTP request body ---
     request_sent = mock_openai_stream_tool.calls[0].request
@@ -810,11 +701,7 @@ def test_post_conversation_tool_call_fails_with_history(
         id=history_conversation.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Weather in Paris?",
-        reasoning=None,
-        experimental_attachments=None,
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[TextUIPart(type="text", text="Weather in Paris?")],
     )
 
@@ -823,21 +710,13 @@ def test_post_conversation_tool_call_fails_with_history(
         id=history_conversation.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="I cannot give you an answer to that.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
-            ToolInvocationUIPart(
-                type="tool-invocation",
-                toolInvocation=ToolInvocationCall(
-                    toolCallId="xLDcIljdsDrz0idal7tATWSMm2jhMj47",
-                    toolName="get_current_weather",
-                    args={"unit": "celsius", "location": "Paris"},
-                    state="call",
-                    step=None,
-                ),
+            ToolUIPart(
+                type="tool-get_current_weather",
+                toolCallId="xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                state="input-available",
+                input={"unit": "celsius", "location": "Paris"},
             ),
             TextUIPart(type="text", text="I cannot give you an answer to that."),
         ],
@@ -864,43 +743,33 @@ def history_conversation_with_image_fixture():
             id="prev-user-msg-1",
             createdAt=history_timestamp,
             content="Hello, what do you see in this image?",
-            reasoning=None,
-            experimental_attachments=[
-                Attachment(
-                    name="test-image.jpg",
-                    contentType="image/png",
+            role="user",
+            parts=[
+                TextUIPart(type="text", text="Hello, what do you see in this image?"),
+                FileUIPart(
+                    type="file",
+                    filename="test-image.jpg",
+                    mediaType="image/png",
                     url=(
                         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAA"
                         "ABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5C"
                         "YII="
                     ),
-                )
+                ),
             ],
-            role="user",
-            annotations=None,
-            toolInvocations=None,
-            parts=[TextUIPart(type="text", text="Hello, what do you see in this image?")],
         ),
         UIMessage(
             id="prev-assistant-msg-1",
             createdAt=history_timestamp.replace(minute=31),
             content="I see a small black square in the image.",
-            reasoning=None,
-            experimental_attachments=None,
             role="assistant",
-            annotations=None,
-            toolInvocations=None,
             parts=[TextUIPart(type="text", text="I see a small black square in the image.")],
         ),
         UIMessage(
             id="prev-user-msg-2",
             createdAt=history_timestamp.replace(minute=32),
             content="Can you tell me more about it?",
-            reasoning=None,
-            experimental_attachments=None,
             role="user",
-            annotations=None,
-            toolInvocations=None,
             parts=[TextUIPart(type="text", text="Can you tell me more about it?")],
         ),
         UIMessage(
@@ -910,11 +779,7 @@ def history_conversation_with_image_fixture():
                 "It appears to be a very simple image with a small black square "
                 "in the center on a white background."
             ),
-            reasoning=None,
-            experimental_attachments=None,
             role="assistant",
-            annotations=None,
-            toolInvocations=None,
             parts=[
                 TextUIPart(
                     type="text",
@@ -1028,32 +893,20 @@ def history_conversation_with_tool_fixture():
             id="prev-user-msg-1",
             createdAt=history_timestamp,
             content="What's the weather like in London?",
-            reasoning=None,
-            experimental_attachments=None,
             role="user",
-            annotations=None,
-            toolInvocations=None,
             parts=[TextUIPart(type="text", text="What's the weather like in London?")],
         ),
         UIMessage(
             id="prev-assistant-msg-1",
             createdAt=history_timestamp.replace(minute=31),
             content="The current weather in London is cloudy with a temperature of 18°C.",
-            reasoning=None,
-            experimental_attachments=None,
             role="assistant",
-            annotations=None,
-            toolInvocations=None,
             parts=[
-                ToolInvocationUIPart(
-                    type="tool-invocation",
-                    toolInvocation=ToolInvocationCall(
-                        toolCallId="previous-tool-call-123",
-                        toolName="get_current_weather",
-                        args={"location": "London", "unit": "celsius"},
-                        state="call",
-                        step=None,
-                    ),
+                ToolUIPart(
+                    type="tool-get_current_weather",
+                    toolCallId="previous-tool-call-123",
+                    state="input-available",
+                    input={"location": "London", "unit": "celsius"},
                 ),
                 TextUIPart(
                     type="text",
@@ -1065,11 +918,7 @@ def history_conversation_with_tool_fixture():
             id="prev-user-msg-2",
             createdAt=history_timestamp.replace(minute=32),
             content="And how about tomorrow?",
-            reasoning=None,
-            experimental_attachments=None,
             role="user",
-            annotations=None,
-            toolInvocations=None,
             parts=[TextUIPart(type="text", text="And how about tomorrow?")],
         ),
         UIMessage(
@@ -1078,21 +927,13 @@ def history_conversation_with_tool_fixture():
             content=(
                 "Tomorrow's forecast for London shows partly sunny conditions with a high of 20°C."
             ),
-            reasoning=None,
-            experimental_attachments=None,
             role="assistant",
-            annotations=None,
-            toolInvocations=None,
             parts=[
-                ToolInvocationUIPart(
-                    type="tool-invocation",
-                    toolInvocation=ToolInvocationCall(
-                        toolCallId="previous-tool-call-456",
-                        toolName="get_current_weather",
-                        args={"location": "London", "days": 1, "unit": "celsius"},
-                        state="call",
-                        step=None,
-                    ),
+                ToolUIPart(
+                    type="tool-get_current_weather",
+                    toolCallId="previous-tool-call-456",
+                    state="input-available",
+                    input={"location": "London", "days": 1, "unit": "celsius"},
                 ),
                 TextUIPart(
                     type="text",
@@ -1283,7 +1124,7 @@ def test_post_conversation_with_existing_image_history(
     api_client, mock_openai_stream, history_conversation_with_image
 ):
     """Test posting a message to a conversation that already has images in its history."""
-    url = f"/api/v1.0/chats/{history_conversation_with_image.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{history_conversation_with_image.pk}/conversation/"
     data = {
         "messages": [
             {
@@ -1301,7 +1142,7 @@ def test_post_conversation_with_existing_image_history(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -1311,11 +1152,14 @@ def test_post_conversation_with_existing_image_history(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '0:"Hello"\n'
-        '0:" there"\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
-        ',"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"Hello"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":" there"}\n\n'
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":0,"completionToken'
+        's":0,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     assert mock_openai_stream.called
@@ -1350,11 +1194,7 @@ def test_post_conversation_with_existing_image_history(
         id=history_conversation_with_image.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="What was in that image again?",
-        reasoning=None,
-        experimental_attachments=None,
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[TextUIPart(type="text", text="What was in that image again?")],
     )
 
@@ -1363,11 +1203,7 @@ def test_post_conversation_with_existing_image_history(
         id=history_conversation_with_image.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="Hello there",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[TextUIPart(type="text", text="Hello there")],
     )
 
@@ -1383,7 +1219,7 @@ def test_post_conversation_with_existing_tool_history(
     """Test posting a message to a conversation that already has tool calls in its history."""
     settings.AI_AGENT_TOOLS = ["get_current_weather"]
 
-    url = f"/api/v1.0/chats/{history_conversation_with_tool.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{history_conversation_with_tool.pk}/conversation/"
     data = {
         "messages": [
             {
@@ -1401,7 +1237,7 @@ def test_post_conversation_with_existing_tool_history(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -1411,16 +1247,20 @@ def test_post_conversation_with_existing_tool_history(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        'b:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","toolName":'
-        '"get_current_weather"}\n'
-        'c:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","argsTextDelta":'
-        '"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n'
-        'a:{"toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","result":{"location":'
-        '"Paris","temperature":22,"unit":"celsius"}}\n'
-        '0:"The current weather in Paris is nice"\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0'
-        ',"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"tool-input-start","toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","to'
+        'olName":"get_current_weather"}\n\n'
+        'data: {"type":"tool-input-delta","toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47","in'
+        'putTextDelta":"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n\n'
+        'data: {"type":"tool-output-available","toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47'
+        '","output":{"location":"Paris","temperature":22,"unit":"celsius"}}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"The current weather in Paris is nice"}'
+        "\n\n"
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":0,"completionToken'
+        's":0,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     assert mock_openai_stream_tool.called
@@ -1444,11 +1284,7 @@ def test_post_conversation_with_existing_tool_history(
         id=history_conversation_with_tool.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="How about Paris weather?",
-        reasoning=None,
-        experimental_attachments=None,
         role="user",
-        annotations=None,
-        toolInvocations=None,
         parts=[TextUIPart(type="text", text="How about Paris weather?")],
     )
 
@@ -1457,21 +1293,13 @@ def test_post_conversation_with_existing_tool_history(
         id=history_conversation_with_tool.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="The current weather in Paris is nice",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[
-            ToolInvocationUIPart(
-                type="tool-invocation",
-                toolInvocation=ToolInvocationCall(
-                    toolCallId="xLDcIljdsDrz0idal7tATWSMm2jhMj47",
-                    toolName="get_current_weather",
-                    args={"unit": "celsius", "location": "Paris"},
-                    state="call",
-                    step=None,
-                ),
+            ToolUIPart(
+                type="tool-get_current_weather",
+                toolCallId="xLDcIljdsDrz0idal7tATWSMm2jhMj47",
+                state="input-available",
+                input={"unit": "celsius", "location": "Paris"},
             ),
             TextUIPart(type="text", text="The current weather in Paris is nice"),
         ],
@@ -1616,7 +1444,7 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
     api_client, mock_openai_stream_image, history_conversation_with_tool
 ):
     """Test adding an image to a conversation that already has tool calls in its history."""
-    url = f"/api/v1.0/chats/{history_conversation_with_tool.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{history_conversation_with_tool.pk}/conversation/"
 
     data = {
         "messages": [
@@ -1646,7 +1474,7 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
 
     assert response.status_code == status.HTTP_200_OK
     assert response.get("Content-Type") == "text/event-stream"
-    assert response.get("x-vercel-ai-data-stream") == "v1"
+    assert response.get("x-vercel-ai-ui-message-stream") == "v1"
     assert response.streaming
 
     # Wait for the streaming content to be fully received
@@ -1656,11 +1484,14 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
     response_content = replace_uuids_with_placeholder(response_content)
 
     assert response_content == (
-        '0:"I see a cat"\n'
-        '0:" in the picture."\n'
-        'f:{"messageId":"<mocked_uuid>"}\n'
-        'd:{"finishReason":"stop","usage":{"promptTokens":0,"completionTokens":0,'
-        '"co2Impact":0.0}}\n'
+        'data: {"type":"start","messageId":"<mocked_uuid>"}\n\n'
+        'data: {"type":"text-start","id":"0"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":"I see a cat"}\n\n'
+        'data: {"type":"text-delta","id":"0","delta":" in the picture."}\n\n'
+        'data: {"type":"text-end","id":"0"}\n\n'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":0,"completionToken'
+        's":0,"co2Impact":0.0}}}\n\n'
+        "data: [DONE]\n\n"
     )
 
     # Verify that the request to OpenAI included both
@@ -1690,22 +1521,19 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
         id=history_conversation_with_tool.messages[4].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="How's the weather in this image?",
-        reasoning=None,
-        experimental_attachments=[
-            Attachment(
-                name=None,
-                contentType="image/png",
+        role="user",
+        parts=[
+            TextUIPart(type="text", text="How's the weather in this image?"),
+            FileUIPart(
+                type="file",
+                mediaType="image/png",
                 url=(
                     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+w"
                     "SzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEA"
                     "AAAASUVORK5CYII="
                 ),
-            )
+            ),
         ],
-        role="user",
-        annotations=None,
-        toolInvocations=None,
-        parts=[TextUIPart(type="text", text="How's the weather in this image?")],
     )
 
     assert history_conversation_with_tool.messages[5].id == IsUUID(4)
@@ -1713,11 +1541,7 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
         id=history_conversation_with_tool.messages[5].id,
         createdAt=timezone.now(),  # Mocked timestamp
         content="I see a cat in the picture.",
-        reasoning=None,
-        experimental_attachments=None,
         role="assistant",
-        annotations=None,
-        toolInvocations=None,
         parts=[TextUIPart(type="text", text="I see a cat in the picture.")],
     )
 
@@ -1739,7 +1563,7 @@ def test_post_conversation_triggers_automatic_title_generation_after_first_messa
     # Configure the title generation threshold
     settings.AUTO_TITLE_AFTER_USER_MESSAGES = 1
     conversation = ChatConversationFactory()
-    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/"
     data = {
         "messages": [
             {
@@ -1769,7 +1593,7 @@ def test_post_conversation_triggers_automatic_title_generation_after_first_messa
 
     # Verify the conversation_metadata event is in the stream
 
-    assert '"type": "conversation_metadata"' in response_content
+    assert '"type":"data-conversation-metadata"' in response_content
 
     # Refresh and verify title was updated
     conversation.refresh_from_db()
@@ -1802,7 +1626,7 @@ def test_post_conversation_triggers_automatic_title_generation_at_threshold(
     # Configure the title generation threshold
     settings.AUTO_TITLE_AFTER_USER_MESSAGES = 3
 
-    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/"
     data = {
         "messages": [
             {
@@ -1832,7 +1656,7 @@ def test_post_conversation_triggers_automatic_title_generation_at_threshold(
 
     # Verify the conversation_metadata event is in the stream
 
-    assert '"type": "conversation_metadata"' in response_content
+    assert '"type":"data-conversation-metadata"' in response_content
 
     # Refresh and verify title was updated
     history_conversation.refresh_from_db()
@@ -1860,7 +1684,7 @@ def test_post_conversation_does_not_regenerate_title_when_user_set(
     history_conversation.title_set_by_user_at = timezone.now()
     history_conversation.save()
 
-    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/"
     data = {
         "messages": [
             {
@@ -1913,28 +1737,20 @@ def test_post_conversation_does_not_generate_title_before_threshold(
             id="prev-user-msg-1",
             createdAt=history_timestamp,
             content="Hello!",
-            reasoning=None,
-            experimental_attachments=None,
             role="user",
-            annotations=None,
-            toolInvocations=None,
             parts=[TextUIPart(type="text", text="Hello!")],
         ),
         UIMessage(
             id="prev-assistant-msg-1",
             createdAt=history_timestamp.replace(minute=31),
             content="Hi there! How can I help you?",
-            reasoning=None,
-            experimental_attachments=None,
             role="assistant",
-            annotations=None,
-            toolInvocations=None,
             parts=[TextUIPart(type="text", text="Hi there! How can I help you?")],
         ),
     ]
     conversation.save()
 
-    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/"
     data = {
         "messages": [
             {
@@ -1983,7 +1799,7 @@ def test_post_conversation_does_not_generate_title_after_threshold(
     # Configure the title generation threshold
     settings.AUTO_TITLE_AFTER_USER_MESSAGES = 2
 
-    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{history_conversation.pk}/conversation/"
     data = {
         "messages": [
             {

@@ -20,7 +20,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from rest_framework import status
 
-from chat.ai_sdk_types import Attachment, TextUIPart, UIMessage
+from chat.ai_sdk_types import FileUIPart, TextUIPart, UIMessage
 from chat.factories import (
     ChatConversationFactory,
     ChatProjectAttachmentFactory,
@@ -102,9 +102,7 @@ def _image_message(text, *, attachments=None, msg_id="1") -> UIMessage:
     return UIMessage(
         id=msg_id,
         role="user",
-        content=text,
-        parts=[TextUIPart(text=text, type="text")],
-        experimental_attachments=attachments,
+        parts=[TextUIPart(text=text, type="text"), *(attachments or [])],
     )
 
 
@@ -121,18 +119,14 @@ def _run_turn(api_client, mock_ai_agent_service, conversation, message, model):
 
 
 def _images_skipped_events(streaming_content: bytes, kind: str) -> list[dict]:
-    """Parse `images_skipped` data events of the given kind from an SSE stream."""
+    """Parse `data-images-skipped` parts of the given kind from a UI message stream."""
     events = []
     for line in streaming_content.decode("utf-8").splitlines():
-        if not line.startswith("2:"):
+        if not line.startswith('data: {"type":"data-images-skipped"'):
             continue
-        for item in json.loads(line[2:]):
-            if (
-                isinstance(item, dict)
-                and item.get("type") == "images_skipped"
-                and item.get("kind") == kind
-            ):
-                events.append(item)
+        item = json.loads(line.removeprefix("data: "))["data"]
+        if item.get("kind") == kind:
+            events.append(item)
     return events
 
 
@@ -157,7 +151,9 @@ def test_image_kept_and_instruction_added_for_text_only_model(
     image_url = f"/media-key/{chat_conversation.pk}/sample.png"
     message = _image_message(
         "What is in this image?",
-        attachments=[Attachment(name="sample.png", contentType="image/png", url=image_url)],
+        attachments=[
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url)
+        ],
     )
 
     captured: dict = {}
@@ -176,8 +172,8 @@ def test_image_kept_and_instruction_added_for_text_only_model(
     # attachment with a `skipped` marker for the "image ignored" chip.
     chat_conversation.refresh_from_db()
     [user_message] = [m for m in chat_conversation.messages if m.role == "user"]
-    [skipped_attachment] = user_message.experimental_attachments or []
-    assert skipped_attachment.skipped == {"reason": "model_text_only"}
+    [skipped_file] = [p for p in user_message.parts if p.type == "file"]
+    assert skipped_file.skipped == {"reason": "model_text_only"}
 
     # The image is persisted to history (durable local URL form) so a later
     # vision-capable turn can read it.
@@ -235,7 +231,9 @@ def test_image_capable_model_has_no_unreadable_instruction(
     image_url = f"/media-key/{chat_conversation.pk}/sample.png"
     message = _image_message(
         "What is in this image?",
-        attachments=[Attachment(name="sample.png", contentType="image/png", url=image_url)],
+        attachments=[
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url)
+        ],
     )
 
     captured: dict = {}
@@ -274,7 +272,9 @@ def test_switch_text_only_to_vision_reads_in_message_image(
     image_url = f"/media-key/{chat_conversation.pk}/sample.png"
     turn1 = _image_message(
         "What is in this image?",
-        attachments=[Attachment(name="sample.png", contentType="image/png", url=image_url)],
+        attachments=[
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url)
+        ],
         msg_id="1",
     )
     _run_turn(api_client, mock_ai_agent_service, chat_conversation, turn1, _capturing_model({}))
@@ -365,7 +365,9 @@ def test_chat_notice_event_emitted_for_text_only_model(
     image_url = f"/media-key/{chat_conversation.pk}/sample.png"
     message = _image_message(
         "What is in this image?",
-        attachments=[Attachment(name="sample.png", contentType="image/png", url=image_url)],
+        attachments=[
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url)
+        ],
     )
 
     with mock_ai_agent_service(_capturing_model({})):
@@ -391,7 +393,9 @@ def test_no_chat_notice_event_for_image_capable_model(api_client, mock_ai_agent_
     image_url = f"/media-key/{chat_conversation.pk}/sample.png"
     message = _image_message(
         "What is in this image?",
-        attachments=[Attachment(name="sample.png", contentType="image/png", url=image_url)],
+        attachments=[
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url)
+        ],
     )
 
     with mock_ai_agent_service(_capturing_model({})):
@@ -416,7 +420,9 @@ def test_last_message_marked_event_emitted_for_text_only_model(
     image_url = f"/media-key/{chat_conversation.pk}/sample.png"
     message = _image_message(
         "What is in this image?",
-        attachments=[Attachment(name="sample.png", contentType="image/png", url=image_url)],
+        attachments=[
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url)
+        ],
     )
 
     with mock_ai_agent_service(_capturing_model({})):
@@ -444,7 +450,9 @@ def test_no_last_message_marked_event_for_image_capable_model(
     image_url = f"/media-key/{chat_conversation.pk}/sample.png"
     message = _image_message(
         "What is in this image?",
-        attachments=[Attachment(name="sample.png", contentType="image/png", url=image_url)],
+        attachments=[
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url)
+        ],
     )
 
     with mock_ai_agent_service(_capturing_model({})):
