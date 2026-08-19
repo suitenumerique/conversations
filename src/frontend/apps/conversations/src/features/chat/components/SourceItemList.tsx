@@ -1,4 +1,4 @@
-import { SourceUIPart } from '@ai-sdk/ui-utils';
+import { SourceUrlUIPart } from 'ai';
 import React from 'react';
 
 import { Box } from '@/components';
@@ -12,7 +12,7 @@ export interface SourceMetadata {
 }
 
 interface SourceItemListProps {
-  parts: readonly SourceUIPart[];
+  parts: readonly SourceUrlUIPart[];
   getMetadata: (url: string) => SourceMetadata | undefined;
 }
 
@@ -33,9 +33,9 @@ const SourceItemListComponent: React.FC<SourceItemListProps> = ({
       {parts.map((part, index) => (
         <SourceItem
           index={index + 1}
-          key={part.source.url}
-          url={part.source.url}
-          metadata={getMetadata(part.source.url)}
+          key={part.sourceId}
+          url={part.url}
+          metadata={getMetadata(part.url)}
         />
       ))}
     </Box>

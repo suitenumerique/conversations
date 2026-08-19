@@ -1,6 +1,6 @@
-import { Message } from '@ai-sdk/react';
+import { UIMessage } from 'ai';
 
-export type ChatMessage = Message;
+export type ChatMessage = UIMessage;
 
 export interface ChatConversationProject {
   id: string;

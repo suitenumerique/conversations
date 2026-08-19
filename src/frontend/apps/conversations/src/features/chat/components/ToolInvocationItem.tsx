@@ -1,4 +1,4 @@
-import { ToolInvocation } from '@ai-sdk/ui-utils';
+import { ToolUIPart, getToolName } from 'ai';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -44,7 +44,7 @@ const ConversationResumeLoader = ({ t }: { t: (key: string) => string }) => {
 };
 
 interface ToolInvocationItemProps {
-  toolInvocation: ToolInvocation;
+  toolInvocation: ToolUIPart;
   status?: string;
   hideSearchLoader?: boolean;
 }
@@ -55,9 +55,10 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
   hideSearchLoader = false,
 }) => {
   const { t } = useTranslation();
+  const toolName = getToolName(toolInvocation);
 
-  if (toolInvocation.toolName === 'conversation_resume') {
-    if (toolInvocation.state !== 'result') {
+  if (toolName === 'conversation_resume') {
+    if (toolInvocation.state !== 'output-available') {
       return <ConversationResumeLoader t={t} />;
     }
 
@@ -65,13 +66,13 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
     return null;
   }
 
-  if (toolInvocation.toolName === 'document_parsing') {
-    if (toolInvocation.state === 'partial-call') {
+  if (toolName === 'document_parsing') {
+    if (toolInvocation.state === 'input-streaming') {
       return null;
     }
 
-    if (toolInvocation.state === 'result') {
-      const result = toolInvocation.result as {
+    if (toolInvocation.state === 'output-available') {
+      const result = toolInvocation.output as {
         state?: string;
         kind?: string;
         error?: string;
@@ -82,7 +83,7 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
       return null;
     }
 
-    const documents: unknown = (toolInvocation.args as { documents: unknown })
+    const documents: unknown = (toolInvocation.input as { documents: unknown })
       ?.documents;
     const documentIdentifiers: string[] =
       Array.isArray(documents) &&

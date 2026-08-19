@@ -1,6 +1,12 @@
-import { Message, SourceUIPart } from '@ai-sdk/ui-utils';
 import { Button, Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
+import {
+  FileUIPart,
+  SourceUrlUIPart,
+  UIMessage,
+  getToolName,
+  isToolUIPart,
+} from 'ai';
 import 'katex/dist/katex.min.css'; // `rehype-katex` does not import the CSS for you
 import React, {
   useCallback,
@@ -21,7 +27,7 @@ import { useProjectAttachments } from '@/features/attachments/api/useProjectAtta
 import { useReindexProjectAttachment } from '@/features/attachments/api/useReindexProjectAttachment';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
 import {
-  isImagesSkippedEvent,
+  ImagesSkippedEventKind,
   stampImagesSkippedOnLatestUserMessage,
   useChat,
 } from '@/features/chat/api/useChat';
@@ -39,13 +45,13 @@ import { ChatError, ChatErrorType } from '@/features/chat/components/ChatError';
 import { ImageProcessingUnavailableBanner } from '@/features/chat/components/ImageProcessingUnavailableBanner';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { MessageItem } from '@/features/chat/components/MessageItem';
+import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import {
   STATUS_LINK_KINDS,
   getReindexErrorMessage,
 } from '@/features/chat/components/reindexErrorMessages';
-import { SourceItemList } from '@/features/chat/components/SourceItemList';
-import { useClipboard } from '@/hook';
 import { useSourcePanelAnchor } from '@/features/sources-panel';
+import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
 
 import { useSourceMetadataCache } from '../hooks';
@@ -88,8 +94,6 @@ export const Chat = ({
   const { isMobile, isDesktop } = useResponsiveStore();
   const sourcesPanelAnchorEl = useSourcePanelAnchor();
 
-  const streamProtocol = 'data'; // or 'text'
-
   const {
     forceWebSearch,
     toggleForceWebSearch,
@@ -103,8 +107,8 @@ export const Chat = ({
 
   const [conversationId, setConversationId] = useState(initialConversationId);
   const apiUrl = conversationId
-    ? `chats/${conversationId}/conversation/?protocol=${streamProtocol}`
-    : `chats/conversation/?protocol=${streamProtocol}`;
+    ? `chats/${conversationId}/conversation/`
+    : 'chats/conversation/';
 
   // Initialize upload hook
   const { uploadFile, isErrorAttachment, errorAttachment } = useUploadFile(
@@ -186,7 +190,7 @@ export const Chat = ({
   const { prefetchMetadata, getMetadata } = useSourceMetadataCache();
 
   const [initialConversationMessages, setInitialConversationMessages] =
-    useState<Message[] | undefined>(undefined);
+    useState<UIMessage[] | undefined>(undefined);
   // True when the pinned model is text-only and any image exists in the
   // conversation (project or history). Drives the "image processing
   // unavailable" banner above the input box.
@@ -194,7 +198,7 @@ export const Chat = ({
   const [imagesBannerDismissed, setImagesBannerDismissed] =
     useState<boolean>(false);
   const [pendingFirstMessage, setPendingFirstMessage] = useState<{
-    event: FormEvent<HTMLFormElement>;
+    input: string;
     attachments?: Attachment[];
     forceWebSearch?: boolean;
   } | null>(null);
@@ -208,11 +212,13 @@ export const Chat = ({
   >(null);
   const lastUserMessageIdRef = useRef<string | null>(null);
   const hasScrolledToBottomOnLoadRef = useRef(false);
+  // Conversation the chat instance currently holds messages for, so a real
+  // switch (A -> B) can be told apart from the other reasons the effect below
+  // re-runs.
+  const loadedConversationIdRef = useRef(initialConversationId);
   const lastSubmissionRef = useRef<{
     input: string;
     files: FileList | null;
-    event: FormEvent<HTMLFormElement>;
-    options?: Record<string, unknown>;
   } | null>(null);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
@@ -307,27 +313,45 @@ export const Chat = ({
     console.error('Chat error:', error);
   };
 
+  // The input lives here now: v5's useChat no longer owns it.
+  const [input, setInput] = useState('');
+  const handleInputChange = useCallback(
+    (event: ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) =>
+      setInput(event.target.value),
+    [],
+  );
+
+  // Deliberately not memoized: the hook keeps the latest handler in a ref, so a
+  // fresh closure each render is what keeps `setMessages` pointing at the
+  // current conversation's chat.
+  const onImagesSkipped = (kind: ImagesSkippedEventKind) => {
+    if (kind === 'chat_notice') {
+      setImagesSkipped(true);
+    } else {
+      setMessages(stampImagesSkippedOnLatestUserMessage);
+    }
+  };
+
   const {
     messages,
-    input,
-    handleSubmit: baseHandleSubmit,
-    handleInputChange,
+    sendMessage,
     status,
     stop: stopChat,
     setMessages,
     cooldownUntil,
-    data,
   } = useChat({
-    id: conversationId,
-    initialMessages: initialConversationMessages,
+    // `useChat` rebuilds the chat whenever its id differs from the instance's,
+    // and an instance with no id gets a generated one - so `undefined` never
+    // matches and the new-chat screen would rebuild on every render.
+    id: conversationId ?? 'new',
+    messages: initialConversationMessages,
     api: apiUrl,
-    streamProtocol: streamProtocol,
-    sendExtraMessageFields: true,
     onError: onErrorChat,
+    onImagesSkipped,
   });
 
   const stopGeneration = async () => {
-    stopChat();
+    await stopChat();
 
     const response = await fetchAPI(`chats/${conversationId}/stop-streaming/`, {
       method: 'POST',
@@ -350,7 +374,8 @@ export const Chat = ({
   };
 
   const handleSubmitWrapper = (event: FormEvent<HTMLFormElement>) => {
-    void handleSubmit(event);
+    event.preventDefault();
+    void submitMessage();
   };
 
   const handleRetry = () => {
@@ -369,9 +394,7 @@ export const Chat = ({
 
     retryOriginalInputRef.current = input;
     retryOriginalFilesRef.current = files;
-    handleInputChange({
-      target: { value: lastInput },
-    } as ChangeEvent<HTMLTextAreaElement>);
+    setInput(lastInput);
     setFiles(lastFiles);
     setShouldRetry(true);
   };
@@ -381,10 +404,10 @@ export const Chat = ({
     messages.forEach((message) => {
       if (message.parts) {
         const sourceParts = message.parts.filter(
-          (part): part is SourceUIPart => part.type === 'source',
+          (part): part is SourceUrlUIPart => part.type === 'source-url',
         );
         sourceParts.forEach((part) => {
-          void prefetchMetadata(part.source.url);
+          void prefetchMetadata(part.url);
         });
       }
     });
@@ -418,7 +441,7 @@ export const Chat = ({
       return [];
     }
     return sourceMessage.parts.filter(
-      (part): part is SourceUIPart => part.type === 'source',
+      (part): part is SourceUrlUIPart => part.type === 'source-url',
     );
   }, [isSourceOpen, messages]);
 
@@ -524,15 +547,15 @@ export const Chat = ({
     const lastAssistant = messages.filter((m) => m.role === 'assistant').pop();
     if (!lastAssistant?.parts) return;
     if (lastAssistant.id === lastResumeErrorMessageIdRef.current) return;
-    const resumePart = lastAssistant.parts.find(
-      (p) =>
-        p.type === 'tool-invocation' &&
-        p.toolInvocation.toolName === 'conversation_resume' &&
-        p.toolInvocation.state === 'result',
-    );
-    if (!resumePart || resumePart.type !== 'tool-invocation') return;
-    if (resumePart.toolInvocation.state !== 'result') return;
-    const result = resumePart.toolInvocation.result as {
+    const resumePart = lastAssistant.parts
+      .filter(isToolUIPart)
+      .find(
+        (p) =>
+          getToolName(p) === 'conversation_resume' &&
+          p.state === 'output-available',
+      );
+    if (!resumePart) return;
+    const result = resumePart.output as {
       state: string;
       kind?: string;
       failed_documents?: string[];
@@ -655,12 +678,13 @@ export const Chat = ({
   // Scroll to bottom when conversation_resume tool appears so the illustration is fully visible
   useEffect(() => {
     const lastAssistant = messages.filter((m) => m.role === 'assistant').pop();
-    const hasResumeTool = lastAssistant?.parts?.some(
-      (p) =>
-        p.type === 'tool-invocation' &&
-        p.toolInvocation.toolName === 'conversation_resume' &&
-        p.toolInvocation.state !== 'result',
-    );
+    const hasResumeTool = lastAssistant?.parts
+      .filter(isToolUIPart)
+      .some(
+        (p) =>
+          getToolName(p) === 'conversation_resume' &&
+          p.state !== 'output-available',
+      );
     if (hasResumeTool && chatContainerRef.current) {
       requestAnimationFrame(() => {
         if (chatContainerRef.current) {
@@ -678,12 +702,9 @@ export const Chat = ({
     setConversationId(initialConversationId);
     // Reset input when conversation changes
     if (initialConversationId !== conversationId) {
-      handleInputChange({
-        target: { value: '' },
-      } as ChangeEvent<HTMLTextAreaElement>);
+      setInput('');
       setHasInitialized(false); // Réinitialiser pour permettre le scroll au prochain chargement
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialConversationId, conversationId]);
 
   // On mount, if there is pending input/files, initialize state and set flag
@@ -697,10 +718,7 @@ export const Chat = ({
         setIsReadingInstructions(true);
       }
       if (pendingInput) {
-        const syntheticEvent = {
-          target: { value: pendingInput },
-        } as ChangeEvent<HTMLInputElement>;
-        handleInputChange(syntheticEvent);
+        setInput(pendingInput);
       }
       if (pendingFiles) {
         setFiles(pendingFiles);
@@ -715,13 +733,7 @@ export const Chat = ({
   // When shouldAutoSubmit is set, and input/files are ready, submit
   useEffect(() => {
     if (shouldAutoSubmit && (input.trim() || (files && files.length > 0))) {
-      // Create a synthetic event for form submission
-      const form = document.createElement('form');
-      const syntheticFormEvent = {
-        preventDefault: () => {},
-        target: form,
-      } as unknown as FormEvent<HTMLFormElement>;
-      void handleSubmit(syntheticFormEvent);
+      void submitMessage();
       setShouldAutoSubmit(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -733,12 +745,9 @@ export const Chat = ({
       lastSubmissionRef.current &&
       input === lastSubmissionRef.current.input
     ) {
-      const { event } = lastSubmissionRef.current;
-
-      void handleSubmit(event);
-      handleInputChange({
-        target: { value: retryOriginalInputRef.current },
-      } as ChangeEvent<HTMLTextAreaElement>);
+      void submitMessage();
+      // Restore what the user had typed before the retry took over the input.
+      setInput(retryOriginalInputRef.current);
       setFiles(retryOriginalFilesRef.current);
 
       setShouldRetry(false);
@@ -746,28 +755,19 @@ export const Chat = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldRetry, input, files]);
 
-  useEffect(() => {
-    if (!data || !Array.isArray(data)) return;
-    if (
-      data.some(
-        (item) => isImagesSkippedEvent(item) && item.kind === 'chat_notice',
-      )
-    ) {
-      setImagesSkipped(true);
-    }
-    if (
-      data.some(
-        (item) =>
-          isImagesSkippedEvent(item) && item.kind === 'last_message_marked',
-      )
-    ) {
-      setMessages(stampImagesSkippedOnLatestUserMessage);
-    }
-  }, [data, setMessages]);
-
   // Fetch initial conversation messages if initialConversationId is provided and no pending input
   useEffect(() => {
     hasScrolledToBottomOnLoadRef.current = false; // Réinitialiser au début du chargement
+    // Navigating between two conversations reuses this component (the route
+    // carries no key) and rebuilds the chat instance as soon as the id
+    // changes - before the fetch below resolves. Drop the previous messages
+    // first, otherwise they are shown under the new conversation and, if the
+    // user submits in that window, posted to its endpoint.
+    if (loadedConversationIdRef.current !== initialConversationId) {
+      loadedConversationIdRef.current = initialConversationId;
+      setInitialConversationMessages(undefined);
+      setMessages([]);
+    }
     setImagesSkipped(false);
     // Drop the previous conversation's project so its indexing gate can't leak
     // into this one; the getConversation() success below repopulates it. Skip
@@ -797,7 +797,10 @@ export const Chat = ({
             id: initialConversationId,
           });
           if (!ignore) {
+            // v5 keeps the messages inside the chat instance, which was built
+            // when the id changed — before this fetch resolved.
             setInitialConversationMessages(conversation.messages);
+            setMessages(conversation.messages);
             setImagesSkipped(conversation.images_skipped ?? false);
             setConversationProjectId(conversation.project?.id ?? null);
             setHasInitialized(true);
@@ -806,6 +809,7 @@ export const Chat = ({
           // Optionally handle error (e.g., setInitialConversationMessages([]) or show error)
           if (!ignore) {
             setInitialConversationMessages([]);
+            setMessages([]);
             setHasInitialized(true);
           }
         }
@@ -816,6 +820,7 @@ export const Chat = ({
       ignore = true;
     };
     // Only run when initialConversationId or pendingInput changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialConversationId, pendingInput]);
 
   const dismissImagesBanner = useCallback(() => {
@@ -868,10 +873,21 @@ export const Chat = ({
     return !!project?.llm_instructions?.trim();
   }, [pendingProjectId, queryClient]);
 
-  // Custom handleSubmit to include attachments and handle chat creation
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const toFileParts = (attachments: Attachment[]): FileUIPart[] =>
+    attachments.map((attachment) => ({
+      type: 'file',
+      url: attachment.url,
+      mediaType: attachment.contentType ?? 'application/octet-stream',
+      filename: attachment.name,
+    }));
 
+  const send = (text: string, attachments: Attachment[]) => {
+    void sendMessage({ text, files: toFileParts(attachments) });
+    setInput('');
+  };
+
+  // Custom submit to include attachments and handle chat creation
+  const submitMessage = async () => {
     // Inference-load cooldown: block new messages until the wait elapses.
     if (cooldownUntil && Date.now() < cooldownUntil) {
       return;
@@ -913,8 +929,8 @@ export const Chat = ({
     }
 
     if (!conversationId) {
-      // Save the event and files, then create the chat
-      setPendingFirstMessage({ event, attachments, forceWebSearch });
+      // Save the message and files, then create the chat
+      setPendingFirstMessage({ input, attachments, forceWebSearch });
       // Save input and files to Zustand store before navigation
       setPendingChat(input, files);
       if (checkProjectHasInstructions()) {
@@ -939,21 +955,10 @@ export const Chat = ({
             // After setting the conversationId, submit the pending message
             setTimeout(() => {
               if (pendingFirstMessage) {
-                // Prepare options with attachments
-                const options: Record<string, unknown> = {};
-                if (
-                  pendingFirstMessage.attachments &&
-                  pendingFirstMessage.attachments.length > 0
-                ) {
-                  options.experimental_attachments =
-                    pendingFirstMessage.attachments;
-                }
-
-                if (Object.keys(options).length > 0) {
-                  baseHandleSubmit(pendingFirstMessage.event, options);
-                } else {
-                  baseHandleSubmit(pendingFirstMessage.event);
-                }
+                send(
+                  pendingFirstMessage.input,
+                  pendingFirstMessage.attachments ?? [],
+                );
                 setFiles(null);
                 if (fileInputRef.current) {
                   fileInputRef.current.value = '';
@@ -967,25 +972,10 @@ export const Chat = ({
       return;
     }
 
-    // Prepare options with attachments
-    const options: Record<string, unknown> = {};
-    if (attachments.length > 0) {
-      options.experimental_attachments = attachments;
-    }
-
     setChatErrorType('generic');
-    lastSubmissionRef.current = {
-      input,
-      files,
-      event,
-      options: Object.keys(options).length > 0 ? options : undefined,
-    };
+    lastSubmissionRef.current = { input, files };
 
-    if (Object.keys(options).length > 0) {
-      baseHandleSubmit(event, options);
-    } else {
-      baseHandleSubmit(event);
-    }
+    send(input, attachments);
     // Attendre un peu avant de vider les fichiers pour s'assurer qu'ils sont traités
     setTimeout(() => {
       setFiles(null);
