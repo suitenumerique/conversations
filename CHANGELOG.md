@@ -22,6 +22,7 @@ and this project adheres to
 - 💄(front) correct icon Docs button
 - ♻️(back) use httpx as the single HTTP client for outbound calls
 - ⬆️(back) update django, pypdf and pydantic-settings
+- 🔒️(ci) pin CI actions and installed packages to immutable versions
 
 ### Removed
 
