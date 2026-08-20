@@ -13,8 +13,11 @@ from chat.agent_rag.document_converter.parser import (
     METHOD_OCR,
     METHOD_TEXT_EXTRACTION,
     AdaptivePdfParser,
+    MistralOcr,
     analyze_pdf,
+    use_fallback_ocr,
 )
+from chat.model_health import set_model_health
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -57,13 +60,24 @@ def ai_settings(settings):
     settings.OCR_TIMEOUT = 60
     settings.OCR_MAX_RETRIES = OCR_MAX_RETRIES
     settings.OCR_RETRY_DELAY = OCR_RETRY_DELAY
+    settings.OCR_FALLBACK_HRID = ""
     settings.LLM_CONFIGURATIONS = {
         "test-ocr-hrid": MagicMock(
+            model_name="test-ocr-model",
             provider=MagicMock(
+                hrid="albert",
                 base_url="https://ocr.example.com",
                 api_key="test-api-key",
-            )
-        )
+            ),
+        ),
+        "test-ocr-fallback-hrid": MagicMock(
+            model_name="test-ocr-fallback-model",
+            provider=MagicMock(
+                hrid="albert",
+                base_url="https://fallback-ocr.example.com",
+                api_key="test-fallback-api-key",
+            ),
+        ),
     }
     return settings
 
@@ -113,10 +127,9 @@ def test_analyze_pdf_mixed_content_recommends_ocr(mixed_pdf_10_pages):
 
 def test_extract_page_batch_single_page(text_pdf_10_pages):
     """Should extract a single page correctly."""
-    parser = AdaptivePdfParser()
     reader = PdfReader(BytesIO(text_pdf_10_pages))
 
-    result = parser.extract_page_batch(reader, 0, 1)
+    result = MistralOcr().extract_page_batch(reader, 0, 1)
 
     result_reader = PdfReader(BytesIO(result))
     assert len(result_reader.pages) == 1
@@ -124,10 +137,9 @@ def test_extract_page_batch_single_page(text_pdf_10_pages):
 
 def test_extract_page_batch_multiple_pages(text_pdf_10_pages):
     """Should extract multiple pages correctly."""
-    parser = AdaptivePdfParser()
     reader = PdfReader(BytesIO(text_pdf_10_pages))
 
-    result = parser.extract_page_batch(reader, 2, 7)
+    result = MistralOcr().extract_page_batch(reader, 2, 7)
 
     result_reader = PdfReader(BytesIO(result))
     assert len(result_reader.pages) == 5
@@ -135,10 +147,9 @@ def test_extract_page_batch_multiple_pages(text_pdf_10_pages):
 
 def test_extract_page_batch_last_batch(text_pdf_10_pages):
     """Should handle last batch with fewer pages."""
-    parser = AdaptivePdfParser()
     reader = PdfReader(BytesIO(text_pdf_10_pages))
 
-    result = parser.extract_page_batch(reader, 7, 10)
+    result = MistralOcr().extract_page_batch(reader, 7, 10)
 
     result_reader = PdfReader(BytesIO(result))
     assert len(result_reader.pages) == 3
@@ -146,7 +157,7 @@ def test_extract_page_batch_last_batch(text_pdf_10_pages):
 
 def test_ocr_page_batch_success(text_pdf_1_page):
     """Should return markdown content on successful OCR."""
-    parser = AdaptivePdfParser()
+    client = MistralOcr()
 
     with patch("chat.agent_rag.document_converter.parser.httpx.post") as mock_post:
         mock_post.return_value.json.return_value = {
@@ -156,7 +167,7 @@ def test_ocr_page_batch_success(text_pdf_1_page):
         }
         mock_post.return_value.raise_for_status = MagicMock()
 
-        result = parser.ocr_page_batch("test.pdf", text_pdf_1_page, 0, 1)
+        result = client.ocr_page_batch("test.pdf", text_pdf_1_page, 0, 1)
 
         assert result == ["# Page 1 content"]
         mock_post.assert_called_once()
@@ -164,7 +175,7 @@ def test_ocr_page_batch_success(text_pdf_1_page):
 
 def test_ocr_page_batch_retry_on_timeout(text_pdf_1_page):
     """Should retry on timeout with static delay."""
-    parser = AdaptivePdfParser()
+    client = MistralOcr()
 
     with patch("chat.agent_rag.document_converter.parser.httpx.post") as mock_post:
         with patch("chat.agent_rag.document_converter.parser.time.sleep") as mock_sleep:
@@ -176,7 +187,7 @@ def test_ocr_page_batch_retry_on_timeout(text_pdf_1_page):
                 ),
             ]
 
-            result = parser.ocr_page_batch("test.pdf", text_pdf_1_page, 0, 1)
+            result = client.ocr_page_batch("test.pdf", text_pdf_1_page, 0, 1)
 
             assert result == ["# Content"]
             assert mock_post.call_count == 2
@@ -185,21 +196,21 @@ def test_ocr_page_batch_retry_on_timeout(text_pdf_1_page):
 
 def test_ocr_page_batch_fails_after_max_retries(text_pdf_1_page):
     """Should raise exception after max retries exceeded."""
-    parser = AdaptivePdfParser()
+    client = MistralOcr()
 
     with patch("chat.agent_rag.document_converter.parser.httpx.post") as mock_post:
         with patch("chat.agent_rag.document_converter.parser.time.sleep"):
             mock_post.side_effect = httpx.TimeoutException("Connection timed out")
 
             with pytest.raises(httpx.TimeoutException):
-                parser.ocr_page_batch("test.pdf", text_pdf_1_page, 0, 1)
+                client.ocr_page_batch("test.pdf", text_pdf_1_page, 0, 1)
 
             assert mock_post.call_count == OCR_MAX_RETRIES
 
 
 def test_ocr_page_batch_retry_on_request_exception(text_pdf_1_page):
     """Should retry on general request exceptions."""
-    parser = AdaptivePdfParser()
+    client = MistralOcr()
 
     with patch("chat.agent_rag.document_converter.parser.httpx.post") as mock_post:
         with patch("chat.agent_rag.document_converter.parser.time.sleep"):
@@ -212,7 +223,7 @@ def test_ocr_page_batch_retry_on_request_exception(text_pdf_1_page):
                 ),
             ]
 
-            result = parser.ocr_page_batch("test.pdf", text_pdf_1_page, 0, 1)
+            result = client.ocr_page_batch("test.pdf", text_pdf_1_page, 0, 1)
 
             assert result == ["# Content"]
             assert mock_post.call_count == 3
@@ -420,3 +431,85 @@ def test_parse_odt_empty_input():
 
     with pytest.raises(OdtParsingError):
         parser.parse_document("empty.odt", "application/vnd.oasis.opendocument.text", b"")
+
+
+@pytest.fixture(name="fallback_configured")
+def provide_fallback_configured(settings):
+    """Point the OCR fallback at a configured HRID/model pair."""
+    settings.OCR_FALLBACK_HRID = "test-ocr-fallback-hrid"
+    return settings
+
+
+@pytest.mark.parametrize(
+    "main_status,fallback_status,expected",
+    [
+        ("green", "green", False),
+        ("green", "red", False),
+        ("yellow", "green", True),
+        ("red", "green", True),
+        ("red", "yellow", False),
+        ("red", "red", False),
+        ("red", None, False),
+        # Health data missing for the main model is not a green light either.
+        (None, "green", True),
+        (None, None, False),
+    ],
+)
+def test_use_fallback_ocr_follows_model_health(
+    clear_cache, fallback_configured, main_status, fallback_status, expected
+):  # pylint: disable=unused-argument
+    """The fallback only takes over when it is green and the main model is not."""
+    if main_status:
+        set_model_health("albert", "test-ocr-model", main_status)
+    if fallback_status:
+        set_model_health("albert", "test-ocr-fallback-model", fallback_status)
+
+    assert use_fallback_ocr() is expected
+
+
+def test_use_fallback_ocr_is_off_when_not_configured(clear_cache):  # pylint: disable=unused-argument
+    """An unconfigured fallback never takes over, however bad the main model is."""
+    set_model_health("albert", "test-ocr-model", "red")
+
+    assert use_fallback_ocr() is False
+
+
+def test_parse_pdf_with_ocr_routes_to_the_fallback(
+    clear_cache, fallback_configured, text_pdf_10_pages
+):  # pylint: disable=unused-argument
+    """A degraded main model sends the document to the LightOn fallback."""
+    set_model_health("albert", "test-ocr-model", "red")
+    set_model_health("albert", "test-ocr-fallback-model", "green")
+    parser = AdaptivePdfParser()
+
+    with patch(
+        "chat.agent_rag.document_converter.parser.LightOnOcr", autospec=True
+    ) as mock_lighton:
+        mock_lighton.return_value.parse_pdf_document.return_value = "fallback markdown"
+
+        result = parser.parse_pdf_document_with_ocr("test.pdf", text_pdf_10_pages)
+
+        assert result == "fallback markdown"
+        mock_lighton.return_value.parse_pdf_document.assert_called_once_with(
+            name="test.pdf", content=text_pdf_10_pages
+        )
+
+
+def test_parse_pdf_with_ocr_stays_on_mistral_when_the_fallback_is_down(
+    clear_cache, fallback_configured, text_pdf_10_pages
+):  # pylint: disable=unused-argument
+    """Both models degraded: the document goes to Mistral OCR and fails there."""
+    set_model_health("albert", "test-ocr-model", "red")
+    set_model_health("albert", "test-ocr-fallback-model", "red")
+    parser = AdaptivePdfParser()
+
+    with patch("chat.agent_rag.document_converter.parser.httpx.post") as mock_post:
+        mock_post.return_value.json.return_value = {
+            "pages": [{"markdown": f"Page {i}"} for i in range(1, 11)]
+        }
+        mock_post.return_value.raise_for_status = MagicMock()
+
+        result = parser.parse_pdf_document_with_ocr("test.pdf", text_pdf_10_pages)
+
+        assert "Page 1" in result
+        mock_post.assert_called_once()

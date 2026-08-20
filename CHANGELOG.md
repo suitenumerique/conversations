@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(back) fall back to a vision OCR model when Mistral OCR is not green
 - 💄(settings) move analytics settings to general
 - 📈(posthog) track projects, Docs export, summarization and co2 footprint
 
@@ -22,6 +23,7 @@ and this project adheres to
 - 💄(front) correct icon Docs button
 - ♻️(back) use httpx as the single HTTP client for outbound calls
 - ⬆️(back) update django, pypdf and pydantic-settings
+- ♻️(back) point OCR_HRID at the OCR model's own configuration entry
 
 ### Removed
 

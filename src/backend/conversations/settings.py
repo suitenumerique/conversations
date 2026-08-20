@@ -1034,13 +1034,16 @@ Never use unescaped dollar delimiters for mathematical notation.""",
         environ_prefix=None,
     )
 
-    # OCR settings for AdaptivePdfParser
+    # OCR settings for AdaptivePdfParser.
+    # The entry must carry the OCR model itself as its `model_name`: it is the model
+    # called for OCR, and the one whose health drives the fallback below.
     OCR_HRID = values.Value(
-        default="etalab-plateform-mistral-medium-2508",
+        default="default-ocr-model",
         environ_name="OCR_HRID",
         environ_prefix=None,
     )
-    # Specific Mistral OCR model - Designates which Mistral vision model to use for OCR
+    # Model behind the shipped `default-ocr-model` entry, and the model AlbertParser
+    # sends its documents to. AdaptivePdfParser reads OCR_HRID's `model_name` instead.
     OCR_MODEL = values.Value(
         default="mistral-ocr-2512",
         environ_name="OCR_MODEL",
@@ -1066,6 +1069,42 @@ Never use unescaped dollar delimiters for mathematical notation.""",
     OCR_BATCH_PAGES = values.PositiveIntegerValue(
         default=10,
         environ_name="OCR_BATCH_PAGES",
+        environ_prefix=None,
+    )
+    # Fallback OCR (LightOn OCR), used when the OCR model's health is not green.
+    # Its entry carries a vision model, read page by page on the provider's
+    # /v1/chat/completions endpoint. Left empty, the fallback is disabled.
+    OCR_FALLBACK_HRID = values.Value(
+        default="",
+        environ_name="OCR_FALLBACK_HRID",
+        environ_prefix=None,
+    )
+    # Longest side, in pixels, of the page image sent to the fallback model:
+    # the resolution LightOn OCR is trained on, larger only inflates the payload.
+    OCR_FALLBACK_IMAGE_MAX_SIZE = values.PositiveIntegerValue(
+        default=1540,
+        environ_name="OCR_FALLBACK_IMAGE_MAX_SIZE",
+        environ_prefix=None,
+    )
+    OCR_FALLBACK_MAX_TOKENS = values.PositiveIntegerValue(
+        default=4096,
+        environ_name="OCR_FALLBACK_MAX_TOKENS",
+        environ_prefix=None,
+    )
+    OCR_FALLBACK_TEMPERATURE = values.FloatValue(
+        default=0.2,
+        environ_name="OCR_FALLBACK_TEMPERATURE",
+        environ_prefix=None,
+    )
+    OCR_FALLBACK_TOP_P = values.FloatValue(
+        default=0.9,
+        environ_name="OCR_FALLBACK_TOP_P",
+        environ_prefix=None,
+    )
+    # One request per page here, against OCR_TIMEOUT covering a whole batch
+    OCR_FALLBACK_TIMEOUT = values.PositiveIntegerValue(
+        default=120,
+        environ_name="OCR_FALLBACK_TIMEOUT",
         environ_prefix=None,
     )
     MIN_AVG_CHARS_FOR_TEXT_EXTRACTION = values.PositiveIntegerValue(
@@ -1501,6 +1540,12 @@ Never use unescaped dollar delimiters for mathematical notation.""",
                 raise ValueError(
                     f"OCR_HRID '{cls.OCR_HRID}' not found in LLM_CONFIGURATIONS. "
                     "Please add a matching provider entry or set OCR_HRID to an existing key."
+                )
+            if cls.OCR_FALLBACK_HRID and cls.OCR_FALLBACK_HRID not in llm_configs:
+                raise ValueError(
+                    f"OCR_FALLBACK_HRID '{cls.OCR_FALLBACK_HRID}' not found in "
+                    "LLM_CONFIGURATIONS. Please add a matching provider entry, or leave "
+                    "OCR_FALLBACK_HRID empty to disable the fallback OCR model."
                 )
 
         # Langfuse initialization

@@ -74,3 +74,35 @@ Django admin. It exposes two choices fields:
 Admin writes are mirrored to the cache via `transaction.on_commit`
 (`core/admin.py`), so workers pick up the new thresholds immediately
 without a restart.
+
+## OCR routing
+
+PDF OCR follows a much simpler rule than the chat cascade, in
+`chat/agent_rag/document_converter/parser.py:use_fallback_ocr`:
+
+1. `OCR_HRID` `green` → Mistral OCR.
+2. `OCR_HRID` not `green` (including unknown) **and** `OCR_FALLBACK_HRID`
+   `green` → the fallback model.
+3. Anything else → Mistral OCR, allowed to fail. A degraded fallback is not an
+   improvement over a degraded primary, and the failure is what marks the
+   attachment as re-indexable.
+
+The admin eviction thresholds above do **not** apply here: OCR treats anything
+other than `green` as unusable.
+
+| Variable                      | Role                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------ |
+| `OCR_HRID`                    | Config entry of the OCR model, called on the provider's `/v1/ocr`         |
+| `OCR_FALLBACK_HRID`           | Config entry of the fallback vision model (empty = fallback disabled)     |
+
+Both are ordinary LLM configuration entries carrying `is_active: false`, so
+they stay out of the model picker while still exposing a `model_name` — which
+is what health is keyed on, and what is sent as `model` in the request. An
+entry whose `model_name` is *not* the model doing the OCR would silently route
+on some other model's health.
+
+The two OCR backends do not speak the same protocol: Mistral OCR takes the
+whole PDF in `OCR_BATCH_PAGES`-sized batches, while the fallback is a
+vision-language model that reads images, so pages are rasterised to PNG and
+sent one request at a time. See
+[`attachments.md`](attachments.md#other-document-types) for the details.

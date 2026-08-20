@@ -10,11 +10,14 @@ from urllib.parse import urljoin
 from django.conf import settings
 
 import httpx
+import pypdfium2
 from pypdf import PdfReader, PdfWriter
 
 from chat.agent_rag.document_converter.guards import guard_pdf_page_count, guard_zip_bomb
 from chat.agent_rag.document_converter.markitdown import DocumentConverter
 from chat.constants import PDF_MIME_TYPE
+from chat.model_health import get_status_for_hrid
+from chat.models import ModelHealth
 
 from .odt import OdtToMd
 
@@ -180,29 +183,98 @@ class AdaptivePdfParserMixin:
         raise NotImplementedError("Subclass must implement parse_pdf_document_with_ocr")
 
 
-class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
+class BaseOcrClient(ABC):
+    """Shared plumbing for the OCR backends.
+
+    Both take their provider, credentials and model from an LLM configuration
+    entry, and both POST a JSON payload to a single endpoint with a static
+    delay retry. What differs is the endpoint, the payload and how the answer
+    is turned back into markdown.
     """
-    PDF parser with adaptive text extraction / OCR routing.
 
-    Uses Mistral OCR API for scanned/image PDFs, processed in batches with retry logic.
-    """
+    endpoint_path: str
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, hrid: str):
+        configuration = settings.LLM_CONFIGURATIONS[hrid]
 
-        self.endpoint = urljoin(
-            settings.LLM_CONFIGURATIONS[settings.OCR_HRID].provider.base_url, "/v1/ocr"
-        )
-        self.max_retries = settings.OCR_MAX_RETRIES
-        self.retry_delay = settings.OCR_RETRY_DELAY
-        api_key = settings.LLM_CONFIGURATIONS[settings.OCR_HRID].provider.api_key
-
+        self.endpoint = urljoin(configuration.provider.base_url, self.endpoint_path)
+        self.model_name = configuration.model_name
         self.headers = {
-            "Authorization": f"Bearer {api_key}",
+            "Authorization": f"Bearer {configuration.provider.api_key}",
             "Content-Type": "application/json",
         }
+        self.max_retries = settings.OCR_MAX_RETRIES
+        self.retry_delay = settings.OCR_RETRY_DELAY
 
-    def extract_page_batch(self, reader: PdfReader, start_index: int, end_index: int) -> bytes:
+    @property
+    @abstractmethod
+    def timeout(self) -> int:
+        """Request timeout in seconds: a batch of pages, or a single one."""
+
+    @abstractmethod
+    def parse_pdf_document(self, name: str, content: bytes) -> str:
+        """Return the document as markdown."""
+
+    def post_with_retry(self, payload: dict, subject: str) -> dict:
+        """POST `payload` and return the JSON body, retrying on HTTP errors.
+
+        `subject` names what is being OCR'd in the logs (e.g. "pages 1-10").
+        A request that fails every attempt raises, aborting the whole document.
+        Substituting blank pages would return a partial parse the caller cannot
+        tell from a complete one: it would be stored and indexed as a success,
+        with the failed pages silently missing from the collection. Letting the
+        error propagate sends the attachment to the caller's FAILED handling,
+        which records the reason and leaves it re-indexable.
+        """
+        last_exception = None
+        for attempt in range(self.max_retries):
+            try:
+                response = httpx.post(
+                    self.endpoint,
+                    headers=self.headers,
+                    json=payload,
+                    timeout=self.timeout,
+                )
+                response.raise_for_status()
+                return response.json()
+
+            except httpx.HTTPError as e:
+                last_exception = e
+                if attempt < self.max_retries - 1:
+                    logger.warning(
+                        "OCR attempt %d/%d failed for %s: %s. Retrying in %.1fs...",
+                        attempt + 1,
+                        self.max_retries,
+                        subject,
+                        str(e),
+                        self.retry_delay,
+                    )
+                    time.sleep(self.retry_delay)
+
+        logger.error(
+            "OCR failed for %s after %d attempts: %s",
+            subject,
+            self.max_retries,
+            str(last_exception),
+        )
+        raise last_exception
+
+
+class MistralOcr(BaseOcrClient):
+    """Whole-document OCR through the provider's /v1/ocr endpoint, in page batches."""
+
+    endpoint_path = "/v1/ocr"
+
+    def __init__(self):
+        super().__init__(settings.OCR_HRID)
+
+    @property
+    def timeout(self) -> int:
+        """Covers a whole batch of pages."""
+        return settings.OCR_TIMEOUT
+
+    @staticmethod
+    def extract_page_batch(reader: PdfReader, start_index: int, end_index: int) -> bytes:
         """Extract a range of pages from PDF as a new PDF bytes object."""
         writer = PdfWriter()
         for i in range(start_index, end_index):
@@ -218,7 +290,7 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
         start_index: int,
         end_index: int,
     ) -> list[str]:
-        """Send page batch to Mistral OCR API with static delay retry."""
+        """Send a page batch to the OCR endpoint and return one markdown per page."""
         file_data = base64.standard_b64encode(page_content).decode("utf-8")
         payload = {
             "document": {
@@ -226,56 +298,14 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
                 "document_name": f"{name}_pages_{start_index + 1}_to_{end_index}",
                 "document_url": f"data:application/pdf;base64,{file_data}",
             },
-            "model": settings.OCR_MODEL,
+            "model": self.model_name,
         }
 
-        last_exception = None
-        for attempt in range(self.max_retries):
-            try:
-                response = httpx.post(
-                    self.endpoint,
-                    headers=self.headers,
-                    json=payload,
-                    timeout=settings.OCR_TIMEOUT,
-                )
-                response.raise_for_status()
+        body = self.post_with_retry(payload, f"pages {start_index + 1}-{end_index}")
+        return [page.get("markdown", "") for page in body.get("pages", [])]
 
-                pages = response.json().get("pages", [])
-                return [page.get("markdown", "") for page in pages]
-
-            except httpx.HTTPError as e:
-                last_exception = e
-                if attempt < self.max_retries - 1:
-                    logger.warning(
-                        "OCR attempt %d/%d failed for pages %d-%d: %s. Retrying in %.1fs...",
-                        attempt + 1,
-                        self.max_retries,
-                        start_index + 1,
-                        end_index,
-                        str(e),
-                        self.retry_delay,
-                    )
-                    time.sleep(self.retry_delay)
-
-        logger.error(
-            "OCR failed for pages %d-%d after %d attempts: %s",
-            start_index + 1,
-            end_index,
-            self.max_retries,
-            str(last_exception),
-        )
-        raise last_exception
-
-    def parse_pdf_document_with_ocr(self, name: str, content: bytes) -> str:
-        """Process PDF through OCR in batches, returning concatenated markdown.
-
-        A batch that fails every retry aborts the whole document. Substituting
-        blank pages would return a partial parse the caller cannot tell from a
-        complete one: it would be stored and indexed as a success, with the
-        failed pages silently missing from the collection. Letting the error
-        propagate sends the attachment to the caller's FAILED handling, which
-        records the reason and leaves it re-indexable.
-        """
+    def parse_pdf_document(self, name: str, content: bytes) -> str:
+        """Process PDF through OCR in batches, returning concatenated markdown."""
         reader = PdfReader(BytesIO(content))
         total_pages = len(reader.pages)
         batch_size = settings.OCR_BATCH_PAGES
@@ -286,9 +316,128 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
         for start_index in range(0, total_pages, batch_size):
             end_index = min(start_index + batch_size, total_pages)
             batch_content = self.extract_page_batch(reader, start_index, end_index)
-            batch_results = self.ocr_page_batch(name, batch_content, start_index, end_index)
-            results.extend(batch_results)
+            results.extend(self.ocr_page_batch(name, batch_content, start_index, end_index))
             logger.debug(
                 "Completed OCR for pages %d-%d/%d", start_index + 1, end_index, total_pages
             )
         return "\n\n".join(results)
+
+
+class LightOnOcr(BaseOcrClient):
+    """Page-by-page OCR through a vision chat model (LightOn OCR).
+
+    The OCR endpoint swallows a whole PDF and answers with one markdown blob
+    per page. LightOn OCR is a vision-language model served on
+    /v1/chat/completions instead: it only reads images, so each PDF page is
+    rasterised to a PNG and sent as its own request.
+    """
+
+    endpoint_path = "/v1/chat/completions"
+
+    def __init__(self):
+        super().__init__(settings.OCR_FALLBACK_HRID)
+
+    @property
+    def timeout(self) -> int:
+        """Covers a single page."""
+        return settings.OCR_FALLBACK_TIMEOUT
+
+    @staticmethod
+    def render_page_to_png(page: pypdfium2.PdfPage) -> bytes:
+        """Rasterise one PDF page to PNG bytes.
+
+        The page is scaled so its longest side lands on
+        ``OCR_FALLBACK_IMAGE_MAX_SIZE`` pixels, which is the resolution the
+        model was trained on: rendering larger only inflates the payload.
+        """
+        longest_side = max(page.get_width(), page.get_height())
+        scale = settings.OCR_FALLBACK_IMAGE_MAX_SIZE / longest_side
+
+        buffer = BytesIO()
+        page.render(scale=scale).to_pil().save(buffer, format="PNG")
+        return buffer.getvalue()
+
+    def ocr_page(self, page_png: bytes, page_number: int, total_pages: int) -> str:
+        """Send one page image to the chat endpoint and return its markdown."""
+        image_data = base64.standard_b64encode(page_png).decode("utf-8")
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/png;base64,{image_data}"},
+                        }
+                    ],
+                }
+            ],
+            "max_tokens": settings.OCR_FALLBACK_MAX_TOKENS,
+            "temperature": settings.OCR_FALLBACK_TEMPERATURE,
+            "top_p": settings.OCR_FALLBACK_TOP_P,
+        }
+
+        body = self.post_with_retry(payload, f"page {page_number}/{total_pages}")
+        choices = body.get("choices", [])
+        content = choices[0].get("message", {}).get("content", "") if choices else ""
+        if not content:
+            logger.warning("Fallback OCR returned no content for page %d", page_number)
+        return content
+
+    def parse_pdf_document(self, name: str, content: bytes) -> str:
+        """Render every page and OCR it, returning concatenated markdown."""
+        document = pypdfium2.PdfDocument(content)
+        try:
+            total_pages = len(document)
+            logger.info(
+                "Parsing %s with fallback OCR (%d pages, one request per page)", name, total_pages
+            )
+
+            results = []
+            for index in range(total_pages):
+                page_number = index + 1
+                page_png = self.render_page_to_png(document[index])
+                results.append(self.ocr_page(page_png, page_number, total_pages))
+                logger.debug("Completed fallback OCR for page %d/%d", page_number, total_pages)
+        finally:
+            document.close()
+
+        return "\n\n".join(results)
+
+
+def use_fallback_ocr() -> bool:
+    """True when OCR must be routed to the LightOn fallback model.
+
+    Mistral OCR keeps the traffic unless its own health is reported as anything
+    other than green *and* the fallback is green. When neither is green the
+    document still goes to Mistral OCR, and is allowed to fail there: a
+    fallback that is itself degraded is not an improvement over the primary.
+    """
+    fallback_hrid = settings.OCR_FALLBACK_HRID
+    if not fallback_hrid:
+        return False
+
+    if get_status_for_hrid(settings.OCR_HRID) == ModelHealth.Status.GREEN:
+        return False
+
+    return get_status_for_hrid(fallback_hrid) == ModelHealth.Status.GREEN
+
+
+class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
+    """
+    PDF parser with adaptive text extraction / OCR routing.
+
+    Scanned/image PDFs go to the Mistral OCR API, unless model health sends
+    them to the LightOn fallback (see `use_fallback_ocr`).
+    """
+
+    def parse_pdf_document_with_ocr(self, name: str, content: bytes) -> str:
+        """Send the document to whichever OCR model health says is usable."""
+        if use_fallback_ocr():
+            logger.info(
+                "OCR model is not green, routing to the fallback model %s",
+                settings.OCR_FALLBACK_HRID,
+            )
+            return LightOnOcr().parse_pdf_document(name=name, content=content)
+        return MistralOcr().parse_pdf_document(name=name, content=content)
