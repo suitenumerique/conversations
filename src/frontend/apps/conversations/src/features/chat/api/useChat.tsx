@@ -1,7 +1,12 @@
-import { UseChatOptions, useChat as useAiSdkChat } from '@ai-sdk/react';
-import { Message } from '@ai-sdk/ui-utils';
+import { useChat as useAiSdkChat } from '@ai-sdk/react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import {
+  ChatOnDataCallback,
+  DefaultChatTransport,
+  FileUIPart,
+  UIMessage,
+} from 'ai';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { fetchAPI } from '@/api';
 import { KEY_CONVERSATION } from '@/features/chat/api/useConversation';
@@ -23,6 +28,8 @@ const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
 
   const searchParams = new URLSearchParams();
 
+  // Read at request time, not at render time: the transport is built once but
+  // these preferences change between messages.
   const { forceWebSearch, selectedModelHrid } =
     useChatPreferencesStore.getState();
 
@@ -117,83 +124,99 @@ export function isImagesSkippedEvent(
   );
 }
 
+/** A file part the backend kept on the message but hid from the model. */
+export type SkippableFileUIPart = FileUIPart & {
+  skipped?: { reason: string };
+};
+
+const isImageFilePart = (
+  part: UIMessage['parts'][number],
+): part is SkippableFileUIPart =>
+  part.type === 'file' && part.mediaType.startsWith('image/');
+
 /**
- * Stamp `skipped: { reason: <IMAGE_SKIP_REASON_TEXT_ONLY> }` on every image-like
- * attachment of the latest user message, returning the same array reference
- * when nothing changed. Used to mark optimistic attachments live when the
- * backend signals it skipped them (mirroring the persisted-state behaviour).
+ * Stamp `skipped: { reason: <IMAGE_SKIP_REASON_TEXT_ONLY> }` on every image file
+ * part of the latest user message, returning the same array reference when
+ * nothing changed. Used to mark optimistic attachments live when the backend
+ * signals it skipped them (mirroring the persisted-state behaviour).
  */
 export function stampImagesSkippedOnLatestUserMessage(
-  prevMessages: Message[],
-): Message[] {
+  prevMessages: UIMessage[],
+): UIMessage[] {
   const lastUserIdx = prevMessages.findLastIndex((m) => m.role === 'user');
   if (lastUserIdx === -1) return prevMessages;
   const lastUser = prevMessages[lastUserIdx];
-  const attachments = lastUser.experimental_attachments;
-  if (!attachments || attachments.length === 0) return prevMessages;
   let mutated = false;
-  const updated = attachments.map((att) => {
-    if (
-      att.contentType?.startsWith('image/') &&
-      !(att as { skipped?: unknown }).skipped
-    ) {
+  const parts = lastUser.parts.map((part) => {
+    if (isImageFilePart(part) && !part.skipped) {
       mutated = true;
-      return { ...att, skipped: { reason: IMAGE_SKIP_REASON_TEXT_ONLY } };
+      return { ...part, skipped: { reason: IMAGE_SKIP_REASON_TEXT_ONLY } };
     }
-    return att;
+    return part;
   });
   if (!mutated) return prevMessages;
   const next = [...prevMessages];
-  next[lastUserIdx] = {
-    ...lastUser,
-    experimental_attachments: updated,
-  };
+  next[lastUserIdx] = { ...lastUser, parts };
   return next;
 }
 
-export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
+export interface UseChatOptions {
+  /** Conversation id; changing it starts a fresh chat. */
+  id?: string;
+  /** Messages the chat starts with. */
+  messages?: UIMessage[];
+  /** Endpoint the transport posts to. */
+  api: string;
+  onError?: (error: Error) => void;
+  /** Called for each `images_skipped` notice streamed by the backend. */
+  onImagesSkipped?: (kind: ImagesSkippedEventKind) => void;
+}
+
+export function useChat({ api, onImagesSkipped, ...options }: UseChatOptions) {
   const queryClient = useQueryClient();
-  const { onFinish: onFinishOption, ...restOptions } = options;
-
-  const result = useAiSdkChat({
-    ...restOptions,
-    // Single step: every tool loop runs server-side inside the agent, and we
-    // register no client-side tool (no `onToolCall`/`addToolResult`), so there
-    // is nothing for the client to continue. With maxSteps > 1 the SDK
-    // auto-resubmits whenever a stream ends with a resolved tool invocation and
-    // no trailing `start_step` — which is what an interrupted turn looks like
-    // once the `summarize` tool has returned. That resubmit flips the status
-    // away from `error`, hiding the failure, and the backend answers an
-    // assistant-terminated message list with an empty stream: the bubble stays
-    // blank instead of showing an error and a retry.
-    maxSteps: 1,
-    fetch: fetchAPIAdapter,
-    onFinish: (message, finishOptions) => {
-      if (message.annotations?.length) {
-        result.setMessages((prev) => {
-          const lastAssistantIndex = prev.findLastIndex(
-            (msg) => msg.role === 'assistant',
-          );
-          if (lastAssistantIndex === -1) {
-            return prev;
-          }
-          const updated = [...prev];
-          updated[lastAssistantIndex] = {
-            ...updated[lastAssistantIndex],
-            annotations: message.annotations,
-          };
-          return updated;
-        });
-      }
-      onFinishOption?.(message, finishOptions);
-    },
-  });
-
   // Epoch ms until which the user must wait before sending a new message.
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
-  // Track how many data items we have already handled so each event is
-  // processed exactly once (the data stream grows append-only).
-  const processedCountRef = useRef(0);
+
+  // The transport is captured when the chat is created, so the callbacks it
+  // ends up holding must always reach the latest render's handlers.
+  const onImagesSkippedRef = useRef(onImagesSkipped);
+  onImagesSkippedRef.current = onImagesSkipped;
+
+  const transport = useMemo(
+    () => new DefaultChatTransport({ api, fetch: fetchAPIAdapter }),
+    [api],
+  );
+
+  const onData = useCallback<ChatOnDataCallback<UIMessage>>(
+    (part) => {
+      const item = part.data;
+      if (isConversationMetadataEvent(item)) {
+        void queryClient.invalidateQueries({
+          queryKey: [KEY_LIST_CONVERSATION],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: [KEY_LIST_PROJECT],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: [KEY_CONVERSATION, item.conversationId],
+        });
+      } else if (isCooldownEvent(item)) {
+        setCooldownUntil(Date.now() + item.seconds * 1000);
+      } else if (isImagesSkippedEvent(item)) {
+        onImagesSkippedRef.current?.(item.kind);
+      }
+    },
+    [queryClient],
+  );
+
+  // No `sendAutomaticallyWhen`: every tool loop runs server-side inside the
+  // agent and we register no client-side tool, so there is nothing for the
+  // client to continue. Auto-resubmitting would hide a failure — an interrupted
+  // turn looks like a resolved tool invocation with no trailing step, and the
+  // resubmit flips the status away from `error` while the backend answers an
+  // assistant-terminated message list with an empty stream: the bubble stays
+  // blank instead of showing an error and a retry.
+  const result = useAiSdkChat({ ...options, transport, onData });
 
   // Restore the cooldown from the backend (the authoritative source) so it
   // survives a refresh, a new tab, or switching conversations. react-query
@@ -213,35 +236,6 @@ export function useChat(options: Omit<UseChatOptions, 'fetch'>) {
         : null,
     );
   }, [cooldownData]);
-
-  useEffect(() => {
-    const data = result.data;
-    if (!Array.isArray(data)) {
-      processedCountRef.current = 0;
-      return;
-    }
-    // Stream reset (e.g. switching conversations): reprocess from the start.
-    if (data.length < processedCountRef.current) {
-      processedCountRef.current = 0;
-    }
-    for (let i = processedCountRef.current; i < data.length; i++) {
-      const item = data[i];
-      if (isConversationMetadataEvent(item)) {
-        void queryClient.invalidateQueries({
-          queryKey: [KEY_LIST_CONVERSATION],
-        });
-        void queryClient.invalidateQueries({
-          queryKey: [KEY_LIST_PROJECT],
-        });
-        void queryClient.invalidateQueries({
-          queryKey: [KEY_CONVERSATION, item.conversationId],
-        });
-      } else if (isCooldownEvent(item)) {
-        setCooldownUntil(Date.now() + item.seconds * 1000);
-      }
-    }
-    processedCountRef.current = data.length;
-  }, [result.data, queryClient]);
 
   return { ...result, cooldownUntil };
 }

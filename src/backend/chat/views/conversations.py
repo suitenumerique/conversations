@@ -94,8 +94,8 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
 
     The chat conversations are filtered by the authenticated user.
     The `post_conversation` action allows sending messages to the chat and receiving a
-    streaming response with "data" formatted for Vercel AI SDK
-    see https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol#data-stream-protocol.
+    streaming response formatted as a Vercel AI SDK UI message stream,
+    see https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol.
     """
 
     pagination_class = Pagination
@@ -217,7 +217,6 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         Args:
             request: The HTTP request object containing:
                 - messages: List of message objects with role and content
-                - protocol: Optional protocol parameter ('text' or 'data', defaults to 'data')
             pk: The primary key of the chat conversation.
 
         Returns:
@@ -225,7 +224,6 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         """
         query_params_serializer = ChatConversationRequestSerializer(data=request.query_params)
         query_params_serializer.is_valid(raise_exception=True)
-        protocol = query_params_serializer.validated_data["protocol"]
         force_web_search = query_params_serializer.validated_data["force_web_search"]
         requested_model_hrid = query_params_serializer.validated_data["model_hrid"]
 
@@ -281,7 +279,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
 
         messages = serializer.validated_data["messages"]
 
-        logger.info("Validated %d messages, protocol=%s", len(messages), protocol)
+        logger.info("Validated %d messages", len(messages))
 
         if not messages:
             return Response({"error": "No messages provided"}, status=status.HTTP_400_BAD_REQUEST)
@@ -327,28 +325,18 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
 
         if is_async_mode:
             logger.debug("Using ASYNC streaming for chat conversation.")
-            if protocol == "data":
-                base_stream = ai_service.stream_data_async(
-                    messages, force_web_search=force_web_search
-                )
-            else:  # Default to 'text' protocol
-                base_stream = ai_service.stream_text_async(
-                    messages, force_web_search=force_web_search
-                )
+            base_stream = ai_service.stream_data_async(messages, force_web_search=force_web_search)
             streaming_content = stream_with_keepalive_async(base_stream)
         else:
             logger.debug("Using SYNC streaming for chat conversation.")
-            if protocol == "data":
-                base_stream = ai_service.stream_data(messages, force_web_search=force_web_search)
-            else:  # Default to 'text' protocol
-                base_stream = ai_service.stream_text(messages, force_web_search=force_web_search)
-
+            base_stream = ai_service.stream_data(messages, force_web_search=force_web_search)
             streaming_content = stream_with_keepalive_sync(base_stream)
         response = StreamingHttpResponse(
             streaming_content,
             content_type=SSE_MIME_TYPE,
             headers={
-                "x-vercel-ai-data-stream": "v1",  # This header is used for Vercel AI streaming,
+                # Tells the Vercel AI SDK this is a v5 UI message stream.
+                "x-vercel-ai-ui-message-stream": "v1",
                 "X-Accel-Buffering": "no",  # Prevent nginx buffering
             },
         )

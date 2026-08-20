@@ -11,6 +11,7 @@ from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService
 from chat.factories import ChatConversationFactory
+from chat.tests.utils import stream_body
 from chat.vercel_ai_sdk.core import events_v4
 
 pytestmark = pytest.mark.django_db()
@@ -36,56 +37,16 @@ def ui_messages_fixture():
 
 
 @patch("chat.clients.pydantic_ai.convert_async_generator_to_sync")
-def test_stream_text_delegates_to_async(mock_convert, ui_messages):
-    """Test stream_text method delegates to async version."""
-    conversation = ChatConversationFactory()
-    service = AIAgentService(conversation, user=conversation.owner)
-    mock_convert.return_value = iter(["Hello", " world"])
-
-    result = service.stream_text(ui_messages, force_web_search=True)
-
-    mock_convert.assert_called_once()
-    assert result == mock_convert.return_value
-
-
-@patch("chat.clients.pydantic_ai.convert_async_generator_to_sync")
 def test_stream_data_delegates_to_async(mock_convert, ui_messages):
     """Test stream_data method delegates to async version."""
     conversation = ChatConversationFactory()
     service = AIAgentService(conversation, user=conversation.owner)
-    mock_convert.return_value = iter(['0:"Hello"\n', 'd:{"finishReason":"stop"}\n'])
+    mock_convert.return_value = iter(['data: {"type":"text-delta"}\n\n', "data: [DONE]\n\n"])
 
     result = service.stream_data(ui_messages, force_web_search=False)
 
     mock_convert.assert_called_once()
     assert result == mock_convert.return_value
-
-
-@pytest.mark.asyncio
-async def test_stream_text_async_filters_text_deltas(ui_messages):
-    """Test stream_text_async only yields text deltas."""
-    conversation = await sync_to_async(ChatConversationFactory)()
-    service = AIAgentService(conversation, user=conversation.owner)
-
-    # Mock _run_agent to return various delta types
-    async def mock_run_agent(*args, **kwargs):
-        yield events_v4.TextPart(text="Hello")
-        yield events_v4.ToolCallStreamingStartPart(tool_call_id="123", tool_name="search")
-        yield events_v4.TextPart(text=" world")
-        yield events_v4.FinishMessagePart(
-            finish_reason=events_v4.FinishReason.STOP,
-            usage=events_v4.Usage(
-                prompt_tokens=120,
-                completion_tokens=456,
-            ),
-        )
-
-    with patch.object(service, "_run_agent", side_effect=mock_run_agent):
-        results = []
-        async for result in service.stream_text_async(ui_messages):
-            results.append(result)
-
-        assert results == ["Hello", " world"]
 
 
 @pytest.mark.asyncio
@@ -110,10 +71,12 @@ async def test_stream_data_async_formats_as_sdk_events(ui_messages):
         async for result in service.stream_data_async(ui_messages):
             results.append(result)
 
-        assert results == [
-            '0:"Hello"\n',
-            'd:{"finishReason":"stop","usage":{"promptTokens":120,"completionTokens":456,'
-            '"co2Impact":0.0}}\n',
+        assert stream_body(results) == [
+            '{"type":"text-start","id":"0"}',
+            '{"type":"text-delta","id":"0","delta":"Hello"}',
+            '{"type":"text-end","id":"0"}',
+            '{"type":"finish","messageMetadata":{"usage":{"promptTokens":120,'
+            '"completionTokens":456,"co2Impact":0.0}}}',
         ]
 
 
@@ -131,7 +94,7 @@ async def test_stream_data_async_emits_model_busy_on_503():
         async for result in service.stream_data_async([]):
             results.append(result)
 
-    assert results == ['3:"model_busy"\n']
+    assert stream_body(results) == ['{"type":"error","errorText":"model_busy"}']
 
 
 @pytest.mark.asyncio
@@ -148,7 +111,7 @@ async def test_stream_data_async_emits_model_unavailable_on_5xx():
         async for result in service.stream_data_async([]):
             results.append(result)
 
-    assert results == ['3:"model_unavailable"\n']
+    assert stream_body(results) == ['{"type":"error","errorText":"model_unavailable"}']
 
 
 @pytest.mark.asyncio
@@ -165,7 +128,7 @@ async def test_stream_data_async_emits_model_rate_limited_on_429():
         async for result in service.stream_data_async([]):
             results.append(result)
 
-    assert results == ['3:"model_rate_limited"\n']
+    assert stream_body(results) == ['{"type":"error","errorText":"model_rate_limited"}']
 
 
 @pytest.mark.asyncio
@@ -184,7 +147,7 @@ async def test_stream_data_async_emits_model_connection_error_on_api_error():
         async for result in service.stream_data_async([]):
             results.append(result)
 
-    assert results == ['3:"model_connection_error"\n']
+    assert stream_body(results) == ['{"type":"error","errorText":"model_connection_error"}']
 
 
 @pytest.mark.asyncio
@@ -208,7 +171,7 @@ async def test_stream_data_async_emits_model_busy_on_sdk_error_503():
         async for result in service.stream_data_async([]):
             results.append(result)
 
-    assert results == ['3:"model_busy"\n']
+    assert stream_body(results) == ['{"type":"error","errorText":"model_busy"}']
 
 
 @pytest.mark.asyncio
@@ -232,7 +195,7 @@ async def test_stream_data_async_emits_model_wrong_type_on_http_validation_error
         async for result in service.stream_data_async([]):
             results.append(result)
 
-    assert results == ['3:"model_wrong_type"\n']
+    assert stream_body(results) == ['{"type":"error","errorText":"model_wrong_type"}']
 
 
 @pytest.mark.asyncio
@@ -247,39 +210,6 @@ async def test_stream_data_async_reraises_unknown_exceptions():
     with patch.object(service, "_run_agent", side_effect=mock_run_agent):
         with pytest.raises(ValueError, match="unexpected"):
             async for _ in service.stream_data_async([]):
-                pass
-
-
-@pytest.mark.asyncio
-async def test_stream_text_async_reraises_http_error():
-    """ModelHTTPError is re-raised on text protocol path
-    (encode_text returns None for ErrorPart)."""
-    conversation = await sync_to_async(ChatConversationFactory)()
-    service = AIAgentService(conversation, user=conversation.owner)
-
-    def mock_run_agent(*args, **kwargs):
-        return AsyncRaiseIterator(ModelHTTPError(status_code=503, model_name="test-model"))
-
-    with patch.object(service, "_run_agent", side_effect=mock_run_agent):
-        with pytest.raises(ModelHTTPError):
-            async for _ in service.stream_text_async([]):
-                pass
-
-
-@pytest.mark.asyncio
-async def test_stream_text_async_reraises_connection_error():
-    """ModelAPIError is re-raised on text protocol path (encode_text returns None for ErrorPart)."""
-    conversation = await sync_to_async(ChatConversationFactory)()
-    service = AIAgentService(conversation, user=conversation.owner)
-
-    def mock_run_agent(*args, **kwargs):
-        return AsyncRaiseIterator(
-            ModelAPIError(model_name="test-model", message="Connection error.")
-        )
-
-    with patch.object(service, "_run_agent", side_effect=mock_run_agent):
-        with pytest.raises(ModelAPIError):
-            async for _ in service.stream_text_async([]):
                 pass
 
 

@@ -28,13 +28,13 @@ from pydantic_ai.messages import (
 )
 
 from chat.ai_sdk_types import (
-    Attachment,
+    TOOL_PART_PREFIX,
     FileUIPart,
-    ReasoningDetailText,
     ReasoningUIPart,
+    SourceUrlUIPart,
+    StepStartUIPart,
     TextUIPart,
-    ToolInvocationCall,
-    ToolInvocationUIPart,
+    ToolUIPart,
     UIMessage,
     UIPart,
 )
@@ -50,55 +50,35 @@ def ui_message_to_user_content(message: UIMessage) -> List[UserContent]:
         if isinstance(part, TextUIPart):
             user_contents.append(part.text)
         elif isinstance(part, FileUIPart):
-            user_contents.append(
-                BinaryContent(data=part.data.encode("utf-8"), media_type=part.mimeType)
-            )
-        elif isinstance(part, ToolInvocationUIPart):
-            # Tool invocations are not directly mapped to UserContent, skip or handle as needed
-            continue
-        elif isinstance(part, ReasoningUIPart):
-            # Reasoning parts are not directly mapped to UserContent, skip or handle as needed
+            user_contents.append(_file_part_to_user_content(part))
+        elif isinstance(part, (ToolUIPart, ReasoningUIPart, SourceUrlUIPart, StepStartUIPart)):
+            # Nothing the model consumes as user content.
             continue
         else:
             raise ValueError(f"Unsupported UIPart type: {type(part)}")
-    for experimental_attachment in message.experimental_attachments or []:
-        if experimental_attachment.url.startswith("data:"):
-            # Handle data URLs
-            raw_data = base64.b64decode(experimental_attachment.url.split(",")[1])
-            user_contents.append(
-                BinaryContent(
-                    data=raw_data,
-                    media_type=experimental_attachment.contentType,
-                    identifier=experimental_attachment.name,
-                )
-            )
-        elif experimental_attachment.contentType.startswith(IMAGE_MIME_PREFIX):
-            user_contents.append(
-                ImageUrl(
-                    url=experimental_attachment.url,
-                    media_type=experimental_attachment.contentType,
-                    identifier=experimental_attachment.name,
-                )
-            )
-        else:
-            user_contents.append(
-                DocumentUrl(
-                    url=experimental_attachment.url,
-                    media_type=experimental_attachment.contentType,
-                    identifier=experimental_attachment.name,
-                )
-            )
 
     return user_contents
 
 
-def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # noqa: PLR0912, PLR0915  # pylint: disable=too-many-statements
+def _file_part_to_user_content(part: FileUIPart) -> UserContent:
+    """Turn a file part into the content type Pydantic-AI expects for it."""
+    if part.url.startswith("data:"):
+        return BinaryContent(
+            data=base64.b64decode(part.url.split(",")[1]),
+            media_type=part.mediaType,
+            identifier=part.filename,
+        )
+    if (part.mediaType or "").startswith(IMAGE_MIME_PREFIX):
+        return ImageUrl(url=part.url, media_type=part.mediaType, identifier=part.filename)
+    return DocumentUrl(url=part.url, media_type=part.mediaType, identifier=part.filename)
+
+
+def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # noqa: PLR0912  # pylint: disable=too-many-statements
     """
     Convert a ModelMessage (ModelRequest or ModelResponse) to a UIMessage.
     """
     # pylint: disable=too-many-nested-blocks,too-many-branches
     parts: List[UIPart] = []
-    experimental_attachments: List[Attachment] = []
 
     logging.getLogger(__name__).debug(
         "Converting ModelMessage to UIMessage: %s %s",
@@ -123,27 +103,21 @@ def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # no
                         if isinstance(c, str):
                             parts.append(TextUIPart(type="text", text=c))
                         elif isinstance(c, BinaryContent):
-                            experimental_attachments.append(
-                                Attachment(
-                                    contentType=c.media_type,
+                            parts.append(
+                                FileUIPart(
+                                    type="file",
+                                    mediaType=c.media_type,
                                     url=f"data:{c.media_type};base64,"
                                     + base64.b64encode(c.data).decode("utf-8"),
                                 )
                             )
-                        elif isinstance(c, ImageUrl):
-                            experimental_attachments.append(
-                                Attachment(
-                                    contentType=c.media_type,
+                        elif isinstance(c, (ImageUrl, DocumentUrl)):
+                            parts.append(
+                                FileUIPart(
+                                    type="file",
+                                    mediaType=c.media_type,
                                     url=c.url,
-                                    name=c.identifier,
-                                )
-                            )
-                        elif isinstance(c, DocumentUrl):
-                            experimental_attachments.append(
-                                Attachment(
-                                    contentType=c.media_type,
-                                    url=c.url,
-                                    name=c.identifier,
+                                    filename=c.identifier,
                                 )
                             )
                         else:  # AudioUrl, VideoUrl
@@ -165,19 +139,7 @@ def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # no
                 #     )
                 # ))
             elif isinstance(part, ThinkingPart):
-                parts.append(
-                    ReasoningUIPart(
-                        type="reasoning",
-                        reasoning=part.content,
-                        details=[
-                            ReasoningDetailText(
-                                type="text",
-                                text=part.content,
-                                signature=part.signature,
-                            )
-                        ],
-                    )
-                )
+                parts.append(ReasoningUIPart(type="reasoning", text=part.content))
             elif isinstance(part, RetryPromptPart):
                 # Retry prompts are not included in UIMessage parts
                 continue
@@ -192,7 +154,6 @@ def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # no
             role="user",
             content="".join(part.text for part in parts if isinstance(part, TextUIPart)),
             parts=parts,
-            experimental_attachments=experimental_attachments or None,
             createdAt=message_timestamp,
         )
 
@@ -213,32 +174,17 @@ def model_message_to_ui_message(model_message: ModelMessage) -> UIMessage:  # no
                 parts.append(TextUIPart(type="text", text=part.content))
             elif isinstance(part, ToolCallPart):
                 parts.append(
-                    ToolInvocationUIPart(
-                        type="tool-invocation",
-                        toolInvocation=ToolInvocationCall(
-                            state="call",
-                            toolCallId=part.tool_call_id,
-                            toolName=part.tool_name,
-                            args=json.loads(part.args)
-                            if isinstance(part.args, str)
-                            else part.args or {},
-                        ),
+                    ToolUIPart(
+                        type=f"{TOOL_PART_PREFIX}{part.tool_name}",
+                        toolCallId=part.tool_call_id,
+                        state="input-available",
+                        input=json.loads(part.args)
+                        if isinstance(part.args, str)
+                        else part.args or {},
                     )
                 )
             elif isinstance(part, ThinkingPart):
-                parts.append(
-                    ReasoningUIPart(
-                        type="reasoning",
-                        reasoning=part.content,
-                        details=[
-                            ReasoningDetailText(
-                                type="text",
-                                text=part.content,
-                                signature=part.signature,
-                            )
-                        ],
-                    )
-                )
+                parts.append(ReasoningUIPart(type="reasoning", text=part.content))
             else:
                 raise ValueError(f"Unsupported ModelMessage part type: {type(part)}")
 

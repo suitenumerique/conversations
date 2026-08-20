@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { Suspense } from 'react';
 
 import { ToastProvider } from '@/components/ToastProvider';
+import { stampImagesSkippedOnLatestUserMessage } from '@/features/chat/api/useChat';
 
 import {
   MessageItem,
@@ -46,7 +47,16 @@ vi.mock('../MoreActionsButton', () => ({
 
 // Mock child components
 vi.mock('../AttachmentList', () => ({
-  AttachmentList: () => <div data-testid="attachment-list" />,
+  AttachmentList: ({
+    attachments,
+  }: {
+    attachments: { skipped?: unknown }[];
+  }) => (
+    <div
+      data-testid="attachment-list"
+      data-skipped={attachments.filter((one) => one.skipped).length}
+    />
+  ),
 }));
 
 vi.mock('../FeedbackButtons', () => ({
@@ -366,7 +376,7 @@ describe('MessageItem', () => {
     message: {
       id: 'msg-1',
       role: 'assistant' as const,
-      content: 'Hello world',
+      parts: [{ type: 'text' as const, text: 'Hello world' }],
     },
     isLastMessage: false,
     isLastAssistantMessage: false,
@@ -514,7 +524,9 @@ describe('MessageItem', () => {
             {...defaultProps}
             message={{
               ...defaultProps.message,
-              content: 'Block 1\n\nPending content',
+              parts: [
+                { type: 'text' as const, text: 'Block 1\n\nPending content' },
+              ],
             }}
             status="streaming"
             isLastAssistantMessage={true}
@@ -534,8 +546,14 @@ describe('MessageItem', () => {
     it('renders AttachmentList when message has attachments', async () => {
       const messageWithAttachments = {
         ...defaultProps.message,
-        experimental_attachments: [
-          { url: 'https://example.com/file.pdf', name: 'file.pdf' },
+        parts: [
+          ...defaultProps.message.parts,
+          {
+            type: 'file' as const,
+            url: 'https://example.com/file.pdf',
+            filename: 'file.pdf',
+            mediaType: 'application/pdf',
+          },
         ],
       };
 
@@ -548,6 +566,44 @@ describe('MessageItem', () => {
       expect(screen.getByTestId('attachment-list')).toBeInTheDocument();
     });
 
+    it('re-renders when the backend marks an image as skipped', async () => {
+      // The stamp mutates the part in place, leaving the file count unchanged:
+      // the memo comparator has to look at the skip state itself.
+      const message = {
+        ...defaultProps.message,
+        role: 'user' as const,
+        parts: [
+          { type: 'text' as const, text: 'Look at this' },
+          {
+            type: 'file' as const,
+            url: 'https://example.com/photo.png',
+            filename: 'photo.png',
+            mediaType: 'image/png',
+          },
+        ],
+      };
+
+      const { rerender } = render(
+        withProviders(<MessageItem {...defaultProps} message={message} />),
+      );
+      expect(screen.getByTestId('attachment-list')).toHaveAttribute(
+        'data-skipped',
+        '0',
+      );
+
+      const [stamped] = stampImagesSkippedOnLatestUserMessage([message]);
+      await act(async () => {
+        rerender(
+          withProviders(<MessageItem {...defaultProps} message={stamped} />),
+        );
+      });
+
+      expect(screen.getByTestId('attachment-list')).toHaveAttribute(
+        'data-skipped',
+        '1',
+      );
+    });
+
     it('does not render AttachmentList when no attachments', async () => {
       await act(async () => {
         renderWithProviders(<MessageItem {...defaultProps} />);
@@ -558,14 +614,14 @@ describe('MessageItem', () => {
   });
 
   describe('energy indicator', () => {
-    it('renders MessageEnergyIndicator when co2 annotation is present', async () => {
+    it('renders MessageEnergyIndicator when co2 metadata is present', async () => {
       await act(async () => {
         renderWithProviders(
           <MessageItem
             {...defaultProps}
             message={{
               ...defaultProps.message,
-              annotations: [{ co2_impact: TEST_CO2_IMPACT_KG }],
+              metadata: { co2_impact: TEST_CO2_IMPACT_KG },
             }}
           />,
         );
@@ -576,7 +632,7 @@ describe('MessageItem', () => {
       ).toBeInTheDocument();
     });
 
-    it('does not render MessageEnergyIndicator without co2 annotation', async () => {
+    it('does not render MessageEnergyIndicator without co2 metadata', async () => {
       await act(async () => {
         renderWithProviders(<MessageItem {...defaultProps} />);
       });
@@ -618,16 +674,12 @@ describe('MessageItem', () => {
     const conversationSummarizeMessage = {
       id: 'msg-sum',
       role: 'assistant' as const,
-      content: '',
       parts: [
         {
-          type: 'tool-invocation' as const,
-          toolInvocation: {
-            toolCallId: 'call-1',
-            toolName: 'summarize',
-            state: 'call' as const,
-            args: { state: 'running', summary_scope: 'conversation' },
-          },
+          type: 'tool-summarize' as const,
+          toolCallId: 'call-1',
+          state: 'input-available' as const,
+          input: { state: 'running', summary_scope: 'conversation' },
         },
       ],
     };
@@ -657,13 +709,10 @@ describe('MessageItem', () => {
         ...conversationSummarizeMessage,
         parts: [
           {
-            type: 'tool-invocation' as const,
-            toolInvocation: {
-              toolCallId: 'call-2',
-              toolName: 'summarize',
-              state: 'call' as const,
-              args: { state: 'running', summary_scope: 'document' },
-            },
+            type: 'tool-summarize' as const,
+            toolCallId: 'call-2',
+            state: 'input-available' as const,
+            input: { state: 'running', summary_scope: 'document' },
           },
         ],
       };
@@ -715,14 +764,11 @@ describe('MessageItem', () => {
         ...conversationSummarizeMessage,
         parts: [
           {
-            type: 'tool-invocation' as const,
-            toolInvocation: {
-              toolCallId: 'call-1',
-              toolName: 'summarize',
-              state: 'result' as const,
-              args: { state: 'running', summary_scope: 'conversation' },
-              result: { state: 'done' },
-            },
+            type: 'tool-summarize' as const,
+            toolCallId: 'call-1',
+            state: 'output-available' as const,
+            input: { state: 'running', summary_scope: 'conversation' },
+            output: { state: 'done' },
           },
         ],
       };
@@ -766,14 +812,11 @@ describe('MessageItem', () => {
         ...conversationSummarizeMessage,
         parts: [
           {
-            type: 'tool-invocation' as const,
-            toolInvocation: {
-              toolCallId: 'call-1',
-              toolName: 'summarize',
-              state: 'result' as const,
-              args: { state: 'running', summary_scope: 'conversation' },
-              result: { state: 'done' },
-            },
+            type: 'tool-summarize' as const,
+            toolCallId: 'call-1',
+            state: 'output-available' as const,
+            input: { state: 'running', summary_scope: 'conversation' },
+            output: { state: 'done' },
           },
         ],
       };
@@ -795,7 +838,13 @@ describe('MessageItem', () => {
         withProviders(
           <MessageItem
             {...defaultProps}
-            message={{ ...summarizedMessage, content: 'Here is the answer' }}
+            message={{
+              ...summarizedMessage,
+              parts: [
+                ...summarizedMessage.parts,
+                { type: 'text' as const, text: 'Here is the answer' },
+              ],
+            }}
             status="streaming"
             isLastAssistantMessage={true}
           />,

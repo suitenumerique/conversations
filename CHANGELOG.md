@@ -22,12 +22,14 @@ and this project adheres to
 - 💄(front) correct icon Docs button
 - ♻️(back) use httpx as the single HTTP client for outbound calls
 - ⬆️(back) update django, pypdf and pydantic-settings
+- ⬆️(chat) upgrade the Vercel AI SDK from v4 to v5
 
 ### Removed
 
 - 🔥(back) remove the unused Albert web search manager and its tool
 - 🔥(back) remove the unused RAG_WEB_SEARCH_PROMPT_UPDATE setting
 - 🔥(back) remove the unused Tavily web search tool
+- 🔥(back) remove the unused text streaming protocol
 
 ## [0.0.22] - 2026-08-10
 

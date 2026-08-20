@@ -81,7 +81,7 @@ def test_post_conversation_concatenate(
     else:
         chat_conversation = ChatConversationFactory(owner__language="en-us")
 
-    url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/"
     api_client.force_login(chat_conversation.owner)
 
     response = api_client.post(url, hello_conversation_data, format="json")

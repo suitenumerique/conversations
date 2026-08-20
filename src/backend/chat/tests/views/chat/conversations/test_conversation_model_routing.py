@@ -65,7 +65,7 @@ def test_new_conversation_pins_default_when_main_is_healthy(
     conversation = ChatConversationFactory(owner__language="en-us")
     assert not conversation.model_hrid
 
-    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/"
     api_client.force_login(conversation.owner)
     response = api_client.post(url, hello_conversation_data, format="json")
 
@@ -85,7 +85,7 @@ def test_new_conversation_pins_fallback_when_main_is_red(
     health_cache.set(model_health_cache_key("main-model-provider", "main-llm"), "red")
 
     conversation = ChatConversationFactory(owner__language="en-us")
-    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/"
     api_client.force_login(conversation.owner)
     response = api_client.post(url, hello_conversation_data, format="json")
 
@@ -106,7 +106,7 @@ def test_existing_conversation_keeps_pinned_model_even_if_param_changes(
     # request asks for "main-model" (or anything else).
     conversation = ChatConversationFactory(owner__language="en-us", model_hrid="fallback-1")
 
-    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data&model_hrid=main-model"
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?model_hrid=main-model"
     api_client.force_login(conversation.owner)
     response = api_client.post(url, hello_conversation_data, format="json")
 
@@ -126,7 +126,7 @@ def test_explicit_non_default_model_in_request_is_pinned(
 ):
     # Picker selection in dev/staging: explicit non-default request goes through.
     conversation = ChatConversationFactory(owner__language="en-us")
-    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data&model_hrid=fallback-1"
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?model_hrid=fallback-1"
     api_client.force_login(conversation.owner)
     response = api_client.post(url, hello_conversation_data, format="json")
 
@@ -146,7 +146,7 @@ def test_main_yellow_stays_on_main_under_default_threshold(
     health_cache.set(model_health_cache_key("main-model-provider", "main-llm"), "yellow")
 
     conversation = ChatConversationFactory(owner__language="en-us")
-    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/"
     api_client.force_login(conversation.owner)
     response = api_client.post(url, hello_conversation_data, format="json")
 
@@ -170,7 +170,7 @@ def test_main_yellow_stays_on_main_when_threshold_raised_to_red(
     health_cache.set(model_health_cache_key("main-model-provider", "main-llm"), "yellow")
 
     conversation = ChatConversationFactory(owner__language="en-us")
-    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/"
     api_client.force_login(conversation.owner)
     response = api_client.post(url, hello_conversation_data, format="json")
 
@@ -198,7 +198,7 @@ def test_main_red_with_yellow_fb1_stays_on_fb1_under_default_fallback_threshold(
     health_cache.set(model_health_cache_key("fallback-2-provider", "fb2-llm"), "green")
 
     conversation = ChatConversationFactory(owner__language="en-us")
-    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/"
     api_client.force_login(conversation.owner)
     response = api_client.post(url, hello_conversation_data, format="json")
 
@@ -221,7 +221,7 @@ def test_fallback_threshold_red_accepts_yellow_fb1(
     health_cache.set(model_health_cache_key("fallback-1-provider", "fb1-llm"), "yellow")
 
     conversation = ChatConversationFactory(owner__language="en-us")
-    url = f"/api/v1.0/chats/{conversation.pk}/conversation/?protocol=data"
+    url = f"/api/v1.0/chats/{conversation.pk}/conversation/"
     api_client.force_login(conversation.owner)
     response = api_client.post(url, hello_conversation_data, format="json")
 

@@ -13,6 +13,7 @@ from core.factories import UserFactory
 from chat.ai_sdk_types import TextUIPart, UIMessage
 from chat.clients.pydantic_ai import AIAgentService
 from chat.factories import ChatConversationFactory
+from chat.tests.utils import stream_text
 
 pytestmark = pytest.mark.django_db()
 
@@ -102,11 +103,11 @@ async def test_langfuse_span_created_when_enabled_and_analytics_allowed(
     service = AIAgentService(conversation, user=user)
     results = []
     with service.conversation_agent.override(model=agent_model):
-        async for result in service.stream_text_async(ui_messages):
+        async for result in service.stream_data_async(ui_messages):
             results.append(result)
 
     # Verify that results were generated
-    assert results == ["Hello! I'm doing well, thank you for asking."]
+    assert stream_text(results) == "Hello! I'm doing well, thank you for asking."
 
     langfuse_client.flush()
 
@@ -153,11 +154,11 @@ async def test_langfuse_span_created_when_enabled_and_analytics_disabled(
     service = AIAgentService(conversation, user=user)
     results = []
     with service.conversation_agent.override(model=agent_model):
-        async for result in service.stream_text_async(ui_messages):
+        async for result in service.stream_data_async(ui_messages):
             results.append(result)
 
     # Verify that results were generated
-    assert results == ["Hello! I'm doing well, thank you for asking."]
+    assert stream_text(results) == "Hello! I'm doing well, thank you for asking."
 
     langfuse_client.flush()
 
@@ -191,11 +192,11 @@ async def test_no_langfuse_span_when_disabled(agent_model, ui_messages, langfuse
     service = AIAgentService(conversation, user=user)
     results = []
     with service.conversation_agent.override(model=agent_model):
-        async for result in service.stream_text_async(ui_messages):
+        async for result in service.stream_data_async(ui_messages):
             results.append(result)
 
     # Verify that results were generated
-    assert results == ["Hello! I'm doing well, thank you for asking."]
+    assert stream_text(results) == "Hello! I'm doing well, thank you for asking."
 
     langfuse_client.flush()
 

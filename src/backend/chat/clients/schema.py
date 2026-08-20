@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 from django.contrib.auth import get_user_model
 
 from chat import models
-from chat.ai_sdk_types import SourceUIPart
+from chat.ai_sdk_types import SourceUrlUIPart
 
 User = get_user_model()
 
@@ -47,7 +47,7 @@ class StreamingState:
     """
 
     tool_is_streaming: bool = False
-    ui_sources: List[SourceUIPart] = dataclasses.field(default_factory=list)
+    ui_sources: List[SourceUrlUIPart] = dataclasses.field(default_factory=list)
     model_response_message_id: Optional[str] = None
 
 

@@ -1,4 +1,4 @@
-import { createContext, type PropsWithChildren, useContext } from 'react';
+import { type PropsWithChildren, createContext, useContext } from 'react';
 
 /** Réexport legacy pour compatibilité ; préférer `SourcePanel` + `useSourcePanelAnchor`. */
 export const SourcesPanelAnchorContext = createContext<HTMLDivElement | null>(

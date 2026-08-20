@@ -6,12 +6,10 @@ import datetime
 from pydantic_ai.messages import BinaryContent, DocumentUrl
 
 from chat.ai_sdk_types import (
-    Attachment,
     FileUIPart,
     ReasoningUIPart,
     TextUIPart,
-    ToolInvocationCall,
-    ToolInvocationUIPart,
+    ToolUIPart,
     UIMessage,
 )
 from chat.clients.pydantic_ui_message_converter import ui_message_to_user_content
@@ -58,8 +56,9 @@ def test_user_message_with_multiple_text_parts():
 
 def test_user_message_with_file():
     """Test conversion of a user message with a file part."""
-    file_content = "This is a text file content"
+    file_content = b"This is a text file content"
     mime_type = "text/plain"
+    data_url = f"data:{mime_type};base64,{base64.b64encode(file_content).decode()}"
 
     ui_message = UIMessage(
         id="msg3",
@@ -67,7 +66,7 @@ def test_user_message_with_file():
         content="Check this file",
         parts=[
             TextUIPart(type="text", text="Check this file"),
-            FileUIPart(type="file", data=file_content, mimeType=mime_type, name="example.txt"),
+            FileUIPart(type="file", url=data_url, mediaType=mime_type, filename="example.txt"),
         ],
     )
 
@@ -77,28 +76,26 @@ def test_user_message_with_file():
     assert len(result) == 2
     assert result[0] == "Check this file"
     assert isinstance(result[1], BinaryContent)
-    assert result[1].data == file_content.encode("utf-8")
+    assert result[1].data == file_content
     assert result[1].media_type == mime_type
 
 
-def test_user_message_with_experimental_attachment():
-    """Test conversion of a user message with an experimental attachment."""
+def test_user_message_with_v4_experimental_attachment():
+    """A message stored before the v5 upgrade still converts: the shim moves its
+    ``experimental_attachments`` onto file parts."""
     content_type = "image/png"
     sample_data = b"sample image data"
     base64_data = base64.b64encode(sample_data).decode("utf-8")
     data_url = f"data:{content_type};base64,{base64_data}"
 
-    ui_message = UIMessage(
-        id="msg4",
-        role="user",
-        content="Check this image",
-        parts=[TextUIPart(type="text", text="Check this image")],
-        experimental_attachments=[
-            Attachment(
-                contentType=content_type,
-                url=data_url,
-            )
-        ],
+    ui_message = UIMessage.model_validate(
+        {
+            "id": "msg4",
+            "role": "user",
+            "content": "Check this image",
+            "parts": [{"type": "text", "text": "Check this image"}],
+            "experimental_attachments": [{"contentType": content_type, "url": data_url}],
+        }
     )
 
     result = ui_message_to_user_content(ui_message)
@@ -123,19 +120,22 @@ def test_user_message_with_multiple_attachments():
     base64_image = base64.b64encode(image_data).decode("utf-8")
     image_data_url = f"data:{image_content_type};base64,{base64_image}"
 
+    file_data_url = (
+        f"data:{file_mime_type};base64,{base64.b64encode(file_content.encode()).decode()}"
+    )
     ui_message = UIMessage(
         id="msg5",
         role="user",
         content="Check these files",
         parts=[
             TextUIPart(type="text", text="Check these files"),
-            FileUIPart(type="file", data=file_content, mimeType=file_mime_type, name="example.txt"),
-        ],
-        experimental_attachments=[
-            Attachment(
-                contentType=image_content_type,
-                url=image_data_url,
-            )
+            FileUIPart(
+                type="file",
+                url=file_data_url,
+                mediaType=file_mime_type,
+                filename="example.txt",
+            ),
+            FileUIPart(type="file", url=image_data_url, mediaType=image_content_type),
         ],
     )
 
@@ -163,14 +163,11 @@ def test_user_message_with_tool_invocation():
         content="Check the weather",
         parts=[
             TextUIPart(type="text", text="Check the weather"),
-            ToolInvocationUIPart(
-                type="tool-invocation",
-                toolInvocation=ToolInvocationCall(
-                    state="call",
-                    toolCallId="call123",
-                    toolName="get_weather",
-                    args=tool_args,
-                ),
+            ToolUIPart(
+                type="tool-get_weather",
+                toolCallId="call123",
+                state="input-available",
+                input=tool_args,
             ),
         ],
     )
@@ -192,11 +189,7 @@ def test_user_message_with_reasoning():
         content="Let me think",
         parts=[
             TextUIPart(type="text", text="Let me think"),
-            ReasoningUIPart(
-                type="reasoning",
-                reasoning=reasoning_text,
-                details=[],
-            ),
+            ReasoningUIPart(type="reasoning", text=reasoning_text),
         ],
     )
 
@@ -208,18 +201,19 @@ def test_user_message_with_reasoning():
     assert result[0] == "Let me think"
 
 
-def test_experimental_attachment_url():
-    """Test conversion of a user message with an experimental attachment URL."""
+def test_hosted_file_url():
+    """Test conversion of a user message with a hosted (non data URL) file part."""
     ui_message = UIMessage(
         id="msg8",
         role="user",
         content="Check this file",
-        parts=[TextUIPart(type="text", text="Check this file")],
-        experimental_attachments=[
-            Attachment(
-                contentType="text/plain",
+        parts=[
+            TextUIPart(type="text", text="Check this file"),
+            FileUIPart(
+                type="file",
                 url="https://example.com/file.txt",  # Not a data URL
-            )
+                mediaType="text/plain",
+            ),
         ],
     )
 
