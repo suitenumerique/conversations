@@ -267,7 +267,15 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
         raise last_exception
 
     def parse_pdf_document_with_ocr(self, name: str, content: bytes) -> str:
-        """Process PDF through OCR in batches, returning concatenated markdown."""
+        """Process PDF through OCR in batches, returning concatenated markdown.
+
+        A batch that fails every retry aborts the whole document. Substituting
+        blank pages would return a partial parse the caller cannot tell from a
+        complete one: it would be stored and indexed as a success, with the
+        failed pages silently missing from the collection. Letting the error
+        propagate sends the attachment to the caller's FAILED handling, which
+        records the reason and leaves it re-indexable.
+        """
         reader = PdfReader(BytesIO(content))
         total_pages = len(reader.pages)
         batch_size = settings.OCR_BATCH_PAGES
@@ -278,13 +286,9 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
         for start_index in range(0, total_pages, batch_size):
             end_index = min(start_index + batch_size, total_pages)
             batch_content = self.extract_page_batch(reader, start_index, end_index)
-            try:
-                batch_results = self.ocr_page_batch(name, batch_content, start_index, end_index)
-                results.extend(batch_results)
-                logger.debug(
-                    "Completed OCR for pages %d-%d/%d", start_index + 1, end_index, total_pages
-                )
-            except Exception as e:  # pylint: disable=broad-except #noqa: BLE001
-                logger.error("Failed to OCR pages %d-%d: %s", start_index + 1, end_index, str(e))
-                results.extend([""] * (end_index - start_index))
+            batch_results = self.ocr_page_batch(name, batch_content, start_index, end_index)
+            results.extend(batch_results)
+            logger.debug(
+                "Completed OCR for pages %d-%d/%d", start_index + 1, end_index, total_pages
+            )
         return "\n\n".join(results)

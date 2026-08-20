@@ -255,8 +255,8 @@ def test_parse_pdf_with_ocr_multiple_batches(text_pdf_10_pages, settings):
         assert "Page 10" in result
 
 
-def test_parse_pdf_with_ocr_partial_failure(text_pdf_10_pages, settings):
-    """Should insert empty placeholders for failed batches."""
+def test_parse_pdf_with_ocr_batch_failure_aborts_document(text_pdf_10_pages, settings):
+    """Should fail the whole document when one batch exhausts its retries."""
     settings.OCR_BATCH_PAGES = 4  # Force multiple batches
     parser = AdaptivePdfParser()
 
@@ -266,25 +266,19 @@ def test_parse_pdf_with_ocr_partial_failure(text_pdf_10_pages, settings):
 
     with patch("chat.agent_rag.document_converter.parser.httpx.post") as mock_post:
         with patch("chat.agent_rag.document_converter.parser.time.sleep"):
-            # First batch succeeds, then all retries fail for remaining batches
+            # First batch succeeds, the second exhausts its retries
             mock_post.side_effect = [
                 success_response,
                 httpx.TimeoutException("OCR failed"),
                 httpx.TimeoutException("OCR failed"),
                 httpx.TimeoutException("OCR failed"),
-                httpx.TimeoutException("OCR failed"),
-                httpx.TimeoutException("OCR failed"),
-                httpx.TimeoutException("OCR failed"),
             ]
 
-            result = parser.parse_pdf_document_with_ocr("test.pdf", text_pdf_10_pages)
+            with pytest.raises(httpx.TimeoutException):
+                parser.parse_pdf_document_with_ocr("test.pdf", text_pdf_10_pages)
 
-            parts = result.split("\n\n")
-            # First batch succeeded (4 pages), remaining batches failed (6 pages as placeholders)
-            assert len(parts) == 10
-            assert parts[0] == "Page 1"
-            assert parts[3] == "Page 4"
-            assert parts[4] == ""  # Failed batch placeholder
+            # Aborted on the failed batch: the third batch is never sent.
+            assert mock_post.call_count == 4
 
 
 def test_parse_document_pdf_routed_correctly(text_pdf_1_page):
