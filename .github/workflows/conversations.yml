@@ -8,6 +8,13 @@ on:
     branches:
       - "*"
 
+permissions:
+  contents: read
+
+env:
+  UV_LOCKED: "1" # fail if uv.lock is stale instead of re-resolving from PyPI
+  UV_NO_SYNC: "1" # `uv run` uses the venv as-is; never installs implicitly
+
 jobs:
   install-dependencies:
     uses: ./.github/workflows/dependencies.yml
@@ -19,8 +26,9 @@ jobs:
     if: github.event_name == 'pull_request' # Makes sense only for pull requests
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: show
         run: git log
@@ -34,7 +42,7 @@ jobs:
           ! git log | grep 'fixup!'
       - name: Install gitlint
         if: always()
-        run: pip install --user requests gitlint
+        run: pip install --user requests==2.34.2 gitlint==0.19.1
       - name: Lint commit messages added to main
         if: always()
         run: ~/.local/bin/gitlint --commits origin/${{ github.event.pull_request.base.ref }}..HEAD
@@ -46,8 +54,9 @@ jobs:
       github.event_name == 'pull_request'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           fetch-depth: 50
       - name: Check that the CHANGELOG has been modified in the current branch
         run: git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.after }} | grep 'CHANGELOG.md'
@@ -56,7 +65,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Check CHANGELOG max line length
         run: |
           max_line_length=$(cat CHANGELOG.md | grep -Ev "^\[.*\]: https://github.com" | wc -L)
@@ -70,9 +81,11 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Install codespell
-        run: pip install --user codespell
+        run: pip install --user codespell==2.4.3
       - name: Check for typos
         run: codespell
 
@@ -83,9 +96,11 @@ jobs:
         working-directory: src/backend
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.13"
       - name: Install system dependencies for lxml
@@ -93,7 +108,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxml2-dev libxslt-dev
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
       - name: Install the project
         run: uv sync --locked --all-extras
 
@@ -114,7 +129,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16
+        image: postgres:16@sha256:e17e86066e5ef83e0952a9347f5c792b7ece00972e2aa787a6986f471b3dd3d5
         env:
           POSTGRES_DB: conversations
           POSTGRES_USER: dinum
@@ -137,7 +152,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Create writable /data
         run: |
@@ -145,7 +162,7 @@ jobs:
           sudo mkdir -p /data/static
 
       - name: Restore the mail templates
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         id: mail-templates
         with:
           path: "src/backend/core/templates/mail"
@@ -154,18 +171,21 @@ jobs:
 
       - name: Start MinIO
         run: |
-          docker pull minio/minio
+          docker pull minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
           docker run -d --name minio \
             -p 9000:9000 \
             -e "MINIO_ACCESS_KEY=conversations" \
             -e "MINIO_SECRET_KEY=password" \
             -v /data/media:/data \
-            minio/minio server --console-address :9001 /data
+            minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e server --console-address :9001 /data
 
       # Tool to wait for a service to be ready
       - name: Install Dockerize
         run: |
-          curl -sSL https://github.com/jwilder/dockerize/releases/download/v0.8.0/dockerize-linux-amd64-v0.8.0.tar.gz | sudo tar -C /usr/local/bin -xzv
+          curl -sSL -o dockerize.tar.gz https://github.com/jwilder/dockerize/releases/download/v0.8.0/dockerize-linux-amd64-v0.8.0.tar.gz
+          echo "56c8acdd6ddcc1e3196f3d94a83ad3332b70d686846c909e08179b19e05fe5cd  dockerize.tar.gz" | sha256sum -c -
+          sudo tar -C /usr/local/bin -xzvf dockerize.tar.gz
+          rm dockerize.tar.gz
 
       - name: Wait for MinIO to be ready
         run: |
@@ -173,15 +193,14 @@ jobs:
 
       - name: Configure MinIO
         run: |
-          MINIO=$(docker ps | grep minio/minio | sed -E 's/.*\s+([a-zA-Z0-9_-]+)$/\1/')
-          docker exec ${MINIO} sh -c \
+          docker exec minio sh -c \
             "mc alias set conversations http://localhost:9000 conversations password && \
             mc alias ls && \
             mc mb conversations/conversations-media-storage && \
             mc version enable conversations/conversations-media-storage"
 
       - name: Install Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.13"
       - name: Install system dependencies for lxml
@@ -189,7 +208,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libxml2-dev libxslt-dev
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
       - name: Install the dependencies
         run: uv sync --locked --all-extras
 
@@ -212,7 +231,7 @@ jobs:
     steps:
       - name: Run Trivy analysis for critical vulnerabilities
         # We use main branch while we might still iterate on the action
-        uses: numerique-gouv/action-trivy-cache/security-trivy-critical@main
+        uses: numerique-gouv/action-trivy-cache/security-trivy-critical@d6e94cfb488f03a0b3e8b8739aad94e74d24d8da # main as of 2026-08-20
         with:
           skip-files: src/mail/yarn.lock
 
@@ -223,6 +242,6 @@ jobs:
     steps:
       - name: Run Trivy analysis for vulnerabilities
         # We use main branch while we might still iterate on the action
-        uses: numerique-gouv/action-trivy-cache/security-trivy@main
+        uses: numerique-gouv/action-trivy-cache/security-trivy@d6e94cfb488f03a0b3e8b8739aad94e74d24d8da # main as of 2026-08-20
         with:
           skip-files: src/mail/yarn.lock
