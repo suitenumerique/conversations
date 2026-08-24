@@ -21,7 +21,7 @@ and this project adheres to
 - 💬(back) rewrite the default agent instructions and tool descriptions
 - 💄(front) correct icon Docs button
 - ♻️(back) use httpx as the single HTTP client for outbound calls
-- ⬆️(back) update django, pypdf and pydantic-settings
+- ⬆️(back) update django, pypdf, sqlparse and pydantic-settings
 
 ### Removed
 
