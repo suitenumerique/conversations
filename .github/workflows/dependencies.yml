@@ -14,16 +14,21 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 jobs:
   front-dependencies-installation:
     if: ${{ inputs.with-front-dependencies-installation == true }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Restore the frontend cache
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         id: front-node_modules
         with:
           path: "src/frontend/**/node_modules"
@@ -31,13 +36,14 @@ jobs:
 
       - name: Setup Node.js
         if: steps.front-node_modules.outputs.cache-hit != 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ inputs.node_version }}
 
       - name: Install yarn
         if: steps.front-node_modules.outputs.cache-hit != 'true'
-        run: npm install -g yarn@1.22.22
+        # Exact version pin, scripts disabled; corepack pinning is separate.
+        run: npm install -g yarn@1.22.22 --ignore-scripts # zizmor: ignore[adhoc-packages]
 
       - name: Install dependencies
         if: steps.front-node_modules.outputs.cache-hit != 'true'
@@ -45,7 +51,7 @@ jobs:
 
       - name: Cache install frontend
         if: steps.front-node_modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: "src/frontend/**/node_modules"
           key: front-node_modules-${{ hashFiles('src/frontend/**/yarn.lock') }}
@@ -58,10 +64,12 @@ jobs:
         working-directory: src/mail
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Restore the mail templates
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         id: mail-templates
         with:
           path: "src/backend/core/templates/mail"
@@ -69,13 +77,14 @@ jobs:
 
       - name: Setup Node.js
         if: steps.mail-templates.outputs.cache-hit != 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ inputs.node_version }}
 
       - name: Install yarn
         if: steps.mail-templates.outputs.cache-hit != 'true'
-        run: npm install -g yarn@1.22.22
+        # Exact version pin, scripts disabled; corepack pinning is separate.
+        run: npm install -g yarn@1.22.22 --ignore-scripts # zizmor: ignore[adhoc-packages]
 
       - name: Install node dependencies
         if: steps.mail-templates.outputs.cache-hit != 'true'
@@ -87,7 +96,7 @@ jobs:
 
       - name: Cache mail templates
         if: steps.mail-templates.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: "src/backend/core/templates/mail"
           key: mail-templates-${{ hashFiles('src/mail/mjml') }}
