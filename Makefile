@@ -106,6 +106,13 @@ bootstrap-e2e: \
 	run-e2e
 .PHONY: bootstrap-e2e
 
+bootstrap-e2e-no-build: ## Same as bootstrap-e2e, for images built elsewhere (CI)
+bootstrap-e2e-no-build: \
+	pre-bootstrap \
+	post-bootstrap \
+	run-e2e
+.PHONY: bootstrap-e2e-no-build
+
 # -- Docker/compose
 build: cache ?=
 build: ## build the project containers
