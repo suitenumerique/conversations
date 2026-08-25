@@ -75,10 +75,16 @@ jobs:
       - name: Check linting
         run: cd src/frontend/ && yarn lint
 
-  test-e2e-chromium:
+  test-e2e:
     runs-on: ubuntu-latest
     needs: install-dependencies
     timeout-minutes: 40
+    strategy:
+      # One browser suite failing must not cancel the others.
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        shard: ["1/3", "2/3", "3/3"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -104,63 +110,63 @@ jobs:
       - name: Set e2e env variables
         run: cat env.d/development/common.e2e.dist >> env.d/development/common.dist
 
-      - name: Install Playwright Browsers
-        run: cd src/frontend/apps/e2e && yarn install --frozen-lockfile && yarn install-playwright chromium
+      - name: Get Playwright version
+        id: playwright-version
+        run: |
+          V=$(node -p "require('./src/frontend/apps/e2e/package.json').devDependencies['@playwright/test']")
+          echo "version=${V}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve the browsers to install
+        id: browsers
+        # The auth global setup drives the Keycloak login with chromium whatever
+        # the project under test, so every leg needs chromium on top of its own
+        # browser.
+        run: |
+          if [ "${{ matrix.browser }}" = "chromium" ]; then
+            BROWSERS="chromium"
+          else
+            BROWSERS="chromium ${{ matrix.browser }}"
+          fi
+          echo "list=${BROWSERS}" >> "$GITHUB_OUTPUT"
+          echo "key=${BROWSERS// /-}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Playwright browser cache
+        id: playwright-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.browsers.outputs.key }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright browsers and system dependencies
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: cd src/frontend/apps/e2e && yarn install-playwright ${{ steps.browsers.outputs.list }}
+
+      - name: Install Playwright system dependencies only
+        # The browsers themselves come from the cache, their apt dependencies do not.
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: cd src/frontend/apps/e2e && npx playwright install-deps ${{ steps.browsers.outputs.list }}
 
       - name: Start Docker services
         run: make bootstrap-e2e FLUSH_ARGS='--no-input'
 
       - name: Run e2e tests
-        run: cd src/frontend/ && yarn e2e:test --project='chromium'
+        run: cd src/frontend/ && yarn e2e:test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
-          name: playwright-chromium-report
+          # job-index keeps the name unique: the shard value contains a "/".
+          name: playwright-report-${{ matrix.browser }}-${{ strategy.job-index }}
           path: src/frontend/apps/e2e/report/
           retention-days: 7
 
-  test-e2e-other-browser:
+  test-e2e-all:
+    # Single stable context for branch protection: the matrix reports one check
+    # per browser and shard, and those names change whenever the matrix does.
+    if: always()
     runs-on: ubuntu-latest
-    needs: test-e2e-chromium
-    timeout-minutes: 40
+    needs: test-e2e
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: "22.x"
-
-      - name: Install yarn
-        # Exact version pin, scripts disabled; corepack pinning is separate.
-        run: npm install -g yarn@1.22.22 --ignore-scripts # zizmor: ignore[adhoc-packages]
-
-      - name: Restore the frontend cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: "src/frontend/**/node_modules"
-          key: front-node_modules-${{ hashFiles('src/frontend/**/yarn.lock') }}
-          fail-on-cache-miss: true
-
-      - name: Set e2e env variables
-        run: cat env.d/development/common.e2e.dist >> env.d/development/common.dist
-
-      - name: Install Playwright Browsers
-        run: cd src/frontend/apps/e2e && yarn install --frozen-lockfile && yarn install-playwright firefox webkit chromium
-
-      - name: Start Docker services
-        run: make bootstrap-e2e FLUSH_ARGS='--no-input'
-
-      - name: Run e2e tests
-        run: cd src/frontend/ && yarn e2e:test --project=firefox --project=webkit
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
-        with:
-          name: playwright-other-report
-          path: src/frontend/apps/e2e/report/
-          retention-days: 7
+      - name: Fail if any e2e shard did not succeed
+        if: needs.test-e2e.result != 'success'
+        run: exit 1
