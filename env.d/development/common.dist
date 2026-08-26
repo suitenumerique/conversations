@@ -46,8 +46,7 @@ OIDC_RP_SIGN_ALGO=RS256
 OIDC_RP_SCOPES="openid email"
 
 # Restrict login/signup to users holding one of these roles in their "roles"
-# claim. Empty (default) disables the restriction. Mutually exclusive with the
-# activation-codes gate (ACTIVATION_REQUIRED); see docs/env.md "Access control modes".
+# claim. Empty (default) disables the restriction. See docs/env.md "Access control".
 #OIDC_ALLOWED_ROLES=agent_public_etat
 
 LOGIN_REDIRECT_URL=http://localhost:3000

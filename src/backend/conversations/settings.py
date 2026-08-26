@@ -369,6 +369,7 @@ class Base(BraveSettings, Configuration):
 
     # Django applications from the highest priority to the lowest
     INSTALLED_APPS = [
+        # Historical activation-code records only; the gate itself was removed.
         "activation_codes",
         "chat",
         "core",
@@ -668,11 +669,6 @@ class Base(BraveSettings, Configuration):
         default=True, environ_name="ALLOW_LOGOUT_GET_METHOD", environ_prefix=None
     )
 
-    # Activation feature
-    ACTIVATION_REQUIRED = values.BooleanValue(
-        default=False, environ_name="ACTIVATION_REQUIRED", environ_prefix=None
-    )
-
     BREVO_API_KEY = values.Value(
         default=None,
         environ_name="BREVO_API_KEY",
@@ -681,11 +677,6 @@ class Base(BraveSettings, Configuration):
     BREVO_FOLLOWUP_LIST_ID = values.Value(
         default=None,
         environ_name="BREVO_FOLLOWUP_LIST_ID",
-        environ_prefix=None,
-    )
-    BREVO_WAITING_LIST_ID = values.Value(
-        default=None,
-        environ_name="BREVO_WAITING_LIST_ID",
         environ_prefix=None,
     )
 

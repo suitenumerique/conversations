@@ -11,7 +11,6 @@ from rest_framework import filters, permissions, viewsets
 from core.analytics import capture_event
 from core.api.viewsets import Pagination
 
-from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.views.filters import TitleSearchFilter
 from chat.views.helpers import _bulk_delete_s3_blobs
@@ -23,10 +22,7 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
     """ViewSet for managing projects."""
 
     pagination_class = Pagination
-    permission_classes = [
-        IsActivatedUser,  # see activation_codes application
-        permissions.IsAuthenticated,
-    ]
+    permission_classes = [permissions.IsAuthenticated]
     ordering = ["title"]
     ordering_fields = ["title", "created_at", "updated_at"]
     queryset = models.ChatProject.objects

@@ -111,31 +111,24 @@ These are the environment variables you can set for the `conversations-backend` 
 | THEME_CUSTOMIZATION_CACHE_TIMEOUT               | Cache duration for the customization settings                                                                                     | 86400                                                   |
 | DOCS_BASE_URL                                   | Base URL of the La Suite Docs instance. Enables the "Edit in Docs" feature (the button only appears when set). Requires `OIDC_STORE_ACCESS_TOKEN=true`. See [Interoperability](interoperabilities.md). |                                                         |
 | DOCS_API_TIMEOUT                                | Timeout (seconds) for HTTP calls to the Docs external API                                                                          | 30                                                      |
-| ACTIVATION_REQUIRED                             | Require users to redeem an activation code before using the app (post-login gate). See "Access control modes" below.              | False                                                   |
 | OIDC_ALLOWED_ROLES                              | Comma-separated roles; restrict login to users whose OIDC `roles` claim contains one of them. Empty disables. See "Access control modes" below. | [] (empty, disabled)                                    |
 
 
-## Access control modes
+## Access control
 
-Access can be gated in two mutually exclusive ways. Enable **one** of them; leave the other off.
+Access can be gated on the OIDC role claim:
 
-- **Activation codes** (`ACTIVATION_REQUIRED=True`): any authenticated user can sign
-  in, but must redeem a valid activation code before using the app. Codes are managed
-  in the Django admin (`activation_codes`).
 - **OIDC role** (`OIDC_ALLOWED_ROLES=<role>`): only users whose OIDC `roles` claim
   contains one of the listed roles can sign in; everyone else is redirected to the
   access-denied page. As a fallback, addresses on the access-bypass email allow-list
   (Django admin, *Access bypass emails*) are let in without the role. The role is
   re-checked on every login, so revoking it in the IdP blocks the user immediately.
+- **Open (no gate)**: leave `OIDC_ALLOWED_ROLES` empty (the default); any user the IdP
+  authenticates can sign in.
 
-| Mode             | `ACTIVATION_REQUIRED` | `OIDC_ALLOWED_ROLES`     |
-|------------------|-----------------------|--------------------------|
-| Activation codes | `True`                | empty                    |
-| OIDC role        | `False`               | e.g. `agent_public_etat` |
-| Open (no gate)   | `False`               | empty                    |
-
-Setting both at once is not a supported configuration: a user would need the role to
-sign in *and* a redeemed code to use the app.
+The activation-code gate that used to be configured here has been removed. The
+`activation_codes` Django admin section survives read-only so past redemptions stay
+consultable.
 
 
 ## conversations-frontend image

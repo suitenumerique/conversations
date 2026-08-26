@@ -1,6 +1,9 @@
-"""Admin classes for activation codes application."""
+"""Admin classes for activation codes application.
 
-from django.conf import settings
+The activation-code gate has been removed: these admins are read-only viewers over
+the historical records.
+"""
+
 from django.contrib import admin
 from django.utils.html import format_html, format_html_join
 from django.utils.translation import gettext_lazy as _
@@ -8,8 +11,24 @@ from django.utils.translation import gettext_lazy as _
 from . import models
 
 
+class ReadOnlyModelAdmin(admin.ModelAdmin):
+    """Base admin exposing a model for consultation only."""
+
+    def has_add_permission(self, request):
+        """Historical records are never created from the admin."""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """Historical records are never edited from the admin."""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Historical records are never deleted from the admin."""
+        return False
+
+
 @admin.register(models.ActivationCode)
-class ActivationCodeAdmin(admin.ModelAdmin):
+class ActivationCodeAdmin(ReadOnlyModelAdmin):
     """Admin class for ActivationCode model"""
 
     list_display = (
@@ -34,7 +53,12 @@ class ActivationCodeAdmin(admin.ModelAdmin):
 
     readonly_fields = (
         "id",
+        "code",
+        "description",
+        "max_uses",
         "current_uses",
+        "is_active",
+        "expires_at",
         "created_at",
         "updated_at",
         "usage_details",
@@ -76,21 +100,6 @@ class ActivationCodeAdmin(admin.ModelAdmin):
             },
         ),
     )
-
-    actions = ["recompute_current_uses"]
-
-    def get_readonly_fields(self, request, obj=None):
-        """Make `code` readonly when editing an existing ActivationCode.
-
-        When obj is None (creation form), `code` remains editable. When obj is
-        provided (editing), add `code` to readonly fields so it cannot be
-        changed after creation.
-        """
-        # Start from the configured readonly_fields to preserve other read-only fields
-        ro_fields = list(self.readonly_fields)
-        if obj is not None:
-            ro_fields.append("code")
-        return tuple(ro_fields)
 
     def usage_display(self, obj):
         """Display usage statistics."""
@@ -160,32 +169,9 @@ class ActivationCodeAdmin(admin.ModelAdmin):
 
     usage_details.short_description = _("Users who used this code")
 
-    @admin.action(description=_("Recompute current uses from related activations"))
-    def recompute_current_uses(self, request, queryset):
-        """Recompute the current_uses field by counting related UserActivation objects."""
-        updated_count = 0
-        for activation_code in queryset:
-            actual_uses = activation_code.usages.count()
-            if activation_code.current_uses != actual_uses:
-                activation_code.current_uses = actual_uses
-                activation_code.save(update_fields=["current_uses", "updated_at"])
-                updated_count += 1
-
-        if updated_count == 0:
-            self.message_user(
-                request,
-                _("All selected activation codes already have correct usage counts."),
-            )
-        else:
-            self.message_user(
-                request,
-                _("Successfully recomputed usage counts for %(count)d activation code(s).")
-                % {"count": updated_count},
-            )
-
 
 @admin.register(models.UserActivation)
-class UserActivationAdmin(admin.ModelAdmin):
+class UserActivationAdmin(ReadOnlyModelAdmin):
     """Admin class for UserActivation model"""
 
     list_display = (
@@ -245,13 +231,9 @@ class UserActivationAdmin(admin.ModelAdmin):
 
     user_email.short_description = _("Email")
 
-    def has_add_permission(self, request):
-        """Disable manual creation of user activations."""
-        return False
-
 
 @admin.register(models.UserRegistrationRequest)
-class UserRegistrationRequestAdmin(admin.ModelAdmin):
+class UserRegistrationRequestAdmin(ReadOnlyModelAdmin):
     """Admin class for UserRegistrationRequest model"""
 
     list_display = (
@@ -275,8 +257,6 @@ class UserRegistrationRequestAdmin(admin.ModelAdmin):
 
     list_filter = ("created_at",)
 
-    actions = ["add_to_brevo_waiting_list", "remove_from_brevo_waiting_list"]
-
     def user_display(self, obj):
         """Display user's full name."""
         return obj.user.email or str(obj.user.pk)
@@ -289,61 +269,3 @@ class UserRegistrationRequestAdmin(admin.ModelAdmin):
 
     has_user_activation.boolean = True
     has_user_activation.short_description = _("Has used activation code")
-
-    @admin.action(description=_("Add selected users to Brevo waiting list"))
-    def add_to_brevo_waiting_list(self, request, queryset):
-        """Add selected users to Brevo waiting list."""
-        # pylint: disable=import-outside-toplevel
-        from core.brevo import add_user_to_brevo_list  # noqa: PLC0415
-
-        registration_to_send = queryset.filter(
-            user_activation__isnull=True,
-        )
-
-        _total_emails = 0
-        for i in range(0, registration_to_send.count(), 150):
-            batch = registration_to_send[i : i + 150]
-            emails = [reg.user.email for reg in batch if reg.user.email]
-            if emails:
-                add_user_to_brevo_list(emails, settings.BREVO_WAITING_LIST_ID)
-                _total_emails += len(emails)
-
-        if _total_emails:
-            self.message_user(
-                request,
-                _("Added %(count)d user(s) to Brevo waiting list.") % {"count": _total_emails},
-            )
-        else:
-            self.message_user(
-                request,
-                _("No valid email address found in selected registrations."),
-                level="warning",
-            )
-
-    @admin.action(description=_("Remove selected users from Brevo waiting list"))
-    def remove_from_brevo_waiting_list(self, request, queryset):
-        """Remove selected users from Brevo waiting list."""
-        # pylint: disable=import-outside-toplevel
-        from core.brevo import remove_user_from_brevo_list  # noqa: PLC0415
-
-        registration_to_send = queryset.filter(
-            user_activation__isnull=False,
-        )
-        _total_emails = 0
-        for i in range(0, registration_to_send.count(), 150):
-            batch = registration_to_send[i : i + 150]
-            emails = [reg.user.email for reg in batch if reg.user.email]
-            if emails:
-                remove_user_from_brevo_list(emails, settings.BREVO_WAITING_LIST_ID)
-                _total_emails += len(emails)
-        if _total_emails:
-            self.message_user(
-                request,
-                _("Removed %(count)d user(s) from Brevo waiting list.") % {"count": _total_emails},
-            )
-        else:
-            self.message_user(
-                request,
-                _("No valid email address found in selected registrations."),
-                level="warning",
-            )

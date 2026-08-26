@@ -9,7 +9,6 @@ from rest_framework.routers import DefaultRouter
 from core.api import viewsets
 from core.file_upload.enums import FileToLLMMode
 
-from activation_codes import viewsets as activation_viewsets
 from chat.views import (
     AssistantHealthView,
     ChatConversationAttachmentViewSet,
@@ -27,7 +26,6 @@ router = DefaultRouter()
 router.register("users", viewsets.UserViewSet, basename="users")
 router.register("chats", ChatViewSet, basename="chats")
 router.register("projects", ChatProjectViewSet, basename="projects")
-router.register("activation", activation_viewsets.ActivationViewSet, basename="activation")
 
 conversation_router = DefaultRouter()
 conversation_router.register(

@@ -47,7 +47,6 @@ def test_api_config(is_authenticated):
     response = client.get("/api/v1.0/config/")
     assert response.status_code == HTTP_200_OK
     assert response.json() == {
-        "ACTIVATION_REQUIRED": False,
         "STATUS_PAGE_URL": "https://status.example.com",
         "DOCS_BASE_URL": None,
         "ENVIRONMENT": "test",
@@ -228,7 +227,6 @@ async def test_api_config_async(is_authenticated):
     response = await client.get("/api/v1.0/config/")
     assert response.status_code == HTTP_200_OK
     assert response.json() == {
-        "ACTIVATION_REQUIRED": False,
         "STATUS_PAGE_URL": "https://status.example.com",
         "DOCS_BASE_URL": None,
         "ENVIRONMENT": "test",

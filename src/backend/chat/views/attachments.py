@@ -23,7 +23,6 @@ from core.file_upload.enums import AttachmentStatus
 from core.file_upload.mixins import AttachmentMixin
 from core.file_upload.serializers import FileUploadSerializer
 
-from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.constants import IMAGE_MIME_PREFIX
 from chat.enums import AttachmentIndexState
@@ -50,10 +49,7 @@ class BaseAttachmentViewSet(
     """
 
     pagination_class = None
-    permission_classes = [
-        IsActivatedUser,
-        permissions.IsAuthenticated,
-    ]
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = serializers.ChatConversationAttachmentSerializer
     create_serializer_class = serializers.CreateChatConversationAttachmentSerializer
     queryset = models.ChatConversationAttachment.objects

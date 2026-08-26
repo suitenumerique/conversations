@@ -1,29 +1,20 @@
-"""Tests for activation_codes models."""
+"""Tests for activation_codes models.
 
-import json
-from datetime import timedelta
+The activation gate is gone; what remains is the historical record, so these tests
+cover only the model shape, relations and ordering.
+"""
 
 from django.core.exceptions import ValidationError
 from django.db.models import ProtectedError
-from django.utils import timezone
 
-import httpx
 import pytest
-import respx
 
 from core.factories import UserFactory
 
-from activation_codes.exceptions import InvalidCodeError, UserAlreadyActivatedError
 from activation_codes.factories import ActivationCodeFactory, UserActivationFactory
-from activation_codes.models import (
-    ActivationCode,
-    UserActivation,
-    UserRegistrationRequest,
-    generate_activation_code,
-)
+from activation_codes.models import ActivationCode, UserActivation, generate_activation_code
 
 
-@pytest.mark.django_db
 def test_generate_activation_code():
     """Test that generate_activation_code creates a valid code."""
     code = generate_activation_code()
@@ -38,7 +29,6 @@ def test_generate_activation_code():
     assert "1" not in code
 
 
-@pytest.mark.django_db
 def test_generate_activation_code_uniqueness():
     """Test that generated codes are unique."""
     codes = [generate_activation_code() for _ in range(100)]
@@ -78,138 +68,6 @@ def test_activation_code_str_representation_unlimited():
     unlimited_activation_code = ActivationCodeFactory(code="UNLIMITED123CODE", max_uses=0)
 
     assert str(unlimited_activation_code) == "UNLIMITED123CODE (0/∞)"
-
-
-@pytest.mark.django_db
-def test_activation_code_is_valid_active():
-    """Test that an active, non-expired code is valid."""
-    activation_code = ActivationCodeFactory()
-    assert activation_code.is_valid() is True
-    assert activation_code.can_be_used() is True
-
-
-@pytest.mark.django_db
-def test_activation_code_is_valid_inactive():
-    """Test that an inactive code is not valid."""
-    inactive_activation_code = ActivationCodeFactory(is_active=False)
-    assert inactive_activation_code.is_valid() is False
-    assert inactive_activation_code.can_be_used() is False
-
-
-@pytest.mark.django_db
-def test_activation_code_is_valid_expired():
-    """Test that an expired code is not valid."""
-    expired_activation_code = ActivationCodeFactory(
-        created_at=timezone.now() - timedelta(days=10),
-        expires_at=timezone.now() - timedelta(days=1),
-    )
-    assert expired_activation_code.is_valid() is False
-    assert expired_activation_code.can_be_used() is False
-
-
-@pytest.mark.django_db
-def test_activation_code_is_valid_max_uses_reached():
-    """Test that a code with max uses reached is not valid."""
-    activation_code = ActivationCodeFactory(max_uses=1)
-    activation_code.current_uses = 1
-    activation_code.save()
-    assert activation_code.is_valid() is False
-
-
-@pytest.mark.django_db
-def test_activation_code_is_valid_unlimited_uses():
-    """Test that unlimited code is always valid regardless of current uses."""
-    unlimited_activation_code = ActivationCodeFactory(max_uses=0)
-    unlimited_activation_code.current_uses = 100
-    unlimited_activation_code.save()
-    assert unlimited_activation_code.is_valid() is True
-
-
-@pytest.mark.django_db
-def test_activation_code_use_success():
-    """Test successfully using an activation code."""
-    user = UserFactory()
-    activation_code = ActivationCodeFactory()
-    activation = activation_code.use(user)
-
-    assert isinstance(activation, UserActivation)
-    assert activation.user == user
-    assert activation.activation_code == activation_code
-
-    # Check that usage counter was incremented
-    activation_code.refresh_from_db()
-    assert activation_code.current_uses == 1
-
-
-@pytest.mark.django_db
-def test_activation_code_use_invalid_code():
-    """Test using an invalid activation code raises error."""
-    inactive_activation_code = ActivationCodeFactory(is_active=False)
-    user = UserFactory()
-    with pytest.raises(InvalidCodeError):
-        inactive_activation_code.use(user)
-
-
-@pytest.mark.django_db
-def test_activation_code_use_already_activated():
-    """Test using a code when user is already activated raises error."""
-    user = UserFactory()
-    activation_code = ActivationCodeFactory()
-
-    # First activation
-    activation_code.use(user)
-
-    # Try to activate again with a different code
-    another_code = ActivationCodeFactory(code="ANOTHER123456789")
-    with pytest.raises(UserAlreadyActivatedError):
-        another_code.use(user)
-
-
-@pytest.mark.django_db
-def test_activation_code_use_multi_use():
-    """Test using a multi-use activation code."""
-    multi_use_activation_code = ActivationCodeFactory(max_uses=4)
-    users = [UserFactory(email=f"user{i}@example.com") for i in range(3)]
-
-    for i, user in enumerate(users):
-        activation = multi_use_activation_code.use(user)
-        assert activation.user == user
-
-        multi_use_activation_code.refresh_from_db()
-        assert multi_use_activation_code.current_uses == i + 1
-
-    # Code should still be valid
-    assert multi_use_activation_code.is_valid() is True
-
-
-@pytest.mark.django_db
-def test_activation_code_use_max_uses_exceeded():
-    """Test that code cannot be used when max uses is reached."""
-    user = UserFactory()
-    activation_code = ActivationCodeFactory(max_uses=1)
-
-    # Use the code
-    activation_code.use(user)
-
-    # Try to use it again with another user
-    another_user = UserFactory(email="another@example.com")
-    with pytest.raises(InvalidCodeError):
-        activation_code.use(another_user)
-
-
-@pytest.mark.django_db
-def test_activation_code_expiration():
-    """Test that code expires correctly."""
-    future_expiry = timezone.now() + timedelta(days=1)
-    code = ActivationCodeFactory(code="FUTURE123456789", expires_at=future_expiry)
-
-    assert code.is_valid() is True
-
-    # Manually set to past
-    code.expires_at = timezone.now() - timedelta(seconds=1)
-    code.save()
-
-    assert code.is_valid() is False
 
 
 @pytest.mark.django_db
@@ -278,47 +136,3 @@ def test_user_activation_ordering():
 
     activations = list(UserActivation.objects.all())
     assert activations == [activation2, activation1]
-
-
-@respx.mock
-@pytest.mark.django_db(transaction=True)
-def test_activation_code_use_success_notify_brevo(settings):
-    """Test successfully using an activation code and notify Brevo."""
-    settings.BREVO_API_KEY = "test_brevo_api_key"
-    settings.BREVO_WAITING_LIST_ID = "test_waiting_list_id"
-    settings.BREVO_FOLLOWUP_LIST_ID = "test_followup_list_name"
-
-    brevo_remove_mock = respx.post(
-        "https://api.brevo.com/v3/contacts/lists/test_waiting_list_id/contacts/remove"
-    ).mock(return_value=httpx.Response(201, json={"message": "Contacts added successfully"}))
-
-    brevo_create_contact = respx.post("https://api.brevo.com/v3/contacts").mock(
-        return_value=httpx.Response(200)
-    )
-
-    brevo_add_mock = respx.post(
-        "https://api.brevo.com/v3/contacts/lists/test_followup_list_name/contacts/add"
-    ).mock(return_value=httpx.Response(201, json={"message": "Contacts added successfully"}))
-
-    user = UserFactory()
-    registration = UserRegistrationRequest.objects.create(user=user)
-    activation_code = ActivationCodeFactory()
-    activation = activation_code.use(user)
-
-    registration.refresh_from_db()
-    assert registration.user_activation == activation
-
-    assert len(brevo_remove_mock.calls) == 1
-    assert brevo_remove_mock.calls[0].request.headers["api-key"] == "test_brevo_api_key"
-    assert json.loads(brevo_remove_mock.calls[0].request.content) == {"emails": [user.email]}
-
-    assert len(brevo_create_contact.calls) == 1
-    assert brevo_create_contact.calls[0].request.headers["api-key"] == "test_brevo_api_key"
-    assert json.loads(brevo_create_contact.calls[0].request.content) == {
-        "email": user.email,
-        "updateEnabled": True,
-    }
-
-    assert len(brevo_add_mock.calls) == 1
-    assert brevo_add_mock.calls[0].request.headers["api-key"] == "test_brevo_api_key"
-    assert json.loads(brevo_add_mock.calls[0].request.content) == {"emails": [user.email]}

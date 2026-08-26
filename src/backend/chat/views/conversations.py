@@ -21,7 +21,6 @@ from core.api.viewsets import Pagination, SerializerPerActionMixin
 from core.file_upload.enums import AttachmentStatus
 from core.file_upload.mixins import AttachmentMixin
 
-from activation_codes.permissions import IsActivatedUser
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX, SSE_MIME_TYPE
@@ -99,10 +98,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
     """
 
     pagination_class = Pagination
-    permission_classes = [
-        IsActivatedUser,  # see activation_codes application
-        permissions.IsAuthenticated,
-    ]
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = serializers.ChatConversationSerializer
     post_conversation_serializer_class = serializers.ChatConversationInputSerializer
     filter_backends = [filters.OrderingFilter, TitleSearchFilter, ProjectFilter]

@@ -8,7 +8,6 @@ import { MainLayout, PageLayout } from '@/layouts';
 import Page401 from './pages/401';
 import Page403 from './pages/403';
 import Page404 from './pages/404';
-import ActivationPage from './pages/activation';
 import ChatPage from './pages/chat';
 import ConversationPage from './pages/chat/conversation';
 import HomePage from './pages/home';
@@ -84,7 +83,6 @@ export function App() {
 
           <Route path="/home" element={<HomePage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/activation" element={<ActivationPage />} />
 
           <Route element={<PageLayoutRoute />}>
             <Route path="/401" element={<Page401 />} />

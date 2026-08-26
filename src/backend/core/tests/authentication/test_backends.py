@@ -625,7 +625,6 @@ def test_post_get_or_create_user_only_syncs_new_users(settings):
 
     settings.BREVO_API_KEY = "test-api-key"
     settings.BREVO_FOLLOWUP_LIST_ID = "follow-up-list-id"
-    settings.ACTIVATION_REQUIRED = False
 
     respx.post("https://api.brevo.com/v3/contacts").mock(return_value=httpx.Response(201))
     brevo_add_to_list = respx.post(
@@ -640,27 +639,6 @@ def test_post_get_or_create_user_only_syncs_new_users(settings):
 
     klass.post_get_or_create_user(user, {}, is_new_user=True)
     assert len(brevo_add_to_list.calls) == 1
-
-
-@responses.activate
-@respx.mock
-def test_post_get_or_create_user_not_synced_when_activation_required(settings):
-    """A new user is not pushed to the follow-up list while activation is required."""
-
-    settings.BREVO_API_KEY = "test-api-key"
-    settings.BREVO_FOLLOWUP_LIST_ID = "follow-up-list-id"
-    settings.ACTIVATION_REQUIRED = True
-
-    respx.post("https://api.brevo.com/v3/contacts").mock(return_value=httpx.Response(201))
-    brevo_add_to_list = respx.post(
-        "https://api.brevo.com/v3/contacts/lists/follow-up-list-id/contacts/add"
-    ).mock(return_value=httpx.Response(201))
-
-    klass = OIDCAuthenticationBackend()
-
-    klass.post_get_or_create_user(UserFactory(), {}, is_new_user=True)
-
-    assert len(brevo_add_to_list.calls) == 0
 
 
 @responses.activate
