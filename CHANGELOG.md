@@ -27,11 +27,11 @@ and this project adheres to
 - ⚡️(ci) run e2e tests in parallel across browsers and shards
 - ✨(back) sort conversations by stored size in the admin list
 - 🚸(back) show 200 conversations per admin list page for bulk actions
+- ♻️(back) split the settings module into per-domain configuration mixins
 
 ### Fixed
 
 - 🐛(front) fix the frontend dev container failing to start
-
 
 ### Removed
 
