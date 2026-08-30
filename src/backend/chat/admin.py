@@ -1,10 +1,28 @@
 """Admin classes and registrations for chat application."""
 
 from django.contrib import admin
-from django.db.models import Exists, OuterRef, Subquery
+from django.db.models import BigIntegerField, Exists, F, Func, OuterRef, Subquery, Value
+from django.db.models.functions import Coalesce
+from django.template.defaultfilters import filesizeformat
 
 from . import models
 from .model_health import set_model_health
+
+
+def _stored_size(field_name):
+    """
+    Bytes this column occupies on disk, as stored.
+
+    `pg_column_size` reads the size out of the tuple (or, for an out-of-line value, out
+    of its TOAST pointer) instead of fetching and decompressing the value, so it stays
+    cheap on the very rows we are looking for. The counterpart is that it reports the
+    *compressed* size: JSON text compresses several times over, so the number is a
+    ranking signal, not the payload size an API response would carry.
+    """
+    return Coalesce(
+        Func(F(field_name), function="pg_column_size", output_field=BigIntegerField()),
+        Value(0),
+    )
 
 
 class ChatConversationAttachmentInline(admin.TabularInline):
@@ -73,6 +91,7 @@ class ChatConversationAdmin(admin.ModelAdmin):
         "owner",
         "project",
         "has_files",
+        "stored_size",
         "collection_id",
         "created_at",
         "updated_at",
@@ -94,6 +113,9 @@ class ChatConversationAdmin(admin.ModelAdmin):
         `Count("attachments")` would need a GROUP BY over the whole table before the
         page's LIMIT could apply, while EXISTS is evaluated per returned row against
         the attachment foreign key index.
+
+        `stored_size` sums the deferred columns without selecting them, so heavy
+        conversations can be sorted to the top of the page they are hiding in.
         """
         return (
             super()
@@ -108,7 +130,14 @@ class ChatConversationAdmin(admin.ModelAdmin):
             .annotate(
                 has_files=Exists(
                     models.ChatConversationAttachment.objects.filter(conversation=OuterRef("pk"))
-                )
+                ),
+                stored_size=(
+                    _stored_size("messages")
+                    + _stored_size("pydantic_messages")
+                    + _stored_size("ui_messages")
+                    + _stored_size("agent_usage")
+                    + _stored_size("history_summary")
+                ),
             )
         )
 
@@ -116,6 +145,11 @@ class ChatConversationAdmin(admin.ModelAdmin):
     def has_files(self, obj):
         """Whether the conversation has attachments, without opening it."""
         return obj.has_files
+
+    @admin.display(description="Stored size", ordering="stored_size")
+    def stored_size(self, obj):
+        """Compressed weight of the conversation payloads, sortable to find the outliers."""
+        return filesizeformat(obj.stored_size)
 
 
 @admin.register(models.ChatConversationAttachment)

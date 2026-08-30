@@ -24,6 +24,7 @@ and this project adheres to
 - ⬆️(back) update django, pypdf, sqlparse and pydantic-settings
 - 🔒️(ci) pin CI actions and installed packages to immutable versions
 - ⚡️(ci) run e2e tests in parallel across browsers and shards
+- ✨(back) sort conversations by stored size in the admin list
 
 ### Removed
 
