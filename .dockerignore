@@ -35,5 +35,8 @@ db.sqlite3
 .pytest_cache
 
 # Frontend
-node_modules
-.next
+# Patterns are matched from the context root, so `node_modules` alone would leave
+# `src/frontend/apps/conversations/node_modules` in the context, where the COPY of the
+# app directory lands it in the image on top of the one `yarn install` just built.
+**/node_modules
+**/.next

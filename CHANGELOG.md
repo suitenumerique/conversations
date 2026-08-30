@@ -26,6 +26,10 @@ and this project adheres to
 - ⚡️(ci) run e2e tests in parallel across browsers and shards
 - ✨(back) sort conversations by stored size in the admin list
 
+### Fixed
+
+- 🐛(front) fix the frontend dev container failing to start
+
 ### Removed
 
 - 🔥(back) remove the unused Albert web search manager and its tool
