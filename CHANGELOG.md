@@ -25,10 +25,12 @@ and this project adheres to
 - 🔒️(ci) pin CI actions and installed packages to immutable versions
 - ⚡️(ci) run e2e tests in parallel across browsers and shards
 - ✨(back) sort conversations by stored size in the admin list
+- 🚸(back) show 200 conversations per admin list page for bulk actions
 
 ### Fixed
 
 - 🐛(front) fix the frontend dev container failing to start
+
 
 ### Removed
 
