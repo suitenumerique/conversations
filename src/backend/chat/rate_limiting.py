@@ -1,10 +1,15 @@
-"""Per-user token-rate tracking and model-health-aware cooldown heuristic.
+"""Per-user rate limiting: model-load cooldown and resource-creation throttles.
 
 To mitigate concurrent load on the inference infrastructure we track each
 user's total token usage (input + output) over a trailing window. When the
 model they are using is known to be degraded (yellow or red health) and they
 have spent more than a threshold over that window, the client is asked to
 wait a cooldown period before the next request. See ``compute_cooldown_seconds``.
+
+Separately, the throttles at the bottom of this module bound how fast an
+account can create conversations and projects. Those are storage controls
+rather than load controls: nothing else caps how many rows a single
+authenticated client can write.
 """
 
 import logging
@@ -13,7 +18,7 @@ import time
 
 from django.core.cache import cache
 
-from rest_framework.throttling import BaseThrottle
+from rest_framework.throttling import BaseThrottle, UserRateThrottle
 
 from core.models import ChatCooldownSettings
 
@@ -176,3 +181,97 @@ class ChatCooldownThrottle(BaseThrottle):
 
     def wait(self):
         return self._wait_seconds or None
+
+
+# --------------------------------------------------------------------------- #
+# Resource-creation throttles
+# --------------------------------------------------------------------------- #
+# A single DRF rate string carries one window, so bounding both bursts and
+# daily totals takes two throttles per resource. Each scope keeps its own
+# cache key and both must allow a request for it to go through; the rates
+# themselves live in ``DEFAULT_THROTTLE_RATES`` and are settable per
+# environment.
+
+
+class AtomicWindowThrottle(UserRateThrottle):
+    """A ``UserRateThrottle`` whose count holds under concurrency.
+
+    DRF's ``SimpleRateThrottle`` reads the request history, filters it and
+    writes it back. That read-modify-write is not atomic, so requests arriving
+    together all read the same history and all pass: a client firing N requests
+    in parallel creates N rows whatever the rate says. Counting a fixed window
+    with ``add`` + ``incr`` removes the read-modify-write -- both are atomic on
+    Redis and on the local-memory cache -- so the count is exact however many
+    requests arrive at once.
+
+    The trade-off is the usual fixed-window one: a client can spend its whole
+    allowance at the end of one window and again at the start of the next. For
+    a storage ceiling that bounded 2x burst is a much smaller hole than the
+    unbounded concurrent overshoot it replaces.
+    """
+
+    # Declared here rather than only in ``allow_request``: DRF instantiates a
+    # throttle per request, and ``wait`` may be called before either is set.
+    key = None
+    _wait = None
+
+    def allow_request(self, request, view):
+        """Count this request in the current window and allow it if it fits."""
+        if self.rate is None:
+            return True
+
+        self.key = self.get_cache_key(request, view)
+        if self.key is None:
+            return True
+
+        now = time.time()
+        # Windows are aligned on the epoch rather than on a first request, so
+        # every process agrees on which window a request falls in.
+        window_key = f"{self.key}:{int(now) // self.duration}"
+        self._wait = self.duration - (now % self.duration)
+
+        # ``add`` seeds the window only if no request has opened it yet, so a
+        # burst elects exactly one opener and every other request increments
+        # what is already there. Both calls are atomic -- ``SET NX`` on Redis,
+        # lock-guarded in local memory -- so no count is ever overwritten.
+        if self.cache.add(window_key, 1, timeout=self.duration):
+            count = 1
+        else:
+            try:
+                count = self.cache.incr(window_key)
+            except ValueError:
+                # The window is gone between the two calls, which takes an
+                # eviction or a flush: its TTL outlives the window itself.
+                # Reseeding here would overwrite whatever a concurrent request
+                # has since put there, so leave the cache to them.
+                count = 1
+
+        return count <= self.num_requests
+
+    def wait(self):
+        """Seconds until the current window ends, for the ``Retry-After`` header."""
+        return self._wait
+
+
+class ConversationCreateHourlyThrottle(AtomicWindowThrottle):
+    """Hourly ceiling on conversation creation, per user."""
+
+    scope = "conversation_create_hourly"
+
+
+class ConversationCreateDailyThrottle(AtomicWindowThrottle):
+    """Daily ceiling on conversation creation, per user."""
+
+    scope = "conversation_create_daily"
+
+
+class ProjectCreateHourlyThrottle(AtomicWindowThrottle):
+    """Hourly ceiling on project creation, per user."""
+
+    scope = "project_create_hourly"
+
+
+class ProjectCreateDailyThrottle(AtomicWindowThrottle):
+    """Daily ceiling on project creation, per user."""
+
+    scope = "project_create_daily"

@@ -380,6 +380,30 @@ class Base(
                 environ_name="API_FILE_STREAM_THROTTLE_RATE",
                 environ_prefix=None,
             ),
+            # Conversations and projects are created without any other ceiling,
+            # so each is bounded by an hourly and a daily rate at once: the
+            # hourly one stops a runaway client, the daily one bounds how much
+            # a single account can accumulate in storage.
+            "conversation_create_hourly": values.Value(
+                default="20/hour",
+                environ_name="API_CONVERSATION_CREATE_HOURLY_THROTTLE_RATE",
+                environ_prefix=None,
+            ),
+            "conversation_create_daily": values.Value(
+                default="100/day",
+                environ_name="API_CONVERSATION_CREATE_DAILY_THROTTLE_RATE",
+                environ_prefix=None,
+            ),
+            "project_create_hourly": values.Value(
+                default="10/hour",
+                environ_name="API_PROJECT_CREATE_HOURLY_THROTTLE_RATE",
+                environ_prefix=None,
+            ),
+            "project_create_daily": values.Value(
+                default="100/day",
+                environ_name="API_PROJECT_CREATE_DAILY_THROTTLE_RATE",
+                environ_prefix=None,
+            ),
         },
     }
 
@@ -1161,6 +1185,10 @@ class Test(Base):
             "attachment_upload": "60/minute",
             "attachment_auth": "60/minute",
             "file-stream": "60/minute",
+            "conversation_create_hourly": "20/hour",
+            "conversation_create_daily": "100/day",
+            "project_create_hourly": "10/hour",
+            "project_create_daily": "100/day",
         },
     }
 

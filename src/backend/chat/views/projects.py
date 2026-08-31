@@ -12,6 +12,7 @@ from core.analytics import capture_event
 from core.api.viewsets import Pagination
 
 from chat import models, serializers
+from chat.rate_limiting import ProjectCreateDailyThrottle, ProjectCreateHourlyThrottle
 from chat.views.filters import TitleSearchFilter
 from chat.views.helpers import _bulk_delete_s3_blobs
 
@@ -41,6 +42,12 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
             if self.request.user.is_authenticated
             else self.queryset.none()
         )
+
+    def get_throttles(self):
+        """Bound project creation with an hourly and a daily rate, per user."""
+        if self.action == "create":
+            return [ProjectCreateHourlyThrottle(), ProjectCreateDailyThrottle()]
+        return super().get_throttles()
 
     @staticmethod
     def _event_properties(project):

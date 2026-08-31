@@ -26,7 +26,12 @@ from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX, SSE_MIME_TYPE
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.model_routing import resolve_effective_model_hrid
-from chat.rate_limiting import ChatCooldownThrottle, get_cooldown_remaining
+from chat.rate_limiting import (
+    ChatCooldownThrottle,
+    ConversationCreateDailyThrottle,
+    ConversationCreateHourlyThrottle,
+    get_cooldown_remaining,
+)
 from chat.serializers import ChatConversationRequestSerializer
 from chat.views.edit_in_docs import EditInDocsMixin
 from chat.views.filters import ProjectFilter, TitleSearchFilter
@@ -166,9 +171,16 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         return super().get_permissions()
 
     def get_throttles(self):
-        """Enforce the model-load cooldown on the chat completion endpoint."""
+        """Throttle the chat completion endpoint and conversation creation.
+
+        The completion endpoint carries the model-load cooldown; creation
+        carries an hourly and a daily rate, both of which must allow the
+        request, so that no account can fill the database on its own.
+        """
         if self.action == "post_conversation":
             return [ChatCooldownThrottle()]
+        if self.action == "create":
+            return [ConversationCreateHourlyThrottle(), ConversationCreateDailyThrottle()]
         return super().get_throttles()
 
     def perform_destroy(self, instance):

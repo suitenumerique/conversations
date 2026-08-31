@@ -2,8 +2,10 @@
 
 import json
 import re
+from unittest.mock import patch
 
 from rest_framework import status
+from rest_framework.throttling import SimpleRateThrottle
 
 UI_MESSAGE_STREAM_HEADER = "x-vercel-ai-ui-message-stream"
 
@@ -56,3 +58,18 @@ def replace_uuids_with_placeholder(text):
     text = re.sub('"toolCallId":"pyd_ai_([a-z0-9]){32}"', '"toolCallId":"pyd_ai_YYY"', text)
     text = re.sub('"([a-z0-9-]){36}"', '"<mocked_uuid>"', text)
     return text
+
+
+def throttle_rates(**overrides):
+    """Context manager replacing throttle rates by scope, e.g. `foo="3/day"`.
+
+    DRF snapshots ``DEFAULT_THROTTLE_RATES`` into a class attribute when
+    ``rest_framework.throttling`` is imported, so ``override_settings`` on
+    ``REST_FRAMEWORK`` does not reach it; the class attribute is the only
+    place a test can change a rate.
+    """
+    return patch.object(
+        SimpleRateThrottle,
+        "THROTTLE_RATES",
+        {**SimpleRateThrottle.THROTTLE_RATES, **overrides},
+    )

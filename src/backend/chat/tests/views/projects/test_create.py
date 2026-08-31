@@ -6,6 +6,7 @@ from rest_framework import status
 from core.factories import UserFactory
 
 from chat.models import ChatProject, ChatProjectColor, ChatProjectIcon
+from chat.tests.utils import throttle_rates
 
 pytestmark = pytest.mark.django_db
 
@@ -107,3 +108,42 @@ def test_create_project_anonymous(api_client):
     response = api_client.post(url, data, format="json")
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+def test_create_project_throttled_over_the_hourly_rate(api_client):
+    """The 11th project of the hour is rejected with a 429."""
+    user = UserFactory()
+    url = "/api/v1.0/projects/"
+    data = {
+        "title": "New Project",
+        "icon": ChatProjectIcon.FOLDER,
+        "color": ChatProjectColor.COLOR_1,
+    }
+    api_client.force_login(user)
+
+    for _ in range(10):
+        assert api_client.post(url, data, format="json").status_code == status.HTTP_201_CREATED
+
+    response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+    assert ChatProject.objects.filter(owner=user).count() == 10
+
+
+def test_create_project_throttled_over_the_daily_rate(api_client):
+    """The daily rate rejects a user still well under the hourly one."""
+    user = UserFactory()
+    url = "/api/v1.0/projects/"
+    data = {
+        "title": "New Project",
+        "icon": ChatProjectIcon.FOLDER,
+        "color": ChatProjectColor.COLOR_1,
+    }
+    api_client.force_login(user)
+
+    with throttle_rates(project_create_hourly="100/hour", project_create_daily="3/day"):
+        for _ in range(3):
+            assert api_client.post(url, data, format="json").status_code == status.HTTP_201_CREATED
+        response = api_client.post(url, data, format="json")
+
+    assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS

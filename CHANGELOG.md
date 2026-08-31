@@ -13,6 +13,7 @@ and this project adheres to
 - 💄(settings) move analytics settings to general
 - 📈(posthog) track projects, Docs export, summarization and co2 footprint
 - 👷(ci) audit GitHub Actions workflows with zizmor on push and pull request
+- 🔒️(back) throttle conversation and project creation per user
 
 ### Changed
 

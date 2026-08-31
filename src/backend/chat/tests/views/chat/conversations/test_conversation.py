@@ -30,6 +30,7 @@ from chat.tests.utils import (
     ZERO_USAGE,
     assert_data_stream_response,
     replace_uuids_with_placeholder,
+    throttle_rates,
 )
 from chat.tools.descriptions import SELF_DOCUMENTATION_SYSTEM_PROMPT
 
@@ -1194,3 +1195,40 @@ def test_post_conversation_oidc_refresh_enabled(  # pylint: disable=unused-argum
 
     assert len(chat_conversation.messages) == 2
     assert len(chat_conversation.pydantic_messages) == 2
+
+
+@freeze_time(FROZEN_TIMESTAMP)
+@respx.mock
+def test_post_conversation_is_not_affected_by_the_creation_throttle(
+    api_client, mock_openai_stream, hello_conversation_data
+):
+    """Appending a turn updates an existing conversation, so it is not throttled.
+
+    Both are POSTs on the same viewset, which is why the throttles are keyed on
+    the action rather than the HTTP method.
+    """
+    user = UserFactory(language="en-us")
+    api_client.force_login(user)
+    chat_conversation = ChatConversationFactory(owner=user)
+
+    with throttle_rates(conversation_create_hourly="1/hour"):
+        assert (
+            api_client.post("/api/v1.0/chats/", {"title": "first"}, format="json").status_code
+            == status.HTTP_201_CREATED
+        )
+        # The creation budget is now spent for this user...
+        assert (
+            api_client.post("/api/v1.0/chats/", {"title": "second"}, format="json").status_code
+            == status.HTTP_429_TOO_MANY_REQUESTS
+        )
+
+        # ...which must not stop them from continuing an existing conversation.
+        response = api_client.post(
+            f"/api/v1.0/chats/{chat_conversation.pk}/conversation/?protocol=data",
+            hello_conversation_data,
+            format="json",
+        )
+
+    assert_data_stream_response(response)
+    assert _decode_stream(response) == HELLO_STREAM_CONTENT
+    assert mock_openai_stream.called
