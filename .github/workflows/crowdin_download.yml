@@ -23,7 +23,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Create empty source files
@@ -55,14 +55,14 @@ jobs:
       # Cache entries are branch-scoped and this workflow only runs on release
       # branches, so poisoning the cache needs push access to one of them.
       - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 # zizmor: ignore[cache-poisoning]
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 # zizmor: ignore[cache-poisoning]
         with:
-          node-version: "22.x"
+          node-version: "24.x"
       - name: Install yarn
         # Exact version pin, scripts disabled; corepack pinning is separate.
         run: npm install -g yarn@1.22.22 --ignore-scripts # zizmor: ignore[adhoc-packages]
       - name: Restore the frontend cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0 # zizmor: ignore[cache-poisoning]
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0 # zizmor: ignore[cache-poisoning]
         with:
           path: "src/frontend/**/node_modules"
           key: front-node_modules-${{ hashFiles('src/frontend/**/yarn.lock') }}
@@ -72,7 +72,7 @@ jobs:
         run: yarn i18n:deploy
       # Create a new PR
       - name: Create a new Pull Request with new translated strings
-        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           commit-message: |
             🌐(i18n) update translated strings
