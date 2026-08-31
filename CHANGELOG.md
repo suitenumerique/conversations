@@ -32,6 +32,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(front) fix the frontend dev container failing to start
+- 🐛(back) read the OIDC_CREATE_USER setting from its documented env var
 
 ### Removed
 
