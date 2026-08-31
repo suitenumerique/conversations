@@ -9,6 +9,8 @@
  * @returns An object containing:
  *   - `status`: HTTP status code from the response
  *   - `cause`: A flattened list of error messages, or undefined if no body
+ *   - `retryAfter`: Seconds to wait, from the `Retry-After` header, when the
+ *     server sent one (rate limited responses do)
  *   - `data`: The optional data passed in
  */
 export const errorCauses = async (response: Response, data?: unknown) => {
@@ -23,9 +25,13 @@ export const errorCauses = async (response: Response, data?: unknown) => {
         .flat()
     : undefined;
 
+  const retryAfter = Number(response.headers.get('Retry-After'));
+
   return {
     status: response.status,
     cause: causes,
+    retryAfter:
+      Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
     data,
   };
 };

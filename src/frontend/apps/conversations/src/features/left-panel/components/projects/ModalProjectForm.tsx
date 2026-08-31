@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { css } from 'styled-components';
 
+import { isRateLimitError, rateLimitMessage } from '@/api';
 import FileDocIcon from '@/assets/icons/uikit-custom/file-doc.svg?react';
 import FileGenericIcon from '@/assets/icons/uikit-custom/file-filled.svg?react';
 import FileImageIcon from '@/assets/icons/uikit-custom/file-image.svg?react';
@@ -597,11 +598,14 @@ export const ModalProjectForm = ({
         setProjectId(created.id);
         void navigate('/chat');
       } catch (error) {
+        // A rate limited creation reports the framework default wording, which
+        // counts in raw seconds: replace it with the product message.
         const err = error as { cause?: string[]; message?: string };
-        const errorMessage =
-          err.cause?.[0] ||
-          err.message ||
-          t('An error occurred while creating the project');
+        const errorMessage = isRateLimitError(error)
+          ? rateLimitMessage(error, t)
+          : err.cause?.[0] ||
+            err.message ||
+            t('An error occurred while creating the project');
         showToast('error', errorMessage, undefined, 4000);
       }
     }

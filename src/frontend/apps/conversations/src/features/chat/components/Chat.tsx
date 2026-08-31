@@ -20,7 +20,13 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 
-import { APIError, errorCauses, fetchAPI } from '@/api';
+import {
+  APIError,
+  errorCauses,
+  fetchAPI,
+  isRateLimitError,
+  rateLimitMessage,
+} from '@/api';
 import { Box, HorizontalSeparator, Icon, Loader, Text } from '@/components';
 import { useConfig } from '@/core';
 import { useProjectAttachments } from '@/features/attachments/api/useProjectAttachments';
@@ -966,6 +972,30 @@ export const Chat = ({
                 setPendingFirstMessage(null);
               }
             }, 0);
+          },
+          onError: (error) => {
+            // The pending store was primed for a navigation that is not going
+            // to happen. It has to be cleared: the mount effect above submits
+            // whatever it finds there, so leaving the message behind would
+            // auto-send it into the next conversation the user opens. The
+            // composer still holds the text (this path returns before the
+            // message is handed over), so trying again just works.
+            clearPendingInput();
+            setPendingFirstMessage(null);
+            setChatErrorModal({
+              title: isRateLimitError(error)
+                ? t('Too many conversations')
+                : t('Error'),
+              message: (
+                <Text>
+                  {isRateLimitError(error)
+                    ? rateLimitMessage(error, t)
+                    : t(
+                        'Failed to start a new conversation. Please try again.',
+                      )}
+                </Text>
+              ),
+            });
           },
         },
       );

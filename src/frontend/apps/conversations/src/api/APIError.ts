@@ -8,6 +8,8 @@ interface IAPIError<T = unknown> {
   status: number;
   /** Optional list of error causes (e.g., validation issues) */
   cause?: string[];
+  /** Optional seconds to wait before retrying, from the `Retry-After` header */
+  retryAfter?: number;
   /** Optional extra data provided with the error */
   data?: T;
 }
@@ -22,6 +24,7 @@ interface IAPIError<T = unknown> {
 export class APIError<T = unknown> extends Error implements IAPIError<T> {
   public status: IAPIError['status'];
   public cause?: IAPIError['cause'];
+  public retryAfter?: IAPIError['retryAfter'];
   public data?: IAPIError<T>['data'];
 
   /**
@@ -30,13 +33,18 @@ export class APIError<T = unknown> extends Error implements IAPIError<T> {
    * @param message - The human-readable error message.
    * @param status - The HTTP status code or equivalent.
    * @param cause - (Optional) List of strings describing error causes.
+   * @param retryAfter - (Optional) Seconds to wait before retrying.
    * @param data - (Optional) Any additional data returned by the API.
    */
-  constructor(message: string, { status, cause, data }: IAPIError<T>) {
+  constructor(
+    message: string,
+    { status, cause, retryAfter, data }: IAPIError<T>,
+  ) {
     super(message);
     this.name = 'APIError';
     this.status = status;
     this.cause = cause;
+    this.retryAfter = retryAfter;
     this.data = data;
   }
 }
