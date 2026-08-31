@@ -112,6 +112,13 @@ These are the environment variables you can set for the `conversations-backend` 
 | DOCS_BASE_URL                                   | Base URL of the La Suite Docs instance. Enables the "Edit in Docs" feature (the button only appears when set). Requires `OIDC_STORE_ACCESS_TOKEN=true`. See [Interoperability](interoperabilities.md). |                                                         |
 | DOCS_API_TIMEOUT                                | Timeout (seconds) for HTTP calls to the Docs external API                                                                          | 30                                                      |
 | OIDC_ALLOWED_ROLES                              | Comma-separated roles; restrict login to users whose OIDC `roles` claim contains one of them. Empty disables. See "Access control modes" below. | [] (empty, disabled)                                    |
+| API_ATTACHMENT_UPLOAD_THROTTLE_RATE             | Rate limit on the attachment upload endpoint, per user                                                                            | 60/minute                                               |
+| API_ATTACHMENT_AUTH_THROTTLE_RATE               | Rate limit on the attachment authorization endpoint, per user                                                                     | 60/minute                                               |
+| API_FILE_STREAM_THROTTLE_RATE                   | Rate limit on the file streaming endpoint, per user                                                                               | 60/minute                                               |
+| API_CONVERSATION_CREATE_HOURLY_THROTTLE_RATE    | Hourly limit on conversation creation, per user. See [Rate limiting](#rate-limiting)                                              | 20/hour                                                 |
+| API_CONVERSATION_CREATE_DAILY_THROTTLE_RATE     | Daily limit on conversation creation, per user. See [Rate limiting](#rate-limiting)                                               | 100/day                                                 |
+| API_PROJECT_CREATE_HOURLY_THROTTLE_RATE         | Hourly limit on project creation, per user. See [Rate limiting](#rate-limiting)                                                   | 10/hour                                                 |
+| API_PROJECT_CREATE_DAILY_THROTTLE_RATE          | Daily limit on project creation, per user. See [Rate limiting](#rate-limiting)                                                    | 100/day                                                 |
 
 
 ## Access control
@@ -129,6 +136,28 @@ Access can be gated on the OIDC role claim:
 The activation-code gate that used to be configured here has been removed. The
 `activation_codes` Django admin section survives read-only so past redemptions stay
 consultable.
+
+
+## Rate limiting
+
+Conversation and project creation are each bounded by **two** limits at once, an
+hourly one and a daily one: both must allow a request for it to go through. A single
+rate cannot express both, and the two answer different questions - the hourly rate
+stops a runaway client or a retry loop, while the daily rate bounds how much a single
+account can accumulate in the database over time. Raising one without the other only
+moves the ceiling.
+
+Values use the Django REST framework format, `<number>/<period>`, where the period is
+one of `second`, `minute`, `hour` or `day`. Counting is per authenticated user and
+stored in Redis, so the limits hold across every backend replica.
+
+Only creation is limited. Reading conversations, renaming them and posting new messages
+to an existing one are unaffected, so a user who reaches the limit keeps full use of the
+conversations they already have and is only stopped from opening new ones (HTTP 429,
+with a `Retry-After` header).
+
+Rates are read when the process starts, so changing one of these variables takes effect
+on the next restart of the backend.
 
 
 ## conversations-frontend image
