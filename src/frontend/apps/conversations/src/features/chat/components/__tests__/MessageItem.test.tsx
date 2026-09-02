@@ -486,6 +486,60 @@ describe('MessageItem', () => {
       ).not.toBeInTheDocument();
     });
 
+    it('does not render the action bar before the answer has content', async () => {
+      // v5 creates the assistant message as soon as the response starts, with
+      // no parts yet. The bar used to render on that empty bubble, putting the
+      // rating controls on screen ahead of the answer.
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={{ ...defaultProps.message, parts: [] }}
+            status="submitted"
+            isLastAssistantMessage={true}
+          />,
+        );
+      });
+
+      expect(
+        screen.queryByRole('button', { name: 'Copy' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('does not render the action bar for a text part that is still empty', async () => {
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={{
+              ...defaultProps.message,
+              parts: [{ type: 'text' as const, text: '' }],
+            }}
+            status="submitted"
+            isLastAssistantMessage={true}
+          />,
+        );
+      });
+
+      expect(
+        screen.queryByRole('button', { name: 'Copy' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('renders the action bar once the answer has content', async () => {
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            status="ready"
+            isLastAssistantMessage={true}
+          />,
+        );
+      });
+
+      expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
+    });
+
     it('hides copy text on mobile', async () => {
       await act(async () => {
         renderWithProviders(<MessageItem {...defaultProps} isMobile={true} />);
