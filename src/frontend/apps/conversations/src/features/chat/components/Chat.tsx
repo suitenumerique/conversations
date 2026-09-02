@@ -226,6 +226,9 @@ export const Chat = ({
     input: string;
     files: FileList | null;
   } | null>(null);
+  // Read from the async fetch below, which resolves long after its closure was
+  // created and must not act on a stale `messages`.
+  const messagesRef = useRef<UIMessage[]>([]);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
   const queryClient = useQueryClient();
@@ -355,6 +358,8 @@ export const Chat = ({
     onError: onErrorChat,
     onImagesSkipped,
   });
+
+  messagesRef.current = messages;
 
   const stopGeneration = async () => {
     await stopChat();
@@ -806,7 +811,14 @@ export const Chat = ({
             // v5 keeps the messages inside the chat instance, which was built
             // when the id changed — before this fetch resolved.
             setInitialConversationMessages(conversation.messages);
-            setMessages(conversation.messages);
+            // The server snapshot is only ever the *initial* state. This effect
+            // also re-runs when `pendingInput` clears at the end of the
+            // new-conversation handoff, and back then the message that was just
+            // sent is not persisted yet: applying the snapshot there wiped the
+            // user's question until the next reload.
+            if (messagesRef.current.length === 0) {
+              setMessages(conversation.messages);
+            }
             setImagesSkipped(conversation.images_skipped ?? false);
             setConversationProjectId(conversation.project?.id ?? null);
             setHasInitialized(true);
