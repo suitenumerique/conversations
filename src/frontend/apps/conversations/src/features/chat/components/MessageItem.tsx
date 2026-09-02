@@ -277,6 +277,15 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
 
   const hasTextContent = textContent.trim().length > 0;
 
+  // v5 creates the assistant message as soon as the response starts, before any
+  // content has arrived. That empty bubble must not carry the copy/feedback bar:
+  // it put the thumbs up/down on screen ahead of the answer.
+  const hasAssistantOutput =
+    hasTextContent ||
+    message.parts.some(
+      (part) => part.type !== 'text' && part.type !== 'step-start',
+    );
+
   const hasNonDocumentParsingTool = React.useMemo(
     () =>
       toolInvocationParts.some(
@@ -543,6 +552,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
           </Box>
 
           {message.role === 'assistant' &&
+            hasAssistantOutput &&
             !(isLastAssistantMessage && status === 'streaming') && (
               <Box
                 $css="color: #222631; font-size: 12px;"
