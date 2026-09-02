@@ -835,7 +835,11 @@ export const Chat = ({
           // Optionally handle error (e.g., setInitialConversationMessages([]) or show error)
           if (!ignore) {
             setInitialConversationMessages([]);
-            setMessages([]);
+            // Same rule as the success branch above: a failed refetch must not
+            // clear a conversation the client has already sent into.
+            if (!hasSentRef.current) {
+              setMessages([]);
+            }
             setHasInitialized(true);
           }
         }

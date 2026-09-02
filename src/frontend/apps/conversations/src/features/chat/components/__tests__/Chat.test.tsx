@@ -188,6 +188,23 @@ describe('Chat message ownership', () => {
     );
   });
 
+  it('keeps the question on screen when the history request fails', async () => {
+    // Same rule as a resolved snapshot: a failed refetch must not clear a
+    // conversation the client has already sent into.
+    usePendingChatStore.setState({ input: 'Carried question' });
+    getConversationMock.mockRejectedValue(new Error('boom'));
+
+    renderChat();
+
+    await waitFor(() => expect(getConversationMock).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(messageTexts()).toEqual([
+        'You said: Carried question',
+        'Assistant IA replied: An answer.',
+      ]),
+    );
+  });
+
   it('replaces only the failed turn when retrying', async () => {
     // Retry used to remove the last assistant message, which is the previous
     // successful answer whenever the attempt failed before producing one, and
