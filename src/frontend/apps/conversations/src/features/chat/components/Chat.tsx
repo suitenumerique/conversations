@@ -226,9 +226,10 @@ export const Chat = ({
     input: string;
     files: FileList | null;
   } | null>(null);
-  // Read from the async fetch below, which resolves long after its closure was
-  // created and must not act on a stale `messages`.
-  const messagesRef = useRef<UIMessage[]>([]);
+  // Whether anything has been sent into the conversation currently loaded. Once
+  // it has, the client is authoritative and a fetched snapshot must not replace
+  // it. Reset when the conversation changes, below.
+  const hasSentRef = useRef(false);
   // The history fetch currently in flight, so a submission can wait for it
   // instead of racing it. Never rejects: fetchInitialMessages catches.
   const historyFetchRef = useRef<Promise<void> | null>(null);
@@ -361,8 +362,6 @@ export const Chat = ({
     onError: onErrorChat,
     onImagesSkipped,
   });
-
-  messagesRef.current = messages;
 
   const stopGeneration = async () => {
     await stopChat();
@@ -782,6 +781,7 @@ export const Chat = ({
     // user submits in that window, posted to its endpoint.
     if (loadedConversationIdRef.current !== initialConversationId) {
       loadedConversationIdRef.current = initialConversationId;
+      hasSentRef.current = false;
       setInitialConversationMessages(undefined);
       setMessages([]);
     }
@@ -821,8 +821,10 @@ export const Chat = ({
             // also re-runs when `pendingInput` clears at the end of the
             // new-conversation handoff, and back then the message that was just
             // sent is not persisted yet: applying the snapshot there wiped the
-            // user's question until the next reload.
-            if (messagesRef.current.length === 0) {
+            // user's question until the next reload. Keying on the send rather
+            // than on the message list keeps that true no matter which of the
+            // two lands first.
+            if (!hasSentRef.current) {
               setMessages(conversation.messages);
             }
             setImagesSkipped(conversation.images_skipped ?? false);
@@ -906,6 +908,7 @@ export const Chat = ({
     }));
 
   const send = (text: string, attachments: Attachment[]) => {
+    hasSentRef.current = true;
     void sendMessage({ text, files: toFileParts(attachments) });
     setInput('');
   };
