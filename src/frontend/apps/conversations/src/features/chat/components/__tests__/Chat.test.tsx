@@ -140,6 +140,10 @@ const renderChat = (conversationId: string | undefined = 'conv-1') =>
     </MemoryRouter>,
   );
 
+const chatPostCount = (mock: Mock) =>
+  mock.mock.calls.filter((call) => String(call[0]).includes('/conversation/'))
+    .length;
+
 const messageTexts = () =>
   [...document.querySelectorAll('[data-message-id]')].map((el) =>
     el.textContent?.replace(/\s+/g, ' ').trim(),
@@ -203,6 +207,37 @@ describe('Chat message ownership', () => {
         'Assistant IA replied: An answer.',
       ]),
     );
+  });
+
+  it('sends once when submitted twice before the history resolves', async () => {
+    // Submission waits for the in-flight history fetch, and until a send
+    // actually starts the status stays `ready`, so the composer still accepts
+    // Enter. Both submissions would otherwise resume on the same input.
+    let resolveFetch: (value: { messages: [] }) => void = () => {};
+    getConversationMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+
+    renderChat();
+
+    const box = screen.getByRole('textbox');
+    await userEvent.type(box, 'Double send');
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{Enter}');
+
+    await act(async () => {
+      resolveFetch({ messages: [] });
+    });
+
+    await waitFor(() =>
+      expect(messageTexts()).toEqual([
+        'You said: Double send',
+        'Assistant IA replied: An answer.',
+      ]),
+    );
+    expect(chatPostCount(fetchAPIMock)).toBe(1);
   });
 
   it('replaces only the failed turn when retrying', async () => {

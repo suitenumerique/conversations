@@ -233,6 +233,9 @@ export const Chat = ({
   // The history fetch currently in flight, so a submission can wait for it
   // instead of racing it. Never rejects: fetchInitialMessages catches.
   const historyFetchRef = useRef<Promise<void> | null>(null);
+  // Held while a submission is on its way to a send. Until that send starts the
+  // status stays `ready`, so the composer still accepts Enter.
+  const submitLockRef = useRef(false);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
   const queryClient = useQueryClient();
@@ -919,11 +922,23 @@ export const Chat = ({
 
   // Custom submit to include attachments and handle chat creation
   const submitMessage = async () => {
-    // Sending before the history lands would leave the fetched messages
-    // unapplied: the snapshot below is only taken as initial state, and the
-    // conversation would look empty apart from this new exchange.
-    await historyFetchRef.current;
+    if (submitLockRef.current) {
+      return;
+    }
+    submitLockRef.current = true;
+    try {
+      // Sending before the history lands would leave the fetched messages
+      // unapplied: the snapshot below is only taken as initial state, and the
+      // conversation would look empty apart from this new exchange. Two
+      // submissions would otherwise wait here and resume on the same input.
+      await historyFetchRef.current;
+      await runSubmit();
+    } finally {
+      submitLockRef.current = false;
+    }
+  };
 
+  const runSubmit = async () => {
     // Inference-load cooldown: block new messages until the wait elapses.
     if (cooldownUntil && Date.now() < cooldownUntil) {
       return;
