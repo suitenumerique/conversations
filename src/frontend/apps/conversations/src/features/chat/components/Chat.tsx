@@ -396,11 +396,14 @@ export const Chat = ({
 
     const { input: lastInput, files: lastFiles } = lastSubmissionRef.current;
 
-    const lastAssistantIndex = messages.findLastIndex(
-      (msg) => msg.role === 'assistant',
-    );
-    if (lastAssistantIndex !== -1) {
-      setMessages(messages.filter((_, index) => index !== lastAssistantIndex));
+    // Drop the whole failed turn - the last user message and anything the
+    // failed attempt produced after it - because the resubmit below adds the
+    // question back. Removing just the last assistant message deleted the
+    // *previous*, successful answer whenever the attempt failed before
+    // producing one, and left the question on screen twice.
+    const lastUserIndex = messages.findLastIndex((msg) => msg.role === 'user');
+    if (lastUserIndex !== -1) {
+      setMessages(messages.slice(0, lastUserIndex));
     }
 
     retryOriginalInputRef.current = input;
