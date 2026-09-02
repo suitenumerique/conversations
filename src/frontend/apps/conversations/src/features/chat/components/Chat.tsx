@@ -229,6 +229,9 @@ export const Chat = ({
   // Read from the async fetch below, which resolves long after its closure was
   // created and must not act on a stale `messages`.
   const messagesRef = useRef<UIMessage[]>([]);
+  // The history fetch currently in flight, so a submission can wait for it
+  // instead of racing it. Never rejects: fetchInitialMessages catches.
+  const historyFetchRef = useRef<Promise<void> | null>(null);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
   const queryClient = useQueryClient();
@@ -836,7 +839,7 @@ export const Chat = ({
         }
       }
     }
-    void fetchInitialMessages();
+    historyFetchRef.current = fetchInitialMessages();
     return () => {
       ignore = true;
     };
@@ -909,6 +912,11 @@ export const Chat = ({
 
   // Custom submit to include attachments and handle chat creation
   const submitMessage = async () => {
+    // Sending before the history lands would leave the fetched messages
+    // unapplied: the snapshot below is only taken as initial state, and the
+    // conversation would look empty apart from this new exchange.
+    await historyFetchRef.current;
+
     // Inference-load cooldown: block new messages until the wait elapses.
     if (cooldownUntil && Date.now() < cooldownUntil) {
       return;
