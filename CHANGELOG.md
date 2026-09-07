@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [unreleased]
+## [0.0.23] - 2026-09-07
 
 ### Added
 
@@ -463,7 +463,9 @@ and this project adheres to
 - ✨(onboarding) add activation code logic for launch #62
 - 💄(chat) add code highlighting for LLM responses #67
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.22...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.23...main
+
+[0.0.23]: https://github.com/suitenumerique/conversations/compare/v0.0.22...v0.0.23
 
 [0.0.22]: https://github.com/suitenumerique/conversations/compare/v0.0.22
 
