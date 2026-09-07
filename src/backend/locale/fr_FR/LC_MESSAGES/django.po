@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-08-06 09:47+0000\n"
-"PO-Revision-Date: 2026-08-10 12:26\n"
+"POT-Creation-Date: 2026-09-01 13:34+0000\n"
+"PO-Revision-Date: 2026-09-07 14:13\n"
 "Last-Translator: \n"
 "Language-Team: French\n"
 "Language: fr_FR\n"
@@ -17,198 +17,147 @@ msgstr ""
 "X-Crowdin-File: backend-conversations.pot\n"
 "X-Crowdin-File-ID: 26\n"
 
-#: activation_codes/admin.py:55
+#: activation_codes/admin.py:79
 msgid "Configuration"
 msgstr "Configuration"
 
-#: activation_codes/admin.py:66
+#: activation_codes/admin.py:90
 msgid "Usage details"
 msgstr "Détails d'utilisation"
 
-#: activation_codes/admin.py:70 activation_codes/admin.py:226
+#: activation_codes/admin.py:94 activation_codes/admin.py:212
 msgid "Timestamps"
 msgstr "Horodatages"
 
-#: activation_codes/admin.py:109
+#: activation_codes/admin.py:118
 msgid "Usage"
 msgstr "Utilisation"
 
-#: activation_codes/admin.py:117
+#: activation_codes/admin.py:126
 msgid "Description"
 msgstr "Description"
 
-#: activation_codes/admin.py:124
+#: activation_codes/admin.py:133
 msgid "No users have used this code yet"
 msgstr "Aucun utilisateur n'a encore utilisé ce code"
 
-#: activation_codes/admin.py:135
+#: activation_codes/admin.py:144
 msgid "Name"
 msgstr "Nom"
 
-#: activation_codes/admin.py:136 activation_codes/admin.py:246
+#: activation_codes/admin.py:145 activation_codes/admin.py:232
 msgid "Email"
 msgstr "E-mail"
 
-#: activation_codes/admin.py:137
+#: activation_codes/admin.py:146
 msgid "Date"
 msgstr "Date"
 
-#: activation_codes/admin.py:161
+#: activation_codes/admin.py:170
 msgid "Users who used this code"
 msgstr "Utilisateurs qui ont utilisé ce code"
 
-#: activation_codes/admin.py:163
-msgid "Recompute current uses from related activations"
-msgstr "Recalculer les utilisations actuelles à partir des activations liées"
-
-#: activation_codes/admin.py:177
-msgid "All selected activation codes already have correct usage counts."
-msgstr "Tous les codes d'activation sélectionnés ont déjà un nombre correct d'utilisations."
-
-#: activation_codes/admin.py:182
-#, python-format
-msgid "Successfully recomputed usage counts for %(count)d activation code(s)."
-msgstr "Utilisation recalculée avec succès pour %(count)d code(s) d'activation."
-
-#: activation_codes/admin.py:240 activation_codes/admin.py:284
+#: activation_codes/admin.py:226 activation_codes/admin.py:264
 msgid "User"
 msgstr "Utilisateur"
 
-#: activation_codes/admin.py:291
+#: activation_codes/admin.py:271
 msgid "Has used activation code"
 msgstr "A utilisé le code d'activation"
 
-#: activation_codes/admin.py:293
-msgid "Add selected users to Brevo waiting list"
-msgstr "Ajouter les utilisateurs sélectionnés à la liste d'attente Brevo"
-
-#: activation_codes/admin.py:314
-#, python-format
-msgid "Added %(count)d user(s) to Brevo waiting list."
-msgstr "%(count)d utilisateur(s) ajoutés à la liste d'attente Brevo."
-
-#: activation_codes/admin.py:319 activation_codes/admin.py:347
-msgid "No valid email address found in selected registrations."
-msgstr "Aucune adresse e-mail valide trouvée dans les inscriptions sélectionnées."
-
-#: activation_codes/admin.py:323
-msgid "Remove selected users from Brevo waiting list"
-msgstr "Supprimer les utilisateurs sélectionnés de la liste d'attente Brevo"
-
-#: activation_codes/admin.py:342
-#, python-format
-msgid "Removed %(count)d user(s) from Brevo waiting list."
-msgstr "Suppression de %(count)d utilisateur(s) de la liste d'attente Brevo."
-
-#: activation_codes/models.py:38 activation_codes/models.py:85
-#: activation_codes/models.py:178
+#: activation_codes/models.py:37 activation_codes/models.py:84
+#: activation_codes/models.py:108
 msgid "activation code"
 msgstr "code d'activation"
 
-#: activation_codes/models.py:39
+#: activation_codes/models.py:38
 msgid "The activation code that users will enter"
 msgstr "Le code d'activation que les utilisateurs entreront"
 
-#: activation_codes/models.py:46
+#: activation_codes/models.py:45
 msgid "Code must be alphanumeric and contain no spaces or special characters"
 msgstr "Le code doit être alphanumérique et ne contenir ni espaces ni caractères spéciaux"
 
-#: activation_codes/models.py:52
+#: activation_codes/models.py:51
 msgid "maximum uses"
 msgstr "utilisations maximales"
 
-#: activation_codes/models.py:53
+#: activation_codes/models.py:52
 msgid "Maximum number of times this code can be used. 0 means unlimited."
 msgstr "Nombre maximum d'utilisation de ce code. 0 signifie illimité."
 
-#: activation_codes/models.py:58
+#: activation_codes/models.py:57
 msgid "current uses"
 msgstr "utilisations actuelles"
 
-#: activation_codes/models.py:59
+#: activation_codes/models.py:58
 msgid "Number of times this code has been used"
 msgstr "Nombre de fois où ce code a été utilisé"
 
-#: activation_codes/models.py:65 core/models.py:156 core/models.py:406
+#: activation_codes/models.py:64 core/models.py:156 core/models.py:406
 msgid "active"
 msgstr "actif"
 
-#: activation_codes/models.py:66
+#: activation_codes/models.py:65
 msgid "Whether this code can still be used"
 msgstr "Si ce code peut encore être utilisé"
 
-#: activation_codes/models.py:71
+#: activation_codes/models.py:70
 msgid "expires at"
 msgstr "expiration"
 
-#: activation_codes/models.py:72
+#: activation_codes/models.py:71
 msgid "Date and time when this code expires"
 msgstr "Date et heure d'expiration de ce code"
 
-#: activation_codes/models.py:78
+#: activation_codes/models.py:77
 msgid "description"
 msgstr "description"
 
-#: activation_codes/models.py:79
+#: activation_codes/models.py:78
 msgid "Internal description or notes about this code"
 msgstr "Description interne ou notes à propos de ce code"
 
-#: activation_codes/models.py:86
+#: activation_codes/models.py:85
 msgid "activation codes"
 msgstr "codes d'activation"
 
-#: activation_codes/models.py:128
-msgid "This activation code is no longer valid"
-msgstr "Ce code d'activation n'est plus valide"
-
-#: activation_codes/models.py:136
-msgid "You have already activated your account"
-msgstr "Vous avez déjà activé votre compte"
-
-#: activation_codes/models.py:170 activation_codes/models.py:202
+#: activation_codes/models.py:100 activation_codes/models.py:132
 #: core/models.py:195
 msgid "user"
 msgstr "utilisateur"
 
-#: activation_codes/models.py:171
+#: activation_codes/models.py:101
 msgid "The user who used the activation code"
 msgstr "L'utilisateur qui a utilisé le code d'activation"
 
-#: activation_codes/models.py:179
+#: activation_codes/models.py:109
 msgid "The activation code that was used"
 msgstr "Le code d'activation qui a été utilisé"
 
-#: activation_codes/models.py:186 activation_codes/models.py:210
+#: activation_codes/models.py:116 activation_codes/models.py:140
 msgid "user activation"
 msgstr "activation d'utilisateur"
 
-#: activation_codes/models.py:187
+#: activation_codes/models.py:117
 msgid "user activations"
 msgstr "activations d'utilisateurs"
 
-#: activation_codes/models.py:203
+#: activation_codes/models.py:133
 msgid "The user who made the registration request"
 msgstr "L'utilisateur qui a fait la demande d'enregistrement"
 
-#: activation_codes/models.py:211
+#: activation_codes/models.py:141
 msgid "Store if the user received an activation code and used it"
 msgstr "Enregistrer si l'utilisateur a reçu un code d'activation et l'a utilisé"
 
-#: activation_codes/models.py:220
+#: activation_codes/models.py:150
 msgid "user registration request"
 msgstr "demande d'inscription d'utilisateur"
 
-#: activation_codes/models.py:221
+#: activation_codes/models.py:151
 msgid "user registration requests"
 msgstr "demandes d'inscription d'utilisateur"
-
-#: activation_codes/serializers.py:14
-msgid "The activation code to validate"
-msgstr "Le code d'activation à valider"
-
-#: activation_codes/viewsets.py:107
-msgid "Your account has been successfully activated"
-msgstr "Votre compte a été activé avec succès"
 
 #: chat/agent_rag/document_converter/guards.py:61
 msgid "Document expands beyond the allowed size and was rejected."
@@ -255,21 +204,21 @@ msgstr "Service indisponible"
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
 msgstr "Le service est actuellement indisponible en raison d'une charge excessive. L'équipe travaille à rétablir l'assistant dans les plus brefs délais."
 
-#: chat/clients/pydantic_ai.py:1320
+#: chat/clients/pydantic_ai.py:1367
 msgid "Internal Documentation of the AI Assistant"
 msgstr "Documentation interne de l'Assistant IA"
 
-#: chat/views/attachments.py:307
+#: chat/views/attachments.py:305
 #, python-format
 msgid "This project already has the maximum of %(cap)d images. Remove one before uploading another."
 msgstr "Ce projet contient déjà le nombre maximal de %(cap)d images. Supprimez-en une avant d'en ajouter une autre."
 
-#: chat/views/attachments.py:323
+#: chat/views/attachments.py:321
 #, python-format
 msgid "This project already has the maximum of %(cap)d files. Remove one before uploading another."
 msgstr "Ce projet contient déjà le nombre maximal de %(cap)d fichiers. Supprimez-en un avant d'en télécharger un autre."
 
-#: chat/views/edit_in_docs.py:35
+#: chat/views/edit_in_docs.py:37
 #, python-format
 msgid "[L'Assistant] New document %(date)s"
 msgstr "[L'Assistant] nouveau document %(date)s"
