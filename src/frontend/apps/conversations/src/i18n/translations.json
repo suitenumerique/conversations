@@ -1,5 +1,5 @@
 {
-  "de": { "translation": { "ABC-1234-XY": "ABC-1234-XY" } },
+  "de": { "translation": {"ABC-1234-XY": "ABC-1234-XY" } },
   "en": { "translation": { "Login": "Login", "Logout": "Logout" } },
   "fr": {
     "translation": {
