@@ -18,5 +18,10 @@ class HasNoMatchingSpan(Evaluator):
     query: SpanQuery
     evaluation_name: str | None = field(default=None)
 
+    def get_default_evaluation_name(self) -> str:
+        if self.evaluation_name is not None:
+            return self.evaluation_name
+        return self.get_serialization_name()
+
     def evaluate(self, ctx: EvaluatorContext) -> bool:
         return not ctx.span_tree.any(self.query)

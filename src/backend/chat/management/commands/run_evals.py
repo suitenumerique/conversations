@@ -3,6 +3,7 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
+import logfire
 import yaml
 from pydantic_ai import Agent
 from pydantic_evals import Dataset
@@ -90,8 +91,12 @@ class Command(BaseCommand):
                 "against the baseline."
             )
 
-        # Native pydantic-ai OTel instrumentation: emits the spans that the
-        # span-based evaluators (HasMatchingSpan & co) inspect, without logfire.
+        # Span-based evaluators (HasMatchingSpan & co) read pydantic-evals'
+        # span_tree, which is only populated when a real OTel SDK tracer provider
+        # is installed. logfire.configure(send_to_logfire=False) sets one up
+        # locally (no network, no token); Agent.instrument_all() makes pydantic-ai
+        # emit the tool-call spans those evaluators inspect.
+        logfire.configure(send_to_logfire=False, console=False, service_name="evals")
         Agent.instrument_all()
 
         if getattr(settings, "WARNING_MOCK_CONVERSATION_AGENT", False):
