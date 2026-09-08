@@ -1,5 +1,5 @@
 {
-  "de": { "translation": { "ABC-1234-XY": "ABC-1234-XY" } },
+  "de": { "translation": {} },
   "en": { "translation": { "Login": "Login", "Logout": "Logout" } },
   "fr": {
     "translation": {
@@ -449,6 +449,7 @@
       "Get help with coding, writing, proofreading, and more. Just ask.": "Получайте помощь в программировании, написании текстов, корректуре и в других задачах. Просто спросите.",
       "Give a quick opinion": "Оставить быстрый отзыв",
       "Give feedback": "Оставить отзыв",
+      "Hide": "Скрыть",
       "Home": "Главная",
       "How would you like to proceed?": "Как вы хотите поступить?",
       "I understand": "Я понимаю",
@@ -690,6 +691,7 @@
       "Get help with coding, writing, proofreading, and more. Just ask.": "Отримуйте допомогу з програмуванням, письмом, коректуванням та багатьма іншими речами. Просто запитуйте.",
       "Give a quick opinion": "Дати швидкий відгук",
       "Give feedback": "Залишити відгук",
+      "Hide": "Приховати",
       "Home": "Головна",
       "How would you like to proceed?": "Як би ви хотіли продовжити?",
       "I understand": "Я розумію",
