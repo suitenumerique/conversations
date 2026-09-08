@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.24] - 2026-09-08
+
 ### Fixed
 
 - 🐛(front) fix translation hide source
@@ -469,7 +471,9 @@ and this project adheres to
 - ✨(onboarding) add activation code logic for launch #62
 - 💄(chat) add code highlighting for LLM responses #67
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.23...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.24...main
+
+[0.0.24]: https://github.com/suitenumerique/conversations/compare/v0.0.23...v0.0.24
 
 [0.0.23]: https://github.com/suitenumerique/conversations/compare/v0.0.22...v0.0.23
 
