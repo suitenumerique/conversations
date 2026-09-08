@@ -557,6 +557,7 @@
       partial_down: '<span class="badge badge-partial-down">↓ partiel</span>',
       changed: '<span class="badge badge-warn">~ changé</span>',
       coverage_gap: '<span class="badge badge-fail">✕ absente</span>',
+      new_case: '<span class="badge badge-warn">+ nouveau</span>',
     };
     function getDeltaDisplay(delta) {
       if (delta > 0) return { className: "delta-pos", label: "amélioration", signedPp: `+${Math.round(delta * 100)}pp` };
@@ -860,20 +861,35 @@
           cases_total: bd.cases_total,
           cases: [],
         };
+        const bCases = Object.fromEntries(bd.cases.map((c) => [c.name, c]));
         const aCases = Object.fromEntries(ad.cases.map((c) => [c.name, c]));
-        for (const b of [...bd.cases].sort((x, y) => x.name.localeCompare(y.name))) {
-          const kind = changesByName[b.name]?.kind ?? "stable";
+        // Union of before/after case names so cases added only in run B (new_case)
+        // surface too — not just cases present in the before run.
+        const names = [...new Set([...bd.cases.map((c) => c.name), ...ad.cases.map((c) => c.name)])]
+          .sort((x, y) => x.localeCompare(y));
+        for (const name of names) {
+          const kind = changesByName[name]?.kind ?? "stable";
           // Case absent from run B (coverage gap): synthesize its display cell.
-          const a = aCases[b.name] || {
-            name: b.name,
-            metadata: b.metadata,
-            repeats: b.repeats,
+          const a = aCases[name] || {
+            name,
+            metadata: bCases[name]?.metadata,
+            repeats: bCases[name]?.repeats,
             pass_rate: 0,
             passed: false,
             avg_scores: {},
             reasons: { _coverage: "case absente du run B (coverage gap)" },
           };
-          rows.push({ dataset, name: b.name, b, a, kind, hashMatch: dc.dataset_hash_match, bd, ad });
+          // Case absent from run A (new case): synthesize a placeholder before cell.
+          const b = bCases[name] || {
+            name,
+            metadata: a.metadata,
+            repeats: a.repeats,
+            pass_rate: 0,
+            passed: false,
+            avg_scores: {},
+            reasons: { _coverage: "case absente du run A (nouveau cas)" },
+          };
+          rows.push({ dataset, name, b, a, kind, hashMatch: dc.dataset_hash_match, bd, ad });
         }
       }
       return rows;
@@ -890,13 +906,14 @@
     // Presentation-only tally of the precomputed kinds (needed client-side
     // because the stat cards follow the dataset/case/changes-only filters).
     function tallyKinds(rows) {
-      const stats = { regressions: 0, improvements: 0, partialUp: 0, partialDown: 0, stable: 0, changed: 0, coverageGaps: 0 };
+      const stats = { regressions: 0, improvements: 0, partialUp: 0, partialDown: 0, stable: 0, changed: 0, coverageGaps: 0, newCases: 0 };
       const keyByKind = {
         regression: "regressions",
         improvement: "improvements",
         partial_up: "partialUp",
         partial_down: "partialDown",
         coverage_gap: "coverageGaps",
+        new_case: "newCases",
         stable: "stable",
       };
       for (const { kind } of rows) {
@@ -1086,6 +1103,7 @@
         ["↑ partiel", filteredStats.partialUp, "delta-pos"],
         ["↓ partiel", filteredStats.partialDown, "delta-neg"],
         ["Cases manquantes", filteredStats.coverageGaps, "delta-neg"],
+        ["Nouveaux cas", filteredStats.newCases, ""],
         ["Stables", filteredStats.stable, ""],
       ].map(([label, value, cls]) => `
         <div class="card stat">

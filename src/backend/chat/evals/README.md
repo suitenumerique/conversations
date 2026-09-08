@@ -90,7 +90,7 @@ make eval EVAL_ARGS="--no-llm-judge"
 make eval EVAL_ARGS='--save --comment "Prompt anti-hallucination URL"'
 
 # Run each case 3 times and save averaged scores / repeat pass rates
-make eval EVAL_ARGS="--dataset tool_selection --runs 3 --save"
+make eval EVAL_ARGS="--runs 3 --save"
 ```
 
 `--save` refuses to run with `--case`: a partial run compared against the baseline

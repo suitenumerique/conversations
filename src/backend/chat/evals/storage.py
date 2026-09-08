@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -91,10 +92,15 @@ def hash_dataset(dataset_path: Path) -> str:
 
 
 def make_run_id(git_short: str | None) -> str:
-    """Generate a unique run ID based on timestamp and Git commit short."""
-    timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
+    """Generate a unique run ID based on timestamp and Git commit short.
+
+    Microsecond precision plus a short random suffix keeps IDs unique even when
+    two runs for the same commit land within the same UTC second, so neither the
+    JSON file nor its index entry gets overwritten.
+    """
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%S-%fZ")
     suffix = git_short or "nogit"
-    return f"{timestamp}_{suffix}"
+    return f"{timestamp}_{suffix}_{uuid.uuid4().hex[:6]}"
 
 
 def _load_index() -> dict[str, Any]:

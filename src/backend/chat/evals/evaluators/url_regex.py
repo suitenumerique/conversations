@@ -21,7 +21,7 @@ class UrlRegexEvaluator(Evaluator):
     found in tool_output or user_message."""
 
     def evaluate(self, ctx: EvaluatorContext) -> EvaluationReason:
-        response_urls = _extract_urls(ctx.output)
+        response_urls = _extract_urls(ctx.output) if isinstance(ctx.output, str) else set()
 
         tool_output = (
             ctx.inputs.tool_output

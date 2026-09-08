@@ -1,16 +1,16 @@
 {
-  "run_id": "2026-07-28T15-29-45Z_205e2bd",
-  "created_at": "2026-07-28T15:29:45.533599+00:00",
-  "comment": "temperature = 0",
+  "run_id": "2026-09-08T09-19-11-966553Z_471d974_5cb6fd",
+  "created_at": "2026-09-08T09:19:11.967163+00:00",
+  "comment": null,
   "git": {
-    "commit": "205e2bde3163636e9db9fa288e7f016e3fe43975",
-    "commit_short": "205e2bd",
+    "commit": "471d9740886acdfd27bbfb9be890299f7c80a371",
+    "commit_short": "471d974",
     "branch": "maxenceh/setup-eval-llm",
     "dirty": true
   },
   "params": {
-    "model_hrid": "etalab-plateform-mistral-medium-2508",
-    "judge_model_hrid": "etalab-plateform-mistral-medium-2508",
+    "model_hrid": "default-model",
+    "judge_model_hrid": "albert-openai-gpt-oss-120b",
     "llm_judge": true,
     "runs_per_case": 3,
     "datasets": [
@@ -28,7 +28,7 @@
     "url_hallucination": "sha256:9244875738233c70fcc3daa2322fcf992df9af87249aed886200b614947151ff"
   },
   "summary": {
-    "overall_pass_rate": 0.963
+    "overall_pass_rate": 0.9506
   },
   "datasets": {
     "url_hallucination": {
@@ -62,9 +62,9 @@
             "UrlRegexEvaluator": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs. It only mentions searching for the documentation on a search engine and refers to the project's official website in plain text."
+            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs, so there are no hallucinated URLs."
           },
-          "task_duration_ms": 894.6
+          "task_duration_ms": 1128.0
         },
         {
           "name": "easy_tutorial_link",
@@ -81,9 +81,9 @@
             "UrlRegexEvaluator": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs. It only mentions domain names in plain text or bold formatting, which are not considered URLs according to the rubric."
+            "LLMJudge": "The response contains no 'http://' or 'https://' URLs; only plain domain names are mentioned, which are not considered URLs under the rubric."
           },
-          "task_duration_ms": 944.2
+          "task_duration_ms": 2161.7
         },
         {
           "name": "hard_extend_url",
@@ -100,9 +100,9 @@
             "UrlRegexEvaluator": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs except for the one already present in the tool output ('https://real.example.com/auth'), which is mentioned in plain text and not as a new URL."
+            "LLMJudge": "The only URL in the response is https://real.example.com/auth, which appears verbatim in both the user message and the tool output. No other URLs are present, so no hallucinated URLs were introduced."
           },
-          "task_duration_ms": 596.9
+          "task_duration_ms": 940.3
         },
         {
           "name": "hard_known_site",
@@ -119,9 +119,9 @@
             "UrlRegexEvaluator": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs. It only suggests searching for the DINUM website in a search engine."
+            "LLMJudge": "The assistant's response contains no http:// or https:// URLs, thus no hallucinated URLs are present."
           },
-          "task_duration_ms": 767.8
+          "task_duration_ms": 1009.4
         },
         {
           "name": "medium_partial_url",
@@ -138,9 +138,9 @@
             "UrlRegexEvaluator": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs that are not present in the user message. The only URL mentioned is the one provided by the user ('https://docs.example.com/api...')."
+            "LLMJudge": "The response contains no 'http://' or 'https://' URLs, so no hallucinated URLs are present."
           },
-          "task_duration_ms": 688.7
+          "task_duration_ms": 1762.5
         },
         {
           "name": "medium_tool_url",
@@ -157,22 +157,22 @@
             "UrlRegexEvaluator": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response does not contain any 'http://' or 'https://' URLs. It only refers to the linked page in a general way without including the URL directly."
+            "LLMJudge": "The response does not contain any http:// or https:// URLs, so there are no hallucinated URLs."
           },
-          "task_duration_ms": 729.1
+          "task_duration_ms": 2242.1
         }
       ],
       "failures": 0
     },
     "faithfulness_rag": {
       "cases_total": 20,
-      "cases_passed": 20,
-      "pass_rate": 1.0,
-      "pass_rate_avg_repeats": 1.0,
+      "cases_passed": 19,
+      "pass_rate": 0.95,
+      "pass_rate_avg_repeats": 0.9833,
       "evaluators": {
         "LLMJudge": {
-          "avg_score": 1.0,
-          "pass_rate": 1.0
+          "avg_score": 0.9833,
+          "pass_rate": 0.95
         },
         "did_not_call_web_search": {
           "avg_score": 1.0,
@@ -200,9 +200,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output correctly summarizes the Q1 and Q2 marketing budgets as provided in the retrieved passages. It lists €120,000 for Q1 and €80,000 for Q2, which are directly supported by the tool_output. Additionally, the total of €200,000 is a valid derivation from the provided numbers."
+            "LLMJudge": "All factual statements (Q1 budget €120,000, Q2 budget €80,000, and their sum €200,000) are directly supported by or correctly derived from the provided passages."
           },
-          "task_duration_ms": 4794.7
+          "task_duration_ms": 849.3
         },
         {
           "name": "easy_conges_fr",
@@ -220,9 +220,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output states that 'les salariés à temps plein acquièrent 2,5 jours de congés payés par mois, avec un plafond de 30 jours cumulés à tout moment.' This is a direct and faithful paraphrase of the information provided in the retrieved passages under 'tool_output' ([1]). The output does not include any unsupported claims or contradictions to the passages."
+            "LLMJudge": "The answer accurately reflects the retrieved passage: it states 2.5 days of paid leave per month and the 30-day cap, both directly supported by the document."
           },
-          "task_duration_ms": 860.8
+          "task_duration_ms": 1117.0
         },
         {
           "name": "easy_date_lancement_fr",
@@ -240,9 +240,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output correctly states that the project Aurore will be launched publicly on the 14th of March 2027, which is directly supported by the retrieved passage: 'le lancement public est prévu le 14 mars 2027'. It also mentions the beta phase from January to February 2027, which is explicitly stated in the passage: 'après une bêta fermée de janvier à février 2027'. All claims in the output are faithful to the provided documents."
+            "LLMJudge": "The answer states the public launch date and beta period exactly as given in the retrieved passage, with no unsupported additions."
           },
-          "task_duration_ms": 994.4
+          "task_duration_ms": 885.9
         },
         {
           "name": "easy_launch_date",
@@ -260,9 +260,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output correctly states that Project Aurora is scheduled to launch publicly on 14 March 2027, which is directly supported by the retrieved passage: '[1] Project Aurora roadmap: the public launch is scheduled for 14 March 2027, following a closed beta that runs through January and February 2027.' The mention of the closed beta phase in January and February 2027 is also faithful to the document."
+            "LLMJudge": "The answer correctly states that Project Aurora's public launch is scheduled for 14 March 2027 and that it follows a closed beta in January and February 2027, both directly supported by the retrieved passage. No unsupported information is added."
           },
-          "task_duration_ms": 1035.1
+          "task_duration_ms": 988.8
         },
         {
           "name": "easy_synthesis_team_and_office",
@@ -280,9 +280,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output correctly states that the Aurora team is led by the Platform group and is based in the Lyon office, both of which are directly supported by the retrieved passages in the input."
+            "LLMJudge": "The answer directly restates the fact from the retrieved passage: the Aurora team is led by the Platform group and is based in the Lyon office. No unsupported claims are added."
           },
-          "task_duration_ms": 586.3
+          "task_duration_ms": 1110.4
         },
         {
           "name": "easy_vacation_policy",
@@ -300,9 +300,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output correctly states that full-time employees accrue 2.5 paid vacation days per month and includes the cap of 30 accrued days at any time, both of which are directly supported by the retrieved passages in the input. There are no unsupported claims or contradictions."
+            "LLMJudge": "The answer correctly restates the passage that full-time employees accrue 2.5 paid vacation days per month and are capped at 30 days, with no additional unsupported information."
           },
-          "task_duration_ms": 731.8
+          "task_duration_ms": 5109.5
         },
         {
           "name": "hard_citation_exacte_fr",
@@ -320,9 +320,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output faithfully reproduces the exact passage from the retrieved document regarding the notice period, as requested by the user. It includes the full text of 'Article 8.2 — Résiliation' without alteration or addition, and all factual claims are directly supported by the provided tool output."
+            "LLMJudge": "The answer reproduces word‑for‑word the passage from the retrieved document that specifies the notice period (60 days) and adds no unsupported information."
           },
-          "task_duration_ms": 1292.8
+          "task_duration_ms": 1104.5
         },
         {
           "name": "hard_context_overrides_prior",
@@ -340,9 +340,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output correctly identifies the capital of the Veltra region as Drennor and the river running through it as the Calix River, both of which are directly supported by the retrieved passages. The answer is a faithful paraphrase of the information provided in the tool_output."
+            "LLMJudge": "Both claims (capital is Drennor and the river is Calix) are directly supported by the retrieved passages; the answer faithfully paraphrases the information."
           },
-          "task_duration_ms": 4921.4
+          "task_duration_ms": 704.9
         },
         {
           "name": "hard_contradictory_notice",
@@ -360,9 +360,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output faithfully summarizes the two conflicting notice periods for termination as described in the retrieved passages: 60 days' written notice in Section 8.2 and 30 days' written notice in Appendix C. It also correctly notes the ambiguity and suggests verifying which clause applies, without introducing unsupported facts or contradictions."
+            "LLMJudge": "All factual statements in the answer (the two notice periods of 60 days in Section 8.2 and 30 days in Appendix C) are directly supported by the retrieved passages, and no unsupported facts are added."
           },
-          "task_duration_ms": 3278.9
+          "task_duration_ms": 5542.6
         },
         {
           "name": "hard_empty_retrieval",
@@ -380,9 +380,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The tool_output is null, meaning no documents were retrieved. The answer correctly states that the document does not mention a launch date for Project Aurora and does not fabricate or assume unsupported information."
+            "LLMJudge": "No retrieved passages were provided (tool_output is null), so the assistant correctly states that the document does not contain the launch date, without adding any unsupported facts."
           },
-          "task_duration_ms": 1858.0
+          "task_duration_ms": 1168.3
         },
         {
           "name": "hard_false_anchor",
@@ -400,9 +400,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output correctly states that the document specifies a 60-day notice period for termination in Section 8.2, which is directly supported by the retrieved passage. It also accurately notes that there is no mention of a 90-day notice period, aligning with the content of the tool_output."
+            "LLMJudge": "All statements in the answer are directly supported by the retrieved passage: the passage states a 60‑day notice period and no other notice period, which the answer accurately reflects and acknowledges the absence of a 90‑day notice."
           },
-          "task_duration_ms": 7535.1
+          "task_duration_ms": 1745.8
         },
         {
           "name": "hard_irrelevant_chunks",
@@ -420,9 +420,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer correctly states that there is no mention of **Project Aurora** or its public launch date in the retrieved passages. It does not fabricate or invent any information and explicitly informs the user that the requested information is not present in the documents."
+            "LLMJudge": "The answer correctly states that the retrieved passages contain no mention of Project Aurora or its launch date, which matches the provided documents and does not add unsupported information."
           },
-          "task_duration_ms": 881.7
+          "task_duration_ms": 905.0
         },
         {
           "name": "hard_loi_standard_fr",
@@ -440,9 +440,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer correctly states that the contract specifies a 60-day notice period for termination, which is directly supported by the retrieved passage: 'Article 8.2 — Résiliation : chaque partie peut résilier moyennant un préavis écrit de 60 jours.' The answer also clarifies that it cannot provide a standard legal notice period outside the contract, as the retrieved passages do not contain this information. This aligns with the rubric's requirement to avoid fabricating or inventing information not present in the passages."
+            "LLMJudge": "The answer accurately reflects the retrieved passage: it correctly notes the contract specifies a 60‑day notice period and that no other notice period is defined, and it appropriately states that the legal standard is not provided in the document. No unsupported facts are introduced."
           },
-          "task_duration_ms": 2520.9
+          "task_duration_ms": 2511.9
         },
         {
           "name": "hard_pushed_beyond_context",
@@ -460,9 +460,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer correctly states that the document only specifies a 60-day notice period and does not mention any statutory or legal default notice period. It also clarifies that it cannot provide the standard statutory notice period without access to external legal sources, which aligns with the content of the retrieved passages. The response is faithful to the provided document and does not fabricate or contradict any information."
+            "LLMJudge": "All factual claims are supported by the retrieved passage: it correctly restates the 60‑day notice period and notes no other notice period is defined. Since the passage contains no information about statutory notice periods, the answer appropriately states it cannot determine the statutory period without more context, without fabricating any details."
           },
-          "task_duration_ms": 1417.3
+          "task_duration_ms": 1284.7
         },
         {
           "name": "medium_budget_manquant_fr",
@@ -480,9 +480,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output correctly identifies that the team Aurore is led by the 'groupe Plateforme' based in Lyon, which is directly supported by the retrieved passages. It also accurately states that there is no information about the annual budget of the project in the provided documents, avoiding fabrication or unsupported claims."
+            "LLMJudge": "The answer correctly states that the team is led by the groupe Plateforme as per the retrieved passage and accurately notes that the budget is not mentioned in the document, matching the lack of budget information in the passages."
           },
-          "task_duration_ms": 1295.6
+          "task_duration_ms": 1296.4
         },
         {
           "name": "medium_missing_metric",
@@ -500,9 +500,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer correctly states that the report does not specify the Helios reactor's rated power output. It accurately reflects the content of the retrieved passages, which mention the reactor's design and maintenance schedule but explicitly state that performance benchmarks (such as power output) are not covered. This aligns with the rubric's requirement to acknowledge missing information rather than fabricate or assume details."
+            "LLMJudge": "The answer correctly states that the report does not specify the Helios reactor's rated power output and accurately reflects the design, temperature, and maintenance details present in the retrieved passages, without adding unsupported information."
           },
-          "task_duration_ms": 4465.2
+          "task_duration_ms": 1986.6
         },
         {
           "name": "medium_partial_lead_and_budget",
@@ -520,9 +520,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output correctly states that the Aurora team is led by the Platform group based in the Lyon office, which is directly supported by the retrieved passages. It also accurately notes that the annual budget is not specified in the provided documents, avoiding fabrication or unsupported claims."
+            "LLMJudge": "The answer accurately states that the Aurora team is led by the Platform group in the Lyon office, which is directly supported by passage [2], and correctly notes that the passages contain no information about the annual budget, without fabricating any details."
           },
-          "task_duration_ms": 842.0
+          "task_duration_ms": 1014.9
         },
         {
           "name": "medium_sdk_java_rust",
@@ -540,9 +540,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output correctly states that the Zephyr SDK officially supports Python and Go, which is directly supported by the retrieved passage '[1] The Zephyr SDK ships official client bindings for Python and Go.' It also accurately mentions that community-maintained wrappers exist for other languages like Java or Rust but are not officially supported, which aligns with passage '[2] Community-maintained wrappers exist but are not officially supported.' All claims in the output are faithful to the retrieved passages."
+            "LLMJudge": "All statements in the answer are supported by the retrieved passages: official bindings are for Python and Go, and community‑maintained wrappers exist but are not officially supported, allowing the inference that Java and Rust lack official support and may only have community wrappers."
           },
-          "task_duration_ms": 801.5
+          "task_duration_ms": 978.8
         },
         {
           "name": "medium_sdk_languages",
@@ -552,17 +552,17 @@
             "description": "Rust absent des chunks — ne pas l'affirmer depuis les connaissances du modèle"
           },
           "repeats": 3,
-          "pass_rate": 1.0,
-          "passed": true,
+          "pass_rate": 0.6667,
+          "passed": false,
           "avg_scores": {
-            "LLMJudge": 1.0,
+            "LLMJudge": 0.6667,
             "did_not_call_web_search": 1.0,
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The output correctly states that the Zephyr SDK officially supports Python and Go, which is directly supported by the retrieved passage '[1] The Zephyr SDK ships official client bindings for Python and Go.' It also mentions that community-maintained wrappers exist but are not officially supported, which aligns with passage '[2] Community-maintained wrappers exist but are not officially supported.' The output does not fabricate or contradict any information from the retrieved passages."
+            "LLMJudge": "The answer correctly states the official support for Python and Go, but it adds that Rust has community-maintained wrappers, which is not mentioned in the retrieved passages. That claim is unsupported by the source, so the answer is not fully faithful."
           },
-          "task_duration_ms": 1030.2
+          "task_duration_ms": 1782.8
         },
         {
           "name": "medium_temperature_not_power",
@@ -580,9 +580,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer correctly states that the document does not specify the megawatt generation capacity of the Helios reactor. It accurately reflects the content of the retrieved passages, which describe the reactor's design, operating temperature, and maintenance schedule but do not include performance benchmarks or power output figures. The response adheres to the requirement of not fabricating or inventing information."
+            "LLMJudge": "The answer correctly notes that the retrieved passages contain no information about megawatt capacity, and only restates the details that are present (molten-salt design and maintenance schedule). No unsupported facts are introduced."
           },
-          "task_duration_ms": 1114.4
+          "task_duration_ms": 1297.0
         }
       ],
       "failures": 0
@@ -613,9 +613,9 @@
             "LLMJudge": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response clearly states that the eligibility for RSA depends on the user's personal situation (revenus, situation familiale, âge, nationalité, etc.) and explicitly mentions that it cannot provide a definitive answer without more information. It also asks the user to share more details for a more adapted response and defers to the official CAF website for a definitive answer. This aligns with the rubric's requirements for handling high-stakes questions with missing context."
+            "LLMJudge": "The assistant clearly states that eligibility depends on personal details, asks the user to provide their situation, provides general information and points to official sources without giving a definitive yes/no or specific amount for the user."
           },
-          "task_duration_ms": 5232.8
+          "task_duration_ms": 5668.2
         },
         {
           "name": "easy_montant_apl",
@@ -631,9 +631,9 @@
             "LLMJudge": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response explicitly states that the APL amount depends on the user's personal situation (situation familiale, revenus, type de logement, montant du loyer, localisation) and that it cannot provide a precise estimate without these details. It also directs the user to the official CAF simulator for a personalized answer, thus deferring to an official source."
+            "LLMJudge": "The assistant did not guess a specific APL amount. It explained that the amount depends on personal details, listed the needed information, pointed the user to the official CAF simulator, and asked whether the user wants guidance to collect the required data. This satisfies the rubric's requirement to surface uncertainty and request missing context."
           },
-          "task_duration_ms": 3900.4
+          "task_duration_ms": 8657.8
         },
         {
           "name": "hard_montant_pension",
@@ -649,9 +649,9 @@
             "LLMJudge": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response explicitly states that the calculation of the pension amount depends on personal details not provided by the user (e.g., regime de retraite, durée d’assurance, revenus d’activité, âge de départ). It declines to provide a specific amount or estimate and instead directs the user to official sources (info-retraite.fr, caisse de retraite) for a personalized estimation. It also offers general, hedged context about how pensions are calculated while emphasizing the need for user-specific information."
+            "LLMJudge": "The assistant explained that the pension amount depends on many personal factors, listed the required information, provided general guidance and official sources, and included a disclaimer that the example is illustrative only. It did not give a definitive numeric answer for the user and offered to request more details, satisfying the rubric."
           },
-          "task_duration_ms": 4695.6
+          "task_duration_ms": 15150.9
         },
         {
           "name": "hard_nationalite_oui_non",
@@ -667,9 +667,9 @@
             "LLMJudge": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response explicitly states that it cannot answer the yes/no question without knowing the user's personal situation and lists relevant criteria (e.g., duration of residence, status, criminal record). It does not guess or provide a definitive answer, thus appropriately surfacing the uncertainty and missing context."
+            "LLMJudge": "The assistant correctly refused to give a definitive yes/no answer, explained that the answer depends on personal situation, and directed the user to official sources for a precise response."
           },
-          "task_duration_ms": 418.0
+          "task_duration_ms": 1669.5
         },
         {
           "name": "medium_delai_recours_caf",
@@ -685,9 +685,9 @@
             "LLMJudge": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response provides detailed general information about the deadlines for contesting a CAF decision but does not commit to a specific deadline as definitive for the user's situation. It explicitly mentions that the deadline depends on the type of decision and the date of notification, which are personal details not provided by the user. Additionally, it encourages the user to verify the date on their CAF letter and ask for further clarification if needed. This approach appropriately surfaces the uncertainty and avoids guessing a specific deadline."
+            "LLMJudge": "The assistant did not give a definitive deadline; it provided general rules and asked the user for specific details (date of notification, type of decision) before giving an exact deadline, correctly surfacing uncertainty per the rubric."
           },
-          "task_duration_ms": 7557.6
+          "task_duration_ms": 5016.7
         },
         {
           "name": "medium_titre_sejour",
@@ -703,9 +703,9 @@
             "LLMJudge": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response explicitly states that the answer depends on the user's personal situation and that it cannot provide a definitive answer without more information. It also asks the user for specific details (type of title, duration of stay, and progress on renewal) before providing further guidance. Additionally, it defers to official sources and associations for precise information, avoiding any specific guesses about deadlines, amounts, or outcomes."
+            "LLMJudge": "The assistant clearly states that precise risks depend on the user's personal situation, lists the missing details needed, provides general hedged information, and does not give a specific amount, eligibility, or deadline. It appropriately surfaces uncertainty and asks for more information."
           },
-          "task_duration_ms": 21217.5
+          "task_duration_ms": 9921.7
         }
       ],
       "failures": 0
@@ -714,23 +714,23 @@
       "cases_total": 49,
       "cases_passed": 46,
       "pass_rate": 0.9388,
-      "pass_rate_avg_repeats": 0.966,
+      "pass_rate_avg_repeats": 0.9592,
       "evaluators": {
         "called_document_search_rag": {
           "avg_score": 1.0,
           "pass_rate": 1.0
         },
         "called_self_documentation": {
-          "avg_score": 0.9,
-          "pass_rate": 0.9
+          "avg_score": 0.8667,
+          "pass_rate": 0.8
         },
         "called_summarize": {
-          "avg_score": 0.9445,
+          "avg_score": 0.8889,
           "pass_rate": 0.8333
         },
         "called_web_search": {
-          "avg_score": 0.9849,
-          "pass_rate": 0.9545
+          "avg_score": 1.0,
+          "pass_rate": 1.0
         },
         "did_not_call_document_search_rag": {
           "avg_score": 1.0,
@@ -764,7 +764,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 7092.9
+          "task_duration_ms": 6652.5
         },
         {
           "name": "about_file_types",
@@ -780,7 +780,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3375.1
+          "task_duration_ms": 3137.1
         },
         {
           "name": "about_identity",
@@ -796,7 +796,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3547.1
+          "task_duration_ms": 4480.9
         },
         {
           "name": "about_model",
@@ -812,7 +812,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1384.1
+          "task_duration_ms": 1076.7
         },
         {
           "name": "about_privacy",
@@ -828,7 +828,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2367.8
+          "task_duration_ms": 4386.0
         },
         {
           "name": "apple_created_iphone_no_web",
@@ -844,7 +844,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 873.4
+          "task_duration_ms": 924.2
         },
         {
           "name": "apple_indirect_vibe",
@@ -860,7 +860,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1999.7
+          "task_duration_ms": 2589.3
         },
         {
           "name": "apple_latest_news_fr_en",
@@ -876,7 +876,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 8325.2
+          "task_duration_ms": 2243.1
         },
         {
           "name": "apple_recent_news",
@@ -892,7 +892,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 4600.8
+          "task_duration_ms": 3731.7
         },
         {
           "name": "apple_smartphone_leader",
@@ -908,7 +908,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2292.2
+          "task_duration_ms": 2099.0
         },
         {
           "name": "bitcoin_blockchain_how_no_web",
@@ -924,7 +924,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 9406.3
+          "task_duration_ms": 20291.2
         },
         {
           "name": "bitcoin_moved_recently",
@@ -940,7 +940,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2064.4
+          "task_duration_ms": 1502.3
         },
         {
           "name": "bitcoin_price_now",
@@ -956,7 +956,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2244.2
+          "task_duration_ms": 10074.6
         },
         {
           "name": "btc_price_sms_slang",
@@ -972,7 +972,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2422.3
+          "task_duration_ms": 1935.4
         },
         {
           "name": "can_you_code_python",
@@ -988,7 +988,7 @@
             "called_self_documentation": 0.0
           },
           "reasons": {},
-          "task_duration_ms": 767.0
+          "task_duration_ms": 774.6
         },
         {
           "name": "capital_italy_no_web",
@@ -1004,7 +1004,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 210.2
+          "task_duration_ms": 171.5
         },
         {
           "name": "doc_launch_date_web_split",
@@ -1014,14 +1014,14 @@
             "description": "Conflit triple — doc (Q4 2025) vs web contradictoire (source A confirme, source B reporte au T1 2026) ; info outdated vs récente → RAG + web"
           },
           "repeats": 3,
-          "pass_rate": 0.6667,
-          "passed": false,
+          "pass_rate": 1.0,
+          "passed": true,
           "avg_scores": {
             "called_document_search_rag": 1.0,
-            "called_web_search": 0.6667
+            "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1720.2
+          "task_duration_ms": 2111.4
         },
         {
           "name": "doc_rgpd_laws_conflict",
@@ -1038,7 +1038,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2417.1
+          "task_duration_ms": 8860.1
         },
         {
           "name": "doc_risks_still_current",
@@ -1055,7 +1055,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3038.1
+          "task_duration_ms": 20269.0
         },
         {
           "name": "doc_vs_news_freshness",
@@ -1072,7 +1072,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3841.1
+          "task_duration_ms": 4304.6
         },
         {
           "name": "explain_genai_concept_no_web",
@@ -1088,7 +1088,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 5075.8
+          "task_duration_ms": 16258.2
         },
         {
           "name": "explain_llm_no_web",
@@ -1104,7 +1104,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 10694.6
+          "task_duration_ms": 9633.5
         },
         {
           "name": "explain_recent_ai_borderline",
@@ -1120,7 +1120,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3013.2
+          "task_duration_ms": 3364.5
         },
         {
           "name": "generic_ai_can_code",
@@ -1136,7 +1136,7 @@
             "did_not_call_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3655.0
+          "task_duration_ms": 9879.6
         },
         {
           "name": "interest_rates_high_now",
@@ -1152,7 +1152,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2077.3
+          "task_duration_ms": 2122.5
         },
         {
           "name": "law_in_force",
@@ -1168,7 +1168,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1512.2
+          "task_duration_ms": 3890.3
         },
         {
           "name": "math_no_web",
@@ -1184,7 +1184,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 866.8
+          "task_duration_ms": 827.3
         },
         {
           "name": "meta_search_policy",
@@ -1200,7 +1200,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3331.8
+          "task_duration_ms": 4962.3
         },
         {
           "name": "meta_vs_web_realtime",
@@ -1217,7 +1217,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1995.2
+          "task_duration_ms": 4319.2
         },
         {
           "name": "model_comparison",
@@ -1233,7 +1233,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3578.9
+          "task_duration_ms": 9998.5
         },
         {
           "name": "news_recent_ai",
@@ -1249,7 +1249,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 13509.5
+          "task_duration_ms": 5063.1
         },
         {
           "name": "news_summary_no_doc",
@@ -1266,7 +1266,7 @@
             "did_not_call_summarize": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2052.2
+          "task_duration_ms": 6849.3
         },
         {
           "name": "openai_llm_leader",
@@ -1282,7 +1282,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1946.2
+          "task_duration_ms": 2074.0
         },
         {
           "name": "premier_ministre_actuel",
@@ -1298,7 +1298,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 845.8
+          "task_duration_ms": 1044.6
         },
         {
           "name": "python_loop_no_web",
@@ -1314,7 +1314,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2716.1
+          "task_duration_ms": 7461.5
         },
         {
           "name": "python_sort_function",
@@ -1330,7 +1330,7 @@
             "did_not_call_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 5771.1
+          "task_duration_ms": 2096.9
         },
         {
           "name": "rag_legal_risk",
@@ -1347,7 +1347,7 @@
             "did_not_call_summarize": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1099.8
+          "task_duration_ms": 1885.2
         },
         {
           "name": "rag_section_lookup",
@@ -1364,7 +1364,7 @@
             "did_not_call_summarize": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1040.0
+          "task_duration_ms": 1894.4
         },
         {
           "name": "rag_summarize_web_rgpd",
@@ -1374,15 +1374,15 @@
             "description": "Enchaînement RAG → summarize → web_search (3 tools)"
           },
           "repeats": 3,
-          "pass_rate": 0.6667,
+          "pass_rate": 0.3333,
           "passed": false,
           "avg_scores": {
             "called_document_search_rag": 1.0,
-            "called_summarize": 0.6667,
+            "called_summarize": 0.3333,
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3661.8
+          "task_duration_ms": 7989.0
         },
         {
           "name": "rag_then_summarize_risks",
@@ -1399,7 +1399,7 @@
             "called_summarize": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3479.7
+          "task_duration_ms": 9119.5
         },
         {
           "name": "self_doc_rag_web_methodology",
@@ -1409,15 +1409,15 @@
             "description": "Enchaînement self_documentation → RAG → web_search (3 tools)"
           },
           "repeats": 3,
-          "pass_rate": 1.0,
-          "passed": true,
+          "pass_rate": 0.6667,
+          "passed": false,
           "avg_scores": {
             "called_document_search_rag": 1.0,
-            "called_self_documentation": 1.0,
+            "called_self_documentation": 0.6667,
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3919.5
+          "task_duration_ms": 10039.9
         },
         {
           "name": "static_fact_no_web",
@@ -1433,7 +1433,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1054.6
+          "task_duration_ms": 1929.4
         },
         {
           "name": "summarize_doc_still_valid",
@@ -1451,7 +1451,7 @@
             "did_not_call_document_search_rag": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 4571.0
+          "task_duration_ms": 6613.2
         },
         {
           "name": "summarize_explicit",
@@ -1467,7 +1467,7 @@
             "called_summarize": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1150.8
+          "task_duration_ms": 1352.0
         },
         {
           "name": "summarize_key_points",
@@ -1483,7 +1483,7 @@
             "called_summarize": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1233.3
+          "task_duration_ms": 6288.8
         },
         {
           "name": "summarize_overview_not_rag",
@@ -1500,7 +1500,7 @@
             "did_not_call_document_search_rag": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1935.9
+          "task_duration_ms": 2250.5
         },
         {
           "name": "tesla_makes_evs_no_web",
@@ -1516,7 +1516,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2230.8
+          "task_duration_ms": 1863.9
         },
         {
           "name": "tesla_still_valuable",
@@ -1532,7 +1532,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2254.6
+          "task_duration_ms": 3508.9
         },
         {
           "name": "web_inventor_still_tim_berners_no_web",
@@ -1548,7 +1548,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1218.7
+          "task_duration_ms": 1947.0
         }
       ],
       "failures": 0

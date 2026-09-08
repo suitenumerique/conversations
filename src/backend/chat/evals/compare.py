@@ -22,10 +22,13 @@ class CaseChange:  # pylint: disable=too-many-instance-attributes
     after_avg_scores: dict[str, float]
     reasons: dict[str, str | None] = field(default_factory=dict)
     coverage_gap: bool = False
+    new_case: bool = False
 
     @property
     def kind(self) -> str:
         """Classify the change (single source of truth, also used by the dashboard)."""
+        if self.new_case:
+            return "new_case"
         if self.coverage_gap:
             return "coverage_gap"
         if self.before_passed and not self.after_passed:
@@ -33,10 +36,15 @@ class CaseChange:  # pylint: disable=too-many-instance-attributes
         if not self.before_passed and self.after_passed:
             return "improvement"
         if not self.before_passed and not self.after_passed:
-            if self.after_pass_rate > self.before_pass_rate:
-                return "partial_up"
-            if self.after_pass_rate < self.before_pass_rate:
-                return "partial_down"
+            return self._partial_kind()
+        return "changed"
+
+    def _partial_kind(self) -> str:
+        """Classify a case that fails in both runs by its repeat pass-rate delta."""
+        if self.after_pass_rate > self.before_pass_rate:
+            return "partial_up"
+        if self.after_pass_rate < self.before_pass_rate:
+            return "partial_down"
         return "changed"
 
 
@@ -64,35 +72,33 @@ class RunComparison:
     dataset_comparisons: list[DatasetComparison] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
-    @property
-    def regressions(self) -> list[CaseChange]:
-        """Cases that passed before and fail after."""
+    def _changes_of_kind(self, kind: str) -> list[CaseChange]:
         return [
             change
             for comparison in self.dataset_comparisons
             for change in comparison.case_changes
-            if change.before_passed and not change.after_passed
+            if change.kind == kind
         ]
 
     @property
+    def regressions(self) -> list[CaseChange]:
+        """Cases that passed before and fail after (excludes coverage gaps and new cases)."""
+        return self._changes_of_kind("regression")
+
+    @property
     def improvements(self) -> list[CaseChange]:
-        """Cases that failed before and pass after."""
-        return [
-            change
-            for comparison in self.dataset_comparisons
-            for change in comparison.case_changes
-            if not change.before_passed and change.after_passed
-        ]
+        """Cases that failed before and pass after (excludes coverage gaps and new cases)."""
+        return self._changes_of_kind("improvement")
 
     @property
     def coverage_gaps(self) -> list[CaseChange]:
         """Cases present in before but missing from after."""
-        return [
-            change
-            for comparison in self.dataset_comparisons
-            for change in comparison.case_changes
-            if change.coverage_gap
-        ]
+        return self._changes_of_kind("coverage_gap")
+
+    @property
+    def new_cases(self) -> list[CaseChange]:
+        """Cases present only in after (added since the baseline)."""
+        return self._changes_of_kind("new_case")
 
     @property
     def has_regression_failures(self) -> bool:
@@ -153,6 +159,26 @@ def _missing_after_case_change(
         after_avg_scores={},
         reasons={"_coverage": "missing from after run"},
         coverage_gap=True,
+    )
+
+
+def _new_after_case_change(
+    *,
+    dataset_name: str,
+    after_case: dict[str, Any],
+) -> CaseChange:
+    """Build a CaseChange for a case that exists only in the after run (newly added)."""
+    return CaseChange(
+        dataset=dataset_name,
+        case_name=after_case["name"],
+        before_passed=False,
+        after_passed=after_case["passed"],
+        before_pass_rate=0.0,
+        after_pass_rate=after_case["pass_rate"],
+        before_avg_scores={},
+        after_avg_scores=after_case["avg_scores"],
+        reasons={"_coverage": "new in after run"},
+        new_case=True,
     )
 
 
@@ -226,7 +252,12 @@ def _compare_case(
                 before_case=before_case,
             )
         return None
-    if before_case is None or _cases_unchanged(before_case, after_case):
+    if before_case is None:
+        return _new_after_case_change(
+            dataset_name=dataset_name,
+            after_case=after_case,
+        )
+    if _cases_unchanged(before_case, after_case):
         return None
     return _case_change_for_pair(
         dataset_name=dataset_name,
@@ -332,6 +363,13 @@ def _note(comment: str | None) -> str:
 
 def render_case_change(change: CaseChange) -> list[str]:
     """Render a single case change."""
+    if change.kind == "new_case":
+        after_status = "PASS" if change.after_passed else "FAIL"
+        lines = [f"    {change.case_name}: NEW → {after_status} ({change.after_pass_rate:.0%})"]
+        for evaluator_name, reason in sorted(change.reasons.items()):
+            if reason:
+                lines.append(f"      reason ({evaluator_name}): {reason}")
+        return lines
     before_status = "PASS" if change.before_passed else "FAIL"
     after_status = "PASS" if change.after_passed else "FAIL"
     repeat_info = f"repeat pass rate {change.before_pass_rate:.0%}→{change.after_pass_rate:.0%}"
@@ -403,11 +441,14 @@ def format_comparison(comparison: RunComparison) -> str:
         lines.extend(render_dataset_comparison(dataset_comparison))
 
     coverage_gaps = len(comparison.coverage_gaps)
+    new_cases = len(comparison.new_cases)
     summary = (
         f"Summary: {len(comparison.regressions)} regression(s), "
         f"{len(comparison.improvements)} improvement(s)"
     )
     if coverage_gaps:
         summary += f", {coverage_gaps} coverage gap(s)"
+    if new_cases:
+        summary += f", {new_cases} new case(s)"
     lines.append(summary)
     return "\n".join(lines)

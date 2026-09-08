@@ -73,14 +73,19 @@ def make_faithfulness_rag_task_fn(model_hrid: str):
     service = _build_faithfulness_rag_service(model_hrid)
     stub_document_search_rag(service, _stub_document_search_rag)
     agent = service.conversation_agent
-    deps = production_agent_deps(service)
-    deps.web_search_enabled = False
 
     async def run_agent(inputs: EvalInputs) -> str:
+        # Fetch and configure deps per case (like tool_selection.py): re-setting
+        # web_search_enabled each run keeps cases isolated from any prior mutation
+        # of the shared ContextDeps.
+        deps = production_agent_deps(service)
+        deps.web_search_enabled = False
         stubs = ToolStubResponses(document_search_rag=inputs.tool_output or _NO_PASSAGES)
         token = set_current_tool_stubs(stubs)
         try:
-            return (await agent.run(inputs.user_message, deps=deps)).output
+            # message_history=[] keeps each case isolated: the eval session
+            # reuses one conversation, so never replay a prior case's turns.
+            return (await agent.run(inputs.user_message, deps=deps, message_history=[])).output
         finally:
             reset_current_tool_stubs(token)
 

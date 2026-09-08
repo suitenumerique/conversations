@@ -84,11 +84,11 @@ class Command(BaseCommand):
         if options["runs"] < 1:
             raise CommandError("Number of runs must be at least 1")
 
-        if options["save"] and options["case"]:
+        if options["save"] and (options["case"] or options["dataset"]):
             raise CommandError(
-                "--save cannot be combined with --case: a partial run would register "
-                "every other case as a coverage gap (= regression) when compared "
-                "against the baseline."
+                "--save cannot be combined with --case or --dataset: a partial run "
+                "would register every omitted case/dataset as a coverage gap "
+                "(= regression) when compared against the baseline."
             )
 
         # Span-based evaluators (HasMatchingSpan & co) read pydantic-evals'
@@ -109,6 +109,16 @@ class Command(BaseCommand):
         self._configure_judge(use_llm_judge)
 
         configs = [REGISTRY[options["dataset"]]] if options["dataset"] else list(REGISTRY.values())
+
+        case_name = options["case"]
+        if case_name and not options["dataset"]:
+            # Filter by case name across all datasets: run only the datasets that
+            # contain it, silently skipping those where the case is absent.
+            configs = [
+                config for config in configs if case_name in self._dataset_case_names(config)
+            ]
+            if not configs:
+                raise CommandError(f"No case named '{case_name}' in any dataset.")
 
         self.stdout.write(f"Running evals for: {', '.join(config.name for config in configs)}\n")
 
@@ -185,6 +195,12 @@ class Command(BaseCommand):
             )
         return judge_model_hrid
 
+    @staticmethod
+    def _dataset_case_names(config: EvalConfig) -> set[str]:
+        """Return the case names declared in a dataset's YAML (cheap, no Dataset build)."""
+        _, dataset_data = split_dataset_file(config.dataset_path)
+        return {case["name"] for case in dataset_data.get("cases", []) if "name" in case}
+
     def _load_dataset(self, config: EvalConfig, case_name: str | None) -> Dataset:
         custom_evaluator_types = [
             *config.dataset_evaluator_types,
@@ -252,7 +268,9 @@ class Command(BaseCommand):
                         f"[Tool output]\n{inputs.tool_output}\n\n"
                         f"[User question]\n{inputs.user_message}"
                     )
-                result = await _agent.run(prompt)
+                # message_history=[] keeps each case isolated: the eval session
+                # reuses one conversation, so never replay a prior case's turns.
+                result = await _agent.run(prompt, message_history=[])
                 if inputs.tool_output is None:
                     # Expose runtime tool returns to evaluators (e.g. UrlRegexEvaluator)
                     # via task-run attributes. Never mutate `inputs`: the same case

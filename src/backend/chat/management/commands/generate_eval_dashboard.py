@@ -17,7 +17,12 @@ class Command(BaseCommand):
         output_path = generate_dashboard()
         # The command runs inside Docker where BASE_DIR is /app; show the
         # host-side path (repo checkout) so the user can open the file directly.
-        display_path = Path("src/backend") / output_path.relative_to(settings.BASE_DIR)
+        # Outside that layout output_path may not be under BASE_DIR — the file is
+        # already written, so fall back to the absolute path rather than crash.
+        try:
+            display_path = Path("src/backend") / output_path.relative_to(settings.BASE_DIR)
+        except ValueError:
+            display_path = output_path
         self.stdout.write(
             self.style.SUCCESS(
                 f"Dashboard written to {display_path}. Open it in a browser to compare runs."

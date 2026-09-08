@@ -89,6 +89,7 @@ dev = [
     "pylint==4.0.5",
     "pylint-pydantic==0.4.1",
     "pydantic-evals==2.22.0",
+    "logfire==4.41.0",
     "pytest-asyncio==1.4.0",
     "pytest-cov==7.1.0",
     "pytest-django==4.12.0",

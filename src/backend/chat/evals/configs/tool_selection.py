@@ -76,7 +76,9 @@ def make_tool_selection_task_fn(model_hrid: str):
                 new_callable=AsyncMock,
                 return_value=stubs.self_documentation_db_text(),
             ):
-                return (await agent.run(inputs.user_message, deps=deps)).output
+                # message_history=[] keeps each case isolated: the eval session
+                # reuses one conversation, so never replay a prior case's turns.
+                return (await agent.run(inputs.user_message, deps=deps, message_history=[])).output
         finally:
             reset_current_tool_stubs(token)
 

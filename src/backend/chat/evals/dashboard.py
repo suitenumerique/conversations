@@ -119,9 +119,10 @@ def generate_dashboard(output_path: Path | None = None) -> Path:
 
     payload = _load_runs_payload()
     data_json = json.dumps(payload, ensure_ascii=False)
-    # Model-generated text (judge reasons, comments, outputs) may contain "</script>";
-    # escape "</" so the embedded JSON cannot close the script tag (valid JSON escape).
-    data_json = data_json.replace("</", "<\\/")
+    # Model-generated text (judge reasons, comments, outputs) may contain markup such
+    # as "</script>", "</SCRIPT>", "<!--" or "<script"; escape every "<" (valid JSON
+    # < escape) so the embedded JSON can never break out of the <script> tag.
+    data_json = data_json.replace("<", "\\u003c")
     html = template.replace(EVAL_DATA_PLACEHOLDER, data_json, 1)
     output_path.write_text(html, encoding="utf-8")
     return output_path

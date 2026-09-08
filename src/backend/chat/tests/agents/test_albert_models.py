@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from openai.types.chat import ChatCompletion
+from pydantic import ValidationError
 from pydantic_ai.models.openai import OpenAIStreamedResponse
 from pydantic_ai.usage import RequestUsage
 
@@ -303,8 +304,13 @@ def test_validate_completion_normalizes_non_standard_object(albert_model):
     assert result.choices == []
 
 
-def test_validate_completion_normalizes_null_choices(albert_model):
-    """null choices are normalized to an empty list."""
-    response = _make_malformed_chat_completion(object_value="chat.completion", choices_value=None)
-    result = albert_model._validate_completion(response)
-    assert result.choices == []
+@pytest.mark.parametrize("choices_value", [None, {"index": 0}, "oops"])
+def test_validate_completion_rejects_non_list_choices(albert_model, choices_value):
+    """A malformed non-list `choices` must raise a clear ValidationError, not be
+    coerced to `[]` (which passes validation and then makes pydantic-ai raise
+    IndexError on response.choices[0])."""
+    response = _make_malformed_chat_completion(
+        object_value="chat.completion", choices_value=choices_value
+    )
+    with pytest.raises(ValidationError):
+        albert_model._validate_completion(response)

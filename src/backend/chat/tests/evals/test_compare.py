@@ -46,7 +46,9 @@ def test_missing_after_dataset_records_coverage_gaps():
 
     assert len(comparison.coverage_gaps) == 2
     assert comparison.has_regression_failures
-    assert len(comparison.regressions) == 1
+    # A case missing from the after run is a coverage gap, not a regression:
+    # it must not be double-counted in regressions (previously it was).
+    assert len(comparison.regressions) == 0
 
 
 def test_missing_after_case_records_coverage_gap():
@@ -129,6 +131,41 @@ def test_kind_partial_up_when_both_fail_but_rate_improves():
 
     kinds = {c["name"]: c["kind"] for c in payload["datasets"]["ds"]["case_changes"]}
     assert kinds == {"p": "partial_up"}
+
+
+def test_new_after_case_is_recorded_as_new_case():
+    """A case present only in the after run surfaces as new_case, not a regression."""
+    before = _run(
+        run_id="before",
+        datasets={"ds": _dataset(pass_rate=1.0, cases=[_case(name="a", passed=True)])},
+    )
+    after = _run(
+        run_id="after",
+        datasets={
+            "ds": _dataset(
+                pass_rate=0.5,
+                cases=[
+                    _case(name="a", passed=True),
+                    _case(name="new_pass", passed=True),
+                    _case(name="new_fail", passed=False),
+                ],
+            )
+        },
+    )
+
+    comparison = compare_runs(before, after)
+
+    new_names = {change.case_name for change in comparison.new_cases}
+    assert new_names == {"new_pass", "new_fail"}
+    # New cases have no baseline, so they are neither regressions nor coverage gaps,
+    # and a failing new case does not fail the regression gate.
+    assert not comparison.regressions
+    assert not comparison.coverage_gaps
+    assert not comparison.has_regression_failures
+
+    payload = comparison.to_payload()
+    kinds = {c["name"]: c["kind"] for c in payload["datasets"]["ds"]["case_changes"]}
+    assert kinds == {"new_pass": "new_case", "new_fail": "new_case"}
 
 
 def test_missing_before_dataset_is_warning_only():
