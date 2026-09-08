@@ -601,7 +601,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                       }`}
                     >
                       <Text $theme="neutral" $variation="tertiary">
-                        {isSourceOpen !== message.id ? t('Show') : t('Hidden')}{' '}
+                        {isSourceOpen !== message.id ? t('Show') : t('Hide')}{' '}
                         {isSourceOpen !== message.id
                           ? `${sourceParts.length} `
                           : ''}
