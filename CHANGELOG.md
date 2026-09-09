@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- 🐛(ci) fix the CHANGELOG check failing when a pull request is opened
+
 ## [0.0.24] - 2026-09-08
 
 ### Fixed
