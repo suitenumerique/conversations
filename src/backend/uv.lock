@@ -565,10 +565,10 @@ dependencies = [
     { name = "redis" },
     { name = "semchunk" },
     { name = "sentry-sdk" },
+    { name = "servestatic" },
     { name = "tiktoken" },
     { name = "trafilatura" },
     { name = "uvicorn" },
-    { name = "whitenoise" },
 ]
 
 [package.optional-dependencies]
@@ -664,10 +664,10 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.15.16" },
     { name = "semchunk", specifier = "==4.0.0" },
     { name = "sentry-sdk", specifier = "==2.61.1" },
+    { name = "servestatic", specifier = "==4.3.2" },
     { name = "tiktoken", specifier = "==0.13.0" },
     { name = "trafilatura", specifier = "==2.1.0" },
     { name = "uvicorn", specifier = "==0.49.0" },
-    { name = "whitenoise", specifier = "==6.12.0" },
 ]
 provides-extras = ["dev"]
 
@@ -3158,6 +3158,18 @@ wheels = [
 ]
 
 [[package]]
+name = "servestatic"
+version = "4.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "asgiref" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b5/2a/f1fa47e50d6a74d39255d95584988db5a625498c4949602bd1f53806e475/servestatic-4.3.2.tar.gz", hash = "sha256:e6142e53c849d1f22c44e482ee25c1c61b60ae493b3d3584c628ed70d157a69b", size = 32802, upload-time = "2026-09-01T20:04:19.239Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f1/b8/914a80ccae62f1801885700bbeeca9ec446808608a0abb54d433b34cefba/servestatic-4.3.2-py3-none-any.whl", hash = "sha256:b2f68957fd88dcb2c015732e68721782b2b12b613647ecd7ffee1b473e345faa", size = 39921, upload-time = "2026-09-01T20:04:18.105Z" },
+]
+
+[[package]]
 name = "six"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3449,15 +3461,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/36/57/ed58088fafdf4c55a0ad6bde846502567645424d7ebf325230b9237f4085/wcwidth-0.8.3.tar.gz", hash = "sha256:d128512515fbf4612e0ff21fd6380399210318b7b54a9af59dff8454cf9730eb", size = 1458450, upload-time = "2026-08-28T18:10:06.875Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c4/0e/57f6bb3024a597b2e8ec4aee710ffe62ddc95af2e2bb1ee7a7abdc22c68c/wcwidth-0.8.3-py3-none-any.whl", hash = "sha256:d5b73dba6158a595ec9370350e7f2637bcac8d6c5e4fde34f30fcffb6103a5e4", size = 331669, upload-time = "2026-08-28T18:10:04.909Z" },
-]
-
-[[package]]
-name = "whitenoise"
-version = "6.12.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/cb/2a/55b3f3a4ec326cd077c1c3defeee656b9298372a69229134d930151acd01/whitenoise-6.12.0.tar.gz", hash = "sha256:f723ebb76a112e98816ff80fcea0a6c9b8ecde835f8ddda25df7a30a3c2db6ad", size = 26841, upload-time = "2026-02-27T00:05:42.028Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/db/eb/d5583a11486211f3ebd4b385545ae787f32363d453c19fffd81106c9c138/whitenoise-6.12.0-py3-none-any.whl", hash = "sha256:fc5e8c572e33ebf24795b47b6a7da8da3c00cff2349f5b04c02f28d0cc5a3cc2", size = 20302, upload-time = "2026-02-27T00:05:40.086Z" },
 ]
 
 [[package]]

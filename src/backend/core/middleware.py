@@ -7,6 +7,7 @@ from django.conf import settings
 from django.db import DatabaseError
 from django.http import JsonResponse
 from django.utils import timezone
+from django.utils.deprecation import MiddlewareMixin
 
 from core.models import MaintenanceMode
 
@@ -14,7 +15,7 @@ logger = getLogger(__name__)
 
 
 # Paths that must remain reachable while maintenance mode is active.
-# Anchored prefixes / exact paths. Static files are handled by WhiteNoiseMiddleware
+# Anchored prefixes / exact paths. Static files are handled by ServeStaticMiddleware
 # upstream, so they never reach this middleware.
 _EXEMPT_PATH_RE = re.compile(
     r"^/(?:"
@@ -36,15 +37,19 @@ def is_maintenance_active() -> bool:
     return MaintenanceMode.get_solo().is_active_now()
 
 
-class MaintenanceMiddleware:
-    """Short-circuit non-exempt requests with 503 when maintenance is active."""
+class MaintenanceMiddleware(MiddlewareMixin):
+    """Short-circuit non-exempt requests with 503 when maintenance is active.
 
-    def __init__(self, get_response):
-        self.get_response = get_response
+    Uses MiddlewareMixin so it stays async-capable under ASGI: process_request
+    runs in a thread-sensitive executor rather than forcing the whole downstream
+    chain through a shielded sync_to_async boundary (which logs spurious
+    "CancelledError exception in shielded future" noise on client disconnects).
+    """
 
-    def __call__(self, request):
+    def process_request(self, request):
+        """Return a 503 for non-exempt requests when maintenance is active."""
         if _EXEMPT_PATH_RE.match(request.path) or not is_maintenance_active():
-            return self.get_response(request)
+            return None
 
         response = JsonResponse(
             {"code": "maintenance_mode", "detail": "Service under maintenance"},

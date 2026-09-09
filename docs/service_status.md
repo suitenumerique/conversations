@@ -157,7 +157,7 @@ at `WARNING` level.
 - `/__heartbeat__`, `/__lbheartbeat__` — load-balancer health checks.
 - `/api/<version>/config/` — the SPA polls this to detect maintenance state.
 
-Static files are served by `WhiteNoiseMiddleware` upstream and never reach the
+Static files are served by `ServeStaticMiddleware` upstream and never reach the
 maintenance middleware.
 
 ### Response

@@ -127,7 +127,7 @@ class Base(
         },
         "staticfiles": {
             "BACKEND": values.Value(
-                "whitenoise.storage.CompressedManifestStaticFilesStorage",
+                "servestatic.storage.CompressedManifestStaticFilesStorage",
                 environ_name="STORAGES_STATICFILES_BACKEND",
             ),
         },
@@ -292,7 +292,7 @@ class Base(
 
     MIDDLEWARE = [
         "django.middleware.security.SecurityMiddleware",
-        "whitenoise.middleware.WhiteNoiseMiddleware",
+        "servestatic.middleware.ServeStaticMiddleware",
         "core.middleware.MaintenanceMiddleware",
         "django.contrib.sessions.middleware.SessionMiddleware",
         "django.middleware.locale.LocaleMiddleware",
@@ -318,6 +318,7 @@ class Base(
         "chat",
         "core",
         "demo",
+        "servestatic",
         "drf_spectacular",
         # Third party apps
         "corsheaders",
@@ -1047,7 +1048,7 @@ class Build(Base):
         },
         "staticfiles": {
             "BACKEND": values.Value(
-                "whitenoise.storage.CompressedManifestStaticFilesStorage",
+                "servestatic.storage.CompressedManifestStaticFilesStorage",
                 environ_name="STORAGES_STATICFILES_BACKEND",
             ),
         },
@@ -1103,6 +1104,9 @@ class Test(Base):
     # Static files are not used in the test environment
     # Tests are raising warnings because the /data/static directory does not exist
     STATIC_ROOT = None
+    # Serve static via Django's finders instead of STATIC_ROOT (no collectstatic
+    # in tests); also silences ServeStatic's "STATIC_ROOT not configured" warning.
+    SERVESTATIC_USE_FINDERS = True
 
     # Run celery tasks synchronously in tests, without a broker.
     CELERY_TASK_ALWAYS_EAGER = True
@@ -1153,7 +1157,9 @@ class Test(Base):
 
     STORAGES = {
         "default": {"BACKEND": "storages.backends.s3.S3Storage"},
-        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+        # Non-manifest variant: tests have no STATIC_ROOT / collectstatic step,
+        # and ServeStaticMiddleware reads the staticfiles storage eagerly.
+        "staticfiles": {"BACKEND": "servestatic.storage.CompressedStaticFilesStorage"},
     }
 
     # AWS_S3_ENDPOINT_URL: docker default is the compose MinIO host; the repo
