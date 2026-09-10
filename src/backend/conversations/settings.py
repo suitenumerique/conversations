@@ -612,6 +612,17 @@ class Base(
         environ_prefix=None,
     )
 
+    # data.gouv connector (MCP). An empty URL keeps the connector inert: it is
+    # not offered, not built, and never contacted.
+    DATAGOUV_CONNECTOR_URL = values.Value(
+        "", environ_name="DATAGOUV_CONNECTOR_URL", environ_prefix=None
+    )
+    DATAGOUV_CONNECTOR_INIT_TIMEOUT = values.FloatValue(
+        default=5.0,
+        environ_name="DATAGOUV_CONNECTOR_INIT_TIMEOUT",
+        environ_prefix=None,
+    )
+
     # Uploaded files
     RAG_FILES_ACCEPTED_FORMATS = values.ListValue(
         default=mime_types.RAG_ACCEPTED_MIME_TYPES,
