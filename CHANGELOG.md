@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(back) add the data.gouv connector for a beta cohort
+
 ### Fixed
 
 - 🐛(ci) fix the CHANGELOG check failing when a pull request is opened

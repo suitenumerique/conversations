@@ -185,7 +185,7 @@ from chat.document_context_builder import (
 )
 from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
-from chat.mcp_servers import get_mcp_servers
+from chat.mcp_servers import enter_mcp_toolsets, get_mcp_toolsets
 from chat.rate_limiting import record_and_compute_cooldown
 from chat.tasks import parse_and_store_conversation_document_task, summarize_conversation_history
 from chat.tools.descriptions import (
@@ -338,6 +338,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             self.user, "presentation_generation"
         )
         self._is_smart_search_enabled = user.allow_smart_web_search
+        self._connector_toolsets = get_mcp_toolsets(self.user)
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
         self._context_deps = ContextDeps(
@@ -1770,8 +1771,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             self._setup_rag_tools(document_context_instruction=document_context_instruction)
 
         async with AsyncExitStack() as stack:
-            # MCP servers (if any) can be initialized here
-            mcp_servers = [await stack.enter_async_context(mcp) for mcp in get_mcp_servers()]
+            mcp_toolsets = await enter_mcp_toolsets(stack, self._connector_toolsets)
 
             # Help Mistral to prevent `Unexpected role 'user' after role 'tool'` error.
             if history and history[-1].kind == "request":
@@ -1784,7 +1784,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # History passes through the ProcessHistory capability set on the agent.
                 message_history=message_history,
                 deps=self._context_deps,
-                toolsets=mcp_servers,
+                toolsets=mcp_toolsets,
             ) as run:
                 state = StreamingState()
                 async for event in self._process_agent_nodes(run, state):

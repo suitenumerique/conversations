@@ -228,6 +228,36 @@ If the LLM isn't using the tool response correctly:
 - Consider returning a `ToolReturn` object with metadata
 - Check if the response format matches what the LLM expects
 
+## Connectors (MCP)
+
+Everything above describes tools built in this repository. A **connector** is
+different: it is one remote MCP server a user has switched on for themselves,
+and it *contributes* tools to the assistant rather than being one (see the
+glossary in `.claude/CONTEXT.md`).
+
+Today there is exactly one, data.gouv.fr. It is resolved in
+`chat/mcp_servers.py` and reaches the agent only when all three of these hold:
+
+| Gate | Where |
+|------|-------|
+| The deployment configures an endpoint | `DATAGOUV_CONNECTOR_URL` (empty by default — the connector is then never built and never contacted) |
+| The user is in the beta cohort | `FEATURE_FLAG_DATAGOUV_CONNECTOR` |
+| The user switched it on | `User.allow_datagouv_connector` (off by default) |
+
+`DATAGOUV_CONNECTOR_INIT_TIMEOUT` (default `5.0` seconds) bounds the handshake.
+
+Its tools reach the model under the connector's prefix, so the server's
+`search_datasets` is offered to the agent as `datagouv_search_datasets`.
+
+The connector's toolsets are attached per turn, inside `_run_agent`'s
+`AsyncExitStack`. A connector that cannot be reached is logged and dropped for
+that turn: the user still gets an answer, built without it. A third-party
+service being down must never cost someone their turn.
+
+The server authors the tool names, descriptions and results we accept, but
+never the agent's instructions — see
+[ADR 0003](../.claude/adr/0003-connector-trust-boundary.md).
+
 ## See Also
 
 - [Web Search Configuration](llm-configuration.md)
