@@ -82,14 +82,16 @@ def test_round_trip_serialization():
     restored = FeatureFlags.model_validate_json(raw)
     assert restored == original
     assert raw == (
-        '{"web_search":"dynamic","document_upload":"enabled","presentation_generation":"disabled"}'
+        '{"web_search":"dynamic","document_upload":"enabled",'
+        '"presentation_generation":"disabled","datagouv_connector":"disabled"}'
     )
 
     raw_alias = original.model_dump_json(by_alias=True)
     restored_alias = FeatureFlags.model_validate_json(raw_alias)
     assert restored_alias == original
     assert raw_alias == (
-        '{"web-search":"dynamic","document-upload":"enabled","presentation-generation":"disabled"}'
+        '{"web-search":"dynamic","document-upload":"enabled",'
+        '"presentation-generation":"disabled","datagouv-connector":"disabled"}'
     )
 
 

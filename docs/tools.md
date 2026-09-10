@@ -228,6 +228,58 @@ If the LLM isn't using the tool response correctly:
 - Consider returning a `ToolReturn` object with metadata
 - Check if the response format matches what the LLM expects
 
+## Connectors (MCP)
+
+Everything above describes tools built in this repository. A **connector** is
+different: it is one remote MCP server a user has switched on for themselves,
+and it *contributes* tools to the assistant rather than being one.
+
+Today there is exactly one, data.gouv.fr. It is resolved in
+`chat/mcp_servers.py` and reaches the agent only when all three of these hold:
+
+| Gate | Where |
+|------|-------|
+| The deployment configures an endpoint | `DATAGOUV_CONNECTOR_URL` (empty by default — the connector is then never built and never contacted) |
+| The user is in the beta cohort | `FEATURE_FLAG_DATAGOUV_CONNECTOR` |
+| The user switched it on | `User.allow_datagouv_connector` (off by default) |
+
+Two settings bound how long a connector may hold a turn.
+`DATAGOUV_CONNECTOR_INIT_TIMEOUT` (default `5.0` seconds) bounds the whole
+connection: `enter_mcp_toolsets` holds that budget itself rather than leaving it
+to the MCP client, whose own `init_timeout` covers the protocol handshake but
+not the transport connect underneath it. `DATAGOUV_CONNECTOR_READ_TIMEOUT`
+(default `30.0` seconds) then bounds each individual tool call, because a server
+can complete the handshake and still stall on the call itself — the library's
+own default there is five minutes. A call that times out reaches the model as a
+retryable tool error, so the model can answer without it.
+
+Its tools reach the model under the connector's prefix, so the server's
+`search_datasets` is offered to the agent as `datagouv_search_datasets`.
+
+The connector's toolsets are attached per turn, inside `_run_agent`'s
+`AsyncExitStack`. A connector that cannot be reached is logged and dropped for
+that turn: the user still gets an answer, built without it. A third-party
+service being down must never cost someone their turn.
+
+### Trust boundary
+
+A connector is a remote MCP server, so the server — not this repository —
+authors the tool names, descriptions and results that enter the model's
+context. For data.gouv, a state-run service, we accept all three as-is: a
+connector is trusted about as much as a web page the assistant reads.
+
+We do not accept the server's own initialization instructions.
+`include_instructions=False` is set explicitly rather than left to the library
+default, so a connector can never append to the agent's instructions.
+
+We considered an allowlist of reviewed tool names and rejected it: it silently
+freezes a connector's capabilities and depends on a maintainer noticing when
+the server publishes new ones.
+
+This boundary was set for a government-run server and is the precedent for
+every connector that follows. Reconsider it before shipping a connector this
+team does not operate or trust.
+
 ## See Also
 
 - [Web Search Configuration](llm-configuration.md)
