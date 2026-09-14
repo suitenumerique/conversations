@@ -79,3 +79,53 @@ def test_stores_no_user_message_when_the_request_has_nothing_to_render(conversat
     assert [(message.role, message.content) for message in conversation.messages] == [
         ("assistant", "Hi!")
     ]
+
+
+def test_marks_the_assistant_message_as_interrupted(conversation, service):
+    """An interrupted response is flagged on the stored message's metadata."""
+    response = ModelResponse(parts=[TextPart(content="Partial ")], kind="response")
+    response.state = "interrupted"
+
+    service._prepare_update_conversation(
+        final_output=[
+            ModelRequest(parts=[UserPromptPart(content="Hello?")], kind="request"),
+            response,
+        ],
+        usage=dict(USAGE),
+        model_response_message_id="msg-1",
+    )
+
+    assert conversation.messages[-1].metadata == {"interrupted": True}
+
+
+def test_does_not_mark_a_completed_assistant_message(conversation, service):
+    """A normal turn carries no interrupted marker."""
+    service._prepare_update_conversation(
+        final_output=[
+            ModelRequest(parts=[UserPromptPart(content="Hello?")], kind="request"),
+            ModelResponse(parts=[TextPart(content="Hi!")], kind="response"),
+        ],
+        usage=dict(USAGE),
+        model_response_message_id="msg-1",
+    )
+
+    assert not (conversation.messages[-1].metadata or {}).get("interrupted")
+
+
+def test_stores_no_assistant_message_when_the_response_is_empty(conversation, service):
+    """An interruption before any output stores the user message alone."""
+    response = ModelResponse(parts=[], kind="response")
+    response.state = "interrupted"
+
+    service._prepare_update_conversation(
+        final_output=[
+            ModelRequest(parts=[UserPromptPart(content="Hello?")], kind="request"),
+            response,
+        ],
+        usage=dict(USAGE),
+        model_response_message_id="msg-1",
+    )
+
+    assert [(message.role, message.content) for message in conversation.messages] == [
+        ("user", "Hello?")
+    ]

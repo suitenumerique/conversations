@@ -1901,12 +1901,20 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         else:
             logger.warning("model_response_message_id is None")
 
+        metadata = {}
         co2_impact = usage["co2_impact"]
         if co2_impact:
-            _output_ui_message.metadata = {
-                **(_output_ui_message.metadata or {}),
-                "co2_impact": co2_impact,
-            }
+            metadata["co2_impact"] = co2_impact
+        # The merge above builds one ModelResponse and drops the per-message
+        # `state`, so the interrupted marker is read off `final_output` and
+        # surfaced on the UI message instead.
+        if any(
+            isinstance(message, ModelResponse) and message.state == "interrupted"
+            for message in final_output
+        ):
+            metadata["interrupted"] = True
+        if metadata:
+            _output_ui_message.metadata = {**(_output_ui_message.metadata or {}), **metadata}
 
         usage["co2_impact"] += self.conversation.agent_usage.get("co2_impact", 0)
         usage["promptTokens"] += self.conversation.agent_usage.get("promptTokens", 0)
@@ -1920,7 +1928,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             # tool return only): there is no user bubble to rebuild.
             if _request_ui_message:
                 self.conversation.messages += [_request_ui_message]
-        self.conversation.messages += [_output_ui_message]
+        # An interruption before the model produced anything leaves a response
+        # with no parts: there is no assistant bubble to store, only the user's.
+        if _output_ui_message.parts:
+            self.conversation.messages += [_output_ui_message]
 
         final_output_json = json.loads(
             ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")
