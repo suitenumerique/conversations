@@ -1599,6 +1599,33 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         output = run_output if self._store_analytics else "REDACTED"
         self._langfuse_span.update(output=output)
 
+    async def _persist_turn(
+        self,
+        new_messages: list,
+        usage: Dict[str, Union[int, float]],
+        state: StreamingState,
+        image_actions: Optional[ImagePostRunActions],
+    ) -> str | None:
+        """Write the turn's messages, usage and title to the database.
+
+        Shared by the completed path (`_finalize_conversation`) and the
+        interrupted one (`_persist_interrupted_turn`): both store the same
+        things the same way, so a change here cannot fix one and break the
+        other. Emits nothing — the caller owns the stream frames.
+
+        Returns the freshly generated title, or None when no title was due.
+        """
+        await sync_to_async(self._prepare_update_conversation)(
+            final_output=new_messages,
+            usage=usage,
+            ui_sources=state.ui_sources,
+            model_response_message_id=state.model_response_message_id,
+            image_actions=image_actions,
+        )
+        generated_title = await self._generate_title_if_needed()
+        await sync_to_async(self.conversation.save)()
+        return generated_title
+
     async def _finalize_conversation(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         new_messages: list,
@@ -1640,17 +1667,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # folds the conversation's cumulative total into usage["co2_impact"].
         message_co2_impact = usage["co2_impact"]
 
-        await sync_to_async(self._prepare_update_conversation)(
-            final_output=new_messages,
-            usage=usage,
-            ui_sources=state.ui_sources,
-            model_response_message_id=state.model_response_message_id,
-            image_actions=image_actions,
-        )
-
-        generated_title = await self._generate_title_if_needed()
-
-        await sync_to_async(self.conversation.save)()
+        generated_title = await self._persist_turn(new_messages, usage, state, image_actions)
 
         cooldown_seconds = await sync_to_async(record_and_compute_cooldown)(
             self.user.pk, self.conversation_agent.configuration, request_tokens
