@@ -1626,6 +1626,37 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         await sync_to_async(self.conversation.save)()
         return generated_title
 
+    async def _persist_interrupted_turn(
+        self,
+        run,
+        state: StreamingState,
+        usage: Dict[str, Union[int, float]],
+        image_actions: Optional[ImagePostRunActions],
+    ) -> None:
+        """Persist the turn of a stream that stopped before the agent ended.
+
+        `run.result` is None on interruption, so the turn is read off the run
+        itself: Pydantic AI has already appended the partially-built response
+        (stamped `state='interrupted'`) to the run's history and added its
+        usage to the run. Nothing is streamed from here — on a disconnect
+        there is no client left to receive it.
+
+        The writes are shielded: on the disconnect trigger this coroutine runs
+        inside a task that is being cancelled, and unshielded DB work would be
+        torn down mid-write.
+        """
+        # Minted (and streamed) by _stream_content. The end node that normally
+        # copies it was never reached, so the persisted message would otherwise
+        # get a fresh id and no longer be the message the client is holding.
+        state.model_response_message_id = self._model_response_message_id
+
+        run_usage = run.usage
+        usage["promptTokens"] = run_usage.input_tokens
+        usage["completionTokens"] = run_usage.output_tokens
+        usage["co2_impact"] = _extract_co2_from_usage(run_usage)
+
+        await asyncio.shield(self._persist_turn(run.new_messages(), usage, state, image_actions))
+
     async def _finalize_conversation(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         new_messages: list,
@@ -1701,7 +1732,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    async def _run_agent(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # noqa: PLR0912
+    async def _run_agent(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # noqa: PLR0912,PLR0915
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
@@ -1804,8 +1835,22 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 toolsets=mcp_servers,
             ) as run:
                 state = StreamingState()
-                async for event in self._process_agent_nodes(run, state):
-                    yield event
+                try:
+                    async for event in self._process_agent_nodes(run, state):
+                        yield event
+                except StreamCancelException, asyncio.CancelledError:
+                    # Stop pill or client disconnect. Both pass through the
+                    # consumer of the node stream, which is what makes Pydantic
+                    # AI record the partial response on the run. GeneratorExit
+                    # is deliberately not caught: it lands on our own yield
+                    # without reaching the node stream, so there would be no
+                    # partial response to persist.
+                    logger.info(
+                        "Stream interrupted for conversation %s: persisting the partial turn",
+                        self.conversation.pk,
+                    )
+                    await self._persist_interrupted_turn(run, state, usage, image_actions)
+                    raise
 
                 # Extract values from run before exiting the context manager
                 new_messages = run.result.new_messages()
