@@ -12,7 +12,7 @@ import json
 import pytest
 from asgiref.sync import sync_to_async
 from pydantic_ai.messages import ModelMessage
-from pydantic_ai.models.function import AgentInfo, FunctionModel
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
 from chat.ai_sdk_types import TextUIPart, UIMessage
 from chat.clients.exceptions import StreamCancelException
@@ -198,3 +198,122 @@ async def test_interrupted_turn_counts_towards_usage(ui_messages):
     await sync_to_async(conversation.refresh_from_db)()
     assert conversation.agent_usage["promptTokens"] > 0
     assert conversation.agent_usage["completionTokens"] > 0
+
+
+@pytest.mark.asyncio
+async def test_a_following_turn_runs_on_the_interrupted_history(ui_messages):
+    """The interrupted turn loads back into the next run and the next turn completes."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+    streaming = asyncio.Event()
+
+    async def _interrupted_stream(_messages: list[ModelMessage], _info: AgentInfo):
+        """Stream one chunk, then block where the cancellation will land."""
+        yield "Partial answer "
+        streaming.set()
+        await asyncio.sleep(60)
+
+    interrupted_model = FunctionModel(stream_function=_interrupted_stream)
+    with service.conversation_agent.override(model=interrupted_model):
+        task = asyncio.create_task(_collect(service, ui_messages))
+        await streaming.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    await sync_to_async(conversation.refresh_from_db)()
+
+    async def _complete_stream(_messages: list[ModelMessage], _info: AgentInfo):
+        """Answer the follow-up in full."""
+        yield "Continued."
+
+    follow_up = [
+        UIMessage(
+            id="msg-2",
+            role="user",
+            content="Continue",
+            parts=[TextUIPart(type="text", text="Continue")],
+        )
+    ]
+    owner = await sync_to_async(getattr)(conversation, "owner")
+    next_service = AIAgentService(conversation, user=owner)
+    complete_model = FunctionModel(stream_function=_complete_stream)
+    with next_service.conversation_agent.override(model=complete_model):
+        await _collect(next_service, follow_up)
+
+    await sync_to_async(conversation.refresh_from_db)()
+    assert [(message.role, message.content) for message in conversation.messages] == [
+        ("user", "Hello"),
+        ("assistant", "Partial answer "),
+        ("user", "Continue"),
+        ("assistant", "Continued."),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_interruption_during_a_tool_call_leaves_the_conversation_usable(ui_messages):
+    """A turn cut off mid tool-call does not block the following turn."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+    streaming = asyncio.Event()
+
+    async def _interrupted_stream(_messages: list[ModelMessage], _info: AgentInfo):
+        """Start streaming a tool call, then block before it is complete."""
+        yield {0: DeltaToolCall(name="web_search", json_args='{"query":')}
+        streaming.set()
+        await asyncio.sleep(60)
+        yield {0: DeltaToolCall(json_args=' "weather"}')}
+
+    interrupted_model = FunctionModel(stream_function=_interrupted_stream)
+    with service.conversation_agent.override(model=interrupted_model):
+        task = asyncio.create_task(_collect(service, ui_messages))
+        await streaming.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    await sync_to_async(conversation.refresh_from_db)()
+    assert [message.role for message in conversation.messages] == ["user", "assistant"]
+
+    async def _complete_stream(_messages: list[ModelMessage], _info: AgentInfo):
+        """Answer the follow-up in full."""
+        yield "Back to normal."
+
+    follow_up = [
+        UIMessage(
+            id="msg-2",
+            role="user",
+            content="Never mind",
+            parts=[TextUIPart(type="text", text="Never mind")],
+        )
+    ]
+    owner = await sync_to_async(getattr)(conversation, "owner")
+    next_service = AIAgentService(conversation, user=owner)
+    complete_model = FunctionModel(stream_function=_complete_stream)
+    with next_service.conversation_agent.override(model=complete_model):
+        await _collect(next_service, follow_up)
+
+    await sync_to_async(conversation.refresh_from_db)()
+    assert conversation.messages[-1].role == "assistant"
+    assert conversation.messages[-1].content == "Back to normal."
+
+
+@pytest.mark.asyncio
+async def test_a_completed_stream_still_persists_normally(ui_messages):
+    """Regression guard: the uninterrupted path is untouched."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+
+    async def _stream_function(_messages: list[ModelMessage], _info: AgentInfo):
+        """Answer in full."""
+        yield "Full answer."
+
+    with service.conversation_agent.override(model=FunctionModel(stream_function=_stream_function)):
+        await _collect(service, ui_messages)
+
+    await sync_to_async(conversation.refresh_from_db)()
+    assert [(message.role, message.content) for message in conversation.messages] == [
+        ("user", "Hello"),
+        ("assistant", "Full answer."),
+    ]
+    assert not (conversation.messages[-1].metadata or {}).get("interrupted")
