@@ -110,7 +110,7 @@ If you encounter Minio permission issues on Windows, you can temporarily disable
    ```yaml
    minio:
      # user: ${DOCKER_USER:-1000}  # Comment this line on Windows if permission issues occur
-     image: minio/minio
+     image: quay.io/minio/minio
      environment:
        - MINIO_ROOT_USER=conversations
        - MINIO_ROOT_PASSWORD=password

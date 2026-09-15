@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 👷(ci) pull the MinIO images from quay.io instead of Docker Hub
 - 🐛(ci) fix the CHANGELOG check failing when a pull request is opened
 - 🐛(back) replace whitenoise with servestatic for async-capable serving
 

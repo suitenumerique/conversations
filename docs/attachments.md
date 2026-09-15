@@ -669,7 +669,7 @@ If a model has no `max_token_context`, all of its documents are kept `tool_call_
 ```yaml
 # docker-compose.yml
 minio:
-  image: minio/minio
+  image: quay.io/minio/minio
   environment:
     MINIO_ROOT_USER: minioadmin
     MINIO_ROOT_PASSWORD: minioadmin
