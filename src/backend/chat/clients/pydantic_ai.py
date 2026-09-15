@@ -231,6 +231,30 @@ IMAGES_SKIPPED_EVENT_TYPE = "images_skipped"
 IMAGE_SKIP_REASON_TEXT_ONLY = "model_text_only"
 
 
+def _mark_dangling_tool_calls_interrupted(new_messages: list[ModelMessage]) -> None:
+    """Stamp a trailing response holding unexecuted tool calls as interrupted.
+
+    Pydantic AI stamps `state='interrupted'` only on a response it was still
+    streaming when the cancellation landed. A cancellation that lands later,
+    while a tool runs, leaves the response `complete` with tool calls that will
+    never get returns - and `_agent_graph` refuses a new user prompt on such a
+    history ("unprocessed tool calls"). The refusal is permanent: every later
+    turn reads the same history back. Stamping it here routes it to Pydantic
+    AI's own repair path, which closes the calls out with synthesized returns.
+
+    Mutates in place, matching the other history helpers on this path.
+    """
+    if not new_messages:
+        return
+    last_message = new_messages[-1]
+    if (
+        isinstance(last_message, ModelResponse)
+        and last_message.tool_calls
+        and last_message.state == "complete"
+    ):
+        last_message.state = "interrupted"
+
+
 def _strip_thinking_parts(history: list[ModelMessage]) -> list[ModelMessage]:
     """Remove ThinkingPart from ModelResponse history for models that don't support it.
 
@@ -1705,9 +1729,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # cumulative total, exactly as _finalize_conversation does.
         request_tokens = int(usage["promptTokens"]) + int(usage["completionTokens"])
 
+        new_messages = run.new_messages()
+        _mark_dangling_tool_calls_interrupted(new_messages)
+
         async def _persist_and_record():
             """Persist the turn, then record it against the rate-limit window."""
-            await self._persist_turn(run.new_messages(), usage, state, image_actions)
+            await self._persist_turn(new_messages, usage, state, image_actions)
             await sync_to_async(record_and_compute_cooldown)(
                 self.user.pk, self.conversation_agent.configuration, request_tokens
             )

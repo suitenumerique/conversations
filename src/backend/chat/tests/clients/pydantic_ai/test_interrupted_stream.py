@@ -469,3 +469,61 @@ async def test_turn_is_saved_before_the_title_is_generated(ui_messages, settings
     ]
     await sync_to_async(conversation.refresh_from_db)()
     assert conversation.title == "A title"
+
+
+@pytest.mark.asyncio
+async def test_interruption_while_a_tool_runs_leaves_the_conversation_usable(ui_messages):
+    """A turn cut off while a tool executes does not brick the conversation.
+
+    Distinct from the mid-stream case above: here the model finished streaming
+    its tool call before the cancellation landed, so Pydantic AI does not stamp
+    the response `interrupted` - it only does that for a response cut off while
+    streaming. A history whose last response holds tool calls that will never
+    get returns is refused on the next turn, and the refusal is permanent:
+    every later turn reads the same history back.
+    """
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+    running = asyncio.Event()
+
+    @service.conversation_agent.tool_plain
+    async def slow_lookup() -> str:
+        """Block where the cancellation lands, once the call is fully streamed."""
+        running.set()
+        await asyncio.sleep(60)
+        return "never returned"
+
+    async def _interrupted_stream(_messages: list[ModelMessage], _info: AgentInfo):
+        """Stream one complete tool call and let the graph run it."""
+        yield {0: DeltaToolCall(name="slow_lookup", json_args="{}")}
+
+    interrupted_model = FunctionModel(stream_function=_interrupted_stream)
+    with service.conversation_agent.override(model=interrupted_model):
+        task = asyncio.create_task(_collect(service, ui_messages))
+        await running.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    async def _complete_stream(_messages: list[ModelMessage], _info: AgentInfo):
+        """Answer the follow-up in full."""
+        yield "Back to normal."
+
+    follow_up = [
+        UIMessage(
+            id="msg-2",
+            role="user",
+            content="Never mind",
+            parts=[TextUIPart(type="text", text="Never mind")],
+        )
+    ]
+    await sync_to_async(conversation.refresh_from_db)()
+    owner = await sync_to_async(getattr)(conversation, "owner")
+    next_service = AIAgentService(conversation, user=owner)
+    complete_model = FunctionModel(stream_function=_complete_stream)
+    with next_service.conversation_agent.override(model=complete_model):
+        await _collect(next_service, follow_up)
+
+    await sync_to_async(conversation.refresh_from_db)()
+    assert conversation.messages[-1].role == "assistant"
+    assert conversation.messages[-1].content == "Back to normal."
