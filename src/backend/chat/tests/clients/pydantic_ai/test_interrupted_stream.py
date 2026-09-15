@@ -14,13 +14,15 @@ from asgiref.sync import sync_to_async
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
+from core.models import ChatCooldownSettings
+
 from chat.ai_sdk_types import TextUIPart, UIMessage
 from chat.clients.exceptions import StreamCancelException
 from chat.clients.pydantic_ai import AIAgentService
 from chat.factories import ChatConversationFactory
+from chat.models import ChatConversation
 from chat.rate_limiting import get_tokens_last_window
-from chat.tests.utils import stream_frames, stream_text
-from core.models import ChatCooldownSettings
+from chat.tests.utils import stream_frames
 
 pytestmark = pytest.mark.django_db()
 
@@ -90,7 +92,17 @@ async def test_stop_persists_the_partial_assistant_message(ui_messages):
         ("user", "Hello"),
         ("assistant", "Partial answer"),
     ]
-    assert stream_text(chunks) == "Partial "
+    # The stream is cut off by the raised exception before a finish frame, so
+    # it never reaches the `[DONE]` terminator `stream_text` requires; read
+    # the text deltas directly to check what the browser actually rendered.
+    streamed_text = "".join(
+        event["delta"]
+        for frame in stream_frames(chunks)
+        if frame != "[DONE]"
+        for event in [json.loads(frame)]
+        if event["type"] == "text-delta"
+    )
+    assert streamed_text == "Partial "
 
 
 @pytest.mark.asyncio
@@ -245,9 +257,7 @@ async def test_interrupted_turn_is_recorded_for_rate_limiting(ui_messages):
     conversation = await sync_to_async(ChatConversationFactory)()
     service = AIAgentService(conversation, user=conversation.owner)
     streaming = asyncio.Event()
-    window_seconds = await sync_to_async(
-        lambda: ChatCooldownSettings.get_solo().window_seconds
-    )()
+    window_seconds = await sync_to_async(lambda: ChatCooldownSettings.get_solo().window_seconds)()
 
     async def _stream_function(_messages: list[ModelMessage], _info: AgentInfo):
         """Stream one chunk, then block where the cancellation will land."""
@@ -264,9 +274,7 @@ async def test_interrupted_turn_is_recorded_for_rate_limiting(ui_messages):
             await task
 
     await sync_to_async(conversation.refresh_from_db)()
-    tokens_in_window = await sync_to_async(get_tokens_last_window)(
-        service.user.pk, window_seconds
-    )
+    tokens_in_window = await sync_to_async(get_tokens_last_window)(service.user.pk, window_seconds)
     request_tokens = (
         conversation.agent_usage["promptTokens"] + conversation.agent_usage["completionTokens"]
     )
@@ -390,3 +398,74 @@ async def test_a_completed_stream_still_persists_normally(ui_messages):
         ("assistant", "Full answer."),
     ]
     assert not (conversation.messages[-1].metadata or {}).get("interrupted")
+
+
+@pytest.mark.asyncio
+async def test_stop_is_honoured_while_the_run_is_blocked(ui_messages):
+    """The stop pill lands even when the run emits no further events.
+
+    `_process_agent_nodes` only reads the pill between two streamed events, so
+    a run parked in a tool call or a provider retry used to ignore Stop until
+    it unblocked - minutes later, with the browser already gone. The watcher
+    cancels the run where it is blocked instead.
+    """
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+
+    async def _stream_function(_messages: list[ModelMessage], _info: AgentInfo):
+        """Stream one chunk, arm the stop, then block with nothing to emit."""
+        yield "Partial answer"
+        service.stop_streaming()
+        await asyncio.sleep(60)
+        yield "never streamed"
+
+    model = FunctionModel(stream_function=_stream_function)
+    with service.conversation_agent.override(model=model):
+        with pytest.raises(StreamCancelException):
+            # Bounded so a regression fails the test instead of hanging it.
+            await asyncio.wait_for(_collect(service, ui_messages), timeout=10)
+
+    await sync_to_async(conversation.refresh_from_db)()
+    assert [(message.role, message.content) for message in conversation.messages] == [
+        ("user", "Hello"),
+        ("assistant", "Partial answer"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_turn_is_saved_before_the_title_is_generated(ui_messages, settings):
+    """Title generation is an LLM round-trip; the turn must already be on disk.
+
+    Saving after it left a multi-second window where a page reload showed an
+    empty conversation.
+    """
+    settings.AUTO_TITLE_AFTER_USER_MESSAGES = 1
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+    stored_when_title_ran = []
+
+    def _read_stored_messages():
+        """Read the conversation's messages straight from the database."""
+        return ChatConversation.objects.get(pk=conversation.pk).messages
+
+    async def _generate_title():
+        """Record what was already persisted by the time the title is built."""
+        stored_when_title_ran.extend(await sync_to_async(_read_stored_messages)())
+        return "A title"
+
+    service._generate_title = _generate_title
+
+    async def _stream_function(_messages: list[ModelMessage], _info: AgentInfo):
+        """Stream a complete answer."""
+        yield "Complete answer"
+
+    model = FunctionModel(stream_function=_stream_function)
+    with service.conversation_agent.override(model=model):
+        await _collect(service, ui_messages)
+
+    assert [(message.role, message.content) for message in stored_when_title_ran] == [
+        ("user", "Hello"),
+        ("assistant", "Complete answer"),
+    ]
+    await sync_to_async(conversation.refresh_from_db)()
+    assert conversation.title == "A title"

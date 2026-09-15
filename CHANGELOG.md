@@ -15,6 +15,7 @@ and this project adheres to
 - 🐛(back) replace whitenoise with servestatic for async-capable serving
 - 🩹(back) persist the assistant message when a stream is interrupted
 - 🩹(back) keep a tool call's UI part renderable when a stream is interrupted mid-argument
+- 🩹(back) honour the stop signal while the agent is blocked in a tool call or a retry
 
 ## [0.0.24] - 2026-09-08
 
