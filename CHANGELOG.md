@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(back) add the data.gouv connector for a beta cohort
+
 ### Fixed
 
 - 👷(ci) pull the MinIO images from quay.io instead of Docker Hub
