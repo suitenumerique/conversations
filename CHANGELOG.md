@@ -13,6 +13,10 @@ and this project adheres to
 - 👷(ci) pull the MinIO images from quay.io instead of Docker Hub
 - 🐛(ci) fix the CHANGELOG check failing when a pull request is opened
 - 🐛(back) replace whitenoise with servestatic for async-capable serving
+- 🩹(back) persist the assistant message when a stream is interrupted
+- 🩹(back) keep a tool call's UI part renderable when a stream is interrupted mid-argument
+- 🩹(back) honour the stop signal while the agent is blocked in a tool call or a retry
+- 🩹(back) keep a conversation usable when a stream is interrupted while a tool runs
 
 ## [0.0.24] - 2026-09-08
 
