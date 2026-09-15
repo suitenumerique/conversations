@@ -326,6 +326,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # client in the `start` frame and persisted with the message. Set per
         # stream by _stream_content.
         self._model_response_message_id: str | None = None
+        # True once the inbound user message has already been persisted earlier
+        # in the current turn (image-skip or error path), so
+        # _prepare_update_conversation must not rebuild and append it again.
+        self._user_message_persisted = False
 
         self._support_streaming = True
         if (streaming := self.model_configuration.supports_streaming) is not None:
@@ -431,11 +435,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         In normal flow, _prepare_update_conversation saves both user and assistant
         messages after a successful LLM response. On error that path is never reached,
         so we save the user message here to keep it visible on page reload.
-        Role-based guard prevents double-appending on repeated errors.
+        The persisted-flag guard prevents double-appending on repeated errors.
         """
-        if self.conversation.messages and self.conversation.messages[-1].role == "user":
+        if self._user_message_persisted:
             return
         self.conversation.messages = list(self.conversation.messages) + [user_message]
+        self._user_message_persisted = True
         await sync_to_async(self.conversation.save)(update_fields=["messages"])
 
     @staticmethod
@@ -463,11 +468,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         never saw (because we stripped them), losing the filenames the frontend
         needs to render the "image removed" chip. By saving the original message
         here (with markers already stamped), the rebuild step short-circuits via
-        the "last message is user" guard and the marked version stands.
+        the persisted-flag guard and the marked version stands.
         """
-        if self.conversation.messages and self.conversation.messages[-1].role == "user":
+        if self._user_message_persisted:
             return
         self.conversation.messages = list(self.conversation.messages) + [user_message]
+        self._user_message_persisted = True
         await sync_to_async(self.conversation.save)(update_fields=["messages"])
 
     def _add_unreadable_images_instruction(self, subject: Optional[str]) -> None:
@@ -614,6 +620,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         self._last_stop_check = 0
         self._pre_stream_events = []
+        self._user_message_persisted = False
         await cache.adelete(self._stop_cache_key)
 
     # --------------------------------------------------------------------- #
@@ -1643,7 +1650,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         The writes are shielded: on the disconnect trigger this coroutine runs
         inside a task that is being cancelled, and unshielded DB work would be
-        torn down mid-write.
+        torn down mid-write. The rate-limit window is updated in the same
+        shielded region as the persistence, exactly like the completed path:
+        the tokens were spent regardless of whether the client got to see them,
+        so the interrupted turn must still count against the cooldown. There is
+        no client left to send a cooldown event to, so the returned seconds are
+        discarded.
+
+        No transaction wraps this: if a second cancellation arrives while the
+        shield is in flight, the inner task detaches and can be abandoned. That
+        is safe because the three awaits are not three writes —
+        `_prepare_update_conversation` only mutates in-memory state,
+        `_generate_title` swallows its own exceptions and only assigns
+        `self.conversation.title` in memory, and the sole database write is the
+        single `conversation.save()`. The outcome is all-or-nothing, and the
+        "nothing" branch is exactly the pre-fix behaviour.
         """
         # Minted (and streamed) by _stream_content. The end node that normally
         # copies it was never reached, so the persisted message would otherwise
@@ -1655,7 +1676,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         usage["completionTokens"] = run_usage.output_tokens
         usage["co2_impact"] = _extract_co2_from_usage(run_usage)
 
-        await asyncio.shield(self._persist_turn(run.new_messages(), usage, state, image_actions))
+        # Captured before _persist_turn folds it into the conversation's
+        # cumulative total, exactly as _finalize_conversation does.
+        request_tokens = int(usage["promptTokens"]) + int(usage["completionTokens"])
+
+        async def _persist_and_record():
+            """Persist the turn, then record it against the rate-limit window."""
+            await self._persist_turn(run.new_messages(), usage, state, image_actions)
+            await sync_to_async(record_and_compute_cooldown)(
+                self.user.pk, self.conversation_agent.configuration, request_tokens
+            )
+
+        await asyncio.shield(_persist_and_record())
 
     async def _finalize_conversation(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
@@ -1838,7 +1870,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 try:
                     async for event in self._process_agent_nodes(run, state):
                         yield event
-                except StreamCancelException, asyncio.CancelledError:
+                except (StreamCancelException, asyncio.CancelledError):
                     # Stop pill or client disconnect. Both pass through the
                     # consumer of the node stream, which is what makes Pydantic
                     # AI record the partial response on the run. GeneratorExit
@@ -1967,7 +1999,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self.conversation.agent_usage = usage
 
-        if not (self.conversation.messages and self.conversation.messages[-1].role == "user"):
+        if not self._user_message_persisted:
             _request_ui_message = model_message_to_ui_message(_merged_final_output_request)
             # None when the request holds nothing renderable (system prompt or
             # tool return only): there is no user bubble to rebuild.

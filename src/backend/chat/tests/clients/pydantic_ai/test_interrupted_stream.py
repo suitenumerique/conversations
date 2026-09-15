@@ -18,7 +18,9 @@ from chat.ai_sdk_types import TextUIPart, UIMessage
 from chat.clients.exceptions import StreamCancelException
 from chat.clients.pydantic_ai import AIAgentService
 from chat.factories import ChatConversationFactory
-from chat.tests.utils import stream_frames
+from chat.rate_limiting import get_tokens_last_window
+from chat.tests.utils import stream_frames, stream_text
+from core.models import ChatCooldownSettings
 
 pytestmark = pytest.mark.django_db()
 
@@ -58,6 +60,7 @@ async def test_stop_persists_the_partial_assistant_message(ui_messages):
     """The poison pill stores the user message and the text produced so far."""
     conversation = await sync_to_async(ChatConversationFactory)()
     service = AIAgentService(conversation, user=conversation.owner)
+    chunks = []
 
     async def _stream_function(_messages: list[ModelMessage], _info: AgentInfo):
         """Stream one chunk, then arm the stop before the next one."""
@@ -69,10 +72,15 @@ async def test_stop_persists_the_partial_assistant_message(ui_messages):
         yield "answer"
         yield " never streamed"
 
+    async def _consume():
+        """Keep every frame so the streamed text can be compared to what was saved."""
+        async for chunk in service.stream_data_async(ui_messages):
+            chunks.append(chunk)
+
     model = FunctionModel(stream_function=_stream_function)
     with service.conversation_agent.override(model=model):
         with pytest.raises(StreamCancelException):
-            await _collect(service, ui_messages)
+            await _consume()
 
     await sync_to_async(conversation.refresh_from_db)()
     # "answer" is the delta that arrived with the stop: Pydantic AI applies a
@@ -82,6 +90,7 @@ async def test_stop_persists_the_partial_assistant_message(ui_messages):
         ("user", "Hello"),
         ("assistant", "Partial answer"),
     ]
+    assert stream_text(chunks) == "Partial "
 
 
 @pytest.mark.asyncio
@@ -149,7 +158,12 @@ async def test_interrupted_message_keeps_the_streamed_id(ui_messages):
 
 @pytest.mark.asyncio
 async def test_interruption_before_any_text_keeps_the_user_message(ui_messages):
-    """Nothing was produced, but the user's own message is still stored."""
+    """Nothing was produced, but the user's own message is still stored.
+
+    A following turn must still see and append its own user bubble: the
+    trailing message after this interruption is "user", the same stale state
+    a role-based guard would mistake for "already persisted this turn".
+    """
     conversation = await sync_to_async(ChatConversationFactory)()
     service = AIAgentService(conversation, user=conversation.owner)
     streaming = asyncio.Event()
@@ -171,6 +185,31 @@ async def test_interruption_before_any_text_keeps_the_user_message(ui_messages):
     await sync_to_async(conversation.refresh_from_db)()
     assert [(message.role, message.content) for message in conversation.messages] == [
         ("user", "Hello")
+    ]
+
+    async def _complete_stream(_messages: list[ModelMessage], _info: AgentInfo):
+        """Answer the follow-up in full."""
+        yield "Continued."
+
+    follow_up = [
+        UIMessage(
+            id="msg-2",
+            role="user",
+            content="Continue",
+            parts=[TextUIPart(type="text", text="Continue")],
+        )
+    ]
+    owner = await sync_to_async(getattr)(conversation, "owner")
+    next_service = AIAgentService(conversation, user=owner)
+    complete_model = FunctionModel(stream_function=_complete_stream)
+    with next_service.conversation_agent.override(model=complete_model):
+        await _collect(next_service, follow_up)
+
+    await sync_to_async(conversation.refresh_from_db)()
+    assert [(message.role, message.content) for message in conversation.messages] == [
+        ("user", "Hello"),
+        ("user", "Continue"),
+        ("assistant", "Continued."),
     ]
 
 
@@ -198,6 +237,40 @@ async def test_interrupted_turn_counts_towards_usage(ui_messages):
     await sync_to_async(conversation.refresh_from_db)()
     assert conversation.agent_usage["promptTokens"] > 0
     assert conversation.agent_usage["completionTokens"] > 0
+
+
+@pytest.mark.asyncio
+async def test_interrupted_turn_is_recorded_for_rate_limiting(ui_messages):
+    """An interrupted turn still spends against the user's cooldown window."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+    streaming = asyncio.Event()
+    window_seconds = await sync_to_async(
+        lambda: ChatCooldownSettings.get_solo().window_seconds
+    )()
+
+    async def _stream_function(_messages: list[ModelMessage], _info: AgentInfo):
+        """Stream one chunk, then block where the cancellation will land."""
+        yield "Partial answer "
+        streaming.set()
+        await asyncio.sleep(60)
+
+    model = FunctionModel(stream_function=_stream_function)
+    with service.conversation_agent.override(model=model):
+        task = asyncio.create_task(_collect(service, ui_messages))
+        await streaming.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    await sync_to_async(conversation.refresh_from_db)()
+    tokens_in_window = await sync_to_async(get_tokens_last_window)(
+        service.user.pk, window_seconds
+    )
+    request_tokens = (
+        conversation.agent_usage["promptTokens"] + conversation.agent_usage["completionTokens"]
+    )
+    assert tokens_in_window == request_tokens
 
 
 @pytest.mark.asyncio
