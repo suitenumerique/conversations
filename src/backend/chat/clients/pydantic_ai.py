@@ -188,6 +188,7 @@ from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
 from chat.mcp_servers import enter_mcp_toolsets, get_mcp_toolsets
 from chat.rate_limiting import record_and_compute_cooldown
+from chat.stop_signal import StopSignal
 from chat.tasks import parse_and_store_conversation_document_task, summarize_conversation_history
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
@@ -217,12 +218,6 @@ User = get_user_model()
 
 CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
 DOCUMENT_URL_PREFIX = "/media-key/"
-
-# How often the stop-signal watcher polls the cache key while a run is in flight.
-# The per-event checks in _process_agent_nodes cannot fire while the run is parked
-# in a tool call or a provider retry, so this is the floor on how long a Stop click
-# can go unnoticed.
-STOP_SIGNAL_POLL_INTERVAL = 0.5
 
 # Stream-protocol contract with the frontend. Mirrored in
 # ``useChat.tsx`` (``IMAGES_SKIPPED_EVENT_TYPE`` /
@@ -343,7 +338,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID  # HRID of the model to use
         self.model_configuration = get_model_configuration(self.model_hrid)
         self.language = language  # might be None
-        self._last_stop_check = 0
+        self._stop_signal = StopSignal(conversation.pk)
         # Events queued during _prepare_agent_run for _run_agent to yield before
         # the model is actually called (e.g. images-skipped notices). The list is
         # cleared at the start of every stream via _clean.
@@ -435,11 +430,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 return ""
             return f"{SUMMARY_SYSTEM_PREFIX}{self._history_summary.strip()}"
 
-    @property
-    def _stop_cache_key(self):
-        """Cache key holding the stop signal for this conversation's stream."""
-        return f"streaming:stop:{self.conversation.pk}"
-
     # --------------------------------------------------------------------- #
     # Public streaming API (unchanged signatures)
     # --------------------------------------------------------------------- #
@@ -452,10 +442,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         Stop the current streaming operation.
 
-        This method is a placeholder for stopping the streaming operation.
+        The signal itself lives in `StopSignal`: this request and the stream it
+        stops usually run in different workers.
         """
-        logger.info("Stopping streaming for conversation %s", self.conversation.id)
-        cache.set(self._stop_cache_key, "1", timeout=CACHE_TIMEOUT)
+        self._stop_signal.arm()
 
     # --------------------------------------------------------------------- #
     # Async internals
@@ -643,21 +633,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             yield chunk
 
     async def _agent_stop_streaming(self, force_cache_check: Optional[bool] = False) -> None:
-        """Check if the agent should stop streaming."""
-        now = time.time()  # Current time in seconds since epoch
-
-        # Check if we should skip the cache check to avoid frequent checks
-        # This is useful to avoid unnecessary cache checks during streaming
-        # Check every 2 seconds
-        if not force_cache_check and now - self._last_stop_check < 2:
-            return
-        self._last_stop_check = now
-
-        if await cache.aget(self._stop_cache_key):
-            logger.info("Streaming stopped by cache key for conversation %s", self.conversation.id)
-            await cache.adelete(self._stop_cache_key)
-            raise StreamCancelException()
-        return
+        """Check the stop signal in band, where the caller stands."""
+        await self._stop_signal.raise_if_stopped(force=force_cache_check)
 
     async def _clean(self):
         """
@@ -666,10 +643,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         This method is called when the agent service is no longer needed.
         It can be used to release resources or perform any necessary cleanup.
         """
-        self._last_stop_check = 0
         self._pre_stream_events = []
         self._user_message_persisted = False
-        await cache.adelete(self._stop_cache_key)
+        await self._stop_signal.clear()
 
     # --------------------------------------------------------------------- #
     # Core agent runner
@@ -1859,27 +1835,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    async def _watch_stop_signal(self, task: asyncio.Task, stop_requested: asyncio.Event) -> None:
-        """Cancel `task` as soon as the stop pill shows up in the cache.
-
-        `_process_agent_nodes` can only read the pill between two streamed
-        events, so a run parked inside a tool call or a provider retry ignores
-        Stop for as long as that takes - minutes, in practice. This watcher is
-        the floor: it polls on its own schedule and cancels the run wherever it
-        happens to be blocked.
-        """
-        while True:
-            await asyncio.sleep(STOP_SIGNAL_POLL_INTERVAL)
-            if await cache.aget(self._stop_cache_key):
-                logger.info(
-                    "Stop signal observed by the watcher; cancelling the run for conversation %s",
-                    self.conversation.id,
-                )
-                await cache.adelete(self._stop_cache_key)
-                stop_requested.set()
-                task.cancel()
-                return
-
     async def _stream_agent_events(
         self,
         run,
@@ -1890,7 +1845,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """Stream the run's events, cancellable while the run is blocked.
 
         The node stream is consumed by a task rather than inline so that
-        `_watch_stop_signal` can cancel it promptly. The cancellation is
+        `StopSignal.cancelling` can cancel it promptly. The cancellation is
         delivered at whatever await the run is parked on, which is exactly what
         makes Pydantic AI record the partially-built response on the run -- the
         same mechanism the client-disconnect trigger relies on.
@@ -1899,7 +1854,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         queue: asyncio.Queue = asyncio.Queue()
         done = object()
-        stop_requested = asyncio.Event()
 
         async def produce() -> None:
             """Drain the node stream into the queue, persisting the turn either way."""
@@ -1919,7 +1873,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         self.conversation.pk,
                     )
                     await self._persist_interrupted_turn(run, state, usage, image_actions)
-                    if stop_requested.is_set():
+                    if stop_watch.fired():
                         # Our own watcher cancelled this task, so report the stop
                         # as a stop: `convert_async_generator_to_sync` ends the
                         # stream cleanly on StreamCancelException, where a bare
@@ -1932,7 +1886,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # finished. Nothing is left for the watcher to stop, and letting
                 # it fire mid-write would cancel this task into the interrupted
                 # branch, over a turn already being stored as a complete one.
-                watcher_task.cancel()
+                stop_watch.call_off()
                 # Shielded for the reason the interrupted path is: the consumer
                 # can be cancelled while this write is in flight, and its cleanup
                 # cancels this task.
@@ -1942,22 +1896,24 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # matters while the task is being cancelled.
                 queue.put_nowait(done)
 
+        # `produce` reads `stop_watch` from this scope: it cannot run before the
+        # `async with` binds it, because nothing between the two awaits.
         producer_task = asyncio.create_task(produce())
-        watcher_task = asyncio.create_task(self._watch_stop_signal(producer_task, stop_requested))
         try:
-            while True:
-                item = await queue.get()
-                if item is done:
-                    break
-                yield item
-            # The sentinel is put after the interrupted turn is persisted, so
-            # awaiting here cannot outrun the write. Surfaces whatever ended the
-            # producer.
-            await producer_task
+            # Left before the `finally` below cancels the producer: a watcher
+            # still running there could fire a second cancellation into a
+            # partial turn already being written.
+            async with self._stop_signal.cancelling(producer_task) as stop_watch:
+                while True:
+                    item = await queue.get()
+                    if item is done:
+                        break
+                    yield item
+                # The sentinel is put after the interrupted turn is persisted,
+                # so awaiting here cannot outrun the write. Surfaces whatever
+                # ended the producer.
+                await producer_task
         finally:
-            watcher_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await watcher_task
             if not producer_task.done():
                 producer_task.cancel()
                 with suppress(asyncio.CancelledError, StreamCancelException):

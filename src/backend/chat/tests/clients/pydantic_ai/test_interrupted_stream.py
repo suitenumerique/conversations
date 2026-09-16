@@ -67,9 +67,9 @@ async def test_stop_persists_the_partial_assistant_message(ui_messages):
         """Stream one chunk, then arm the stop before the next one."""
         yield "Partial "
         service.stop_streaming()
-        # The stop check is throttled to once every 2s; reset the clock so the
-        # next event checks the cache instead of skipping it.
-        service._last_stop_check = 0
+        # The in-band check is throttled to once every 2s; reset the clock so
+        # the next event reads the cache instead of skipping it.
+        service._stop_signal._last_check = 0
         yield "answer"
         yield " never streamed"
 
