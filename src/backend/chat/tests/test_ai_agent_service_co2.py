@@ -43,6 +43,8 @@ def service_fixture(conversation):
     s = object.__new__(AIAgentService)
     s.conversation = conversation
     s.user = SimpleNamespace(pk=1)
+    # Normally set by __init__/_clean, which this fixture skips.
+    s._user_message_persisted = False
     s.conversation_agent = SimpleNamespace(
         configuration=LLModel(
             hrid="m",

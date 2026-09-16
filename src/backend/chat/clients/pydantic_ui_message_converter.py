@@ -8,7 +8,7 @@ import json
 import logging
 import uuid
 from dataclasses import asdict
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic_ai.messages import (
     BinaryContent,
@@ -215,7 +215,7 @@ def _response_part_to_ui_parts(part: ModelResponsePart) -> List[UIPart]:
                 type=f"{TOOL_PART_PREFIX}{part.tool_name}",
                 toolCallId=part.tool_call_id,
                 state="input-available",
-                input=json.loads(part.args) if isinstance(part.args, str) else part.args or {},
+                input=_tool_call_input(part.args),
             )
         ]
 
@@ -223,6 +223,22 @@ def _response_part_to_ui_parts(part: ModelResponsePart) -> List[UIPart]:
         return [ReasoningUIPart(type="reasoning", text=part.content)]
 
     raise ValueError(f"Unsupported ModelMessage part type: {type(part)}")
+
+
+def _tool_call_input(args: str | dict | None) -> Any:
+    """The arguments a tool was called with, tolerating an interrupted call.
+
+    A stream cut off mid tool-call leaves `args` as truncated JSON (e.g.
+    `'{"query":'`). The raw fragment is still persisted to the pydantic
+    message history, which is what a later turn replays; the UI part just
+    has nothing renderable to show for it yet.
+    """
+    if not isinstance(args, str):
+        return args or {}
+    try:
+        return json.loads(args)
+    except json.JSONDecodeError:
+        return {}
 
 
 def _response_user_content_to_ui_part(content: UserContent) -> UIPart:
