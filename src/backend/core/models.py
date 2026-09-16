@@ -174,6 +174,16 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         help_text=_("Whether the user allows to use smart web search features."),
     )
 
+    allow_datagouv_connector = models.BooleanField(
+        _("allow data.gouv connector"),
+        default=False,
+        help_text=_(
+            "Whether the user asked for the data.gouv connector. This records a "
+            "choice, not an entitlement: the connector also requires the beta "
+            "feature flag and a configured endpoint."
+        ),
+    )
+
     # Organization SIRET from the OIDC "siret" claim, refreshed on every login.
     # Empty string (not NULL) when absent or malformed, per Django's convention
     # for optional string fields.

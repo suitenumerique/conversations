@@ -39,6 +39,10 @@ class UserAdmin(auth_admin.UserAdmin):
                     "timezone",
                     "allow_smart_web_search",
                     "allow_conversation_analytics",
+                    # Settable here, unlike its neighbours: the connector has no
+                    # user-facing switch yet (#728), so this is the only way to
+                    # enrol someone in the beta.
+                    "allow_datagouv_connector",
                 )
             },
         ),
@@ -76,6 +80,7 @@ class UserAdmin(auth_admin.UserAdmin):
         "is_active",
         "allow_smart_web_search",
         "allow_conversation_analytics",
+        "allow_datagouv_connector",
         "is_staff",
         "is_superuser",
         "is_device",
@@ -89,6 +94,7 @@ class UserAdmin(auth_admin.UserAdmin):
         "is_active",
         "allow_smart_web_search",
         "allow_conversation_analytics",
+        "allow_datagouv_connector",
     )
     ordering = (
         "is_active",

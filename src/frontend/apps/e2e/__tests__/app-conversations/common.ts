@@ -5,6 +5,7 @@ export const CONFIG = {
   DOCS_BASE_URL: null,
   ENVIRONMENT: 'development',
   FEATURE_FLAGS: {
+    'datagouv-connector': 'disabled',
     'document-upload': 'enabled',
     'presentation-generation': 'disabled',
     'web-search': 'enabled',
