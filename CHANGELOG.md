@@ -20,6 +20,7 @@ and this project adheres to
 - 🐛(back) replace whitenoise with servestatic for async-capable serving
 - 🩹(back) persist the assistant message when a stream is interrupted
 - 🩹(back) honour the stop button while the run is blocked
+- 🩹(back) persist a finished turn before its frames drain
 
 ## [0.0.24] - 2026-09-08
 

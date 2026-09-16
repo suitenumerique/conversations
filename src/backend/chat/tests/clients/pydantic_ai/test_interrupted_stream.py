@@ -525,3 +525,64 @@ async def test_interruption_while_a_tool_runs_leaves_the_conversation_usable(ui_
     await sync_to_async(conversation.refresh_from_db)()
     assert conversation.messages[-1].role == "assistant"
     assert conversation.messages[-1].content == "Back to normal."
+
+
+@pytest.mark.asyncio
+async def test_finished_turn_survives_a_disconnect_while_frames_are_draining(ui_messages):
+    """A run that completed is stored even if the client leaves before the last frame.
+
+    The node stream is consumed by a producer task, so the run can finish
+    while the consumer still has queued frames to write to the socket. A
+    disconnect during that drain never reaches `_finalize_conversation`, and
+    the turn - a complete one, fully generated and paid for - used to be lost
+    outright.
+    """
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+    parked = asyncio.Event()
+    release = asyncio.Event()
+    persisted = asyncio.Event()
+    chunks = []
+
+    persist_completed_turn = service._persist_completed_turn
+
+    async def _signal_when_persisted(*args, **kwargs):
+        """Run the real write, then let the test know it landed."""
+        await persist_completed_turn(*args, **kwargs)
+        persisted.set()
+
+    service._persist_completed_turn = _signal_when_persisted
+
+    async def _stream_function(_messages: list[ModelMessage], _info: AgentInfo):
+        """Answer in full; the run ends as soon as this returns."""
+        yield "A complete answer"
+
+    async def _stalled_consume():
+        """Read two frames, then stop reading like a client that went away."""
+        async for chunk in service.stream_data_async(ui_messages):
+            chunks.append(chunk)
+            if len(chunks) >= 2:
+                parked.set()
+                await release.wait()
+
+    model = FunctionModel(stream_function=_stream_function)
+    with service.conversation_agent.override(model=model):
+        task = asyncio.create_task(_stalled_consume())
+        await parked.wait()
+        # Wait for the producer to finish the turn and store it while the
+        # consumer is stalled on the socket - the window this test is about.
+        # Bounded so a regression fails the test instead of hanging it, and
+        # signalled rather than slept so a slow worker cannot cancel first and
+        # quietly send the run down the interrupted path instead.
+        await asyncio.wait_for(persisted.wait(), timeout=10)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    await sync_to_async(conversation.refresh_from_db)()
+    assert [(message.role, message.content) for message in conversation.messages] == [
+        ("user", "Hello"),
+        ("assistant", "A complete answer"),
+    ]
+    # The run finished: this is a stored complete turn, not a salvaged partial one.
+    assert not (conversation.messages[-1].metadata or {}).get("interrupted")

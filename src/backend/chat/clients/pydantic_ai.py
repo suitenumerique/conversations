@@ -166,6 +166,7 @@ from chat.clients.schema import (
     ContextDeps,
     DocumentParsingResult,
     ImagePostRunActions,
+    PersistedTurn,
     PreparedHistory,
     StreamingState,
 )
@@ -1749,35 +1750,31 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         await asyncio.shield(_persist_and_record())
 
-    async def _finalize_conversation(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    async def _persist_completed_turn(
         self,
-        new_messages: list,
-        run_output,
-        usage: Dict[str, Union[int, float]],
+        run,
         state: StreamingState,
+        usage: Dict[str, Union[int, float]],
         image_actions: ImagePostRunActions,
-    ) -> AsyncGenerator[events_v4.Event, None]:
-        """
-        Finalize the conversation after the agent run completes.
+    ) -> None:
+        """Store a finished turn, and park the frames it produced on `state`.
 
-        This method handles all post-processing:
-        1. Final stop check (allows late cancellation)
-        2. Saves the conversation with:
-           - New messages (user request + assistant response)
-           - UI sources (citations from tools)
-           - Token usage statistics
-           - Image URL mappings (signed → unsigned for storage)
-        3. Auto-generates a title after N user messages (if not manually set)
-        4. Persists the conversation to the database
-        5. Emits cooldown and title update events (if any)
-        6. Updates Langfuse trace with final output
-        7. Emits FinishMessagePart to signal stream completion
+        Called from the producer task the moment the run ends, before the queue
+        sentinel goes out. Everything after that point - the consumer draining
+        queued frames to the socket, then `_finalize_conversation` - happens
+        while the client can still disappear, and a disconnect anywhere in
+        there used to drop a turn that was fully generated and already paid
+        for. Persisting here puts the write where nothing but the run itself
+        can interrupt it.
 
-        Yields:
-            DataPart: Title update notification (if title was generated)
-            FinishMessagePart: Always emitted last to signal completion
+        The frames the write produces (cooldown, generated title, CO2) cannot
+        be yielded from a task, so they ride out on `state.persisted_turn` for
+        `_finalize_conversation` to emit.
         """
-        await self._agent_stop_streaming(force_cache_check=True)
+        final_usage = run.usage
+        usage["promptTokens"] = final_usage.input_tokens
+        usage["completionTokens"] = final_usage.output_tokens
+        usage["co2_impact"] = _extract_co2_from_usage(final_usage)
 
         # Total tokens the model processed for this request, across every
         # tool-loop round-trip (RAG/web-search results fed back as input count
@@ -1790,21 +1787,57 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # folds the conversation's cumulative total into usage["co2_impact"].
         message_co2_impact = usage["co2_impact"]
 
-        generated_title = await self._persist_turn(new_messages, usage, state, image_actions)
-
+        generated_title = await self._persist_turn(
+            run.result.new_messages(), usage, state, image_actions
+        )
         cooldown_seconds = await sync_to_async(record_and_compute_cooldown)(
             self.user.pk, self.conversation_agent.configuration, request_tokens
         )
-        if cooldown_seconds:
-            yield events_v4.DataPart(data=[{"type": "cooldown", "seconds": cooldown_seconds}])
+        state.persisted_turn = PersistedTurn(
+            generated_title=generated_title,
+            cooldown_seconds=cooldown_seconds,
+            message_co2_impact=message_co2_impact,
+        )
 
-        if generated_title:
+    async def _finalize_conversation(
+        self,
+        run_output,
+        usage: Dict[str, Union[int, float]],
+        state: StreamingState,
+    ) -> AsyncGenerator[events_v4.Event, None]:
+        """
+        Emit the closing frames of a turn that `_persist_completed_turn` stored.
+
+        This method handles all post-processing:
+        1. Final stop check (allows late cancellation)
+        2. Emits the cooldown event (if the window earned one)
+        3. Emits title update event (if generated)
+        4. Updates Langfuse trace with final output
+        5. Emits FinishMessagePart to signal stream completion
+
+        The stop check runs after the turn is on disk, not before it: a run
+        that already finished has nothing left to cancel, and letting a late
+        Stop skip the write is how the turn used to be lost.
+
+        Yields:
+            DataPart: Title update notification (if title was generated)
+            FinishMessagePart: Always emitted last to signal completion
+        """
+        await self._agent_stop_streaming(force_cache_check=True)
+
+        persisted = state.persisted_turn
+        if persisted.cooldown_seconds:
+            yield events_v4.DataPart(
+                data=[{"type": "cooldown", "seconds": persisted.cooldown_seconds}]
+            )
+
+        if persisted.generated_title:
             yield events_v4.DataPart(
                 data=[
                     {
                         "type": "conversation_metadata",
                         "conversationId": str(self.conversation.pk),
-                        "title": generated_title,
+                        "title": persisted.generated_title,
                     }
                 ]
             )
@@ -1812,8 +1845,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Stream the CO2 annotation _prepare_update_conversation persists, so the
         # live message carries it like a reload does. Only that key is stored:
         # the usage in the finish frame below is streamed but never persisted.
-        if message_co2_impact:
-            yield events_v4.MessageAnnotationPart(annotations=[{"co2_impact": message_co2_impact}])
+        if persisted.message_co2_impact:
+            yield events_v4.MessageAnnotationPart(
+                annotations=[{"co2_impact": persisted.message_co2_impact}]
+            )
         # Vercel finish message
         yield events_v4.FinishMessagePart(
             finish_reason=events_v4.FinishReason.STOP,
@@ -1867,7 +1902,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         stop_requested = asyncio.Event()
 
         async def produce() -> None:
-            """Drain the node stream into the queue, persisting an interrupted turn."""
+            """Drain the node stream into the queue, persisting the turn either way."""
             try:
                 try:
                     async for event in self._process_agent_nodes(run, state):
@@ -1894,8 +1929,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     raise
 
                 # Every branch above re-raises, so reaching here means the run
-                # finished; nothing is left for the watcher to stop.
+                # finished. Nothing is left for the watcher to stop, and letting
+                # it fire mid-write would cancel this task into the interrupted
+                # branch, over a turn already being stored as a complete one.
                 watcher_task.cancel()
+                # Shielded for the reason the interrupted path is: the consumer
+                # can be cancelled while this write is in flight, and its cleanup
+                # cancels this task.
+                await asyncio.shield(self._persist_completed_turn(run, state, usage, image_actions))
             finally:
                 # Unbounded queue, so this never blocks - and never awaits, which
                 # matters while the task is being cancelled.
@@ -2027,17 +2068,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 async for event in self._stream_agent_events(run, state, usage, image_actions):
                     yield event
 
-                # Extract values from run before exiting the context manager
-                new_messages = run.result.new_messages()
+                # The turn itself was stored by _persist_completed_turn, from the
+                # producer task; only the trace output is still needed here, and
+                # only while the context manager still holds the run.
                 run_output = run.result.output
-                final_usage = run.usage
-                usage["promptTokens"] = final_usage.input_tokens
-                usage["completionTokens"] = final_usage.output_tokens
-                usage["co2_impact"] = _extract_co2_from_usage(final_usage)
 
-        async for event in self._finalize_conversation(
-            new_messages, run_output, usage, state, image_actions
-        ):
+        async for event in self._finalize_conversation(run_output, usage, state):
             yield event
 
     @staticmethod
