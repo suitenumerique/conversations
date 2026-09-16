@@ -83,7 +83,7 @@ import logging
 import os
 import time
 import uuid
-from contextlib import AsyncExitStack, ExitStack
+from contextlib import AsyncExitStack, ExitStack, suppress
 from io import BytesIO
 from typing import AsyncGenerator, Dict, List, Optional, Tuple, Union
 
@@ -216,6 +216,12 @@ User = get_user_model()
 
 CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
 DOCUMENT_URL_PREFIX = "/media-key/"
+
+# How often the stop-signal watcher polls the cache key while a run is in flight.
+# The per-event checks in _process_agent_nodes cannot fire while the run is parked
+# in a tool call or a provider retry, so this is the floor on how long a Stop click
+# can go unnoticed.
+STOP_SIGNAL_POLL_INTERVAL = 0.5
 
 # Stream-protocol contract with the frontend. Mirrored in
 # ``useChat.tsx`` (``IMAGES_SKIPPED_EVENT_TYPE`` /
@@ -1818,6 +1824,27 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
+    async def _watch_stop_signal(self, task: asyncio.Task, stop_requested: asyncio.Event) -> None:
+        """Cancel `task` as soon as the stop pill shows up in the cache.
+
+        `_process_agent_nodes` can only read the pill between two streamed
+        events, so a run parked inside a tool call or a provider retry ignores
+        Stop for as long as that takes - minutes, in practice. This watcher is
+        the floor: it polls on its own schedule and cancels the run wherever it
+        happens to be blocked.
+        """
+        while True:
+            await asyncio.sleep(STOP_SIGNAL_POLL_INTERVAL)
+            if await cache.aget(self._stop_cache_key):
+                logger.info(
+                    "Stop signal observed by the watcher; cancelling the run for conversation %s",
+                    self.conversation.id,
+                )
+                await cache.adelete(self._stop_cache_key)
+                stop_requested.set()
+                task.cancel()
+                return
+
     async def _stream_agent_events(
         self,
         run,
@@ -1825,26 +1852,75 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         usage: Dict[str, Union[int, float]],
         image_actions: Optional[ImagePostRunActions],
     ) -> AsyncGenerator[events_v4.Event, None]:
-        """Stream the run's events, persisting the turn if the stream is cut short.
+        """Stream the run's events, cancellable while the run is blocked.
 
-        Both triggers reach the run through this loop, which is what makes
-        Pydantic AI record the partially-built response on the run.
+        The node stream is consumed by a task rather than inline so that
+        `_watch_stop_signal` can cancel it promptly. The cancellation is
+        delivered at whatever await the run is parked on, which is exactly what
+        makes Pydantic AI record the partially-built response on the run -- the
+        same mechanism the client-disconnect trigger relies on.
+
+        Mirrors the producer-task pattern in `chat/keepalive.py`.
         """
+        queue: asyncio.Queue = asyncio.Queue()
+        done = object()
+        stop_requested = asyncio.Event()
+
+        async def produce() -> None:
+            """Drain the node stream into the queue, persisting an interrupted turn."""
+            try:
+                try:
+                    async for event in self._process_agent_nodes(run, state):
+                        queue.put_nowait(event)
+                except StreamCancelException, asyncio.CancelledError:
+                    # Stop pill or client disconnect. Both pass through the
+                    # consumer of the node stream, which is what makes Pydantic
+                    # AI record the partial response on the run. GeneratorExit
+                    # is deliberately not caught: it lands on our own yield
+                    # without reaching the node stream, so there would be no
+                    # partial response to persist.
+                    logger.info(
+                        "Stream interrupted for conversation %s: persisting the partial turn",
+                        self.conversation.pk,
+                    )
+                    await self._persist_interrupted_turn(run, state, usage, image_actions)
+                    if stop_requested.is_set():
+                        # Our own watcher cancelled this task, so report the stop
+                        # as a stop: `convert_async_generator_to_sync` ends the
+                        # stream cleanly on StreamCancelException, where a bare
+                        # CancelledError escaping the worker thread is only noise.
+                        producer_task.uncancel()
+                        raise StreamCancelException() from None
+                    raise
+
+                # Every branch above re-raises, so reaching here means the run
+                # finished; nothing is left for the watcher to stop.
+                watcher_task.cancel()
+            finally:
+                # Unbounded queue, so this never blocks - and never awaits, which
+                # matters while the task is being cancelled.
+                queue.put_nowait(done)
+
+        producer_task = asyncio.create_task(produce())
+        watcher_task = asyncio.create_task(self._watch_stop_signal(producer_task, stop_requested))
         try:
-            async for event in self._process_agent_nodes(run, state):
-                yield event
-        except StreamCancelException, asyncio.CancelledError:
-            # Stop pill or client disconnect. Both pass through the consumer of
-            # the node stream, which is what makes Pydantic AI record the
-            # partial response on the run. GeneratorExit is deliberately not
-            # caught: it lands on our own yield without reaching the node
-            # stream, so there would be no partial response to persist.
-            logger.info(
-                "Stream interrupted for conversation %s: persisting the partial turn",
-                self.conversation.pk,
-            )
-            await self._persist_interrupted_turn(run, state, usage, image_actions)
-            raise
+            while True:
+                item = await queue.get()
+                if item is done:
+                    break
+                yield item
+            # The sentinel is put after the interrupted turn is persisted, so
+            # awaiting here cannot outrun the write. Surfaces whatever ended the
+            # producer.
+            await producer_task
+        finally:
+            watcher_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await watcher_task
+            if not producer_task.done():
+                producer_task.cancel()
+                with suppress(asyncio.CancelledError, StreamCancelException):
+                    await producer_task
 
     async def _run_agent(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # noqa: PLR0912
         self,

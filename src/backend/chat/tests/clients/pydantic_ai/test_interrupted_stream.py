@@ -399,6 +399,38 @@ async def test_a_completed_stream_still_persists_normally(ui_messages):
 
 
 @pytest.mark.asyncio
+async def test_stop_is_honoured_while_the_run_is_blocked(ui_messages):
+    """The stop pill lands even when the run emits no further events.
+
+    `_process_agent_nodes` only reads the pill between two streamed events, so
+    a run parked in a tool call or a provider retry used to ignore Stop until
+    it unblocked - minutes later, with the browser already gone. The watcher
+    cancels the run where it is blocked instead.
+    """
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+
+    async def _stream_function(_messages: list[ModelMessage], _info: AgentInfo):
+        """Stream one chunk, arm the stop, then block with nothing to emit."""
+        yield "Partial answer"
+        service.stop_streaming()
+        await asyncio.sleep(60)
+        yield "never streamed"
+
+    model = FunctionModel(stream_function=_stream_function)
+    with service.conversation_agent.override(model=model):
+        # Bounded so a regression fails the test instead of hanging it.
+        chunks = await asyncio.wait_for(_collect(service, ui_messages), timeout=10)
+
+    assert stream_frames(chunks)[-1] == "[DONE]"
+    await sync_to_async(conversation.refresh_from_db)()
+    assert [(message.role, message.content) for message in conversation.messages] == [
+        ("user", "Hello"),
+        ("assistant", "Partial answer"),
+    ]
+
+
+@pytest.mark.asyncio
 async def test_turn_is_saved_before_the_title_is_generated(ui_messages, settings):
     """Title generation is an LLM round-trip; the turn must already be on disk.
 
