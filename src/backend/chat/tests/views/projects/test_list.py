@@ -5,10 +5,24 @@ from freezegun import freeze_time
 from rest_framework import status
 
 from core.factories import UserFactory
+from core.models import MaintenanceMode
 
 from chat.factories import ChatConversationFactory, ChatProjectFactory
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture(autouse=True, name="_maintenance_mode_primed")
+def maintenance_mode_primed_fixture():
+    """Create the MaintenanceMode singleton before the query counts below.
+
+    MaintenanceMiddleware calls get_solo() on every request. Its django-solo
+    cache outlives a test while the row it describes is rolled back with it, so
+    whichever test happens to run first pays five extra queries re-creating it.
+    Priming here makes the counts independent of test order and of how xdist
+    distributes them.
+    """
+    MaintenanceMode.get_solo()
 
 
 def test_list_projects(api_client, django_assert_num_queries):
