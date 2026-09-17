@@ -3,12 +3,12 @@
   "description": "An util to generate html and text django's templates from mjml templates",
   "type": "module",
   "dependencies": {
-    "@html-to/text-cli": "0.6.0",
+    "@html-to/text-cli": "0.6.1",
     "mjml": "4.18.0"
   },
   "resolutions": {
-    "lodash": "4.18.0",
-    "brace-expansion": "^2.1.4"
+    "lodash": "4.18.1",
+    "brace-expansion": "^5.0.0"
   },
   "private": true,
   "scripts": {
