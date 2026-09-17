@@ -83,7 +83,7 @@ import logging
 import os
 import time
 import uuid
-from contextlib import AsyncExitStack, ExitStack
+from contextlib import AsyncExitStack, ExitStack, suppress
 from io import BytesIO
 from typing import AsyncGenerator, Dict, List, Optional, Tuple, Union
 
@@ -166,6 +166,7 @@ from chat.clients.schema import (
     ContextDeps,
     DocumentParsingResult,
     ImagePostRunActions,
+    PersistedTurn,
     PreparedHistory,
     StreamingState,
 )
@@ -187,6 +188,7 @@ from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
 from chat.mcp_servers import enter_mcp_toolsets, get_mcp_toolsets
 from chat.rate_limiting import record_and_compute_cooldown
+from chat.stop_signal import StopSignal
 from chat.tasks import parse_and_store_conversation_document_task, summarize_conversation_history
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
@@ -223,6 +225,30 @@ DOCUMENT_URL_PREFIX = "/media-key/"
 # reasons or events.
 IMAGES_SKIPPED_EVENT_TYPE = "images_skipped"
 IMAGE_SKIP_REASON_TEXT_ONLY = "model_text_only"
+
+
+def _mark_dangling_tool_calls_interrupted(new_messages: list[ModelMessage]) -> None:
+    """Stamp a trailing response holding unexecuted tool calls as interrupted.
+
+    Pydantic AI stamps `state='interrupted'` only on a response it was still
+    streaming when the cancellation landed. A cancellation that lands later,
+    while a tool runs, leaves the response `complete` with tool calls that will
+    never get returns - and `_agent_graph` refuses a new user prompt on such a
+    history ("unprocessed tool calls"). The refusal is permanent: every later
+    turn reads the same history back. Stamping it here routes it to Pydantic
+    AI's own repair path, which closes the calls out with synthesized returns.
+
+    Mutates in place, matching the other history helpers on this path.
+    """
+    if not new_messages:
+        return
+    last_message = new_messages[-1]
+    if (
+        isinstance(last_message, ModelResponse)
+        and last_message.tool_calls
+        and last_message.state == "complete"
+    ):
+        last_message.state = "interrupted"
 
 
 def _strip_thinking_parts(history: list[ModelMessage]) -> list[ModelMessage]:
@@ -312,7 +338,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID  # HRID of the model to use
         self.model_configuration = get_model_configuration(self.model_hrid)
         self.language = language  # might be None
-        self._last_stop_check = 0
+        self._stop_signal = StopSignal(conversation.pk)
         # Events queued during _prepare_agent_run for _run_agent to yield before
         # the model is actually called (e.g. images-skipped notices). The list is
         # cleared at the start of every stream via _clean.
@@ -326,6 +352,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # client in the `start` frame and persisted with the message. Set per
         # stream by _stream_content.
         self._model_response_message_id: str | None = None
+        # True once the inbound user message has already been persisted earlier
+        # in the current turn (image-skip or error path), so
+        # _prepare_update_conversation must not rebuild and append it again.
+        self._user_message_persisted = False
 
         self._support_streaming = True
         if (streaming := self.model_configuration.supports_streaming) is not None:
@@ -400,11 +430,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 return ""
             return f"{SUMMARY_SYSTEM_PREFIX}{self._history_summary.strip()}"
 
-    @property
-    def _stop_cache_key(self):
-        """Cache key holding the stop signal for this conversation's stream."""
-        return f"streaming:stop:{self.conversation.pk}"
-
     # --------------------------------------------------------------------- #
     # Public streaming API (unchanged signatures)
     # --------------------------------------------------------------------- #
@@ -417,10 +442,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         Stop the current streaming operation.
 
-        This method is a placeholder for stopping the streaming operation.
+        The signal itself lives in `StopSignal`: this request and the stream it
+        stops usually run in different workers.
         """
-        logger.info("Stopping streaming for conversation %s", self.conversation.id)
-        cache.set(self._stop_cache_key, "1", timeout=CACHE_TIMEOUT)
+        self._stop_signal.arm()
 
     # --------------------------------------------------------------------- #
     # Async internals
@@ -432,11 +457,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         In normal flow, _prepare_update_conversation saves both user and assistant
         messages after a successful LLM response. On error that path is never reached,
         so we save the user message here to keep it visible on page reload.
-        Role-based guard prevents double-appending on repeated errors.
+        Guards on the message's own id (not the per-turn flag): repeated errors on
+        the same inbound message must not double-append, and that identity check
+        holds across separate stream calls on the same service instance, unlike
+        the per-turn flag.
         """
-        if self.conversation.messages and self.conversation.messages[-1].role == "user":
+        if self.conversation.messages and self.conversation.messages[-1].id == user_message.id:
+            self._user_message_persisted = True
             return
         self.conversation.messages = list(self.conversation.messages) + [user_message]
+        self._user_message_persisted = True
         await sync_to_async(self.conversation.save)(update_fields=["messages"])
 
     @staticmethod
@@ -464,11 +494,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         never saw (because we stripped them), losing the filenames the frontend
         needs to render the "image removed" chip. By saving the original message
         here (with markers already stamped), the rebuild step short-circuits via
-        the "last message is user" guard and the marked version stands.
+        the id-identity guard and the marked version stands.
         """
-        if self.conversation.messages and self.conversation.messages[-1].role == "user":
+        if self.conversation.messages and self.conversation.messages[-1].id == user_message.id:
+            self._user_message_persisted = True
             return
         self.conversation.messages = list(self.conversation.messages) + [user_message]
+        self._user_message_persisted = True
         await sync_to_async(self.conversation.save)(update_fields=["messages"])
 
     def _add_unreadable_images_instruction(self, subject: Optional[str]) -> None:
@@ -578,6 +610,17 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 error_event = events_v4.ErrorPart(error="summarization_failed")
                 for translated in translator.translate(error_event):
                     yield self.event_encoder.encode(translated)
+            except StreamCancelException:
+                # The stop pill ended the run and the partial turn is already
+                # persisted, so there is nothing to report as an error. Caught
+                # here rather than left to the caller because only the WSGI
+                # wrapper (`convert_async_generator_to_sync`) handles it; under
+                # ASGI it would escape mid-response. Falling through closes the
+                # stream with the same flush and DONE frame as a normal end.
+                logger.info(
+                    "Streaming stopped for conversation %s: closing the stream",
+                    self.conversation.pk,
+                )
 
             for translated in translator.flush():
                 yield self.event_encoder.encode(translated)
@@ -590,21 +633,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             yield chunk
 
     async def _agent_stop_streaming(self, force_cache_check: Optional[bool] = False) -> None:
-        """Check if the agent should stop streaming."""
-        now = time.time()  # Current time in seconds since epoch
-
-        # Check if we should skip the cache check to avoid frequent checks
-        # This is useful to avoid unnecessary cache checks during streaming
-        # Check every 2 seconds
-        if not force_cache_check and now - self._last_stop_check < 2:
-            return
-        self._last_stop_check = now
-
-        if await cache.aget(self._stop_cache_key):
-            logger.info("Streaming stopped by cache key for conversation %s", self.conversation.id)
-            await cache.adelete(self._stop_cache_key)
-            raise StreamCancelException()
-        return
+        """Check the stop signal in band, where the caller stands."""
+        await self._stop_signal.raise_if_stopped(force=force_cache_check)
 
     async def _clean(self):
         """
@@ -613,9 +643,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         This method is called when the agent service is no longer needed.
         It can be used to release resources or perform any necessary cleanup.
         """
-        self._last_stop_check = 0
         self._pre_stream_events = []
-        await cache.adelete(self._stop_cache_key)
+        self._user_message_persisted = False
+        await self._stop_signal.clear()
 
     # --------------------------------------------------------------------- #
     # Core agent runner
@@ -1600,35 +1630,127 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         output = run_output if self._store_analytics else "REDACTED"
         self._langfuse_span.update(output=output)
 
-    async def _finalize_conversation(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    async def _persist_turn(
         self,
         new_messages: list,
-        run_output,
         usage: Dict[str, Union[int, float]],
         state: StreamingState,
+        image_actions: Optional[ImagePostRunActions],
+    ) -> str | None:
+        """Write the turn's messages, usage and title to the database.
+
+        Shared by the completed path (`_finalize_conversation`) and the
+        interrupted one (`_persist_interrupted_turn`): both store the same
+        things the same way, so a change here cannot fix one and break the
+        other. Emits nothing — the caller owns the stream frames.
+
+        Returns the freshly generated title, or None when no title was due.
+        """
+        await sync_to_async(self._prepare_update_conversation)(
+            final_output=new_messages,
+            usage=usage,
+            ui_sources=state.ui_sources,
+            model_response_message_id=state.model_response_message_id,
+            image_actions=image_actions,
+        )
+        # Saved before the title is generated: _generate_title_if_needed is an
+        # LLM round-trip, and until this write lands a page reload shows an
+        # empty conversation. `updated_at` is listed explicitly because Django
+        # does not add `auto_now` fields to an explicit update_fields set, and
+        # the conversation list orders on it.
+        await sync_to_async(self.conversation.save)(
+            update_fields=["messages", "pydantic_messages", "agent_usage", "updated_at"]
+        )
+        generated_title = await self._generate_title_if_needed()
+        if generated_title:
+            await sync_to_async(self.conversation.save)(update_fields=["title", "updated_at"])
+        return generated_title
+
+    async def _persist_interrupted_turn(
+        self,
+        run,
+        state: StreamingState,
+        usage: Dict[str, Union[int, float]],
+        image_actions: Optional[ImagePostRunActions],
+    ) -> None:
+        """Persist the turn of a stream that stopped before the agent ended.
+
+        `run.result` is None on interruption, so the turn is read off the run
+        itself: Pydantic AI has already appended the partially-built response
+        (stamped `state='interrupted'`) to the run's history and added its
+        usage to the run. Nothing is streamed from here — on a disconnect
+        there is no client left to receive it.
+
+        The writes are shielded: on the disconnect trigger this coroutine runs
+        inside a task that is being cancelled, and unshielded DB work would be
+        torn down mid-write. The rate-limit window is updated in the same
+        shielded region as the persistence, exactly like the completed path:
+        the tokens were spent regardless of whether the client got to see them,
+        so the interrupted turn must still count against the cooldown. There is
+        no client left to send a cooldown event to, so the returned seconds are
+        discarded.
+
+        No transaction wraps this. If a second cancellation arrives while the
+        shield is in flight, the inner task detaches and can be abandoned part
+        way through: `_persist_turn` writes the turn and the title in two
+        separate saves, and the cooldown is a third write after them. Each
+        partial outcome stands on its own — no turn at all is the pre-fix
+        behaviour, a turn without a title is what an untitled conversation
+        already looks like, and an unrecorded cooldown undercounts one
+        interrupted turn. None of them leaves a row in a state the rest of the
+        code cannot read, which is why atomicity is not worth the connection.
+        """
+        # Minted (and streamed) by _stream_content. The end node that normally
+        # copies it was never reached, so the persisted message would otherwise
+        # get a fresh id and no longer be the message the client is holding.
+        state.model_response_message_id = self._model_response_message_id
+
+        run_usage = run.usage
+        usage["promptTokens"] = run_usage.input_tokens
+        usage["completionTokens"] = run_usage.output_tokens
+        usage["co2_impact"] = _extract_co2_from_usage(run_usage)
+
+        # Captured before _persist_turn folds it into the conversation's
+        # cumulative total, exactly as _finalize_conversation does.
+        request_tokens = int(usage["promptTokens"]) + int(usage["completionTokens"])
+
+        new_messages = run.new_messages()
+        _mark_dangling_tool_calls_interrupted(new_messages)
+
+        async def _persist_and_record():
+            """Persist the turn, then record it against the rate-limit window."""
+            await self._persist_turn(new_messages, usage, state, image_actions)
+            await sync_to_async(record_and_compute_cooldown)(
+                self.user.pk, self.conversation_agent.configuration, request_tokens
+            )
+
+        await asyncio.shield(_persist_and_record())
+
+    async def _persist_completed_turn(
+        self,
+        run,
+        state: StreamingState,
+        usage: Dict[str, Union[int, float]],
         image_actions: ImagePostRunActions,
-    ) -> AsyncGenerator[events_v4.Event, None]:
-        """
-        Finalize the conversation after the agent run completes.
+    ) -> None:
+        """Store a finished turn, and park the frames it produced on `state`.
 
-        This method handles all post-processing:
-        1. Final stop check (allows late cancellation)
-        2. Saves the conversation with:
-           - New messages (user request + assistant response)
-           - UI sources (citations from tools)
-           - Token usage statistics
-           - Image URL mappings (signed → unsigned for storage)
-        3. Auto-generates a title after N user messages (if not manually set)
-        4. Persists the conversation to the database
-        5. Emits title update event (if generated)
-        6. Updates Langfuse trace with final output
-        7. Emits FinishMessagePart to signal stream completion
+        Called from the producer task the moment the run ends, before the queue
+        sentinel goes out. Everything after that point - the consumer draining
+        queued frames to the socket, then `_finalize_conversation` - happens
+        while the client can still disappear, and a disconnect anywhere in
+        there used to drop a turn that was fully generated and already paid
+        for. Persisting here puts the write where nothing but the run itself
+        can interrupt it.
 
-        Yields:
-            DataPart: Title update notification (if title was generated)
-            FinishMessagePart: Always emitted last to signal completion
+        The frames the write produces (cooldown, generated title, CO2) cannot
+        be yielded from a task, so they ride out on `state.persisted_turn` for
+        `_finalize_conversation` to emit.
         """
-        await self._agent_stop_streaming(force_cache_check=True)
+        final_usage = run.usage
+        usage["promptTokens"] = final_usage.input_tokens
+        usage["completionTokens"] = final_usage.output_tokens
+        usage["co2_impact"] = _extract_co2_from_usage(final_usage)
 
         # Total tokens the model processed for this request, across every
         # tool-loop round-trip (RAG/web-search results fed back as input count
@@ -1641,31 +1763,57 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # folds the conversation's cumulative total into usage["co2_impact"].
         message_co2_impact = usage["co2_impact"]
 
-        await sync_to_async(self._prepare_update_conversation)(
-            final_output=new_messages,
-            usage=usage,
-            ui_sources=state.ui_sources,
-            model_response_message_id=state.model_response_message_id,
-            image_actions=image_actions,
+        generated_title = await self._persist_turn(
+            run.result.new_messages(), usage, state, image_actions
         )
-
-        generated_title = await self._generate_title_if_needed()
-
-        await sync_to_async(self.conversation.save)()
-
         cooldown_seconds = await sync_to_async(record_and_compute_cooldown)(
             self.user.pk, self.conversation_agent.configuration, request_tokens
         )
-        if cooldown_seconds:
-            yield events_v4.DataPart(data=[{"type": "cooldown", "seconds": cooldown_seconds}])
+        state.persisted_turn = PersistedTurn(
+            generated_title=generated_title,
+            cooldown_seconds=cooldown_seconds,
+            message_co2_impact=message_co2_impact,
+        )
 
-        if generated_title:
+    async def _finalize_conversation(
+        self,
+        run_output,
+        usage: Dict[str, Union[int, float]],
+        state: StreamingState,
+    ) -> AsyncGenerator[events_v4.Event, None]:
+        """
+        Emit the closing frames of a turn that `_persist_completed_turn` stored.
+
+        This method handles all post-processing:
+        1. Final stop check (allows late cancellation)
+        2. Emits the cooldown event (if the window earned one)
+        3. Emits title update event (if generated)
+        4. Updates Langfuse trace with final output
+        5. Emits FinishMessagePart to signal stream completion
+
+        The stop check runs after the turn is on disk, not before it: a run
+        that already finished has nothing left to cancel, and letting a late
+        Stop skip the write is how the turn used to be lost.
+
+        Yields:
+            DataPart: Title update notification (if title was generated)
+            FinishMessagePart: Always emitted last to signal completion
+        """
+        await self._agent_stop_streaming(force_cache_check=True)
+
+        persisted = state.persisted_turn
+        if persisted.cooldown_seconds:
+            yield events_v4.DataPart(
+                data=[{"type": "cooldown", "seconds": persisted.cooldown_seconds}]
+            )
+
+        if persisted.generated_title:
             yield events_v4.DataPart(
                 data=[
                     {
                         "type": "conversation_metadata",
                         "conversationId": str(self.conversation.pk),
-                        "title": generated_title,
+                        "title": persisted.generated_title,
                     }
                 ]
             )
@@ -1673,8 +1821,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Stream the CO2 annotation _prepare_update_conversation persists, so the
         # live message carries it like a reload does. Only that key is stored:
         # the usage in the finish frame below is streamed but never persisted.
-        if message_co2_impact:
-            yield events_v4.MessageAnnotationPart(annotations=[{"co2_impact": message_co2_impact}])
+        if persisted.message_co2_impact:
+            yield events_v4.MessageAnnotationPart(
+                annotations=[{"co2_impact": persisted.message_co2_impact}]
+            )
         # Vercel finish message
         yield events_v4.FinishMessagePart(
             finish_reason=events_v4.FinishReason.STOP,
@@ -1684,6 +1834,90 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 co2_impact=usage["co2_impact"],
             ),
         )
+
+    async def _stream_agent_events(
+        self,
+        run,
+        state: StreamingState,
+        usage: Dict[str, Union[int, float]],
+        image_actions: Optional[ImagePostRunActions],
+    ) -> AsyncGenerator[events_v4.Event, None]:
+        """Stream the run's events, cancellable while the run is blocked.
+
+        The node stream is consumed by a task rather than inline so that
+        `StopSignal.cancelling` can cancel it promptly. The cancellation is
+        delivered at whatever await the run is parked on, which is exactly what
+        makes Pydantic AI record the partially-built response on the run -- the
+        same mechanism the client-disconnect trigger relies on.
+
+        Mirrors the producer-task pattern in `chat/keepalive.py`.
+        """
+        queue: asyncio.Queue = asyncio.Queue()
+        done = object()
+
+        async def produce() -> None:
+            """Drain the node stream into the queue, persisting the turn either way."""
+            try:
+                try:
+                    async for event in self._process_agent_nodes(run, state):
+                        queue.put_nowait(event)
+                except StreamCancelException, asyncio.CancelledError:
+                    # Stop pill or client disconnect. Both pass through the
+                    # consumer of the node stream, which is what makes Pydantic
+                    # AI record the partial response on the run. GeneratorExit
+                    # is deliberately not caught: it lands on our own yield
+                    # without reaching the node stream, so there would be no
+                    # partial response to persist.
+                    logger.info(
+                        "Stream interrupted for conversation %s: persisting the partial turn",
+                        self.conversation.pk,
+                    )
+                    await self._persist_interrupted_turn(run, state, usage, image_actions)
+                    if stop_watch.fired():
+                        # Our own watcher cancelled this task, so report the stop
+                        # as a stop: `convert_async_generator_to_sync` ends the
+                        # stream cleanly on StreamCancelException, where a bare
+                        # CancelledError escaping the worker thread is only noise.
+                        producer_task.uncancel()
+                        raise StreamCancelException() from None
+                    raise
+
+                # Every branch above re-raises, so reaching here means the run
+                # finished. Nothing is left for the watcher to stop, and letting
+                # it fire mid-write would cancel this task into the interrupted
+                # branch, over a turn already being stored as a complete one.
+                stop_watch.call_off()
+                # Shielded for the reason the interrupted path is: the consumer
+                # can be cancelled while this write is in flight, and its cleanup
+                # cancels this task.
+                await asyncio.shield(self._persist_completed_turn(run, state, usage, image_actions))
+            finally:
+                # Unbounded queue, so this never blocks - and never awaits, which
+                # matters while the task is being cancelled.
+                queue.put_nowait(done)
+
+        # `produce` reads `stop_watch` from this scope: it cannot run before the
+        # `async with` binds it, because nothing between the two awaits.
+        producer_task = asyncio.create_task(produce())
+        try:
+            # Left before the `finally` below cancels the producer: a watcher
+            # still running there could fire a second cancellation into a
+            # partial turn already being written.
+            async with self._stop_signal.cancelling(producer_task) as stop_watch:
+                while True:
+                    item = await queue.get()
+                    if item is done:
+                        break
+                    yield item
+                # The sentinel is put after the interrupted turn is persisted,
+                # so awaiting here cannot outrun the write. Surfaces whatever
+                # ended the producer.
+                await producer_task
+        finally:
+            if not producer_task.done():
+                producer_task.cancel()
+                with suppress(asyncio.CancelledError, StreamCancelException):
+                    await producer_task
 
     async def _run_agent(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # noqa: PLR0912
         self,
@@ -1787,20 +2021,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 toolsets=mcp_toolsets,
             ) as run:
                 state = StreamingState()
-                async for event in self._process_agent_nodes(run, state):
+                async for event in self._stream_agent_events(run, state, usage, image_actions):
                     yield event
 
-                # Extract values from run before exiting the context manager
-                new_messages = run.result.new_messages()
+                # The turn itself was stored by _persist_completed_turn, from the
+                # producer task; only the trace output is still needed here, and
+                # only while the context manager still holds the run.
                 run_output = run.result.output
-                final_usage = run.usage
-                usage["promptTokens"] = final_usage.input_tokens
-                usage["completionTokens"] = final_usage.output_tokens
-                usage["co2_impact"] = _extract_co2_from_usage(final_usage)
 
-        async for event in self._finalize_conversation(
-            new_messages, run_output, usage, state, image_actions
-        ):
+        async for event in self._finalize_conversation(run_output, usage, state):
             yield event
 
     @staticmethod
@@ -1884,12 +2113,20 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         else:
             logger.warning("model_response_message_id is None")
 
+        metadata = {}
         co2_impact = usage["co2_impact"]
         if co2_impact:
-            _output_ui_message.metadata = {
-                **(_output_ui_message.metadata or {}),
-                "co2_impact": co2_impact,
-            }
+            metadata["co2_impact"] = co2_impact
+        # The merge above builds one ModelResponse and drops the per-message
+        # `state`, so the interrupted marker is read off `final_output` and
+        # surfaced on the UI message instead.
+        if any(
+            isinstance(message, ModelResponse) and message.state == "interrupted"
+            for message in final_output
+        ):
+            metadata["interrupted"] = True
+        if metadata:
+            _output_ui_message.metadata = {**(_output_ui_message.metadata or {}), **metadata}
 
         usage["co2_impact"] += self.conversation.agent_usage.get("co2_impact", 0)
         usage["promptTokens"] += self.conversation.agent_usage.get("promptTokens", 0)
@@ -1897,13 +2134,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self.conversation.agent_usage = usage
 
-        if not (self.conversation.messages and self.conversation.messages[-1].role == "user"):
+        if not self._user_message_persisted:
             _request_ui_message = model_message_to_ui_message(_merged_final_output_request)
             # None when the request holds nothing renderable (system prompt or
             # tool return only): there is no user bubble to rebuild.
             if _request_ui_message:
                 self.conversation.messages += [_request_ui_message]
-        self.conversation.messages += [_output_ui_message]
+        # An interruption before the model produced anything leaves a response
+        # with no parts: there is no assistant bubble to store, only the user's.
+        if _output_ui_message.parts:
+            self.conversation.messages += [_output_ui_message]
 
         final_output_json = json.loads(
             ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")

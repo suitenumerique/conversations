@@ -18,6 +18,10 @@ and this project adheres to
 - 👷(ci) pull the MinIO images from quay.io instead of Docker Hub
 - 🐛(ci) fix the CHANGELOG check failing when a pull request is opened
 - 🐛(back) replace whitenoise with servestatic for async-capable serving
+- 🩹(back) persist the assistant message when a stream is interrupted
+- 🩹(back) honour the stop button while the run is blocked
+- 🩹(back) persist a finished turn before its frames drain
+- ♻️(back) gather the stop signal into its own module
 
 ## [0.0.24] - 2026-09-08
 

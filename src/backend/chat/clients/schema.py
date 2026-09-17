@@ -29,6 +29,22 @@ class PreparedHistory:
 
 
 @dataclasses.dataclass
+class PersistedTurn:
+    """What is left to emit once a finished turn has been written to the database.
+
+    The turn is persisted by the producer task, as soon as the run ends, so a
+    client that disconnects while the queued frames are still draining cannot
+    take the finished turn with it. The frames that persistence produces -- the
+    cooldown, the generated title, the CO2 annotation -- have to outlive that
+    call and reach the consumer, so they are parked here.
+    """
+
+    generated_title: Optional[str] = None
+    cooldown_seconds: int = 0
+    message_co2_impact: float = 0
+
+
+@dataclasses.dataclass
 class StreamingState:
     """
     Mutable state shared across stream processing handlers.
@@ -44,11 +60,14 @@ class StreamingState:
             from web search or RAG). These are appended to the final UI message.
         model_response_message_id: Set when the agent reaches the end node.
             Used to link the UI message to the Langfuse trace for scoring.
+        persisted_turn: Set once a completed turn has been written to the
+            database, carrying the frames the consumer still has to emit.
     """
 
     tool_is_streaming: bool = False
     ui_sources: List[SourceUrlUIPart] = dataclasses.field(default_factory=list)
     model_response_message_id: Optional[str] = None
+    persisted_turn: Optional["PersistedTurn"] = None
 
 
 @dataclasses.dataclass

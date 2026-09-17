@@ -8,18 +8,9 @@ import pytest
 from pydantic_ai.messages import ModelResponse, TextPart
 
 from chat.clients.pydantic_ai import AIAgentService
-from chat.clients.schema import ImagePostRunActions, StreamingState
+from chat.clients.schema import PersistedTurn, StreamingState
 from chat.llm_configuration import LLModel
 from chat.vercel_ai_sdk.core import events_v4
-
-
-def _fake_sync_to_async(fn):
-    """Replacement for sync_to_async: runs the callable directly (no thread pool)."""
-
-    async def wrapper(*args, **kwargs):
-        return fn(*args, **kwargs)
-
-    return wrapper
 
 
 @pytest.fixture(name="conversation")
@@ -43,6 +34,8 @@ def service_fixture(conversation):
     s = object.__new__(AIAgentService)
     s.conversation = conversation
     s.user = SimpleNamespace(pk=1)
+    # Normally set by __init__/_clean, which this fixture skips.
+    s._user_message_persisted = False
     s.conversation_agent = SimpleNamespace(
         configuration=LLModel(
             hrid="m",
@@ -147,22 +140,20 @@ async def test_finalize_emits_finish_message_with_co2(service, co2_impact):
     """FinishMessagePart always emitted with co2_impact in usage."""
     service._langfuse_available = False
     usage = {"promptTokens": 10, "completionTokens": 5, "co2_impact": co2_impact}
-    state = StreamingState(model_response_message_id="test-msg-id")
+    # The turn is persisted before _finalize_conversation runs; it only emits
+    # what that write produced.
+    state = StreamingState(
+        model_response_message_id="test-msg-id",
+        persisted_turn=PersistedTurn(message_co2_impact=co2_impact),
+    )
 
-    with (
-        patch.object(service, "_agent_stop_streaming", new=AsyncMock()),
-        patch.object(service, "_prepare_update_conversation"),
-        patch("chat.clients.pydantic_ai.sync_to_async", side_effect=_fake_sync_to_async),
-        patch("chat.clients.pydantic_ai.record_and_compute_cooldown", return_value=0),
-    ):
+    with patch.object(service, "_agent_stop_streaming", new=AsyncMock()):
         events = [
             event
             async for event in service._finalize_conversation(
-                new_messages=[],
                 run_output="Hello",
                 usage=usage,
                 state=state,
-                image_actions=ImagePostRunActions(),
             )
         ]
 
