@@ -12,6 +12,10 @@ and this project adheres to
 
 - ✨(back) add the data.gouv connector for a beta cohort
 
+### Changed
+
+- ✨(front) replace input actions with a + dropdown menu
+
 ### Fixed
 
 - ✅(back) make the project list query counts independent of test order

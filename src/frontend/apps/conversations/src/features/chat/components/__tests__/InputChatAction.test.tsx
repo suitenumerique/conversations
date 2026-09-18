@@ -34,6 +34,49 @@ vi.mock('../SendButton', () => ({
   ),
 }));
 
+vi.mock('@gouvfr-lasuite/ui-kit', () => ({
+  DropdownMenu: ({
+    options,
+    children,
+  }: {
+    options: Array<Record<string, unknown>>;
+    children: React.ReactNode;
+  }) => (
+    <div>
+      {children}
+      <ul>
+        {options.map((option, index) =>
+          option.type === 'separator' ? (
+            <li key={`sep-${index}`} role="separator" data-testid="separator" />
+          ) : (
+            <li key={option.label as string}>
+              <button
+                type="button"
+                role={
+                  option.isChecked === undefined
+                    ? undefined
+                    : 'menuitemcheckbox'
+                }
+                disabled={Boolean(option.isDisabled)}
+                aria-checked={
+                  option.isChecked === undefined
+                    ? undefined
+                    : Boolean(option.isChecked)
+                }
+                onClick={() =>
+                  (option.callback as (() => void) | undefined)?.()
+                }
+              >
+                {option.label as string}
+              </button>
+            </li>
+          ),
+        )}
+      </ul>
+    </div>
+  ),
+}));
+
 const defaultProps = {
   fileUploadEnabled: true,
   webSearchEnabled: true,
@@ -51,50 +94,64 @@ describe('InputChatActions', () => {
     vi.clearAllMocks();
   });
 
-  it('should render attach file button', () => {
+  it('should render the + actions menu button', () => {
+    render(<InputChatActions {...defaultProps} />);
+
+    const menuButton = screen.getByRole('button', {
+      name: 'Open input actions menu',
+    });
+    expect(menuButton).toBeInTheDocument();
+    expect(menuButton).toHaveAttribute('aria-haspopup', 'menu');
+    expect(menuButton).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('should render attach file option in the menu', () => {
     render(<InputChatActions {...defaultProps} />);
 
     expect(
-      screen.getByRole('button', { name: 'Add attach file' }),
+      screen.getByRole('button', { name: 'Attach file' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Attach file')).toBeInTheDocument();
   });
 
-  it('should call onAttachClick when attach button is clicked', async () => {
+  it('should call onAttachClick when attach option is clicked', async () => {
     const user = userEvent.setup();
     const onAttachClick = vi.fn();
     render(
       <InputChatActions {...defaultProps} onAttachClick={onAttachClick} />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Add attach file' }));
+    await user.click(screen.getByRole('button', { name: 'Attach file' }));
 
     expect(onAttachClick).toHaveBeenCalledTimes(1);
   });
 
-  it('should disable attach button when fileUploadEnabled is false', () => {
+  it('should disable attach option when fileUploadEnabled is false', () => {
     render(<InputChatActions {...defaultProps} fileUploadEnabled={false} />);
 
-    expect(
-      screen.getByRole('button', { name: 'Add attach file' }),
-    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Attach file' })).toBeDisabled();
   });
 
-  it('should disable attach button when isUploadingFiles is true', () => {
+  it('should disable attach option when isUploadingFiles is true', () => {
     render(<InputChatActions {...defaultProps} isUploadingFiles={true} />);
 
-    expect(
-      screen.getByRole('button', { name: 'Add attach file' }),
-    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Attach file' })).toBeDisabled();
   });
 
-  it('should not show attach text on mobile', () => {
-    render(<InputChatActions {...defaultProps} isMobile={true} />);
+  it('should render a separator before the web search option', () => {
+    render(<InputChatActions {...defaultProps} onWebSearchToggle={vi.fn()} />);
 
-    expect(screen.queryByText('Attach file')).not.toBeInTheDocument();
+    expect(screen.getByTestId('separator')).toBeInTheDocument();
   });
 
-  it('should render web search button when onWebSearchToggle is provided', () => {
+  it('should not render a separator when onWebSearchToggle is undefined', () => {
+    render(
+      <InputChatActions {...defaultProps} onWebSearchToggle={undefined} />,
+    );
+
+    expect(screen.queryByTestId('separator')).not.toBeInTheDocument();
+  });
+
+  it('should render web search option when onWebSearchToggle is provided', () => {
     const onWebSearchToggle = vi.fn();
     render(
       <InputChatActions
@@ -104,21 +161,21 @@ describe('InputChatActions', () => {
     );
 
     expect(
-      screen.getByRole('button', { name: 'Research on the web' }),
+      screen.getByRole('menuitemcheckbox', { name: 'Research on the web' }),
     ).toBeInTheDocument();
   });
 
-  it('should not render web search button when onWebSearchToggle is undefined', () => {
+  it('should not render web search option when onWebSearchToggle is undefined', () => {
     render(
       <InputChatActions {...defaultProps} onWebSearchToggle={undefined} />,
     );
 
     expect(
-      screen.queryByRole('button', { name: 'Research on the web' }),
+      screen.queryByRole('menuitemcheckbox', { name: 'Research on the web' }),
     ).not.toBeInTheDocument();
   });
 
-  it('should call onWebSearchToggle when web search button is clicked', async () => {
+  it('should call onWebSearchToggle when web search option is clicked', async () => {
     const user = userEvent.setup();
     const onWebSearchToggle = vi.fn();
     render(
@@ -129,13 +186,13 @@ describe('InputChatActions', () => {
     );
 
     await user.click(
-      screen.getByRole('button', { name: 'Research on the web' }),
+      screen.getByRole('menuitemcheckbox', { name: 'Research on the web' }),
     );
 
     expect(onWebSearchToggle).toHaveBeenCalledTimes(1);
   });
 
-  it('should disable web search button when webSearchEnabled is false', () => {
+  it('should disable web search option when webSearchEnabled is false', () => {
     render(
       <InputChatActions
         {...defaultProps}
@@ -145,8 +202,60 @@ describe('InputChatActions', () => {
     );
 
     expect(
-      screen.getByRole('button', { name: 'Research on the web' }),
+      screen.getByRole('menuitemcheckbox', { name: 'Research on the web' }),
     ).toBeDisabled();
+  });
+
+  it('should mark menu option as checked and show chip when forceWebSearch is active', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        forceWebSearch={true}
+        onWebSearchToggle={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Research on the web' }),
+    ).toHaveAttribute('aria-checked', 'true');
+    expect(
+      screen.getByRole('button', { name: 'Research on the web' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('should show "Web" chip text on mobile when forceWebSearch is active', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        isMobile={true}
+        forceWebSearch={true}
+        onWebSearchToggle={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Web')).toBeInTheDocument();
+  });
+
+  it('should call onWebSearchToggle when chip is clicked', async () => {
+    const user = userEvent.setup();
+    const onWebSearchToggle = vi.fn();
+    render(
+      <InputChatActions
+        {...defaultProps}
+        forceWebSearch={true}
+        onWebSearchToggle={onWebSearchToggle}
+      />,
+    );
+
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Research on the web' }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Research on the web' }),
+    );
+
+    expect(onWebSearchToggle).toHaveBeenCalledTimes(1);
   });
 
   it('should render model selector when onModelSelect is provided', () => {
@@ -186,32 +295,5 @@ describe('InputChatActions', () => {
       'data-status',
       'submitted',
     );
-  });
-
-  it('should show "Web" text on mobile when forceWebSearch is active', () => {
-    render(
-      <InputChatActions
-        {...defaultProps}
-        isMobile={true}
-        forceWebSearch={true}
-        onWebSearchToggle={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText('Web')).toBeInTheDocument();
-  });
-
-  it('should show "Research on the web" text on desktop when forceWebSearch is active', () => {
-    render(
-      <InputChatActions
-        {...defaultProps}
-        isMobile={false}
-        forceWebSearch={true}
-        onWebSearchToggle={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByText('Research on the web')).toBeInTheDocument();
-    expect(screen.queryByText('Web')).not.toBeInTheDocument();
   });
 });
