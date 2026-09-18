@@ -1,12 +1,15 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import { memo, useMemo } from 'react';
+import { DropdownMenu, type DropdownMenuItem } from '@gouvfr-lasuite/ui-kit';
+import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Box, Icon, Text } from '@/components';
+import { useCunninghamTheme } from '@/cunningham';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 
 import { ModelSelector } from './ModelSelector';
 import { SendButton } from './SendButton';
+
 interface InputChatActionsProps {
   /** Whether file upload feature is enabled */
   fileUploadEnabled: boolean;
@@ -20,7 +23,7 @@ interface InputChatActionsProps {
   forceWebSearch: boolean;
   /** Handler for attach button click */
   onAttachClick: () => void;
-  /** Handler for web search toggle - if undefined, button is hidden */
+  /** Handler for web search toggle - if undefined, option is hidden */
   onWebSearchToggle?: () => void;
   /** Handler for model selection - if undefined, selector is hidden */
   onModelSelect?: (model: LLMModel) => void;
@@ -40,46 +43,20 @@ const STYLES = {
   actionsGap: { bottom: 'base' },
   horizontalPadding: { horizontal: 'base' },
   horizontalPaddingXs: { horizontal: 'xs' },
-  webSearchMargin: { left: '4px' },
 } as const;
-
-const MOBILE_WEB_BUTTON_CSS = `
-  .research-web-button {
-    padding-right: 8px !important;
-  }
-`;
 
 const ACTIONS_OPACITY_CSS = 'opacity: 1;';
 
-const ACTIVE_WEB_BUTTON_CSS = `
-  .research-web-button {
+const ACTIVE_CHIP_CSS = `
+  .research-web-chip {
     background-color: var(--c--contextuals--background--semantic--brand--secondary) !important;
     color: var(--c--contextuals--content--semantic--brand--secondary) !important;
   }
 `;
 
-const MOBILE_TEXT_WRAPPER_CSS = `
-  display: flex;
-  align-items: center;
-  line-height: 1;
-`;
-
-const MOBILE_TEXT_CSS = `
-  display: flex;
-  align-items: center;
-`;
-
-const CLOSE_ICON_CSS = `
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  padding-left: 4px;
-`;
-
 /**
  * Action buttons for the chat input.
- * Includes: Attach file, Web search toggle, Model selector, Send button.
+ * Includes: Attach/Web-search dropdown, Model selector, Send button.
  *
  * Memoized to prevent re-renders when parent updates but props haven't changed.
  */
@@ -100,111 +77,115 @@ export const InputChatActions = memo(
     onStop,
   }: InputChatActionsProps) => {
     const { t } = useTranslation();
+    const { spacingsTokens } = useCunninghamTheme();
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-    const webSearchWrapperCss = useMemo(() => {
-      let css = '';
-      if (isMobile) {
-        css += MOBILE_WEB_BUTTON_CSS;
+    const options: DropdownMenuItem[] = useMemo(() => {
+      const items: DropdownMenuItem[] = [
+        {
+          label: t('Attach file'),
+          icon: (
+            <Icon iconName="upload" $theme="neutral" $variation="tertiary" />
+          ),
+          isDisabled: !fileUploadEnabled || isUploadingFiles,
+          callback: onAttachClick,
+        },
+      ];
+
+      if (onWebSearchToggle) {
+        items.push(
+          { type: 'separator' },
+          {
+            label: t('Research on the web'),
+            icon: (
+              <Icon
+                iconName="language"
+                $theme="neutral"
+                $variation="tertiary"
+              />
+            ),
+            isChecked: forceWebSearch,
+            isDisabled: !webSearchEnabled || isUploadingFiles,
+            callback: onWebSearchToggle,
+          },
+        );
       }
-      if (forceWebSearch) {
-        css += ACTIVE_WEB_BUTTON_CSS;
-      }
-      return css;
-    }, [isMobile, forceWebSearch]);
+
+      return items;
+    }, [
+      t,
+      fileUploadEnabled,
+      isUploadingFiles,
+      onAttachClick,
+      onWebSearchToggle,
+      forceWebSearch,
+      webSearchEnabled,
+    ]);
 
     return (
       <Box
         $direction="row"
-        $gap="sm"
+        $gap={spacingsTokens.sm}
         $padding={STYLES.actionsGap}
-        $align="space-between"
+        $align="center"
+        $justify="space-between"
         $css={ACTIONS_OPACITY_CSS}
       >
-        {/* Left side: Attach + Web Search */}
+        {/* Left side: Menu + active chips */}
         <Box
           $flex="1"
           $direction="row"
-          $align="end"
+          $align="center"
           $padding={STYLES.horizontalPadding}
-          $gap="xs"
+          $gap={spacingsTokens.sm}
         >
-          {/* Attach file button */}
-          <Button
-            size="nano"
-            type="button"
-            color="neutral"
-            className="c__button--neutral"
-            variant="tertiary"
-            disabled={!fileUploadEnabled || isUploadingFiles}
-            onClick={onAttachClick}
-            aria-label={t('Add attach file')}
-            icon={
-              <Icon
-                $theme="neutral"
-                $variation="tertiary"
-                iconName="attach_file"
-              />
-            }
-          >
-            {!isMobile && (
-              <Text $theme="neutral" $variation="tertiary">
-                {t('Attach file')}
-              </Text>
-            )}
-          </Button>
-
-          {/* Web search toggle button */}
-          {onWebSearchToggle && (
-            <Box $margin={STYLES.webSearchMargin} $css={webSearchWrapperCss}>
+          <Box $shrink="0">
+            <DropdownMenu
+              options={options}
+              isOpen={isMenuOpen}
+              onOpenChange={setIsMenuOpen}
+            >
               <Button
                 size="nano"
-                color={forceWebSearch ? 'brand' : 'neutral'}
+                type="button"
+                color="neutral"
+                className="c__button--neutral"
+                variant="tertiary"
+                disabled={isUploadingFiles}
+                onClick={() => setIsMenuOpen((prev) => !prev)}
+                aria-label={t('Open input actions menu')}
+                aria-haspopup="menu"
+                aria-expanded={isMenuOpen}
+                icon={
+                  <Icon $theme="neutral" $variation="tertiary" iconName="add" />
+                }
+              />
+            </DropdownMenu>
+          </Box>
+
+          {forceWebSearch && onWebSearchToggle && (
+            <Box $css={ACTIVE_CHIP_CSS} $shrink="0">
+              <Button
+                size="nano"
+                color="brand"
                 variant="tertiary"
                 type="button"
                 disabled={!webSearchEnabled || isUploadingFiles}
                 onClick={onWebSearchToggle}
                 aria-label={t('Research on the web')}
-                className="c__button--neutral research-web-button"
+                aria-pressed={true}
+                className="c__button--neutral research-web-chip"
                 icon={
                   <Icon
                     iconName="language"
-                    $theme={forceWebSearch ? 'brand' : 'neutral'}
+                    $theme="brand"
                     $variation="tertiary"
                   />
                 }
               >
-                {!isMobile && (
-                  <Text
-                    $theme={forceWebSearch ? 'brand' : 'neutral'}
-                    $variation="tertiary"
-                  >
-                    {t('Research on the web')}
-                  </Text>
-                )}
-                {isMobile && forceWebSearch && (
-                  <Box
-                    $direction="row"
-                    $align="space-between"
-                    $gap="xs"
-                    $css={MOBILE_TEXT_WRAPPER_CSS}
-                  >
-                    <Text
-                      $theme="brand"
-                      $variation="secondary"
-                      $weight="500"
-                      $css={MOBILE_TEXT_CSS}
-                    >
-                      {t('Web')}
-                    </Text>
-                    <Icon
-                      iconName="close"
-                      $theme="brand"
-                      $variation="secondary"
-                      $size="md"
-                      $css={CLOSE_ICON_CSS}
-                    />
-                  </Box>
-                )}
+                <Text $theme="brand" $variation="tertiary">
+                  {isMobile ? t('Web') : t('Research on the web')}
+                </Text>
               </Button>
             </Box>
           )}
@@ -215,7 +196,7 @@ export const InputChatActions = memo(
           $direction="row"
           $align="center"
           $padding={STYLES.horizontalPadding}
-          $gap="xs"
+          $gap={spacingsTokens.xs}
         >
           {onModelSelect && (
             <Box $padding={STYLES.horizontalPaddingXs}>

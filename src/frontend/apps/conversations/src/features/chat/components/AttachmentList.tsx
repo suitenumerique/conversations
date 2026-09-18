@@ -35,7 +35,7 @@ export const AttachmentList = ({
     <Box
       $direction={isReadOnly ? 'column' : 'row'}
       $align={isReadOnly ? 'flex-end' : ''}
-      $margin={{ bottom: 'md' }}
+      $margin={{ bottom: isReadOnly ? 'md' : '0' }}
       $gap="0.5rem"
       $width="100%"
       $css={`

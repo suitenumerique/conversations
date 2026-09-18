@@ -66,7 +66,7 @@ const STYLES = {
   form: { width: '100%' },
   formPadding: { bottom: 'sm' },
   formPaddingMobile: { bottom: '' },
-  attachmentMargin: { horizontal: '0', bottom: 'xs', top: 'xs' },
+  attachmentMargin: { horizontal: '0', bottom: 'sm', top: 'xs' },
   attachmentPadding: { horizontal: 'base' },
   horizontalPadding: { horizontal: 'base' },
 } as const;
@@ -114,14 +114,14 @@ const DRAG_FADE_CSS = `
 const ROTATE_90_STYLE: React.CSSProperties = { transform: 'rotate(90deg)' };
 
 const TEXTAREA_STYLE: React.CSSProperties = {
-  padding: '1rem 1.5rem 0.5rem 1.5rem',
+  padding: '1rem 1.5rem 0.25rem 1.5rem',
   background: 'transparent',
   outline: 'none',
   fontSize: '1rem',
   border: 'none',
   resize: 'none',
   fontFamily: 'inherit',
-  minHeight: '64px',
+  minHeight: '52px',
   maxHeight: '200px',
   overflowY: 'auto',
   transition: 'all 0.2s ease',

@@ -18,15 +18,21 @@ test.describe('Chat page', () => {
     });
     await expect(chatInput).toBeVisible();
 
-    const attachmentButton = page.getByRole('button', {
-      name: 'Add attach file',
+    const actionsMenuButton = page.getByRole('button', {
+      name: 'Open input actions menu',
     });
-    await expect(attachmentButton).toBeVisible();
+    await expect(actionsMenuButton).toBeVisible();
+    await actionsMenuButton.click();
 
-    const websearchButton = page.getByRole('button', {
+    const attachmentOption = page.getByRole('menuitem', {
+      name: 'Attach file',
+    });
+    await expect(attachmentOption).toBeVisible();
+
+    const websearchOption = page.getByRole('menuitem', {
       name: 'Research on the web',
     });
-    await expect(websearchButton).toBeVisible();
+    await expect(websearchOption).toBeVisible();
 
     const sendMessageButton = page.getByRole('button', { name: 'Send' });
     await expect(sendMessageButton).toBeVisible();
