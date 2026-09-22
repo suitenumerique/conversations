@@ -26,6 +26,7 @@ import { MoreActionsButton } from '@/features/chat/components/MoreActionsButton'
 import { SummarizationError } from '@/features/chat/components/SummarizationError';
 import { SummarizationProgress } from '@/features/chat/components/SummarizationProgress';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
+import { TruncatedResponseMessage } from '@/features/chat/components/TruncatedResponseMessage';
 import { getMessageCo2Impact } from '@/features/chat/utils/getMessageCo2Impact';
 import { getMessageText } from '@/features/chat/utils/getMessageText';
 
@@ -42,6 +43,11 @@ const chatActionIconProps = {
   } as const,
   'aria-hidden': true,
 };
+
+type TruncationMetadata = { truncated?: boolean };
+
+const isMessageTruncated = (message: UIMessage): boolean =>
+  (message.metadata as TruncationMetadata | undefined)?.truncated === true;
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
 const BlocksList = React.memo(
@@ -324,6 +330,10 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     [toolInvocationParts],
   );
 
+  const isTruncated = React.useMemo(() => {
+    return message.role === 'assistant' && isMessageTruncated(message);
+  }, [message]);
+
   const conversationSummarizeInvocation = React.useMemo(
     () =>
       [...toolInvocationParts]
@@ -567,6 +577,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
             )}
           </Box>
 
+          {isTruncated && <TruncatedResponseMessage />}
+
           {message.role === 'assistant' &&
             hasAssistantOutput &&
             !(isLastAssistantMessage && status === 'streaming') && (
@@ -708,6 +720,14 @@ const arePropsEqual = (
   if (
     getSourcePartsCount(prevProps.message) !==
     getSourcePartsCount(nextProps.message)
+  ) {
+    return false;
+  }
+
+  // Check truncation metadata
+  if (
+    isMessageTruncated(prevProps.message) !==
+    isMessageTruncated(nextProps.message)
   ) {
     return false;
   }

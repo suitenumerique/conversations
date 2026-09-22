@@ -61,6 +61,16 @@ def _patch_openai_streaming_list_content():
     openai_models.__safe_text_delta_patched__ = True
 
 
+def get_max_output_tokens(configuration: "chat.llm_configuration.LLModel") -> int:
+    """The output token cap for a model.
+
+    A `max_tokens` declared in the LLM configuration wins, so operators keep a
+    per-model knob; otherwise the global LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE applies.
+    """
+    _configured = configuration.settings.max_tokens if configuration.settings else None
+    return _configured or settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE
+
+
 def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
     """
     Prepare a custom model instance based on the provided configuration.
@@ -139,6 +149,20 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
                 profile = OpenAIModelProfile(**_model_profile_params)
             else:
                 profile = None
+
+            # OpenAI's `max_completion_tokens` (what pydantic-ai sends for `max_tokens`)
+            # is ignored by OpenAI-compatible servers that only honour the legacy
+            # `max_tokens` field (e.g. Albert/Mistral, vLLM, LM Studio). Mirror it into
+            # `extra_body` so the cap is actually enforced there.
+            _unsupported_settings = (
+                configuration.profile.openai_unsupported_model_settings or ()
+                if configuration.profile
+                else ()
+            )
+            if "max_tokens" not in _unsupported_settings:
+                _configured_settings.setdefault("extra_body", {}).setdefault(
+                    "max_tokens", get_max_output_tokens(configuration)
+                )
 
             _openai_settings = (
                 OpenAIChatModelSettings(**_configured_settings) if _configured_settings else None
