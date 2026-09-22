@@ -429,13 +429,18 @@ def test_post_conversation_with_document_upload(
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,
-        createdAt=timezone.now(),
+        id="1",  # the question is stored as posted
+        createdAt=None,
         content="What does the document say?",
         role="user",
-        parts=[TextUIPart(type="text", text="What does the document say?")],
+        parts=[
+            TextUIPart(type="text", text="What does the document say?"),
+            # Stored with the question, which is the message the client posted.
+            FileUIPart(
+                type="file", filename="sample.pdf", mediaType="application/pdf", url=document_url
+            ),
+        ],
     )
 
     assert chat_conversation.messages[1].id == IsUUID(4)
@@ -755,13 +760,18 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,
-        createdAt=timezone.now(),
+        id="1",  # the question is stored as posted
+        createdAt=None,
         content="Make a summary of this document.",
         role="user",
-        parts=[TextUIPart(type="text", text="Make a summary of this document.")],
+        parts=[
+            TextUIPart(type="text", text="Make a summary of this document."),
+            # Stored with the question, which is the message the client posted.
+            FileUIPart(
+                type="file", filename="sample.pdf", mediaType="application/pdf", url=document_url
+            ),
+        ],
     )
 
     assert chat_conversation.messages[1].id == IsUUID(4)
@@ -1006,13 +1016,21 @@ def test_post_conversation_with_odt_document_upload(
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,
-        createdAt=timezone.now(),
+        id="1",  # the question is stored as posted
+        createdAt=None,
         content="What does the document say?",
         role="user",
-        parts=[TextUIPart(type="text", text="What does the document say?")],
+        parts=[
+            TextUIPart(type="text", text="What does the document say?"),
+            # Stored with the question, which is the message the client posted.
+            FileUIPart(
+                type="file",
+                filename="sample.odt",
+                mediaType="application/vnd.oasis.opendocument.text",
+                url=document_url,
+            ),
+        ],
     )
 
     assert chat_conversation.messages[1].id == IsUUID(4)

@@ -14,6 +14,8 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(back) keep question & answer streamed so far when a turn is interrupted
+- 🐛(back) charge an interrupted turn's tokens against the cooldown window
 - ✅(back) make the project list query counts independent of test order
 - 👷(ci) pull the MinIO images from quay.io instead of Docker Hub
 - 🐛(ci) fix the CHANGELOG check failing when a pull request is opened

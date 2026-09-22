@@ -52,6 +52,21 @@ class StreamingState:
 
 
 @dataclasses.dataclass
+class TurnSnapshot:
+    """Where the conversation stood before the current turn wrote anything.
+
+    A turn is written more than once: a checkpoint every few seconds while it
+    streams, then the finished article. Each write restores the conversation to
+    this point first, so applying a turn is idempotent and the last write wins
+    whole rather than stacking on the ones before it.
+    """
+
+    message_count: int
+    pydantic_message_count: int
+    agent_usage: Dict
+
+
+@dataclasses.dataclass
 class ContextDeps:
     """Dependencies for context management."""
 

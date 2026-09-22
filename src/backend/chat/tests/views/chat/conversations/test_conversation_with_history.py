@@ -359,10 +359,9 @@ def test_post_conversation_data_protocol_with_history(
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent message is the new one
-    assert history_conversation.messages[4].id == IsUUID(4)
     assert history_conversation.messages[4] == UIMessage(
-        id=history_conversation.messages[4].id,
-        createdAt=timezone.now(),  # Mocked timestamp
+        id="yuPoOuBkKA4FnKvk",  # the question is stored as posted
+        createdAt="2025-07-03T15:22:17.105Z",
         content="Hello",
         role="user",
         parts=[TextUIPart(type="text", text="Hello")],
@@ -481,10 +480,9 @@ def test_post_conversation_with_image_with_history(
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent message has the image attachment
-    assert history_conversation.messages[4].id == IsUUID(4)
     assert history_conversation.messages[4] == UIMessage(
-        id=history_conversation.messages[4].id,
-        createdAt=timezone.now(),  # Mocked timestamp
+        id="7x3hLsq6rB3xp91T",  # the question is stored as posted
+        createdAt="2025-07-07T15:52:27.822Z",
         content="Hello, what do you see on this picture?",
         role="user",
         parts=[
@@ -497,6 +495,9 @@ def test_post_conversation_with_image_with_history(
                     "SzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEA"
                     "AAAASUVORK5CYII="
                 ),
+                # Kept: the stored question is the posted one, so the attachment
+                # name survives instead of being lost to the rebuild.
+                filename="FELV-cat.jpg",
             ),
         ],
     )
@@ -594,10 +595,9 @@ def test_post_conversation_tool_call_with_history(
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent message is the new one with tool invocation
-    assert history_conversation.messages[4].id == IsUUID(4)
     assert history_conversation.messages[4] == UIMessage(
-        id=history_conversation.messages[4].id,
-        createdAt=timezone.now(),  # Mocked timestamp
+        id="tool-msg-1",  # the question is stored as posted
+        createdAt="2025-07-18T12:00:00Z",
         content="Weather in Paris?",
         role="user",
         parts=[TextUIPart(type="text", text="Weather in Paris?")],
@@ -696,10 +696,9 @@ def test_post_conversation_tool_call_fails_with_history(
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent message is the new one with tool invocation
-    assert history_conversation.messages[4].id == IsUUID(4)
     assert history_conversation.messages[4] == UIMessage(
-        id=history_conversation.messages[4].id,
-        createdAt=timezone.now(),  # Mocked timestamp
+        id="tool-msg-1",  # the question is stored as posted
+        createdAt="2025-07-18T12:00:00Z",
         content="Weather in Paris?",
         role="user",
         parts=[TextUIPart(type="text", text="Weather in Paris?")],
@@ -1189,10 +1188,9 @@ def test_post_conversation_with_existing_image_history(
     assert len(history_conversation_with_image.messages) == 6
 
     # Verify the most recent messages are the new ones
-    assert history_conversation_with_image.messages[4].id == IsUUID(4)
     assert history_conversation_with_image.messages[4] == UIMessage(
-        id=history_conversation_with_image.messages[4].id,
-        createdAt=timezone.now(),  # Mocked timestamp
+        id="yuPoOuBkKA4FnKvk",  # the question is stored as posted
+        createdAt="2025-07-03T15:22:17.105Z",
         content="What was in that image again?",
         role="user",
         parts=[TextUIPart(type="text", text="What was in that image again?")],
@@ -1279,10 +1277,9 @@ def test_post_conversation_with_existing_tool_history(
     assert len(history_conversation_with_tool.messages) == 6
 
     # Verify the most recent message is the new one with tool invocation
-    assert history_conversation_with_tool.messages[4].id == IsUUID(4)
     assert history_conversation_with_tool.messages[4] == UIMessage(
-        id=history_conversation_with_tool.messages[4].id,
-        createdAt=timezone.now(),  # Mocked timestamp
+        id="tool-history-msg-1",  # the question is stored as posted
+        createdAt="2025-07-18T12:00:00Z",
         content="How about Paris weather?",
         role="user",
         parts=[TextUIPart(type="text", text="How about Paris weather?")],
@@ -1516,10 +1513,9 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
     assert len(history_conversation_with_tool.messages) == 6
 
     # Verify the most recent message has the image attachment
-    assert history_conversation_with_tool.messages[4].id == IsUUID(4)
     assert history_conversation_with_tool.messages[4] == UIMessage(
-        id=history_conversation_with_tool.messages[4].id,
-        createdAt=timezone.now(),  # Mocked timestamp
+        id="7x3hLsq6rB3xp91T",  # the question is stored as posted
+        createdAt="2025-07-07T15:52:27.822Z",
         content="How's the weather in this image?",
         role="user",
         parts=[
@@ -1532,6 +1528,9 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
                     "SzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEA"
                     "AAAASUVORK5CYII="
                 ),
+                # Kept: the stored question is the posted one, so the attachment
+                # name survives instead of being lost to the rebuild.
+                filename="weather.jpg",
             ),
         ],
     )

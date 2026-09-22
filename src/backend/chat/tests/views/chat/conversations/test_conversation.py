@@ -61,10 +61,9 @@ def _assert_hello_ui_messages(chat_conversation):
 
 def _assert_hello_messages(chat_conversation, frozen_now):
     assert len(chat_conversation.messages) == 2
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,
-        createdAt=frozen_now,
+        id="yuPoOuBkKA4FnKvk",  # the question is stored as the client posted it
+        createdAt="2025-07-03T15:22:17.105Z",
         content="Hello",
         role="user",
         parts=[TextUIPart(type="text", text="Hello")],
@@ -383,10 +382,9 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
 
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,  # don't test the message ID here
-        createdAt=timezone.now(),  # Mocked timestamp
+        id="7x3hLsq6rB3xp91T",  # the question is stored as the client posted it
+        createdAt="2025-07-07T15:52:27.822Z",
         content="Hello, what do you see on this picture?",
         role="user",
         parts=[
@@ -399,6 +397,9 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
                     "SzIAAAABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEA"
                     "AAAASUVORK5CYII="
                 ),
+                # Kept: the stored question is the posted one, so the attachment
+                # name survives instead of being lost to the rebuild.
+                filename="FELV-cat.jpg",
             ),
         ],
     )
@@ -501,10 +502,9 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
 
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,  # don't test the message ID here
-        createdAt=timezone.now(),  # Mocked timestamp
+        id="tool-msg-1",  # the question is stored as the client posted it
+        createdAt="2025-07-18T12:00:00Z",
         content="Weather in Paris?",
         role="user",
         parts=[TextUIPart(type="text", text="Weather in Paris?")],
@@ -656,10 +656,9 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
 
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,  # don't test the message ID here
-        createdAt=timezone.now(),  # Mocked timestamp
+        id="tool-msg-1",  # the question is stored as the client posted it
+        createdAt="2025-07-18T12:00:00Z",
         content="Weather in Paris?",
         role="user",
         parts=[TextUIPart(type="text", text="Weather in Paris?")],
@@ -918,10 +917,9 @@ def test_post_conversation_data_protocol_no_stream(
 
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,
-        createdAt=timezone.now(),  # Mocked timestamp
+        id="yuPoOuBkKA4FnKvk",  # the question is stored as the client posted it
+        createdAt="2025-07-03T15:22:17.105Z",
         content="Why the sky is blue?",
         role="user",
         parts=[TextUIPart(type="text", text="Why the sky is blue?")],
@@ -1019,10 +1017,9 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
 
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,  # don't test the message ID here
-        createdAt=timezone.now(),  # Mocked timestamp
+        id="yuPoOuBkKA4FnKvk",  # the question is stored as the client posted it
+        createdAt="2025-07-03T15:22:17.105Z",
         content="Hello",
         role="user",
         parts=[TextUIPart(type="text", text="Hello")],
@@ -1107,10 +1104,9 @@ async def test_post_conversation_async_triggers_keepalive(
 
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,  # don't test the message ID here
-        createdAt=chat_conversation.messages[0].createdAt,  # Mocked timestamp
+        id="yuPoOuBkKA4FnKvk",  # the question is stored as the client posted it
+        createdAt="2025-07-03T15:22:17.105Z",
         content="Hello",
         role="user",
         parts=[TextUIPart(type="text", text="Hello")],

@@ -246,15 +246,18 @@ def test_post_conversation_with_local_pdf_document_url(
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,
-        createdAt=timezone.now(),
+        id="1",  # the question is stored as posted
+        createdAt=None,
         content="What is in this document?",
-        experimental_attachments=None,  # We should fix this, but for now document appears in source
+        # The attachment rides along with the stored question, so it no longer
+        # only shows up as a source.
         role="user",
         parts=[
             TextUIPart(type="text", text="What is in this document?"),
+            FileUIPart(
+                type="file", filename="sample.pdf", mediaType="application/pdf", url=document_url
+            ),
         ],
     )
 
@@ -391,9 +394,11 @@ def test_post_conversation_with_local_document_wrong_url(
         "data: [DONE]\n\n"
     )
 
-    # Check that the conversation was not updated
+    # The turn produced no answer, but the question is kept: it is stored before
+    # the model runs, so a failed turn stays visible instead of vanishing.
     chat_conversation.refresh_from_db()
-    assert len(chat_conversation.messages) == 0
+    assert [message.role for message in chat_conversation.messages] == ["user"]
+    assert chat_conversation.messages[0].id == "1"
 
 
 @freeze_time()
@@ -457,9 +462,11 @@ def test_post_conversation_with_remote_document_url(
         "data: [DONE]\n\n"
     )
 
-    # Check that the conversation was not updated
+    # The turn produced no answer, but the question is kept: it is stored before
+    # the model runs, so a failed turn stays visible instead of vanishing.
     chat_conversation.refresh_from_db()
-    assert len(chat_conversation.messages) == 0
+    assert [message.role for message in chat_conversation.messages] == ["user"]
+    assert chat_conversation.messages[0].id == "1"
 
 
 @freeze_time("2025-10-18T20:48:20.286204Z")
@@ -685,10 +692,9 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         ],
     )
 
-    assert chat_conversation.messages[2].id == IsUUID(4)
     assert chat_conversation.messages[2] == UIMessage(
-        id=chat_conversation.messages[2].id,
-        createdAt=timezone.now(),
+        id="3",  # the question is stored as posted
+        createdAt=None,
         content="Give more details about this document.",
         role="user",
         parts=[
@@ -928,15 +934,16 @@ def test_post_conversation_with_local_not_pdf_document_url(
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,
-        createdAt=timezone.now(),
+        id="1",  # the question is stored as posted
+        createdAt=None,
         content="What is in this document?",
-        experimental_attachments=None,  # We should fix this, but for now document appears in source
+        # The attachment rides along with the stored question, so it no longer
+        # only shows up as a source.
         role="user",
         parts=[
             TextUIPart(type="text", text="What is in this document?"),
+            FileUIPart(type="file", filename=file_name, mediaType=content_type, url=document_url),
         ],
     )
 

@@ -147,10 +147,9 @@ def test_post_conversation_with_local_image_url(
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,  # don't test the value directly
-        createdAt=timezone.now(),
+        id="1",  # the question is stored as posted
+        createdAt=None,
         content="What is in this image?",
         role="user",
         parts=[
@@ -418,10 +417,9 @@ def test_post_conversation_with_remote_image_url(
     chat_conversation.refresh_from_db()
     assert len(chat_conversation.messages) == 2
 
-    assert chat_conversation.messages[0].id == IsUUID(4)
     assert chat_conversation.messages[0] == UIMessage(
-        id=chat_conversation.messages[0].id,  # don't test the value directly
-        createdAt=timezone.now(),
+        id="1",  # the question is stored as posted
+        createdAt=None,
         content="What is in this image?",
         role="user",
         parts=[
@@ -664,10 +662,9 @@ def test_post_conversation_with_local_image_url_in_history(
         ],
     )
 
-    assert chat_conversation.messages[2].id == IsUUID(4)
     assert chat_conversation.messages[2] == UIMessage(
-        id=chat_conversation.messages[2].id,  # don't test the value directly
-        createdAt=timezone.now(),
+        id="3",  # the question is stored as posted
+        createdAt=None,
         content="Give more details about this image.",
         role="user",
         parts=[

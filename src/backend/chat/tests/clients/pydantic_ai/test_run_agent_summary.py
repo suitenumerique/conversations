@@ -170,7 +170,7 @@ async def test_stream_content_emits_summarization_failed_error(ui_messages):
 
     with (
         patch.object(service, "_run_agent", side_effect=failing_run_agent),
-        patch.object(service, "_persist_user_message_on_error", AsyncMock()) as persist,
+        patch.object(service, "_persist_user_message", AsyncMock()) as persist,
     ):
         chunks = [chunk async for chunk in service.stream_data_async(ui_messages)]
 

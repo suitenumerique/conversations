@@ -16,6 +16,7 @@ from core.file_upload.utils import generate_upload_policy
 from chat import models
 from chat.ai_sdk_types import UIMessage
 from chat.constants import IMAGE_MIME_PREFIX
+from chat.streaming_status import is_stream_alive
 
 
 class ChatConversationSerializer(serializers.ModelSerializer):
@@ -320,6 +321,25 @@ class ChatConversationRetrieveSerializer(ChatConversationSerializer):
     """
 
     project = ChatProjectNestedSerializer(read_only=True)
+    is_streaming = serializers.SerializerMethodField(
+        help_text=(
+            "True while a turn is being generated for this conversation. A"
+            " client that left mid-answer comes back to a checkpoint that looks"
+            " like an interrupted turn; this says whether the answer is still"
+            " coming, so the frontend can wait for it rather than call it lost."
+            " Retrieve only: it costs a cache read per conversation."
+        ),
+    )
+
+    class Meta(ChatConversationSerializer.Meta):  # pylint: disable=missing-class-docstring
+        fields = ChatConversationSerializer.Meta.fields + ["is_streaming"]
+        read_only_fields = ChatConversationSerializer.Meta.read_only_fields + ["is_streaming"]
+
+    @staticmethod
+    @extend_schema_field(serializers.BooleanField)
+    def get_is_streaming(obj) -> bool:
+        """True while a turn holds a live streaming marker for this conversation."""
+        return is_stream_alive(obj.pk)
 
 
 class ChatConversationSearchSerializer(serializers.ModelSerializer):
