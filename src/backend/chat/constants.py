@@ -49,3 +49,19 @@ HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS = 10
 # bounds the DB load per concurrent over-budget turn; summaries take seconds,
 # so a couple-second cadence is responsive enough.
 HISTORY_SUMMARY_POLL_INTERVAL_SECONDS = 2
+
+# How the turn in flight is written to `ChatStreamChunk`. Text is appended
+# often and cheaply; a snapshot of the whole turn is appended rarely, because
+# it is the only thing that carries structure (a tool call, its result) and the
+# request the answer belongs to. Rebuilding the turn means taking the last
+# snapshot and adding the text appended after it, so the interval on the
+# snapshot bounds nothing a reader sees: it bounds only how much structure a
+# turn cut short can lose.
+STREAM_TEXT_FLUSH_INTERVAL_SECONDS = 0.25
+STREAM_TEXT_FLUSH_CHARS = 200
+STREAM_SNAPSHOT_INTERVAL_SECONDS = 5
+
+# How long after its last chunk a turn is still considered to be running. Past
+# it, the chunks are read as what an interrupted turn left behind rather than
+# as an answer still on its way.
+STREAM_LIVE_WINDOW_SECONDS = 30

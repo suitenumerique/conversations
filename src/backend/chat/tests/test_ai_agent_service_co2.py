@@ -43,6 +43,7 @@ def service_fixture(conversation):
     s = object.__new__(AIAgentService)
     s.conversation = conversation
     s.user = SimpleNamespace(pk=1)
+    s._tokens_recorded = 0
     s.conversation_agent = SimpleNamespace(
         configuration=LLModel(
             hrid="m",
@@ -151,7 +152,9 @@ async def test_finalize_emits_finish_message_with_co2(service, co2_impact):
 
     with (
         patch.object(service, "_agent_stop_streaming", new=AsyncMock()),
-        patch.object(service, "_prepare_update_conversation"),
+        # The write path is the unit under test elsewhere; here only the
+        # events finalize emits are.
+        patch.object(service, "_write_finished_turn"),
         patch("chat.clients.pydantic_ai.sync_to_async", side_effect=_fake_sync_to_async),
         patch("chat.clients.pydantic_ai.record_and_compute_cooldown", return_value=0),
     ):

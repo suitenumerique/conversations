@@ -75,6 +75,7 @@ and raises `StreamCancelException` to abort the generator.
 """
 
 import asyncio
+import copy
 import dataclasses
 import functools
 import hashlib
@@ -91,6 +92,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
@@ -175,6 +177,9 @@ from chat.constants import (
     HISTORY_SUMMARY_POLL_INTERVAL_SECONDS,
     IMAGE_MIME_PREFIX,
     MARKDOWN_MIME_TYPE,
+    STREAM_SNAPSHOT_INTERVAL_SECONDS,
+    STREAM_TEXT_FLUSH_CHARS,
+    STREAM_TEXT_FLUSH_INTERVAL_SECONDS,
     SUMMARIZATION_ENQUEUE_CLAIM_GRACE_SECONDS,
     TEXT_MIME_PREFIX,
 )
@@ -187,6 +192,7 @@ from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
 from chat.mcp_servers import enter_mcp_toolsets, get_mcp_toolsets
 from chat.rate_limiting import record_and_compute_cooldown
+from chat.stream_chunks import persist as persist_leftover_chunks
 from chat.tasks import parse_and_store_conversation_document_task, summarize_conversation_history
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
@@ -313,6 +319,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.model_configuration = get_model_configuration(self.model_hrid)
         self.language = language  # might be None
         self._last_stop_check = 0
+        # Per-turn chunk state, reset by _clean: where we are in the sequence,
+        # the text produced since the last row, and when each kind of row was
+        # last written.
+        self._chunk_seq = 0
+        self._pending_text = ""
+        self._last_text_flush = 0
+        self._last_snapshot = 0
+        self._active_agent_stream = None
+        self._turn_image_actions: Optional[ImagePostRunActions] = None
+        self._tokens_recorded = 0
         # Events queued during _prepare_agent_run for _run_agent to yield before
         # the model is actually called (e.g. images-skipped notices). The list is
         # cleared at the start of every stream via _clean.
@@ -438,6 +454,116 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             return
         self.conversation.messages = list(self.conversation.messages) + [user_message]
         await sync_to_async(self.conversation.save)(update_fields=["messages"])
+
+    async def _write_turn_chunks(self, run, event) -> None:
+        """Append what this event added to the turn.
+
+        The first output of a turn always earns a snapshot: without one there
+        is no request for the answer to belong to, and nothing to fold. After
+        that, text goes in text rows and a snapshot is taken on an interval,
+        which is what bounds how much structure a turn cut short can lose.
+        """
+        if (
+            self._chunk_seq == 0
+            or time.monotonic() - self._last_snapshot >= STREAM_SNAPSHOT_INTERVAL_SECONDS
+        ):
+            # The snapshot is the response as Pydantic AI holds it, which
+            # already includes the event being handled. Appending its text as
+            # well would store it twice and read back doubled.
+            await self._append_snapshot(run)
+            return
+        if isinstance(event, events_v4.TextPart):
+            await self._append_text(event.text)
+
+    async def _append_text(self, text: str) -> None:
+        """Append text the model has produced, batched.
+
+        The batching is the whole cost control: a row every quarter second
+        rather than one per token, and each row carries only what is new. A
+        turn cut short loses at most the batch in hand.
+        """
+        self._pending_text += text
+        now = time.monotonic()
+        if (
+            now - self._last_text_flush < STREAM_TEXT_FLUSH_INTERVAL_SECONDS
+            and len(self._pending_text) < STREAM_TEXT_FLUSH_CHARS
+        ):
+            return
+        await self._flush_text()
+
+    async def _flush_text(self) -> None:
+        """Write the text in hand, if any."""
+        if not self._pending_text:
+            return
+        text, self._pending_text = self._pending_text, ""
+        self._last_text_flush = time.monotonic()
+        await self._write_chunk(text=text)
+
+    async def _append_snapshot(self, run) -> None:
+        """Append the turn as it stands, structure and all.
+
+        Text rows say what the model wrote; only this says what it was doing,
+        and which request the answer belongs to. Written on the turn's first
+        output, whenever a tool call or its result lands, and otherwise on an
+        interval, since it is the expensive kind of row.
+
+        Copied and rewritten before it is stored: image URLs presigned for the
+        model expire, so what goes on disk carries the durable form. Doing that
+        to the run's own messages would change what the model sees for the rest
+        of the turn.
+        """
+        # Everything in hand is in the response the snapshot is about to store,
+        # so it is superseded rather than written first.
+        self._pending_text = ""
+        messages = copy.deepcopy(self._partial_turn_messages(run))
+        if not messages:
+            return
+        self._apply_image_actions(messages, self._turn_image_actions)
+        self._last_snapshot = time.monotonic()
+        await self._write_chunk(
+            parts=json.loads(ModelMessagesTypeAdapter.dump_json(messages).decode("utf-8"))
+        )
+
+    async def _write_chunk(self, *, text: str = "", parts=None) -> None:
+        """Append one row to the turn's chunks."""
+        await models.ChatStreamChunk.objects.acreate(
+            conversation=self.conversation,
+            message_id=self._model_response_message_id or "",
+            seq=self._chunk_seq,
+            text=text,
+            parts=parts,
+        )
+        self._chunk_seq += 1
+
+    def _partial_turn_messages(self, run) -> List[ModelMessage]:
+        """The turn as it stands right now.
+
+        `run.new_messages()` holds the steps already closed. The response still
+        being streamed is not among them, but Pydantic AI builds it as it goes
+        and hands it over on `AgentStream.response`.
+        """
+        messages = list(run.new_messages())
+        stream = self._active_agent_stream
+        if stream is not None:
+            response = stream.response
+            if response.parts and not any(message is response for message in messages):
+                messages.append(response)
+        return messages
+
+    async def _record_tokens(self, total_tokens: int) -> int:
+        """Charge the tokens this turn has spent since the last call.
+
+        Recorded as it goes, because a turn that never reaches the end spent
+        its tokens all the same. The window adds up, so the increments total
+        what one final call would have charged.
+        """
+        unrecorded = total_tokens - self._tokens_recorded
+        if unrecorded <= 0:
+            return 0
+        self._tokens_recorded = total_tokens
+        return await sync_to_async(record_and_compute_cooldown)(
+            self.user.pk, self.conversation_agent.configuration, unrecorded
+        )
 
     @staticmethod
     def _mark_image_attachments_skipped(user_message: UIMessage) -> bool:
@@ -615,6 +741,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         self._last_stop_check = 0
         self._pre_stream_events = []
+        self._chunk_seq = 0
+        self._pending_text = ""
+        self._last_text_flush = 0
+        self._last_snapshot = 0
+        self._active_agent_stream = None
+        self._turn_image_actions = None
+        self._tokens_recorded = 0
         await cache.adelete(self._stop_cache_key)
 
     # --------------------------------------------------------------------- #
@@ -994,6 +1127,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             elif Agent.is_model_request_node(node):
                 # A model request node => agent is asking the model to generate a response
                 async for event in self._handle_model_request_node(node, run.ctx, state):
+                    await self._write_turn_chunks(run, event)
                     yield event
 
             elif Agent.is_call_tools_node(node):
@@ -1001,6 +1135,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # potentially calls a tool
                 async for event in self._handle_call_tools_node(node, run.ctx, state):
                     yield event
+                    # A tool call and its result are structure rather than more
+                    # of the same text, and only a snapshot carries structure.
+                    if isinstance(event, (events_v4.ToolCallPart, events_v4.ToolResultPart)):
+                        await self._append_snapshot(run)
 
             elif Agent.is_end_node(node):
                 # Once an End node is reached, the agent run is complete
@@ -1489,31 +1627,40 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 logger.warning("Unknown part type: %s %s", type(part), dataclasses.asdict(part))
 
     async def _handle_streaming_response(self, node, run_ctx, state: StreamingState):
-        """Stream a model node, emitting text/tool/reasoning deltas as events."""
+        """Stream a model node, emitting text/tool/reasoning deltas as events.
+
+        The stream is held on the service while the node runs: it carries the
+        response Pydantic AI is building, which is what a snapshot chunk
+        stores for the part of the turn not yet closed.
+        """
         async with node.stream(run_ctx) as request_stream:
-            async for event in request_stream:
-                await self._agent_stop_streaming()
-                if isinstance(event, PartStartEvent):
-                    if isinstance(event.part, TextPart):
-                        yield events_v4.TextPart(text=event.part.content)
-                    elif isinstance(event.part, ToolCallPart):
-                        yield events_v4.ToolCallStreamingStartPart(
-                            tool_call_id=event.part.tool_call_id,
-                            tool_name=event.part.tool_name,
-                        )
-                    elif isinstance(event.part, ThinkingPart):
-                        yield events_v4.ReasoningPart(reasoning=event.part.content)
-                elif isinstance(event, PartDeltaEvent):
-                    if isinstance(event.delta, TextPartDelta):
-                        yield events_v4.TextPart(text=event.delta.content_delta)
-                    elif isinstance(event.delta, ToolCallPartDelta):
-                        state.tool_is_streaming = True
-                        yield events_v4.ToolCallDeltaPart(
-                            tool_call_id=event.delta.tool_call_id,
-                            args_text_delta=event.delta.args_delta,
-                        )
-                    elif isinstance(event.delta, ThinkingPartDelta):
-                        yield events_v4.ReasoningPart(reasoning=event.delta.content_delta)
+            self._active_agent_stream = request_stream
+            try:
+                async for event in request_stream:
+                    await self._agent_stop_streaming()
+                    if isinstance(event, PartStartEvent):
+                        if isinstance(event.part, TextPart):
+                            yield events_v4.TextPart(text=event.part.content)
+                        elif isinstance(event.part, ToolCallPart):
+                            yield events_v4.ToolCallStreamingStartPart(
+                                tool_call_id=event.part.tool_call_id,
+                                tool_name=event.part.tool_name,
+                            )
+                        elif isinstance(event.part, ThinkingPart):
+                            yield events_v4.ReasoningPart(reasoning=event.part.content)
+                    elif isinstance(event, PartDeltaEvent):
+                        if isinstance(event.delta, TextPartDelta):
+                            yield events_v4.TextPart(text=event.delta.content_delta)
+                        elif isinstance(event.delta, ToolCallPartDelta):
+                            state.tool_is_streaming = True
+                            yield events_v4.ToolCallDeltaPart(
+                                tool_call_id=event.delta.tool_call_id,
+                                args_text_delta=event.delta.args_delta,
+                            )
+                        elif isinstance(event.delta, ThinkingPartDelta):
+                            yield events_v4.ReasoningPart(reasoning=event.delta.content_delta)
+            finally:
+                self._active_agent_stream = None
 
     async def _handle_model_request_node(
         self, node, run_ctx, state: StreamingState
@@ -1641,7 +1788,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # folds the conversation's cumulative total into usage["co2_impact"].
         message_co2_impact = usage["co2_impact"]
 
-        await sync_to_async(self._prepare_update_conversation)(
+        await sync_to_async(self._write_finished_turn)(
             final_output=new_messages,
             usage=usage,
             ui_sources=state.ui_sources,
@@ -1650,12 +1797,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
 
         generated_title = await self._generate_title_if_needed()
+        if generated_title:
+            await sync_to_async(self.conversation.save)(update_fields=["title", "updated_at"])
 
-        await sync_to_async(self.conversation.save)()
-
-        cooldown_seconds = await sync_to_async(record_and_compute_cooldown)(
-            self.user.pk, self.conversation_agent.configuration, request_tokens
-        )
+        cooldown_seconds = await self._record_tokens(request_tokens)
         if cooldown_seconds:
             yield events_v4.DataPart(data=[{"type": "cooldown", "seconds": cooldown_seconds}])
 
@@ -1693,6 +1838,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """Run the Pydantic AI agent and stream events."""
         if not messages or messages[-1].role != "user":
             return
+
+        # A previous turn may have been cut short and left chunks behind. Fold
+        # them before this turn reads the history, so the model sees the
+        # interrupted exchange rather than a question with no answer.
+        await sync_to_async(persist_leftover_chunks)(self.conversation)
 
         (
             user_prompt,
@@ -1769,6 +1919,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if await self._check_should_enable_rag(conversation_has_own_documents):
             document_context_instruction = await self._build_document_context_instruction()
             self._setup_rag_tools(document_context_instruction=document_context_instruction)
+
+        # Held for the snapshots, which rewrite presigned image URLs to their
+        # durable form before storing them.
+        self._turn_image_actions = image_actions
 
         async with AsyncExitStack() as stack:
             mcp_toolsets = await enter_mcp_toolsets(stack, self._connector_toolsets)
@@ -1910,6 +2064,22 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
         logger.debug("final_output_json: %s", final_output_json)
         self.conversation.pydantic_messages += final_output_json
+
+    def _write_finished_turn(self, **kwargs) -> None:
+        """Store the turn and drop the chunks it was written from.
+
+        One transaction, so the conversation never holds the turn twice: the
+        chunks are only ever the copy of record while the turn has not landed.
+        The turn is stored before the title is generated, which is an LLM
+        round-trip during which a reload would otherwise show the answer
+        missing.
+        """
+        with transaction.atomic():
+            self._prepare_update_conversation(**kwargs)
+            self.conversation.save(
+                update_fields=["messages", "pydantic_messages", "agent_usage", "updated_at"]
+            )
+            self.conversation.stream_chunks.all().delete()
 
     async def _generate_title(self) -> str | None:
         """Generate a title for the conversation using LLM based on first messages."""

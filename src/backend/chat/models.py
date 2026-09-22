@@ -275,6 +275,70 @@ class ChatConversation(BaseModel):
         return bool(updated)
 
 
+class ChatStreamChunk(BaseModel):
+    """A piece of an answer, written while it is being generated.
+
+    A turn only reaches `ChatConversation.messages` when it ends, and it can
+    fail to end: the client goes away, the generator is closed where it stands,
+    and nothing gets the chance to write. So the turn appends what it produces
+    as it produces it, here, where losing the request cannot take it back.
+
+    Rows are transient by design. A turn that ends folds its chunks into the
+    message it was building and deletes them in the same transaction; a turn
+    that never ends leaves them, and they are what the conversation shows in
+    place of the answer until the next turn folds them for real.
+
+    Two kinds of row, told apart by `parts`:
+
+    - text: another `text` delta, which is almost all of them.
+    - structure: a `parts` snapshot of the response so far, written when a tool
+      call or its result lands. Rare, and the only way an interrupted turn can
+      show what it was doing rather than only what it had said.
+    """
+
+    conversation = models.ForeignKey(
+        ChatConversation,
+        related_name="stream_chunks",
+        on_delete=models.CASCADE,
+        help_text="Conversation whose current turn produced this chunk",
+    )
+    message_id = models.CharField(
+        max_length=255,
+        help_text=(
+            "Id of the assistant message being streamed, as announced to the client in the "
+            "`start` frame, so the folded message is the one the client is already holding."
+        ),
+    )
+    seq = models.PositiveIntegerField(
+        help_text="Position of this chunk in the turn, starting at 0",
+    )
+    text = models.TextField(
+        blank=True,
+        default="",
+        help_text="Text produced since the previous chunk",
+    )
+    parts = models.JSONField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Snapshot of the turn's messages at this point, written instead of `text` when the "
+            "turn's structure changes (a tool call, a tool result). Null on a text chunk."
+        ),
+    )
+
+    class Meta:
+        db_table = "chat_stream_chunk"
+        verbose_name = "chat stream chunk"
+        verbose_name_plural = "chat stream chunks"
+        ordering = ["seq"]
+        constraints = [
+            models.UniqueConstraint(fields=["conversation", "seq"], name="unique_stream_chunk_seq"),
+        ]
+
+    def __str__(self):
+        return f"{self.conversation_id} #{self.seq}"
+
+
 class ChatConversationAttachment(BaseModel):
     """
     Model representing a file attachment.
