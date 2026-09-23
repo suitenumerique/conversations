@@ -157,6 +157,57 @@ async def test_text_is_appended_rather_than_rewritten():
 
 
 @pytest.mark.asyncio
+async def test_stopping_closes_the_stream_and_keeps_what_was_produced():
+    """Stop ends the stream like any other, and the chunks stand as the answer."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = None
+
+    async def stopped_model(_messages, _info):
+        """Answer, then press stop between two chunks."""
+        yield "Hello"
+        service.stop_streaming()
+        # The in-band check is throttled; this is the throttle's own clock,
+        # reset so the next check reads the pill instead of skipping it.
+        service._last_stop_check = 0
+        yield " there"
+
+    service = _service_with_model(conversation, stopped_model)
+    chunks_out = [chunk async for chunk in service.stream_data_async([QUESTION])]
+
+    # Before this was caught, the exception escaped through the response
+    # iterator under ASGI instead of ending the stream.
+    assert chunks_out[-1] == "data: [DONE]\n\n"
+
+    messages = stream_chunks.interrupted_messages(await _chunks(conversation))
+    assert [message.role for message in messages] == ["user", "assistant"]
+    assert messages[-1].metadata == {"interrupted": True}
+
+
+@pytest.mark.asyncio
+async def test_an_interrupted_turn_still_pays_its_cooldown():
+    """The tokens were spent whether or not the turn reached the end."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = _service_with_model(conversation, _hello_model)
+    charged = []
+
+    with patch.object(
+        AIAgentService,
+        "_record_tokens",
+        autospec=True,
+        side_effect=lambda self, total: charged.append(total) or 0,
+    ):
+        stream = service.stream_data_async([QUESTION])
+        async for chunk in stream:
+            if '"delta":"Hello"' in chunk:
+                break
+
+    # Charged while streaming, so walking away here does not get the turn for
+    # free; the window adds up, so the increments total what one final call
+    # would have charged.
+    assert charged, "nothing was charged before the turn ended"
+
+
+@pytest.mark.asyncio
 async def test_the_next_turn_folds_what_the_last_one_left():
     """An interrupted turn joins the history rather than haunting the chunks."""
     conversation = await sync_to_async(ChatConversationFactory)()

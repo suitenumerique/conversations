@@ -497,6 +497,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             return
         if isinstance(event, events_v4.TextPart):
             await self._append_text(event.text)
+        # Charged as the turn spends them, alongside the rows that record it:
+        # a turn that never lands spent its tokens all the same, and would
+        # otherwise escape the cooldown entirely.
+        await self._record_tokens(self._spent_tokens(run))
 
     async def _append_text(self, text: str) -> None:
         """Append text the model has produced, batched.
@@ -606,6 +610,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if response.parts and not any(message is response for message in messages):
                 messages.append(response)
         return messages
+
+    @staticmethod
+    def _spent_tokens(run) -> int:
+        """Tokens this turn has run through the model so far."""
+        usage = run.usage
+        return int(usage.input_tokens) + int(usage.output_tokens)
 
     async def _record_tokens(self, total_tokens: int) -> int:
         """Charge the tokens this turn has spent since the last call.
@@ -764,6 +774,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 error_event = events_v4.ErrorPart(error="summarization_failed")
                 for translated in translator.translate(error_event):
                     yield self.event_encoder.encode(translated)
+
+            except StreamCancelException:
+                # The user pressed stop. The chunks written so far are the
+                # answer, so there is nothing to report as an error. Caught
+                # here because only the WSGI wrapper handles it; under ASGI it
+                # would escape mid-response. Falling through closes the stream
+                # with the same flush and DONE frame as a normal end.
+                self._turn_log("stopped by the user, keeping what was produced")
 
             self._turn_log(
                 "stream closed, %d text rows and %d snapshots written",
