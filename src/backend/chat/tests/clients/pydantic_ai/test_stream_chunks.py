@@ -6,7 +6,10 @@ turn is in no position to write anything, which is the whole point.
 """
 
 # pylint: disable=protected-access
+from datetime import timedelta
 from unittest.mock import patch
+
+from django.utils import timezone
 
 import pytest
 from asgiref.sync import sync_to_async
@@ -16,6 +19,7 @@ from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 from chat import stream_chunks
 from chat.ai_sdk_types import TextUIPart, UIMessage
 from chat.clients.pydantic_ai import AIAgentService
+from chat.constants import STREAM_LIVE_WINDOW_SECONDS
 from chat.factories import ChatConversationFactory
 from chat.models import ChatStreamChunk
 
@@ -219,6 +223,14 @@ async def test_the_next_turn_folds_what_the_last_one_left():
             break
     assert await _chunks(conversation) != []
 
+    # Age the trail past the window in which it could still be a turn that is
+    # simply slow: only then does the next turn take it as abandoned.
+    await sync_to_async(
+        lambda: ChatStreamChunk.objects.filter(conversation=conversation).update(
+            created_at=timezone.now() - timedelta(seconds=STREAM_LIVE_WINDOW_SECONDS + 5)
+        )
+    )()
+
     # A second turn on the same conversation. The owner is carried over
     # explicitly: reading it again after a refresh would hit the database from
     # async context.
@@ -243,6 +255,42 @@ async def test_the_next_turn_folds_what_the_last_one_left():
         "request",
         "response",
     ]
+
+
+@pytest.mark.asyncio
+async def test_two_turns_at_once_do_not_corrupt_each_other():
+    """Two tabs on one conversation: each turn owns its own trail.
+
+    Everything used to be scoped to the conversation, so the second turn folded
+    the first one's rows while it was still writing them, deleted them, and the
+    two then collided on `seq`.
+    """
+    conversation = await sync_to_async(ChatConversationFactory)()
+    owner = await sync_to_async(lambda: conversation.owner)()
+
+    # The first turn is left mid-answer, its trail still being written to.
+    first = _service_with_model(conversation, _hello_model, owner=owner)
+    stream = first.stream_data_async([QUESTION])
+    async for chunk in stream:
+        if '"delta":"Hello"' in chunk:
+            break
+    abandoned = await _chunks(conversation)
+    assert abandoned
+
+    # A second turn starts on the same conversation while the first is live.
+    second = _service_with_model(conversation, _hello_model, owner=owner)
+    async for _ in second.stream_data_async([QUESTION]):
+        pass
+
+    await sync_to_async(conversation.refresh_from_db)()
+    # The second turn landed on its own, and took only its own rows with it.
+    assert [message.role for message in conversation.messages] == ["user", "assistant"]
+    assert (conversation.messages[-1].metadata or {}).get("interrupted") is None
+
+    # The first turn's trail is untouched: not folded as interrupted while it
+    # was still running, and not deleted by the turn that finished.
+    remaining = await _chunks(conversation)
+    assert {chunk.run_id for chunk in remaining} == {abandoned[0].run_id}
 
 
 @pytest.mark.asyncio

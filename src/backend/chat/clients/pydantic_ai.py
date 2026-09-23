@@ -334,8 +334,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._active_agent_stream = None
         self._turn_image_actions: Optional[ImagePostRunActions] = None
         self._tokens_recorded = 0
-        self._turn_started_at = 0.0
-        self._text_rows = self._snapshot_rows = 0
+        self._turn_started_at, self._text_rows, self._snapshot_rows = 0.0, 0, 0
+        self._turn_run_id = uuid.uuid4()
         # Events queued during _prepare_agent_run for _run_agent to yield before
         # the model is actually called (e.g. images-skipped notices). The list is
         # cleared at the start of every stream via _clean.
@@ -578,6 +578,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """Append one row to the turn's chunks."""
         await models.ChatStreamChunk.objects.acreate(
             conversation=self.conversation,
+            run_id=self._turn_run_id,
             message_id=self._model_response_message_id or "",
             seq=self._chunk_seq,
             text=text,
@@ -834,6 +835,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._turn_started_at = time.monotonic()
         self._text_rows = 0
         self._snapshot_rows = 0
+        # Scopes this turn's chunks, so a turn running at the same time on the
+        # same conversation cannot fold, overwrite or delete them.
+        self._turn_run_id = uuid.uuid4()
         await cache.adelete(self._stop_cache_key)
 
     # --------------------------------------------------------------------- #
@@ -2185,7 +2189,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             self.conversation.save(
                 update_fields=["messages", "pydantic_messages", "agent_usage", "updated_at"]
             )
-            self.conversation.stream_chunks.all().delete()
+            # This turn's trail only: another turn may be streaming into the
+            # same conversation from another tab, and its rows are not ours.
+            self.conversation.stream_chunks.filter(run_id=self._turn_run_id).delete()
 
     async def _generate_title(self) -> str | None:
         """Generate a title for the conversation using LLM based on first messages."""

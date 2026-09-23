@@ -1,5 +1,6 @@
 """Models for chat conversations."""
 
+import uuid
 from datetime import timedelta
 from typing import Sequence
 
@@ -302,6 +303,15 @@ class ChatStreamChunk(BaseModel):
         on_delete=models.CASCADE,
         help_text="Conversation whose current turn produced this chunk",
     )
+    run_id = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        help_text=(
+            "The turn that wrote this chunk. Everything is scoped to it rather than to the "
+            "conversation, so two turns running at once - two tabs on the same conversation - "
+            "cannot fold, overwrite or delete each other's trail."
+        ),
+    )
     message_id = models.CharField(
         max_length=255,
         blank=True,
@@ -335,12 +345,17 @@ class ChatStreamChunk(BaseModel):
         verbose_name = "chat stream chunk"
         verbose_name_plural = "chat stream chunks"
         ordering = ["seq"]
+        indexes = [
+            models.Index(fields=["conversation", "run_id", "seq"]),
+        ]
         constraints = [
-            models.UniqueConstraint(fields=["conversation", "seq"], name="unique_stream_chunk_seq"),
+            models.UniqueConstraint(
+                fields=["conversation", "run_id", "seq"], name="unique_stream_chunk_seq"
+            ),
         ]
 
     def __str__(self):
-        return f"{self.conversation_id} #{self.seq}"
+        return f"{self.conversation_id} run {self.run_id} #{self.seq}"
 
 
 class ChatConversationAttachment(BaseModel):

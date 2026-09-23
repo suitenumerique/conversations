@@ -55,6 +55,25 @@ def describe(conversation, chunks) -> None:
     )
 
 
+def trails(chunks) -> list[list]:
+    """The chunks grouped by the turn that wrote them, oldest turn first.
+
+    Normally there is one, or none. Two mean two turns ran at once - two tabs
+    on the same conversation - and each has to be read, folded and deleted on
+    its own, or they corrupt each other.
+    """
+    by_run: dict = {}
+    for chunk in sorted(chunks, key=lambda chunk: (chunk.created_at, chunk.seq)):
+        by_run.setdefault(chunk.run_id, []).append(chunk)
+    return list(by_run.values())
+
+
+def latest_trail(chunks) -> list:
+    """The most recently written turn's chunks, which is what a reader wants."""
+    grouped = trails(chunks)
+    return grouped[-1] if grouped else []
+
+
 def is_live(chunks) -> bool:
     """True while chunks keep arriving, so a turn is still producing them.
 
@@ -117,6 +136,7 @@ def interrupted_messages(chunks) -> list[UIMessage]:
     interruption, because by then the turn is in no position to write
     anything, which is the whole reason the chunks exist.
     """
+    chunks = latest_trail(chunks)
     folded = fold(chunks)
     if not folded:
         return []
@@ -153,27 +173,36 @@ def persist(conversation) -> bool:
     Deliberately not called on read: a GET that writes is a GET that surprises
     someone, and the read path builds the same message without one.
 
-    Returns True when there was something to fold.
+    Only trails nobody is still writing to are taken. A live one belongs to a
+    turn running right now - two tabs on the same conversation - and folding it
+    would file a running answer as interrupted and delete the rows out from
+    under it.
+
+    Returns True when something was folded.
     """
-    chunks = list(conversation.stream_chunks.all())
-    if not chunks:
+    abandoned = [trail for trail in trails(conversation.stream_chunks.all()) if not is_live(trail)]
+    if not abandoned:
         return False
 
-    messages = fold(chunks)
-    ui_messages = interrupted_messages(chunks)
-    with transaction.atomic():
-        if ui_messages:
-            conversation.messages = list(conversation.messages) + ui_messages
-            conversation.pydantic_messages = conversation.pydantic_messages + _dump(messages)
-            conversation.save(update_fields=["messages", "pydantic_messages", "updated_at"])
-        conversation.stream_chunks.all().delete()
-    turn_logger.info(
-        "[fold %s] %d chunk(s) became %d message(s)",
-        conversation.pk,
-        len(chunks),
-        len(ui_messages),
-    )
-    return bool(ui_messages)
+    folded_any = False
+    for trail in abandoned:
+        messages = fold(trail)
+        ui_messages = interrupted_messages(trail)
+        with transaction.atomic():
+            if ui_messages:
+                conversation.messages = list(conversation.messages) + ui_messages
+                conversation.pydantic_messages = conversation.pydantic_messages + _dump(messages)
+                conversation.save(update_fields=["messages", "pydantic_messages", "updated_at"])
+                folded_any = True
+            conversation.stream_chunks.filter(run_id=trail[0].run_id).delete()
+        turn_logger.info(
+            "[fold %s] %d chunk(s) of run %s became %d message(s)",
+            conversation.pk,
+            len(trail),
+            trail[0].run_id,
+            len(ui_messages),
+        )
+    return folded_any
 
 
 def _dump(messages: list[ModelMessage]) -> list:
