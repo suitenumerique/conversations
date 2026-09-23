@@ -213,61 +213,7 @@ async def test_stream_data_async_reraises_unknown_exceptions():
                 pass
 
 
-@pytest.mark.asyncio
-async def test_stream_data_async_persists_user_message_on_http_error(ui_messages):
-    """On LLM provider error, the user message is saved to conversation.messages."""
-    conversation = await sync_to_async(ChatConversationFactory)()
-    assert conversation.messages == []
-
-    service = AIAgentService(conversation, user=conversation.owner)
-
-    def mock_run_agent(*args, **kwargs):
-        return AsyncRaiseIterator(ModelHTTPError(status_code=503, model_name="test-model"))
-
-    with patch.object(service, "_run_agent", side_effect=mock_run_agent):
-        async for _ in service.stream_data_async(ui_messages):
-            pass
-
-    await sync_to_async(conversation.refresh_from_db)()
-    assert len(conversation.messages) == 1
-    assert conversation.messages[0].role == "user"
-    assert conversation.messages[0].id == ui_messages[0].id
-
-
-@pytest.mark.asyncio
-async def test_stream_data_async_persists_user_message_on_connection_error(ui_messages):
-    """On ModelAPIError, the user message is saved to conversation.messages."""
-    conversation = await sync_to_async(ChatConversationFactory)()
-    service = AIAgentService(conversation, user=conversation.owner)
-
-    def mock_run_agent(*args, **kwargs):
-        return AsyncRaiseIterator(
-            ModelAPIError(model_name="test-model", message="Connection error.")
-        )
-
-    with patch.object(service, "_run_agent", side_effect=mock_run_agent):
-        async for _ in service.stream_data_async(ui_messages):
-            pass
-
-    await sync_to_async(conversation.refresh_from_db)()
-    assert len(conversation.messages) == 1
-    assert conversation.messages[0].role == "user"
-
-
-@pytest.mark.asyncio
-async def test_stream_data_async_does_not_duplicate_user_message_on_repeated_error(ui_messages):
-    """Repeated errors with the same message do not accumulate duplicates."""
-    conversation = await sync_to_async(ChatConversationFactory)()
-    service = AIAgentService(conversation, user=conversation.owner)
-
-    def mock_run_agent(*args, **kwargs):
-        return AsyncRaiseIterator(ModelHTTPError(status_code=503, model_name="test-model"))
-
-    with patch.object(service, "_run_agent", side_effect=mock_run_agent):
-        async for _ in service.stream_data_async(ui_messages):
-            pass
-        async for _ in service.stream_data_async(ui_messages):
-            pass
-
-    await sync_to_async(conversation.refresh_from_db)()
-    assert len(conversation.messages) == 1
+# A turn's question is stored by the turn itself, in its chunk trail, so the
+# error paths no longer carry a copy of it and there is no helper left to
+# mock. Driving a real run that fails is what proves it now, in
+# `test_stream_chunks.test_a_turn_that_errors_stores_its_question_once`.

@@ -391,9 +391,12 @@ def test_post_conversation_with_local_document_wrong_url(
         "data: [DONE]\n\n"
     )
 
-    # Check that the conversation was not updated
+    # The turn produced no answer, but it filed what it had: the question was
+    # written to the chunk trail before the document was looked at, and the
+    # early return closes the turn rather than leaving the trail behind.
     chat_conversation.refresh_from_db()
-    assert len(chat_conversation.messages) == 0
+    assert [message.role for message in chat_conversation.messages] == ["user"]
+    assert chat_conversation.stream_chunks.count() == 0
 
 
 @freeze_time()
@@ -457,9 +460,12 @@ def test_post_conversation_with_remote_document_url(
         "data: [DONE]\n\n"
     )
 
-    # Check that the conversation was not updated
+    # The turn produced no answer, but it filed what it had: the question was
+    # written to the chunk trail before the document was looked at, and the
+    # early return closes the turn rather than leaving the trail behind.
     chat_conversation.refresh_from_db()
-    assert len(chat_conversation.messages) == 0
+    assert [message.role for message in chat_conversation.messages] == ["user"]
+    assert chat_conversation.stream_chunks.count() == 0
 
 
 @freeze_time("2025-10-18T20:48:20.286204Z")

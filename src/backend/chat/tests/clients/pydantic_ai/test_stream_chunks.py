@@ -6,6 +6,8 @@ turn is in no position to write anything, which is the whole point.
 """
 
 # pylint: disable=protected-access
+# pylint: disable=unreachable  # the trailing `yield` makes a raising stub a generator
+import uuid
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -13,7 +15,8 @@ from django.utils import timezone
 
 import pytest
 from asgiref.sync import sync_to_async
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
 from chat import stream_chunks
@@ -182,9 +185,11 @@ async def test_stopping_closes_the_stream_and_keeps_what_was_produced():
     # iterator under ASGI instead of ending the stream.
     assert chunks_out[-1] == "data: [DONE]\n\n"
 
-    messages = stream_chunks.interrupted_messages(await _chunks(conversation))
-    assert [message.role for message in messages] == ["user", "assistant"]
-    assert messages[-1].metadata == {"interrupted": True}
+    # The turn knew it was over, so it filed itself rather than leaving a trail.
+    assert await _chunks(conversation) == []
+    await sync_to_async(conversation.refresh_from_db)()
+    assert [message.role for message in conversation.messages] == ["user", "assistant"]
+    assert conversation.messages[-1].metadata == {"interrupted": True}
 
 
 @pytest.mark.asyncio
@@ -319,7 +324,9 @@ async def test_a_snapshot_carries_structure_a_text_row_cannot(settings):
 
     stream = service.stream_data_async([QUESTION])
     async for chunk in stream:
-        if "tool-output-available" in chunk:
+        # Once the model is answering from the tool's result, the cycle is
+        # closed and the snapshot that records it has been written.
+        if '"delta":"It is mild."' in chunk:
             seen = stream_chunks.interrupted_messages(await _chunks(conversation))
             break
 
@@ -342,3 +349,156 @@ async def test_a_turn_is_live_while_its_chunks_keep_coming():
 
     assert stream_chunks.is_live(await _chunks(conversation)) is True
     assert stream_chunks.is_live([]) is False
+
+
+# --------------------------------------------------------------------------- #
+# Regressions found in review. Each one corrupted a conversation in a way the
+# invariants did not cover: they live in the seam between the chunk trail and
+# the paths that were already there.
+# --------------------------------------------------------------------------- #
+
+QUESTION_ONLY_SNAPSHOT = [
+    {
+        "kind": "request",
+        "parts": [{"part_kind": "user-prompt", "content": "First question"}],
+    }
+]
+
+
+async def _stale_question_trail(conversation, text="First question"):
+    """A trail from a turn cut before the model answered, old enough to fold."""
+    snapshot = [{"kind": "request", "parts": [{"part_kind": "user-prompt", "content": text}]}]
+    await sync_to_async(ChatStreamChunk.objects.create)(
+        conversation=conversation,
+        run_id=uuid.uuid4(),
+        message_id="",
+        seq=0,
+        parts=snapshot,
+    )
+    await sync_to_async(
+        lambda: ChatStreamChunk.objects.filter(conversation=conversation).update(
+            created_at=timezone.now() - timedelta(seconds=STREAM_LIVE_WINDOW_SECONDS + 5)
+        )
+    )()
+
+
+@pytest.mark.asyncio
+async def test_a_folded_question_only_turn_does_not_swallow_the_next_question():
+    """A turn cut before answering leaves `messages` ending on a question.
+
+    `_prepare_update_conversation` read that as "this turn's question is already
+    stored" and skipped the new one, so the next question vanished and its
+    answer appeared under the previous one.
+    """
+    conversation = await sync_to_async(ChatConversationFactory)()
+    owner = await sync_to_async(lambda: conversation.owner)()
+    await _stale_question_trail(conversation)
+    await sync_to_async(conversation.refresh_from_db)()
+
+    service = _service_with_model(conversation, _hello_model, owner=owner)
+    async for _ in service.stream_data_async([QUESTION]):
+        pass
+
+    await sync_to_async(conversation.refresh_from_db)()
+    assert [(message.role, message.parts[0].text) for message in conversation.messages] == [
+        ("user", "First question"),
+        ("user", "Say hello"),
+        ("assistant", "Hello there"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_stopped_turn_is_filed_before_the_next_one_starts():
+    """Stop is not a cancellation: the turn is over and nothing is in its way.
+
+    Leaving it to the liveness window filed it after the turn that came next,
+    so the conversation read out of order, permanently.
+    """
+    conversation = await sync_to_async(ChatConversationFactory)()
+    owner = await sync_to_async(lambda: conversation.owner)()
+    stopped = _service_with_model(conversation, _hello_model, owner=owner)
+
+    async def stopping_model(_messages, _info):
+        """Answer, then press stop between two chunks."""
+        yield "Hello"
+        stopped.stop_streaming()
+        stopped._last_stop_check = 0
+        yield " there"
+
+    stopped.conversation_agent._model = FunctionModel(stream_function=stopping_model)
+    async for _ in stopped.stream_data_async([QUESTION]):
+        pass
+
+    # Nothing pending: the turn closed itself rather than waiting to be found.
+    assert await _chunks(conversation) == []
+
+    await sync_to_async(conversation.refresh_from_db)()
+    second = _service_with_model(conversation, _hello_model, owner=owner)
+    async for _ in second.stream_data_async([QUESTION]):
+        pass
+
+    await sync_to_async(conversation.refresh_from_db)()
+    roles = [message.role for message in conversation.messages]
+    assert roles == ["user", "assistant", "user", "assistant"]
+    assert conversation.messages[1].metadata == {"interrupted": True}
+    assert (conversation.messages[3].metadata or {}).get("interrupted") is None
+
+
+@pytest.mark.asyncio
+async def test_a_turn_that_errors_stores_its_question_once():
+    """The error path stored the question while the trail already held it."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+
+    async def failing_model(_messages, _info):
+        """Fail the way a rate-limited provider does."""
+        raise ModelHTTPError(status_code=429, model_name="test-model")
+        yield  # pragma: no cover - makes this an async generator
+
+    service = _service_with_model(conversation, failing_model)
+    async for _ in service.stream_data_async([QUESTION]):
+        pass
+
+    await sync_to_async(conversation.refresh_from_db)()
+    assert [message.role for message in conversation.messages] == ["user"]
+    assert await _chunks(conversation) == []
+
+
+@pytest.mark.asyncio
+async def test_an_interrupted_tool_call_leaves_a_replayable_history(settings):
+    """A tool call with no return makes the agent graph reject every later turn.
+
+    Pydantic AI only adds the return when the next model request starts, so a
+    snapshot taken on the tool-result event holds the call alone.
+    """
+    settings.AI_AGENT_TOOLS = ["get_current_weather"]
+    conversation = await sync_to_async(ChatConversationFactory)()
+    calls = []
+
+    async def model_calling_a_tool(messages: list[ModelMessage], info: AgentInfo):
+        """Call the weather tool, then answer from its result."""
+        calls.append(len(messages))
+        if len(calls) == 1:
+            yield {
+                0: DeltaToolCall(
+                    name=info.function_tools[0].name,
+                    json_args='{"location": "Paris", "unit": "celsius"}',
+                    tool_call_id="call-1",
+                )
+            }
+            return
+        yield "It is mild."
+
+    service = _service_with_model(conversation, model_calling_a_tool)
+    folded = []
+    stream = service.stream_data_async([QUESTION])
+    async for chunk in stream:
+        if "tool-output-available" in chunk:
+            folded = stream_chunks.fold(await _chunks(conversation))
+            break
+
+    assert folded, "nothing was stored by the time the tool had answered"
+    responses = [message for message in folded if isinstance(message, ModelResponse)]
+    dangling = [
+        response for response in responses if response.tool_calls and response.state == "complete"
+    ]
+    assert not dangling, "a tool call with no return, left as complete history"

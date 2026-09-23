@@ -192,6 +192,7 @@ from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
 from chat.mcp_servers import enter_mcp_toolsets, get_mcp_toolsets
 from chat.rate_limiting import record_and_compute_cooldown
+from chat.stream_chunks import close as close_turn_trail
 from chat.stream_chunks import persist as persist_leftover_chunks
 from chat.tasks import parse_and_store_conversation_document_task, summarize_conversation_history
 from chat.tools.descriptions import (
@@ -327,15 +328,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Per-turn chunk state, reset by _clean: where we are in the sequence,
         # the text produced since the last row, and when each kind of row was
         # last written.
-        self._chunk_seq = 0
+        self._chunk_seq = self._last_text_flush = self._last_snapshot = 0
         self._pending_text = ""
-        self._last_text_flush = 0
-        self._last_snapshot = 0
         self._active_agent_stream = None
         self._turn_image_actions: Optional[ImagePostRunActions] = None
         self._tokens_recorded = 0
         self._turn_started_at, self._text_rows, self._snapshot_rows = 0.0, 0, 0
         self._turn_run_id = uuid.uuid4()
+        self._turn_landed = self._question_stored = self._tool_step_pending = False
         # Events queued during _prepare_agent_run for _run_agent to yield before
         # the model is actually called (e.g. images-skipped notices). The list is
         # cleared at the start of every stream via _clean.
@@ -464,19 +464,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # --------------------------------------------------------------------- #
     # Async internals
     # --------------------------------------------------------------------- #
-
-    async def _persist_user_message_on_error(self, user_message: UIMessage) -> None:
-        """Persist the user message when an LLM error prevents normal finalization.
-
-        In normal flow, _prepare_update_conversation saves both user and assistant
-        messages after a successful LLM response. On error that path is never reached,
-        so we save the user message here to keep it visible on page reload.
-        Role-based guard prevents double-appending on repeated errors.
-        """
-        if self.conversation.messages and self.conversation.messages[-1].role == "user":
-            return
-        self.conversation.messages = list(self.conversation.messages) + [user_message]
-        await sync_to_async(self.conversation.save)(update_fields=["messages"])
 
     async def _write_turn_chunks(self, run, event) -> None:
         """Append what this event added to the turn.
@@ -663,6 +650,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if self.conversation.messages and self.conversation.messages[-1].role == "user":
             return
         self.conversation.messages = list(self.conversation.messages) + [user_message]
+        self._question_stored = True
         await sync_to_async(self.conversation.save)(update_fields=["messages"])
 
     def _add_unreadable_images_instruction(self, subject: Optional[str]) -> None:
@@ -748,8 +736,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     self.conversation.pk,
                     exc,
                 )
-                if messages:
-                    await self._persist_user_message_on_error(messages[-1])
                 error_event = events_v4.ErrorPart(error=error_code)
                 for translated in translator.translate(error_event):
                     yield self.event_encoder.encode(translated)
@@ -759,8 +745,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     self.conversation.pk,
                     exc,
                 )
-                if messages:
-                    await self._persist_user_message_on_error(messages[-1])
                 error_event = events_v4.ErrorPart(error="model_connection_error")
                 for translated in translator.translate(error_event):
                     yield self.event_encoder.encode(translated)
@@ -770,8 +754,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     self.conversation.pk,
                     exc,
                 )
-                if messages:
-                    await self._persist_user_message_on_error(messages[-1])
                 error_event = events_v4.ErrorPart(error="summarization_failed")
                 for translated in translator.translate(error_event):
                     yield self.event_encoder.encode(translated)
@@ -783,6 +765,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # would escape mid-response. Falling through closes the stream
                 # with the same flush and DONE frame as a normal end.
                 self._turn_log("stopped by the user, keeping what was produced")
+
+            if not self._turn_landed:
+                # Stop, a handled provider error, an early return: the turn is
+                # over and the code is still running, so file it here rather
+                # than leave it to be found after the liveness window, which
+                # would land it after whatever turn comes next. A real
+                # cancellation never reaches this line, and its trail is
+                # exactly what the window is for.
+                await sync_to_async(close_turn_trail)(self.conversation, self._turn_run_id)
 
             self._turn_log(
                 "stream closed, %d text rows and %d snapshots written",
@@ -838,6 +829,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Scopes this turn's chunks, so a turn running at the same time on the
         # same conversation cannot fold, overwrite or delete them.
         self._turn_run_id = uuid.uuid4()
+        self._turn_landed = False
+        self._question_stored = False
+        self._tool_step_pending = False
         await cache.adelete(self._stop_cache_key)
 
     # --------------------------------------------------------------------- #
@@ -1215,6 +1209,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 pass
 
             elif Agent.is_model_request_node(node):
+                if self._tool_step_pending:
+                    # The tool cycle is closed now, returns included.
+                    self._tool_step_pending = False
+                    await self._append_snapshot(run)
                 # A model request node => agent is asking the model to generate a response
                 async for event in self._handle_model_request_node(node, run.ctx, state):
                     await self._write_turn_chunks(run, event)
@@ -1225,10 +1223,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # potentially calls a tool
                 async for event in self._handle_call_tools_node(node, run.ctx, state):
                     yield event
-                    # A tool call and its result are structure rather than more
-                    # of the same text, and only a snapshot carries structure.
+                    # A tool call is structure rather than more of the same
+                    # text, and only a snapshot carries structure. The snapshot
+                    # itself waits: Pydantic AI adds the tool's return to the
+                    # run when the next model request starts, so taking it here
+                    # would store a call with no answer, which no provider will
+                    # replay.
                     if isinstance(event, (events_v4.ToolCallPart, events_v4.ToolResultPart)):
-                        await self._append_snapshot(run)
+                        self._tool_step_pending = True
 
             elif Agent.is_end_node(node):
                 # Once an End node is reached, the agent run is complete
@@ -2161,7 +2163,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self.conversation.agent_usage = usage
 
-        if not (self.conversation.messages and self.conversation.messages[-1].role == "user"):
+        # Tracked rather than read off the list: a question-only turn folded in
+        # earlier also leaves a trailing user message, and taking that as "this
+        # turn's question is stored" dropped the question being answered here.
+        if not self._question_stored:
             _request_ui_message = model_message_to_ui_message(_merged_final_output_request)
             # None when the request holds nothing renderable (system prompt or
             # tool return only): there is no user bubble to rebuild.
@@ -2192,6 +2197,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             # This turn's trail only: another turn may be streaming into the
             # same conversation from another tab, and its rows are not ours.
             self.conversation.stream_chunks.filter(run_id=self._turn_run_id).delete()
+        self._turn_landed = True
 
     async def _generate_title(self) -> str | None:
         """Generate a title for the conversation using LLM based on first messages."""

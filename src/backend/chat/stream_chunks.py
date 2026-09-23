@@ -87,6 +87,24 @@ def is_live(chunks) -> bool:
     return latest > timezone.now() - timezone.timedelta(seconds=STREAM_LIVE_WINDOW_SECONDS)
 
 
+def _mark_dangling_tool_calls_interrupted(messages: list[ModelMessage]) -> None:
+    """Stamp a trailing response holding unanswered tool calls as interrupted.
+
+    A tool call with no return makes `_agent_graph` refuse the next user prompt
+    ("unprocessed tool calls"), and the refusal is permanent: every later turn
+    reads the same history back. Stamping it routes it to Pydantic AI's own
+    repair path, which closes the calls out with synthesized returns.
+
+    From Maxence Haouari's work on the same problem, on branch
+    persist-partial-messages.
+    """
+    if not messages:
+        return
+    last = messages[-1]
+    if isinstance(last, ModelResponse) and last.tool_calls and last.state == "complete":
+        last.state = "interrupted"
+
+
 def fold(chunks) -> list[ModelMessage]:
     """The turn these chunks describe, in the shape a finished one has.
 
@@ -113,6 +131,7 @@ def fold(chunks) -> list[ModelMessage]:
     text = "".join(trailing)
     if text:
         messages = _append_text(messages, text)
+    _mark_dangling_tool_calls_interrupted(messages)
     return messages
 
 
@@ -165,6 +184,22 @@ def interrupted_messages(chunks) -> list[UIMessage]:
     return ui_messages
 
 
+def close(conversation, run_id) -> bool:
+    """File one turn's trail now, because that turn is over and knows it.
+
+    Stop, a handled provider error and the early returns all end a turn while
+    the code is still running: none of them is a cancellation. Leaving them to
+    `persist` means waiting out the liveness window, and a fold that lands
+    after the turn that came next reads out of order forever.
+
+    Returns True when something was filed.
+    """
+    trail = list(conversation.stream_chunks.filter(run_id=run_id))
+    if not trail:
+        return False
+    return _fold_one(conversation, trail)
+
+
 def persist(conversation) -> bool:
     """Fold the conversation's leftover chunks into it, for good.
 
@@ -184,25 +219,30 @@ def persist(conversation) -> bool:
     if not abandoned:
         return False
 
-    folded_any = False
-    for trail in abandoned:
-        messages = fold(trail)
-        ui_messages = interrupted_messages(trail)
-        with transaction.atomic():
-            if ui_messages:
-                conversation.messages = list(conversation.messages) + ui_messages
-                conversation.pydantic_messages = conversation.pydantic_messages + _dump(messages)
-                conversation.save(update_fields=["messages", "pydantic_messages", "updated_at"])
-                folded_any = True
-            conversation.stream_chunks.filter(run_id=trail[0].run_id).delete()
-        turn_logger.info(
-            "[fold %s] %d chunk(s) of run %s became %d message(s)",
-            conversation.pk,
-            len(trail),
-            trail[0].run_id,
-            len(ui_messages),
-        )
-    return folded_any
+    # Materialised rather than lazy: every trail must be folded, not just the
+    # ones `any` reaches before the first truthy result.
+    folded = [_fold_one(conversation, trail) for trail in abandoned]
+    return any(folded)
+
+
+def _fold_one(conversation, trail) -> bool:
+    """Write one trail into the conversation and drop it, in one transaction."""
+    messages = fold(trail)
+    ui_messages = interrupted_messages(trail)
+    with transaction.atomic():
+        if ui_messages:
+            conversation.messages = list(conversation.messages) + ui_messages
+            conversation.pydantic_messages = conversation.pydantic_messages + _dump(messages)
+            conversation.save(update_fields=["messages", "pydantic_messages", "updated_at"])
+        conversation.stream_chunks.filter(run_id=trail[0].run_id).delete()
+    turn_logger.info(
+        "[fold %s] %d chunk(s) of run %s became %d message(s)",
+        conversation.pk,
+        len(trail),
+        trail[0].run_id,
+        len(ui_messages),
+    )
+    return bool(ui_messages)
 
 
 def _dump(messages: list[ModelMessage]) -> list:
