@@ -61,6 +61,10 @@ OIDC_AUTH_REQUEST_EXTRA_PARAMS={"acr_values": "eidas1"}
 AI_API_KEY=password
 # AI_MODEL=llama
 
+# Staan web search — both required by the web_search_staan tool
+# STAAN_API_URL=https://api.staan.ai
+# STAAN_API_KEY=changeme
+
 ## --- Addition Docs Resource Server Config
 # Docs integration — "Edit in Docs" export feature
 # DOCS_BASE_URL=http://docs
