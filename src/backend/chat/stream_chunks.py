@@ -96,7 +96,7 @@ def interrupted_messages(chunks) -> list[UIMessage]:
     anything, which is the whole reason the chunks exist.
     """
     folded = fold(chunks)
-    if not folded or not isinstance(folded[-1], ModelResponse):
+    if not folded:
         return []
 
     ui_messages = []
@@ -104,11 +104,21 @@ def interrupted_messages(chunks) -> list[UIMessage]:
         ui_message = model_message_to_ui_message(message)
         if ui_message is not None and ui_message.parts:
             ui_messages.append(ui_message)
-    if not ui_messages or ui_messages[-1].role != "assistant":
+    if not ui_messages:
         return []
 
+    if ui_messages[-1].role != "assistant":
+        # The question alone: the turn was cut before the model answered, which
+        # is a long window when a document has to be parsed first. Showing it
+        # is the point of writing it that early.
+        return ui_messages
+
     answer = ui_messages[-1]
-    answer.id = chunks[0].message_id
+    # The question chunk is written before the answer has an id, so take the
+    # first chunk that carries one.
+    message_id = next((chunk.message_id for chunk in chunks if chunk.message_id), "")
+    if message_id:
+        answer.id = message_id
     answer.metadata = {**(answer.metadata or {}), "interrupted": True}
     return ui_messages
 

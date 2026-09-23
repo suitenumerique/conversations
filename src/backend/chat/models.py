@@ -304,9 +304,13 @@ class ChatStreamChunk(BaseModel):
     )
     message_id = models.CharField(
         max_length=255,
+        blank=True,
+        default="",
         help_text=(
             "Id of the assistant message being streamed, as announced to the client in the "
-            "`start` frame, so the folded message is the one the client is already holding."
+            "`start` frame, so the folded message is the one the client is already holding. "
+            "Blank on the chunk holding the question, which is written before there is an "
+            "answer for the id to belong to."
         ),
     )
     seq = models.PositiveIntegerField(

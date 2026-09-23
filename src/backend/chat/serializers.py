@@ -352,11 +352,9 @@ class ChatConversationRetrieveSerializer(ChatConversationSerializer):
         Cached on the instance rather than re-queried: both fields below want
         the same rows, and a retrieve serializes one conversation.
         """
-        if not hasattr(obj, "_cached_stream_chunks"):
-            obj._cached_stream_chunks = list(  # pylint: disable=protected-access
-                obj.stream_chunks.all()
-            )
-        return obj._cached_stream_chunks  # pylint: disable=protected-access
+        if not hasattr(obj, "cached_stream_chunks"):
+            obj.cached_stream_chunks = list(obj.stream_chunks.all())
+        return obj.cached_stream_chunks
 
     @extend_schema_field(SchemaField(schema=list[UIMessage]))
     def get_messages(self, obj):

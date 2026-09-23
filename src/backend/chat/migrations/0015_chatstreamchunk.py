@@ -45,7 +45,9 @@ class Migration(migrations.Migration):
                 (
                     "message_id",
                     models.CharField(
-                        help_text="Id of the assistant message being streamed, as announced to the client in the `start` frame, so the folded message is the one the client is already holding.",
+                        help_text="Id of the assistant message being streamed, as announced to the client in the `start` frame, so the folded message is the one the client is already holding. Blank on the chunk holding the question, which is written before there is an answer for the id to belong to.",
+                        blank=True,
+                        default="",
                         max_length=255,
                     ),
                 ),

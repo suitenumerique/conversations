@@ -78,6 +78,27 @@ async def test_an_interrupted_turn_is_readable_from_its_chunks():
 
 
 @pytest.mark.asyncio
+async def test_the_question_is_written_before_the_model_answers():
+    """Everything slow happens before the first token: preparing the run,
+    parsing an attached document, waiting on a summary. A turn cut short in
+    that window has to leave the question behind at least."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    seen = []
+
+    async def model_reading_the_chunks(_messages, _info):
+        """Read the chunks back from the database before answering."""
+        seen.extend(stream_chunks.interrupted_messages(await _chunks(conversation)))
+        yield "Hello"
+
+    service = _service_with_model(conversation, model_reading_the_chunks)
+    async for _ in service.stream_data_async([QUESTION]):
+        pass
+
+    assert [message.role for message in seen] == ["user"]
+    assert seen[0].parts[0].text == "Say hello"
+
+
+@pytest.mark.asyncio
 async def test_a_turn_that_lands_leaves_no_chunks():
     """The chunks are scaffolding: the finished turn replaces them."""
     conversation = await sync_to_async(ChatConversationFactory)()

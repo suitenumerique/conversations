@@ -502,22 +502,45 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     async def _append_snapshot(self, run) -> None:
         """Append the turn as it stands, structure and all.
 
-        Text rows say what the model wrote; only this says what it was doing,
-        and which request the answer belongs to. Written on the turn's first
-        output, whenever a tool call or its result lands, and otherwise on an
+        Text rows say what the model wrote; only this says what it was doing.
+        Written whenever a tool call or its result lands, and otherwise on an
         interval, since it is the expensive kind of row.
+        """
+        # Everything in hand is in the response the snapshot is about to store,
+        # so it is superseded rather than written first.
+        self._pending_text = ""
+        await self._write_snapshot(self._partial_turn_messages(run))
+
+    async def _append_question(self, user_prompt: str, input_images: List) -> None:
+        """Append the question, before anything slow gets the chance to run.
+
+        Everything between the request arriving and the model's first token -
+        preparing the run, re-indexing, parsing an attached document, waiting
+        on a summary - happens before there is any output to snapshot. Leaving
+        it at that would mean a turn cut short in that window stored nothing at
+        all, not even what was asked, and parsing a document alone can hold it
+        open for minutes.
+        """
+        await self._write_snapshot(
+            [
+                ModelRequest(
+                    parts=[UserPromptPart(content=[user_prompt] + list(input_images))],
+                    kind="request",
+                )
+            ]
+        )
+
+    async def _write_snapshot(self, messages: List[ModelMessage]) -> None:
+        """Store `messages` as a snapshot chunk.
 
         Copied and rewritten before it is stored: image URLs presigned for the
         model expire, so what goes on disk carries the durable form. Doing that
         to the run's own messages would change what the model sees for the rest
         of the turn.
         """
-        # Everything in hand is in the response the snapshot is about to store,
-        # so it is superseded rather than written first.
-        self._pending_text = ""
-        messages = copy.deepcopy(self._partial_turn_messages(run))
         if not messages:
             return
+        messages = copy.deepcopy(messages)
         self._apply_image_actions(messages, self._turn_image_actions)
         self._last_snapshot = time.monotonic()
         await self._write_chunk(
@@ -1854,6 +1877,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             conversation_has_own_documents,
         ) = await self._prepare_agent_run(messages)
 
+        # Held for the snapshots, which rewrite presigned image URLs to their
+        # durable form before storing them.
+        self._turn_image_actions = image_actions
+        await self._append_question(user_prompt, input_images)
+
         for pre_event in self._pre_stream_events:
             yield events_v4.DataPart(data=[pre_event])
         self._pre_stream_events = []
@@ -1919,10 +1947,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if await self._check_should_enable_rag(conversation_has_own_documents):
             document_context_instruction = await self._build_document_context_instruction()
             self._setup_rag_tools(document_context_instruction=document_context_instruction)
-
-        # Held for the snapshots, which rewrite presigned image URLs to their
-        # durable form before storing them.
-        self._turn_image_actions = image_actions
 
         async with AsyncExitStack() as stack:
             mcp_toolsets = await enter_mcp_toolsets(stack, self._connector_toolsets)
