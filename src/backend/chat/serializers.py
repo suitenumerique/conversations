@@ -354,6 +354,7 @@ class ChatConversationRetrieveSerializer(ChatConversationSerializer):
         """
         if not hasattr(obj, "cached_stream_chunks"):
             obj.cached_stream_chunks = list(obj.stream_chunks.all())
+            stream_chunks.describe(obj, obj.cached_stream_chunks)
         return obj.cached_stream_chunks
 
     @extend_schema_field(SchemaField(schema=list[UIMessage]))

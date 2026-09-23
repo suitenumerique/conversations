@@ -44,6 +44,8 @@ def service_fixture(conversation):
     s.conversation = conversation
     s.user = SimpleNamespace(pk=1)
     s._tokens_recorded = 0
+    s._turn_started_at = 0.0
+    s._text_rows = s._snapshot_rows = 0
     s.conversation_agent = SimpleNamespace(
         configuration=LLModel(
             hrid="m",

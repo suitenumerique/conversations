@@ -329,6 +329,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._active_agent_stream = None
         self._turn_image_actions: Optional[ImagePostRunActions] = None
         self._tokens_recorded = 0
+        self._turn_started_at = 0.0
+        self._text_rows = self._snapshot_rows = 0
         # Events queued during _prepare_agent_run for _run_agent to yield before
         # the model is actually called (e.g. images-skipped notices). The list is
         # cleared at the start of every stream via _clean.
@@ -415,6 +417,22 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if not self._history_summary:
                 return ""
             return f"{SUMMARY_SYSTEM_PREFIX}{self._history_summary.strip()}"
+
+    def _turn_log(self, message: str, *args) -> None:
+        """Log one step of the turn, stamped with how far into it we are.
+
+        The turn is the unit worth following in the logs: a request arrives, a
+        question is stored, output is appended as it comes, and the turn either
+        lands or leaves its chunks behind. Every line carries the conversation
+        and the elapsed seconds so one cycle reads top to bottom.
+        """
+        elapsed = time.monotonic() - self._turn_started_at if self._turn_started_at else 0.0
+        logger.info(
+            "[turn %s +%05.1fs] %s",
+            self.conversation.pk,
+            elapsed,
+            message % args if args else message,
+        )
 
     @property
     def _stop_cache_key(self):
@@ -556,6 +574,17 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             text=text,
             parts=parts,
         )
+        if parts is None:
+            self._text_rows += 1
+            logger.debug(
+                "[turn %s] chunk %d: %d characters of text",
+                self.conversation.pk,
+                self._chunk_seq,
+                len(text),
+            )
+        else:
+            self._snapshot_rows += 1
+            self._turn_log("chunk %d: snapshot of %d message(s)", self._chunk_seq, len(parts))
         self._chunk_seq += 1
 
     def _partial_turn_messages(self, run) -> List[ModelMessage]:
@@ -677,6 +706,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 )
 
             self._model_response_message_id = self._new_model_response_message_id()
+            self._turn_log(
+                "stream opened, answering as message %s", self._model_response_message_id
+            )
             yield self.event_encoder.encode(
                 events_v5.MessageStartEvent(messageId=self._model_response_message_id)
             )
@@ -728,6 +760,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 for translated in translator.translate(error_event):
                     yield self.event_encoder.encode(translated)
 
+            self._turn_log(
+                "stream closed, %d text rows and %d snapshots written",
+                self._text_rows,
+                self._snapshot_rows,
+            )
             for translated in translator.flush():
                 yield self.event_encoder.encode(translated)
             yield DONE_FRAME
@@ -771,6 +808,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._active_agent_stream = None
         self._turn_image_actions = None
         self._tokens_recorded = 0
+        self._turn_started_at = time.monotonic()
+        self._text_rows = 0
+        self._snapshot_rows = 0
         await cache.adelete(self._stop_cache_key)
 
     # --------------------------------------------------------------------- #
@@ -1799,6 +1839,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             FinishMessagePart: Always emitted last to signal completion
         """
         await self._agent_stop_streaming(force_cache_check=True)
+        self._turn_log(
+            "run finished: %d prompt and %d completion tokens",
+            usage["promptTokens"],
+            usage["completionTokens"],
+        )
 
         # Total tokens the model processed for this request, across every
         # tool-loop round-trip (RAG/web-search results fed back as input count
@@ -1819,12 +1864,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             image_actions=image_actions,
         )
 
+        self._turn_log("turn stored and its chunks dropped")
+
         generated_title = await self._generate_title_if_needed()
         if generated_title:
             await sync_to_async(self.conversation.save)(update_fields=["title", "updated_at"])
+            self._turn_log("named the conversation %r", generated_title)
 
         cooldown_seconds = await self._record_tokens(request_tokens)
         if cooldown_seconds:
+            self._turn_log("the user owes a %ds cooldown", cooldown_seconds)
             yield events_v4.DataPart(data=[{"type": "cooldown", "seconds": cooldown_seconds}])
 
         if generated_title:
@@ -1853,7 +1902,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-    async def _run_agent(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # noqa: PLR0912
+    async def _run_agent(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements  # noqa: PLR0912, PLR0915
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
@@ -1865,7 +1914,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # A previous turn may have been cut short and left chunks behind. Fold
         # them before this turn reads the history, so the model sees the
         # interrupted exchange rather than a question with no answer.
-        await sync_to_async(persist_leftover_chunks)(self.conversation)
+        if await sync_to_async(persist_leftover_chunks)(self.conversation):
+            self._turn_log("folded in what a previous turn left behind")
 
         (
             user_prompt,
@@ -1877,10 +1927,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             conversation_has_own_documents,
         ) = await self._prepare_agent_run(messages)
 
+        self._turn_log(
+            "prepared: %d messages of history, %d image(s), %d document(s)",
+            len(history),
+            len(input_images),
+            len(input_documents),
+        )
+
         # Held for the snapshots, which rewrite presigned image URLs to their
         # durable form before storing them.
         self._turn_image_actions = image_actions
         await self._append_question(user_prompt, input_images)
+        self._turn_log("question stored, so the turn survives whatever runs next")
 
         for pre_event in self._pre_stream_events:
             yield events_v4.DataPart(data=[pre_event])
@@ -1957,6 +2015,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
             message_history = history if history else None
 
+            self._turn_log("calling the model")
             async with self.conversation_agent.iter(
                 [user_prompt] + input_images,
                 # History passes through the ProcessHistory capability set on the agent.

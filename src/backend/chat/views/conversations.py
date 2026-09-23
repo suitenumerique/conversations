@@ -237,8 +237,11 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
 
         raw_messages = request.data.get("messages")
         logger.info(
-            "Received %d messages",
+            "[request %s] POST conversation: %d message(s), model=%s, web_search=%s",
+            pk,
             len(raw_messages) if isinstance(raw_messages, list) else 0,
+            requested_model_hrid or "default",
+            force_web_search,
         )
 
         conversation = self.get_object()
@@ -331,6 +334,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         # production uses async mode (Uvicorn ASGI).
         is_async_mode = os.environ.get("PYTHON_SERVER_MODE", "sync") == "async"
 
+        mode = "async" if is_async_mode else "sync"
         if is_async_mode:
             logger.debug("Using ASYNC streaming for chat conversation.")
             base_stream = ai_service.stream_data_async(messages, force_web_search=force_web_search)
@@ -339,6 +343,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             logger.debug("Using SYNC streaming for chat conversation.")
             base_stream = ai_service.stream_data(messages, force_web_search=force_web_search)
             streaming_content = stream_with_keepalive_sync(base_stream)
+        logger.info("[request %s] streaming response opened (%s mode)", pk, mode)
         response = StreamingHttpResponse(
             streaming_content,
             content_type=SSE_MIME_TYPE,

@@ -33,6 +33,23 @@ from chat.constants import STREAM_LIVE_WINDOW_SECONDS
 logger = logging.getLogger(__name__)
 
 
+def describe(conversation, chunks) -> None:
+    """Log what a read makes of the chunks it found, when there are any.
+
+    Silent on the usual read, where nothing is pending: this only speaks up
+    for a conversation holding a turn that has not landed, which is the case
+    worth being able to follow.
+    """
+    if not chunks:
+        return
+    logger.info(
+        "[read %s] %d pending chunk(s), turn is %s",
+        conversation.pk,
+        len(chunks),
+        "still running" if is_live(chunks) else "over and interrupted",
+    )
+
+
 def is_live(chunks) -> bool:
     """True while chunks keep arriving, so a turn is still producing them.
 
@@ -145,7 +162,12 @@ def persist(conversation) -> bool:
             conversation.pydantic_messages = conversation.pydantic_messages + _dump(messages)
             conversation.save(update_fields=["messages", "pydantic_messages", "updated_at"])
         conversation.stream_chunks.all().delete()
-    logger.info("Folded %d leftover chunks into conversation %s", len(chunks), conversation.pk)
+    logger.info(
+        "[fold %s] %d chunk(s) became %d message(s)",
+        conversation.pk,
+        len(chunks),
+        len(ui_messages),
+    )
     return bool(ui_messages)
 
 
