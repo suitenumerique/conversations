@@ -697,6 +697,34 @@ describe('MessageItem', () => {
     });
   });
 
+  describe('interrupted answers', () => {
+    it('flags an answer the backend stored as interrupted', async () => {
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={{
+              ...defaultProps.message,
+              metadata: { interrupted: true },
+            }}
+          />,
+        );
+      });
+
+      expect(screen.getByTestId('interrupted-answer')).toBeInTheDocument();
+    });
+
+    it('leaves a completed answer unflagged', async () => {
+      await act(async () => {
+        renderWithProviders(<MessageItem {...defaultProps} />);
+      });
+
+      expect(
+        screen.queryByTestId('interrupted-answer'),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe('feedback buttons', () => {
     it('renders FeedbackButtons for trace messages', async () => {
       await act(async () => {

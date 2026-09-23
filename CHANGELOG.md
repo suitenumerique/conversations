@@ -15,6 +15,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(back) keep a turn that is interrupted by appending it as it is produced
+- 🚸(front) wait for an answer still generating after leaving the conversation
 - ✅(back) make the project list query counts independent of test order
 - 👷(ci) pull the MinIO images from quay.io instead of Docker Hub
 - 🐛(ci) fix the CHANGELOG check failing when a pull request is opened
