@@ -218,6 +218,11 @@ document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
 logger = logging.getLogger(__name__)
 
+# Every line tracing one turn goes to this logger rather than the module's, so
+# following a cycle is one filter (`chat.turn`) across the four modules that
+# take part in it, and its level can be raised or lowered on its own.
+turn_logger = logging.getLogger("chat.turn")
+
 User = get_user_model()
 
 CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
@@ -427,7 +432,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         and the elapsed seconds so one cycle reads top to bottom.
         """
         elapsed = time.monotonic() - self._turn_started_at if self._turn_started_at else 0.0
-        logger.info(
+        turn_logger.info(
             "[turn %s +%05.1fs] %s",
             self.conversation.pk,
             elapsed,
@@ -576,7 +581,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
         if parts is None:
             self._text_rows += 1
-            logger.debug(
+            turn_logger.debug(
                 "[turn %s] chunk %d: %d characters of text",
                 self.conversation.pk,
                 self._chunk_seq,

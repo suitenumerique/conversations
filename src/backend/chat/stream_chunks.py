@@ -32,6 +32,11 @@ from chat.constants import STREAM_LIVE_WINDOW_SECONDS
 
 logger = logging.getLogger(__name__)
 
+# Every line tracing one turn goes to this logger rather than the module's, so
+# following a cycle is one filter (`chat.turn`) across the four modules that
+# take part in it, and its level can be raised or lowered on its own.
+turn_logger = logging.getLogger("chat.turn")
+
 
 def describe(conversation, chunks) -> None:
     """Log what a read makes of the chunks it found, when there are any.
@@ -42,7 +47,7 @@ def describe(conversation, chunks) -> None:
     """
     if not chunks:
         return
-    logger.info(
+    turn_logger.info(
         "[read %s] %d pending chunk(s), turn is %s",
         conversation.pk,
         len(chunks),
@@ -162,7 +167,7 @@ def persist(conversation) -> bool:
             conversation.pydantic_messages = conversation.pydantic_messages + _dump(messages)
             conversation.save(update_fields=["messages", "pydantic_messages", "updated_at"])
         conversation.stream_chunks.all().delete()
-    logger.info(
+    turn_logger.info(
         "[fold %s] %d chunk(s) became %d message(s)",
         conversation.pk,
         len(chunks),

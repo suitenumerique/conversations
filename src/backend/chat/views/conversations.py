@@ -39,6 +39,11 @@ from chat.views.helpers import _bulk_delete_s3_blobs, conditional_refresh_oidc_t
 
 logger = logging.getLogger(__name__)
 
+# Every line tracing one turn goes to this logger rather than the module's, so
+# following a cycle is one filter (`chat.turn`) across the four modules that
+# take part in it, and its level can be raised or lowered on its own.
+turn_logger = logging.getLogger("chat.turn")
+
 
 class ChatAttachmentMixin(AttachmentMixin):  # pylint: disable=abstract-method
     """Mixin to handle attachment authorization for chat conversations."""
@@ -236,7 +241,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         requested_model_hrid = query_params_serializer.validated_data["model_hrid"]
 
         raw_messages = request.data.get("messages")
-        logger.info(
+        turn_logger.info(
             "[request %s] POST conversation: %d message(s), model=%s, web_search=%s",
             pk,
             len(raw_messages) if isinstance(raw_messages, list) else 0,
@@ -343,7 +348,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             logger.debug("Using SYNC streaming for chat conversation.")
             base_stream = ai_service.stream_data(messages, force_web_search=force_web_search)
             streaming_content = stream_with_keepalive_sync(base_stream)
-        logger.info("[request %s] streaming response opened (%s mode)", pk, mode)
+        turn_logger.info("[request %s] streaming response opened (%s mode)", pk, mode)
         response = StreamingHttpResponse(
             streaming_content,
             content_type=SSE_MIME_TYPE,
