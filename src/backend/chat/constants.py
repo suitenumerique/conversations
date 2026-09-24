@@ -61,7 +61,15 @@ STREAM_TEXT_FLUSH_INTERVAL_SECONDS = 0.25
 STREAM_TEXT_FLUSH_CHARS = 200
 STREAM_SNAPSHOT_INTERVAL_SECONDS = 5
 
-# How long after its last chunk a turn is still considered to be running. Past
+# How long after its last row a turn is still considered to be running. Past
 # it, the chunks are read as what an interrupted turn left behind rather than
 # as an answer still on its way.
-STREAM_LIVE_WINDOW_SECONDS = 30
+#
+# Must stay comfortably above KEEPALIVE_INTERVAL: a turn blocked on a document
+# parse or a tool call produces nothing for minutes, and what keeps it from
+# reading as abandoned is the beat row the keepalive loop appends on every
+# tick. Below that interval a running turn would look dead, and a turn from
+# another tab would fold and delete its trail from under it. Above it, the only
+# cost is that a turn whose reader vanished keeps looking live for one window,
+# which resolves itself.
+STREAM_LIVE_WINDOW_SECONDS = 120

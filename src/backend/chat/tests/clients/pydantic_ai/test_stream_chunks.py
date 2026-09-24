@@ -337,6 +337,26 @@ async def test_a_snapshot_carries_structure_a_text_row_cannot(settings):
 
 
 @pytest.mark.asyncio
+async def test_a_blocked_turn_says_it_is_still_running():
+    """A turn produces nothing for minutes while a document is parsed or a tool
+    runs. The keepalive loop is the only thing ticking then, so the beat it
+    appends is what keeps the trail from reading as abandoned."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = _service_with_model(conversation, _hello_model)
+    service._model_response_message_id = "m-1"
+    service._turn_run_id = uuid.uuid4()
+
+    await service.beat()
+    await service.beat()
+
+    trail = await _chunks(conversation)
+    assert [(chunk.text, chunk.parts) for chunk in trail] == [("", None), ("", None)]
+    # Says nothing about the answer: the fold ignores it, liveness does not.
+    assert stream_chunks.fold(trail) == []
+    assert stream_chunks.is_live(trail) is True
+
+
+@pytest.mark.asyncio
 async def test_a_turn_is_live_while_its_chunks_keep_coming():
     """Freshness is what tells an answer on its way from one cut short."""
     conversation = await sync_to_async(ChatConversationFactory)()

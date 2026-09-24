@@ -35,11 +35,18 @@ def get_keepalive_message() -> str:
 
 async def stream_with_keepalive_async(
     stream: AsyncIterator[str],
+    on_keepalive=None,
 ) -> AsyncIterator[str]:
     """Wrap an async iterator to emit keepalive during long pauses.
 
     Args:
         stream: The async iterator to wrap
+        on_keepalive: Awaited each time a pause is long enough to need a
+            keepalive. This loop is the only thing that ticks while the stream
+            produces nothing - the source can sit for minutes on a document
+            parse or a tool call - so it is also the only place from which
+            something blocked can prove it is still running. Failures are
+            logged and swallowed: a keepalive must not take the stream down.
     Yields:
         Items from the original stream, plus keepalive messages during pauses
     Raises:
@@ -81,6 +88,11 @@ async def stream_with_keepalive_async(
                     break
 
                 logger.debug("Send keepalive")
+                if on_keepalive is not None:
+                    try:
+                        await on_keepalive()
+                    except Exception:  # pylint: disable=broad-except
+                        logger.exception("Keepalive callback failed")
                 yield keepalive_message
     finally:
         # Cleanup

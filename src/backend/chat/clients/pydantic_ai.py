@@ -489,6 +489,22 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # otherwise escape the cooldown entirely.
         await self._record_tokens(self._spent_tokens(run))
 
+    async def beat(self) -> None:
+        """Prove the turn is still running, when it has nothing to show for it.
+
+        A turn blocked on a document parse, a summary or a long tool call
+        produces no rows for minutes, and a trail that stops growing is read as
+        one an interruption left behind. So the keepalive loop - the only thing
+        that ticks while the stream is silent - appends a row that says nothing
+        except when it was written.
+
+        `fold` ignores a row with no text and no parts, and `is_live` already
+        reads the newest row's timestamp, so this needs nothing from either.
+        """
+        if self._turn_landed:
+            return
+        await self._write_chunk()
+
     async def _append_text(self, text: str) -> None:
         """Append text the model has produced, batched.
 
@@ -562,27 +578,36 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
 
     async def _write_chunk(self, *, text: str = "", parts=None) -> None:
-        """Append one row to the turn's chunks."""
+        """Append one row to the turn's chunks.
+
+        The sequence number is taken and advanced before the insert is awaited.
+        Two coroutines write this trail - the turn, and the keepalive loop
+        beating while the turn is blocked - so anything read before an await
+        and written after it is read twice and collides on the constraint.
+        """
+        seq = self._chunk_seq
+        self._chunk_seq += 1
         await models.ChatStreamChunk.objects.acreate(
             conversation=self.conversation,
             run_id=self._turn_run_id,
             message_id=self._model_response_message_id or "",
-            seq=self._chunk_seq,
+            seq=seq,
             text=text,
             parts=parts,
         )
-        if parts is None:
+        if parts is None and not text:
+            turn_logger.info("chunk %d: still running", seq)
+        elif parts is None:
             self._text_rows += 1
             turn_logger.debug(
                 "[turn %s] chunk %d: %d characters of text",
                 self.conversation.pk,
-                self._chunk_seq,
+                seq,
                 len(text),
             )
         else:
             self._snapshot_rows += 1
-            self._turn_log("chunk %d: snapshot of %d message(s)", self._chunk_seq, len(parts))
-        self._chunk_seq += 1
+            self._turn_log("chunk %d: snapshot of %d message(s)", seq, len(parts))
 
     def _partial_turn_messages(self, run) -> List[ModelMessage]:
         """The turn as it stands right now.

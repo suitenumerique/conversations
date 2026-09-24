@@ -343,7 +343,10 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         if is_async_mode:
             logger.debug("Using ASYNC streaming for chat conversation.")
             base_stream = ai_service.stream_data_async(messages, force_web_search=force_web_search)
-            streaming_content = stream_with_keepalive_async(base_stream)
+            # The keepalive loop ticks while the turn is blocked and producing
+            # nothing, which is the only moment a turn can say it is still
+            # running without saying anything else.
+            streaming_content = stream_with_keepalive_async(base_stream, ai_service.beat)
         else:
             logger.debug("Using SYNC streaming for chat conversation.")
             base_stream = ai_service.stream_data(messages, force_web_search=force_web_search)
