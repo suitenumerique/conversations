@@ -185,7 +185,7 @@ from chat.document_context_builder import (
 )
 from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
-from chat.mcp_servers import enter_mcp_toolsets, get_mcp_toolsets
+from chat.mcp_servers import DataGouvConnector, enter_mcp_toolsets
 from chat.rate_limiting import record_and_compute_cooldown
 from chat.tasks import parse_and_store_conversation_document_task, summarize_conversation_history
 from chat.tools.descriptions import (
@@ -223,6 +223,23 @@ DOCUMENT_URL_PREFIX = "/media-key/"
 # reasons or events.
 IMAGES_SKIPPED_EVENT_TYPE = "images_skipped"
 IMAGE_SKIP_REASON_TEXT_ONLY = "model_text_only"
+
+# Stream-protocol contract with the frontend. Mirrored in `useChat.tsx`
+# (CONNECTOR_UNAVAILABLE_EVENT_TYPE). Keep both sides in sync.
+CONNECTOR_UNAVAILABLE_EVENT_TYPE = "connector_unavailable"
+
+
+def _connector_unavailable_notice() -> events_v4.DataPart:
+    """The chat notice for a forced connector this turn could not use."""
+    return events_v4.DataPart(
+        data=[
+            {
+                "type": CONNECTOR_UNAVAILABLE_EVENT_TYPE,
+                "kind": "chat_notice",
+                "connector_id": DataGouvConnector.connector_id,
+            }
+        ]
+    )
 
 
 def _strip_thinking_parts(history: list[ModelMessage]) -> list[ModelMessage]:
@@ -338,7 +355,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             self.user, "presentation_generation"
         )
         self._is_smart_search_enabled = user.allow_smart_web_search
-        self._connector_toolsets = get_mcp_toolsets(self.user)
+        self._datagouv = DataGouvConnector.for_user(self.user, conversation.pk)
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
         self._context_deps = ContextDeps(
@@ -410,9 +427,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # Public streaming API (unchanged signatures)
     # --------------------------------------------------------------------- #
 
-    def stream_data(self, messages: List[UIMessage], force_web_search: bool = False):
+    def stream_data(
+        self,
+        messages: List[UIMessage],
+        force_web_search: bool = False,
+        force_datagouv: bool = False,
+    ):
         """Return Vercel-AI-SDK formatted events."""
-        return convert_async_generator_to_sync(self.stream_data_async(messages, force_web_search))
+        return convert_async_generator_to_sync(
+            self.stream_data_async(messages, force_web_search, force_datagouv)
+        )
 
     def stop_streaming(self):
         """
@@ -508,7 +532,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         return f"trace-{trace_id}"
 
     async def _stream_content(  # noqa: PLR0912  # pylint: disable=too-many-branches
-        self, messages: List[UIMessage], force_web_search: bool = False
+        self,
+        messages: List[UIMessage],
+        force_web_search: bool = False,
+        force_datagouv: bool = False,
     ):
         """Stream the agent run as a Vercel AI SDK UI message stream."""
         await self._clean()
@@ -534,7 +561,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             )
 
             try:
-                async for event in self._run_agent(messages, force_web_search):
+                async for event in self._run_agent(messages, force_web_search, force_datagouv):
                     for translated in translator.translate(event):
                         yield self.event_encoder.encode(translated)
             except (ModelHTTPError, HTTPValidationError, SDKError) as exc:
@@ -584,10 +611,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 yield self.event_encoder.encode(translated)
             yield DONE_FRAME
 
-    async def stream_data_async(self, messages: List[UIMessage], force_web_search: bool = False):
+    async def stream_data_async(
+        self,
+        messages: List[UIMessage],
+        force_web_search: bool = False,
+        force_datagouv: bool = False,
+    ):
         """Return Vercel-AI-SDK formatted events."""
 
-        async for chunk in self._stream_content(messages, force_web_search):
+        async for chunk in self._stream_content(messages, force_web_search, force_datagouv):
             yield chunk
 
     async def _agent_stop_streaming(self, force_cache_check: Optional[bool] = False) -> None:
@@ -915,6 +947,74 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             return "You must call the web_search tool before answering the user request."
 
         return True
+
+    def _setup_datagouv_instruction(self) -> None:
+        """Tell the model a forced connector could not be reached.
+
+        Only called on a forced turn whose connection failed: whenever the tools
+        reach the run, their toolset carries the instruction itself. The wording
+        is the connector's; wiring it onto the agent is ours.
+        """
+
+        @self.conversation_agent.instructions
+        def datagouv_prompt() -> str:
+            """Dynamic system prompt function for the unreachable forced connector."""
+            return self._datagouv.instruction()
+
+    async def _enter_datagouv_toolsets(self, stack: AsyncExitStack, force_datagouv: bool):
+        """Record this turn's force, then connect the connector's toolsets.
+
+        The force is recorded first because it stands in for the opt-in: it
+        decides whether there are toolsets to connect at all.
+        """
+        if force_datagouv:
+            self._datagouv.force()
+
+        return await enter_mcp_toolsets(
+            stack,
+            self._datagouv.toolsets(),
+            # `0` means no limit, which asyncio.timeout spells as None.
+            timeout=settings.DATAGOUV_CONNECTOR_INIT_TIMEOUT or None,
+        )
+
+    async def _settle_datagouv(self, connected: bool):
+        """Report a forced connector this turn, once it is entered.
+
+        A forced turn is reported whatever came of it. An unforced turn needs
+        nothing here: connected tools bring their own instruction, and a
+        connector that failed silently stays silent.
+        """
+        # False when the gates denied the force, which stays silent by design.
+        if self._datagouv.forced:
+            async for event in self._report_forced_datagouv(connected):
+                yield event
+
+    async def _report_forced_datagouv(self, connected: bool):
+        """Settle a forced connector: instruct the model, and tell the user."""
+        self._datagouv.mark_connected(connected)
+        if not connected:
+            self._setup_datagouv_instruction()
+        async for event in self._report_forced_connector(connected):
+            yield event
+
+    async def _report_forced_connector(self, connected: bool):
+        """Record a forced connector, and tell the UI when it was missing.
+
+        Button usage is the adoption signal the Settings opt-in cannot give:
+        standing consent says a user is willing, forcing says they reached for
+        it. `reachable` doubles as the outage rate behind the notice — it is
+        whether we got through, not `available`, which is the standing state of
+        the connector for this user.
+        """
+        await acapture_event(
+            "connector_forced",
+            self.user.pk,
+            properties={"connector_id": self._datagouv.connector_id, "reachable": connected},
+        )
+        if connected:
+            return
+
+        yield _connector_unavailable_notice()
 
     async def _check_should_enable_rag(self, conversation_has_own_documents: bool) -> bool:
         """Check if RAG should be enabled based on actually-indexed documents.
@@ -1548,6 +1648,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                             args=json.loads(event.part.args) if event.part.args else {},
                         )
                 elif isinstance(event, FunctionToolResultEvent):
+                    # An outage reaches the model as a failed ToolReturnPart.
+                    if self._datagouv.take_outage():
+                        yield _connector_unavailable_notice()
                     if isinstance(event.part, ToolReturnPart):
                         if event.part.metadata and (sources := event.part.metadata.get("sources")):
                             for source_url in sources:
@@ -1690,6 +1793,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
+        force_datagouv: bool = False,
     ) -> AsyncGenerator[events_v4.Event | events_v5.Event, None]:
         """Run the Pydantic AI agent and stream events."""
         if not messages or messages[-1].role != "user":
@@ -1772,7 +1876,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             self._setup_rag_tools(document_context_instruction=document_context_instruction)
 
         async with AsyncExitStack() as stack:
-            mcp_toolsets = await enter_mcp_toolsets(stack, self._connector_toolsets)
+            mcp_toolsets = await self._enter_datagouv_toolsets(stack, force_datagouv)
+
+            async for event in self._settle_datagouv(connected=bool(mcp_toolsets)):
+                yield event
 
             # Help Mistral to prevent `Unexpected role 'user' after role 'tool'` error.
             if history and history[-1].kind == "request":

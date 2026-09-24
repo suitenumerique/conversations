@@ -233,6 +233,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         query_params_serializer = ChatConversationRequestSerializer(data=request.query_params)
         query_params_serializer.is_valid(raise_exception=True)
         force_web_search = query_params_serializer.validated_data["force_web_search"]
+        force_datagouv = query_params_serializer.validated_data["force_datagouv"]
         requested_model_hrid = query_params_serializer.validated_data["model_hrid"]
 
         raw_messages = request.data.get("messages")
@@ -333,11 +334,15 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
 
         if is_async_mode:
             logger.debug("Using ASYNC streaming for chat conversation.")
-            base_stream = ai_service.stream_data_async(messages, force_web_search=force_web_search)
+            base_stream = ai_service.stream_data_async(
+                messages, force_web_search=force_web_search, force_datagouv=force_datagouv
+            )
             streaming_content = stream_with_keepalive_async(base_stream)
         else:
             logger.debug("Using SYNC streaming for chat conversation.")
-            base_stream = ai_service.stream_data(messages, force_web_search=force_web_search)
+            base_stream = ai_service.stream_data(
+                messages, force_web_search=force_web_search, force_datagouv=force_datagouv
+            )
             streaming_content = stream_with_keepalive_sync(base_stream)
         response = StreamingHttpResponse(
             streaming_content,

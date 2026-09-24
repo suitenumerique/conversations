@@ -4,17 +4,23 @@
 # pylint: disable=using-constant-test,unreachable  # if False: generator stubs
 
 import asyncio
+import contextlib
 import socket
 import threading
 import time
 from contextlib import AsyncExitStack, asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
+import httpx
 import pytest
 import uvicorn
 from asgiref.sync import sync_to_async
+from fastmcp.exceptions import ToolError
 from mcp.server.fastmcp import FastMCP
-from pydantic_ai.exceptions import UnexpectedModelBehavior
+from mcp.shared.exceptions import McpError
+from mcp.types import ErrorData
+from pydantic_ai.exceptions import ModelRetry, ToolFailed, UnexpectedModelBehavior
 from pydantic_ai.models.test import TestModel
 
 from core.feature_flags.flags import FeatureToggle
@@ -23,7 +29,11 @@ from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService, DocumentParsingResult
 from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.llm_configuration import LLModel, LLMProvider
-from chat.mcp_servers import CONNECTOR_ID, enter_mcp_toolsets, get_mcp_toolsets
+from chat.mcp_servers import (
+    ConnectorToolset,
+    DataGouvConnector,
+    is_connector_unreachable,
+)
 
 pytestmark = pytest.mark.django_db()
 
@@ -59,34 +69,107 @@ def connector_configured_fixture(settings):
     settings.DATAGOUV_CONNECTOR_INIT_TIMEOUT = 1.0
 
 
-def test_no_toolset_when_connector_not_configured(settings):
+def _connector_for(user):
+    """The connector as it stands for this user. The pk only tags log lines."""
+    return DataGouvConnector.for_user(user, uuid4())
+
+
+def test_connector_disabled_when_not_configured(settings):
     """With no endpoint configured the connector does not exist."""
     settings.DATAGOUV_CONNECTOR_URL = ""
     user = UserFactory(allow_datagouv_connector=True)
 
-    assert not get_mcp_toolsets(user)
+    assert _connector_for(user).enabled is False
 
 
-def test_no_toolset_when_user_has_not_opted_in(_connector_configured):
-    """A cohort user who never switched it on gets nothing."""
-    user = UserFactory(allow_datagouv_connector=False)
-
-    assert not get_mcp_toolsets(user)
-
-
-def test_no_toolset_when_user_is_outside_the_cohort(_connector_configured, feature_flags):
-    """An opted-in user outside the beta cohort gets nothing."""
+def test_connector_disabled_outside_the_cohort(_connector_configured, feature_flags):
+    """A user outside the beta cohort has no connector, opted in or not."""
     feature_flags.datagouv_connector = FeatureToggle.DISABLED
     user = UserFactory(allow_datagouv_connector=True)
 
-    assert not get_mcp_toolsets(user)
+    assert _connector_for(user).enabled is False
 
 
-def test_toolset_returned_when_all_gates_pass(_connector_configured):
-    """Configured, in cohort and opted in yields exactly one toolset."""
-    user = UserFactory(allow_datagouv_connector=True)
+def test_being_enabled_ignores_the_opt_in(_connector_configured):
+    """Enabled is about the deployment and the cohort, not consent.
 
-    assert len(get_mcp_toolsets(user)) == 1
+    The opt-in is a per-turn decision, because forcing stands in for it.
+    """
+    assert _connector_for(UserFactory(allow_datagouv_connector=False)).enabled is True
+    assert _connector_for(UserFactory(allow_datagouv_connector=True)).enabled is True
+
+
+def test_being_available_needs_the_opt_in(_connector_configured):
+    """Available is enabled plus the user's opt-in."""
+    assert _connector_for(UserFactory(allow_datagouv_connector=False)).available is False
+    assert _connector_for(UserFactory(allow_datagouv_connector=True)).available is True
+
+
+def test_toolsets_returns_one_prefixed_toolset(_connector_configured):
+    """An available connector publishes its server under the connector's prefix."""
+    toolsets = _connector_for(UserFactory(allow_datagouv_connector=True)).toolsets()
+
+    assert len(toolsets) == 1
+    assert isinstance(toolsets[0], ConnectorToolset)
+    assert toolsets[0].prefix == DataGouvConnector.connector_id
+
+
+def _caused_by(error: Exception, cause: BaseException) -> Exception:
+    """The exception the MCP client would raise `from` cause."""
+    error.__cause__ = cause
+    return error
+
+
+def _mcp_error() -> McpError:
+    """A protocol-level error, the way the MCP client reports an unanswered call."""
+    return McpError(ErrorData(code=-32000, message="connection closed"))
+
+
+def test_a_tool_that_answers_with_an_error_is_not_an_outage():
+    """The server was reached; its tool just said no."""
+    assert is_connector_unreachable(ModelRetry("Dataset not found")) is False
+    assert is_connector_unreachable(_caused_by(ModelRetry("no"), ToolError("no"))) is False
+
+
+def test_a_protocol_or_transport_failure_is_an_outage():
+    """Whatever wrapping the MCP client puts around it, the server never answered."""
+    assert is_connector_unreachable(httpx.ReadTimeout("too slow")) is True
+    assert is_connector_unreachable(_caused_by(ModelRetry("gone"), _mcp_error())) is True
+    assert is_connector_unreachable(ExceptionGroup("mcp", [_mcp_error()])) is True
+
+
+def _wrapping(call_tool):
+    """A ConnectorToolset around a toolset whose calls do `call_tool`."""
+    return ConnectorToolset(
+        MagicMock(call_tool=call_tool), on_unreachable=MagicMock(), instructions=lambda: ""
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_connector_found_down_is_not_called_again():
+    """One outage per turn is enough: the next call fails without waiting."""
+    call_tool = AsyncMock(side_effect=httpx.ConnectError("gone"))
+    toolset = _wrapping(call_tool)
+
+    for _ in range(2):
+        with pytest.raises(ToolFailed):
+            await toolset.call_tool("datagouv_search_datasets", {}, MagicMock(), MagicMock())
+
+    call_tool.assert_awaited_once()
+    toolset.on_unreachable.assert_called_once_with("datagouv_search_datasets")
+
+
+@pytest.mark.asyncio
+async def test_a_tool_error_still_retries():
+    """A server that answered keeps the retry the model can correct itself with."""
+    retry = _caused_by(ModelRetry("no dataset"), ToolError("no dataset"))
+    toolset = _wrapping(AsyncMock(side_effect=retry))
+
+    with pytest.raises(ModelRetry):
+        await toolset.call_tool("datagouv_search_datasets", {}, MagicMock(), MagicMock())
+
+    assert toolset.down is False
+    toolset.on_unreachable.assert_not_called()
 
 
 def _free_port() -> int:
@@ -138,6 +221,23 @@ def mcp_server_url_fixture():
     yield from _serve(server)
 
 
+@pytest.fixture(name="failing_mcp_server_url")
+def failing_mcp_server_url_fixture():
+    """Serve an MCP server whose tool answers with an error.
+
+    The server is up and answering — the counterpart to the stalling one, and
+    the case ConnectorToolset must not mistake for an outage.
+    """
+    server = FastMCP("test-connector", stateless_http=True)
+
+    @server.tool()
+    def search_datasets(query: str) -> str:
+        """Search French public open data."""
+        raise ToolError(f"no dataset matches {query}")
+
+    yield from _serve(server)
+
+
 @pytest.fixture(name="stalling_mcp_server_url")
 def stalling_mcp_server_url_fixture():
     """Serve an MCP server that connects fine, then never answers a tool call."""
@@ -166,7 +266,7 @@ async def _build_service(settings, url, in_project=False, init_timeout=5.0, read
 async def _run_with_connector(service, prompt):
     """Run the agent the way _run_agent does: connector toolsets passed per turn."""
     async with AsyncExitStack() as stack:
-        toolsets = await enter_mcp_toolsets(stack, service._connector_toolsets)
+        toolsets = await service._enter_datagouv_toolsets(stack, force_datagouv=False)
         with service.conversation_agent.override(model=TestModel(), deps=service._context_deps):
             return await service.conversation_agent.run(prompt, toolsets=toolsets)
 
@@ -192,6 +292,16 @@ async def test_connector_tools_are_available_inside_a_project(settings, mcp_serv
 
 
 @pytest.mark.asyncio
+async def test_connector_instruction_reaches_the_model(settings, mcp_server_url):
+    """The connected tools bring our guidance on when to use them."""
+    service = await _build_service(settings, mcp_server_url)
+
+    result = await _run_with_connector(service, "Hello.")
+
+    assert service._datagouv.instruction() in result.all_messages()[0].instructions
+
+
+@pytest.mark.asyncio
 async def test_connector_server_instructions_are_not_absorbed(settings, mcp_server_url):
     """The server may publish tools; it may not write the agent's instructions."""
     service = await _build_service(settings, mcp_server_url)
@@ -214,7 +324,7 @@ async def test_unreachable_connector_does_not_cost_the_turn(settings, caplog):
         for record in caplog.records
         if record.name == "chat.mcp_servers"
         and record.levelname == "WARNING"
-        and CONNECTOR_ID in record.getMessage()
+        and DataGouvConnector.connector_id in record.getMessage()
     ]
 
 
@@ -345,14 +455,47 @@ async def test_stalled_tool_call_is_cut_off_at_the_read_timeout(settings, stalli
 
     enter_mcp_toolsets' deadline is spent by the time a tool is called, so the
     bound here is read_timeout; without it the library waits five minutes and
-    this test hangs. The timeout comes back as a retryable tool error, which a
-    real model answers around. TestModel cannot: it re-calls the same tool until
-    it runs out of retries, which is what surfaces here.
+    this test hangs. The timeout reaches the model as a failed tool result, not
+    a retry, so the turn still gets its answer.
     """
     service = await _build_service(settings, stalling_mcp_server_url, read_timeout=0.5)
 
     started = time.monotonic()
-    with pytest.raises(UnexpectedModelBehavior, match="exceeded max retries"):
+    result = await _run_with_connector(service, "Find open data about communes.")
+
+    assert result.output
+    assert time.monotonic() - started < 10
+    # The wrapper is only useful if it is actually on the call path: pydantic-ai
+    # dispatches through PrefixedToolset, which rewrites the tool's toolset, so
+    # this pins that a real failed call still reaches ConnectorToolset.
+    assert service._datagouv.call_failed is True
+
+
+@pytest.mark.asyncio
+async def test_a_transport_error_mid_call_does_not_cost_the_turn(settings, mcp_server_url):
+    """The MCP client passes transport errors through; the turn survives them."""
+    service = await _build_service(settings, mcp_server_url)
+
+    with patch(
+        "pydantic_ai.mcp.MCPToolset.direct_call_tool",
+        new=AsyncMock(side_effect=httpx.ConnectError("gone")),
+    ):
+        result = await _run_with_connector(service, "Find open data about communes.")
+
+    assert result.output
+    assert service._datagouv.call_failed is True
+
+
+@pytest.mark.asyncio
+async def test_a_tool_answering_with_an_error_is_not_an_outage(settings, failing_mcp_server_url):
+    """The server was reached; its tool just said no.
+
+    The counterpart to the stalling server: only this one is a retryable tool
+    error, since the server answered; the other is the connector being down.
+    """
+    service = await _build_service(settings, failing_mcp_server_url)
+
+    with contextlib.suppress(UnexpectedModelBehavior):
         await _run_with_connector(service, "Find open data about communes.")
 
-    assert time.monotonic() - started < 10
+    assert service._datagouv.call_failed is False

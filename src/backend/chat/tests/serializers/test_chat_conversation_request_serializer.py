@@ -37,6 +37,7 @@ def test_chat_conversation_request_serializer_default():
     assert serializer.is_valid()
     assert serializer.validated_data == {
         "force_web_search": False,
+        "force_datagouv": False,
         "model_hrid": None,
     }
 
@@ -65,6 +66,25 @@ def test_chat_conversation_request_serializer_force_web_search_invalid():
     assert serializer.errors == {
         "force_web_search": [ErrorDetail(string="Must be a valid boolean.", code="invalid")]
     }
+
+
+@pytest.mark.parametrize("force_datagouv", [True, False])
+def test_chat_conversation_request_serializer_force_datagouv_valid(force_datagouv):
+    """The serializer accepts valid boolean values for force_datagouv."""
+    serializer = serializers.ChatConversationRequestSerializer(
+        data={"force_datagouv": force_datagouv}
+    )
+
+    assert serializer.is_valid()
+    assert serializer.validated_data["force_datagouv"] is force_datagouv
+
+
+def test_chat_conversation_request_serializer_force_datagouv_defaults_to_false():
+    """Omitting it means the connector is not forced."""
+    serializer = serializers.ChatConversationRequestSerializer(data={})
+
+    assert serializer.is_valid()
+    assert serializer.validated_data["force_datagouv"] is False
 
 
 def test_chat_conversation_request_serializer_model_hrid_valid(llm_configuration):  # pylint: disable=unused-argument

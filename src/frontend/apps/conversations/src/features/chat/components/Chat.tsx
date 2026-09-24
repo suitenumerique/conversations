@@ -28,6 +28,7 @@ import {
   rateLimitMessage,
 } from '@/api';
 import { Box, HorizontalSeparator, Icon, Loader, Text } from '@/components';
+import { useToast } from '@/components/ToastProvider';
 import { useConfig } from '@/core';
 import { useProjectAttachments } from '@/features/attachments/api/useProjectAttachments';
 import { useReindexProjectAttachment } from '@/features/attachments/api/useReindexProjectAttachment';
@@ -95,6 +96,7 @@ export const Chat = ({
   initialConversationId: string | undefined;
 }) => {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const { data: config } = useConfig();
   const statusPageUrl = config?.STATUS_PAGE_URL;
   const copyToClipboard = useClipboard();
@@ -104,6 +106,8 @@ export const Chat = ({
   const {
     forceWebSearch,
     toggleForceWebSearch,
+    forceDatagouv,
+    toggleForceDatagouv,
     selectedModelHrid,
     setSelectedModelHrid,
     setSourcesPanelOpen,
@@ -349,6 +353,13 @@ export const Chat = ({
     }
   };
 
+  // The connector the user asked for was down this turn. The answer still
+  // arrives, and says so — this only makes the degradation visible while the
+  // user is looking at it.
+  const onConnectorUnavailable = () => {
+    showToast('error', t('DataGouv could not be reached'), 'error', 5000);
+  };
+
   const {
     messages,
     sendMessage,
@@ -365,6 +376,7 @@ export const Chat = ({
     api: apiUrl,
     onError: onErrorChat,
     onImagesSkipped,
+    onConnectorUnavailable,
   });
 
   const stopGeneration = async () => {
@@ -384,6 +396,10 @@ export const Chat = ({
 
   const toggleWebSearch = () => {
     toggleForceWebSearch();
+  };
+
+  const toggleDatagouv = () => {
+    toggleForceDatagouv();
   };
 
   const handleStop = () => {
@@ -1211,6 +1227,8 @@ export const Chat = ({
           onStop={handleStop}
           forceWebSearch={forceWebSearch}
           onToggleWebSearch={toggleWebSearch}
+          forceDatagouv={forceDatagouv}
+          onToggleDatagouv={toggleDatagouv}
           selectedModel={selectedModel}
           onModelSelect={handleModelSelect}
           isUploadingFiles={isUploadingFiles}

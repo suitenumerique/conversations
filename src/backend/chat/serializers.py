@@ -141,6 +141,11 @@ class ChatConversationRequestSerializer(serializers.Serializer):
         default=False,
         help_text="Force web search.",
     )
+    force_datagouv = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="Force the DataGouv connector.",
+    )
     model_hrid = serializers.CharField(
         required=False,
         default=None,

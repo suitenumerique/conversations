@@ -54,6 +54,8 @@ interface InputChatProps {
   containerRef?: React.RefObject<HTMLDivElement | null>;
   forceWebSearch?: boolean;
   onToggleWebSearch?: () => void;
+  forceDatagouv?: boolean;
+  onToggleDatagouv?: () => void;
   onStop?: () => void;
   selectedModel?: LLMModel | null;
   onModelSelect?: (model: LLMModel) => void;
@@ -152,6 +154,8 @@ export const InputChat = ({
   containerRef,
   forceWebSearch = false,
   onToggleWebSearch,
+  forceDatagouv = false,
+  onToggleDatagouv,
   onStop,
   selectedModel,
   onModelSelect,
@@ -173,6 +177,7 @@ export const InputChat = ({
   const { data: conf } = useConfig();
   const fileUploadEnabled = useFeatureEnabled('document-upload');
   const webSearchEnabled = useFeatureEnabled('web-search');
+  const datagouvEnabled = useFeatureEnabled('datagouv-connector');
 
   const { data: assistantHealth } = useAssistantHealth();
 
@@ -398,6 +403,11 @@ export const InputChat = ({
     textareaRef.current?.focus();
   }, [onToggleWebSearch]);
 
+  const handleDatagouvToggle = useCallback(() => {
+    onToggleDatagouv?.();
+    textareaRef.current?.focus();
+  }, [onToggleDatagouv]);
+
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const fileList = e.target.files;
@@ -595,6 +605,11 @@ export const InputChat = ({
                 onAttachClick={handleAttachClick}
                 onWebSearchToggle={
                   onToggleWebSearch ? handleWebSearchToggle : undefined
+                }
+                datagouvEnabled={datagouvEnabled}
+                forceDatagouv={forceDatagouv}
+                onDatagouvToggle={
+                  onToggleDatagouv ? handleDatagouvToggle : undefined
                 }
                 onModelSelect={onModelSelect}
                 selectedModel={selectedModel || null}
