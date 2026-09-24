@@ -16,7 +16,7 @@ import { ToastProvider } from '@/components/ToastProvider';
 import { getConversation } from '@/features/chat/api/useConversation';
 import { usePendingChatStore } from '@/features/chat/stores/usePendingChatStore';
 
-import { Chat } from '../Chat';
+import { Chat, REMOTE_STREAM_POLL_MS } from '../Chat';
 
 // jsdom implements no scrolling; the component scrolls to the latest message.
 Element.prototype.scrollTo = () => {};
@@ -154,6 +154,99 @@ const ask = async (text: string) => {
   await userEvent.type(box, text);
   await userEvent.keyboard('{Enter}');
 };
+
+describe('a turn that runs without us', () => {
+  const fetchAPIMock = vi.mocked(fetchAPI) as unknown as Mock;
+  const getConversationMock = vi.mocked(getConversation) as unknown as Mock;
+
+  const QUESTION = {
+    id: 'server-u1',
+    role: 'user' as const,
+    parts: [{ type: 'text' as const, text: 'A question' }],
+  };
+  const CHECKPOINT = {
+    id: 'server-a1',
+    role: 'assistant' as const,
+    parts: [{ type: 'text' as const, text: 'Half an' }],
+    metadata: { interrupted: true },
+  };
+  const FINAL_ANSWER = {
+    id: 'server-a1',
+    role: 'assistant' as const,
+    parts: [{ type: 'text' as const, text: 'Half an answer, then the rest.' }],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    usePendingChatStore.setState({ input: '', files: null });
+    fetchAPIMock.mockImplementation((url: string) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      return Promise.resolve({ ok: true, body: streamOf(ANSWER_STREAM) });
+    });
+  });
+
+  it('waits on a checkpoint the backend still reports as streaming', async () => {
+    getConversationMock.mockResolvedValue({
+      messages: [QUESTION, CHECKPOINT],
+      is_streaming: true,
+    });
+
+    renderChat();
+
+    expect(await screen.findByText('Thinking...')).toBeInTheDocument();
+    // The same checkpoint would otherwise be called interrupted: it is only
+    // the final word once the turn behind it is over.
+    expect(screen.queryByTestId('interrupted-answer')).not.toBeInTheDocument();
+  });
+
+  it('shows the finished answer once the turn ends', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      getConversationMock
+        .mockResolvedValueOnce({
+          messages: [QUESTION, CHECKPOINT],
+          is_streaming: true,
+        })
+        .mockResolvedValue({
+          messages: [QUESTION, FINAL_ANSWER],
+          is_streaming: false,
+        });
+
+      renderChat();
+
+      expect(await screen.findByText('Thinking...')).toBeInTheDocument();
+
+      await vi.advanceTimersByTimeAsync(REMOTE_STREAM_POLL_MS);
+
+      await waitFor(() =>
+        expect(screen.queryByText('Thinking...')).not.toBeInTheDocument(),
+      );
+      expect(messageTexts()).toEqual([
+        'You said: A question',
+        'Assistant IA replied: Half an answer, then the rest.',
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('calls a checkpoint interrupted once nothing is streaming', async () => {
+    getConversationMock.mockResolvedValue({
+      messages: [QUESTION, CHECKPOINT],
+      is_streaming: false,
+    });
+
+    renderChat();
+
+    expect(await screen.findByTestId('interrupted-answer')).toBeInTheDocument();
+    expect(screen.queryByText('Thinking...')).not.toBeInTheDocument();
+  });
+});
 
 describe('Chat message ownership', () => {
   const fetchAPIMock = vi.mocked(fetchAPI) as unknown as Mock;

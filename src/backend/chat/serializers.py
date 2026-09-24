@@ -13,7 +13,7 @@ from rest_framework import serializers
 from core.file_upload.enums import AttachmentStatus, FileUploadMode
 from core.file_upload.utils import generate_upload_policy
 
-from chat import models
+from chat import models, stream_chunks
 from chat.ai_sdk_types import UIMessage
 from chat.constants import IMAGE_MIME_PREFIX
 
@@ -317,9 +317,57 @@ class ChatConversationRetrieveSerializer(ChatConversationSerializer):
     tests), but a single conversation retrieval nests it so the client can read
     project.id/title/icon - matching the search endpoint and the frontend
     contract (e.g. the project indexing banner needs the conversation's project).
+
+    It also reads the chunks of a turn that has not landed, which is why the
+    two fields below exist only here: a turn in flight, or one cut short, is
+    something you see when you open a conversation, not something the list
+    needs to know.
     """
 
     project = ChatProjectNestedSerializer(read_only=True)
+    messages = serializers.SerializerMethodField(
+        help_text=(
+            "The stored messages, followed by the turn a chunk trail describes when one has"
+            " not landed yet: an answer still being generated, or one an interruption cut"
+            " short. The trailing answer carries `metadata.interrupted`."
+        ),
+    )
+    is_streaming = serializers.SerializerMethodField(
+        help_text=(
+            "True while chunks are still arriving for this conversation. A client that left"
+            " mid-answer comes back to a trail that looks the same either way; this says"
+            " whether the answer is still coming, so the frontend can wait for it rather"
+            " than call it lost."
+        ),
+    )
+
+    class Meta(ChatConversationSerializer.Meta):  # pylint: disable=missing-class-docstring
+        fields = ChatConversationSerializer.Meta.fields + ["is_streaming"]
+        read_only_fields = ChatConversationSerializer.Meta.read_only_fields + ["is_streaming"]
+
+    @staticmethod
+    def _chunks(obj):
+        """The conversation's leftover chunks, read once per conversation.
+
+        Cached on the instance rather than re-queried: both fields below want
+        the same rows, and a retrieve serializes one conversation.
+        """
+        if not hasattr(obj, "cached_stream_chunks"):
+            obj.cached_stream_chunks = list(obj.stream_chunks.all())
+            stream_chunks.describe(obj, obj.cached_stream_chunks)
+        return obj.cached_stream_chunks
+
+    @extend_schema_field(SchemaField(schema=list[UIMessage]))
+    def get_messages(self, obj):
+        """Stored messages, plus the turn the chunks describe if one is pending."""
+        messages = list(obj.messages)
+        messages.extend(stream_chunks.interrupted_messages(self._chunks(obj)))
+        return [message.model_dump(mode="json") for message in messages]
+
+    @extend_schema_field(serializers.BooleanField)
+    def get_is_streaming(self, obj) -> bool:
+        """True while a turn keeps appending chunks for this conversation."""
+        return stream_chunks.is_live(self._chunks(obj))
 
 
 class ChatConversationSearchSerializer(serializers.ModelSerializer):

@@ -39,6 +39,11 @@ from chat.views.helpers import _bulk_delete_s3_blobs, conditional_refresh_oidc_t
 
 logger = logging.getLogger(__name__)
 
+# Every line tracing one turn goes to this logger rather than the module's, so
+# following a cycle is one filter (`chat.turn`) across the four modules that
+# take part in it, and its level can be raised or lowered on its own.
+turn_logger = logging.getLogger("chat.turn")
+
 
 class ChatAttachmentMixin(AttachmentMixin):  # pylint: disable=abstract-method
     """Mixin to handle attachment authorization for chat conversations."""
@@ -236,9 +241,12 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         requested_model_hrid = query_params_serializer.validated_data["model_hrid"]
 
         raw_messages = request.data.get("messages")
-        logger.info(
-            "Received %d messages",
+        turn_logger.info(
+            "[request %s] POST conversation: %d message(s), model=%s, web_search=%s",
+            pk,
             len(raw_messages) if isinstance(raw_messages, list) else 0,
+            requested_model_hrid or "default",
+            force_web_search,
         )
 
         conversation = self.get_object()
@@ -331,14 +339,19 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         # production uses async mode (Uvicorn ASGI).
         is_async_mode = os.environ.get("PYTHON_SERVER_MODE", "sync") == "async"
 
+        mode = "async" if is_async_mode else "sync"
         if is_async_mode:
             logger.debug("Using ASYNC streaming for chat conversation.")
             base_stream = ai_service.stream_data_async(messages, force_web_search=force_web_search)
-            streaming_content = stream_with_keepalive_async(base_stream)
+            # The keepalive loop ticks while the turn is blocked and producing
+            # nothing, which is the only moment a turn can say it is still
+            # running without saying anything else.
+            streaming_content = stream_with_keepalive_async(base_stream, ai_service.beat)
         else:
             logger.debug("Using SYNC streaming for chat conversation.")
             base_stream = ai_service.stream_data(messages, force_web_search=force_web_search)
-            streaming_content = stream_with_keepalive_sync(base_stream)
+            streaming_content = stream_with_keepalive_sync(base_stream, ai_service.beat_sync)
+        turn_logger.info("[request %s] streaming response opened (%s mode)", pk, mode)
         response = StreamingHttpResponse(
             streaming_content,
             content_type=SSE_MIME_TYPE,
