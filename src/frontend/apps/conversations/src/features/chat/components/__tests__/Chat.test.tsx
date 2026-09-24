@@ -100,6 +100,20 @@ const ANSWER_STREAM = [
   'data: [DONE]\n\n',
 ].join('');
 
+// Mirrors the wire shape emitted by `_report_forced_connector` in
+// `pydantic_ai.py`: a `chat_notice`-kind `connector_unavailable` data part,
+// kebab-cased to `data-connector-unavailable` on the wire, ahead of the
+// answer text.
+const CONNECTOR_UNAVAILABLE_STREAM = [
+  'data: {"type":"start"}\n\n',
+  'data: {"type":"data-connector-unavailable","data":{"type":"connector_unavailable","kind":"chat_notice","connector_id":"datagouv"},"transient":true}\n\n',
+  'data: {"type":"text-start","id":"t1"}\n\n',
+  'data: {"type":"text-delta","id":"t1","delta":"An answer without DataGouv."}\n\n',
+  'data: {"type":"text-end","id":"t1"}\n\n',
+  'data: {"type":"finish"}\n\n',
+  'data: [DONE]\n\n',
+].join('');
+
 const streamOf = (payload: string) =>
   new ReadableStream({
     start(controller) {
@@ -320,5 +334,76 @@ describe('Chat message ownership', () => {
         'Assistant IA replied: An answer.',
       ]),
     );
+  });
+});
+
+describe('Chat connector notices', () => {
+  const fetchAPIMock = vi.mocked(fetchAPI) as unknown as Mock;
+  const getConversationMock = vi.mocked(getConversation) as unknown as Mock;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    usePendingChatStore.setState({ input: '', files: null });
+    getConversationMock.mockResolvedValue({ messages: [] });
+  });
+
+  it('raises a toast, findable by its accessible name, when a forced connector was unreachable', async () => {
+    // Drives the real stream-parsing path (DefaultChatTransport -> useChat's
+    // onData -> Chat's onConnectorUnavailable -> showToast), the same one the
+    // app uses, rather than calling the handler directly.
+    fetchAPIMock.mockImplementation((url: string) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        body: streamOf(CONNECTOR_UNAVAILABLE_STREAM),
+      });
+    });
+
+    renderChat();
+
+    await act(async () => {
+      await ask('Force datagouv');
+    });
+
+    // `react-i18next` is mocked to `t: (key) => key`, so the translation key
+    // is exactly the rendered, screen-reader-announced text: the toast lives
+    // in a `aria-live="polite"` region, and this asserts on what a user (or
+    // assistive tech) actually perceives, not on an internal `showToast` call.
+    expect(
+      await screen.findByText('DataGouv could not be reached'),
+    ).toBeInTheDocument();
+  });
+
+  it('raises no toast when the connector was reachable', async () => {
+    fetchAPIMock.mockImplementation((url: string) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      return Promise.resolve({ ok: true, body: streamOf(ANSWER_STREAM) });
+    });
+
+    renderChat();
+
+    await act(async () => {
+      await ask('An ordinary question');
+    });
+
+    await waitFor(() =>
+      expect(messageTexts()).toEqual([
+        'You said: An ordinary question',
+        'Assistant IA replied: An answer.',
+      ]),
+    );
+    expect(
+      screen.queryByText('DataGouv could not be reached'),
+    ).not.toBeInTheDocument();
   });
 });

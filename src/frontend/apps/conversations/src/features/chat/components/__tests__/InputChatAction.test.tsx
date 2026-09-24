@@ -83,6 +83,8 @@ const defaultProps = {
   isUploadingFiles: false,
   isMobile: false,
   forceWebSearch: false,
+  datagouvEnabled: false,
+  forceDatagouv: false,
   onAttachClick: vi.fn(),
   selectedModel: null,
   status: null,
@@ -294,6 +296,124 @@ describe('InputChatActions', () => {
     expect(screen.getByTestId('send-button')).toHaveAttribute(
       'data-status',
       'submitted',
+    );
+  });
+  it('should not render the DataGouv option outside the cohort', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        datagouvEnabled={false}
+        onDatagouvToggle={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('menuitemcheckbox', { name: 'DataGouv' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('should render the DataGouv option inside the cohort', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        datagouvEnabled={true}
+        onDatagouvToggle={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'DataGouv' }),
+    ).toBeInTheDocument();
+  });
+
+  it('should call onDatagouvToggle when the DataGouv option is clicked', async () => {
+    const user = userEvent.setup();
+    const onDatagouvToggle = vi.fn();
+    render(
+      <InputChatActions
+        {...defaultProps}
+        datagouvEnabled={true}
+        onDatagouvToggle={onDatagouvToggle}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('menuitemcheckbox', { name: 'DataGouv' }),
+    );
+
+    expect(onDatagouvToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('should mark the option as checked and show a chip when forceDatagouv is active', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        datagouvEnabled={true}
+        forceDatagouv={true}
+        onDatagouvToggle={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'DataGouv' }),
+    ).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('button', { name: 'DataGouv' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  it('should show "Data" chip text on mobile when forceDatagouv is active', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        isMobile={true}
+        datagouvEnabled={true}
+        forceDatagouv={true}
+        onDatagouvToggle={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Data')).toBeInTheDocument();
+  });
+
+  it('should leave web search alone when DataGouv is forced', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        datagouvEnabled={true}
+        forceDatagouv={true}
+        onDatagouvToggle={vi.fn()}
+        onWebSearchToggle={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Research on the web' }),
+    ).toHaveAttribute('aria-checked', 'false');
+    expect(
+      screen.queryByRole('button', { name: 'Research on the web' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'DataGouv' }),
+    ).toBeInTheDocument();
+  });
+
+  // The mobile chip reads "Data" to fit; the connector is still named in full
+  // to anyone not reading the screen.
+  it('should keep the mobile chip reachable by its full name', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        isMobile={true}
+        datagouvEnabled={true}
+        forceDatagouv={true}
+        onDatagouvToggle={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'DataGouv' })).toHaveTextContent(
+      'Data',
     );
   });
 });

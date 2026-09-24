@@ -5,6 +5,7 @@ interface ChatPreferencesState {
   themeModePreference: 'system' | 'light' | 'dark';
   selectedModelHrid: string | null;
   forceWebSearch: boolean;
+  forceDatagouv: boolean;
   isDarkModePreference: boolean;
   isPanelOpen: boolean;
   isSourcesPanelOpen: boolean;
@@ -12,6 +13,7 @@ interface ChatPreferencesState {
   setThemeModePreference: (mode: 'system' | 'light' | 'dark') => void;
   toggleDarkModePreferences: () => void;
   toggleForceWebSearch: () => void;
+  toggleForceDatagouv: () => void;
   setPanelOpen: (isOpen: boolean) => void;
   togglePanel: () => void;
   setSourcesPanelOpen: (isOpen: boolean) => void;
@@ -23,6 +25,7 @@ export const useChatPreferencesStore = create<ChatPreferencesState>()(
       themeModePreference: 'system',
       selectedModelHrid: null,
       forceWebSearch: false,
+      forceDatagouv: false,
       isDarkModePreference: false,
       isPanelOpen: false,
       isSourcesPanelOpen: false,
@@ -42,6 +45,8 @@ export const useChatPreferencesStore = create<ChatPreferencesState>()(
         }),
       toggleForceWebSearch: () =>
         set((state) => ({ forceWebSearch: !state.forceWebSearch })),
+      toggleForceDatagouv: () =>
+        set((state) => ({ forceDatagouv: !state.forceDatagouv })),
       setPanelOpen: (isOpen) => set({ isPanelOpen: isOpen }),
       togglePanel: () => set((state) => ({ isPanelOpen: !state.isPanelOpen })),
       setSourcesPanelOpen: (isOpen) => set({ isSourcesPanelOpen: isOpen }),
@@ -52,6 +57,7 @@ export const useChatPreferencesStore = create<ChatPreferencesState>()(
         themeModePreference: state.themeModePreference,
         selectedModelHrid: state.selectedModelHrid,
         forceWebSearch: state.forceWebSearch,
+        forceDatagouv: state.forceDatagouv,
         isDarkModePreference: state.isDarkModePreference,
         isPanelOpen: state.isPanelOpen,
       }),

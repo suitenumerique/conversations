@@ -1,4 +1,8 @@
-"""Connectors: the MCP toolsets a user has opted into."""
+"""Connectors: the MCP toolsets available to a user, and how to enter them.
+
+Whether a connector is actually used is not decided here — the opt-in and the
+per-turn force both live in the caller (see AIAgentService).
+"""
 
 import asyncio
 import logging
@@ -16,7 +20,7 @@ from core.models import User
 
 from chat.clients.schema import ContextDeps
 
-CONNECTOR_ID = "datagouv"
+DATAGOUV_CONNECTOR_ID = "datagouv"
 
 # How a connector we cannot reach surfaces when its toolset is entered: the MCP
 # client raises a bare RuntimeError for refused connections and handshake
@@ -27,23 +31,26 @@ CONNECTOR_UNAVAILABLE_ERRORS = (RuntimeError, McpError, httpx.HTTPError, Timeout
 logger = logging.getLogger(__name__)
 
 
-def get_mcp_toolsets(user: User) -> list[AbstractToolset[ContextDeps]]:
-    """Return the MCP toolsets this user has opted into.
+def datagouv_available(user: User) -> bool:
+    """Whether the DataGouv connector exists for this user at all.
 
-    Three gates, all required: the connector is configured for this
-    deployment, the user is in the beta cohort, and the user switched it on.
+    The two gates that do not depend on the turn: the deployment configures
+    the connector, and the user is in its beta cohort. The user's own opt-in
+    is not one of them — forcing the connector from the chat box stands in for
+    it, so that decision belongs to the turn (see CONTEXT.md, "Force").
+
     The cohort check runs last because it may reach the analytics provider,
-    while the other two are local.
+    while the URL check is local. It blocks, so callers must stay off the
+    event loop.
     """
     if not settings.DATAGOUV_CONNECTOR_URL:
-        return []
+        return False
 
-    if not user.allow_datagouv_connector:
-        return []
+    return is_feature_enabled(user, "datagouv_connector")
 
-    if not is_feature_enabled(user, "datagouv_connector"):
-        return []
 
+def build_datagouv_toolsets() -> list[AbstractToolset[ContextDeps]]:
+    """Build the DataGouv toolset. Callers check `datagouv_available` first."""
     return [
         MCPToolset(
             settings.DATAGOUV_CONNECTOR_URL,
@@ -58,7 +65,7 @@ def get_mcp_toolsets(user: User) -> list[AbstractToolset[ContextDeps]]:
             # limit, which both parameters spell as None.
             init_timeout=settings.DATAGOUV_CONNECTOR_INIT_TIMEOUT or None,
             read_timeout=settings.DATAGOUV_CONNECTOR_READ_TIMEOUT or None,
-        ).prefixed(CONNECTOR_ID)
+        ).prefixed(DATAGOUV_CONNECTOR_ID)
     ]
 
 
@@ -68,8 +75,9 @@ async def enter_mcp_toolsets(
     """Connect to each toolset, dropping the ones that cannot be reached.
 
     A third-party connector being down must never cost the user their turn, so
-    a connector we fail to reach is logged and left out of this turn. Telling
-    the user about it is issue #729.
+    a connector we fail to reach is logged and left out of this turn. The user
+    is told only when they asked for the connector by forcing it; automatic use
+    stays silent, and that notice is raised by the caller, not here.
 
     The connection carries our own deadline rather than the client's: the MCP
     client's init_timeout covers the protocol handshake but not the transport
