@@ -169,7 +169,6 @@ jobs:
 
       - name: Create writable /data
         run: |
-          sudo mkdir -p /data/media && \
           sudo mkdir -p /data/static
 
       - name: Restore the mail templates
@@ -180,37 +179,28 @@ jobs:
           key: mail-templates-${{ hashFiles('src/mail/mjml') }}
           fail-on-cache-miss: true
 
-      - name: Start MinIO
+      - name: Start RustFS
         env:
-          MINIO_IMAGE: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+          RUSTFS_IMAGE: rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
         run: |
-          docker pull "${MINIO_IMAGE}"
-          docker run -d --name minio \
+          docker pull "${RUSTFS_IMAGE}"
+          docker run -d --name objectstorage \
             -p 9000:9000 \
-            -e "MINIO_ACCESS_KEY=conversations" \
-            -e "MINIO_SECRET_KEY=password" \
-            -v /data/media:/data \
-            "${MINIO_IMAGE}" server --console-address :9001 /data
+            -e "RUSTFS_ACCESS_KEY=conversations" \
+            -e "RUSTFS_SECRET_KEY=password" \
+            "${RUSTFS_IMAGE}"
 
-      # Tool to wait for a service to be ready
-      - name: Install Dockerize
+      - name: Wait for RustFS to be ready
         run: |
-          curl -sSL -o dockerize.tar.gz https://github.com/jwilder/dockerize/releases/download/v0.8.0/dockerize-linux-amd64-v0.8.0.tar.gz
-          echo "56c8acdd6ddcc1e3196f3d94a83ad3332b70d686846c909e08179b19e05fe5cd  dockerize.tar.gz" | sha256sum -c -
-          sudo tar -C /usr/local/bin -xzvf dockerize.tar.gz
-          rm dockerize.tar.gz
+          timeout 30 sh -c 'until curl -fsS http://localhost:9000/health/ready; do sleep 1; done'
 
-      - name: Wait for MinIO to be ready
+      - name: Configure RustFS
+        env:
+          RC_IMAGE: rustfs/rc:v0.1.36@sha256:ab024bfebee49a750ce886b4c70963ccd9ddaa03f491704a90710641d7a26699
         run: |
-          dockerize -wait tcp://localhost:9000 -timeout 10s
-
-      - name: Configure MinIO
-        run: |
-          docker exec minio sh -c \
-            "mc alias set conversations http://localhost:9000 conversations password && \
-            mc alias ls && \
-            mc mb conversations/conversations-media-storage && \
-            mc version enable conversations/conversations-media-storage"
+          docker run --rm --network host --entrypoint sh "${RC_IMAGE}" -c \
+            "rc alias set conversations http://localhost:9000 conversations password && \
+            rc bucket create --ignore-existing conversations/conversations-media-storage"
 
       - name: Install Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0

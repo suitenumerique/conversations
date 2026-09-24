@@ -66,8 +66,8 @@ PATH_FRONT_CONVERSATIONS  = $(PATH_FRONT)/apps/conversations
 
 default: help
 
-data/media:
-	@mkdir -p data/media
+data/objectstorage:
+	@mkdir -p data/objectstorage
 
 data/static:
 	@mkdir -p data/static
@@ -83,7 +83,7 @@ create-env-files: \
 .PHONY: create-env-files
 
 pre-bootstrap: \
-	data/media \
+	data/objectstorage \
 	data/static \
 	create-env-files
 .PHONY: pre-bootstrap
