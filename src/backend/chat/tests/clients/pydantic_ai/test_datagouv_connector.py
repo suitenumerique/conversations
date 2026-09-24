@@ -23,7 +23,12 @@ from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService, DocumentParsingResult
 from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.llm_configuration import LLModel, LLMProvider
-from chat.mcp_servers import CONNECTOR_ID, enter_mcp_toolsets, get_mcp_toolsets
+from chat.mcp_servers import (
+    DATAGOUV_CONNECTOR_ID,
+    build_datagouv_toolsets,
+    datagouv_available,
+    enter_mcp_toolsets,
+)
 
 pytestmark = pytest.mark.django_db()
 
@@ -59,34 +64,37 @@ def connector_configured_fixture(settings):
     settings.DATAGOUV_CONNECTOR_INIT_TIMEOUT = 1.0
 
 
-def test_no_toolset_when_connector_not_configured(settings):
+def test_connector_unavailable_when_not_configured(settings):
     """With no endpoint configured the connector does not exist."""
     settings.DATAGOUV_CONNECTOR_URL = ""
     user = UserFactory(allow_datagouv_connector=True)
 
-    assert not get_mcp_toolsets(user)
+    assert datagouv_available(user) is False
 
 
-def test_no_toolset_when_user_has_not_opted_in(_connector_configured):
-    """A cohort user who never switched it on gets nothing."""
-    user = UserFactory(allow_datagouv_connector=False)
-
-    assert not get_mcp_toolsets(user)
-
-
-def test_no_toolset_when_user_is_outside_the_cohort(_connector_configured, feature_flags):
-    """An opted-in user outside the beta cohort gets nothing."""
+def test_connector_unavailable_outside_the_cohort(_connector_configured, feature_flags):
+    """A user outside the beta cohort has no connector, opted in or not."""
     feature_flags.datagouv_connector = FeatureToggle.DISABLED
     user = UserFactory(allow_datagouv_connector=True)
 
-    assert not get_mcp_toolsets(user)
+    assert datagouv_available(user) is False
 
 
-def test_toolset_returned_when_all_gates_pass(_connector_configured):
-    """Configured, in cohort and opted in yields exactly one toolset."""
-    user = UserFactory(allow_datagouv_connector=True)
+def test_connector_available_ignores_the_opt_in(_connector_configured):
+    """Availability is about the deployment and the cohort, not consent.
 
-    assert len(get_mcp_toolsets(user)) == 1
+    The opt-in is a per-turn decision, because forcing stands in for it.
+    """
+    assert datagouv_available(UserFactory(allow_datagouv_connector=False)) is True
+    assert datagouv_available(UserFactory(allow_datagouv_connector=True)) is True
+
+
+def test_build_datagouv_toolsets_returns_one_prefixed_toolset(_connector_configured):
+    """Construction is unconditional; callers check the gates."""
+    toolsets = build_datagouv_toolsets()
+
+    assert len(toolsets) == 1
+    assert toolsets[0].prefix == DATAGOUV_CONNECTOR_ID
 
 
 def _free_port() -> int:
@@ -166,7 +174,9 @@ async def _build_service(settings, url, in_project=False, init_timeout=5.0, read
 async def _run_with_connector(service, prompt):
     """Run the agent the way _run_agent does: connector toolsets passed per turn."""
     async with AsyncExitStack() as stack:
-        toolsets = await enter_mcp_toolsets(stack, service._connector_toolsets)
+        toolsets = await enter_mcp_toolsets(
+            stack, service._resolve_connector_toolsets(force_datagouv=False)
+        )
         with service.conversation_agent.override(model=TestModel(), deps=service._context_deps):
             return await service.conversation_agent.run(prompt, toolsets=toolsets)
 
@@ -214,7 +224,7 @@ async def test_unreachable_connector_does_not_cost_the_turn(settings, caplog):
         for record in caplog.records
         if record.name == "chat.mcp_servers"
         and record.levelname == "WARNING"
-        and CONNECTOR_ID in record.getMessage()
+        and DATAGOUV_CONNECTOR_ID in record.getMessage()
     ]
 
 

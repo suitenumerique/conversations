@@ -13,6 +13,7 @@ from rest_framework import viewsets
 from rest_framework.permissions import AllowAny
 
 from core import models, permissions
+from core.analytics import capture_event
 from core.middleware import is_maintenance_active
 
 from . import serializers
@@ -112,6 +113,20 @@ class UserViewSet(drf.mixins.UpdateModelMixin, viewsets.GenericViewSet):
     queryset = models.User.objects.filter(is_active=True)
     serializer_class = serializers.UserSerializer
     pagination_class = None
+
+    def perform_update(self, serializer):
+        """Save, then report a connector opt-in that actually changed."""
+        was_enabled = serializer.instance.allow_datagouv_connector
+        user = serializer.save()
+        if user.allow_datagouv_connector != was_enabled:
+            capture_event(
+                "connector_toggled",
+                user.pk,
+                properties={
+                    "connector_id": "datagouv",
+                    "enabled": user.allow_datagouv_connector,
+                },
+            )
 
     @drf.decorators.action(
         detail=False,

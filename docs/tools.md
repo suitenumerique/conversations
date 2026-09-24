@@ -234,14 +234,20 @@ Everything above describes tools built in this repository. A **connector** is
 different: it is one remote MCP server a user has switched on for themselves,
 and it *contributes* tools to the assistant rather than being one.
 
-Today there is exactly one, data.gouv.fr. It is resolved in
-`chat/mcp_servers.py` and reaches the agent only when all three of these hold:
+Today there is exactly one, data.gouv.fr. It reaches the agent only when all
+three of these hold:
 
 | Gate | Where |
 |------|-------|
 | The deployment configures an endpoint | `DATAGOUV_CONNECTOR_URL` (empty by default — the connector is then never built and never contacted) |
 | The user is in the beta cohort | `FEATURE_FLAG_DATAGOUV_CONNECTOR` |
-| The user switched it on | `User.allow_datagouv_connector` (off by default) |
+| The user allowed it | `User.allow_datagouv_connector` (off by default), **or** the user forced the connector for that turn from the chat box |
+
+The first two are turn-independent and answered by `datagouv_available` in
+`chat/mcp_servers.py`, once per request. The third depends on the turn, because
+forcing stands in for the opt-in, so it is answered by
+`AIAgentService._resolve_connector_toolsets`. A force never satisfies the first
+two: it is consent, not configuration.
 
 Two settings bound how long a connector may hold a turn.
 `DATAGOUV_CONNECTOR_INIT_TIMEOUT` (default `5.0` seconds) bounds the whole
@@ -263,6 +269,40 @@ The connector's toolsets are attached per turn, inside `_run_agent`'s
 `AsyncExitStack`. A connector that cannot be reached is logged and dropped for
 that turn: the user still gets an answer, built without it. A third-party
 service being down must never cost someone their turn.
+
+What the user is told about that depends on whether they asked for it. A
+connector the assistant merely *may* consult stays silent. A connector the user
+**forced** and that we could not reach still produces an answer, but the model
+is instructed to say what it could not consult, and the turn streams a
+`connector_unavailable` notice the frontend raises as a toast. The event type is
+mirrored as a constant on both sides (`CONNECTOR_UNAVAILABLE_EVENT_TYPE`, in
+`chat/clients/pydantic_ai.py` and `useChat.tsx`); changing one without the other
+silently drops the notice.
+
+A connector the gates deny is not an outage: nothing was contacted, so forcing
+one reports nothing at all.
+
+### Forcing a connector
+
+`POST /conversations/{id}/` takes a `force_datagouv` query parameter (boolean,
+default `false`), alongside the existing `force_web_search`. It applies to that
+turn only, and stands in for `User.allow_datagouv_connector` — see `CONTEXT.md`,
+"Force", for what forcing means and what it obliges.
+
+The request is per turn; the UI control is not reset by sending. A force the
+user switches on stays on until they switch it off, surviving a reload, as
+`force_web_search` already does. Every message sent meanwhile carries it.
+
+A force the gates deny — the deployment does not configure the connector, or
+the user is outside its cohort — contacts nothing, so the user is told nothing
+and no `connector_forced` event is recorded. It is logged instead: the chat
+button is shown on the cohort flag alone, so a deployment that sets the flag
+without `DATAGOUV_CONNECTOR_URL` has no other symptom.
+
+Two PostHog events measure the connector: `connector_toggled` (`connector_id`,
+`enabled`) when a user changes the Settings opt-in, and `connector_forced`
+(`connector_id`, `available`) once per forced turn, whose `available` property
+is the connector's outage rate.
 
 ### Trust boundary
 
