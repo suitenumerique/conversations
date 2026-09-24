@@ -8,7 +8,7 @@ import pytest
 from pydantic_ai.messages import ModelResponse, TextPart
 
 from chat.clients.pydantic_ai import AIAgentService
-from chat.clients.schema import ImagePostRunActions, StreamingState
+from chat.clients.schema import ImagePostRunActions, StreamingState, TurnSnapshot
 from chat.llm_configuration import LLModel
 from chat.vercel_ai_sdk.core import events_v4
 
@@ -43,6 +43,10 @@ def service_fixture(conversation):
     s = object.__new__(AIAgentService)
     s.conversation = conversation
     s.user = SimpleNamespace(pk=1)
+    s._turn_snapshot = TurnSnapshot(message_count=0, pydantic_message_count=0, agent_usage={})
+    s._turn_image_actions = ImagePostRunActions()
+    s._model_response_message_id = "test-msg-id"
+    s._tokens_recorded = 0
     s.conversation_agent = SimpleNamespace(
         configuration=LLModel(
             hrid="m",
@@ -162,7 +166,6 @@ async def test_finalize_emits_finish_message_with_co2(service, co2_impact):
                 run_output="Hello",
                 usage=usage,
                 state=state,
-                image_actions=ImagePostRunActions(),
             )
         ]
 

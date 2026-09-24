@@ -1,11 +1,14 @@
 """Unit tests for retrieving chat conversations in the chat API view."""
 
+from django.core.cache import cache
+
 import pytest
 from rest_framework import status
 
 from core.factories import UserFactory
 
 from chat.factories import ChatConversationFactory, ChatProjectFactory
+from chat.streaming_status import stream_alive_key
 
 pytestmark = pytest.mark.django_db
 
@@ -51,6 +54,20 @@ def test_retrieve_conversation_without_project(api_client):
 
     assert response.status_code == status.HTTP_200_OK
     assert response.data["project"] is None
+
+
+def test_retrieve_conversation_reports_a_live_stream(api_client, clear_cache):  # pylint: disable=unused-argument
+    """A turn in flight is reported, so a client that left can wait for it."""
+    chat_conversation = ChatConversationFactory()
+
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/"
+    api_client.force_login(chat_conversation.owner)
+
+    assert api_client.get(url).data["is_streaming"] is False
+
+    cache.set(stream_alive_key(chat_conversation.pk), "1", timeout=60)
+
+    assert api_client.get(url).data["is_streaming"] is True
 
 
 def test_retrieve_other_user_conversation_fails(api_client):

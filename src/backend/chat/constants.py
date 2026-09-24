@@ -49,3 +49,12 @@ HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS = 10
 # bounds the DB load per concurrent over-budget turn; summaries take seconds,
 # so a couple-second cadence is responsive enough.
 HISTORY_SUMMARY_POLL_INTERVAL_SECONDS = 2
+
+# How often the streaming turn writes the answer produced so far to the
+# conversation. The run is driven by the HTTP response: a client disconnect
+# closes the generator and the end-of-run save never happens, so these
+# checkpoints are what keeps an interrupted answer. Each one rewrites the whole
+# `messages` JSON, which grows with the conversation, hence a cadence measured
+# in seconds rather than in chunks: it bounds the write amplification while
+# keeping the worst-case loss to a few seconds of text.
+STREAM_CHECKPOINT_INTERVAL_SECONDS = 5

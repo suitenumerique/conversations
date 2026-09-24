@@ -19,6 +19,10 @@ export interface ChatConversation {
   // image (project or history). Backend-computed on read; drives the soft
   // "image processing unavailable" banner.
   images_skipped?: boolean;
+  // True while a turn is being generated server-side. A conversation left
+  // mid-answer keeps streaming without us: this is what tells the checkpoint
+  // the backend stored apart from an answer that really was interrupted.
+  is_streaming?: boolean;
 }
 export interface ChatProjectConversation {
   id: string;
