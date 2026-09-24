@@ -83,37 +83,37 @@ If you already have CRLF line endings in your local repository, the **best appro
    git commit -m "✏️(project) Fix line endings to LF"
    ```
 
-## Minio Permission Issues on Windows
+## RustFS Permission Issues on Windows
 
 ### Problem Description
 
-On Windows, you may encounter permission-related errors when running Minio in development mode with Docker Compose. This typically happens because:
+On Windows, you may encounter permission-related errors when running RustFS in development mode with Docker Compose. This typically happens because:
 
 - **Windows file permissions** don't map well to Unix-style user IDs used in Docker containers
 - **Docker Desktop** may have issues with user mapping when using the `DOCKER_USER` environment variable
-- **Minio container** fails to start or access volumes due to permission conflicts
+- **RustFS container** fails to start or access volumes due to permission conflicts
 
 ### Common Symptoms
 
-- Minio container fails to start with permission denied errors
-- Error messages related to file system permissions in Minio logs
+- RustFS container fails to start with permission denied errors
+- Error messages related to file system permissions in RustFS logs
 - Unable to create or access buckets in the development environment
-- Docker Compose showing Minio service as unhealthy or exited
+- Docker Compose showing RustFS service as unhealthy or exited
 
 ### Solution for Windows Users
 
-If you encounter Minio permission issues on Windows, you can temporarily disable user mapping for the Minio service:
+If you encounter RustFS permission issues on Windows, you can temporarily disable user mapping for the RustFS service:
 
 1. **Open the `compose.yml` file**
 
-2. **Comment out the user directive** in the `minio` service section:
+2. **Comment out the user directive** in the `objectstorage` service section:
    ```yaml
-   minio:
+   objectstorage:
      # user: ${DOCKER_USER:-1000}  # Comment this line on Windows if permission issues occur
-     image: quay.io/minio/minio
+     image: rustfs/rustfs
      environment:
-       - MINIO_ROOT_USER=conversations
-       - MINIO_ROOT_PASSWORD=password
+       - RUSTFS_ACCESS_KEY=conversations
+       - RUSTFS_SECRET_KEY=password
      # ... rest of the configuration
    ```
 
@@ -124,7 +124,7 @@ If you encounter Minio permission issues on Windows, you can temporarily disable
 
 ### Why This Works
 
-- Commenting out the `user` directive allows the Minio container to run with its default user
+- Commenting out the `user` directive allows the RustFS container to run with its default user
 - This bypasses Windows-specific permission mapping issues
 - The container will have the necessary permissions to access and manage the mounted volumes
 

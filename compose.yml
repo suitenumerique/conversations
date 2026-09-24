@@ -21,36 +21,35 @@ services:
     ports:
       - "1081:1080"
 
-  minio:
+  objectstorage:
     user: ${DOCKER_USER:-1000}
-    image: quay.io/minio/minio
+    image: rustfs/rustfs:1.0.0@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff
     environment:
-      - MINIO_ROOT_USER=conversations
-      - MINIO_ROOT_PASSWORD=password
+      - RUSTFS_ACCESS_KEY=conversations
+      - RUSTFS_SECRET_KEY=password
     ports:
       - '9000:9000'
       - '9001:9001'
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "sh", "-c", "curl -f http://127.0.0.1:9000/health/ready && curl -f http://127.0.0.1:9001/rustfs/console/health"]
       interval: 1s
-      timeout: 20s
+      timeout: 5s
       retries: 300
-    entrypoint: ""
-    command: minio server --console-address :9001 /data
     volumes:
-      - ./data/media:/data
+      - ./data/objectstorage:/data
 
   createbuckets:
-    image: quay.io/minio/mc
+    image: rustfs/rc:v0.1.36@sha256:ab024bfebee49a750ce886b4c70963ccd9ddaa03f491704a90710641d7a26699
     depends_on:
-      minio:
+      objectstorage:
         condition: service_healthy
         restart: true
     entrypoint: >
       sh -c "
-      /usr/bin/mc alias set conversations http://minio:9000 conversations password && \
-      /usr/bin/mc mb conversations/conversations-media-storage && \
-      /usr/bin/mc version enable conversations/conversations-media-storage && \
+      rc alias set conversations http://objectstorage:9000 conversations password && \
+      rc bucket create --ignore-existing conversations/conversations-media-storage && \
+      echo '{\"rules\":[{\"allowedOrigins\":[\"*\"],\"allowedMethods\":[\"GET\",\"PUT\",\"POST\",\"HEAD\"],\"allowedHeaders\":[\"*\"],\"exposeHeaders\":[\"ETag\"]}]}' | \
+      rc bucket cors set conversations/conversations-media-storage - && \
       exit 0;"
 
   app-dev:
@@ -87,7 +86,7 @@ services:
         redis:
           condition: service_started
         createbuckets:
-          condition: service_started
+          condition: service_completed_successfully
 
   app-test:
     # Mirrors app-dev but loads env.d/test instead of env.d/development/common,
@@ -124,7 +123,7 @@ services:
         redis:
           condition: service_started
         createbuckets:
-          condition: service_started
+          condition: service_completed_successfully
 
   celery-dev:
     build:
@@ -157,7 +156,7 @@ services:
         redis:
           condition: service_started
         createbuckets:
-          condition: service_started
+          condition: service_completed_successfully
 
   nginx:
     image: nginx:1.25

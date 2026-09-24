@@ -50,5 +50,5 @@ def test_infra_settings_point_at_the_expected_topology(settings):
     assert settings.DATABASES["default"]["HOST"] == os.environ.get("DB_HOST", "postgresql")
     assert settings.DATABASES["default"]["PORT"] == int(os.environ.get("DB_PORT", "5432"))
     assert settings.AWS_S3_ENDPOINT_URL == os.environ.get(
-        "AWS_S3_ENDPOINT_URL", "http://minio:9000"
+        "AWS_S3_ENDPOINT_URL", "http://objectstorage:9000"
     )

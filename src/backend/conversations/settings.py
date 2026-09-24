@@ -1144,7 +1144,7 @@ class Test(Base):
     #
     # What stays pinned here is what is genuinely test-specific and NOT env
     # -backed in Base:
-    #   - infra topology (Postgres, MinIO) describes the network, not behavior:
+    #   - infra topology (Postgres, object storage) describes the network, not behavior:
     #     it defaults to the docker-compose hostnames but stays env-overridable
     #     so pytest also runs on the host / in CI (repo-root .env or the CI job
     #     env point at the published ports);
@@ -1179,9 +1179,9 @@ class Test(Base):
         "staticfiles": {"BACKEND": "servestatic.storage.CompressedStaticFilesStorage"},
     }
 
-    # AWS_S3_ENDPOINT_URL: docker default is the compose MinIO host; the repo
+    # AWS_S3_ENDPOINT_URL: docker default is the compose object storage host; the repo
     # -root .env / CI job env point it at the published port.
-    AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL", "http://minio:9000")
+    AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL", "http://objectstorage:9000")
 
     # -- Attachments: dummy malware backend ------------------------------------
     MALWARE_DETECTION = {
