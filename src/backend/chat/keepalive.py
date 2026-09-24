@@ -120,8 +120,15 @@ def get_current_time() -> float:
     return time.monotonic()
 
 
-def stream_with_keepalive_sync(stream: Iterator[str]) -> Iterator[str]:
-    """Wraps a synchronous stream with keepalive messages."""
+def stream_with_keepalive_sync(stream: Iterator[str], on_keepalive=None) -> Iterator[str]:
+    """Wraps a synchronous stream with keepalive messages.
+
+    `on_keepalive` is called each time a pause is long enough to need one, for
+    the same reason as in the async variant: this loop is the only thing still
+    running while the source produces nothing. It is called from the request's
+    own thread, not the keepalive thread, so it uses the connection that is
+    already open. Failures are logged and swallowed.
+    """
 
     q: queue.Queue = queue.Queue()
     stream_done = threading.Event()
@@ -178,6 +185,12 @@ def stream_with_keepalive_sync(stream: Iterator[str]) -> Iterator[str]:
             # needs keeping alive once the stream is done, so drop it.
             if item == keepalive_message and stream_done.is_set():
                 continue
+
+            if item == keepalive_message and on_keepalive is not None:
+                try:
+                    on_keepalive()
+                except Exception:  # pylint: disable=broad-except
+                    logger.exception("Keepalive callback failed")
 
             yield item
             last_yield_time[0] = get_current_time()

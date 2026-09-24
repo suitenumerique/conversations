@@ -350,7 +350,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         else:
             logger.debug("Using SYNC streaming for chat conversation.")
             base_stream = ai_service.stream_data(messages, force_web_search=force_web_search)
-            streaming_content = stream_with_keepalive_sync(base_stream)
+            streaming_content = stream_with_keepalive_sync(base_stream, ai_service.beat_sync)
         turn_logger.info("[request %s] streaming response opened (%s mode)", pk, mode)
         response = StreamingHttpResponse(
             streaming_content,

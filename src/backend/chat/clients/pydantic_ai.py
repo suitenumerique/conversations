@@ -79,6 +79,7 @@ import copy
 import dataclasses
 import functools
 import hashlib
+import itertools
 import json
 import logging
 import os
@@ -328,7 +329,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # Per-turn chunk state, reset by _clean: where we are in the sequence,
         # the text produced since the last row, and when each kind of row was
         # last written.
-        self._chunk_seq = self._last_text_flush = self._last_snapshot = 0
+        self._chunk_seq = itertools.count()
+        self._last_text_flush = self._last_snapshot = 0
         self._pending_text = ""
         self._active_agent_stream = None
         self._turn_image_actions: Optional[ImagePostRunActions] = None
@@ -468,15 +470,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     async def _write_turn_chunks(self, run, event) -> None:
         """Append what this event added to the turn.
 
-        The first output of a turn always earns a snapshot: without one there
-        is no request for the answer to belong to, and nothing to fold. After
-        that, text goes in text rows and a snapshot is taken on an interval,
-        which is what bounds how much structure a turn cut short can lose.
+        The question already opened the trail with a snapshot, so there is
+        always a request for the answer to belong to. From here text goes in
+        text rows and a snapshot is taken on an interval, which is what bounds
+        how much structure a turn cut short can lose.
         """
-        if (
-            self._chunk_seq == 0
-            or time.monotonic() - self._last_snapshot >= STREAM_SNAPSHOT_INTERVAL_SECONDS
-        ):
+        if time.monotonic() - self._last_snapshot >= STREAM_SNAPSHOT_INTERVAL_SECONDS:
             # The snapshot is the response as Pydantic AI holds it, which
             # already includes the event being handled. Appending its text as
             # well would store it twice and read back doubled.
@@ -504,6 +503,19 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if self._turn_landed:
             return
         await self._write_chunk()
+
+    def beat_sync(self) -> None:
+        """`beat`, for the WSGI path, where the keepalive loop is not async."""
+        if self._turn_landed:
+            return
+        seq = next(self._chunk_seq)
+        models.ChatStreamChunk.objects.create(
+            conversation=self.conversation,
+            run_id=self._turn_run_id,
+            message_id=self._model_response_message_id or "",
+            seq=seq,
+        )
+        turn_logger.info("chunk %d: still running", seq)
 
     async def _append_text(self, text: str) -> None:
         """Append text the model has produced, batched.
@@ -580,13 +592,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     async def _write_chunk(self, *, text: str = "", parts=None) -> None:
         """Append one row to the turn's chunks.
 
-        The sequence number is taken and advanced before the insert is awaited.
-        Two coroutines write this trail - the turn, and the keepalive loop
-        beating while the turn is blocked - so anything read before an await
-        and written after it is read twice and collides on the constraint.
+        Two writers share this trail: the turn, and the keepalive beating for
+        it while it is blocked. Under ASGI they are two tasks, under WSGI two
+        threads, so `seq = n; n += 1` is read twice either way and collides on
+        the constraint. `next()` on an `itertools.count` is one atomic step in
+        both.
         """
-        seq = self._chunk_seq
-        self._chunk_seq += 1
+        seq = next(self._chunk_seq)
         await models.ChatStreamChunk.objects.acreate(
             conversation=self.conversation,
             run_id=self._turn_run_id,
@@ -841,7 +853,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         self._last_stop_check = 0
         self._pre_stream_events = []
-        self._chunk_seq = 0
+        self._chunk_seq = itertools.count()
         self._pending_text = ""
         self._last_text_flush = 0
         self._last_snapshot = 0
