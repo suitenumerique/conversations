@@ -8,8 +8,10 @@ import { FileUIPart, UIMessage } from 'ai';
 import type { Mock } from 'vitest';
 
 import { fetchAPI } from '@/api';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 
 import {
+  isConnectorUnavailableEvent,
   isImagesSkippedEvent,
   stampImagesSkippedOnLatestUserMessage,
   useChat,
@@ -67,6 +69,25 @@ describe('isImagesSkippedEvent', () => {
     expect(isImagesSkippedEvent(null)).toBe(false);
     expect(isImagesSkippedEvent('images_skipped')).toBe(false);
     expect(isImagesSkippedEvent(undefined)).toBe(false);
+  });
+});
+
+describe('isConnectorUnavailableEvent', () => {
+  it('accepts a connector notice', () => {
+    expect(
+      isConnectorUnavailableEvent({
+        type: 'connector_unavailable',
+        kind: 'chat_notice',
+        connector_id: 'datagouv',
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects anything else', () => {
+    expect(isConnectorUnavailableEvent({ type: 'cooldown', seconds: 3 })).toBe(
+      false,
+    );
+    expect(isConnectorUnavailableEvent('connector_unavailable')).toBe(false);
   });
 });
 
@@ -328,5 +349,84 @@ describe('useChat against a backend stream', () => {
     expect(assistant.parts.some((part) => part.type.startsWith('data-'))).toBe(
       false,
     );
+  });
+});
+
+// The force toggles are only worth anything if they reach the backend. The
+// request is built in `fetchAPIAdapter` from the store, read at request time.
+describe('useChat forwards the force toggles', () => {
+  const fetchAPIMock = vi.mocked(fetchAPI) as unknown as Mock;
+
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      {children}
+    </QueryClientProvider>
+  );
+
+  afterEach(() => {
+    useChatPreferencesStore.setState({
+      forceWebSearch: false,
+      forceDatagouv: false,
+    });
+  });
+
+  const postUrlAfterSend = async () => {
+    const chatCalls: string[] = [];
+    fetchAPIMock.mockImplementation((url: string) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      chatCalls.push(url);
+      return Promise.resolve({ ok: true, body: streamOf(FULL_TURN) });
+    });
+
+    const { result } = renderHook(
+      () => useChat({ id: 'conv-1', api: CHAT_API }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      await result.current.sendMessage({ text: 'hello' });
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    return chatCalls[0];
+  };
+
+  it('sends neither force when both are off', async () => {
+    expect(await postUrlAfterSend()).toBe(CHAT_API);
+  });
+
+  it('sends force_datagouv when DataGouv is forced', async () => {
+    useChatPreferencesStore.setState({ forceDatagouv: true });
+
+    expect(await postUrlAfterSend()).toContain('force_datagouv=true');
+  });
+
+  it('sends force_web_search when web search is forced', async () => {
+    useChatPreferencesStore.setState({ forceWebSearch: true });
+
+    expect(await postUrlAfterSend()).toContain('force_web_search=true');
+  });
+
+  // CONTEXT.md: forcing two sources in one turn demands both; they do not
+  // compete.
+  it('sends both forces when both are on', async () => {
+    useChatPreferencesStore.setState({
+      forceWebSearch: true,
+      forceDatagouv: true,
+    });
+
+    const url = await postUrlAfterSend();
+
+    expect(url).toContain('force_web_search=true');
+    expect(url).toContain('force_datagouv=true');
   });
 });

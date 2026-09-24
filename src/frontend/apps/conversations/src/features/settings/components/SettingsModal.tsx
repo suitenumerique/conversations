@@ -11,9 +11,12 @@ import {
   ToggleSwitch,
 } from '@/components';
 import { useUserUpdate } from '@/core/api/useUserUpdate';
+import { useFeatureEnabled } from '@/core/config';
 import { useAuthQuery } from '@/features/auth/api';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { useResponsiveStore } from '@/stores/useResponsiveStore';
+
+import { SettingsToggleRow } from './SettingsToggleRow';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -25,6 +28,7 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
   const { isMobile } = useResponsiveStore();
   const { data: user } = useAuthQuery();
   const { mutateAsync: updateUser, isPending } = useUserUpdate();
+  const isDatagouvConnectorEnabled = useFeatureEnabled('datagouv-connector');
   const themeModePreference = useChatPreferencesStore(
     (state) => state.themeModePreference,
   );
@@ -33,7 +37,10 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
   );
 
   const handleToggleChange = async (
-    field: 'allow_conversation_analytics' | 'allow_smart_web_search',
+    field:
+      | 'allow_conversation_analytics'
+      | 'allow_datagouv_connector'
+      | 'allow_smart_web_search',
   ) => {
     if (!user) {
       return;
@@ -178,7 +185,7 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
     );
   };
 
-  const capabilitiesSettings = () => (
+  const connectorsSettings = () => (
     <>
       <Box $gap="2xs">
         <Text
@@ -193,35 +200,29 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
           )}
         </Text>
 
-        <Box>
-          <Text $size="md" $weight="500" $theme="greyscale" $variation="850">
-            {t('Smart web search')}
-          </Text>
-          <Box $direction="row" $justify="space-between" $align="flex-start">
-            <Box $css="max-width: 70%;">
-              <Text
-                $css={`
-                  display: inline-block;
-                `}
-                $size="xs"
-                $theme="greyscale"
-                $variation="600"
-                $weight="400"
-                $padding={{ bottom: 'sm' }}
-              >
-                {t(
-                  'The assistant automatically decides when to search the web. If you turn this off, it won’t go online unless you click “Research on the web.”',
-                )}
-              </Text>
-            </Box>
-            <ToggleSwitch
-              checked={user?.allow_smart_web_search ?? false}
-              onChange={() => void handleToggleChange('allow_smart_web_search')}
-              disabled={isPending}
-              aria-label={t('Automatic web search')}
-            />
-          </Box>
-        </Box>
+        <SettingsToggleRow
+          title={t('Smart web search')}
+          description={t(
+            'The assistant automatically decides when to search the web. If you turn this off, it won’t go online unless you click “Research on the web.”',
+          )}
+          checked={user?.allow_smart_web_search ?? false}
+          disabled={isPending}
+          onToggle={() => void handleToggleChange('allow_smart_web_search')}
+          aria-label={t('Automatic web search')}
+        />
+
+        {isDatagouvConnectorEnabled && (
+          <SettingsToggleRow
+            title="DataGouv"
+            description={t(
+              'Let the Assistant search French public open data published on data.gouv.fr.',
+            )}
+            checked={user?.allow_datagouv_connector ?? false}
+            disabled={isPending}
+            onToggle={() => void handleToggleChange('allow_datagouv_connector')}
+            aria-label={t('DataGouv connector')}
+          />
+        )}
       </Box>
     </>
   );
@@ -234,10 +235,10 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
       content: generalSettings(),
     },
     {
-      id: 'capabilities',
-      label: t('Capabilities'),
-      title: t('Capabilities'),
-      content: capabilitiesSettings(),
+      id: 'connectors',
+      label: t('Connectors'),
+      title: t('Connectors'),
+      content: connectorsSettings(),
     },
   ];
 

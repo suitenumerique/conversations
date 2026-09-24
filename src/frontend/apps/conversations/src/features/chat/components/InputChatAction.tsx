@@ -3,6 +3,7 @@ import { DropdownMenu, type DropdownMenuItem } from '@gouvfr-lasuite/ui-kit';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import DatagouvIcon from '@/assets/icons/uikit-custom/datagouv.svg?react';
 import { Box, Icon, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
@@ -21,10 +22,16 @@ interface InputChatActionsProps {
   isMobile: boolean;
   /** Whether web search is forced/active */
   forceWebSearch: boolean;
+  /** Whether the DataGouv connector is available to this user */
+  datagouvEnabled: boolean;
+  /** Whether the DataGouv connector is forced for the next message */
+  forceDatagouv: boolean;
   /** Handler for attach button click */
   onAttachClick: () => void;
   /** Handler for web search toggle - if undefined, option is hidden */
   onWebSearchToggle?: () => void;
+  /** Handler for the DataGouv toggle - if undefined, option is hidden */
+  onDatagouvToggle?: () => void;
   /** Handler for model selection - if undefined, selector is hidden */
   onModelSelect?: (model: LLMModel) => void;
   /** Currently selected model */
@@ -48,7 +55,8 @@ const STYLES = {
 const ACTIONS_OPACITY_CSS = 'opacity: 1;';
 
 const ACTIVE_CHIP_CSS = `
-  .research-web-chip {
+  .research-web-chip,
+  .datagouv-chip {
     background-color: var(--c--contextuals--background--semantic--brand--secondary) !important;
     color: var(--c--contextuals--content--semantic--brand--secondary) !important;
   }
@@ -56,7 +64,7 @@ const ACTIVE_CHIP_CSS = `
 
 /**
  * Action buttons for the chat input.
- * Includes: Attach/Web-search dropdown, Model selector, Send button.
+ * Includes: Attach/Web-search/DataGouv dropdown, Model selector, Send button.
  *
  * Memoized to prevent re-renders when parent updates but props haven't changed.
  */
@@ -67,8 +75,11 @@ export const InputChatActions = memo(
     isUploadingFiles,
     isMobile,
     forceWebSearch,
+    datagouvEnabled,
+    forceDatagouv,
     onAttachClick,
     onWebSearchToggle,
+    onDatagouvToggle,
     onModelSelect,
     selectedModel,
     status,
@@ -111,6 +122,20 @@ export const InputChatActions = memo(
         );
       }
 
+      // Hidden outside the beta cohort: no option, no way to force it.
+      if (datagouvEnabled && onDatagouvToggle) {
+        items.push(
+          { type: 'separator' },
+          {
+            label: 'DataGouv',
+            icon: <DatagouvIcon width={16} height={16} />,
+            isChecked: forceDatagouv,
+            isDisabled: isUploadingFiles,
+            callback: onDatagouvToggle,
+          },
+        );
+      }
+
       return items;
     }, [
       t,
@@ -120,6 +145,9 @@ export const InputChatActions = memo(
       onWebSearchToggle,
       forceWebSearch,
       webSearchEnabled,
+      datagouvEnabled,
+      onDatagouvToggle,
+      forceDatagouv,
     ]);
 
     return (
@@ -185,6 +213,27 @@ export const InputChatActions = memo(
               >
                 <Text $theme="brand" $variation="tertiary">
                   {isMobile ? t('Web') : t('Research on the web')}
+                </Text>
+              </Button>
+            </Box>
+          )}
+
+          {forceDatagouv && datagouvEnabled && onDatagouvToggle && (
+            <Box $css={ACTIVE_CHIP_CSS} $shrink="0">
+              <Button
+                size="nano"
+                color="brand"
+                variant="tertiary"
+                type="button"
+                disabled={isUploadingFiles}
+                onClick={onDatagouvToggle}
+                aria-label="DataGouv"
+                aria-pressed={true}
+                className="c__button--neutral datagouv-chip"
+                icon={<DatagouvIcon width={16} height={16} />}
+              >
+                <Text $theme="brand" $variation="tertiary">
+                  {isMobile ? 'Data' : 'DataGouv'}
                 </Text>
               </Button>
             </Box>
