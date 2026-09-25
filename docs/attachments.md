@@ -40,7 +40,7 @@ Conversations allows users to attach files to their conversations with the AI as
 - **PDF documents** (sent as document URLs to the LLM)
 - **Other documents** (converted to text and indexed for semantic search)
 
-The attachment system uses **S3-compatible object storage** (such as MinIO in development) to store files securely. 
+The attachment system uses **S3-compatible object storage** (such as RustFS in development) to store files securely. 
 The backend generates **presigned URLs** that allow the frontend to upload files directly to the storage, 
 without routing the file data through the backend server.
 
@@ -665,15 +665,14 @@ If a model has no `max_token_context`, all of its documents are kept `tool_call_
 
 ### Storage Configuration
 
-**MinIO (Development)**:
+**RustFS (Development)**:
 ```yaml
-# docker-compose.yml
-minio:
-  image: quay.io/minio/minio
+# compose.yml
+objectstorage:
+  image: rustfs/rustfs
   environment:
-    MINIO_ROOT_USER: minioadmin
-    MINIO_ROOT_PASSWORD: minioadmin
-  command: server /data --console-address ":9001"
+    RUSTFS_ACCESS_KEY: conversations
+    RUSTFS_SECRET_KEY: password
 ```
 
 ---

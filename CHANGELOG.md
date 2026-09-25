@@ -15,6 +15,7 @@ and this project adheres to
 ### Changed
 
 - ✨(front) replace input actions with a + dropdown menu
+- 🔧(project) replace MinIO with RustFS for local development and CI
 
 ### Fixed
 
