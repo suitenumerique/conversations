@@ -29,6 +29,12 @@ SUMMARIZATION_TASK_SOFT_TIME_LIMIT = 110  # seconds, raises SoftTimeLimitExceede
 SUMMARIZATION_TASK_TIME_LIMIT = 120  # seconds, worker is SIGKILLed
 HISTORY_SUMMARY_CLAIM_TTL_SECONDS = SUMMARIZATION_TASK_TIME_LIMIT + 60
 
+# De-index task time limits. A run can process DEINDEX_MAX_PER_RUN conversations
+# over HTTP, and the global 180/300 s limits would SIGKILL it mid-run and leave
+# orphan collections. Keep the hard limit below the Redis visibility_timeout of 3600 s.
+DEINDEX_TASK_SOFT_TIME_LIMIT = 1500  # seconds, raises SoftTimeLimitExceeded
+DEINDEX_TASK_TIME_LIMIT = 1800  # seconds, worker is SIGKILLed
+
 # After the triggering turn enqueues the summarization task, how long the
 # wait loop tolerates "no live claim yet" before giving up and failing the
 # turn (covers broker latency and a short worker backlog). Generation stays

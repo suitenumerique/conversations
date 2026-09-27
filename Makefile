@@ -264,7 +264,7 @@ deindex_inactive_collections: ## run the deindex_inactive_collections management
 	@$(MANAGE) deindex_inactive_collections
 .PHONY: deindex_inactive_collections
 
-fetch_model_health: ## check the health of the models (usage: make fetch_model_health FETCH_MODEL_HEALTH_ARGS="--provider albert")
+fetch_model_health: ## run fetch_model_health once (celery beat schedules it in deployments; usage: make fetch_model_health FETCH_MODEL_HEALTH_ARGS="--provider albert")
 	@$(MANAGE) fetch_model_health $(FETCH_MODEL_HEALTH_ARGS)
 .PHONY: fetch_model_health
 

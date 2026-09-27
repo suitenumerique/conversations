@@ -10,11 +10,16 @@ and this project adheres to
 
 ### Added
 
+- ✨(back) run model-health poll and de-index as celery beat tasks
 - ✨(back) add the data.gouv connector for a beta cohort
 
 ### Changed
 
 - ✨(front) replace input actions with a + dropdown menu
+
+### Removed
+
+- 🔥(helm) remove the model-health and de-index CronJobs
 
 ### Fixed
 

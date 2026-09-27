@@ -52,6 +52,10 @@ backend:
     AWS_S3_SECRET_ACCESS_KEY: password
     AWS_STORAGE_BUCKET_NAME: conversations-media-storage
     STORAGES_STATICFILES_BACKEND: django.contrib.staticfiles.storage.StaticFilesStorage
+    # Celery beat periodic tasks. Both are off when unset (Albert deployments only).
+    # MODEL_HEALTH_POLL_PROVIDER: albert
+    # MODEL_HEALTH_POLL_INTERVAL_SECONDS: 60
+    # DEINDEX_INACTIVE_COLLECTIONS_CRON: "0 2 * * *"
 
   migrate:
     command:
