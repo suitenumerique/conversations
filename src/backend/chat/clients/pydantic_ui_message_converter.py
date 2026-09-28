@@ -29,6 +29,8 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
+from core.file_upload.mime_types import resolve_markdown_content_type
+
 from chat.ai_sdk_types import (
     TOOL_PART_PREFIX,
     FileUIPart,
@@ -72,7 +74,9 @@ def _file_part_to_user_content(part: FileUIPart) -> UserContent:
         )
     if (part.mediaType or "").startswith(IMAGE_MIME_PREFIX):
         return ImageUrl(url=part.url, media_type=part.mediaType, identifier=part.filename)
-    return DocumentUrl(url=part.url, media_type=part.mediaType, identifier=part.filename)
+    # The browser may send a markdown file as application/octet-stream: trust its name.
+    media_type = resolve_markdown_content_type(part.filename, part.mediaType)
+    return DocumentUrl(url=part.url, media_type=media_type, identifier=part.filename)
 
 
 def model_message_to_ui_message(model_message: ModelMessage) -> Optional[UIMessage]:

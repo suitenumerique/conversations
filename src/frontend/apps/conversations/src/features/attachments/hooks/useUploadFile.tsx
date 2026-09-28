@@ -4,6 +4,7 @@ import { baseApiUrl, fetchAPI, getCSRFToken } from '@/api';
 import { useConfig } from '@/core';
 
 import { useCreateConversationAttachment } from '../api';
+import { getUploadContentType } from '../utils/fileTypes';
 
 interface BackendUploadResponse {
   key: string;
@@ -24,7 +25,7 @@ export const uploadFileToServer = (
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
     xhr.setRequestHeader('X-amz-acl', 'private');
-    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.setRequestHeader('Content-Type', getUploadContentType(file));
 
     xhr.addEventListener('error', reject);
     xhr.addEventListener('abort', reject);
@@ -145,7 +146,7 @@ export const useUploadFile = (conversationId: string) => {
       // Presigned URL mode (default): frontend uploads directly to S3
       const attachment = await createConversationAttachment({
         conversationId,
-        content_type: file.type,
+        content_type: getUploadContentType(file),
         file_name: file.name,
         size: file.size,
       });

@@ -13,6 +13,10 @@ import WarningFilledIcon from '@/assets/icons/uikit-custom/warning-filled.svg?re
 import { Box, Loader, Text } from '@/components';
 import { useToast } from '@/components/ToastProvider';
 import { useConfig, useFeatureEnabled } from '@/core';
+import {
+  isFileAccepted as isFileTypeAccepted,
+  withMarkdownExtensions,
+} from '@/features/attachments/utils/fileTypes';
 import { useAssistantHealth } from '@/features/chat/api/useAssistantHealth';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 import { ChatErrorType } from '@/features/chat/components/ChatError';
@@ -174,23 +178,7 @@ export const InputChat = ({
 
   const isFileAccepted = useCallback(
     (file: File): boolean => {
-      const acceptedConfig = conf?.chat_upload_accept;
-      if (!acceptedConfig) {
-        return true;
-      }
-      const acceptedTypes = acceptedConfig
-        .split(',')
-        .map((type) => type.trim());
-      return acceptedTypes.some((acceptedType) => {
-        if (acceptedType.startsWith('.')) {
-          return file.name.toLowerCase().endsWith(acceptedType.toLowerCase());
-        }
-        if (acceptedType.endsWith('/*')) {
-          const baseType = acceptedType.slice(0, -2);
-          return file.type.startsWith(baseType);
-        }
-        return file.type === acceptedType;
-      });
+      return isFileTypeAccepted(file, conf?.chat_upload_accept);
     },
     [conf?.chat_upload_accept],
   );
@@ -577,7 +565,7 @@ export const InputChat = ({
                 )}
 
               <input
-                accept={conf?.chat_upload_accept}
+                accept={withMarkdownExtensions(conf?.chat_upload_accept)}
                 type="file"
                 multiple
                 ref={fileInputRef}

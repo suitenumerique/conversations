@@ -103,3 +103,28 @@ RAG_ACCEPTED_MIME_TYPES = [
     "image/webp",
     "application/vnd.oasis.opendocument.text",
 ]
+
+MARKDOWN_EXTENSIONS = (".md", ".markdown")
+# Types a browser may report for a markdown file. On Windows, it takes the type
+# from the registry, which usually has no entry for .md: the upload then comes
+# with an empty or generic type instead of text/markdown.
+MARKDOWN_CLAIMED_MIME_TYPES = [
+    "text/markdown",
+    "text/x-markdown",
+    "text/plain",
+    "application/octet-stream",
+    "",
+]
+
+
+def resolve_markdown_content_type(file_name: str | None, content_type: str | None) -> str:
+    """Return text/markdown for a markdown file name whose claimed type is unreliable.
+
+    Any other file keeps its claimed type (an empty string when there is none).
+    """
+    content_type = content_type or ""
+    if (file_name or "").lower().endswith(MARKDOWN_EXTENSIONS) and (
+        content_type.lower() in MARKDOWN_CLAIMED_MIME_TYPES
+    ):
+        return "text/markdown"
+    return content_type

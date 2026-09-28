@@ -1,6 +1,7 @@
 import { baseApiUrl, fetchAPI, getCSRFToken } from '@/api';
 
 import { ConversationAttachment } from '../types';
+import { getUploadContentType } from '../utils/fileTypes';
 
 interface BackendUploadResponse {
   key: string;
@@ -13,7 +14,7 @@ const createProjectAttachment = async (
   const response = await fetchAPI(`projects/${projectId}/attachments/`, {
     method: 'POST',
     body: JSON.stringify({
-      content_type: file.type,
+      content_type: getUploadContentType(file),
       file_name: file.name,
       size: file.size,
     }),
@@ -31,7 +32,7 @@ const uploadToPresignedUrl = (url: string, file: File): Promise<void> =>
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
     xhr.setRequestHeader('X-amz-acl', 'private');
-    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.setRequestHeader('Content-Type', getUploadContentType(file));
 
     xhr.addEventListener('error', reject);
     xhr.addEventListener('abort', reject);

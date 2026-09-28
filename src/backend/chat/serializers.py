@@ -11,6 +11,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from core.file_upload.enums import AttachmentStatus, FileUploadMode
+from core.file_upload.mime_types import resolve_markdown_content_type
 from core.file_upload.utils import generate_upload_policy
 
 from chat import models
@@ -272,6 +273,8 @@ class CreateChatConversationAttachmentSerializer(serializers.ModelSerializer):
     policy = serializers.SerializerMethodField()
     uploaded_by = serializers.HiddenField(default=serializers.CurrentUserDefault())
     key = serializers.CharField(read_only=True)  # Key is generated server-side
+    # Blank is let through here so `validate` can resolve a markdown file from its name.
+    content_type = serializers.CharField(max_length=100, allow_blank=True)
 
     class Meta:  # pylint: disable=missing-class-docstring
         model = models.ChatConversationAttachment
@@ -299,6 +302,17 @@ class CreateChatConversationAttachmentSerializer(serializers.ModelSerializer):
             )
 
         return size
+
+    def validate(self, attrs):
+        """Derive a markdown file's type from its name, the browser may not know it."""
+        attrs = super().validate(attrs)
+        content_type = resolve_markdown_content_type(attrs["file_name"], attrs["content_type"])
+        if not content_type:
+            raise serializers.ValidationError(
+                {"content_type": ["This field may not be blank."]}, code="blank"
+            )
+        attrs["content_type"] = content_type
+        return attrs
 
 
 class ChatProjectNestedSerializer(serializers.ModelSerializer):

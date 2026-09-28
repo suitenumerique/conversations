@@ -26,6 +26,10 @@ import {
   KEY_PROJECT_ATTACHMENTS,
   useProjectAttachments,
 } from '@/features/attachments/api/useProjectAttachments';
+import {
+  isFileAccepted as isFileTypeAccepted,
+  withMarkdownExtensions,
+} from '@/features/attachments/utils/fileTypes';
 import { useCreateProject } from '@/features/chat/api/useCreateProject';
 import { useUpdateProject } from '@/features/chat/api/useUpdateProject';
 import { usePendingChatStore } from '@/features/chat/stores/usePendingChatStore';
@@ -173,23 +177,7 @@ export const ModalProjectForm = ({
 
   const isFileAccepted = useCallback(
     (file: File): boolean => {
-      const acceptedConfig = conf?.chat_upload_accept;
-      if (!acceptedConfig) {
-        return true;
-      }
-      const acceptedTypes = acceptedConfig
-        .split(',')
-        .map((type) => type.trim());
-      return acceptedTypes.some((acceptedType) => {
-        if (acceptedType.startsWith('.')) {
-          return file.name.toLowerCase().endsWith(acceptedType.toLowerCase());
-        }
-        if (acceptedType.endsWith('/*')) {
-          const baseType = acceptedType.slice(0, -2);
-          return file.type.startsWith(baseType);
-        }
-        return file.type === acceptedType;
-      });
+      return isFileTypeAccepted(file, conf?.chat_upload_accept);
     },
     [conf?.chat_upload_accept],
   );
@@ -815,7 +803,7 @@ export const ModalProjectForm = ({
                     ref={fileInputRef}
                     type="file"
                     multiple
-                    accept={conf?.chat_upload_accept}
+                    accept={withMarkdownExtensions(conf?.chat_upload_accept)}
                     onChange={handleFileChange}
                     style={{ display: 'none' }}
                   />

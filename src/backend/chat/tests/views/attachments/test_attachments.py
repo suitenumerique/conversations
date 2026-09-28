@@ -73,6 +73,78 @@ def test_attachment_create_success(api_client):
     assert attachment.content_type == "image/png"
 
 
+@pytest.mark.parametrize(
+    "file_name,content_type",
+    [
+        ("notes.md", ""),
+        ("notes.md", "application/octet-stream"),
+        ("notes.md", "text/markdown"),
+        ("notes.md", "text/x-markdown"),
+        ("notes.md", "text/plain"),
+        ("NOTES.Markdown", ""),
+    ],
+)
+def test_attachment_create_markdown_type_from_extension(api_client, file_name, content_type):
+    """
+    A markdown file is recorded as text/markdown whatever unreliable type the browser
+    reports (Windows browsers send an empty or generic type for .md files).
+    """
+    conversation = factories.ChatConversationFactory()
+    api_client.force_login(conversation.owner)
+
+    url = f"/api/v1.0/chats/{conversation.pk!s}/attachments/"
+    response = api_client.post(
+        url, {"file_name": file_name, "size": 123, "content_type": content_type}, format="json"
+    )
+
+    assert response.status_code == 201
+    attachment = models.ChatConversationAttachment.objects.get(pk=response.json()["id"])
+    assert attachment.content_type == "text/markdown"
+
+
+def test_attachment_create_blank_type_rejected_for_other_extensions(api_client):
+    """
+    Only markdown files get their type from the extension: a blank type is still
+    rejected for any other file.
+    """
+    conversation = factories.ChatConversationFactory()
+    api_client.force_login(conversation.owner)
+
+    url = f"/api/v1.0/chats/{conversation.pk!s}/attachments/"
+    response = api_client.post(
+        url, {"file_name": "setup.exe", "size": 123, "content_type": ""}, format="json"
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"content_type": ["This field may not be blank."]}
+    assert not models.ChatConversationAttachment.objects.exists()
+
+
+@pytest.mark.parametrize(
+    "file_name,content_type",
+    [
+        ("setup.exe", "application/octet-stream"),
+        ("notes.md", "text/html"),
+    ],
+)
+def test_attachment_create_keeps_claimed_type_otherwise(api_client, file_name, content_type):
+    """
+    The claimed type is kept for non-markdown files, and for a .md file whose type
+    is not one a browser reports for markdown.
+    """
+    conversation = factories.ChatConversationFactory()
+    api_client.force_login(conversation.owner)
+
+    url = f"/api/v1.0/chats/{conversation.pk!s}/attachments/"
+    response = api_client.post(
+        url, {"file_name": file_name, "size": 123, "content_type": content_type}, format="json"
+    )
+
+    assert response.status_code == 201
+    attachment = models.ChatConversationAttachment.objects.get(pk=response.json()["id"])
+    assert attachment.content_type == content_type
+
+
 def test_attachment_create_size_limit_exceeded(api_client, settings):
     """
     The attachment should not be created if the file size exceeds the maximum limit.

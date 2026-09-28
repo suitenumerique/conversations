@@ -3,6 +3,7 @@
 import base64
 import datetime
 
+import pytest
 from pydantic_ai.messages import BinaryContent, DocumentUrl
 
 from chat.ai_sdk_types import (
@@ -222,6 +223,52 @@ def test_hosted_file_url():
         "Check this file",
         DocumentUrl(url="https://example.com/file.txt", _media_type="text/plain"),
     ]
+
+
+@pytest.mark.parametrize("media_type", ["", "application/octet-stream", "text/markdown"])
+def test_hosted_markdown_file_type_from_extension(media_type):
+    """A hosted .md file is passed on as text/markdown whatever type the browser reported."""
+    ui_message = UIMessage(
+        id="msg-md",
+        role="user",
+        content="Check this file",
+        parts=[
+            FileUIPart(
+                type="file",
+                url="/media-key/conv/attachments/abc.md",
+                mediaType=media_type,
+                filename="notes.md",
+            ),
+        ],
+    )
+
+    result = ui_message_to_user_content(ui_message)
+
+    assert len(result) == 2
+    assert isinstance(result[1], DocumentUrl)
+    assert result[1].media_type == "text/markdown"
+
+
+def test_hosted_non_markdown_file_keeps_claimed_type():
+    """Only markdown files get their type from the extension."""
+    ui_message = UIMessage(
+        id="msg-bin",
+        role="user",
+        content="Check this file",
+        parts=[
+            FileUIPart(
+                type="file",
+                url="/media-key/conv/attachments/abc.bin",
+                mediaType="application/octet-stream",
+                filename="data.bin",
+            ),
+        ],
+    )
+
+    result = ui_message_to_user_content(ui_message)
+
+    assert len(result) == 2
+    assert result[1].media_type == "application/octet-stream"
 
 
 def test_empty_message():

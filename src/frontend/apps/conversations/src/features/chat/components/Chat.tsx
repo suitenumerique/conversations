@@ -32,6 +32,7 @@ import { useConfig } from '@/core';
 import { useProjectAttachments } from '@/features/attachments/api/useProjectAttachments';
 import { useReindexProjectAttachment } from '@/features/attachments/api/useReindexProjectAttachment';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
+import { getUploadContentType } from '@/features/attachments/utils/fileTypes';
 import {
   ImagesSkippedEventKind,
   stampImagesSkippedOnLatestUserMessage,
@@ -960,7 +961,7 @@ export const Chat = ({
 
           return {
             name: file.name,
-            contentType: file.type,
+            contentType: getUploadContentType(file),
             url: url,
           };
         });

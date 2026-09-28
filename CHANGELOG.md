@@ -25,6 +25,7 @@ and this project adheres to
 - 👷(ci) pull the MinIO images from quay.io instead of Docker Hub
 - 🐛(ci) fix the CHANGELOG check failing when a pull request is opened
 - 🐛(back) replace whitenoise with servestatic for async-capable serving
+- 🐛(attachments) accept markdown uploads with a missing or generic mime type
 
 ## [0.0.24] - 2026-09-08
 
