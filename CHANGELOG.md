@@ -17,6 +17,7 @@ and this project adheres to
 
 - ✨(front) replace input actions with a + dropdown menu
 - 🔧(project) replace MinIO with RustFS for local development and CI
+- ⬆️(dependencies) update front and mail dependencies and remove unused ones
 
 ### Fixed
 
@@ -61,7 +62,7 @@ and this project adheres to
 
 - 🐛(front) fix the frontend dev container failing to start
 - 🐛(back) read the OIDC_CREATE_USER setting from its documented env var
- 
+
 ### Removed
 
 - 🔥(back) remove the unused Albert web search manager and its tool

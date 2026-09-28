@@ -15,11 +15,13 @@ export const SeparatedSection = ({
     <Box
       $css={css`
         width: 100%;
-        ${showSeparator &&
-        css`
-          border-bottom: 1px solid
-            var(--c--contextuals--border--surface--primary);
-        `}
+        ${
+          showSeparator &&
+          css`
+            border-bottom: 1px solid
+              var(--c--contextuals--border--surface--primary);
+          `
+        }
       `}
     >
       {children}

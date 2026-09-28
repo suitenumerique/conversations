@@ -13,10 +13,16 @@ const regexpUrlsAuth = [
 ];
 
 export const useAuth = () => {
-  const { data: user, ...authStates } = useAuthQuery();
+  const {
+    data: user,
+    isFetched,
+    isFetchedAfterMount,
+    isLoading,
+    isSuccess,
+  } = useAuthQuery();
   const { pathname } = useLocation();
   const { trackEvent } = useAnalytics();
-  const [hasTracked, setHasTracked] = useState(authStates.isFetched);
+  const [hasTracked, setHasTracked] = useState(isFetched);
   const [pathAllowed, setPathAllowed] = useState<boolean>(
     !regexpUrlsAuth.some((regexp) => !!pathname.match(regexp)),
   );
@@ -26,7 +32,7 @@ export const useAuth = () => {
   }, [pathname]);
 
   useEffect(() => {
-    if (!hasTracked && user && authStates.isSuccess) {
+    if (!hasTracked && user && isSuccess) {
       trackEvent({
         eventName: 'user',
         id: user?.id || '',
@@ -35,12 +41,13 @@ export const useAuth = () => {
       });
       setHasTracked(true);
     }
-  }, [hasTracked, authStates.isSuccess, user, trackEvent]);
+  }, [hasTracked, isSuccess, user, trackEvent]);
 
   return {
     user,
-    authenticated: !!user && authStates.isSuccess,
+    authenticated: !!user && isSuccess,
     pathAllowed,
-    ...authStates,
+    isLoading,
+    isFetchedAfterMount,
   };
 };

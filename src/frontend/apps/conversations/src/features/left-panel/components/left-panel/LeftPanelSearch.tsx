@@ -50,7 +50,19 @@ export const LeftPanelSearch = ({ onSearchChange }: LeftPanelSearchProps) => {
       elements: search ? conversations : [],
       emptyString: t('No conversation found'),
       endActions: hasNextPage
-        ? [{ content: <InView onChange={() => void fetchNextPage()} /> }]
+        ? [
+            {
+              content: (
+                <InView
+                  onChange={(inView) => {
+                    if (inView) {
+                      void fetchNextPage();
+                    }
+                  }}
+                />
+              ),
+            },
+          ]
         : [],
     };
   }, [data, hasNextPage, fetchNextPage, t, search]);

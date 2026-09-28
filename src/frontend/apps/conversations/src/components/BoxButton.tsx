@@ -38,9 +38,11 @@ const BoxButton = forwardRef<HTMLDivElement, BoxButtonType>(
           transition: all 0.2s ease-in-out;
           font-family: inherit;
 
-          color: ${props.disabled
-            ? 'var(--c--theme--colors--gray-400) !important'
-            : 'inherit'};
+          color: ${
+            props.disabled
+              ? 'var(--c--theme--colors--gray-400) !important'
+              : 'inherit'
+          };
           ${$css || ''}
         `}
         {...props}

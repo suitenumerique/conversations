@@ -4,6 +4,11 @@ import { createProject } from '../helpers';
 
 import { randomName } from './common';
 
+const OPPOSITE_EXPANDED: Record<string, string> = {
+  true: 'false',
+  false: 'true',
+};
+
 test.describe('Projects', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
@@ -165,15 +170,17 @@ test.describe('Projects', () => {
       exact: true,
     });
     await expect(projectHeader).toBeEnabled();
-    const initialExpanded = await projectHeader.getAttribute('aria-expanded');
-    expect(initialExpanded).not.toBeNull();
-    if (!initialExpanded) {
-      throw new Error('Project toggle should expose aria-expanded.');
-    }
+    await expect(projectHeader).toHaveAttribute(
+      'aria-expanded',
+      /^(true|false)$/,
+    );
+    const initialExpanded = String(
+      await projectHeader.getAttribute('aria-expanded'),
+    );
     await projectHeader.click();
 
     // Should invert state after first click
-    const toggledExpanded = initialExpanded === 'true' ? 'false' : 'true';
+    const toggledExpanded = OPPOSITE_EXPANDED[initialExpanded];
     await expect(projectHeader).toHaveAttribute(
       'aria-expanded',
       toggledExpanded,

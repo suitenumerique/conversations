@@ -30,8 +30,7 @@ const Head = () => {
   const { t } = useTranslation();
   const { componentTokens } = useCunninghamTheme();
   const favicon = (componentTokens as Record<string, unknown>).favicon as
-    | { 'png-light': string; 'png-dark': string }
-    | undefined;
+    { 'png-light': string; 'png-dark': string } | undefined;
 
   return (
     <>

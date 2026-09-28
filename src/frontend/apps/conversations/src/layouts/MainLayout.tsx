@@ -106,23 +106,27 @@ export function MainLayout({
             aria-hidden={!isSourcesPanelOpen}
             className="main-layout__sources-panel-anchor"
             $css={css`
-              ${isDesktop
-                ? css`
-                    position: fixed;
-                    top: 0;
-                    right: ${isSourcesPanelOpen
-                      ? '0px'
-                      : `-${SOURCES_PANEL_WIDTH_PX}px`};
-                    bottom: 0;
-                    z-index: 1001;
-                    width: ${SOURCES_PANEL_WIDTH_PX}px;
-                  `
-                : css`
-                    position: fixed;
-                    inset: 0;
-                    width: 100%;
-                    z-index: 1002;
-                  `}
+              ${
+                isDesktop
+                  ? css`
+                      position: fixed;
+                      top: 0;
+                      right: ${
+                        isSourcesPanelOpen
+                          ? '0px'
+                          : `-${SOURCES_PANEL_WIDTH_PX}px`
+                      };
+                      bottom: 0;
+                      z-index: 1001;
+                      width: ${SOURCES_PANEL_WIDTH_PX}px;
+                    `
+                  : css`
+                      position: fixed;
+                      inset: 0;
+                      width: 100%;
+                      z-index: 1002;
+                    `
+              }
               pointer-events: ${isSourcesPanelOpen ? 'auto' : 'none'};
               visibility: ${isSourcesPanelOpen ? 'visible' : 'hidden'};
               transition: right 0.3s ease;

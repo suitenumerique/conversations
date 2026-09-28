@@ -34,9 +34,7 @@ type AnalyticEventFeature = {
 };
 
 export type AnalyticEvent =
-  | AnalyticEventClick
-  | AnalyticEventUser
-  | AnalyticEventFeature;
+  AnalyticEventClick | AnalyticEventUser | AnalyticEventFeature;
 
 export abstract class AbstractAnalytic {
   public constructor() {

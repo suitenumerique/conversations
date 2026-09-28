@@ -135,16 +135,20 @@ export const DropdownMenu = ({
               $gap={spacingsTokens['base']}
               $css={css`
                 border: none;
-                ${index === 0 &&
-                css`
-                  border-top-left-radius: 4px;
-                  border-top-right-radius: 4px;
-                `}
-                ${index === options.length - 1 &&
-                css`
-                  border-bottom-left-radius: var(--c--globals--spacings--st);
-                  border-bottom-right-radius: var(--c--globals--spacings--st);
-                `}
+                ${
+                  index === 0 &&
+                  css`
+                    border-top-left-radius: 4px;
+                    border-top-right-radius: 4px;
+                  `
+                }
+                ${
+                  index === options.length - 1 &&
+                  css`
+                    border-bottom-left-radius: var(--c--globals--spacings--st);
+                    border-bottom-right-radius: var(--c--globals--spacings--st);
+                  `
+                }
                 font-size: var(--c--globals--font--sizes--sm);
                 color: var(
                   --c--contextuals--content--semantic--brand--tertiary

@@ -16,3 +16,17 @@ HTMLCanvasElement.prototype.getContext = (() =>
       set: () => true,
     },
   )) as unknown as HTMLCanvasElement['getContext'];
+
+// lottie-react reads `prefers-reduced-motion` when an animation loads, and
+// jsdom implements no `matchMedia`. Report that no media query matches, unless
+// jsdom provides a real one.
+window.matchMedia ??= ((query: string) => ({
+  matches: false,
+  media: query,
+  onchange: null,
+  addEventListener: () => undefined,
+  removeEventListener: () => undefined,
+  addListener: () => undefined,
+  removeListener: () => undefined,
+  dispatchEvent: () => false,
+})) as typeof window.matchMedia;

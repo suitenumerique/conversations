@@ -5,7 +5,7 @@ on:
     inputs:
       node_version:
         required: false
-        default: '22.x'
+        default: '22.23.2'
         type: string
       with-front-dependencies-installation:
         type: boolean

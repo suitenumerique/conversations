@@ -13,7 +13,7 @@ jobs:
   install-dependencies:
     uses: ./.github/workflows/dependencies.yml
     with:
-      node_version: '22.x'
+      node_version: '22.23.2'
       with-front-dependencies-installation: true
 
   synchronize-with-crowdin:
@@ -57,7 +57,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 # zizmor: ignore[cache-poisoning]
         with:
-          node-version: "22.x"
+          node-version: "22.23.2"
       - name: Install yarn
         # Exact version pin, scripts disabled; corepack pinning is separate.
         run: npm install -g yarn@1.22.22 --ignore-scripts # zizmor: ignore[adhoc-packages]

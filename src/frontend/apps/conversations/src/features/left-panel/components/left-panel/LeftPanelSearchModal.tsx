@@ -99,7 +99,19 @@ export const LeftPanelSearchModal = ({
   const endActionsContent = useMemo(
     () =>
       hasNextPage
-        ? [{ content: <InView onChange={() => void fetchNextPage()} /> }]
+        ? [
+            {
+              content: (
+                <InView
+                  onChange={(inView) => {
+                    if (inView) {
+                      void fetchNextPage();
+                    }
+                  }}
+                />
+              ),
+            },
+          ]
         : [],
     [hasNextPage, fetchNextPage],
   );
