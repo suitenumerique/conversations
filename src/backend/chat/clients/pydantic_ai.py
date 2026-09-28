@@ -99,11 +99,12 @@ from celery.exceptions import TimeoutError as CeleryTimeoutError
 from langfuse import get_client, propagate_attributes
 from mistralai.client.errors import HTTPValidationError, SDKError
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
-from pydantic_ai.capabilities import Instrumentation, ProcessHistory
+from pydantic_ai.capabilities import Hooks, Instrumentation, ProcessHistory
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import (
     BinaryContent,
     DocumentUrl,
+    FinishReason,
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     ImageUrl,
@@ -125,11 +126,13 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import Model, infer_model_profile
+from pydantic_ai.settings import ModelSettings
 
 from core.analytics import acapture_event
 from core.feature_flags.helpers import is_feature_enabled
 
 from chat import models
+from chat.agents.base import get_max_output_tokens
 from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
 from chat.agents.history_processors import (
     SUMMARY_SYSTEM_PREFIX,
@@ -289,6 +292,21 @@ def _extract_co2_from_usage(usage: RunUsage) -> float:
     return 0
 
 
+# The finish_reason pydantic-ai reports when generation was cut off by the output
+# token limit (one of the pydantic_ai.messages.FinishReason literal values).
+LENGTH_FINISH_REASON: FinishReason = "length"
+
+
+def _truncation_annotation() -> dict[str, bool]:
+    """The flag marking a response cut off at the output token limit.
+
+    Streamed as a v4 message annotation, which the v4->v5 encoder folds into the
+    `finish` message metadata, and persisted directly in the message metadata.
+    One source of truth so the two never drift.
+    """
+    return {"truncated": True}
+
+
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
@@ -341,6 +359,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._connector_toolsets = get_mcp_toolsets(self.user)
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
+        self._last_finish_reason: FinishReason | None = None
+
+        self._truncation_hooks = Hooks()
+
+        @self._truncation_hooks.on.after_model_request
+        async def _detect_truncation(_ctx, *, request_context, response):  # pylint: disable=unused-argument
+            self._last_finish_reason = response.finish_reason
+            return response
+
         self._context_deps = ContextDeps(
             conversation=conversation,
             user=user,
@@ -372,7 +399,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
             language=self.language,
-            capabilities=_capabilities,
+            capabilities=_capabilities + [self._truncation_hooks],
             deps_type=ContextDeps,
         )
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
@@ -614,8 +641,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         It can be used to release resources or perform any necessary cleanup.
         """
         self._last_stop_check = 0
+        self._last_finish_reason = None
         self._pre_stream_events = []
         await cache.adelete(self._stop_cache_key)
+
+    @property
+    def _is_truncated(self) -> bool:
+        """True when the last model response stopped at the output token limit."""
+        return self._last_finish_reason == LENGTH_FINISH_REASON
 
     # --------------------------------------------------------------------- #
     # Core agent runner
@@ -1675,6 +1708,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # the usage in the finish frame below is streamed but never persisted.
         if message_co2_impact:
             yield events_v4.MessageAnnotationPart(annotations=[{"co2_impact": message_co2_impact}])
+
+        if self._is_truncated:
+            yield events_v4.MessageAnnotationPart(annotations=[_truncation_annotation()])
+
         # Vercel finish message
         yield events_v4.FinishMessagePart(
             finish_reason=events_v4.FinishReason.STOP,
@@ -1777,7 +1814,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if history and history[-1].kind == "request":
                 if history[-1].parts and history[-1].parts[-1].part_kind == "tool-return":
                     history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
+
             message_history = history if history else None
+            model_settings = ModelSettings(
+                max_tokens=get_max_output_tokens(self.conversation_agent.configuration)
+            )
 
             async with self.conversation_agent.iter(
                 [user_prompt] + input_images,
@@ -1785,6 +1826,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 message_history=message_history,
                 deps=self._context_deps,
                 toolsets=mcp_toolsets,
+                model_settings=model_settings,
             ) as run:
                 state = StreamingState()
                 async for event in self._process_agent_nodes(run, state):
@@ -1889,6 +1931,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             _output_ui_message.metadata = {
                 **(_output_ui_message.metadata or {}),
                 "co2_impact": co2_impact,
+            }
+
+        if self._is_truncated:
+            _output_ui_message.metadata = {
+                **(_output_ui_message.metadata or {}),
+                **_truncation_annotation(),
             }
 
         usage["co2_impact"] += self.conversation.agent_usage.get("co2_impact", 0)

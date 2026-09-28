@@ -11,7 +11,7 @@ from pydantic_ai.models.mistral import MistralModel, _map_content
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIStreamedResponse
 
 from chat.agents.base import BaseAgent
-from chat.llm_configuration import LLModel, LLMProfile, LLMProvider
+from chat.llm_configuration import LLModel, LLMProfile, LLMProvider, LLMSettings
 from chat.providers.albert_models import AlbertOpenAIChatModel, AlbertOpenAIProvider
 
 # ---------------------------------------------------------------------------
@@ -92,6 +92,92 @@ def test_custom_model_openai(settings):
 
     agent = BaseAgent(model_hrid="openai-compatible-model")
     assert isinstance(agent._model, OpenAIChatModel)
+
+
+def test_custom_model_openai_output_token_limit(settings):
+    """OpenAI-compatible models must carry the output token limit as `max_tokens`
+    in `extra_body`, since `max_completion_tokens` is ignored by servers (Albert,
+    vLLM, LM Studio) that only honour the legacy `max_tokens` field."""
+    settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE = 1234
+    settings.LLM_CONFIGURATIONS = {
+        "openai-compatible-model": LLModel(
+            hrid="custom-gpt-4",
+            model_name="gpt-4",
+            human_readable_name="Custom GPT-4",
+            profile=None,
+            provider=LLMProvider(
+                hrid="openai",
+                kind="openai",
+                base_url="https://test.vllm/v1",
+                api_key="testkey",
+            ),
+            is_active=True,
+            system_prompt="direct",
+            tools=[],
+        ),
+    }
+
+    agent = BaseAgent(model_hrid="openai-compatible-model")
+
+    model_settings = agent._model.settings
+    assert model_settings is not None
+    assert model_settings["extra_body"]["max_tokens"] == 1234
+
+
+def test_custom_model_openai_configured_max_tokens_wins(settings):
+    """A `max_tokens` declared in the LLM configuration must win over the global
+    default, so operators keep a per-model cap."""
+    settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE = 1234
+    settings.LLM_CONFIGURATIONS = {
+        "openai-compatible-model": LLModel(
+            hrid="custom-gpt-4",
+            model_name="gpt-4",
+            human_readable_name="Custom GPT-4",
+            profile=None,
+            settings=LLMSettings(max_tokens=99),
+            provider=LLMProvider(
+                hrid="openai",
+                kind="openai",
+                base_url="https://test.vllm/v1",
+                api_key="testkey",
+            ),
+            is_active=True,
+            system_prompt="direct",
+            tools=[],
+        ),
+    }
+
+    agent = BaseAgent(model_hrid="openai-compatible-model")
+
+    assert agent._model.settings["extra_body"]["max_tokens"] == 99
+
+
+def test_custom_model_openai_skips_extra_body_when_max_tokens_unsupported(settings):
+    """Real OpenAI rejects the legacy `max_tokens` on reasoning models, and `extra_body`
+    bypasses the profile filter, so the mirror must be skipped when the profile
+    declares the setting unsupported."""
+    settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE = 1234
+    settings.LLM_CONFIGURATIONS = {
+        "openai-reasoning-model": LLModel(
+            hrid="o-series",
+            model_name="o3",
+            human_readable_name="O3",
+            profile=LLMProfile(openai_unsupported_model_settings=["max_tokens"]),
+            provider=LLMProvider(
+                hrid="openai",
+                kind="openai",
+                base_url="https://api.openai.com/v1",
+                api_key="testkey",
+            ),
+            is_active=True,
+            system_prompt="direct",
+            tools=[],
+        ),
+    }
+
+    agent = BaseAgent(model_hrid="openai-reasoning-model")
+
+    assert "extra_body" not in (agent._model.settings or {})
 
 
 def test_custom_model_mistral(settings):

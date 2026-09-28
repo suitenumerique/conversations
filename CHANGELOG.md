@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(back) add the data.gouv connector for a beta cohort
+- ✨(back) add output token limit per message
 
 ### Changed
 

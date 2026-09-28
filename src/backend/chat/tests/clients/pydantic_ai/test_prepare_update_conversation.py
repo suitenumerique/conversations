@@ -34,6 +34,7 @@ def service_fixture(conversation):
     """Instantiate AIAgentService without __init__, injecting what the method needs."""
     service = object.__new__(AIAgentService)
     service.conversation = conversation
+    service._last_finish_reason = None
     service.user = SimpleNamespace(pk=1)
     service.conversation_agent = SimpleNamespace(
         configuration=LLModel(

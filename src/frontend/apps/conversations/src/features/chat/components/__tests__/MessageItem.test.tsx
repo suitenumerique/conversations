@@ -75,6 +75,12 @@ vi.mock('../ToolInvocationItem', () => ({
   ToolInvocationItem: () => <div data-testid="tool-invocation-item" />,
 }));
 
+vi.mock('../TruncatedResponseMessage', () => ({
+  TruncatedResponseMessage: () => (
+    <div data-testid="truncated-response-message" />
+  ),
+}));
+
 describe('splitIntoBlocks', () => {
   describe('basic splitting', () => {
     it('returns empty array for empty content', () => {
@@ -925,5 +931,92 @@ describe('MessageItem', () => {
         screen.queryByTestId('summarization-error'),
       ).not.toBeInTheDocument();
     });
+  });
+});
+
+describe('truncated response metadata', () => {
+  const baseProps = {
+    isLastMessage: true,
+    isLastAssistantMessage: true,
+    isFirstConversationMessage: false,
+    streamingMessageHeight: null,
+    status: 'ready' as const,
+    conversationId: 'conv-1',
+    isSourceOpen: null,
+    isMobile: false,
+    onCopyToClipboard: vi.fn(),
+    onOpenSources: vi.fn(),
+    getMetadata: vi.fn(),
+  };
+
+  it('renders TruncatedResponseMessage when metadata has truncated:true', () => {
+    const message = {
+      id: 'msg-1',
+      role: 'assistant' as const,
+      content: 'Hello world',
+      metadata: { truncated: true },
+      parts: [],
+    };
+
+    render(
+      <CunninghamProvider>
+        <Suspense fallback={null}>
+          <ToastProvider>
+            <MessageItem message={message} {...baseProps} />
+          </ToastProvider>
+        </Suspense>
+      </CunninghamProvider>,
+    );
+
+    expect(
+      screen.getByTestId('truncated-response-message'),
+    ).toBeInTheDocument();
+  });
+
+  it('does not render TruncatedResponseMessage when metadata is absent', () => {
+    const message = {
+      id: 'msg-1',
+      role: 'assistant' as const,
+      content: 'Hello world',
+      parts: [],
+    };
+
+    render(
+      <CunninghamProvider>
+        <Suspense fallback={null}>
+          <ToastProvider>
+            <MessageItem message={message} {...baseProps} />
+          </ToastProvider>
+        </Suspense>
+      </CunninghamProvider>,
+    );
+
+    expect(
+      screen.queryByTestId('truncated-response-message'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('does not render TruncatedResponseMessage when metadata lacks truncated:true', () => {
+    const message = {
+      id: 'msg-1',
+      role: 'assistant' as const,
+      content: 'Hello world',
+      metadata: { co2_impact: 0.001 },
+      parts: [],
+    };
+
+    render(
+      <CunninghamProvider>
+        <Suspense fallback={null}>
+          <ToastProvider>
+            <MessageItem message={message} {...baseProps} />
+          </ToastProvider>
+        </Suspense>
+      </CunninghamProvider>,
+    );
+
+    expect(
+      screen.queryByTestId('truncated-response-message'),
+    ).not.toBeInTheDocument();
   });
 });
