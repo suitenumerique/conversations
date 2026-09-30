@@ -19,6 +19,7 @@ and this project adheres to
 - ✨(front) replace input actions with a + dropdown menu
 - 🔧(project) replace MinIO with RustFS for local development and CI
 - ⬆️(dependencies) update front and mail dependencies and remove unused ones
+- ⬆️(dependencies) upgrade pyjwt to 2.14.0
 
 ### Fixed
 
