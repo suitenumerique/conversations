@@ -73,6 +73,21 @@ def _normalize_tool_call_types(choices: list) -> None:
                 tool_call["type"] = "function"
 
 
+def _join_text_parts_content(choices: list) -> None:
+    """Turn message content sent as a list of text parts into one string, in place.
+
+    Only text parts carry the answer; other parts are dropped.
+    """
+    for choice in choices:
+        message = choice.get("message") if isinstance(choice, dict) else None
+        if isinstance(message, dict) and isinstance(message.get("content"), list):
+            message["content"] = "".join(
+                part.get("text", "")
+                for part in message["content"]
+                if isinstance(part, dict) and part.get("type") == "text"
+            )
+
+
 class AlbertOpenAIChatModel(OpenAIChatModel):
     """
     OpenAIChatModel subclass that preserves Albert's carbon impact data.
@@ -94,15 +109,20 @@ class AlbertOpenAIChatModel(OpenAIChatModel):
     def _validate_completion(self, response: chat.ChatCompletion) -> _ChatCompletion:
         """Normalize Albert API quirks before validation.
 
-        Albert's OpenAI-compatible API has two known non-conformances:
+        Albert's OpenAI-compatible API has three known non-conformances:
         1. tool_calls[].type may not be 'function' — normalized to 'function',
            unless the tool call is a genuine custom tool call (type='custom'
            with a `custom` payload, which the openai SDK requires).
         2. On multi-turn tool-call conversations, the second response sometimes
            returns a non-standard `object` value. This is normalized before
            passing to _ChatCompletion.model_validate().
+        3. Message content is sometimes a list of text parts instead of a string.
+           The parts are joined into one string.
         """
-        data = response.model_dump()
+        # The openai SDK builds the response without validating it, so a list
+        # content is kept as-is and dumping it warns. model_validate() below
+        # checks every field anyway, so the dump's warnings add nothing.
+        data = response.model_dump(warnings=False)
 
         if data.get("object") != "chat.completion":
             data["object"] = "chat.completion"
@@ -115,5 +135,6 @@ class AlbertOpenAIChatModel(OpenAIChatModel):
         choices = data.get("choices")
         if isinstance(choices, list):
             _normalize_tool_call_types(choices)
+            _join_text_parts_content(choices)
 
         return _ChatCompletion.model_validate(data)
