@@ -1,0 +1,488 @@
+# DataGouv selection — le connecteur data.gouv.fr est disponible (opt-in, jamais forcé) :
+# l'agent doit le consulter pour tout fait sur la France que les données publiques
+# officielles enregistrent, n'utiliser la recherche web qu'en repli (après data.gouv.fr),
+# et ne pas le consulter hors de ce périmètre. Outils data.gouv.fr = snapshot du serveur
+# réel, résultats = scénarios réels tronqués (fixtures/datagouv_scenarios.yaml).
+# Les cas « stable_fact » échouent tant que l'instruction de production exclut la
+# « general knowledge » : c'est attendu.
+
+cases:
+  # ── ANSWERED — data.gouv.fr a la réponse : pas de web_search ────────────────
+
+  - name: prix_gazole_rennes
+    inputs:
+      user_message: "Quel est le prix du gazole à Rennes en ce moment ?"
+      tool_output: '{"datagouv_scenario": "carburants_rennes"}'
+    metadata:
+      difficulty: easy
+      category: answered
+      description: Prix des carburants par commune — flux quotidien du ministère de l'économie
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: gpl_rennes
+    inputs:
+      user_message: "Où trouver du GPL à Rennes et à quel prix ?"
+      tool_output: '{"datagouv_scenario": "carburants_rennes"}'
+    metadata:
+      difficulty: medium
+      category: answered
+      description: Prix d'un carburant précis dans une commune — pas une actualité, une donnée publique
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: defibrillateurs_nantes
+    inputs:
+      user_message: "Combien y a-t-il de défibrillateurs recensés à Nantes ?"
+      tool_output: '{"datagouv_scenario": "defibrillateurs_nantes"}'
+    metadata:
+      difficulty: easy
+      category: answered
+      description: Registre national des défibrillateurs (Géo'DAE) filtré par commune
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: defibrillateur_pres_de_chez_moi
+    inputs:
+      user_message: "J'habite allée Jacques Berque à Nantes, y a-t-il un défibrillateur à proximité ?"
+      tool_output: '{"datagouv_scenario": "defibrillateurs_nantes"}'
+    metadata:
+      difficulty: medium
+      category: answered
+      description: Équipement localisé — le registre Géo'DAE donne les adresses
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: ecoles_maternelles_lille
+    inputs:
+      user_message: "Donne-moi quelques écoles maternelles publiques à Lille."
+      tool_output: '{"datagouv_scenario": "etablissements_lille"}'
+    metadata:
+      difficulty: easy
+      category: answered
+      description: Annuaire de l'éducation filtré par commune
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: jeu_de_donnees_qualite_air
+    inputs:
+      user_message: "Trouve-moi un jeu de données sur la qualité de l'air."
+      tool_output: '{"datagouv_scenario": "qualite_air"}'
+    metadata:
+      difficulty: easy
+      category: answered
+      description: Demande explicite d'un jeu de données
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: api_geocodage_adresses
+    inputs:
+      user_message: "Existe-t-il une API publique pour géocoder des adresses en France ?"
+      tool_output: '{"datagouv_scenario": "api_adresse"}'
+    metadata:
+      difficulty: medium
+      category: answered
+      description: Demande d'une API publique — catalogue des dataservices
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  # ── ANSWERED — formulation implicite (ni « données » ni « data.gouv ») ──────
+
+  - name: demenagement_lille_maternelle
+    inputs:
+      user_message: "On déménage à Lille avec notre fils de 4 ans, il y a des maternelles publiques en ville ?"
+      tool_output: '{"datagouv_scenario": "etablissements_lille"}'
+    metadata:
+      difficulty: hard
+      category: answered
+      description: >-
+        Implicite — question de vie quotidienne dont la réponse est dans l'annuaire
+        de l'éducation
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: faire_le_plein_rennes
+    inputs:
+      user_message: "Je passe par Rennes demain, ça vaut le coup de faire le plein là-bas ?"
+      tool_output: '{"datagouv_scenario": "carburants_rennes"}'
+    metadata:
+      difficulty: hard
+      category: answered
+      description: >-
+        Implicite — sonne comme une actualité (web_search), mais les prix par
+        station sont une donnée publique quotidienne
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: course_a_pied_nantes_secours
+    inputs:
+      user_message: "J'organise une course à pied à Nantes, quels équipements de secours cardiaque existent déjà en ville ?"
+      tool_output: '{"datagouv_scenario": "defibrillateurs_nantes"}'
+    metadata:
+      difficulty: hard
+      category: answered
+      description: Implicite — « secours cardiaque » sans le mot défibrillateur
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  # ── STABLE FACT — attendu rouge tant que l'instruction exclut la « general knowledge » ─
+
+  - name: code_insee_brest
+    inputs:
+      user_message: "Quel est le code INSEE de Brest ?"
+      tool_output: '{"datagouv_scenario": "cog_brest"}'
+    metadata:
+      difficulty: hard
+      category: stable_fact
+      description: >-
+        Fait stable enregistré par le Code officiel géographique — attendu rouge
+        tant que l'instruction de production exclut la « general knowledge »
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: departement_de_laval
+    inputs:
+      user_message: "Dans quel département se trouve Laval ?"
+      tool_output: '{"datagouv_scenario": "cog_laval"}'
+    metadata:
+      difficulty: hard
+      category: stable_fact
+      description: >-
+        Géographie administrative stable (COG) — attendu rouge tant que
+        l'instruction de production exclut la « general knowledge »
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: communes_du_gers
+    inputs:
+      user_message: "Combien de communes compte le Gers ?"
+      tool_output: '{"datagouv_scenario": "cog_gers"}'
+    metadata:
+      difficulty: hard
+      category: stable_fact
+      description: >-
+        Décompte administratif (COG, 458 communes au 01/01/2026) — le modèle
+        croit le savoir ; attendu rouge tant que l'instruction exclut la
+        « general knowledge »
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  # ── FALLBACK — data.gouv.fr n'a pas la réponse : web_search APRÈS data.gouv.fr ─
+
+  - name: ruches_dijon
+    inputs:
+      user_message: "Combien de ruches sont déclarées à Dijon ?"
+    metadata:
+      difficulty: medium
+      category: fallback
+      description: Aucun jeu de données — consulter data.gouv.fr puis se rabattre sur web_search
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+      - ToolCalledBefore:
+          first: "^datagouv_"
+          then: "^web_search$"
+          evaluation_name: datagouv_before_web_search
+
+  - name: licencies_petanque_var
+    inputs:
+      user_message: "Combien de licenciés de pétanque y a-t-il dans le Var ?"
+    metadata:
+      difficulty: medium
+      category: fallback
+      description: Donnée fédérale absente du catalogue — repli web après data.gouv.fr
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+      - ToolCalledBefore:
+          first: "^datagouv_"
+          then: "^web_search$"
+          evaluation_name: datagouv_before_web_search
+
+  - name: food_trucks_bordeaux
+    inputs:
+      user_message: "Combien de food trucks ont un emplacement autorisé à Bordeaux ?"
+    metadata:
+      difficulty: medium
+      category: fallback
+      description: Donnée locale non publiée — repli web après data.gouv.fr
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+      - ToolCalledBefore:
+          first: "^datagouv_"
+          then: "^web_search$"
+          evaluation_name: datagouv_before_web_search
+
+  - name: prix_gazole_rennes_2015
+    inputs:
+      user_message: "Quel était le prix du gazole à Rennes en 2015 ?"
+      tool_output: '{"datagouv_scenario": "carburants_rennes"}'
+    metadata:
+      difficulty: hard
+      category: fallback
+      description: >-
+        Les lignes existent mais ne couvrent que 2026 — data.gouv.fr ne répond
+        pas à la question, repli web ensuite
+    evaluators:
+      - CalledTool:
+          name_regex: "^datagouv_"
+          evaluation_name: called_datagouv
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
+      - ToolCalledBefore:
+          first: "^datagouv_"
+          then: "^web_search$"
+          evaluation_name: datagouv_before_web_search
+
+  # ── NEGATIVE — hors du périmètre data.gouv.fr ───────────────────────────────
+
+  - name: population_allemagne
+    inputs:
+      user_message: "Quelle est la population de l'Allemagne ?"
+    metadata:
+      difficulty: easy
+      category: other_country
+      description: Statistique d'un autre pays — pas data.gouv.fr
+    evaluators:
+      - DidNotCallTool:
+          name_regex: "^datagouv_"
+          evaluation_name: did_not_call_datagouv
+
+  - name: chomage_espagne
+    inputs:
+      user_message: "Quel est le taux de chômage en Espagne ?"
+    metadata:
+      difficulty: medium
+      category: other_country
+      description: Statistique officielle, mais d'un autre pays
+    evaluators:
+      - DidNotCallTool:
+          name_regex: "^datagouv_"
+          evaluation_name: did_not_call_datagouv
+
+  - name: debut_revolution_francaise
+    inputs:
+      user_message: "En quelle année a commencé la Révolution française ?"
+    metadata:
+      difficulty: easy
+      category: general_knowledge
+      description: Histoire — les données publiques ne l'enregistrent pas
+    evaluators:
+      - DidNotCallTool:
+          name_regex: "^datagouv_"
+          evaluation_name: did_not_call_datagouv
+
+  - name: definition_inflation
+    inputs:
+      user_message: "Qu'est-ce que l'inflation ?"
+    metadata:
+      difficulty: medium
+      category: general_knowledge
+      description: Définition — tentant (l'INSEE publie l'inflation) mais aucun chiffre demandé
+    evaluators:
+      - DidNotCallTool:
+          name_regex: "^datagouv_"
+          evaluation_name: did_not_call_datagouv
+
+  - name: renouveler_passeport
+    inputs:
+      user_message: "Comment renouveler mon passeport ?"
+    metadata:
+      difficulty: easy
+      category: procedure
+      description: Démarche administrative — pas une donnée
+    evaluators:
+      - DidNotCallTool:
+          name_regex: "^datagouv_"
+          evaluation_name: did_not_call_datagouv
+
+  - name: demande_rsa
+    inputs:
+      user_message: "Quelles sont les démarches pour demander le RSA ?"
+    metadata:
+      difficulty: medium
+      category: procedure
+      description: Démarche — à distinguer de « combien de bénéficiaires du RSA », qui serait une donnée
+    evaluators:
+      - DidNotCallTool:
+          name_regex: "^datagouv_"
+          evaluation_name: did_not_call_datagouv
+
+  - name: mail_conge
+    inputs:
+      user_message: "Écris un mail à mon chef pour poser un jour de congé vendredi."
+    metadata:
+      difficulty: easy
+      category: writing_or_coding
+      description: Rédaction — aucune donnée
+    evaluators:
+      - DidNotCallTool:
+          name_regex: "^datagouv_"
+          evaluation_name: did_not_call_datagouv
+
+  - name: script_python_csv
+    inputs:
+      user_message: "Écris un script Python qui lit un fichier CSV et calcule la moyenne d'une colonne."
+    metadata:
+      difficulty: hard
+      category: writing_or_coding
+      description: Code — tentant (« fichier CSV ») mais aucun jeu de données demandé
+    evaluators:
+      - DidNotCallTool:
+          name_regex: "^datagouv_"
+          evaluation_name: did_not_call_datagouv
+
+  - name: resume_document
+    inputs:
+      user_message: "Résume ce document."
+      requires_documents: true
+    metadata:
+      difficulty: easy
+      category: attached_document
+      description: Question sur le document joint — RAG/summarize, pas data.gouv.fr
+    evaluators:
+      - DidNotCallTool:
+          name_regex: "^datagouv_"
+          evaluation_name: did_not_call_datagouv
+      - HasMatchingSpan:
+          query:
+            or_:
+              - has_attributes:
+                  gen_ai.tool.name: "document_search_rag"
+              - has_attributes:
+                  gen_ai.tool.name: "summarize"
+          evaluation_name: called_document_tool
+
+  - name: chiffres_du_document
+    inputs:
+      user_message: "Quels chiffres le document donne-t-il sur les tests utilisateurs ?"
+      requires_documents: true
+    metadata:
+      difficulty: hard
+      category: attached_document
+      description: Tentant (« chiffres ») mais la réponse est dans le document joint
+    evaluators:
+      - DidNotCallTool:
+          name_regex: "^datagouv_"
+          evaluation_name: did_not_call_datagouv
+      - HasMatchingSpan:
+          query:
+            or_:
+              - has_attributes:
+                  gen_ai.tool.name: "document_search_rag"
+              - has_attributes:
+                  gen_ai.tool.name: "summarize"
+          evaluation_name: called_document_tool

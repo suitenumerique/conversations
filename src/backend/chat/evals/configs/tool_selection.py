@@ -28,7 +28,8 @@ from chat.evals.tool_stub_responses import (
 _DATASET_PATH = Path(__file__).resolve().parent.parent / "datasets" / "tool_selection.yaml"
 
 
-def _build_cached_service(model_hrid: str, *, requires_documents: bool) -> AIAgentService:
+def build_tool_selection_service(model_hrid: str, *, requires_documents: bool) -> AIAgentService:
+    """A production-shaped service with web search, self documentation and RAG stubbed."""
     service = build_production_agent_service(
         model_hrid,
         rag_tools=requires_documents,
@@ -59,8 +60,8 @@ def make_tool_selection_task_fn(model_hrid: str):
     """Build the task function with per-case document context and stubbed tools."""
     # Build agents in sync context — Django ORM cannot run inside async run_agent.
     services = {
-        False: _build_cached_service(model_hrid, requires_documents=False),
-        True: _build_cached_service(model_hrid, requires_documents=True),
+        False: build_tool_selection_service(model_hrid, requires_documents=False),
+        True: build_tool_selection_service(model_hrid, requires_documents=True),
     }
 
     async def run_agent(inputs: EvalInputs) -> str:

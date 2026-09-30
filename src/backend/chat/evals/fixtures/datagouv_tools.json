@@ -1,0 +1,357 @@
+{
+  "server": {
+    "url": "https://mcp.data.gouv.fr/mcp",
+    "name": "data.gouv.fr MCP server",
+    "version": "1.28.1"
+  },
+  "tools": [
+    {
+      "name": "search_datasets",
+      "description": "\nSearch for datasets on data.gouv.fr by keywords.\n\nThis is typically the first step in exploring data.gouv.fr.\nUse short, specific queries (the API uses AND logic, so generic words\nlike \"données\" or \"fichier\" may return zero results).\n\nUse `sort` to order results. Accepted values: created, last_update,\nreuses, followers, views. Optionally prefixed with '-' for descending\n(e.g. -last_update). Use `last_update_range` to restrict\nresults to recently updated datasets: last_30_days, last_12_months,\nlast_3_years.\n\nTypical workflow: search_datasets → list_dataset_resources → query_resource_data.\n",
+      "parameters_json_schema": {
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "default": 20,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sort"
+          },
+          "last_update_range": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Last Update Range"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "search_datasetsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "search_organizations",
+      "description": "\nFind publishing organizations on data.gouv.fr (who publishes datasets and\nreuses).\n\nPass a short `query` with distinctive words (acronym, ministry name, city,\n\"INSEE\", etc.). Generic or very broad terms often return large result sets;\ncombine with `page` / `page_size` or add `badge` / `name` / `business_number_id`\nwhen you need a narrow list.\n\nLeave `query` empty to list organizations with pagination (same as browsing\nthe catalog). Use `sort` to order results (e.g. name, datasets, reuses,\nfollowers, views, created, last_modified, or the same with a leading '-' for\ndescending, such as -datasets).\n\n`badge` filters by publisher type: public-service, certified, association,\ncompany, local-authority.\n\nThe reply includes how many organizations matched, the current page, and for\neach hit: name (and acronym if any), id, slug, badges, optional usage\nmetrics, and links to the organization page.\n",
+      "parameters_json_schema": {
+        "properties": {
+          "query": {
+            "default": "",
+            "title": "Query",
+            "type": "string"
+          },
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "default": 20,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sort"
+          },
+          "badge": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Badge"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Name"
+          },
+          "business_number_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Business Number Id"
+          }
+        },
+        "title": "search_organizationsArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "search_dataservices",
+      "description": "\nSearch for third-party APIs (dataservices) on data.gouv.fr by keywords.\n\nThird-party APIs (or dataservices) are APIs registered in the data.gouv.fr catalog\nthat provide programmatic access to data (unlike datasets which are static files).\nUse short, specific queries (the API uses AND logic, so generic words\nlike \"données\" or \"fichier\" may return zero results).\n\nTypical workflow: search_dataservices → get_dataservice_info →\nget_dataservice_openapi_spec → call the API using base_api_url per spec.\n",
+      "parameters_json_schema": {
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "default": 20,
+            "title": "Page Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "search_dataservicesArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_dataservice_info",
+      "description": "\nGet detailed metadata about a specific third-party API (dataservice).\n\nReturns title, description, organization, base_api_url,\nmachine_documentation_url (OpenAPI/Swagger spec), license, and dates.\n\nTo use a third-party API: (1) get its info here, (2) fetch the OpenAPI spec\nvia get_dataservice_openapi_spec, (3) call base_api_url per spec.\n",
+      "parameters_json_schema": {
+        "properties": {
+          "dataservice_id": {
+            "title": "Dataservice Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataservice_id"
+        ],
+        "title": "get_dataservice_infoArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_dataservice_openapi_spec",
+      "description": "\nFetch and summarize the OpenAPI/Swagger spec for a third-party API (dataservice).\n\nRetrieves machine_documentation_url from catalog metadata (dataservice record),\nfetches the spec, and returns a summary of available endpoints with\ntheir parameters. Use this to understand how to call the API.\n\nTypical workflow: search_dataservices → get_dataservice_info →\nget_dataservice_openapi_spec → call the API using base_api_url per spec.\n",
+      "parameters_json_schema": {
+        "properties": {
+          "dataservice_id": {
+            "title": "Dataservice Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataservice_id"
+        ],
+        "title": "get_dataservice_openapi_specArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "query_resource_data",
+      "description": "\nQuery tabular data from a resource via the Tabular API (no download needed).\n\nWorks for CSV/XLSX files. Start with small page_size (20) to preview structure.\nUse filter_column/filter_value/filter_operator to filter, sort_column/sort_direction to sort.\nFilter operators: exact, contains, less, greater, strictly_less, strictly_greater.\nFor large datasets requiring full analysis, paginate through pages or use\nget_resource_info to retrieve the raw file URL and fetch it directly.\n",
+      "parameters_json_schema": {
+        "properties": {
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "page": {
+            "default": 1,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "default": 20,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "filter_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Filter Column"
+          },
+          "filter_value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Filter Value"
+          },
+          "filter_operator": {
+            "default": "exact",
+            "title": "Filter Operator",
+            "type": "string"
+          },
+          "sort_column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Sort Column"
+          },
+          "sort_direction": {
+            "default": "asc",
+            "title": "Sort Direction",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id"
+        ],
+        "title": "query_resource_dataArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_dataset_info",
+      "description": "\nGet detailed metadata about a specific dataset.\n\nReturns title, description, organization, tags, resource count,\ncreation/update dates, and license information.\n",
+      "parameters_json_schema": {
+        "properties": {
+          "dataset_id": {
+            "title": "Dataset Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset_id"
+        ],
+        "title": "get_dataset_infoArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "list_dataset_resources",
+      "description": "\nList all resources (files) in a dataset with their metadata.\n\nReturns resource ID, title, format, size, and URL for each file.\nNext step: use query_resource_data for CSV/XLSX files via the Tabular API,\nor fetch the resource URL directly for other formats (JSON, JSONL) or large datasets.\n",
+      "parameters_json_schema": {
+        "properties": {
+          "dataset_id": {
+            "title": "Dataset Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset_id"
+        ],
+        "title": "list_dataset_resourcesArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_resource_info",
+      "description": "\nGet detailed information about a specific resource (file).\n\nReturns format, size, MIME type, URL, and checks Tabular API availability.\nHelps decide whether to use query_resource_data (if Tabular API is available)\nor fetch the raw file URL directly for unsupported formats or large files.\n",
+      "parameters_json_schema": {
+        "properties": {
+          "resource_id": {
+            "title": "Resource Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id"
+        ],
+        "title": "get_resource_infoArguments",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_metrics",
+      "description": "\nGet usage metrics (visits, downloads) for a dataset or resource.\n\nReturns monthly statistics sorted by most recent first.\nAt least one of dataset_id or resource_id must be provided.\nNote: Only available in production environment (not demo).\n",
+      "parameters_json_schema": {
+        "properties": {
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Dataset Id"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resource Id"
+          },
+          "limit": {
+            "default": 12,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "get_metricsArguments",
+        "type": "object"
+      }
+    }
+  ]
+}
