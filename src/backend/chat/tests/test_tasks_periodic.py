@@ -12,7 +12,11 @@ from django.core.management.base import CommandError
 
 import pytest
 
-from chat.tasks import deindex_inactive_collections_task, fetch_model_health_task
+from chat.tasks import (
+    deindex_inactive_collections_task,
+    fetch_model_health_task,
+    purge_arena_content_task,
+)
 from conversations.celery_app import app
 
 
@@ -86,7 +90,30 @@ def test_deindex_inactive_collections_task_reraises_other_errors(call_command):
         deindex_inactive_collections_task()
 
 
+@patch("chat.tasks.call_command")
+def test_purge_arena_content_task_calls_command(call_command):
+    """The task runs purge_arena_content with no arguments."""
+    purge_arena_content_task.delay()
+
+    call_command.assert_called_once_with("purge_arena_content")
+
+
+@patch("chat.tasks.call_command")
+def test_purge_arena_content_task_logs_command_error(call_command, caplog):
+    """A CommandError from the command is logged with its traceback, not raised."""
+    call_command.side_effect = CommandError("boom")
+
+    with caplog.at_level(logging.ERROR, logger="chat.tasks"):
+        purge_arena_content_task.delay()
+
+    assert "boom" in caplog.text
+    record = next(r for r in caplog.records if r.levelno == logging.ERROR)
+    assert record.exc_info is not None
+    assert record.exc_info[1] is call_command.side_effect
+
+
 def test_tasks_are_registered_on_the_celery_app():
-    """Both periodic tasks are registered under their dotted task name."""
+    """The periodic tasks are registered under their dotted task name."""
     assert "chat.tasks.fetch_model_health_task" in app.tasks
     assert "chat.tasks.deindex_inactive_collections_task" in app.tasks
+    assert "chat.tasks.purge_arena_content_task" in app.tasks

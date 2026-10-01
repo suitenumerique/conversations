@@ -51,6 +51,7 @@ def test_api_config(is_authenticated):
         "DOCS_BASE_URL": None,
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {
+            "arena": "enabled",
             "datagouv-connector": "enabled",
             "document-upload": "enabled",
             "presentation-generation": "enabled",
@@ -236,6 +237,7 @@ async def test_api_config_async(is_authenticated):
         "DOCS_BASE_URL": None,
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {
+            "arena": "enabled",
             "datagouv-connector": "enabled",
             "document-upload": "enabled",
             "presentation-generation": "enabled",

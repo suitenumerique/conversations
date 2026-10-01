@@ -9,7 +9,7 @@ from configurations import values
 MODEL_HEALTH_POLL_PROVIDERS = ("albert",)
 
 
-def crontab_from_string(value):
+def crontab_from_string(value, setting="DEINDEX_INACTIVE_COLLECTIONS_CRON"):
     """Parse a five-field cron string into a Celery crontab.
 
     Celery runs the schedule only when both `day_of_month` and `day_of_week`
@@ -18,7 +18,7 @@ def crontab_from_string(value):
     fields = value.split()
     if len(fields) != 5:
         raise ValueError(
-            "DEINDEX_INACTIVE_COLLECTIONS_CRON must have five space-separated fields "
+            f"{setting} must have five space-separated fields "
             f"(minute hour day_of_month month day_of_week), got {value!r}."
         )
     minute, hour, day_of_month, month_of_year, day_of_week = fields
@@ -110,10 +110,15 @@ class CelerySettings:
     DEINDEX_INACTIVE_COLLECTIONS_CRON = values.Value(
         "", environ_name="DEINDEX_INACTIVE_COLLECTIONS_CRON", environ_prefix=None
     )
+    # Five-field cron string ("0 3 * * *") for the Arena 90-day retention purge.
+    # Empty disables the task; set it on every deployment that enables the Arena.
+    ARENA_PURGE_CONTENT_CRON = values.Value(
+        "", environ_name="ARENA_PURGE_CONTENT_CRON", environ_prefix=None
+    )
 
     @property
     def CELERY_BEAT_SCHEDULE(self):  # pylint: disable=invalid-name
-        """Beat schedule built from the MODEL_HEALTH_POLL_* and DEINDEX_* settings."""
+        """Beat schedule built from the MODEL_HEALTH_POLL_*, DEINDEX_* and ARENA_* settings."""
         schedule = {}
         if self.MODEL_HEALTH_POLL_PROVIDER:
             if self.MODEL_HEALTH_POLL_PROVIDER not in MODEL_HEALTH_POLL_PROVIDERS:
@@ -138,5 +143,12 @@ class CelerySettings:
             schedule["deindex-inactive-collections"] = {
                 "task": "chat.tasks.deindex_inactive_collections_task",
                 "schedule": crontab_from_string(self.DEINDEX_INACTIVE_COLLECTIONS_CRON),
+            }
+        if self.ARENA_PURGE_CONTENT_CRON:
+            schedule["purge-arena-content"] = {
+                "task": "chat.tasks.purge_arena_content_task",
+                "schedule": crontab_from_string(
+                    self.ARENA_PURGE_CONTENT_CRON, setting="ARENA_PURGE_CONTENT_CRON"
+                ),
             }
         return schedule

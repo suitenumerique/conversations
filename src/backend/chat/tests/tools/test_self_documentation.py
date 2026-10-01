@@ -1,5 +1,7 @@
 """Unit tests for self-documentation payload builder."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from chat.llm_configuration import LLModel, LLMProvider, LLMSettings
@@ -73,3 +75,21 @@ async def test_build_self_documentation_payload_handles_missing_max_tokens(llm_c
     )
 
     assert payload["runtime"]["model"]["max_tokens"] is None
+
+
+@pytest.mark.asyncio
+async def test_arena_documentation_contains_no_model_or_provider(llm_configuration):
+    """The same neutral payload reaches the model and its client tool event."""
+
+    with patch(
+        "chat.tools.self_documentation.load_db_self_documentation", new_callable=AsyncMock
+    ) as doc:
+        doc.return_value = "Static text mentioning secret-provider-model"
+        payload = await build_self_documentation_payload(
+            model_hrid="secret-hrid",
+            model_configuration=llm_configuration,
+            tools_configuration={},
+            arena_mode=True,
+        )
+        doc.assert_not_called()
+    assert payload == {"self_documentation": "You are an AI assistant in a blind comparison."}

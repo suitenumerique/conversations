@@ -36,3 +36,53 @@ class AttachmentIndexState(StrEnum):
     def choices(cls):
         """Return a list of tuples for each enum member."""
         return [(member.value, member.name) for member in cls]
+
+
+class ArenaComparisonStatus(StrEnum):
+    """Lifecycle of one blind comparison between the champion and a challenger."""
+
+    PENDING = "pending"  # Drawn, at least one side still streaming or not voted yet
+    VOTED = "voted"  # The user picked a side; the winner is in the conversation
+    ABANDONED = "abandoned"  # No vote; the champion answer was kept
+    ERRORED = "errored"  # One side failed; the surviving answer (if any) was kept
+
+    @classmethod
+    def choices(cls):
+        """Return a list of tuples for each enum member."""
+        return [(member.value, member.name) for member in cls]
+
+
+class ArenaSide(StrEnum):
+    """Which column an answer was displayed in. Randomized per comparison."""
+
+    LEFT = "left"
+    RIGHT = "right"
+
+    @classmethod
+    def choices(cls):
+        """Return a list of tuples for each enum member."""
+        return [(member.value, member.name) for member in cls]
+
+
+class ArenaRole(StrEnum):
+    """Which model produced an answer, independently of the side it was shown on."""
+
+    CHAMPION = "champion"
+    CHALLENGER = "challenger"
+
+    @classmethod
+    def choices(cls):
+        """Return a list of tuples for each enum member."""
+        return [(member.value, member.name) for member in cls]
+
+
+class ArenaVoteOutcome(StrEnum):
+    """The role whose answer the user picked."""
+
+    CHAMPION = ArenaRole.CHAMPION.value
+    CHALLENGER = ArenaRole.CHALLENGER.value
+
+    @classmethod
+    def choices(cls):
+        """Return a list of tuples for each enum member."""
+        return [(member.value, member.name) for member in cls]
