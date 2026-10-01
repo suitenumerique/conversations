@@ -115,6 +115,12 @@ serviceMedia:
 
 
 ## @section backend
+## @descriptionStart
+## Upgrade to 0.0.10: this chart removed `backend.modelHealthCronJob.*` and `backend.deindexCronJob.*`.
+## Helm ignores those values silently; they no longer create any resource.
+## Set `backend.envVars.MODEL_HEALTH_POLL_PROVIDER`, `backend.envVars.MODEL_HEALTH_POLL_INTERVAL_SECONDS`
+## and `backend.envVars.DEINDEX_INACTIVE_COLLECTIONS_CRON` instead, and keep `backend.celeryBeat.enabled: true`.
+## @descriptionEnd
 
 backend:
 
@@ -207,12 +213,6 @@ backend:
         python manage.py createsuperuser --email $DJANGO_SUPERUSER_EMAIL --password $DJANGO_SUPERUSER_PASSWORD
     restartPolicy: Never
 
- ## @param backend.deindexCronJob.enabled Whether to enable the de-index CronJob
- ## @param backend.deindexCronJob.schedule Cron schedule for the de-index job
-  deindexCronJob:
-    enabled: false
-    schedule: "0 2 * * *"
-
   ## @extra backend.job job dedicated to run a random management command, for example after a deployment
   ## @param backend.job.name The name to use to describe this job
   ## @param backend.job.command The management command to execute
@@ -225,18 +225,6 @@ backend:
     restartPolicy: Never
     annotations: 
       argocd.argoproj.io/hook: PostSync
-
-  ## @param backend.modelHealthCronJob.enabled Enable the model-health polling CronJob
-  ## @param backend.modelHealthCronJob.schedule Cron schedule for the model-health poller
-  ## @param backend.modelHealthCronJob.provider Provider to poll for model health
-  ## @param backend.modelHealthCronJob.startingDeadlineSeconds Seconds after a missed start time before the job is considered failed
-  ## @param backend.modelHealthCronJob.activeDeadlineSeconds Hard deadline in seconds for the job pod
-  modelHealthCronJob:
-    enabled: false
-    schedule: "* * * * *"
-    provider: albert
-    startingDeadlineSeconds: 60
-    activeDeadlineSeconds: 55
 
   ## @param backend.probes.liveness.path [nullable] Configure path for backend HTTP liveness probe
   ## @param backend.probes.liveness.targetPort [nullable] Configure port for backend HTTP liveness probe

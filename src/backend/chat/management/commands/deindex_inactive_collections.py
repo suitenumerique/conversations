@@ -7,6 +7,7 @@ from functools import partial
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from django.db import connection
 from django.utils import timezone
 from django.utils.module_loading import import_string
 
@@ -21,8 +22,16 @@ logger = logging.getLogger(__name__)
 def _deindex_one(conv, *, backend_cls, threshold):
     """Claim, delete collection, restore on failure.
 
-    Returns True (success), False (skipped — already claimed), None (error).
+    Returns True (success), None (skipped - already claimed), False (error).
     """
+    # The worker process is long-lived, so a thread's DB connection must not leak.
+    try:
+        return _deindex_one_unsafe(conv, backend_cls=backend_cls, threshold=threshold)
+    finally:
+        connection.close()
+
+
+def _deindex_one_unsafe(conv, *, backend_cls, threshold):
     claimed = ChatConversation.objects.filter(
         pk=conv.pk,
         collection_id=conv.collection_id,

@@ -74,6 +74,10 @@ backend:
     POSTGRES_PASSWORD: pass
     REDIS_URL: redis://user:pass@dev-backend-redis:6379/1
     CELERY_BROKER_URL: redis://user:pass@dev-backend-redis:6379/1
+    # Celery beat periodic tasks. Both are off when unset (Albert deployments only).
+    # MODEL_HEALTH_POLL_PROVIDER: albert
+    # MODEL_HEALTH_POLL_INTERVAL_SECONDS: 60
+    # DEINDEX_INACTIVE_COLLECTIONS_CRON: "0 2 * * *"
     AI_MODEL: mistral-medium-2508
     AWS_S3_ENDPOINT_URL: http://minio.conversations.svc.cluster.local:9000
     AWS_S3_ACCESS_KEY_ID: dinum

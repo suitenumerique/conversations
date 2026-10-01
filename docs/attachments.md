@@ -300,7 +300,7 @@ The `deindex_inactive_collections` management command identifies conversations t
 
 **What "inactive" means**: `ChatConversation.updated_at < now() - RAG_COLLECTION_INACTIVITY_DAYS days`. Because `reindex_conversation` writes `update_fields=["collection_id", "updated_at"]` on success, a recent re-index resets the inactivity clock — a conversation is not de-indexed again immediately after it was just re-indexed.
 
-**Scheduling**: Run this as a periodic job. A Helm CronJob template is provided (`backend.deindexCronJob`) with `concurrencyPolicy: Forbid` to prevent overlapping runs.
+**Scheduling**: Run this as a periodic task. Set `DEINDEX_INACTIVE_COLLECTIONS_CRON` to a five-field cron string, for example `0 2 * * *`, evaluated in UTC. Celery beat then enqueues `chat.tasks.deindex_inactive_collections_task` on that schedule. The claim-first order below makes overlapping runs safe.
 
 **What is NOT de-indexed**: Project collections are managed separately (their lifecycle is tied to project/attachment delete). Only conversation collections controlled by `ChatConversation.collection_id` are affected.
 

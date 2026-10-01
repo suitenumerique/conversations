@@ -45,7 +45,8 @@ When hidden, `/config/` returns `status_banner: null`.
 ## Dynamic health banners
 
 Automatically surfaced banners driven by the Redis-cached model health data
-written by the model-health CronJob. No admin action is required; the system
+written by the `fetch_model_health` command, which Celery beat runs
+periodically (`MODEL_HEALTH_POLL_PROVIDER`). No admin action is required; the system
 self-heals as models recover.
 
 ### Configuration
@@ -94,7 +95,7 @@ healthy or its health status is unknown (Redis miss).
 `main` is the Redis health of `LLM_DEFAULT_MODEL_HRID`. `fb1` / `fb2` are the
 statuses of the two optional fallback models. `null` means the health key is
 absent from Redis — treated as healthy (optimistic) to avoid false positives
-when the CronJob has not run yet.
+when the poll has not run yet.
 
 | main            | fb1              | fb2           | `block_on_full_outage` | Banner shown                                   | `blocked`    |
 |-----------------|------------------|---------------|------------------------|------------------------------------------------|--------------|
@@ -191,10 +192,10 @@ the timeout is just a safety net.
 
 ## Choosing between them
 
-| Situation                                         | Use                                   |
-|---------------------------------------------------|---------------------------------------|
-| Heads-up about an upcoming change                 | Status banner                         |
-| Ongoing degraded service, app still usable        | Status banner (`warning` or `alert`)  |
-| Model slowness or downtime (detected by CronJob)  | Dynamic health banners (automatic)    |
-| Hard downtime — block all user traffic            | Maintenance mode                      |
-| Emergency lockout (admin DB unreachable)          | `MAINTENANCE_MODE` env var            |
+| Situation                                               | Use                                   |
+|---------------------------------------------------------|---------------------------------------|
+| Heads-up about an upcoming change                       | Status banner                         |
+| Ongoing degraded service, app still usable              | Status banner (`warning` or `alert`)  |
+| Model slowness or downtime (detected by the beat poll)  | Dynamic health banners (automatic)    |
+| Hard downtime — block all user traffic                  | Maintenance mode                      |
+| Emergency lockout (admin DB unreachable)                | `MAINTENANCE_MODE` env var            |
