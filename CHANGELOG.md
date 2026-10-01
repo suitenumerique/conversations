@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.25] - 2026-10-01
+
 ### Added
 
 - ✨(back) add the data.gouv connector for a beta cohort
@@ -496,7 +498,9 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 - 🔧(evals) add run_evals management command
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.24...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.25...main
+
+[0.0.25]: https://github.com/suitenumerique/conversations/compare/v0.0.24...v0.0.25
 
 [0.0.24]: https://github.com/suitenumerique/conversations/compare/v0.0.23...v0.0.24
 
