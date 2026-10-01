@@ -19,6 +19,19 @@ export interface ChatConversation {
   // image (project or history). Backend-computed on read; drives the soft
   // "image processing unavailable" banner.
   images_skipped?: boolean;
+  // Arena comparison still waiting for a vote. When `restorable` is true both
+  // answers are complete and are returned in `answers`: the client puts the
+  // split view back on screen so the choice survives a reload or a navigation
+  // and is only ever closed by the user picking a side. When it is false the
+  // comparison may still be streaming (in this page or another tab): the
+  // client leaves it alone and shows the history as is; the backend resolves
+  // it on the next message.
+  pending_arena_comparison?: {
+    id: string;
+    sides_finished: { left: boolean; right: boolean };
+    restorable: boolean;
+    answers: { left: ChatMessage; right: ChatMessage } | null;
+  } | null;
 }
 export interface ChatProjectConversation {
   id: string;

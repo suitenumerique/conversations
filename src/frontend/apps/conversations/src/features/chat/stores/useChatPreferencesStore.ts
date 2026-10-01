@@ -9,6 +9,8 @@ interface ChatPreferencesState {
   isDarkModePreference: boolean;
   isPanelOpen: boolean;
   isSourcesPanelOpen: boolean;
+  /** Whether the one-line arena intro has already been shown once. */
+  hasSeenArenaIntro: boolean;
   setSelectedModelHrid: (hrid: string | null) => void;
   setThemeModePreference: (mode: 'system' | 'light' | 'dark') => void;
   toggleDarkModePreferences: () => void;
@@ -17,6 +19,7 @@ interface ChatPreferencesState {
   setPanelOpen: (isOpen: boolean) => void;
   togglePanel: () => void;
   setSourcesPanelOpen: (isOpen: boolean) => void;
+  markArenaIntroSeen: () => void;
 }
 
 export const useChatPreferencesStore = create<ChatPreferencesState>()(
@@ -29,6 +32,7 @@ export const useChatPreferencesStore = create<ChatPreferencesState>()(
       isDarkModePreference: false,
       isPanelOpen: false,
       isSourcesPanelOpen: false,
+      hasSeenArenaIntro: false,
       setSelectedModelHrid: (hrid) => set({ selectedModelHrid: hrid }),
       setThemeModePreference: (mode) =>
         set({
@@ -50,6 +54,7 @@ export const useChatPreferencesStore = create<ChatPreferencesState>()(
       setPanelOpen: (isOpen) => set({ isPanelOpen: isOpen }),
       togglePanel: () => set((state) => ({ isPanelOpen: !state.isPanelOpen })),
       setSourcesPanelOpen: (isOpen) => set({ isSourcesPanelOpen: isOpen }),
+      markArenaIntroSeen: () => set({ hasSeenArenaIntro: true }),
     }),
     {
       name: 'chat-preferences',
@@ -60,6 +65,7 @@ export const useChatPreferencesStore = create<ChatPreferencesState>()(
         forceDatagouv: state.forceDatagouv,
         isDarkModePreference: state.isDarkModePreference,
         isPanelOpen: state.isPanelOpen,
+        hasSeenArenaIntro: state.hasSeenArenaIntro,
       }),
     },
   ),
