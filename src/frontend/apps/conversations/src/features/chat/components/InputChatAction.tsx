@@ -7,9 +7,11 @@ import DatagouvIcon from '@/assets/icons/uikit-custom/datagouv.svg?react';
 import { Box, Icon, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
+import { TierSlug } from '@/features/chat/types';
 
 import { ModelSelector } from './ModelSelector';
 import { SendButton } from './SendButton';
+import { TierSelector } from './TierSelector';
 
 interface InputChatActionsProps {
   /** Whether file upload feature is enabled */
@@ -36,6 +38,13 @@ interface InputChatActionsProps {
   onModelSelect?: (model: LLMModel) => void;
   /** Currently selected model */
   selectedModel: LLMModel | null;
+  /**
+   * Handler for router tier selection - when set, the tier selector replaces
+   * the model selector
+   */
+  onTierSelect?: (tier: TierSlug) => void;
+  /** Router tier of the current conversation */
+  selectedTier?: TierSlug;
   /** Current chat status */
   status: string | null;
   /** Whether input has content (for send button) */
@@ -82,6 +91,8 @@ export const InputChatActions = memo(
     onDatagouvToggle,
     onModelSelect,
     selectedModel,
+    onTierSelect,
+    selectedTier = 'auto',
     status,
     inputHasContent,
     sendDisabled = false,
@@ -240,20 +251,29 @@ export const InputChatActions = memo(
           )}
         </Box>
 
-        {/* Right side: Model selector + Send */}
+        {/* Right side: Tier or model selector + Send */}
         <Box
           $direction="row"
           $align="center"
           $padding={STYLES.horizontalPadding}
           $gap={spacingsTokens.xs}
         >
-          {onModelSelect && (
+          {onTierSelect ? (
             <Box $padding={STYLES.horizontalPaddingXs}>
-              <ModelSelector
-                selectedModel={selectedModel}
-                onModelSelect={onModelSelect}
+              <TierSelector
+                selectedTier={selectedTier}
+                onTierSelect={onTierSelect}
               />
             </Box>
+          ) : (
+            onModelSelect && (
+              <Box $padding={STYLES.horizontalPaddingXs}>
+                <ModelSelector
+                  selectedModel={selectedModel}
+                  onModelSelect={onModelSelect}
+                />
+              </Box>
+            )
           )}
 
           <SendButton

@@ -13,45 +13,53 @@ import { KEY_CONVERSATION } from '@/features/chat/api/useConversation';
 import { KEY_LIST_CONVERSATION } from '@/features/chat/api/useConversations';
 import { KEY_LIST_PROJECT } from '@/features/chat/api/useProjects';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
+import { TierSlug, isTierSlug } from '@/features/chat/types';
 
-const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
-  let url: string;
-  if (typeof input === 'string') {
-    url = input;
-  } else if (input instanceof URL) {
-    url = input.toString();
-  } else if (input instanceof Request) {
-    url = input.url;
-  } else {
-    throw new Error('Unsupported input type for fetchAPIAdapter');
-  }
+const makeFetchAPIAdapter =
+  (routerEnabledRef: { current: boolean }, onRequestStart: () => void) =>
+  (input: RequestInfo | URL, init?: RequestInit) => {
+    onRequestStart();
+    let url: string;
+    if (typeof input === 'string') {
+      url = input;
+    } else if (input instanceof URL) {
+      url = input.toString();
+    } else if (input instanceof Request) {
+      url = input.url;
+    } else {
+      throw new Error('Unsupported input type for fetchAPIAdapter');
+    }
 
-  const searchParams = new URLSearchParams();
+    const searchParams = new URLSearchParams();
 
-  // Read at request time, not at render time: the transport is built once but
-  // these preferences change between messages.
-  const { forceWebSearch, forceDatagouv, selectedModelHrid } =
-    useChatPreferencesStore.getState();
+    // Read at request time, not at render time: the transport is built once but
+    // these preferences change between messages.
+    const { forceWebSearch, forceDatagouv, selectedModelHrid, selectedTier } =
+      useChatPreferencesStore.getState();
 
-  if (forceWebSearch) {
-    searchParams.append('force_web_search', 'true');
-  }
+    if (forceWebSearch) {
+      searchParams.append('force_web_search', 'true');
+    }
 
-  if (forceDatagouv) {
-    searchParams.append('force_datagouv', 'true');
-  }
+    if (forceDatagouv) {
+      searchParams.append('force_datagouv', 'true');
+    }
 
-  if (selectedModelHrid) {
-    searchParams.append('model_hrid', selectedModelHrid);
-  }
+    if (routerEnabledRef.current) {
+      // The tier selector replaces the model selector: `auto` travels too, as
+      // it is how the backend learns a pinned tier was released.
+      searchParams.append('tier', selectedTier);
+    } else if (selectedModelHrid) {
+      searchParams.append('model_hrid', selectedModelHrid);
+    }
 
-  if (searchParams.toString()) {
-    const separator = url.includes('?') ? '&' : '?';
-    url = `${url}${separator}${searchParams.toString()}`;
-  }
+    if (searchParams.toString()) {
+      const separator = url.includes('?') ? '&' : '?';
+      url = `${url}${separator}${searchParams.toString()}`;
+    }
 
-  return fetchAPI(url, init);
-};
+    return fetchAPI(url, init);
+  };
 
 interface ConversationMetadataEvent {
   type: 'conversation_metadata';
@@ -88,6 +96,37 @@ function isCooldownEvent(item: unknown): item is CooldownEvent {
     item.type === 'cooldown' &&
     'seconds' in item &&
     typeof (item as CooldownEvent).seconds === 'number'
+  );
+}
+
+export type TierSource = 'router' | 'user' | 'constraint';
+
+/**
+ * The router's decision for a turn, streamed as a transient `data-routing`
+ * part before the first token. `tier_label` is an i18n key.
+ */
+export interface RoutingEvent {
+  tier: TierSlug;
+  tier_label?: string;
+  tier_source: TierSource;
+  /** The model differs from the previous turn's: animate the pictogram once. */
+  changed?: boolean;
+}
+
+const TIER_SOURCES: ReadonlySet<string> = new Set([
+  'router',
+  'user',
+  'constraint',
+]);
+
+export function isRoutingEvent(item: unknown): item is RoutingEvent {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    'tier' in item &&
+    isTierSlug((item as RoutingEvent).tier) &&
+    'tier_source' in item &&
+    TIER_SOURCES.has((item as RoutingEvent).tier_source)
   );
 }
 
@@ -201,17 +240,34 @@ export interface UseChatOptions {
    * Called when a forced connector could not be reached this turn.
    */
   onConnectorUnavailable?: () => void;
+  /**
+   * The backend routes the turns (`router` feature flag): the selected tier is
+   * sent instead of the selected model.
+   */
+  routerEnabled?: boolean;
 }
 
 export function useChat({
   api,
   onImagesSkipped,
   onConnectorUnavailable,
+  routerEnabled = false,
   ...options
 }: UseChatOptions) {
   const queryClient = useQueryClient();
   // Epoch ms until which the user must wait before sending a new message.
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  // Router decisions by assistant message id. The `data-routing` part is
+  // transient (never written into the message), so it is kept here for the
+  // lifetime of the chat; after a reload the persisted metadata takes over.
+  const [routingByMessageId, setRoutingByMessageId] = useState<
+    Record<string, RoutingEvent>
+  >({});
+  // A decision that arrived before its assistant message reached the state.
+  const pendingRoutingRef = useRef<RoutingEvent | null>(null);
+  // Read by the transport at request time, like the chat preferences.
+  const routerEnabledRef = useRef(routerEnabled);
+  routerEnabledRef.current = routerEnabled;
 
   // The transport is captured when the chat is created, so the callbacks it
   // ends up holding must always reach the latest render's handlers.
@@ -221,7 +277,15 @@ export function useChat({
   onConnectorUnavailableRef.current = onConnectorUnavailable;
 
   const transport = useMemo(
-    () => new DefaultChatTransport({ api, fetch: fetchAPIAdapter }),
+    () =>
+      new DefaultChatTransport({
+        api,
+        fetch: makeFetchAPIAdapter(routerEnabledRef, () => {
+          // A decision left by an earlier (failed) turn must not attach to
+          // this turn's answer.
+          pendingRoutingRef.current = null;
+        }),
+      }),
     [api],
   );
 
@@ -244,6 +308,11 @@ export function useChat({
         onImagesSkippedRef.current?.(item.kind);
       } else if (isConnectorUnavailableEvent(item)) {
         onConnectorUnavailableRef.current?.();
+      } else if (part.type === 'data-routing' && isRoutingEvent(item)) {
+        // The assistant message is created on `start`, before this part, but
+        // it may not have reached the rendered state yet: attach it from the
+        // effect below once the message is there.
+        pendingRoutingRef.current = item;
       }
     },
     [queryClient],
@@ -257,6 +326,29 @@ export function useChat({
   // assistant-terminated message list with an empty stream: the bubble stays
   // blank instead of showing an error and a retry.
   const result = useAiSdkChat({ ...options, transport, onData });
+
+  // A decision whose turn failed, or that belongs to another chat, must not
+  // attach to whatever assistant message comes last next.
+  const { status } = result;
+  useEffect(() => {
+    if (status === 'error') {
+      pendingRoutingRef.current = null;
+    }
+  }, [status]);
+  useEffect(() => {
+    pendingRoutingRef.current = null;
+  }, [options.id]);
+
+  const lastMessage = result.messages.at(-1);
+  useEffect(() => {
+    const pending = pendingRoutingRef.current;
+    if (!pending || lastMessage?.role !== 'assistant') {
+      return;
+    }
+    pendingRoutingRef.current = null;
+    const messageId = lastMessage.id;
+    setRoutingByMessageId((prev) => ({ ...prev, [messageId]: pending }));
+  }, [lastMessage]);
 
   // Restore the cooldown from the backend (the authoritative source) so it
   // survives a refresh, a new tab, or switching conversations. react-query
@@ -277,5 +369,5 @@ export function useChat({
     );
   }, [cooldownData]);
 
-  return { ...result, cooldownUntil };
+  return { ...result, cooldownUntil, routingByMessageId };
 }

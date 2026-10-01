@@ -13,6 +13,7 @@ import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferenc
 import {
   isConnectorUnavailableEvent,
   isImagesSkippedEvent,
+  isRoutingEvent,
   stampImagesSkippedOnLatestUserMessage,
   useChat,
 } from '../useChat';
@@ -427,5 +428,186 @@ describe('useChat forwards the force toggles', () => {
 
     expect(url).toContain('force_web_search=true');
     expect(url).toContain('force_datagouv=true');
+  });
+});
+
+describe('isRoutingEvent', () => {
+  it('accepts a router decision', () => {
+    expect(
+      isRoutingEvent({
+        tier: 'complex',
+        tier_label: 'router.tier.complex',
+        tier_source: 'router',
+        changed: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects an unknown tier or source', () => {
+    expect(isRoutingEvent({ tier: 'huge', tier_source: 'router' })).toBe(false);
+    expect(isRoutingEvent({ tier: 'simple', tier_source: 'admin' })).toBe(
+      false,
+    );
+    expect(isRoutingEvent({ type: 'cooldown', seconds: 3 })).toBe(false);
+    expect(isRoutingEvent(null)).toBe(false);
+  });
+});
+
+// A routed turn: the decision lands after `start` and before the first token.
+const ROUTED_TURN = [
+  'data: {"type":"start","messageId":"trace-routed"}\n\n',
+  'data: {"type":"data-routing","data":{"tier":"complex"',
+  ',"tier_label":"router.tier.complex","tier_source":"router","changed":true}',
+  ',"transient":true}\n\n',
+  'data: {"type":"text-start","id":"0"}\n\n',
+  'data: {"type":"text-delta","id":"0","delta":"Answer"}\n\n',
+  'data: {"type":"text-end","id":"0"}\n\n',
+  'data: {"type":"finish","messageMetadata":{"co2_impact":0.5,"tier":"complex"',
+  ',"tier_source":"router"}}\n\n',
+  'data: [DONE]\n\n',
+].join('');
+
+describe('useChat routing', () => {
+  const fetchAPIMock = vi.mocked(fetchAPI) as unknown as Mock;
+
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      {children}
+    </QueryClientProvider>
+  );
+
+  const mockStream = (chatCalls: string[]) => {
+    fetchAPIMock.mockImplementation((url: string) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      chatCalls.push(url);
+      return Promise.resolve({ ok: true, body: streamOf(ROUTED_TURN) });
+    });
+  };
+
+  const sendHello = async (routerEnabled: boolean) => {
+    const { result } = renderHook(
+      () => useChat({ id: 'conv-1', api: CHAT_API, routerEnabled }),
+      { wrapper },
+    );
+    await act(async () => {
+      await result.current.sendMessage({ text: 'hello' });
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    return result;
+  };
+
+  afterEach(() => {
+    useChatPreferencesStore.setState({
+      selectedTier: 'auto',
+      selectedModelHrid: null,
+    });
+  });
+
+  it('keeps the routing decision per assistant message', async () => {
+    const chatCalls: string[] = [];
+    mockStream(chatCalls);
+
+    const result = await sendHello(true);
+
+    const assistant = result.current.messages.at(-1)!;
+    expect(assistant.id).toBe('trace-routed');
+    expect(result.current.routingByMessageId['trace-routed']).toEqual({
+      tier: 'complex',
+      tier_label: 'router.tier.complex',
+      tier_source: 'router',
+      changed: true,
+    });
+    // The transient part never lands in the message.
+    expect(assistant.parts.some((part) => part.type.startsWith('data-'))).toBe(
+      false,
+    );
+    expect(assistant.metadata).toMatchObject({
+      tier: 'complex',
+      tier_source: 'router',
+    });
+    // Auto travels by default.
+    expect(chatCalls).toEqual([`${CHAT_API}?tier=auto`]);
+  });
+
+  it('drops the decision of a failed turn instead of attaching it elsewhere', async () => {
+    // The turn fails after its decision and before any assistant message.
+    const failedTurn = [
+      'data: {"type":"start"}\n\n',
+      'data: {"type":"data-routing","data":{"tier":"complex"',
+      ',"tier_label":"router.tier.complex","tier_source":"router","changed":true}',
+      ',"transient":true}\n\n',
+      'data: {"type":"error","errorText":"boom"}\n\n',
+    ].join('');
+    fetchAPIMock.mockImplementation((url: string) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      return Promise.resolve({ ok: true, body: streamOf(failedTurn) });
+    });
+    const otherHistory: UIMessage[] = [
+      { id: 'u-other', role: 'user', parts: [{ type: 'text', text: 'Hi' }] },
+      {
+        id: 'a-other',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Hello' }],
+      },
+    ];
+
+    type Props = { id: string; messages?: UIMessage[] };
+    const initialProps: Props = { id: 'conv-1' };
+    const { result, rerender } = renderHook(
+      ({ id, messages }: Props) =>
+        useChat({ id, messages, api: CHAT_API, routerEnabled: true }),
+      { wrapper, initialProps },
+    );
+    await act(async () => {
+      await result.current.sendMessage({ text: 'hello' });
+    });
+    await waitFor(() => expect(result.current.status).toBe('error'));
+
+    rerender({ id: 'conv-2', messages: otherHistory });
+
+    await waitFor(() =>
+      expect(result.current.messages.at(-1)?.id).toBe('a-other'),
+    );
+    expect(result.current.routingByMessageId).toEqual({});
+  });
+
+  it('sends the pinned tier instead of the selected model', async () => {
+    useChatPreferencesStore.setState({
+      selectedTier: 'standard',
+      selectedModelHrid: 'picked-model',
+    });
+    const chatCalls: string[] = [];
+    mockStream(chatCalls);
+
+    await sendHello(true);
+
+    expect(chatCalls).toEqual([`${CHAT_API}?tier=standard`]);
+  });
+
+  it('sends the selected model and no tier with the router off', async () => {
+    useChatPreferencesStore.setState({
+      selectedTier: 'standard',
+      selectedModelHrid: 'picked-model',
+    });
+    const chatCalls: string[] = [];
+    mockStream(chatCalls);
+
+    await sendHello(false);
+
+    expect(chatCalls).toEqual([`${CHAT_API}?model_hrid=picked-model`]);
   });
 });

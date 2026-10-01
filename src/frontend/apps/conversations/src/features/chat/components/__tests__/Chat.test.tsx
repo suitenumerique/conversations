@@ -14,6 +14,7 @@ import type { Mock } from 'vitest';
 import { fetchAPI } from '@/api';
 import { ToastProvider } from '@/components/ToastProvider';
 import { getConversation } from '@/features/chat/api/useConversation';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { usePendingChatStore } from '@/features/chat/stores/usePendingChatStore';
 
 import { Chat } from '../Chat';
@@ -56,9 +57,11 @@ vi.mock('rehype-katex', () => ({ default: () => {} }));
 vi.mock('remark-gfm', () => ({ default: () => {} }));
 vi.mock('remark-math', () => ({ default: () => {} }));
 
+const routerFlag = vi.hoisted(() => ({ enabled: false }));
 vi.mock('@/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core')>()),
   useConfig: () => ({ data: {} }),
+  useFeatureEnabled: (key: string) => key === 'router' && routerFlag.enabled,
 }));
 vi.mock('@/core/config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/config')>()),
@@ -67,8 +70,13 @@ vi.mock('@/core/config', async (importOriginal) => ({
 vi.mock('@/features/chat/api/useAssistantHealth', () => ({
   useAssistantHealth: () => ({ data: undefined }),
 }));
+const llmConfig = vi.hoisted(
+  (): { data: { models: unknown[]; tiers?: unknown[] } | undefined } => ({
+    data: { models: [] },
+  }),
+);
 vi.mock('@/features/chat/api/useLLMConfiguration', () => ({
-  useLLMConfiguration: () => ({ data: { models: [] } }),
+  useLLMConfiguration: () => ({ data: llmConfig.data }),
 }));
 vi.mock('@/features/chat/api/useCreateConversation', () => ({
   useCreateChatConversation: () => ({ mutate: vi.fn() }),
@@ -175,6 +183,7 @@ describe('Chat message ownership', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    llmConfig.data = { models: [] };
     usePendingChatStore.setState({ input: '', files: null });
     fetchAPIMock.mockImplementation((url: string) => {
       if (url.startsWith('chat-cooldown')) {
@@ -334,6 +343,229 @@ describe('Chat message ownership', () => {
         'Assistant IA replied: An answer.',
       ]),
     );
+  });
+});
+
+describe('Chat routing caption', () => {
+  const fetchAPIMock = vi.mocked(fetchAPI) as unknown as Mock;
+  const getConversationMock = vi.mocked(getConversation) as unknown as Mock;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    llmConfig.data = { models: [], tiers: [{ slug: 'auto' }] };
+    routerFlag.enabled = true;
+    usePendingChatStore.setState({ input: '', files: null });
+    getConversationMock.mockResolvedValue({ messages: [] });
+  });
+
+  afterEach(() => {
+    llmConfig.data = { models: [] };
+    routerFlag.enabled = false;
+    useChatPreferencesStore.setState({ selectedModelHrid: null });
+  });
+
+  it('routes a message sent before the LLM configuration has loaded', async () => {
+    llmConfig.data = undefined;
+    useChatPreferencesStore.setState({ selectedModelHrid: 'stored-model' });
+    fetchAPIMock.mockImplementation((url: string) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      return Promise.resolve({ ok: true, body: streamOf(ANSWER_STREAM) });
+    });
+
+    renderChat();
+    await waitFor(() => expect(getConversationMock).toHaveBeenCalled());
+    await ask('A routed question');
+
+    await waitFor(() => expect(screen.getByText('An answer.')).toBeVisible());
+    const chatUrls = fetchAPIMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.includes('/conversation/'));
+    expect(chatUrls).toEqual(['chats/conv-1/conversation/?tier=auto']);
+  });
+
+  it('hands the routing caption over to the answer bubble without doubling it', async () => {
+    // The stream creates the (still empty) answer bubble on its `start` event,
+    // while the chat status is still `submitted`: both the standalone caption
+    // and the bubble's own one would be on screen in that window.
+    let pushDelta: () => void = () => {};
+    fetchAPIMock.mockImplementation((url: string) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        body: new ReadableStream({
+          start(controller) {
+            const encoder = new TextEncoder();
+            // `start` carries a message id, so the SDK pushes the empty
+            // assistant message and leaves the status on `submitted`.
+            controller.enqueue(
+              encoder.encode('data: {"type":"start","messageId":"a1"}\n\n'),
+            );
+            pushDelta = () => {
+              controller.enqueue(encoder.encode(ANSWER_STREAM));
+              controller.close();
+            };
+          },
+        }),
+      });
+    });
+
+    renderChat();
+    await waitFor(() => expect(getConversationMock).toHaveBeenCalled());
+    await ask('A routed question');
+
+    await waitFor(() =>
+      expect(screen.getAllByTestId('routing-caption-pending')).toHaveLength(1),
+    );
+    await act(async () => {
+      pushDelta();
+    });
+    await waitFor(() => expect(screen.getByText('An answer.')).toBeVisible());
+  });
+});
+
+describe('Tier pin ownership', () => {
+  const getConversationMock = vi.mocked(getConversation) as unknown as Mock;
+  const tier = () => useChatPreferencesStore.getState().selectedTier;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    llmConfig.data = { models: [] };
+    usePendingChatStore.setState({ input: '', files: null });
+    useChatPreferencesStore.setState({
+      selectedTier: 'auto',
+      tierConversationId: null,
+    });
+    getConversationMock.mockResolvedValue({ messages: [] });
+  });
+
+  it('keeps the tier picked before the first message across the handoff', async () => {
+    // The new-chat screen pins the tier with no conversation yet; creating one
+    // hands the pin over and remounts the chat at /chat/<id>, which must not
+    // snap the mode back to Auto right after sending.
+    useChatPreferencesStore.setState({ tierConversationId: 'conv-1' });
+    useChatPreferencesStore.getState().setSelectedTier('complex');
+    usePendingChatStore.setState({ input: 'Carried question' });
+
+    renderChat('conv-1');
+
+    await waitFor(() => expect(getConversationMock).toHaveBeenCalled());
+    expect(tier()).toBe('complex');
+  });
+
+  it('keeps the tier while the conversation it was picked for stays open', async () => {
+    renderChat('conv-1');
+    await waitFor(() => expect(getConversationMock).toHaveBeenCalled());
+
+    act(() => {
+      useChatPreferencesStore.getState().setSelectedTier('standard', 'conv-1');
+    });
+
+    await waitFor(() => expect(getConversationMock).toHaveBeenCalled());
+    expect(tier()).toBe('standard');
+  });
+
+  it('goes back to Auto on another conversation', async () => {
+    useChatPreferencesStore.setState({
+      selectedTier: 'complex',
+      tierConversationId: 'conv-1',
+    });
+
+    renderChat('conv-2');
+
+    await waitFor(() => expect(tier()).toBe('auto'));
+  });
+});
+
+describe('Tier pin restored from the conversation', () => {
+  const fetchAPIMock = vi.mocked(fetchAPI) as unknown as Mock;
+  const getConversationMock = vi.mocked(getConversation) as unknown as Mock;
+  const chip = () => screen.getByTestId('tier-selector-chip');
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    routerFlag.enabled = true;
+    llmConfig.data = {
+      models: [],
+      tiers: [{ slug: 'auto' }, { slug: 'simple' }, { slug: 'standard' }],
+    };
+    usePendingChatStore.setState({ input: '', files: null });
+    // A reload: the tier is not persisted, so the store starts on Auto.
+    useChatPreferencesStore.setState({
+      selectedTier: 'auto',
+      tierConversationId: null,
+    });
+    getConversationMock.mockImplementation(({ id }: { id: string }) =>
+      Promise.resolve({
+        messages: [],
+        pinned_tier: id === 'conv-1' ? 'simple' : null,
+      }),
+    );
+    fetchAPIMock.mockImplementation((url: string) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      return Promise.resolve({ ok: true, body: streamOf(ANSWER_STREAM) });
+    });
+  });
+
+  afterEach(() => {
+    llmConfig.data = { models: [] };
+    routerFlag.enabled = false;
+  });
+
+  it('shows the pinned tier after a reload and keeps it on the next turn', async () => {
+    renderChat('conv-1');
+
+    await waitFor(() => expect(chip()).toHaveTextContent('Fast'));
+    await ask('A question after reload');
+
+    await waitFor(() => expect(screen.getByText('An answer.')).toBeVisible());
+    const chatUrls = fetchAPIMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.includes('/conversation/'));
+    expect(chatUrls).toEqual(['chats/conv-1/conversation/?tier=simple']);
+  });
+
+  it('shows Auto on another conversation without a pin', async () => {
+    const view = renderChat('conv-1');
+    await waitFor(() => expect(chip()).toHaveTextContent('Fast'));
+
+    view.rerender(
+      <MemoryRouter>
+        <QueryClientProvider
+          client={
+            new QueryClient({ defaultOptions: { queries: { retry: false } } })
+          }
+        >
+          <CunninghamProvider>
+            <ToastProvider>
+              <Suspense fallback={null}>
+                <Chat initialConversationId="conv-2" />
+              </Suspense>
+            </ToastProvider>
+          </CunninghamProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() =>
+      expect(getConversationMock).toHaveBeenCalledWith({ id: 'conv-2' }),
+    );
+    await waitFor(() => expect(chip()).toHaveTextContent('Auto'));
+    expect(useChatPreferencesStore.getState().selectedTier).toBe('auto');
   });
 });
 

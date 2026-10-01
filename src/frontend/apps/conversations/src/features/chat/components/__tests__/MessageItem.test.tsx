@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 
 import { ToastProvider } from '@/components/ToastProvider';
 import { stampImagesSkippedOnLatestUserMessage } from '@/features/chat/api/useChat';
+import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 
 import {
   MessageItem,
@@ -405,6 +406,108 @@ describe('MessageItem', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfig.DOCS_BASE_URL = undefined;
+  });
+
+  describe('routing caption', () => {
+    it('shows the live decision with the answer', async () => {
+      useChatPreferencesStore.setState({ hasSeenRouterIntro: true });
+      // First render of the suite: the lazy markdown block suspends the item.
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            routing={{ tier: 'complex', tier_source: 'router', changed: true }}
+          />,
+        );
+      });
+
+      const caption = await screen.findByTestId('routing-caption');
+      expect(caption).toHaveAttribute('data-tier-source', 'router');
+      expect(screen.getByTestId('tier-pictogram')).toHaveAttribute(
+        'data-tier',
+        'complex',
+      );
+    });
+
+    it('falls back to the persisted metadata after a reload', () => {
+      useChatPreferencesStore.setState({ hasSeenRouterIntro: true });
+      renderWithProviders(
+        <MessageItem
+          {...defaultProps}
+          message={{
+            ...defaultProps.message,
+            metadata: { tier: 'standard', tier_source: 'user' },
+          }}
+        />,
+      );
+
+      expect(screen.getByTestId('routing-caption')).toHaveAttribute(
+        'data-tier-source',
+        'user',
+      );
+      expect(screen.getByTestId('tier-pictogram')).toHaveAttribute(
+        'data-tier',
+        'standard',
+      );
+    });
+
+    it('shows no caption on an unrouted message', () => {
+      renderWithProviders(<MessageItem {...defaultProps} />);
+      expect(screen.queryByTestId('message-caption')).not.toBeInTheDocument();
+    });
+
+    it('shimmers while the routed answer has no decision yet', () => {
+      renderWithProviders(
+        <MessageItem
+          {...defaultProps}
+          message={{ ...defaultProps.message, parts: [] }}
+          isLastAssistantMessage={true}
+          status="streaming"
+          routingEnabled={true}
+        />,
+      );
+      expect(screen.getByTestId('routing-caption-pending')).toBeInTheDocument();
+    });
+
+    it('does not shimmer when the backend does not route', () => {
+      renderWithProviders(
+        <MessageItem
+          {...defaultProps}
+          message={{ ...defaultProps.message, parts: [] }}
+          isLastAssistantMessage={true}
+          status="streaming"
+        />,
+      );
+      expect(
+        screen.queryByTestId('routing-caption-pending'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows the intro once, above the last routed answer', () => {
+      useChatPreferencesStore.setState({ hasSeenRouterIntro: false });
+      renderWithProviders(
+        <MessageItem
+          {...defaultProps}
+          isLastAssistantMessage={true}
+          routing={{ tier: 'simple', tier_source: 'router' }}
+        />,
+      );
+      expect(screen.getByTestId('router-intro')).toBeInTheDocument();
+      expect(useChatPreferencesStore.getState().hasSeenRouterIntro).toBe(true);
+    });
+
+    it('shows no intro above a pinned answer and keeps the flag unset', () => {
+      useChatPreferencesStore.setState({ hasSeenRouterIntro: false });
+      renderWithProviders(
+        <MessageItem
+          {...defaultProps}
+          isLastAssistantMessage={true}
+          routing={{ tier: 'complex', tier_source: 'user' }}
+        />,
+      );
+      expect(screen.queryByTestId('router-intro')).not.toBeInTheDocument();
+      expect(useChatPreferencesStore.getState().hasSeenRouterIntro).toBe(false);
+    });
   });
 
   describe('Edit in Docs button', () => {

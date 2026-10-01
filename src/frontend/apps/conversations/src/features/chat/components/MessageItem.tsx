@@ -14,7 +14,7 @@ import ClipboardIcon from '@/assets/icons/uikit-custom/clipboard.svg?react';
 import SourcesIcon from '@/assets/icons/uikit-custom/sources.svg?react';
 import { Box, Loader, Text } from '@/components';
 import { useConfig } from '@/core/config';
-import { SkippableFileUIPart } from '@/features/chat/api/useChat';
+import { RoutingEvent, SkippableFileUIPart } from '@/features/chat/api/useChat';
 import { AttachmentList } from '@/features/chat/components/AttachmentList';
 import { FeedbackButtons } from '@/features/chat/components/FeedbackButtons';
 import {
@@ -23,10 +23,13 @@ import {
 } from '@/features/chat/components/MessageBlock';
 import { MessageEnergyIndicator } from '@/features/chat/components/MessageEnergyIndicator';
 import { MoreActionsButton } from '@/features/chat/components/MoreActionsButton';
+import { RouterIntro } from '@/features/chat/components/RouterIntro';
+import { RoutingCaption } from '@/features/chat/components/RoutingCaption';
 import { SummarizationError } from '@/features/chat/components/SummarizationError';
 import { SummarizationProgress } from '@/features/chat/components/SummarizationProgress';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
 import { getMessageCo2Impact } from '@/features/chat/utils/getMessageCo2Impact';
+import { getMessageRouting } from '@/features/chat/utils/getMessageRouting';
 import { getMessageText } from '@/features/chat/utils/getMessageText';
 
 import { ChatErrorType } from './ChatError';
@@ -208,6 +211,13 @@ export interface MessageItemProps {
   isMobile: boolean;
   onCopyToClipboard: (content: string) => void;
   onOpenSources: (messageId: string) => void;
+  /** The router's live decision for this turn, when streamed. */
+  routing?: RoutingEvent;
+  /**
+   * The backend routes this conversation's turns: a streaming answer with no
+   * decision yet shows the "Choosing the model…" shimmer.
+   */
+  routingEnabled?: boolean;
 }
 
 const MessageItemComponent: React.FC<MessageItemProps> = ({
@@ -223,6 +233,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   isSourceOpen,
   onCopyToClipboard,
   onOpenSources,
+  routing,
+  routingEnabled = false,
 }) => {
   const { t } = useTranslation();
   const { data: config } = useConfig();
@@ -300,6 +312,25 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     message.parts.some(
       (part) => part.type !== 'text' && part.type !== 'step-start',
     );
+
+  // The router decision: live event first, persisted metadata after a reload.
+  const routingInfo = getMessageRouting(message, routing);
+  // The router runs before the first token: until its decision lands, the
+  // caption slot shimmers instead of standing empty.
+  const isRoutingPending =
+    routingEnabled &&
+    message.role === 'assistant' &&
+    isCurrentlyStreaming &&
+    !routingInfo &&
+    !hasAssistantOutput;
+  // The resolved decision sits in the action bar, next to the leaf: above the
+  // answer only the shimmer and the one-time intro remain. A pinned answer was
+  // not chosen by the router, so it must not show (nor consume) the intro.
+  const showRouterIntro =
+    message.role === 'assistant' &&
+    !!routingInfo &&
+    routingInfo.tier_source !== 'user' &&
+    isLastAssistantMessage;
 
   const hasNonDocumentParsingTool = React.useMemo(
     () =>
@@ -441,6 +472,18 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
               : undefined
           }
         >
+          {(isRoutingPending || showRouterIntro) && (
+            <Box
+              $direction="column"
+              $align="flex-start"
+              $gap="4px"
+              $margin={{ bottom: '6px' }}
+              data-testid="message-caption"
+            >
+              {showRouterIntro && <RouterIntro />}
+              {isRoutingPending && <RoutingCaption pending />}
+            </Box>
+          )}
           {/* Message content */}
           {textContent && (
             <Box
@@ -627,6 +670,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   )}
                 </Box>
                 <Box $direction="row" $gap="4px" $align="center">
+                  {routingInfo && <RoutingCaption routing={routingInfo} />}
                   {co2ImpactKg !== undefined && (
                     <MessageEnergyIndicator co2ImpactKg={co2ImpactKg} />
                   )}
@@ -646,6 +690,12 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
 };
 
 MessageItemComponent.displayName = 'MessageItem';
+
+// Router fields of the persisted metadata that drive the caption.
+const getRoutingSignature = (message: UIMessage): string => {
+  const routing = getMessageRouting(message);
+  return `${routing?.tier ?? ''}|${routing?.tier_source ?? ''}`;
+};
 
 // Tool invocations advance through their states in place, without changing the
 // parts count, so their states need their own signature: the summarization
@@ -690,6 +740,19 @@ const arePropsEqual = (
     getMessageCo2Impact(prevProps.message) !==
     getMessageCo2Impact(nextProps.message)
   ) {
+    return false;
+  }
+
+  if (
+    getRoutingSignature(prevProps.message) !==
+    getRoutingSignature(nextProps.message)
+  ) {
+    return false;
+  }
+  if (prevProps.routing !== nextProps.routing) {
+    return false;
+  }
+  if (prevProps.routingEnabled !== nextProps.routingEnabled) {
     return false;
   }
 

@@ -2,6 +2,20 @@ import { UIMessage } from 'ai';
 
 export type ChatMessage = UIMessage;
 
+/** Router tier slugs; `auto` lets the router decide. */
+export type TierSlug = 'auto' | 'simple' | 'standard' | 'complex';
+
+export const TIER_SLUGS: readonly TierSlug[] = [
+  'auto',
+  'simple',
+  'standard',
+  'complex',
+];
+
+export const isTierSlug = (value: unknown): value is TierSlug =>
+  typeof value === 'string' &&
+  (TIER_SLUGS as readonly string[]).includes(value);
+
 export interface ChatConversationProject {
   id: string;
   title: string;
@@ -19,6 +33,8 @@ export interface ChatConversation {
   // image (project or history). Backend-computed on read; drives the soft
   // "image processing unavailable" banner.
   images_skipped?: boolean;
+  // Router tier pinned on the conversation; null means Auto.
+  pinned_tier?: Exclude<TierSlug, 'auto'> | null;
 }
 export interface ChatProjectConversation {
   id: string;
