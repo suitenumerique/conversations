@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(arena) blind-test challenger models against the production model #791
+
 ### Security
 
 - 🔒️(project) keep user prompts out of logs and telemetry
