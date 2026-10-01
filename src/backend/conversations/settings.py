@@ -544,6 +544,22 @@ class Base(
         environ_name="LLM_SUMMARIZATION_MODEL_HRID",
         environ_prefix=None,
     )
+    # Router classifier, behind the `router` feature flag (see docs/llm-router.md).
+    # An empty model HRID means "use LLM_DEFAULT_MODEL_HRID". The timeout bounds
+    # the classification call; past it the router falls back to the previous tier.
+    LLM_ROUTER_MODEL_HRID = values.Value(
+        "",
+        environ_name="LLM_ROUTER_MODEL_HRID",
+        environ_prefix=None,
+    )
+    # Measured on Albert with `ministral-3-8b`: 0.9 to 1.7 s per call (the first
+    # one of a process is the slowest). A tighter budget makes every turn fall
+    # back to the standard tier, which silently turns the router off.
+    LLM_ROUTER_TIMEOUT_S = values.FloatValue(
+        2.5,
+        environ_name="LLM_ROUTER_TIMEOUT_S",
+        environ_prefix=None,
+    )
     # Router tier models. Blank means "use LLM_DEFAULT_MODEL_HRID", so with the
     # router flag on and nothing configured the router is a no-op. The
     # RoutingTierSettings admin singleton overrides them.

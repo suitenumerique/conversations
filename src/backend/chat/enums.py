@@ -49,3 +49,22 @@ class RoutingTier(StrEnum):
     def choices(cls):
         """Return a list of tuples for each enum member."""
         return [(member.value, member.name) for member in cls]
+
+
+class RoutingReason(StrEnum):
+    """Why the router landed on a tier."""
+
+    CLASSIFIED = "classified"  # The classifier ran and its complexity was used
+    SHORTCUT = "shortcut"  # The classifier call was skipped (short follow-up)
+    CONSTRAINT = "constraint"  # A capability constraint raised the tier
+    CONSTRAINT_FALLBACK = "constraint_fallback"  # No tier model fits; default model used
+    FALLBACK = "fallback"  # Classifier timeout or error
+    USER_PINNED = "user_pinned"  # The user pinned a tier (or a model) on the conversation
+
+
+class TierSource(StrEnum):
+    """Who decided the tier for a turn."""
+
+    ROUTER = "router"
+    USER = "user"
+    CONSTRAINT = "constraint"
