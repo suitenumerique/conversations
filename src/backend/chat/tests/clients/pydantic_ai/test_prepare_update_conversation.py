@@ -45,6 +45,7 @@ def service_fixture(conversation):
             tools=[],
         )
     )
+    service._arena_comparison = None  # set by __init__, read by the method under test
     return service
 
 

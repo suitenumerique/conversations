@@ -64,6 +64,7 @@ def mock_ai_agent_service_fixture():
             stack.enter_context(
                 patch("chat.views.conversations.AIAgentService", new=AIAgentServiceMock)
             )
+            stack.enter_context(patch("chat.views.arena.AIAgentService", new=AIAgentServiceMock))
             yield
 
     yield _mock_service

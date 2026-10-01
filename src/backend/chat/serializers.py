@@ -17,6 +17,8 @@ from core.file_upload.utils import generate_upload_policy
 from chat import models
 from chat.ai_sdk_types import UIMessage
 from chat.constants import IMAGE_MIME_PREFIX
+from chat.enums import ArenaSide
+from chat.tools.self_documentation import anonymize_arena_documentation
 
 
 class ChatConversationSerializer(serializers.ModelSerializer):
@@ -33,6 +35,13 @@ class ChatConversationSerializer(serializers.ModelSerializer):
             " current model."
         ),
     )
+    pending_arena_comparison = serializers.SerializerMethodField(
+        help_text=(
+            "Blind comparison still waiting for a vote on this conversation, if any:"
+            " its id and which displayed sides have finished streaming. Never carries"
+            " a model name."
+        ),
+    )
 
     class Meta:  # pylint: disable=missing-class-docstring
         model = models.ChatConversation
@@ -45,6 +54,7 @@ class ChatConversationSerializer(serializers.ModelSerializer):
             "owner",
             "project",
             "images_skipped",
+            "pending_arena_comparison",
         ]
         read_only_fields = [
             "id",
@@ -52,7 +62,69 @@ class ChatConversationSerializer(serializers.ModelSerializer):
             "updated_at",
             "messages",
             "images_skipped",
+            "pending_arena_comparison",
         ]
+
+    @staticmethod
+    def get_pending_arena_comparison(obj) -> Optional[dict]:
+        """Describe the pending arena comparison without revealing any model.
+
+        When both answers are complete (``restorable``), they are returned so the
+        client can put the split view and its vote bar back on screen: a choice the
+        user never made survives a reload, a navigation or a new session, and is
+        only ever closed by the user picking a side.
+        """
+        # Local import: keeps the arena service out of the serializer import graph.
+        from chat.arena import (  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
+            get_pending_comparison,
+        )
+
+        # List/retrieve views prefetch pending comparisons to avoid an N+1.
+        prefetched = getattr(obj, "pending_arena_comparisons", None)
+        if prefetched is None:
+            comparison = get_pending_comparison(obj)
+        else:
+            comparison = prefetched[0] if prefetched else None
+        if comparison is None:
+            return None
+        restorable = comparison.is_restorable()
+        payload = {
+            "id": str(comparison.pk),
+            "sides_finished": {
+                side: comparison.side_finished(comparison.role_for_side(side))
+                for side in (ArenaSide.LEFT, ArenaSide.RIGHT)
+            },
+            "restorable": restorable,
+            "answers": None,
+        }
+        if restorable:
+            payload["answers"] = {
+                side: anonymize_arena_documentation(
+                    comparison.payload_for_side(side)["output_ui_message"]
+                )
+                for side in (ArenaSide.LEFT, ArenaSide.RIGHT)
+            }
+        return payload
+
+    def to_representation(self, instance):
+        """Hide the champion answer of a comparison that is still waiting for a vote.
+
+        The champion answer is committed to the history as soon as it finishes so
+        nothing is ever lost, but while the user still has a choice to make it must
+        not show up as *the* answer: it is one of the two candidates returned in
+        ``pending_arena_comparison``. The user message above it stays.
+        """
+        representation = super().to_representation(instance)
+        pending = representation.get("pending_arena_comparison")
+        messages = representation.get("messages")
+        if (
+            pending
+            and pending["restorable"]
+            and messages
+            and messages[-1].get("role") == "assistant"
+        ):
+            representation["messages"] = messages[:-1]
+        return representation
 
     @staticmethod
     @extend_schema_field(serializers.BooleanField)
@@ -153,6 +225,22 @@ class ChatConversationRequestSerializer(serializers.Serializer):
         allow_blank=True,
         trim_whitespace=True,
     )
+    arena_comparison = serializers.UUIDField(
+        required=False,
+        default=None,
+        allow_null=True,
+        help_text=(
+            "Arena mode: id of the pending comparison this stream is a candidate of."
+            " The model is chosen server side from the comparison and ``arena_side``."
+        ),
+    )
+    arena_side = serializers.ChoiceField(
+        choices=[ArenaSide.LEFT.value, ArenaSide.RIGHT.value],
+        required=False,
+        default=None,
+        allow_null=True,
+        help_text="Arena mode: displayed side this stream fills (left or right).",
+    )
 
     def update(self, instance, validated_data):
         """Update method is not applicable in this context."""
@@ -161,6 +249,14 @@ class ChatConversationRequestSerializer(serializers.Serializer):
     def create(self, validated_data):
         """Create method is not applicable in this context."""
         raise NotImplementedError("`create()` should not be used in this context.")
+
+    def validate(self, attrs):
+        """Both arena parameters come together or not at all."""
+        if bool(attrs.get("arena_comparison")) != bool(attrs.get("arena_side")):
+            raise serializers.ValidationError(
+                "arena_comparison and arena_side must be provided together."
+            )
+        return attrs
 
     def validate_model_hrid(self, value):
         """Validate the model_hrid field."""
@@ -215,6 +311,67 @@ class ChatMessageCategoricalScoreSerializer(serializers.Serializer):  # pylint: 
         choices=["positive", "negative"],
         help_text="Sentiment of the score.",
     )
+
+
+class ArenaDrawSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Input of the arena draw: what the client knows about the coming turn."""
+
+    force_web_search = serializers.BooleanField(
+        required=False, default=False, help_text="The user forced web search for this turn."
+    )
+    force_datagouv = serializers.BooleanField(
+        required=False, default=False, help_text="The user forced data.gouv for this turn."
+    )
+    message = SchemaField(schema=UIMessage, required=False)
+    model_hrid = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        default=None,
+        help_text="Model the user selected, pinned like a normal first turn would.",
+    )
+
+    def validate_message(self, message):
+        """Only user input can start a comparison."""
+        if message.role != "user":
+            raise serializers.ValidationError("A user message is required.")
+        return message
+
+    def validate_model_hrid(self, value):
+        """Same rule as ``ChatConversationRequestSerializer.validate_model_hrid``."""
+        value = value or None
+        if value and value not in settings.LLM_CONFIGURATIONS:
+            raise serializers.ValidationError("Invalid model_hrid.")
+        return value
+
+
+class ArenaVoteSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Input of the arena vote: a displayed side, or null to abandon."""
+
+    side = serializers.ChoiceField(
+        choices=[ArenaSide.LEFT.value, ArenaSide.RIGHT.value],
+        allow_null=True,
+        help_text="Side the user preferred. Null keeps the production answer without a vote.",
+    )
+
+
+class ArenaAcknowledgementSerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """Thank-you block returned with a vote (never with an abandonment)."""
+
+    user_votes = serializers.IntegerField(help_text="Votes of this user on recent comparisons.")
+    experiment_votes = serializers.IntegerField(help_text="Votes recorded on this experiment.")
+    milestone = serializers.ChoiceField(
+        choices=["first_vote", "tenth_vote", "hundredth_vote"], allow_null=True
+    )
+
+
+class ArenaVoteResponseSerializer(ChatConversationSerializer):
+    """Vote response: the conversation plus the acknowledgement block (schema only)."""
+
+    acknowledgement = ArenaAcknowledgementSerializer(allow_null=True, read_only=True)
+
+    class Meta(ChatConversationSerializer.Meta):  # pylint: disable=missing-class-docstring
+        fields = [*ChatConversationSerializer.Meta.fields, "acknowledgement"]
 
 
 class EditInDocsSerializer(serializers.Serializer):  # pylint: disable=abstract-method

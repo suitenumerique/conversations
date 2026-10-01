@@ -39,6 +39,8 @@ def test_chat_conversation_request_serializer_default():
         "force_web_search": False,
         "force_datagouv": False,
         "model_hrid": None,
+        "arena_comparison": None,
+        "arena_side": None,
     }
 
 

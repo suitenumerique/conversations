@@ -5,7 +5,7 @@ import os
 from datetime import timedelta
 
 from django.conf import settings
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Prefetch
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 from django.utils.module_loading import import_string
@@ -21,9 +21,11 @@ from core.api.viewsets import Pagination, SerializerPerActionMixin
 from core.file_upload.enums import AttachmentStatus
 from core.file_upload.mixins import AttachmentMixin
 
+from chat import arena as arena_service
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX, SSE_MIME_TYPE
+from chat.enums import ArenaComparisonStatus
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.model_routing import resolve_effective_model_hrid
 from chat.rate_limiting import (
@@ -33,6 +35,7 @@ from chat.rate_limiting import (
     get_cooldown_remaining,
 )
 from chat.serializers import ChatConversationRequestSerializer
+from chat.views.arena import ArenaMixin
 from chat.views.edit_in_docs import EditInDocsMixin
 from chat.views.filters import ProjectFilter, TitleSearchFilter
 from chat.views.helpers import _bulk_delete_s3_blobs, conditional_refresh_oidc_token
@@ -90,6 +93,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
     mixins.UpdateModelMixin,
     ChatAttachmentMixin,
     EditInDocsMixin,
+    ArenaMixin,
     viewsets.GenericViewSet,
 ):
     """ViewSet for managing chat conversations.
@@ -149,8 +153,9 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         ):
             qs = qs.select_related("project")
 
-        # Avoid an N+1 on the images_skipped serializer field: pre-compute
-        # the existence check in a single EXISTS subquery for list/retrieve.
+        # Avoid an N+1 on the images_skipped and pending_arena_comparison
+        # serializer fields: pre-compute the image existence check in a single
+        # EXISTS subquery and prefetch pending comparisons for list/retrieve.
         if self.action in ("list", "retrieve") and not self.request.query_params.get("title"):
             qs = qs.annotate(
                 _has_project_image=Exists(
@@ -159,6 +164,14 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
                         content_type__startswith=IMAGE_MIME_PREFIX,
                         upload_state=AttachmentStatus.READY,
                     )
+                )
+            ).prefetch_related(
+                Prefetch(
+                    "arena_comparisons",
+                    queryset=models.ArenaComparison.objects.filter(
+                        status=ArenaComparisonStatus.PENDING
+                    ),
+                    to_attr="pending_arena_comparisons",
                 )
             )
         return qs
@@ -294,6 +307,17 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         if not messages:
             return Response({"error": "No messages provided"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Claim inference before returning a stream, using the draw's frozen turn.
+        arena_response = self._arena_candidate_response(
+            conversation, query_params_serializer.validated_data, messages[-1]
+        )
+        if arena_response is not None:
+            return arena_response
+
+        # A comparison the user walked away from is closed first, keeping the
+        # production answer, so the history this turn builds on is coherent.
+        arena_service.resolve_pending(conversation)
+
         # Warning: the messages should be stored more securely in production
         conversation.ui_messages = request.data.get("messages", [])
         # `updated_at` is auto_now; Django skips auto_now fields when
@@ -328,6 +352,12 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             ),
         )
 
+        return self._stream_response(
+            ai_service, messages, force_web_search=force_web_search, force_datagouv=force_datagouv
+        )
+
+    def _stream_response(self, ai_service, messages, *, force_web_search, force_datagouv):
+        """Stream the run of ``ai_service`` on ``messages`` as a UI message stream."""
         # This environment variable allows switching between sync and async streaming modes
         # based on the server configuration. Tests run in sync mode (WSGI), while
         # production uses async mode (Uvicorn ASGI).
@@ -394,6 +424,8 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             model_hrid=None,  # model_hrid is not needed to stop streaming
             language=None,  # language is not needed to stop streaming
         ).stop_streaming()
+        if arena_service.get_pending_comparison(conversation) is not None:
+            arena_service.resolve_pending(conversation, reason="cancelled")
 
         return Response({"status": "OK"}, status=status.HTTP_200_OK)
 
