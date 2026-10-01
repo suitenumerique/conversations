@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(router) route each turn to a model tier by its complexity #790
+
 ### Security
 
 - 🔒️(project) keep user prompts out of logs and telemetry
