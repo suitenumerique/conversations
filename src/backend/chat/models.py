@@ -3,18 +3,22 @@
 from datetime import timedelta
 from typing import Sequence
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
 from django_pydantic_field import SchemaField
+from solo.models import SingletonModel
 
 from core.file_upload.enums import AttachmentStatus
 from core.models import BaseModel
 
 from chat.ai_sdk_types import UIMessage
 from chat.constants import HISTORY_SUMMARY_CLAIM_TTL_SECONDS
-from chat.enums import AttachmentIndexState, CollectionIndexState
+from chat.enums import AttachmentIndexState, CollectionIndexState, RoutingTier
 
 User = get_user_model()
 
@@ -199,6 +203,26 @@ class ChatConversation(BaseModel):
         blank=True,
         help_text="When a worker claimed summary generation; claims expire after "
         "HISTORY_SUMMARY_CLAIM_TTL_SECONDS (dead-worker liveness bound)",
+    )
+
+    pinned_tier = models.CharField(
+        max_length=20,
+        choices=RoutingTier.choices(),
+        null=True,
+        blank=True,
+        help_text=(
+            "Complexity tier the user pinned on this conversation."
+            " Null means Auto: the router picks the tier on every turn."
+        ),
+    )
+
+    last_routing = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Routing decision of the last turn (tier, model_hrid and classifier labels),"
+            " used as a hint by the router on the next turn."
+        ),
     )
 
     class Meta:  # pylint: disable=missing-class-docstring
@@ -400,3 +424,122 @@ class ModelHealth(models.Model):
 
     def __str__(self):
         return f"{self.provider}/{self.model_id}: {self.status}"
+
+
+# --------------------------------------------------------------------------- #
+# Router tiers
+# --------------------------------------------------------------------------- #
+
+TIER_MODEL_SETTING_NAMES = {
+    RoutingTier.SIMPLE: "LLM_TIER_SIMPLE_MODEL_HRID",
+    RoutingTier.STANDARD: "LLM_TIER_STANDARD_MODEL_HRID",
+    RoutingTier.COMPLEX: "LLM_TIER_COMPLEX_MODEL_HRID",
+}
+
+
+def default_tier_model_hrid(tier: str) -> str:
+    """Model configured for ``tier`` in the Django settings, else the default model."""
+    setting_name = TIER_MODEL_SETTING_NAMES[RoutingTier(tier)]
+    return getattr(settings, setting_name, "") or settings.LLM_DEFAULT_MODEL_HRID
+
+
+def _tier_field_help(what: str) -> str:
+    return (
+        f"{what} Blank means 'use the LLM_TIER_*_MODEL_HRID setting', which itself"
+        " defaults to LLM_DEFAULT_MODEL_HRID."
+    )
+
+
+def _chat_models_error(hrids) -> str | None:
+    """Error for the first entry of ``hrids`` that is not a chat model, if any."""
+    if not isinstance(hrids, list):
+        return "Expected a list of model HRIDs."
+    for hrid in hrids:
+        if not hrid:
+            continue
+        configuration = settings.LLM_CONFIGURATIONS.get(hrid)
+        if configuration is None or configuration.role != "chat":
+            return f"'{hrid}' is not a chat model of the LLM configuration."
+    return None
+
+
+class RoutingTierSettings(SingletonModel):
+    """Singleton holding the model of each complexity tier and the router threshold.
+
+    "Model" is what the tier runs; "alternatives" are the models the constraint
+    walk tries when the tier model lacks a capability the turn needs (images,
+    web search, context length).
+    """
+
+    simple_model_hrid = models.CharField(
+        max_length=100, blank=True, default="", help_text=_tier_field_help("Tier 1 model.")
+    )
+    simple_alternatives = models.JSONField(
+        default=list, blank=True, help_text="HRIDs of the tier 1 alternatives."
+    )
+    standard_model_hrid = models.CharField(
+        max_length=100, blank=True, default="", help_text=_tier_field_help("Tier 2 model.")
+    )
+    standard_alternatives = models.JSONField(
+        default=list, blank=True, help_text="HRIDs of the tier 2 alternatives."
+    )
+    complex_model_hrid = models.CharField(
+        max_length=100, blank=True, default="", help_text=_tier_field_help("Tier 3 model.")
+    )
+    complex_alternatives = models.JSONField(
+        default=list, blank=True, help_text="HRIDs of the tier 3 alternatives."
+    )
+    router_model_hrid = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Classifier model. Blank means 'use the LLM_ROUTER_MODEL_HRID setting'.",
+    )
+    confidence_threshold = models.FloatField(
+        default=0.70,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Tiers 1 and 3 are chosen only at or above this classifier confidence.",
+    )
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        verbose_name = "Routing Tier Settings"
+
+    def __str__(self):
+        return "Routing tier settings"
+
+    def model_for(self, tier: str) -> str:
+        """HRID of the model running ``tier``: the admin value, else the settings."""
+        tier = RoutingTier(tier)
+        return getattr(self, f"{tier.value}_model_hrid") or default_tier_model_hrid(tier)
+
+    def alternatives_for(self, tier: str) -> list[str]:
+        """HRIDs of the alternatives of ``tier``, the tier model excluded."""
+        tier = RoutingTier(tier)
+        model_hrid = self.model_for(tier)
+        alternatives = getattr(self, f"{tier.value}_alternatives") or []
+        kept: list[str] = []
+        for hrid in alternatives:
+            if hrid and hrid != model_hrid and hrid not in kept:
+                kept.append(hrid)
+        return kept
+
+    def all_models_for(self, tier: str) -> list[str]:
+        """The tier model first, then its alternatives."""
+        return [self.model_for(tier), *self.alternatives_for(tier)]
+
+    def clean(self):
+        """Every referenced model must be a chat model of the configuration."""
+        super().clean()
+        errors = {}
+        for tier in RoutingTier:
+            for field_name, hrids in (
+                (f"{tier.value}_model_hrid", [getattr(self, f"{tier.value}_model_hrid")]),
+                (f"{tier.value}_alternatives", getattr(self, f"{tier.value}_alternatives") or []),
+            ):
+                error = _chat_models_error(hrids)
+                if error:
+                    errors[field_name] = error
+        if self.router_model_hrid and self.router_model_hrid not in settings.LLM_CONFIGURATIONS:
+            errors["router_model_hrid"] = "This model is not in the LLM configuration."
+        if errors:
+            raise ValidationError(errors)

@@ -171,6 +171,7 @@ Models define the LLMs available in your application.
 | `tools`                              | array        | Yes      | List of enabled tools for this model (can use `settings.` or `environ.` prefix for the whole array) |
 | `supports_streaming`                 | boolean      | No       | Whether the model supports streaming responses                                                      |
 | `concatenate_instruction_messages`  | boolean      | No       | Whether the model must concatenate instructions messages before calling the Model                          |
+| `role`                               | string       | No       | `chat` (default) or `utility`: with the router on, utility models (summarization...) are not offered to users |
 
 \* Either `provider_name` or `provider` must be set, unless `model_name` is in the format `<provider>:<model>`.
 

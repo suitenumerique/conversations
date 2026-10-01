@@ -36,3 +36,16 @@ class AttachmentIndexState(StrEnum):
     def choices(cls):
         """Return a list of tuples for each enum member."""
         return [(member.value, member.name) for member in cls]
+
+
+class RoutingTier(StrEnum):
+    """Complexity tier a turn is routed to. Ordinal: simple < standard < complex."""
+
+    SIMPLE = "simple"
+    STANDARD = "standard"
+    COMPLEX = "complex"
+
+    @classmethod
+    def choices(cls):
+        """Return a list of tuples for each enum member."""
+        return [(member.value, member.name) for member in cls]

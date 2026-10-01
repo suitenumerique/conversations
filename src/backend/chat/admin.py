@@ -1,11 +1,16 @@
 """Admin classes and registrations for chat application."""
 
+from django import forms
+from django.conf import settings
 from django.contrib import admin
 from django.db.models import BigIntegerField, Exists, F, Func, OuterRef, Subquery, Value
 from django.db.models.functions import Coalesce
 from django.template.defaultfilters import filesizeformat
 
+from solo.admin import SingletonModelAdmin
+
 from . import models
+from .enums import RoutingTier
 from .model_health import set_model_health
 
 
@@ -260,4 +265,77 @@ class ChatProjectAdmin(admin.ModelAdmin):
         "color",
         "created_at",
         "updated_at",
+    )
+
+
+def _configured_model_choices(role: str | None = None) -> list[tuple[str, str]]:
+    """Active models of the LLM configuration, as select choices, optionally by role."""
+    return [
+        (hrid, f"{model.human_readable_name} ({hrid})")
+        for hrid, model in settings.LLM_CONFIGURATIONS.items()
+        if model.is_active and (role is None or model.role == role)
+    ]
+
+
+class RoutingTierSettingsForm(forms.ModelForm):
+    """Tier models picked from the configured chat models, alternatives as a multi-select."""
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        model = models.RoutingTierSettings
+        fields = (
+            "simple_model_hrid",
+            "simple_alternatives",
+            "standard_model_hrid",
+            "standard_alternatives",
+            "complex_model_hrid",
+            "complex_alternatives",
+            "router_model_hrid",
+            "confidence_threshold",
+        )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        chat_models = _configured_model_choices(role="chat")
+        for tier in RoutingTier:
+            default = models.default_tier_model_hrid(tier)
+            self.fields[f"{tier.value}_model_hrid"] = forms.ChoiceField(
+                label=f"{tier.value.capitalize()} model",
+                required=False,
+                choices=[("", f"Use the setting ({default})"), *chat_models],
+                help_text=self.fields[f"{tier.value}_model_hrid"].help_text,
+            )
+            self.fields[f"{tier.value}_alternatives"] = forms.MultipleChoiceField(
+                label=f"{tier.value.capitalize()} alternatives",
+                required=False,
+                choices=chat_models,
+                widget=forms.SelectMultiple(attrs={"size": min(len(chat_models), 8) or 1}),
+                help_text=self.fields[f"{tier.value}_alternatives"].help_text,
+            )
+        self.fields["router_model_hrid"] = forms.ChoiceField(
+            label="Router model",
+            required=False,
+            choices=[("", "Use the LLM_ROUTER_MODEL_HRID setting"), *_configured_model_choices()],
+            help_text=self.fields["router_model_hrid"].help_text,
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        for tier in RoutingTier:
+            # MultipleChoiceField yields a list of strings, which is what the JSON field stores.
+            cleaned[f"{tier.value}_alternatives"] = list(
+                cleaned.get(f"{tier.value}_alternatives") or []
+            )
+        return cleaned
+
+
+@admin.register(models.RoutingTierSettings)
+class RoutingTierSettingsAdmin(SingletonModelAdmin):
+    """Admin for the RoutingTierSettings singleton."""
+
+    form = RoutingTierSettingsForm
+    fieldsets = (
+        ("Tier 1: simple", {"fields": ("simple_model_hrid", "simple_alternatives")}),
+        ("Tier 2: standard", {"fields": ("standard_model_hrid", "standard_alternatives")}),
+        ("Tier 3: complex", {"fields": ("complex_model_hrid", "complex_alternatives")}),
+        ("Router", {"fields": ("router_model_hrid", "confidence_threshold")}),
     )

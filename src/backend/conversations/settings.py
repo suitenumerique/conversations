@@ -544,6 +544,18 @@ class Base(
         environ_name="LLM_SUMMARIZATION_MODEL_HRID",
         environ_prefix=None,
     )
+    # Router tier models. Blank means "use LLM_DEFAULT_MODEL_HRID", so with the
+    # router flag on and nothing configured the router is a no-op. The
+    # RoutingTierSettings admin singleton overrides them.
+    LLM_TIER_SIMPLE_MODEL_HRID = values.Value(
+        "", environ_name="LLM_TIER_SIMPLE_MODEL_HRID", environ_prefix=None
+    )
+    LLM_TIER_STANDARD_MODEL_HRID = values.Value(
+        "", environ_name="LLM_TIER_STANDARD_MODEL_HRID", environ_prefix=None
+    )
+    LLM_TIER_COMPLEX_MODEL_HRID = values.Value(
+        "", environ_name="LLM_TIER_COMPLEX_MODEL_HRID", environ_prefix=None
+    )
     LLM_FALLBACK_MODEL_HRID_1 = values.Value(
         "", environ_name="LLM_FALLBACK_MODEL_HRID_1", environ_prefix=None
     )
