@@ -17,6 +17,10 @@ from core.file_upload.utils import generate_upload_policy
 from chat import models
 from chat.ai_sdk_types import UIMessage
 from chat.constants import IMAGE_MIME_PREFIX
+from chat.enums import RoutingTier
+
+# `tier` query parameter value meaning "let the router choose".
+TIER_AUTO = "auto"
 
 
 class ChatConversationSerializer(serializers.ModelSerializer):
@@ -45,6 +49,7 @@ class ChatConversationSerializer(serializers.ModelSerializer):
             "owner",
             "project",
             "images_skipped",
+            "pinned_tier",
         ]
         read_only_fields = [
             "id",
@@ -52,6 +57,7 @@ class ChatConversationSerializer(serializers.ModelSerializer):
             "updated_at",
             "messages",
             "images_skipped",
+            "pinned_tier",
         ]
 
     @staticmethod
@@ -153,6 +159,17 @@ class ChatConversationRequestSerializer(serializers.Serializer):
         allow_blank=True,
         trim_whitespace=True,
     )
+    tier = serializers.ChoiceField(
+        choices=[TIER_AUTO, *[tier.value for tier in RoutingTier]],
+        required=False,
+        default=None,
+        allow_null=True,
+        help_text=(
+            "Complexity tier pinned on the conversation for this and the next turns:"
+            " `auto` lets the router choose, the others pin the tier. Only read when"
+            " the `router` feature flag is on."
+        ),
+    )
 
     def update(self, instance, validated_data):
         """Update method is not applicable in this context."""
@@ -223,10 +240,28 @@ class EditInDocsSerializer(serializers.Serializer):  # pylint: disable=abstract-
     message_id = serializers.CharField(help_text="ID of the assistant message to edit in Docs.")
 
 
+class RoutingTierEntrySerializer(serializers.Serializer):  # pylint: disable=abstract-method
+    """One entry of the tier selector. Never carries a model name."""
+
+    slug = serializers.ChoiceField(choices=[TIER_AUTO, *[tier.value for tier in RoutingTier]])
+    label_key = serializers.CharField(
+        help_text="Translation key of the label, e.g. router.tier.auto."
+    )
+    recommended = serializers.BooleanField(required=False, help_text="Only set on `auto`.")
+    leaves = serializers.IntegerField(
+        required=False, help_text="Ordinal energy pictogram, 1 to 3. Absent on `auto`."
+    )
+
+
 class LLMConfigurationSerializer(serializers.Serializer):  # pylint: disable=abstract-method
-    """Serializer for LLM configuration."""
+    """Serializer for LLM configuration: the models, and the router tiers."""
 
     models = LLModelSerializer(many=True)
+    tiers = RoutingTierEntrySerializer(
+        many=True,
+        required=False,
+        help_text="Tier selector entries, only when the `router` feature flag is on.",
+    )
 
 
 class ChatConversationAttachmentSerializer(serializers.ModelSerializer):

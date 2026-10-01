@@ -187,6 +187,7 @@ from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
 from chat.mcp_servers import DataGouvConnector, enter_mcp_toolsets
 from chat.rate_limiting import record_and_compute_cooldown
+from chat.router.labels import RoutingDecision
 from chat.tasks import parse_and_store_conversation_document_task, summarize_conversation_history
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
@@ -309,13 +310,14 @@ def _extract_co2_from_usage(usage: RunUsage) -> float:
 class AIAgentService:  # pylint: disable=too-many-instance-attributes
     """Service class for AI-related operations (Pydantic-AI edition)."""
 
-    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def __init__(  # noqa: PLR0913  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         conversation: models.ChatConversation,
         user,
         session=None,
         model_hrid=None,
         language=None,
+        routing_decision: RoutingDecision | None = None,
     ):
         """
         Initialize the AI agent service.
@@ -323,8 +325,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         Args:
             conversation: The chat conversation instance
             user: The authenticated user instance, only used for dynamic feature flags
+            routing_decision: The router's decision for this turn (tier and model).
+                When set, it is recorded on the assistant message and a ``routing``
+                data part tells the client before the first token.
         """
         self.conversation = conversation
+        self._routing_decision = routing_decision
         self.user = user  # authenticated user only
         self.model_hrid = model_hrid or settings.LLM_DEFAULT_MODEL_HRID  # HRID of the model to use
         self.model_configuration = get_model_configuration(self.model_hrid)
@@ -530,6 +536,25 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             # feedback buttons that score a trace which does not exist.
             return str(uuid.uuid4())
         return f"trace-{trace_id}"
+
+    def _routing_data_part(self) -> dict | None:
+        """The transient ``routing`` data part announcing the decision before the first token."""
+        decision = self._routing_decision
+        if decision is None:
+            return None
+        return {
+            "type": "routing",
+            "tier": decision.tier.value,
+            "tier_label": f"router.tier.{decision.tier.value}",
+            "tier_source": decision.tier_source.value,
+            "changed": decision.changed,
+        }
+
+    def _routing_metadata(self) -> dict:
+        """Routing keys persisted on the assistant message and streamed as annotation."""
+        if self._routing_decision is None:
+            return {}
+        return self._routing_decision.metadata()
 
     async def _stream_content(  # noqa: PLR0912  # pylint: disable=too-many-branches
         self,
@@ -1763,11 +1788,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 ]
             )
         self._update_langfuse_trace(run_output)
-        # Stream the CO2 annotation _prepare_update_conversation persists, so the
-        # live message carries it like a reload does. Only that key is stored:
-        # the usage in the finish frame below is streamed but never persisted.
+        # Stream the CO2 and routing annotations _prepare_update_conversation
+        # persists, so the live message carries them like a reload does. Only
+        # those keys are stored: the usage in the finish frame below is streamed
+        # but never persisted.
+        annotations = self._routing_metadata()
         if message_co2_impact:
-            yield events_v4.MessageAnnotationPart(annotations=[{"co2_impact": message_co2_impact}])
+            annotations["co2_impact"] = message_co2_impact
+        if annotations:
+            yield events_v4.MessageAnnotationPart(annotations=[annotations])
         # Vercel finish message
         yield events_v4.FinishMessagePart(
             finish_reason=events_v4.FinishReason.STOP,
@@ -1801,6 +1830,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         for pre_event in self._pre_stream_events:
             yield events_v4.DataPart(data=[pre_event])
         self._pre_stream_events = []
+
+        # The routing decision is announced before the first token so the caption
+        # replaces the "choosing a model" shimmer as soon as it is known.
+        if (routing_part := self._routing_data_part()) is not None:
+            yield events_v4.DataPart(data=[routing_part])
 
         # Re-index (or report busy) when the conversation has READY attachments and
         # its index is not current. INDEXING is included: reindex_conversation handles
@@ -1981,11 +2015,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         else:
             logger.warning("model_response_message_id is None")
 
-        co2_impact = usage["co2_impact"]
-        if co2_impact:
+        message_metadata = self._routing_metadata()
+        if usage["co2_impact"]:
+            message_metadata["co2_impact"] = usage["co2_impact"]
+        if message_metadata:
             _output_ui_message.metadata = {
                 **(_output_ui_message.metadata or {}),
-                "co2_impact": co2_impact,
+                **message_metadata,
             }
 
         usage["co2_impact"] += self.conversation.agent_usage.get("co2_impact", 0)

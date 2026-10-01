@@ -46,6 +46,8 @@ class FeatureFlags(BaseModel):
     document_upload: FeatureToggle = FeatureToggle.DISABLED
     presentation_generation: FeatureToggle = FeatureToggle.DISABLED
     datagouv_connector: FeatureToggle = FeatureToggle.DISABLED
+    # LLM router: route each turn to a complexity tier (see docs/llm-router.md)
+    router: FeatureToggle = FeatureToggle.DISABLED
 
     def __getattr__(self, name: str):
         """Dynamically get specific RAG document search tool feature flags from settings."""

@@ -1354,6 +1354,11 @@ class Test(Base):
         for field_name in FeatureFlags.model_fields.keys():
             setattr(_feature_flags, field_name, FeatureToggle.ENABLED)
 
+        # The router changes how every turn picks its model; tests exercising it
+        # enable the flag explicitly so the rest of the suite keeps today's
+        # pinned-model behaviour.
+        _feature_flags.router = FeatureToggle.DISABLED
+
         return _feature_flags
 
     @classmethod

@@ -53,6 +53,33 @@ def test_retrieve_conversation_without_project(api_client):
     assert response.data["project"] is None
 
 
+@pytest.mark.parametrize("pinned_tier", ["simple", None])
+def test_retrieve_conversation_exposes_pinned_tier(api_client, pinned_tier):
+    """Retrieve exposes the pinned router tier (null for Auto) so the client can
+    show it again after a reload instead of releasing it on the next turn."""
+    chat_conversation = ChatConversationFactory(pinned_tier=pinned_tier)
+
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/"
+    api_client.force_login(chat_conversation.owner)
+    response = api_client.get(url)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data["pinned_tier"] == pinned_tier
+
+
+def test_pinned_tier_is_read_only(api_client):
+    """The pin only moves with a turn's `tier`: a conversation update ignores it."""
+    chat_conversation = ChatConversationFactory(pinned_tier=None)
+
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/"
+    api_client.force_login(chat_conversation.owner)
+    response = api_client.patch(url, {"pinned_tier": "complex"}, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    chat_conversation.refresh_from_db()
+    assert chat_conversation.pinned_tier is None
+
+
 def test_retrieve_other_user_conversation_fails(api_client):
     """Test that retrieving another user's conversation returns a 404 error."""
     chat_conversation = ChatConversationFactory()

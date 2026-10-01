@@ -39,6 +39,7 @@ def test_chat_conversation_request_serializer_default():
         "force_web_search": False,
         "force_datagouv": False,
         "model_hrid": None,
+        "tier": None,
     }
 
 
@@ -105,3 +106,22 @@ def test_chat_conversation_request_serializer_model_hrid_invalid(llm_configurati
     assert serializer.errors == {
         "model_hrid": [ErrorDetail(string="Invalid model_hrid.", code="invalid")]
     }
+
+
+@pytest.mark.parametrize("tier", ["auto", "simple", "standard", "complex"])
+def test_chat_conversation_request_serializer_tier_valid(tier):
+    """
+    Test that the serializer accepts Auto and every router tier.
+    """
+    serializer = serializers.ChatConversationRequestSerializer(data={"tier": tier})
+    assert serializer.is_valid()
+    assert serializer.validated_data["tier"] == tier
+
+
+def test_chat_conversation_request_serializer_tier_invalid():
+    """
+    Test that the serializer rejects an unknown tier.
+    """
+    serializer = serializers.ChatConversationRequestSerializer(data={"tier": "turbo"})
+    assert not serializer.is_valid()
+    assert "tier" in serializer.errors
