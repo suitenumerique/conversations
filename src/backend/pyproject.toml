@@ -124,6 +124,7 @@ override-dependencies = [
     "starlette>=1.3.1", # CVE-2026-48818, CVE-2026-54283,
     "pyjwt>=2.14.0", # CVE-2026-102266, CVE-2026-102267, CVE-2026-102268, CVE-2026-102271, CVE-2026-102272, CVE-2026-102273
     "pydantic-settings>=2.14.2", # GHSA-4xgf-cpjx-pc3j
+    "urllib3>=2.8.0", # CVE-2026-97687, CVE-2026-97688, CVE-2026-97689
 ]
 
 [tool.uv.build-backend]

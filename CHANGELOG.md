@@ -20,6 +20,7 @@ and this project adheres to
 - 🔧(project) replace MinIO with RustFS for local development and CI
 - ⬆️(dependencies) update front and mail dependencies and remove unused ones
 - ⬆️(dependencies) upgrade pyjwt to 2.14.0
+- ⬆️(dependencies) upgrade urllib3 to 2.8.0
 
 ### Fixed
 
