@@ -4,9 +4,9 @@ import re
 from types import SimpleNamespace
 
 import pytest
+import yaml
 
 from chat.evals.configs import REGISTRY
-from chat.evals.configs.base import split_dataset_file
 from chat.evals.evaluators.text_checks import Regex, normalize
 from chat.tokens import count_approx_tokens
 
@@ -26,7 +26,7 @@ EXPECTED_CASES = {
 
 
 def _cases(name: str) -> list[dict]:
-    return split_dataset_file(REGISTRY[name].dataset_path)[1]["cases"]
+    return yaml.safe_load(REGISTRY[name].dataset_path.read_text(encoding="utf-8"))["cases"]
 
 
 def _turns(case: dict) -> list[str]:

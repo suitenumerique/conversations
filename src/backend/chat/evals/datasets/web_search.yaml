@@ -1,9 +1,8 @@
 # Recherche web (recherche intelligente activée pour l'utilisateur d'éval) — comportement
 # seulement : décider de chercher, citer, respecter le format. Pas de faits notés (le web bouge).
 
-config:
-  extra_evaluators:
-  - chat.evals.evaluators.ToolsUsed
+evaluators:
+- ToolsUsed
 cases:
 - name: actu_simple
   inputs:

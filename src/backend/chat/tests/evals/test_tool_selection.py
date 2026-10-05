@@ -12,12 +12,11 @@ from chat.evals.production_agent import (
     EVAL_FAKE_DOCUMENT_ID,
     EVAL_FAKE_DOCUMENT_LISTING,
     build_production_agent_service,
-    ensure_web_search_registered,
     reset_eval_session_cache,
-    stub_summarize,
-    stub_web_search,
+    stubbed_tools,
 )
 from chat.llm_configuration import LLModel, LLMProvider, LLMSettings
+from chat.tools.descriptions import WEB_SEARCH_TOOL_DESCRIPTION
 
 pytestmark = pytest.mark.django_db
 
@@ -57,6 +56,10 @@ def ai_settings_fixture(settings):
     return settings
 
 
+def _stub(_ctx, *args, **kwargs) -> ToolReturn:
+    return ToolReturn(return_value="stub")
+
+
 def _resolve_instruction(service, name: str) -> str:
     matches = [
         fn
@@ -76,8 +79,7 @@ def test_tool_selection_registered():
 def test_without_documents_excludes_rag_tools():
     """Test that the tool selection excludes RAG tools when no documents are attached."""
     service = build_production_agent_service("default-model", rag_tools=False)
-    ensure_web_search_registered(service)
-    tools = set(service.conversation_agent._function_toolset.tools)
+    tools = {tool.name for tool in stubbed_tools(service, {"web_search": _stub})}
     assert "document_search_rag" not in tools
     assert "summarize" not in tools
     assert "self_documentation" in tools
@@ -104,38 +106,36 @@ def test_with_documents_registers_rag_tools_and_listing():
     assert listing["documents"][0]["document_id"] == EVAL_FAKE_DOCUMENT_ID
 
 
-def test_ensure_web_search_registered_when_model_lacks_web_search():
-    """Test that the web search is registered when the model lacks the web search tool."""
+def test_stubbed_tools_adds_web_search_when_model_lacks_it():
+    """web_search is added, gated on deps like production, when the model has none."""
     service = build_production_agent_service("default-model")
     assert "web_search" not in service.conversation_agent._function_toolset.tools
-    ensure_web_search_registered(service)
-    assert "web_search" in service.conversation_agent._function_toolset.tools
+
+    web_search = {tool.name: tool for tool in stubbed_tools(service, {"web_search": _stub})}[
+        "web_search"
+    ]
+
+    assert web_search.function is _stub
+    assert web_search.description == WEB_SEARCH_TOOL_DESCRIPTION
+    assert web_search.prepare is not None
+    assert "web_search" not in service.conversation_agent._function_toolset.tools
 
 
-def test_stub_web_search_replaces_without_conflict():
-    """Test that the web search is replaced without conflict."""
-    service = build_production_agent_service("default-model")
-
-    def stub(_ctx, *args, **kwargs) -> ToolReturn:
-        return ToolReturn(return_value="stub")
-
-    stub_web_search(service, stub)
-    assert service.conversation_agent._function_toolset.tools["web_search"].function is stub
-
-
-def test_stub_summarize_replaces_without_conflict():
-    """Test that the summarize is replaced without conflict."""
+def test_stubbed_tools_swaps_implementation_and_keeps_production_tools():
+    """Stubbed tools keep their production description; other tools pass through as-is."""
     service = build_production_agent_service(
         "default-model",
         rag_tools=True,
         document_context_instruction=EVAL_FAKE_DOCUMENT_LISTING,
     )
+    production = service.conversation_agent._function_toolset.tools
 
-    def stub(_ctx, *, instructions=None, document_id=None) -> ToolReturn:  # pylint: disable=unused-argument
-        return ToolReturn(return_value="stub")
+    tools = {tool.name: tool for tool in stubbed_tools(service, {"summarize": _stub})}
 
-    stub_summarize(service, stub)
-    assert service.conversation_agent._function_toolset.tools["summarize"].function is stub
+    assert tools["summarize"].function is _stub
+    assert tools["summarize"].description == production["summarize"].description
+    assert tools["self_documentation"] is production["self_documentation"]
+    assert production["summarize"].function is not _stub
 
 
 def test_fake_listing_mentions_eval_document():

@@ -3,9 +3,9 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from chat.evals.configs import REGISTRY
-from chat.evals.configs.base import split_dataset_file
 from chat.evals.evaluators.text_checks import normalize
 from chat.tokens import count_approx_tokens
 
@@ -22,7 +22,7 @@ LONG = [f"long-cr-0{index}" for index in range(1, 5)]
 @pytest.fixture(name="cases")
 def cases_fixture():
     """Dataset cases as declared in the YAML."""
-    return split_dataset_file(CONFIG.dataset_path)[1]["cases"]
+    return yaml.safe_load(CONFIG.dataset_path.read_text(encoding="utf-8"))["cases"]
 
 
 def _tokens(name: str) -> int:

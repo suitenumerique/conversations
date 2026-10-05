@@ -1,6 +1,6 @@
 """EvalConfig for URL hallucination evals on ConversationAgent.
 
-Rubric and evaluators live in the dataset YAML ``config`` block.
+Rubric and evaluators live in the dataset YAML ``evaluators`` list.
 """
 
 from pathlib import Path

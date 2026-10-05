@@ -1,9 +1,8 @@
 # Instructions de projet (llm_instructions) et documents de projet. Chaque cas crée un projet
 # neuf puis la conversation dedans.
 
-config:
-  extra_evaluators:
-  - chat.evals.evaluators.ToolsUsed
+evaluators:
+- ToolsUsed
 cases:
 - name: projet_anglais
   inputs:

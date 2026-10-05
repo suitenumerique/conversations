@@ -4,7 +4,6 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 import logfire
-import yaml
 from pydantic_ai import Agent
 from pydantic_evals import Dataset
 from pydantic_evals.dataset import set_eval_attribute
@@ -14,9 +13,9 @@ from pydantic_evals.reporting import EvaluationReport
 
 from chat.agents.base import prepare_custom_model
 from chat.agents.conversation import ConversationAgent
-from chat.evals import EvalInputs, EvalMetadata
+from chat.evals import EvalInputs
 from chat.evals.configs import REGISTRY
-from chat.evals.configs.base import EvalConfig, split_dataset_file
+from chat.evals.configs.base import EvalConfig
 from chat.evals.report_builder import build_dataset_result
 from chat.evals.storage import build_run_record, save_run
 from chat.evals.target.runtime import Target, configure_target
@@ -253,26 +252,11 @@ class Command(BaseCommand):
 
     @staticmethod
     def _dataset_case_names(config: EvalConfig) -> set[str]:
-        """Return the case names declared in a dataset's YAML (cheap, no Dataset build)."""
-        _, dataset_data = split_dataset_file(config.dataset_path)
-        return {case["name"] for case in dataset_data.get("cases", []) if "name" in case}
+        """Return the case names declared in a dataset's YAML."""
+        return {case.name for case in config.load_dataset().cases}
 
     def _load_dataset(self, config: EvalConfig, case_name: str | None) -> Dataset:
-        custom_evaluator_types = [
-            *config.dataset_evaluator_types,
-            *[type(e) for e in config.extra_evaluators],
-        ]
-        # The optional top-level `config` block (rubric, evaluator paths) is
-        # ours, not pydantic_evals': strip it before parsing the dataset.
-        _, dataset_data = split_dataset_file(config.dataset_path)
-        dataset: Dataset[EvalInputs, str, EvalMetadata] = Dataset[
-            EvalInputs, str, EvalMetadata
-        ].from_text(
-            yaml.safe_dump(dataset_data, sort_keys=False, allow_unicode=True),
-            fmt="yaml",
-            custom_evaluator_types=custom_evaluator_types,
-            default_name=config.dataset_path.stem,
-        )
+        dataset = config.load_dataset()
         if not case_name:
             return dataset
         filtered = [c for c in dataset.cases if c.name == case_name]
@@ -286,18 +270,6 @@ class Command(BaseCommand):
             cases=filtered,
             evaluators=dataset.evaluators,
         )
-
-    def _build_evaluators(self, config: EvalConfig, use_llm_judge: bool) -> list:
-        evaluators = list(config.extra_evaluators)
-        if use_llm_judge and config.llm_judge_rubric:
-            evaluators.append(
-                LLMJudge(
-                    rubric=config.llm_judge_rubric,
-                    include_input=True,
-                    assertion={"include_reason": True},
-                )
-            )
-        return evaluators
 
     @staticmethod
     def _without_llm_judges(dataset: Dataset) -> None:
@@ -317,8 +289,6 @@ class Command(BaseCommand):
         self.stdout.write(f"\n=== Dataset: {config.name} ===\n")
 
         dataset = self._load_dataset(config, options["case"])
-        # Extend (not replace): keep dataset-level evaluators declared in the YAML.
-        dataset.evaluators = [*dataset.evaluators, *self._build_evaluators(config, use_llm_judge)]
         if not use_llm_judge:
             self._without_llm_judges(dataset)
 

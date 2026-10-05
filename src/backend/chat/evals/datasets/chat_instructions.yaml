@@ -2,9 +2,8 @@
 # Exécuté sur une stack cible (--target-*) via HTTP. Évaluateurs déterministes par cas
 # (+ LLMJudge quand le critère n'est pas vérifiable mécaniquement) ; ToolsUsed = étiquette.
 
-config:
-  extra_evaluators:
-  - chat.evals.evaluators.ToolsUsed
+evaluators:
+- ToolsUsed
 cases:
 - name: mail_formel
   inputs:

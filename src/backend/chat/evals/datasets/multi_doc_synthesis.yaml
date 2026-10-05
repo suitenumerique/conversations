@@ -2,9 +2,8 @@
 # comptes rendus joints. Exécuté sur une stack cible (--target-*) via HTTP. Évaluateurs
 # déterministes par cas (+ LLMJudge par cas si déclaré) ; ToolsUsed = étiquette.
 
-config:
-  extra_evaluators:
-  - chat.evals.evaluators.ToolsUsed
+evaluators:
+- ToolsUsed
 cases:
 - name: smoke_responsable
   inputs:

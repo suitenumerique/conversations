@@ -7,7 +7,6 @@ summarization budget before the scored turn.
 from pathlib import Path
 
 from chat.evals.configs.base import EvalConfig
-from chat.evals.evaluators import FactRecall, Language, Regex
 from chat.evals.target.task import make_target_task_fn
 
 _DATASETS_DIR = Path(__file__).resolve().parent.parent / "datasets"
@@ -16,6 +15,5 @@ LONG_CHAT = EvalConfig(
     name="long_chat",
     dataset_path=_DATASETS_DIR / "long_chat.yaml",
     make_task_fn=make_target_task_fn(_DATASETS_DIR / "multi_doc_synthesis"),
-    dataset_evaluator_types=[FactRecall, Language, Regex],
     requires_target=True,
 )

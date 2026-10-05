@@ -6,6 +6,7 @@ import json
 
 import pytest
 from pydantic_ai.messages import ToolReturn
+from pydantic_ai.models.test import TestModel
 
 from chat.clients.pydantic_ai import AIAgentService
 from chat.evals.configs.faithfulness_rag import (
@@ -17,7 +18,7 @@ from chat.evals.production_agent import (
     build_production_agent_service,
     production_agent_deps,
     reset_eval_session_cache,
-    stub_document_search_rag,
+    stubbed_tools,
 )
 from chat.factories import ChatConversationFactory, UserFactory
 from chat.llm_configuration import LLModel, LLMProvider, LLMSettings
@@ -107,17 +108,21 @@ def test_eval_session_reuses_same_user_and_conversation():
     assert service_a.user.sub == "eval-production-agent-session"
 
 
-def test_stub_document_search_rag_replaces_without_conflict():
-    """Stubbing must not re-register the tool (pydantic_ai name conflict)."""
+def test_stubbed_tools_run_under_agent_override():
+    """Under agent.override(tools=...), the model's tool call reaches the stub."""
     service = build_production_agent_service("default-model", rag_tools=True)
+    calls = []
 
-    def stub(_ctx, _query, _document_id=None) -> ToolReturn:
-        return ToolReturn(return_value="stub")
+    def stub(_ctx, query: str) -> ToolReturn:
+        calls.append(query)
+        return ToolReturn(return_value="stub passage")
 
-    stub_document_search_rag(service, stub)
-    assert (
-        service.conversation_agent._function_toolset.tools["document_search_rag"].function is stub
-    )
+    agent = service.conversation_agent
+    tools = stubbed_tools(service, {"document_search_rag": stub})
+    with agent.override(model=TestModel(call_tools=["document_search_rag"]), tools=tools):
+        agent.run_sync("What does the document say?", deps=production_agent_deps(service))
+
+    assert len(calls) == 1
 
 
 def test_faithfulness_rag_eval_uses_production_wiring():
