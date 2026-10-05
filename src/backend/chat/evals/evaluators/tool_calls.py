@@ -69,3 +69,30 @@ class DidNotCallTool(NamedEvaluationMixin, Evaluator):
     def evaluate(self, ctx: EvaluatorContext) -> bool:
         return not tool_call_spans(ctx.span_tree, self.name_regex)
 
+
+@dataclass(repr=False)
+class ToolCalledBefore(NamedEvaluationMixin, Evaluator):
+    """Pass unless a tool matching ``then`` started before any tool matching ``first``.
+
+    Passes when ``then`` never matched — there is nothing to order — and fails when
+    ``then`` matched but ``first`` never did. Used for a fallback: the connector
+    must be consulted before web search, never after it or instead of it.
+
+    Spans are compared by start time. Two tool calls issued in the same model
+    response run concurrently, so their order is arbitrary; this evaluator does
+    not try to tell that case apart.
+    """
+
+    first: str
+    then: str
+    evaluation_name: str | None = field(default=None)
+
+    def evaluate(self, ctx: EvaluatorContext) -> bool:
+        then_spans = tool_call_spans(ctx.span_tree, self.then)
+        if not then_spans:
+            return True
+        first_spans = tool_call_spans(ctx.span_tree, self.first)
+        if not first_spans:
+            return False
+        first_start = min(span.start_timestamp for span in first_spans)
+        return first_start < min(span.start_timestamp for span in then_spans)

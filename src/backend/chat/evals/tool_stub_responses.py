@@ -83,6 +83,8 @@ class ToolStubResponses(BaseModel):
     document_search_rag: str | None = None
     summarize: str | None = None
     self_documentation: str | None = None
+    # Name of a scenario in fixtures/datagouv_scenarios.yaml (see chat.evals.datagouv_connector).
+    datagouv_scenario: str | None = None
     web_search_sources: set[str] = Field(default_factory=set)
 
     def web_search_return(self) -> ToolReturn:
