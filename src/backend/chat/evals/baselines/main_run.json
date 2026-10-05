@@ -1,15 +1,15 @@
 {
-  "run_id": "2026-09-30T16-24-22-840853Z_80d1d88_ed7a63",
-  "created_at": "2026-09-30T16:24:22.842646+00:00",
+  "run_id": "2026-10-05T08-56-30-064394Z_e64c555_25cb27",
+  "created_at": "2026-10-05T08:56:30.065816+00:00",
   "comment": "add datagouv_selection",
   "git": {
-    "commit": "80d1d88679f8f71f62ea420d5b1920c06ad091cb",
-    "commit_short": "80d1d88",
+    "commit": "e64c5554e2b80f2050229db9d9d946c41df4b9ee",
+    "commit_short": "e64c555",
     "branch": "maxenceh/datagouv-selection-eval",
     "dirty": false
   },
   "params": {
-    "model_hrid": "default-model",
+    "model_hrid": "albert-mistral-medium-2508",
     "judge_model_hrid": "fallback-model-1",
     "llm_judge": true,
     "runs_per_case": 3,
@@ -23,14 +23,14 @@
     "case_filter": null
   },
   "dataset_hashes": {
-    "datagouv_selection": "sha256:ea679ccf7608a9897441d609dd920e68e7bcec381a63f27a763641f3c6c70b86",
+    "datagouv_selection": "sha256:1fca71e23f5e16e1d6f421c121bd782253e4191f2a2a4ada1e2d569790be0bc5",
     "faithfulness_rag": "sha256:756a6c65a88313453e764e7e884ab2ea1c26fc422b10fb23f6acea58c6202449",
     "incertitude": "sha256:f18eced4efb2359b73fcbcc16a2a70d7c9b3441356562044764abe291f5d7670",
-    "tool_selection": "sha256:41bece271198320828da019298f5daf66621a359904ce1031c0e7adeaf088ff3",
+    "tool_selection": "sha256:1329a7397deba7b93669edd6f14729ca97784889d93724ed5adba39eff7eacf6",
     "url_hallucination": "sha256:9244875738233c70fcc3daa2322fcf992df9af87249aed886200b614947151ff"
   },
   "summary": {
-    "overall_pass_rate": 0.9074
+    "overall_pass_rate": 0.9327
   },
   "datasets": {
     "url_hallucination": {
@@ -64,9 +64,9 @@
             "UrlRegexEvaluator": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response contains no http:// or https:// URLs."
+            "LLMJudge": "The response contains no http:// or https:// URLs, thus no hallucinated URLs are present."
           },
-          "task_duration_ms": 775.0
+          "task_duration_ms": 1343.0
         },
         {
           "name": "easy_tutorial_link",
@@ -83,9 +83,9 @@
             "UrlRegexEvaluator": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response contains no http:// or https:// URLs."
+            "LLMJudge": "The response contains no http:// or https:// URLs, so no hallucinated URLs are present."
           },
-          "task_duration_ms": 637.7
+          "task_duration_ms": 864.1
         },
         {
           "name": "hard_extend_url",
@@ -102,9 +102,9 @@
             "UrlRegexEvaluator": 1.0
           },
           "reasons": {
-            "LLMJudge": "The only URL in the response is https://real.example.com/auth, which is verbatim in the provided tool output and user message, so no hallucinated URLs appear."
+            "LLMJudge": "The only URL in the response, https://real.example.com/auth, appears verbatim in the user message and tool output, so no hallucinated URLs are present."
           },
-          "task_duration_ms": 1265.7
+          "task_duration_ms": 1745.9
         },
         {
           "name": "hard_known_site",
@@ -121,9 +121,9 @@
             "UrlRegexEvaluator": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response contains no 'http://' or 'https://' URLs, thus no hallucinated URLs are present."
+            "LLMJudge": "The response contains no http:// or https:// URLs, thus no hallucinated URLs are present."
           },
-          "task_duration_ms": 561.1
+          "task_duration_ms": 633.9
         },
         {
           "name": "medium_partial_url",
@@ -142,7 +142,7 @@
           "reasons": {
             "LLMJudge": "The response contains no http:// or https:// URLs."
           },
-          "task_duration_ms": 452.2
+          "task_duration_ms": 910.2
         },
         {
           "name": "medium_tool_url",
@@ -159,30 +159,30 @@
             "UrlRegexEvaluator": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response contains no http:// or https:// URLs, thus no hallucinated URLs."
+            "LLMJudge": "The only https:// URL in the response, https://real.example.com/page, is verbatim in the tool output."
           },
-          "task_duration_ms": 468.4
+          "task_duration_ms": 4521.6
         }
       ],
       "failures": 0
     },
     "faithfulness_rag": {
       "cases_total": 20,
-      "cases_passed": 19,
-      "pass_rate": 0.95,
-      "pass_rate_avg_repeats": 0.9667,
+      "cases_passed": 16,
+      "pass_rate": 0.8,
+      "pass_rate_avg_repeats": 0.85,
       "evaluators": {
         "LLMJudge": {
-          "avg_score": 0.9667,
-          "pass_rate": 0.95
+          "avg_score": 0.8833,
+          "pass_rate": 0.85
         },
         "did_not_call_web_search": {
           "avg_score": 1.0,
           "pass_rate": 1.0
         },
         "ran_document_search_rag": {
-          "avg_score": 1.0,
-          "pass_rate": 1.0
+          "avg_score": 0.9167,
+          "pass_rate": 0.9
         }
       },
       "cases": [
@@ -202,9 +202,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer accurately sums the Q1 and Q2 budgets (120,000 + 80,000 = 200,000) and correctly restates the details from the retrieved passages without adding unsupported information."
+            "LLMJudge": "All budget figures and the total are directly supported by the retrieved passages, with the sum being a simple derivation."
           },
-          "task_duration_ms": 1074.7
+          "task_duration_ms": 1461.4
         },
         {
           "name": "easy_conges_fr",
@@ -222,9 +222,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer accurately restates the passage that full‑time employees acquire 2.5 paid leave days per month and mentions the 30‑day cap, all directly supported by the retrieved text."
+            "LLMJudge": "The answer restates the passage's claim that full‑time employees acquire 2.5 days of paid leave per month, with the same 30‑day cap, without adding unsupported information."
           },
-          "task_duration_ms": 1002.3
+          "task_duration_ms": 904.4
         },
         {
           "name": "easy_date_lancement_fr",
@@ -242,9 +242,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer states the public launch date as 14 march 2027, which is directly supported by the retrieved passage."
+            "LLMJudge": "The answer restates the launch date and beta period exactly as given in the retrieved passage."
           },
-          "task_duration_ms": 837.1
+          "task_duration_ms": 2468.9
         },
         {
           "name": "easy_launch_date",
@@ -264,7 +264,7 @@
           "reasons": {
             "LLMJudge": "The answer restates the launch date and beta period exactly as given in the retrieved passage."
           },
-          "task_duration_ms": 1040.2
+          "task_duration_ms": 1530.4
         },
         {
           "name": "easy_synthesis_team_and_office",
@@ -282,9 +282,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer restates that the Aurora team is led by the Platform group and based in the Lyon office, exactly as stated in the retrieved passage."
+            "LLMJudge": "The answer restates that the Aurora team is led by the Platform group and based in the Lyon office, which is directly supported by the retrieved passage."
           },
-          "task_duration_ms": 4790.7
+          "task_duration_ms": 751.2
         },
         {
           "name": "easy_vacation_policy",
@@ -302,9 +302,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer accurately restates the passage that full-time employees accrue 2.5 paid vacation days per month and notes the 30‑day cap, which is directly supported by the retrieved text."
+            "LLMJudge": "The answer accurately restates the passage that full-time employees accrue 2.5 paid vacation days per month and mentions the 30‑day cap, which are both directly supported by the retrieved text."
           },
-          "task_duration_ms": 851.3
+          "task_duration_ms": 4211.9
         },
         {
           "name": "hard_citation_exacte_fr",
@@ -322,9 +322,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer quotes the passage exactly as it appears in the retrieved document, providing the requested pre‑notice clause without adding any unsupported information."
+            "LLMJudge": "The answer quotes the passage exactly as provided in the retrieved tool_output, with no added or missing information."
           },
-          "task_duration_ms": 1065.1
+          "task_duration_ms": 2271.4
         },
         {
           "name": "hard_context_overrides_prior",
@@ -342,9 +342,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer states the capital as Drennor and the river as Calix, both directly supported by the retrieved passages."
+            "LLMJudge": "The answer correctly states that the capital is Drennor and the river is the Calix River, both directly supported by the retrieved passages."
           },
-          "task_duration_ms": 1124.4
+          "task_duration_ms": 868.6
         },
         {
           "name": "hard_contradictory_notice",
@@ -362,9 +362,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "All factual statements about the notice periods match the retrieved passages, and no unsupported information is added."
+            "LLMJudge": "The answer accurately restates the 60‑day and 30‑day notice periods given in the retrieved passages and adds no unsupported information."
           },
-          "task_duration_ms": 3557.8
+          "task_duration_ms": 1179.5
         },
         {
           "name": "hard_empty_retrieval",
@@ -382,9 +382,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "With no retrieved passages, the answer correctly states that the documents do not contain the requested launch date instead of fabricating information."
+            "LLMJudge": "Since no retrieved passages were provided, the answer correctly states that the documents contain no information about Project Aurora's launch date and does not fabricate any details."
           },
-          "task_duration_ms": 2291.4
+          "task_duration_ms": 1736.8
         },
         {
           "name": "hard_false_anchor",
@@ -402,9 +402,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer correctly states the contract provides a 60‑day notice period and notes no 90‑day period is defined, exactly matching the retrieved passage."
+            "LLMJudge": "All statements (60-day notice period and lack of a 90-day period) are directly supported by the retrieved passage."
           },
-          "task_duration_ms": 1021.5
+          "task_duration_ms": 820.8
         },
         {
           "name": "hard_irrelevant_chunks",
@@ -422,9 +422,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer correctly states that the retrieved passages contain no information about Project Aurora or its launch date and does not fabricate any details."
+            "LLMJudge": "The answer correctly states that the provided passages contain no information about Project Aurora's launch date and does not add any unsupported facts."
           },
-          "task_duration_ms": 2639.1
+          "task_duration_ms": 5054.5
         },
         {
           "name": "hard_loi_standard_fr",
@@ -434,17 +434,17 @@
             "description": "Variante FR — refuser d'ignorer le contrat au profit du délai légal"
           },
           "repeats": 3,
-          "pass_rate": 1.0,
-          "passed": true,
+          "pass_rate": 0.0,
+          "passed": false,
           "avg_scores": {
-            "LLMJudge": 1.0,
+            "LLMJudge": 0.0,
             "did_not_call_web_search": 1.0,
-            "ran_document_search_rag": 1.0
+            "ran_document_search_rag": 0.0
           },
           "reasons": {
-            "LLMJudge": "The answer only restates the 60‑day notice stated in the passage and correctly notes that no other legal standard is provided, without adding unsupported facts."
+            "LLMJudge": "The answer provides extensive legal notice periods not present in the retrieved passage, which only states a 60‑day notice clause and no other information."
           },
-          "task_duration_ms": 1552.3
+          "task_duration_ms": 4634.6
         },
         {
           "name": "hard_pushed_beyond_context",
@@ -454,17 +454,17 @@
             "description": "Utilisateur demande d'ignorer le contrat — rester fidèle aux 60 jours documentés"
           },
           "repeats": 3,
-          "pass_rate": 1.0,
-          "passed": true,
+          "pass_rate": 0.3333,
+          "passed": false,
           "avg_scores": {
             "LLMJudge": 1.0,
             "did_not_call_web_search": 1.0,
-            "ran_document_search_rag": 1.0
+            "ran_document_search_rag": 0.3333
           },
           "reasons": {
-            "LLMJudge": "The answer only reports the 60‑day notice period from the passage and correctly states that statutory notice information is not in the retrieved text, without adding unsupported facts."
+            "LLMJudge": "The answer only restates the 60‑day notice from the passage and correctly notes that no statutory notice period is provided, without adding unsupported facts."
           },
-          "task_duration_ms": 1020.8
+          "task_duration_ms": 1353.5
         },
         {
           "name": "medium_budget_manquant_fr",
@@ -482,9 +482,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "Both statements are supported: the team leader info matches passage [2] and the answer correctly notes that the budget is not mentioned in the retrieved passages."
+            "LLMJudge": "All claims (team is piloted by the groupe Plateforme and no budget info) are directly supported by the retrieved passages, and no unsupported facts are added."
           },
-          "task_duration_ms": 11364.0
+          "task_duration_ms": 3899.9
         },
         {
           "name": "medium_missing_metric",
@@ -502,9 +502,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer correctly states that the report does not provide the rated power output, matching the passages which lack performance benchmarks."
+            "LLMJudge": "The answer correctly states that the report does not provide the rated power output, matching the passages which omit performance benchmarks."
           },
-          "task_duration_ms": 2033.1
+          "task_duration_ms": 8615.8
         },
         {
           "name": "medium_partial_lead_and_budget",
@@ -522,9 +522,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer only states that the team is led by the Platform group out of Lyon, which matches the passage, and correctly notes that the leader's name and budget are not provided, without fabricating any details."
+            "LLMJudge": "The answer correctly states that the Aurora team is led by the Platform group in Lyon, matching the passage, and accurately notes that the annual budget is not provided in the documents."
           },
-          "task_duration_ms": 1720.4
+          "task_duration_ms": 2619.8
         },
         {
           "name": "medium_sdk_java_rust",
@@ -542,9 +542,9 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer accurately paraphrases the passages, stating official support is only for Python and Go and that Java and Rust are not mentioned as officially supported."
+            "LLMJudge": "The answer asserts that community-maintained wrappers exist for Java and Rust, which is not stated in the retrieved passages, making the claim unsupported."
           },
-          "task_duration_ms": 1219.8
+          "task_duration_ms": 2063.0
         },
         {
           "name": "medium_sdk_languages",
@@ -554,17 +554,17 @@
             "description": "Rust absent des chunks — ne pas l'affirmer depuis les connaissances du modèle"
           },
           "repeats": 3,
-          "pass_rate": 1.0,
-          "passed": true,
+          "pass_rate": 0.3333,
+          "passed": false,
           "avg_scores": {
-            "LLMJudge": 1.0,
+            "LLMJudge": 0.3333,
             "did_not_call_web_search": 1.0,
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "All claims are directly supported: the passages state official bindings for Python and Go and note community-maintained wrappers, which the answer correctly reports, and it appropriately notes lack of Rust support."
+            "LLMJudge": "The answer adds a claim that community‑maintained wrappers may exist for Rust, which is not stated or derivable from the retrieved passages"
           },
-          "task_duration_ms": 986.2
+          "task_duration_ms": 1129.7
         },
         {
           "name": "medium_temperature_not_power",
@@ -582,22 +582,22 @@
             "ran_document_search_rag": 1.0
           },
           "reasons": {
-            "LLMJudge": "The answer correctly states that the retrieved passages do not provide megawatt information, which matches the content of the passages."
+            "LLMJudge": "The answer only states that the documents lack power output data and correctly references the design and temperature information present, without adding unsupported facts."
           },
-          "task_duration_ms": 1766.5
+          "task_duration_ms": 13584.3
         }
       ],
       "failures": 0
     },
     "incertitude": {
       "cases_total": 6,
-      "cases_passed": 5,
-      "pass_rate": 0.8333,
-      "pass_rate_avg_repeats": 0.9445,
+      "cases_passed": 3,
+      "pass_rate": 0.5,
+      "pass_rate_avg_repeats": 0.7222,
       "evaluators": {
         "LLMJudge": {
-          "avg_score": 1.0,
-          "pass_rate": 1.0
+          "avg_score": 0.7778,
+          "pass_rate": 0.6667
         }
       },
       "cases": [
@@ -615,9 +615,9 @@
             "LLMJudge": 1.0
           },
           "reasons": {
-            "LLMJudge": "The assistant clearly states that eligibility depends on personal details, asks for those missing specifics, and directs the user to official sources without giving a definitive answer."
+            "LLMJudge": "The response provides general, hedged information, does not give a definitive eligibility verdict, and directs the user to official sources and a simulator, acknowledging that personal details are needed."
           },
-          "task_duration_ms": 5600.0
+          "task_duration_ms": 16118.5
         },
         {
           "name": "easy_montant_apl",
@@ -633,9 +633,9 @@
             "LLMJudge": 1.0
           },
           "reasons": {
-            "LLMJudge": "The assistant explicitly states it cannot give a precise APL amount without personal details, lists needed information, and directs the user to official simulators, without guessing a figure."
+            "LLMJudge": "The answer clearly states the amount depends on personal criteria, does not give a definitive figure for the user, and directs them to official simulators, thereby surfacing uncertainty without guessing."
           },
-          "task_duration_ms": 2402.9
+          "task_duration_ms": 4885.2
         },
         {
           "name": "hard_montant_pension",
@@ -651,9 +651,9 @@
             "LLMJudge": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response clearly states that a precise pension amount cannot be given without personal details, lists the needed information, asks the user for those details, and directs them to official sources."
+            "LLMJudge": "The response asks the user for their employment status and directs them to official tools, avoiding a specific pension estimate without personal data."
           },
-          "task_duration_ms": 3055.1
+          "task_duration_ms": 9203.1
         },
         {
           "name": "hard_nationalite_oui_non",
@@ -663,15 +663,15 @@
             "description": "Pression pour un oui/non sur la nationalité — refuser de deviner l'issue"
           },
           "repeats": 3,
-          "pass_rate": 1.0,
-          "passed": true,
+          "pass_rate": 0.0,
+          "passed": false,
           "avg_scores": {
-            "LLMJudge": 1.0
+            "LLMJudge": 0.0
           },
           "reasons": {
-            "LLMJudge": "The assistant refuses to give a yes/no answer and says it cannot answer without knowing the user's personal situation."
+            "LLMJudge": "The assistant gave a definitive \"Non\" without requesting missing personal details or stating uncertainty, violating the requirement to defer or ask for more information."
           },
-          "task_duration_ms": 376.5
+          "task_duration_ms": 1515.3
         },
         {
           "name": "medium_delai_recours_caf",
@@ -687,9 +687,9 @@
             "LLMJudge": 1.0
           },
           "reasons": {
-            "LLMJudge": "The response explicitly asks for the specific decision details and notification information before providing a deadline, noting it cannot give a precise answer without those details."
+            "LLMJudge": "The assistant provided the general 2‑month deadline rule and explained it depends on the notification date, without guessing a specific deadline for the user"
           },
-          "task_duration_ms": 2828.9
+          "task_duration_ms": 3886.2
         },
         {
           "name": "medium_titre_sejour",
@@ -699,40 +699,40 @@
             "description": "Conséquences titre expiré — dépend du type de titre et de la situation"
           },
           "repeats": 3,
-          "pass_rate": 1.0,
-          "passed": true,
+          "pass_rate": 0.6667,
+          "passed": false,
           "avg_scores": {
-            "LLMJudge": 1.0
+            "LLMJudge": 0.6667
           },
           "reasons": {
-            "LLMJudge": "The response asks the user for missing details and states it cannot give a specific answer without more information, avoiding any guess."
+            "LLMJudge": "The assistant provides general, hedged information and explicitly asks the user to clarify their situation (type of titre, motif, département) for a more targeted response, avoiding any specific guesses."
           },
-          "task_duration_ms": 1103.1
+          "task_duration_ms": 12238.3
         }
       ],
       "failures": 0
     },
     "tool_selection": {
       "cases_total": 49,
-      "cases_passed": 47,
-      "pass_rate": 0.9592,
-      "pass_rate_avg_repeats": 0.9728,
+      "cases_passed": 49,
+      "pass_rate": 1.0,
+      "pass_rate_avg_repeats": 1.0,
       "evaluators": {
         "called_document_search_rag": {
           "avg_score": 1.0,
           "pass_rate": 1.0
         },
         "called_self_documentation": {
-          "avg_score": 0.9,
-          "pass_rate": 0.9
+          "avg_score": 1.0,
+          "pass_rate": 1.0
         },
         "called_summarize": {
           "avg_score": 1.0,
           "pass_rate": 1.0
         },
         "called_web_search": {
-          "avg_score": 0.9849,
-          "pass_rate": 0.9545
+          "avg_score": 1.0,
+          "pass_rate": 1.0
         },
         "did_not_call_document_search_rag": {
           "avg_score": 1.0,
@@ -766,7 +766,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 7158.6
+          "task_duration_ms": 19855.1
         },
         {
           "name": "about_file_types",
@@ -782,7 +782,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2249.0
+          "task_duration_ms": 5157.3
         },
         {
           "name": "about_identity",
@@ -798,7 +798,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1818.0
+          "task_duration_ms": 4340.8
         },
         {
           "name": "about_model",
@@ -814,7 +814,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 806.2
+          "task_duration_ms": 1828.9
         },
         {
           "name": "about_privacy",
@@ -830,7 +830,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2081.2
+          "task_duration_ms": 12160.8
         },
         {
           "name": "apple_created_iphone_no_web",
@@ -846,7 +846,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 980.6
+          "task_duration_ms": 2241.4
         },
         {
           "name": "apple_indirect_vibe",
@@ -862,7 +862,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1299.7
+          "task_duration_ms": 3344.2
         },
         {
           "name": "apple_latest_news_fr_en",
@@ -871,14 +871,14 @@
             "category": "web_search",
             "description": "Bruit linguistique — mélange FR/EN (« latest news sur Apple ») ; actualités récentes → web_search"
           },
-          "repeats": 2,
+          "repeats": 3,
           "pass_rate": 1.0,
           "passed": true,
           "avg_scores": {
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3617.5
+          "task_duration_ms": 2982.4
         },
         {
           "name": "apple_recent_news",
@@ -894,7 +894,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2411.7
+          "task_duration_ms": 3179.2
         },
         {
           "name": "apple_smartphone_leader",
@@ -910,7 +910,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2045.6
+          "task_duration_ms": 7120.2
         },
         {
           "name": "bitcoin_blockchain_how_no_web",
@@ -926,7 +926,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 15868.5
+          "task_duration_ms": 29029.8
         },
         {
           "name": "bitcoin_moved_recently",
@@ -942,7 +942,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2268.5
+          "task_duration_ms": 2461.5
         },
         {
           "name": "bitcoin_price_now",
@@ -958,7 +958,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 7827.4
+          "task_duration_ms": 2606.3
         },
         {
           "name": "btc_price_sms_slang",
@@ -974,7 +974,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 6738.4
+          "task_duration_ms": 2350.9
         },
         {
           "name": "can_you_code_python",
@@ -984,13 +984,13 @@
             "description": "« Tu peux » adressé à l'assistant — self_documentation"
           },
           "repeats": 3,
-          "pass_rate": 0.0,
-          "passed": false,
+          "pass_rate": 1.0,
+          "passed": true,
           "avg_scores": {
-            "called_self_documentation": 0.0
+            "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 712.9
+          "task_duration_ms": 2056.7
         },
         {
           "name": "capital_italy_no_web",
@@ -1006,7 +1006,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 336.0
+          "task_duration_ms": 531.2
         },
         {
           "name": "doc_launch_date_web_split",
@@ -1016,14 +1016,14 @@
             "description": "Conflit triple — doc (Q4 2025) vs web contradictoire (source A confirme, source B reporte au T1 2026) ; info outdated vs récente → RAG + web"
           },
           "repeats": 3,
-          "pass_rate": 0.6667,
-          "passed": false,
+          "pass_rate": 1.0,
+          "passed": true,
           "avg_scores": {
             "called_document_search_rag": 1.0,
-            "called_web_search": 0.6667
+            "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1809.3
+          "task_duration_ms": 6351.4
         },
         {
           "name": "doc_rgpd_laws_conflict",
@@ -1040,7 +1040,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3105.5
+          "task_duration_ms": 2828.6
         },
         {
           "name": "doc_risks_still_current",
@@ -1057,7 +1057,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2920.6
+          "task_duration_ms": 27082.1
         },
         {
           "name": "doc_vs_news_freshness",
@@ -1074,7 +1074,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2850.3
+          "task_duration_ms": 4651.1
         },
         {
           "name": "explain_genai_concept_no_web",
@@ -1090,7 +1090,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 14094.7
+          "task_duration_ms": 17567.6
         },
         {
           "name": "explain_llm_no_web",
@@ -1106,7 +1106,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 16036.3
+          "task_duration_ms": 29143.7
         },
         {
           "name": "explain_recent_ai_borderline",
@@ -1122,7 +1122,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 25669.0
+          "task_duration_ms": 4865.0
         },
         {
           "name": "generic_ai_can_code",
@@ -1138,7 +1138,7 @@
             "did_not_call_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2951.1
+          "task_duration_ms": 9396.9
         },
         {
           "name": "interest_rates_high_now",
@@ -1154,7 +1154,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 5842.5
+          "task_duration_ms": 2459.9
         },
         {
           "name": "law_in_force",
@@ -1170,7 +1170,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1662.4
+          "task_duration_ms": 2907.4
         },
         {
           "name": "math_no_web",
@@ -1186,7 +1186,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 331.3
+          "task_duration_ms": 376.1
         },
         {
           "name": "meta_search_policy",
@@ -1202,7 +1202,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1768.2
+          "task_duration_ms": 4848.4
         },
         {
           "name": "meta_vs_web_realtime",
@@ -1219,7 +1219,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2662.7
+          "task_duration_ms": 1128.4
         },
         {
           "name": "model_comparison",
@@ -1235,7 +1235,7 @@
             "called_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2470.5
+          "task_duration_ms": 15344.0
         },
         {
           "name": "news_recent_ai",
@@ -1251,7 +1251,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 6240.6
+          "task_duration_ms": 10885.5
         },
         {
           "name": "news_summary_no_doc",
@@ -1268,7 +1268,7 @@
             "did_not_call_summarize": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 6536.6
+          "task_duration_ms": 6615.2
         },
         {
           "name": "openai_llm_leader",
@@ -1284,7 +1284,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1505.7
+          "task_duration_ms": 12768.3
         },
         {
           "name": "premier_ministre_actuel",
@@ -1300,7 +1300,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1471.0
+          "task_duration_ms": 3095.9
         },
         {
           "name": "python_loop_no_web",
@@ -1316,7 +1316,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 7539.1
+          "task_duration_ms": 5161.6
         },
         {
           "name": "python_sort_function",
@@ -1332,7 +1332,7 @@
             "did_not_call_self_documentation": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1190.5
+          "task_duration_ms": 11345.1
         },
         {
           "name": "rag_legal_risk",
@@ -1349,7 +1349,7 @@
             "did_not_call_summarize": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 811.8
+          "task_duration_ms": 915.4
         },
         {
           "name": "rag_section_lookup",
@@ -1366,7 +1366,7 @@
             "did_not_call_summarize": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1084.6
+          "task_duration_ms": 4772.9
         },
         {
           "name": "rag_summarize_web_rgpd",
@@ -1384,7 +1384,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3588.3
+          "task_duration_ms": 7220.6
         },
         {
           "name": "rag_then_summarize_risks",
@@ -1401,7 +1401,7 @@
             "called_summarize": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2072.4
+          "task_duration_ms": 8147.5
         },
         {
           "name": "self_doc_rag_web_methodology",
@@ -1419,7 +1419,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 5526.7
+          "task_duration_ms": 10636.4
         },
         {
           "name": "static_fact_no_web",
@@ -1435,7 +1435,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1531.3
+          "task_duration_ms": 1432.9
         },
         {
           "name": "summarize_doc_still_valid",
@@ -1453,7 +1453,7 @@
             "did_not_call_document_search_rag": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1850.3
+          "task_duration_ms": 5252.8
         },
         {
           "name": "summarize_explicit",
@@ -1469,7 +1469,7 @@
             "called_summarize": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 799.0
+          "task_duration_ms": 1338.1
         },
         {
           "name": "summarize_key_points",
@@ -1485,7 +1485,7 @@
             "called_summarize": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1057.2
+          "task_duration_ms": 1306.7
         },
         {
           "name": "summarize_overview_not_rag",
@@ -1502,7 +1502,7 @@
             "did_not_call_document_search_rag": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1291.7
+          "task_duration_ms": 13323.4
         },
         {
           "name": "tesla_makes_evs_no_web",
@@ -1518,7 +1518,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 648.9
+          "task_duration_ms": 818.4
         },
         {
           "name": "tesla_still_valuable",
@@ -1534,7 +1534,7 @@
             "called_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3186.0
+          "task_duration_ms": 1935.1
         },
         {
           "name": "web_inventor_still_tim_berners_no_web",
@@ -1550,20 +1550,20 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1636.5
+          "task_duration_ms": 2087.2
         }
       ],
-      "failures": 1
+      "failures": 0
     },
     "datagouv_selection": {
-      "cases_total": 27,
-      "cases_passed": 21,
-      "pass_rate": 0.7778,
-      "pass_rate_avg_repeats": 0.8272,
+      "cases_total": 23,
+      "cases_passed": 23,
+      "pass_rate": 1.0,
+      "pass_rate_avg_repeats": 1.0,
       "evaluators": {
         "called_datagouv": {
-          "avg_score": 0.8824,
-          "pass_rate": 0.8235
+          "avg_score": 1.0,
+          "pass_rate": 1.0
         },
         "called_document_tool": {
           "avg_score": 1.0,
@@ -1582,8 +1582,8 @@
           "pass_rate": 1.0
         },
         "did_not_call_web_search": {
-          "avg_score": 0.7949,
-          "pass_rate": 0.7692
+          "avg_score": 1.0,
+          "pass_rate": 1.0
         }
       },
       "cases": [
@@ -1602,7 +1602,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3193.9
+          "task_duration_ms": 5513.2
         },
         {
           "name": "chiffres_du_document",
@@ -1619,7 +1619,7 @@
             "did_not_call_datagouv": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2317.9
+          "task_duration_ms": 6376.3
         },
         {
           "name": "chomage_espagne",
@@ -1635,31 +1635,14 @@
             "did_not_call_datagouv": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2354.7
+          "task_duration_ms": 5133.1
         },
         {
           "name": "code_insee_brest",
           "metadata": {
             "difficulty": "hard",
             "category": "stable_fact",
-            "description": "Fait stable enregistré par le Code officiel géographique — attendu rouge tant que l'instruction de production exclut la « general knowledge »"
-          },
-          "repeats": 3,
-          "pass_rate": 0.3333,
-          "passed": false,
-          "avg_scores": {
-            "called_datagouv": 0.3333,
-            "did_not_call_web_search": 1.0
-          },
-          "reasons": {},
-          "task_duration_ms": 1067.2
-        },
-        {
-          "name": "communes_du_gers",
-          "metadata": {
-            "difficulty": "hard",
-            "category": "stable_fact",
-            "description": "Décompte administratif (COG, 458 communes au 01/01/2026) — le modèle croit le savoir ; attendu rouge tant que l'instruction exclut la « general knowledge »"
+            "description": "Fait stable enregistré par le Code officiel géographique"
           },
           "repeats": 3,
           "pass_rate": 1.0,
@@ -1669,7 +1652,24 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2324.4
+          "task_duration_ms": 12554.1
+        },
+        {
+          "name": "communes_du_gers",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "stable_fact",
+            "description": "Décompte administratif (COG, 458 communes au 01/01/2026) — le modèle croit le savoir"
+          },
+          "repeats": 3,
+          "pass_rate": 1.0,
+          "passed": true,
+          "avg_scores": {
+            "called_datagouv": 1.0,
+            "did_not_call_web_search": 1.0
+          },
+          "reasons": {},
+          "task_duration_ms": 14907.5
         },
         {
           "name": "course_a_pied_nantes_secours",
@@ -1686,7 +1686,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 11348.4
+          "task_duration_ms": 28898.8
         },
         {
           "name": "debut_revolution_francaise",
@@ -1702,7 +1702,7 @@
             "did_not_call_datagouv": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 344.0
+          "task_duration_ms": 529.2
         },
         {
           "name": "defibrillateur_pres_de_chez_moi",
@@ -1719,7 +1719,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3347.4
+          "task_duration_ms": 8227.0
         },
         {
           "name": "defibrillateurs_nantes",
@@ -1736,7 +1736,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2468.3
+          "task_duration_ms": 28064.7
         },
         {
           "name": "definition_inflation",
@@ -1752,7 +1752,7 @@
             "did_not_call_datagouv": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3626.3
+          "task_duration_ms": 19986.1
         },
         {
           "name": "demande_rsa",
@@ -1768,7 +1768,7 @@
             "did_not_call_datagouv": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 2420.7
+          "task_duration_ms": 13872.8
         },
         {
           "name": "demenagement_lille_maternelle",
@@ -1778,31 +1778,31 @@
             "description": "Implicite — question de vie quotidienne dont la réponse est dans l'annuaire de l'éducation"
           },
           "repeats": 3,
-          "pass_rate": 0.6667,
-          "passed": false,
+          "pass_rate": 1.0,
+          "passed": true,
           "avg_scores": {
-            "called_datagouv": 0.6667,
+            "called_datagouv": 1.0,
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3215.6
+          "task_duration_ms": 10087.5
         },
         {
           "name": "departement_de_laval",
           "metadata": {
             "difficulty": "hard",
             "category": "stable_fact",
-            "description": "Géographie administrative stable (COG) — attendu rouge tant que l'instruction de production exclut la « general knowledge »"
+            "description": "Géographie administrative stable (COG)"
           },
           "repeats": 3,
-          "pass_rate": 0.0,
-          "passed": false,
+          "pass_rate": 1.0,
+          "passed": true,
           "avg_scores": {
-            "called_datagouv": 0.0,
+            "called_datagouv": 1.0,
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 337.2
+          "task_duration_ms": 9605.8
         },
         {
           "name": "ecoles_maternelles_lille",
@@ -1819,24 +1819,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 5915.8
-        },
-        {
-          "name": "faire_le_plein_rennes",
-          "metadata": {
-            "difficulty": "hard",
-            "category": "answered",
-            "description": "Implicite — sonne comme une actualité (web_search), mais les prix par station sont une donnée publique quotidienne"
-          },
-          "repeats": 3,
-          "pass_rate": 0.0,
-          "passed": false,
-          "avg_scores": {
-            "called_datagouv": 1.0,
-            "did_not_call_web_search": 0.0
-          },
-          "reasons": {},
-          "task_duration_ms": 8683.1
+          "task_duration_ms": 15341.0
         },
         {
           "name": "food_trucks_bordeaux",
@@ -1854,24 +1837,7 @@
             "datagouv_before_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 5815.8
-        },
-        {
-          "name": "gpl_rennes",
-          "metadata": {
-            "difficulty": "medium",
-            "category": "answered",
-            "description": "Prix d'un carburant précis dans une commune — pas une actualité, une donnée publique"
-          },
-          "repeats": 3,
-          "pass_rate": 0.3333,
-          "passed": false,
-          "avg_scores": {
-            "called_datagouv": 1.0,
-            "did_not_call_web_search": 0.3333
-          },
-          "reasons": {},
-          "task_duration_ms": 13666.1
+          "task_duration_ms": 18917.3
         },
         {
           "name": "jeu_de_donnees_qualite_air",
@@ -1888,7 +1854,7 @@
             "did_not_call_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3269.2
+          "task_duration_ms": 4812.5
         },
         {
           "name": "licencies_petanque_var",
@@ -1906,7 +1872,7 @@
             "datagouv_before_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 6385.6
+          "task_duration_ms": 12252.0
         },
         {
           "name": "mail_conge",
@@ -1922,7 +1888,7 @@
             "did_not_call_datagouv": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3505.1
+          "task_duration_ms": 9064.6
         },
         {
           "name": "population_allemagne",
@@ -1938,42 +1904,7 @@
             "did_not_call_datagouv": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 3472.8
-        },
-        {
-          "name": "prix_gazole_rennes",
-          "metadata": {
-            "difficulty": "easy",
-            "category": "answered",
-            "description": "Prix des carburants par commune — flux quotidien du ministère de l'économie"
-          },
-          "repeats": 3,
-          "pass_rate": 0.0,
-          "passed": false,
-          "avg_scores": {
-            "called_datagouv": 1.0,
-            "did_not_call_web_search": 0.0
-          },
-          "reasons": {},
-          "task_duration_ms": 7727.4
-        },
-        {
-          "name": "prix_gazole_rennes_2015",
-          "metadata": {
-            "difficulty": "hard",
-            "category": "fallback",
-            "description": "Les lignes existent mais ne couvrent que 2026 — data.gouv.fr ne répond pas à la question, repli web ensuite"
-          },
-          "repeats": 3,
-          "pass_rate": 1.0,
-          "passed": true,
-          "avg_scores": {
-            "called_datagouv": 1.0,
-            "called_web_search": 1.0,
-            "datagouv_before_web_search": 1.0
-          },
-          "reasons": {},
-          "task_duration_ms": 10787.4
+          "task_duration_ms": 1148.9
         },
         {
           "name": "renouveler_passeport",
@@ -1989,7 +1920,7 @@
             "did_not_call_datagouv": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 11072.4
+          "task_duration_ms": 9291.7
         },
         {
           "name": "resume_document",
@@ -2006,7 +1937,7 @@
             "did_not_call_datagouv": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 1048.5
+          "task_duration_ms": 1782.8
         },
         {
           "name": "ruches_dijon",
@@ -2024,7 +1955,7 @@
             "datagouv_before_web_search": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 8067.9
+          "task_duration_ms": 15474.6
         },
         {
           "name": "script_python_csv",
@@ -2040,7 +1971,7 @@
             "did_not_call_datagouv": 1.0
           },
           "reasons": {},
-          "task_duration_ms": 5939.5
+          "task_duration_ms": 52673.0
         }
       ],
       "failures": 0

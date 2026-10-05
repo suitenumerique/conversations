@@ -3,8 +3,6 @@
 # officielles enregistrent, n'utiliser la recherche web qu'en repli (après data.gouv.fr),
 # et ne pas le consulter hors de ce périmètre. Outils data.gouv.fr = snapshot du serveur
 # réel, résultats = scénarios réels tronqués (fixtures/datagouv_scenarios.yaml).
-# Les cas « stable_fact » échouent tant que l'instruction de production exclut la
-# « general knowledge » : c'est attendu.
 
 cases:
   # ── ANSWERED — data.gouv.fr a la réponse : pas de web_search ────────────────
@@ -125,7 +123,7 @@ cases:
           name_regex: "^web_search$"
           evaluation_name: did_not_call_web_search
 
-  # ── STABLE FACT — attendu rouge tant que l'instruction exclut la « general knowledge » ─
+  # ── STABLE FACT — le modèle croit savoir, mais un registre officiel fait foi ─
 
   - name: code_insee_brest
     inputs:
@@ -134,9 +132,7 @@ cases:
     metadata:
       difficulty: hard
       category: stable_fact
-      description: >-
-        Fait stable enregistré par le Code officiel géographique — attendu rouge
-        tant que l'instruction de production exclut la « general knowledge »
+      description: Fait stable enregistré par le Code officiel géographique
     evaluators:
       - CalledTool:
           name_regex: "^datagouv_"
@@ -152,9 +148,7 @@ cases:
     metadata:
       difficulty: hard
       category: stable_fact
-      description: >-
-        Géographie administrative stable (COG) — attendu rouge tant que
-        l'instruction de production exclut la « general knowledge »
+      description: Géographie administrative stable (COG)
     evaluators:
       - CalledTool:
           name_regex: "^datagouv_"
@@ -172,8 +166,7 @@ cases:
       category: stable_fact
       description: >-
         Décompte administratif (COG, 458 communes au 01/01/2026) — le modèle
-        croit le savoir ; attendu rouge tant que l'instruction exclut la
-        « general knowledge »
+        croit le savoir
     evaluators:
       - CalledTool:
           name_regex: "^datagouv_"

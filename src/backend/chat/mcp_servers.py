@@ -314,10 +314,13 @@ class DataGouvConnector:
             "the organisations that publish them, and public APIs. Use them when the "
             "answer depends on official French public data (statistics, registries, "
             "local facilities, prices, figures for a commune or département), or "
-            "when the user asks for a dataset, a file or an API. Prefer them over "
-            "answering such figures from memory. Do not use them for questions about "
-            "other countries, general knowledge, administrative procedures, "
-            "writing or coding tasks, or "
+            "when the user asks for a dataset, a file or an API. This includes "
+            "stable administrative facts that official registers record, such as "
+            "INSEE codes, the département of a commune or the number of communes: "
+            "consult the tools even when you believe you know the answer, rather "
+            "than answering from memory. Do not use them for questions about "
+            "other countries, history, definitions of concepts, administrative "
+            "procedures, writing or coding tasks, or "
             "questions about the user's attached documents."
         )
 
