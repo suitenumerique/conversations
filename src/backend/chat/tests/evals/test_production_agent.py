@@ -109,12 +109,13 @@ def test_eval_session_reuses_same_user_and_conversation():
 
 
 def test_stubbed_tools_run_under_agent_override():
-    """Under agent.override(tools=...), the model's tool call reaches the stub."""
+    """Under agent.override(tools=...), the model's tool call reaches the stub with the
+    arguments of the production signature."""
     service = build_production_agent_service("default-model", rag_tools=True)
     calls = []
 
-    def stub(_ctx, query: str) -> ToolReturn:
-        calls.append(query)
+    def stub(_ctx, **kwargs) -> ToolReturn:
+        calls.append(kwargs)
         return ToolReturn(return_value="stub passage")
 
     agent = service.conversation_agent
@@ -123,6 +124,7 @@ def test_stubbed_tools_run_under_agent_override():
         agent.run_sync("What does the document say?", deps=production_agent_deps(service))
 
     assert len(calls) == 1
+    assert "query" in calls[0]
 
 
 def test_faithfulness_rag_eval_uses_production_wiring():

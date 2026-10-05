@@ -28,7 +28,7 @@ def _stub_web_search(_ctx: RunContext, *args, **kwargs):
     return get_current_tool_stubs().web_search_return()
 
 
-def _stub_document_search_rag(_ctx: RunContext, _query: str, _document_id: str | None = None):
+def _stub_document_search_rag(_ctx: RunContext, **_kwargs):
     return get_current_tool_stubs().document_search_rag_return()
 
 

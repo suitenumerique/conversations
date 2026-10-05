@@ -49,9 +49,7 @@ def _build_faithfulness_rag_service(model_hrid: str):
     )
 
 
-def _stub_document_search_rag(
-    _ctx: RunContext, _query: str, _document_id: str | None = None
-) -> ToolReturn:
+def _stub_document_search_rag(_ctx: RunContext, **_kwargs) -> ToolReturn:
     return get_current_tool_stubs().document_search_rag_return()
 
 

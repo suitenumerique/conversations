@@ -106,8 +106,12 @@ def test_with_documents_registers_rag_tools_and_listing():
     assert listing["documents"][0]["document_id"] == EVAL_FAKE_DOCUMENT_ID
 
 
+def _parameters(tool) -> dict:
+    return tool.function_schema.json_schema
+
+
 def test_stubbed_tools_adds_web_search_when_model_lacks_it():
-    """web_search is added, gated on deps like production, when the model has none."""
+    """web_search is added with the production parameters, gated on deps like production."""
     service = build_production_agent_service("default-model")
     assert "web_search" not in service.conversation_agent._function_toolset.tools
 
@@ -115,27 +119,33 @@ def test_stubbed_tools_adds_web_search_when_model_lacks_it():
         "web_search"
     ]
 
-    assert web_search.function is _stub
+    assert list(_parameters(web_search)["properties"]) == ["query"]
+    assert _parameters(web_search)["required"] == ["query"]
     assert web_search.description == WEB_SEARCH_TOOL_DESCRIPTION
     assert web_search.prepare is not None
     assert "web_search" not in service.conversation_agent._function_toolset.tools
 
 
-def test_stubbed_tools_swaps_implementation_and_keeps_production_tools():
-    """Stubbed tools keep their production description; other tools pass through as-is."""
+def test_stubbed_tools_show_the_model_production_parameters():
+    """Stubs keep the production description and parameter schema, whatever their signature."""
     service = build_production_agent_service(
         "default-model",
         rag_tools=True,
         document_context_instruction=EVAL_FAKE_DOCUMENT_LISTING,
     )
-    production = service.conversation_agent._function_toolset.tools
+    production = dict(service.conversation_agent._function_toolset.tools)
 
-    tools = {tool.name: tool for tool in stubbed_tools(service, {"summarize": _stub})}
+    tools = {
+        tool.name: tool
+        for tool in stubbed_tools(service, {"summarize": _stub, "document_search_rag": _stub})
+    }
 
-    assert tools["summarize"].function is _stub
-    assert tools["summarize"].description == production["summarize"].description
+    for name in ("summarize", "document_search_rag"):
+        assert tools[name] is not production[name]
+        assert tools[name].description == production[name].description
+        assert _parameters(tools[name]) == _parameters(production[name])
     assert tools["self_documentation"] is production["self_documentation"]
-    assert production["summarize"].function is not _stub
+    assert service.conversation_agent._function_toolset.tools == production
 
 
 def test_fake_listing_mentions_eval_document():

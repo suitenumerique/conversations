@@ -10,10 +10,13 @@ tool descriptions are registered via the production setup methods in
 
 from __future__ import annotations
 
+import functools
+import inspect
 from collections.abc import Awaitable, Callable
 
 from django.contrib.auth.hashers import make_password
 
+from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.tools import Tool
 from pydantic_ai.toolsets import FunctionToolset
@@ -141,8 +144,9 @@ def stubbed_tools(
     """Return the agent's function tools with the ``stubs`` implementations swapped in.
 
     Pass the result to ``agent.override(tools=...)``: stubbed tools keep their
-    production description and ``prepare``. ``web_search`` is added when the
-    model configuration registers none.
+    production description, ``prepare`` and parameter schema, so the model sees
+    the same tools as in production. ``web_search`` is added when the model
+    configuration registers none.
     """
     function_toolset = next(
         toolset
@@ -151,26 +155,46 @@ def stubbed_tools(
     )
     tools = dict(function_toolset.tools)
     for name, implementation in stubs.items():
-        if name == "web_search" and name not in tools:
-            tools[name] = Tool(
-                implementation,
-                name=name,
-                description=WEB_SEARCH_TOOL_DESCRIPTION,
-                max_retries=1,
-                prepare=_only_if_web_search_enabled,
-                takes_ctx=True,
-            )
-            continue
-        existing = tools[name]
+        if name == "web_search":
+            tools.setdefault(name, _fallback_web_search_tool())
+        production = tools[name]
         tools[name] = Tool(
-            implementation,
+            _with_signature_of(production.function, implementation),
             name=name,
-            description=existing.description,
-            max_retries=existing.max_retries,
-            prepare=existing.prepare,
-            takes_ctx=existing.takes_ctx,
+            description=production.description,
+            max_retries=production.max_retries,
+            prepare=production.prepare,
+            takes_ctx=production.takes_ctx,
         )
     return list(tools.values())
+
+
+def _with_signature_of(production_function: Callable, implementation: ToolImplementation):
+    """Run ``implementation`` behind the production signature, which sets the tool's schema."""
+
+    @functools.wraps(production_function)
+    async def stub(ctx: RunContext, *args, **kwargs) -> ToolReturn:
+        result = implementation(ctx, *args, **kwargs)
+        return await result if inspect.isawaitable(result) else result
+
+    return stub
+
+
+async def _web_search_signature(_ctx: RunContext, query: str) -> ToolReturn:
+    """Parameters of the production web search implementations (e.g. Brave)."""
+    raise NotImplementedError
+
+
+def _fallback_web_search_tool() -> Tool:
+    """``web_search`` as production registers it, for models configured without one."""
+    return Tool(
+        _web_search_signature,
+        name="web_search",
+        description=WEB_SEARCH_TOOL_DESCRIPTION,
+        max_retries=1,
+        prepare=_only_if_web_search_enabled,
+        takes_ctx=True,
+    )
 
 
 def _only_if_web_search_enabled(ctx, tool_def):
