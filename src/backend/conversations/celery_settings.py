@@ -9,7 +9,7 @@ from configurations import values
 MODEL_HEALTH_POLL_PROVIDERS = ("albert",)
 
 
-def crontab_from_string(value):
+def crontab_from_string(value, setting_name):
     """Parse a five-field cron string into a Celery crontab.
 
     Celery runs the schedule only when both `day_of_month` and `day_of_week`
@@ -18,7 +18,7 @@ def crontab_from_string(value):
     fields = value.split()
     if len(fields) != 5:
         raise ValueError(
-            "DEINDEX_INACTIVE_COLLECTIONS_CRON must have five space-separated fields "
+            f"{setting_name} must have five space-separated fields "
             f"(minute hour day_of_month month day_of_week), got {value!r}."
         )
     minute, hour, day_of_month, month_of_year, day_of_week = fields
@@ -126,6 +126,11 @@ class CelerySettings:
     DEINDEX_INACTIVE_COLLECTIONS_CRON = values.Value(
         "", environ_name="DEINDEX_INACTIVE_COLLECTIONS_CRON", environ_prefix=None
     )
+    # Five-field cron string; empty disables the task. On by default, unlike the two
+    # above: any deployment with spreadsheet attachments can leave unread outputs.
+    TABULAR_RESULTS_PURGE_CRON = values.Value(
+        "23 * * * *", environ_name="TABULAR_RESULTS_PURGE_CRON", environ_prefix=None
+    )
 
     @property
     def CELERY_BROKER_TRANSPORT_OPTIONS(self):  # pylint: disable=invalid-name
@@ -138,7 +143,7 @@ class CelerySettings:
 
     @property
     def CELERY_BEAT_SCHEDULE(self):  # pylint: disable=invalid-name
-        """Beat schedule built from the MODEL_HEALTH_POLL_* and DEINDEX_* settings."""
+        """Beat schedule built from the MODEL_HEALTH_POLL_*, DEINDEX_* and TABULAR_* settings."""
         schedule = {}
         if self.MODEL_HEALTH_POLL_PROVIDER:
             if self.MODEL_HEALTH_POLL_PROVIDER not in MODEL_HEALTH_POLL_PROVIDERS:
@@ -162,6 +167,15 @@ class CelerySettings:
         if self.DEINDEX_INACTIVE_COLLECTIONS_CRON:
             schedule["deindex-inactive-collections"] = {
                 "task": "chat.tasks.deindex_inactive_collections_task",
-                "schedule": crontab_from_string(self.DEINDEX_INACTIVE_COLLECTIONS_CRON),
+                "schedule": crontab_from_string(
+                    self.DEINDEX_INACTIVE_COLLECTIONS_CRON, "DEINDEX_INACTIVE_COLLECTIONS_CRON"
+                ),
+            }
+        if self.TABULAR_RESULTS_PURGE_CRON:
+            schedule["purge-tabular-results"] = {
+                "task": "chat.tasks.purge_tabular_results_task",
+                "schedule": crontab_from_string(
+                    self.TABULAR_RESULTS_PURGE_CRON, "TABULAR_RESULTS_PURGE_CRON"
+                ),
             }
         return schedule

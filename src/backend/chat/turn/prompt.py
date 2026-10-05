@@ -30,7 +30,7 @@ from chat.agents.local_media_url_processors import (
 from chat.ai_sdk_types import FileUIPart, UIMessage
 from chat.clients.pydantic_ui_message_converter import ui_message_to_user_content
 from chat.clients.schema import ImagePostRunActions
-from chat.constants import IMAGE_MIME_PREFIX, TEXT_MIME_PREFIX
+from chat.constants import IMAGE_MIME_PREFIX, TABULAR_MIME_TYPES, TEXT_MIME_PREFIX
 from chat.turn.trail import TurnTrail
 
 # Not __name__: "chat.turn.*" would nest under the "chat.turn" turn-trace
@@ -98,6 +98,10 @@ async def prepare_turn_inputs(
     history = _load_history(conversation, agent)
 
     user_prompt, input_images, input_documents = split_prompt(messages[-1])
+    # Spreadsheets skip RAG parsing: the tabular tools read the originals.
+    input_documents = [
+        document for document in input_documents if document.media_type not in TABULAR_MIME_TYPES
+    ]
 
     # If the resolved model can't accept images, the model still receives them
     # but ignores them (these endpoints tolerate image parts), and we instruct
@@ -203,7 +207,9 @@ async def _conversation_has_own_documents(conversation: models.ChatConversation)
             conversation=conversation,
             content_type__startswith=TEXT_MIME_PREFIX,
             upload_state=models.AttachmentStatus.READY,
-        ).aexists()
+        )
+        .exclude(content_type__in=TABULAR_MIME_TYPES)
+        .aexists()
     )
 
 

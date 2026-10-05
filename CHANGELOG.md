@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(back) make the OIDC roles claim name configurable
+- ✨(back) analyze csv and xlsx attachments with a structured query tool
 
 ### Removed
 
@@ -25,6 +26,7 @@ and this project adheres to
 
 - 💄(front) align the DataGouv item in the input menu
 - 🔒️(back) keep emails, urls and document names out of the logs
+- 🐛(back) store csv uploads detected as plain text as csv
 
 ## [0.0.28] - 2026-11-03
 

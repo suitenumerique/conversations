@@ -14,6 +14,12 @@ PDF_MIME_TYPE = "application/pdf"  # routed to the dedicated PDF parser
 MARKDOWN_MIME_TYPE = "text/markdown"  # markdown companion stored for indexed files
 SSE_MIME_TYPE = "text/event-stream"  # Server-Sent Events streaming responses
 
+# Spreadsheet attachments analyzed through the tabular tools (chat.tabular) instead of
+# being RAG-indexed or inlined in the document context.
+CSV_MIME_TYPES = ("text/csv", "application/csv")
+XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+TABULAR_MIME_TYPES = (*CSV_MIME_TYPES, XLSX_MIME_TYPE)
+
 # Access values exposed to the model in the documents listing. Keep in sync
 # with the `Access` Literal in chat.document_context_builder (Python's Literal
 # can't reference module-level constants).
@@ -34,6 +40,23 @@ HISTORY_SUMMARY_CLAIM_TTL_SECONDS = SUMMARIZATION_TASK_TIME_LIMIT + 60
 # orphan collections. Keep the hard limit below the Redis visibility_timeout of 3600 s.
 DEINDEX_TASK_SOFT_TIME_LIMIT = 1500  # seconds, raises SoftTimeLimitExceeded
 DEINDEX_TASK_TIME_LIMIT = 1800  # seconds, worker is SIGKILLed
+
+# Tabular query limits. The task limits bound the whole load + query; the caller
+# stops waiting a bit after the hard limit.
+TABULAR_QUERY_MAX_ROWS = 100
+# Bounds every task output (description, query result, error), which goes into the
+# model context: ~10k tokens.
+TABULAR_MAX_OUTPUT_CHARS = 30_000
+TABULAR_TASK_SOFT_TIME_LIMIT = 50  # seconds, raises SoftTimeLimitExceeded
+TABULAR_TASK_TIME_LIMIT = 60  # seconds, worker is SIGKILLed
+TABULAR_RESULT_TIMEOUT_SECONDS = TABULAR_TASK_TIME_LIMIT + 10
+# The task stores its output under this prefix; the tool deletes it once read. It
+# stops this long before the tool's deadline, to cover clock skew between pods.
+TABULAR_RESULTS_PREFIX = "tabular-results/"
+TABULAR_RESULT_WRITE_MARGIN_SECONDS = 5
+# An output still stored this long after it was written will never be read: the
+# periodic purge deletes it.
+TABULAR_RESULTS_MAX_AGE_SECONDS = 3600
 
 # After the triggering turn enqueues the summarization task, how long the
 # wait loop tolerates "no live claim yet" before giving up and failing the

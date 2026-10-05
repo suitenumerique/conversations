@@ -75,6 +75,8 @@ dependencies = [
     "tiktoken==0.14.0",
     "django-structlog==11.0.0",
     "structlog==26.1.0",
+    "pandas==3.0.5",
+    "python-calamine==0.8.2",
 ]
 
 [project.urls]
@@ -110,6 +112,7 @@ dev = [
     "respx==0.23.1",
     "ruff==0.17.2",
     "debugpy>=1.8.20",
+    "openpyxl==3.1.5",
 ]
 
 [tool.setuptools]

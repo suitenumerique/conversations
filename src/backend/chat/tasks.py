@@ -1,18 +1,27 @@
 """Celery tasks for the chat application."""
 
 import io
+import time
+from datetime import timedelta
+from uuid import uuid4
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.utils import timezone
 from django.utils.module_loading import import_string
 
 import structlog
 from asgiref.sync import async_to_sync
+from botocore.exceptions import BotoCoreError, ClientError
+from celery.exceptions import SoftTimeLimitExceeded
 from pydantic_ai.exceptions import ModelAPIError
 from pydantic_ai.messages import ModelMessagesTypeAdapter
+
+from core.log_fields import safe_error_fields
 
 from chat.agent_rag.indexing import index_project_attachment, parse_and_store_with_retry
 from chat.agents.history_processors import (
@@ -26,10 +35,27 @@ from chat.constants import (
     DEINDEX_TASK_TIME_LIMIT,
     SUMMARIZATION_TASK_SOFT_TIME_LIMIT,
     SUMMARIZATION_TASK_TIME_LIMIT,
+    TABULAR_MAX_OUTPUT_CHARS,
+    TABULAR_MIME_TYPES,
+    TABULAR_QUERY_MAX_ROWS,
+    TABULAR_RESULT_WRITE_MARGIN_SECONDS,
+    TABULAR_RESULTS_MAX_AGE_SECONDS,
+    TABULAR_RESULTS_PREFIX,
+    TABULAR_TASK_SOFT_TIME_LIMIT,
+    TABULAR_TASK_TIME_LIMIT,
     TEXT_MIME_PREFIX,
 )
 from chat.llm_configuration import get_model_configuration
-from chat.models import ChatConversation, ChatConversationAttachment
+from chat.models import AttachmentStatus, ChatConversation, ChatConversationAttachment
+from chat.tabular import (
+    TableQuery,
+    TabularError,
+    TabularFile,
+    build_dataset,
+    cap_output,
+    describe_tables,
+    run_table_query,
+)
 from conversations.celery_app import app
 
 logger = structlog.get_logger(__name__)
@@ -245,3 +271,99 @@ def deindex_inactive_collections_task():
         call_command("deindex_inactive_collections")
     except CommandError:
         logger.exception("deindex_inactive_collections_failed")
+
+
+def _tabular_output(conversation_id: str, query: dict | None) -> tuple[bool, str]:
+    """Load the conversation's spreadsheets, then describe them or run `query`.
+
+    Returns `(ok, content)`; when `ok` is False, `content` is a query error meant
+    for the model.
+    """
+    attachments = ChatConversationAttachment.objects.filter(
+        conversation_id=conversation_id,
+        content_type__in=TABULAR_MIME_TYPES,
+        upload_state=AttachmentStatus.READY,
+    ).order_by("created_at", "id")
+    files = []
+    for attachment in attachments:
+        with default_storage.open(attachment.key, "rb") as file:
+            files.append(TabularFile(attachment.file_name, attachment.content_type, file.read()))
+
+    dataset = build_dataset(files)
+    if query is None:
+        return True, describe_tables(dataset)
+    try:
+        return True, run_table_query(
+            dataset,
+            TableQuery.model_validate(query),
+            TABULAR_QUERY_MAX_ROWS,
+            max_join_cells=settings.TABULAR_JOIN_MAX_CELLS,
+        )
+    except TabularError as exc:
+        return False, str(exc)
+
+
+@app.task(soft_time_limit=TABULAR_TASK_SOFT_TIME_LIMIT, time_limit=TABULAR_TASK_TIME_LIMIT)
+def run_tabular_query_task(conversation_id: str, query: dict | None, deadline: float) -> dict:
+    """Load the conversation's spreadsheets into DataFrames, then describe them or run `query`.
+
+    Enqueued by the tabular tools, which block on the result. Loading untrusted
+    files happens here, off the web worker and under the task time limits.
+    Stateless: the files are reloaded on every call. `query` is a `TableQuery`
+    dumped to JSON, or None to describe the tables.
+
+    The output (capped in size) is written to storage, never returned: task
+    results go through Redis, where a large value can stall it. Returns
+    `{"ok": bool, "key": str | None}`; the caller reads the output at `key` and
+    deletes it. When `ok` is False the output is an error message meant for the
+    model. `deadline` (epoch seconds) is when the caller stops waiting: past it
+    nothing is written, as nobody would delete it.
+
+    Without an output, `key` is None and `error` says why: `deadline`,
+    `time_limit` (soft time limit hit) or `failed`. The task never raises: a
+    raised exception would put its message in Redis and in the Celery failure
+    log, and a pandas or parser message can quote cells of the file.
+    """
+    if time.time() > deadline - TABULAR_RESULT_WRITE_MARGIN_SECONDS:
+        return {"ok": False, "key": None, "error": "deadline"}
+    try:
+        ok, content = _tabular_output(conversation_id, query)
+        if time.time() > deadline - TABULAR_RESULT_WRITE_MARGIN_SECONDS:
+            return {"ok": False, "key": None, "error": "deadline"}
+        key = default_storage.save(
+            f"{TABULAR_RESULTS_PREFIX}{uuid4()}.md",
+            ContentFile(cap_output(content, TABULAR_MAX_OUTPUT_CHARS).encode("utf-8")),
+        )
+    except SoftTimeLimitExceeded:
+        logger.warning("tabular_query_time_limit")
+        return {"ok": False, "key": None, "error": "time_limit"}
+    except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # Type only: the message and traceback can quote the file's cells.
+        logger.error("tabular_query_failed", **safe_error_fields(exc))
+        return {"ok": False, "key": None, "error": "failed"}
+    return {"ok": ok, "key": key}
+
+
+@app.task
+def purge_tabular_results_task():
+    """Delete the tabular outputs nobody will read. Run by Celery beat.
+
+    The tabular tool deletes each output once read, and the task writes none
+    after the tool's deadline. An output older than TABULAR_RESULTS_MAX_AGE_SECONDS
+    was left by a web process that died between the write and the read. Deleting a
+    conversation would not remove it: storage is cleaned by attachment key.
+    """
+    cutoff = timezone.now() - timedelta(seconds=TABULAR_RESULTS_MAX_AGE_SECONDS)
+    _dirs, names = default_storage.listdir(TABULAR_RESULTS_PREFIX)
+    deleted = 0
+    for name in names:
+        key = f"{TABULAR_RESULTS_PREFIX}{name}"
+        try:
+            if default_storage.get_modified_time(key) < cutoff:
+                default_storage.delete(key)
+                deleted += 1
+        except BotoCoreError, ClientError, OSError:
+            # Read and deleted by its tool since the listing, or a storage error:
+            # the next run retries.
+            continue
+    logger.info("tabular_results_purged", deleted=deleted)

@@ -78,6 +78,7 @@ import asyncio
 import dataclasses
 import functools
 import hashlib
+import json
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack, suppress
@@ -150,6 +151,7 @@ from chat.constants import (
     HISTORY_SUMMARY_POLL_INTERVAL_SECONDS,
     MARKDOWN_MIME_TYPE,
     SUMMARIZATION_ENQUEUE_CLAIM_GRACE_SECONDS,
+    TABULAR_MIME_TYPES,
     TEXT_MIME_PREFIX,
 )
 from chat.document_context_builder import (
@@ -164,12 +166,15 @@ from chat.rate_limiting import get_cooldown_remaining
 from chat.stream_chunks import persist as persist_leftover_chunks
 from chat.tasks import index_conversation_document_task, summarize_conversation_history
 from chat.tools.descriptions import (
+    DESCRIBE_TABLES_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
     DOCUMENT_SUMMARIZE_TOOL_DESCRIPTION,
     GENERATE_PRESENTATION_TOOL_DESCRIPTION,
+    QUERY_TABLE_TOOL_DESCRIPTION,
     SELF_DOCUMENTATION_SYSTEM_PROMPT,
     SELF_DOCUMENTATION_TOOL_DESCRIPTION,
+    TABULAR_SYSTEM_PROMPT,
     WEB_SEARCH_TOOL_DESCRIPTION,
 )
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
@@ -177,6 +182,8 @@ from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize, document_summarize_project
 from chat.tools.generate_presentation import generate_presentation
 from chat.tools.self_documentation import build_self_documentation_payload
+from chat.tools.tabular import describe_tables, query_table
+from chat.tools.utils import soft_fail_last_invalid_tool_call
 from chat.turn.event_mapper import TurnEventMapper, connector_unavailable_notice
 from chat.turn.persistence import (
     generate_title_if_needed,
@@ -1081,11 +1088,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # SUSPICIOUS rows are not yet usable (still being malware-scanned, or
         # quarantined), and surfacing their UUID in the system-prompt listing
         # would let the model target attachments it cannot actually read.
+        # Spreadsheets are queried through the tabular tools, never inlined.
         text_attachments = await sync_to_async(list)(
             self.conversation.attachments.filter(
                 content_type__startswith=TEXT_MIME_PREFIX,
                 upload_state=models.AttachmentStatus.READY,
-            ).order_by("created_at", "id")
+            )
+            .exclude(content_type__in=TABULAR_MIME_TYPES)
+            .order_by("created_at", "id")
         )
         project_text_attachments: list = []
         if self.conversation.project_id:
@@ -1184,6 +1194,35 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             async def summarize_project(ctx: RunContext, *args, **kwargs) -> ToolReturn:
                 """Wrap the document_summarize_project tool."""
                 return await document_summarize_project(ctx, *args, **kwargs)
+
+    async def _setup_tabular_tools(self) -> None:
+        """Register the tabular tools when the conversation has READY spreadsheets."""
+        if not self._is_document_upload_enabled:
+            return
+        file_names = [
+            file_name
+            async for file_name in models.ChatConversationAttachment.objects.filter(
+                conversation=self.conversation,
+                content_type__in=TABULAR_MIME_TYPES,
+                upload_state=models.AttachmentStatus.READY,
+            )
+            .order_by("created_at", "id")
+            .values_list("file_name", flat=True)
+        ]
+        if not file_names:
+            return
+
+        @self.conversation_agent.instructions
+        def tabular_instruction() -> str:
+            """Tell the model which spreadsheets are attached and how to query them."""
+            return TABULAR_SYSTEM_PROMPT.format(files=json.dumps(file_names, ensure_ascii=False))
+
+        self.conversation_agent.tool(
+            name="describe_tables", retries=2, description=DESCRIBE_TABLES_TOOL_DESCRIPTION
+        )(describe_tables)
+        self.conversation_agent.tool(
+            name="query_table", retries=3, description=QUERY_TABLE_TOOL_DESCRIPTION
+        )(query_table)
 
     def _setup_web_search_tool(self) -> None:
         """Register model-specific web search tool when configured."""
@@ -1501,6 +1540,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             document_context_instruction = await self._build_document_context_instruction()
             self._setup_rag_tools(document_context_instruction=document_context_instruction)
 
+        await self._setup_tabular_tools()
+
     async def _run_agent(
         self,
         messages: List[UIMessage],
@@ -1624,7 +1665,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 message_history=message_history,
                 deps=self._context_deps,
                 toolsets=mcp_toolsets,
-                capabilities=[Hooks(before_model_request=snapshot_closed_tool_step)],
+                capabilities=[
+                    Hooks(
+                        before_model_request=snapshot_closed_tool_step,
+                        tool_validate_error=soft_fail_last_invalid_tool_call,
+                    )
+                ],
                 model_settings=model_settings,
             ) as run:
                 mapper = TurnEventMapper(

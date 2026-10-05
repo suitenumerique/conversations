@@ -249,6 +249,32 @@ def test_hosted_markdown_file_type_from_extension(media_type):
     assert result[1].media_type == "text/markdown"
 
 
+@pytest.mark.parametrize(
+    "media_type", ["", "application/octet-stream", "application/vnd.ms-excel", "text/plain"]
+)
+def test_hosted_csv_file_type_from_extension(media_type):
+    """A hosted .csv file is passed on as text/csv whatever generic type the browser reported."""
+    ui_message = UIMessage(
+        id="msg-csv",
+        role="user",
+        content="Check this file",
+        parts=[
+            FileUIPart(
+                type="file",
+                url="/media-key/conv/attachments/abc.csv",
+                mediaType=media_type,
+                filename="ventes.csv",
+            ),
+        ],
+    )
+
+    result = ui_message_to_user_content(ui_message)
+
+    assert len(result) == 2
+    assert isinstance(result[1], DocumentUrl)
+    assert result[1].media_type == "text/csv"
+
+
 def test_hosted_non_markdown_file_keeps_claimed_type():
     """Only markdown files get their type from the extension."""
     ui_message = UIMessage(

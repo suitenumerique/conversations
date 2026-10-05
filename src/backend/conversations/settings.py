@@ -224,6 +224,13 @@ class Base(
         environ_name="ATTACHMENT_PARSE_MAX_PDF_PAGES",
         environ_prefix=None,
     )
+    # Largest join (rows x columns) the spreadsheet analysis may build. Joining on a
+    # repeated column multiplies rows, and the worker's memory is shared by every task.
+    TABULAR_JOIN_MAX_CELLS = values.PositiveIntegerValue(
+        default=2_000_000,
+        environ_name="TABULAR_JOIN_MAX_CELLS",
+        environ_prefix=None,
+    )
     FILE_UPLOAD_MODE = values.Value(
         FileUploadMode.PRESIGNED_URL,
         environ_name="FILE_UPLOAD_MODE",
