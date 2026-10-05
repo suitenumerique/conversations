@@ -133,7 +133,7 @@ async def _fetch_and_store_async(url: str, document_store, **kwargs) -> None:
     try:
         document = await _fetch_and_extract_async(url)
 
-        logger.debug("Fetched document: %s", document)
+        logger.debug("Fetched document: %s characters", len(document or ""))
 
         if document:
             await document_store.astore_document(url, document, **kwargs)
@@ -186,33 +186,35 @@ async def _query_brave_api_with_endpoint_async(url: str, data: dict) -> List[dic
             # https://api-dashboard.search.brave.com/app/documentation/web-search/responses#Result
             return json_response.get("web", {}).get("results", [])
 
+    # httpx renders the failing request url, query string included, into str(exc), so
+    # the logs below report the status and the endpoint instead: never the user's query.
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 429:
             # Rate limit - retryable
-            logger.warning("Brave API rate limited: %s", e)
+            logger.warning("Brave API rate limited (status 429) on %s", url)
             raise ModelRetry(
                 "The search API is rate limited. Please wait a moment and try again."
             ) from e
         if e.response.status_code >= 500:
             # Server error - retryable
-            logger.warning("Brave API error: %s", e)
+            logger.warning("Brave API server error (status %s) on %s", e.response.status_code, url)
             raise ModelRetry(
                 "The search service is temporarily unavailable due to a server error. Retrying..."
             ) from e
 
         # Client error (4xx) - not retryable, stop and inform user
-        logger.error("Brave API client error: %s", e)
+        logger.error("Brave API client error (status %s) on %s", e.response.status_code, url)
         raise ModelCannotRetry(
             f"Web search failed with a client error (status {e.response.status_code}). "
             "You must explain this to the user and not try to answer based on your knowledge."
         ) from e
     except httpx.TimeoutException as e:
         # Timeout - retryable
-        logger.warning("Brave API timeout: %s", e)
+        logger.warning("Brave API timeout on %s", url)
         raise ModelRetry("The search request timed out. Retrying with a fresh attempt...") from e
     except httpx.HTTPError as e:
         # Other HTTP errors - retryable
-        logger.warning("Brave API connection error: %s", e)
+        logger.warning("Brave API connection error on %s: %s", url, type(e).__name__)
         raise ModelRetry(
             f"Connection error while searching the web: {type(e).__name__}. Retrying..."
         ) from e
@@ -275,7 +277,6 @@ def format_tool_return(raw_search_results: List[dict]) -> ToolReturn:
     sources = set()
 
     for idx, result in enumerate(raw_search_results):
-        logger.debug("Formatting result: %s", result)
         snippets = result.get("snippets") or result.get("extra_snippets") or []
         if not snippets:
             continue
@@ -306,7 +307,7 @@ async def web_search_brave(_ctx: RunContext, query: str) -> ToolReturn:
         _ctx (RunContext): The run context, used by the wrapper.
         query (str): The query to search for.
     """
-    logger.debug("Starting classic web search without RAG backend for query: %s", query)
+    logger.debug("Starting classic web search without RAG backend")
     try:
         raw_search_results = await _query_brave_web_search_api_async(query)
 
@@ -361,7 +362,7 @@ async def web_search_brave_llm_context(_ctx: RunContext, query: str) -> ToolRetu
     This function use the LLM context endpoint of the Brave API.
     The results are then formatted and returned.
     """
-    logger.debug("Starting web search with LLM context endpoint for query: %s", query)
+    logger.debug("Starting web search with LLM context endpoint")
     try:
         raw_search_results = await _query_brave_llm_context_api_async(query)
         formatted_result = format_tool_return(raw_search_results)
@@ -390,7 +391,7 @@ async def web_search_brave_with_document_backend(ctx: RunContext, query: str) ->
         ctx (RunContext): The run context containing the conversation.
         query (str): The query to search for.
     """
-    logger.debug("Starting web search with RAG backend for query: %s", query)
+    logger.debug("Starting web search with RAG backend")
     try:
         raw_search_results = await _query_brave_web_search_api_async(query)
 
@@ -426,7 +427,7 @@ async def web_search_brave_with_document_backend(ctx: RunContext, query: str) ->
                     session=ctx.deps.session,
                     user_sub=ctx.deps.user.sub,
                 )
-                logger.debug("RAG search returned:  %s", rag_results)
+                logger.debug("RAG search returned %s chunks", len(rag_results.data))
 
                 ctx.usage += RunUsage(
                     input_tokens=rag_results.usage.prompt_tokens,

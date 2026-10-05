@@ -161,7 +161,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             },
             timeout=settings.ALBERT_API_TIMEOUT,
         )
-        logger.debug(response.text)
+        logger.debug("Store document response status: %s", response.status_code)
         response.raise_for_status()
         body = response.json()
         document_id = body.get("id")
@@ -197,7 +197,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
                 },
                 timeout=settings.ALBERT_API_TIMEOUT,
             )
-            logger.debug(response.text)
+            logger.debug("Store document response status: %s", response.status_code)
             response.raise_for_status()
             body = response.json()
         document_id = body.get("id")
@@ -303,6 +303,6 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
                 json=payload,
                 timeout=settings.ALBERT_API_TIMEOUT,
             )
-            logger.debug("Search response: %s %s", response.text, response.status_code)
+            logger.debug("Search response status: %s", response.status_code)
             response.raise_for_status()
         return self._parse_search_response(response.json(), document_name, document_id)

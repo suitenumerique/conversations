@@ -1105,8 +1105,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
             elif Agent.is_end_node(node):
                 # Once an End node is reached, the agent run is complete
-                logger.debug("v: %s", dataclasses.asdict(node))
-                self._handle_end_node(node, state)
+                self._handle_end_node(state)
 
     async def _fetch_document_data(
         self, document: "BinaryContent | DocumentUrl"
@@ -1564,7 +1563,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     async def _handle_non_streaming_response(self, node, run_ctx):
         """Run a model node without streaming, emitting its parts as events."""
         result = await node.run(run_ctx)
-        logger.debug("node.run result: %s", result)
         for part in result.model_response.parts:
             if isinstance(part, TextPart):
                 if self._fake_streaming_delay:
@@ -1587,7 +1585,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             elif isinstance(part, ThinkingPart):
                 yield events_v4.ReasoningPart(reasoning=part.content)
             else:
-                logger.warning("Unknown part type: %s %s", type(part), dataclasses.asdict(part))
+                logger.warning("Unknown part type: %s", type(part))
 
     async def _handle_streaming_response(self, node, run_ctx, state: StreamingState):
         """Stream a model node, emitting text/tool/reasoning deltas as events."""
@@ -1635,11 +1633,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         async with node.stream(run_ctx) as handle_stream:
             async for event in handle_stream:
                 await self._agent_stop_streaming()
-                logger.debug(
-                    "Received request_stream event: %s, %s",
-                    type(event),
-                    dataclasses.asdict(event),
-                )
+                logger.debug("Received request_stream event: %s", type(event))
                 if isinstance(event, FunctionToolCallEvent):
                     if not state.tool_is_streaming:
                         yield events_v4.ToolCallPart(
@@ -1670,15 +1664,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                             tool_call_id=event.tool_call_id, result=event.part.content
                         )
                     else:
-                        logger.warning(
-                            "Unexpected tool result type: %s %s",
-                            type(event.part),
-                            dataclasses.asdict(event.part),
-                        )
+                        logger.warning("Unexpected tool result type: %s", type(event.part))
 
-    def _handle_end_node(self, node, state: StreamingState) -> None:
+    def _handle_end_node(self, state: StreamingState) -> None:
         """Handle end node - set message ID."""
-        logger.debug("End node: %s", dataclasses.asdict(node))
         if state.model_response_message_id:
             logger.error("_model_response_message_id already set")
         # Minted (and streamed) by _stream_content: the persisted message must
@@ -2016,7 +2005,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         final_output_json = json.loads(
             ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")
         )
-        logger.debug("final_output_json: %s", final_output_json)
         self.conversation.pydantic_messages += final_output_json
 
     async def _generate_title(self) -> str | None:
@@ -2048,7 +2036,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             agent = TitleGenerationAgent()
             result = await agent.run(prompt)
             title = (result.output or "").strip()[:100]  # Enforce max length (conversation.title)
-            logger.info("Generated title for conversation %s: %s", self.conversation.pk, title)
+            logger.info("Generated title for conversation %s", self.conversation.pk)
             return title if title else None
         except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
             logger.warning(

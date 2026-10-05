@@ -5,9 +5,7 @@ and UserContent/ModelMessage (pydantic_ai.messages.py).
 
 import base64
 import json
-import logging
 import uuid
-from dataclasses import asdict
 from typing import List, Optional
 
 from pydantic_ai.messages import (
@@ -86,12 +84,6 @@ def model_message_to_ui_message(model_message: ModelMessage) -> Optional[UIMessa
     Returns None for a request holding nothing the UI renders (a system prompt
     or a tool return on its own); callers must skip it rather than store it.
     """
-    logging.getLogger(__name__).debug(
-        "Converting ModelMessage to UIMessage: %s %s",
-        type(model_message),
-        asdict(model_message),
-    )
-
     # Unused: kept from the Pydantic AI rewrite as the intended place to carry
     # tool-call state across the parts of one message (pairing a ToolCallPart
     # with the ToolReturnPart that answers it, which is dropped today).

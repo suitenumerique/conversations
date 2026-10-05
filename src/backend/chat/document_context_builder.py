@@ -175,10 +175,10 @@ def _apply_fifo_inlining(
             continue
         if doc.token_count > document_budget:
             logger.debug(
-                "conversation=%s document '%s' (%s tokens) exceeds budget (%s); "
+                "conversation=%s document=%s (%s tokens) exceeds budget (%s); "
                 "keeping tool_call_only.",
                 conversation_id,
-                doc.title,
+                doc.document_id,
                 doc.token_count,
                 document_budget,
             )
@@ -189,9 +189,9 @@ def _apply_fifo_inlining(
             inlined.discard(evicted_idx)
             inlined_total -= docs[evicted_idx].token_count
             logger.debug(
-                "conversation=%s evicted document title=%s",
+                "conversation=%s evicted document=%s",
                 conversation_id,
-                docs[evicted_idx].title,
+                docs[evicted_idx].document_id,
             )
 
         if inlined_total + doc.token_count <= document_budget:
@@ -199,9 +199,9 @@ def _apply_fifo_inlining(
             inlined_order.append(i)
             inlined_total += doc.token_count
             logger.debug(
-                "conversation=%s inlined document title=%s",
+                "conversation=%s inlined document=%s",
                 conversation_id,
-                doc.title,
+                doc.document_id,
             )
 
     result: list[_DocumentEntry] = []

@@ -58,7 +58,7 @@ def last_model_retry_soft_fail(
         except ModelCannotRetry as exc:
             return str(exc.message)
         except ModelRetry as exc:
-            logger.error("Tool '%s' raised ModelRetry: %s", ctx, exc.message)
+            logger.error("Tool '%s' raised ModelRetry: %s", ctx.tool_name, exc.message)
             if (ctx.retries.get(ctx.tool_name, 0) + 1) >= ctx.max_retries:
                 logger.error("Max retries reached for tool '%s'.", ctx.tool_name)
                 # A bit of a hack to signal that we cannot retry here, while preventing

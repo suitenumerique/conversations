@@ -1,5 +1,6 @@
 """Tests for the Brave web search tool."""
 
+import logging
 from typing import Sequence
 
 # pylint: disable=too-many-lines
@@ -248,6 +249,19 @@ async def test_agent_web_search_brave_http_error(mocked_context):
         "server error" in str(exc.value).lower()
         or "temporarily unavailable" in str(exc.value).lower()
     )
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_agent_web_search_brave_client_error_does_not_log_query(mocked_context, caplog):
+    """The query string rendered by httpx into its errors must not reach the logs."""
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(return_value=httpx.Response(status_code=400))
+
+    with caplog.at_level(logging.DEBUG):
+        await web_search_brave(mocked_context, "my secret question")
+
+    assert f"Brave API client error (status 400) on {BRAVE_WEB_SEARCH_URL}" in caplog.text
+    assert "secret" not in caplog.text
 
 
 @pytest.mark.asyncio

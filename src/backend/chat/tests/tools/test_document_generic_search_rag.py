@@ -391,13 +391,13 @@ async def test_document_search_rag_http_status_error(settings, caplog):
 
     # Verify the exception message
     assert tool_result == (
-        "Document search service is currently unavailable: Server error '500 Internal "
-        "Server Error' for url 'https://albert.api.etalab.gouv.fr/v1/search'\n"
-        "For more information check: "
-        "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500 You must "
+        "Document search service is currently unavailable (status 500). You must "
         "explain this to the user and not try to answer based on your knowledge."
     )
 
     # Verify that error was logged
     assert "RAG document search failed for tool legal_documents" in caplog.records[0].message
     assert "Document search service is currently unavailable" in caplog.records[1].message
+    # The request url must not reach the logs nor the model
+    assert "albert.api.etalab.gouv.fr" not in caplog.text
+    assert "albert.api.etalab.gouv.fr" not in tool_result

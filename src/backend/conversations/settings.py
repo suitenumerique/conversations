@@ -1003,6 +1003,9 @@ class Base(
                 environment=cls.__name__.lower(),
                 release=get_release(),
                 integrations=[DjangoIntegration()],
+                # Request bodies and stack frame locals carry user prompts.
+                max_request_body_size="never",
+                include_local_variables=False,
             )
             sentry_sdk.set_tag("application", "backend")
 
@@ -1298,6 +1301,11 @@ class Test(Base):
                 "level": "INFO",
                 "propagate": False,
             },
+            # httpx (and httpx2, the OpenAI SDK transport) log every request url at
+            # INFO, query string included: web search queries would reach the logs.
+            # Set here rather than relying on langfuse doing it for httpx on import.
+            "httpx": {"level": "WARNING"},
+            "httpx2": {"level": "WARNING"},
         },
     }
 

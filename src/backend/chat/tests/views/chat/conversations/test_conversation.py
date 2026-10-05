@@ -204,6 +204,20 @@ def test_post_conversation_no_messages(api_client):
     assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
+def test_post_conversation_invalid_messages_does_not_log_user_prompt(api_client, caplog):
+    """An invalid payload is logged without echoing the user's input."""
+    chat_conversation = ChatConversationFactory()
+    url = f"/api/v1.0/chats/{chat_conversation.pk}/conversation/"
+    api_client.force_login(chat_conversation.owner)
+
+    with caplog.at_level(logging.DEBUG):
+        response = api_client.post(url, {"messages": ["My secret prompt"]}, format="json")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Frontend input error on fields: ['messages']" in caplog.text
+    assert "My secret prompt" not in caplog.text
+
+
 @freeze_time("2025-07-25T10:36:35.297675Z")
 @respx.mock
 def test_post_conversation_data_protocol(api_client, mock_openai_stream, hello_conversation_data):

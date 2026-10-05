@@ -60,6 +60,11 @@ class ObservabilitySettings:
                 ),
                 "propagate": False,
             },
+            # httpx (and httpx2, the OpenAI SDK transport) log every request url at
+            # INFO, query string included: web search queries would reach the logs.
+            # Set here rather than relying on langfuse doing it for httpx on import.
+            "httpx": {"level": "WARNING"},
+            "httpx2": {"level": "WARNING"},
         },
     }
 

@@ -102,9 +102,7 @@ async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
         f"(part {idx}/{total_chunks}):\n'''\n{chunk}\n'''\n\n"
     )
 
-    logger.debug(
-        "[summarize] CHUNK %s/%s prompt=> %s", idx, total_chunks, sum_prompt[0:100] + "..."
-    )
+    logger.debug("[summarize] CHUNK %s/%s", idx, total_chunks)
 
     try:
         resp = await summarization_agent.run(sum_prompt, usage=ctx.usage)
@@ -114,7 +112,6 @@ async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
             "An error occurred while summarizing a part of the document chunk."
         ) from exc
 
-    logger.debug("[summarize] CHUNK %s/%s response<= %s", idx, total_chunks, resp.output or "")
     return resp.output or ""
 
 
@@ -172,10 +169,9 @@ async def _summarize_text_attachments(
     )
 
     logger.info(
-        "[summarize] chunking: %s parts (size~%s), instructions='%s'",
+        "[summarize] chunking: %s parts (size~%s)",
         sum(len(chunks) for chunks in documents_chunks),
         chunk_size,
-        instructions_hint,
     )
 
     # Parallelize the chunk summarization with a semaphore (inside the
@@ -206,7 +202,7 @@ async def _summarize_text_attachments(
         "Respond directly with the final summary."
     )
 
-    logger.debug("[summarize] MERGE prompt=> %s", merged_prompt)
+    logger.debug("[summarize] MERGE")
 
     try:
         merged_resp = await summarization_agent.run(merged_prompt, usage=ctx.usage)
@@ -218,8 +214,6 @@ async def _summarize_text_attachments(
 
     if not final_summary:
         raise ModelRetry("The summarization produced an empty result.")
-
-    logger.debug("[summarize] MERGE response<= %s", final_summary)
 
     return ToolReturn(
         return_value=final_summary,

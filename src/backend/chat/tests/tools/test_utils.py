@@ -1,6 +1,7 @@
 """Tests for chat tool utilities."""
 
 import inspect
+import logging
 from typing import get_type_hints
 
 import pytest
@@ -152,3 +153,29 @@ async def test_last_model_retry_soft_fail_returns_message_when_model_cannot_retr
     # Test when retries have been exhausted - should return message
     result = await failing_tool(ctx, should_fail=True)
     assert result == "This is broken duh."
+
+
+@pytest.mark.asyncio
+async def test_last_model_retry_soft_fail_does_not_log_run_context(caplog):
+    """The run context carries the user prompt and history: only the tool name is logged."""
+
+    @last_model_retry_soft_fail
+    async def failing_tool(_ctx: RunContext) -> str:
+        """Tool that raises ModelRetry."""
+        raise ModelRetry("Please retry.")
+
+    class MockContext:
+        """Fake context whose repr exposes the prompt, like RunContext does."""
+
+        max_retries = 3
+        retries = {}
+        tool_name = "failing_tool"
+
+        def __repr__(self):
+            return "RunContext(prompt='My secret prompt')"
+
+    with caplog.at_level(logging.ERROR), pytest.raises(ModelRetry):
+        await failing_tool(MockContext())
+
+    assert "Tool 'failing_tool' raised ModelRetry: Please retry." in caplog.text
+    assert "My secret prompt" not in caplog.text

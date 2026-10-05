@@ -73,10 +73,12 @@ def _create_document_search_rag(agent, name, description, backend, ids):
         try:
             rag_results = await document_store.asearch(query)
         except HTTPStatusError as exc:
-            logger.error(
-                "RAG document search failed for tool %s with error: %s", name, exc, exc_info=True
-            )
-            raise ModelRetry(f"Document search service is currently unavailable: {exc}") from exc
+            # str(exc) carries the request url: log the status code only.
+            status_code = exc.response.status_code
+            logger.error("RAG document search failed for tool %s (status %s)", name, status_code)
+            raise ModelRetry(
+                f"Document search service is currently unavailable (status {status_code})."
+            ) from exc
 
         ctx.usage += RunUsage(
             input_tokens=rag_results.usage.prompt_tokens,

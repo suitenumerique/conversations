@@ -283,7 +283,8 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         except ValidationError as exc:
             # Log validation error, because it should not happen
             # If there is a problem, we need to fix the frontend or backend...
-            logger.exception("Frontend input error: %s", exc)
+            # Only the field names: the error details echo the user's input.
+            logger.error("Frontend input error on fields: %s", sorted(exc.detail))
             raise  # Let DRF handle the exception and return a 400 response
 
         messages = serializer.validated_data["messages"]
