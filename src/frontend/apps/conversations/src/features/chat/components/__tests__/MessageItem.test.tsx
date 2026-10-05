@@ -17,7 +17,7 @@ const TEST_CO2_IMPACT_KG = 0.00002191613089507352;
 
 // Mock react-markdown (ESM module)
 vi.mock('react-markdown', () => ({
-  MarkdownHooks: ({ children }: { children: string }) => (
+  default: ({ children }: { children: string }) => (
     <div data-testid="markdown-content">{children}</div>
   ),
 }));
