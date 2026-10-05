@@ -110,7 +110,7 @@ def test_no_co2_metadata_when_zero(conversation, service, final_output):
         ),
     ],
 )
-def test_usage_accumulates_across_runs(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
+def test_usage_accumulates_across_runs(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913, PLR0917
     conversation,
     service,
     final_output,

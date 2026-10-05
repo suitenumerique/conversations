@@ -315,7 +315,7 @@ async def build_documents_listing(  # noqa: PLR0913 # pylint: disable=too-many-a
             title, content = await read_attachment_content(attachment)
             token_count = count_approx_tokens(content)
             inlineable = True
-        except Exception as exc:  # pylint: disable=broad-except  # noqa: BLE001
+        except Exception as exc:  # pylint: disable=broad-except
             logger.warning(
                 "conversation=%s could not inline attachment '%s'; keeping it tool_call_only: %s",
                 conversation_id,

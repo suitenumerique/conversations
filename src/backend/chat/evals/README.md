@@ -249,8 +249,8 @@ _DATASET_PATH = Path(__file__).resolve().parent.parent / "datasets" / "<name>.ya
 MY_CONFIG = EvalConfig(
     name="<name>",
     dataset_path=_DATASET_PATH,
-    enable_tools=False,          # True = ConversationAgent with real tools
-    make_task_fn=None,           # see below if you need a custom agent
+    enable_tools=False,  # True = ConversationAgent with real tools
+    make_task_fn=None,  # see below if you need a custom agent
     dataset_evaluator_types=[],  # span evaluator types used in per-case YAML
 )
 ```
@@ -272,7 +272,7 @@ REGISTRY: dict[str, EvalConfig] = {
     "faithfulness_rag": FAITHFULNESS_RAG,
     "incertitude": INCERTITUDE,
     "tool_selection": TOOL_SELECTION,
-    "<name>": MY_CONFIG,          # add here
+    "<name>": MY_CONFIG,  # add here
 }
 ```
 
@@ -285,6 +285,7 @@ Subclass `pydantic_evals.evaluators.Evaluator`, implement `evaluate(ctx) -> Eval
 from dataclasses import dataclass
 from pydantic_evals.evaluators import Evaluator, EvaluatorContext
 from pydantic_evals.evaluators.evaluator import EvaluationReason
+
 
 @dataclass(repr=False)
 class MyEvaluator(Evaluator):

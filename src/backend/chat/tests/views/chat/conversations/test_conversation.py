@@ -94,7 +94,7 @@ def _make_pydantic_request(  # pylint: disable=too-many-arguments,too-many-posit
     }
 
 
-def _make_pydantic_text_response(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
+def _make_pydantic_text_response(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913, PLR0917
     run_id,
     content,
     timestamp=FROZEN_TIMESTAMP,

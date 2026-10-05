@@ -12,6 +12,10 @@ and this project adheres to
 
 - 🔒️(project) keep user prompts out of logs and telemetry
 
+### Changed
+
+- ⬆️(dependencies) upgrade back-end and front-end dependencies
+
 ## [0.0.25] - 2026-10-01
 
 ### Added

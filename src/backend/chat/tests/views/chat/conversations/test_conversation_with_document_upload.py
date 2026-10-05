@@ -513,6 +513,7 @@ def test_post_conversation_with_document_upload(
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
             "cache_write_tokens": 0,
+            "cost": None,
             "details": {},
             "input_audio_tokens": 0,
             "input_tokens": 50,
@@ -575,6 +576,7 @@ def test_post_conversation_with_document_upload(
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
             "cache_write_tokens": 0,
+            "cost": None,
             "details": {},
             "input_audio_tokens": 0,
             "input_tokens": 50,
@@ -659,7 +661,7 @@ def test_post_conversation_with_document_upload_feature_disabled(
 @respx.mock
 @respx.mock
 @freeze_time()
-def test_post_conversation_with_document_upload_summarize(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
+def test_post_conversation_with_document_upload_summarize(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913, PLR0917
     api_client,
     mock_document_api,  # pylint: disable=unused-argument
     sample_pdf_content,
@@ -838,6 +840,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
             "cache_write_tokens": 0,
+            "cost": None,
             "details": {},
             "input_audio_tokens": 0,
             "input_tokens": 50,
@@ -894,6 +897,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
             "cache_write_tokens": 0,
+            "cost": None,
             "details": {},
             "input_audio_tokens": 0,
             "input_tokens": 50,
@@ -1090,6 +1094,7 @@ def test_post_conversation_with_odt_document_upload(
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
             "cache_write_tokens": 0,
+            "cost": None,
             "details": {},
             "input_audio_tokens": 0,
             "input_tokens": 50,
@@ -1152,6 +1157,7 @@ def test_post_conversation_with_odt_document_upload(
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
             "cache_write_tokens": 0,
+            "cost": None,
             "details": {},
             "input_audio_tokens": 0,
             "input_tokens": 50,

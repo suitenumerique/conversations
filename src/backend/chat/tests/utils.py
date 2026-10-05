@@ -13,6 +13,7 @@ ZERO_USAGE = {
     "cache_audio_read_tokens": 0,
     "cache_read_tokens": 0,
     "cache_write_tokens": 0,
+    "cost": None,
     "details": {},
     "input_audio_tokens": 0,
     "input_tokens": 0,

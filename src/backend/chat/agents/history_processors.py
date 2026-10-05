@@ -191,7 +191,7 @@ def safe_clean_tool_history(messages: list[ModelMessage]) -> list[ModelMessage]:
     """Compact tool history, falling back to the input on unexpected errors."""
     try:
         return clean_tool_history(messages)
-    except Exception as exc:  # pylint: disable=broad-except  # noqa: BLE001
+    except Exception as exc:  # pylint: disable=broad-except
         logger.warning(
             "Tool history cleanup failed, using raw history: %s",
             exc,
