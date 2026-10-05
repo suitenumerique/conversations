@@ -12,6 +12,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(back) run model-health poll and de-index as celery beat tasks
 - ✨(back) add the data.gouv connector for a beta cohort
 - ✨(back) add Staan web search tool
 - ✨(front) let users activate or force the DataGouv connector
@@ -24,6 +25,10 @@ and this project adheres to
 - ⬆️(dependencies) upgrade pyjwt to 2.14.0
 - ⬆️(dependencies) upgrade urllib3 to 2.8.0
 - ⚡️(front) read the cached config once per page load i/o on every render
+
+### Removed
+
+- 🔥(helm) remove the model-health and de-index CronJobs
 
 ### Fixed
 

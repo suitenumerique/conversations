@@ -1,10 +1,13 @@
 """Celery tasks for the chat application."""
 
+import io
 import logging
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.storage import default_storage
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.utils.module_loading import import_string
 
 from asgiref.sync import async_to_sync
@@ -19,6 +22,8 @@ from chat.agents.history_processors import (
     should_generate_conversation_summary,
 )
 from chat.constants import (
+    DEINDEX_TASK_SOFT_TIME_LIMIT,
+    DEINDEX_TASK_TIME_LIMIT,
     SUMMARIZATION_TASK_SOFT_TIME_LIMIT,
     SUMMARIZATION_TASK_TIME_LIMIT,
 )
@@ -152,3 +157,38 @@ def summarize_conversation_history(conversation_id: str) -> None:
         conversation.persist_history_summary(summary, checkpoint)
     finally:
         conversation.release_history_summarization_claim()
+
+
+@app.task(ignore_result=True)
+def fetch_model_health_task(provider):
+    """Run `fetch_model_health` for one provider from Celery beat.
+
+    The command takes its own cache lock sized by
+    `ModelHealthSettings.poll_interval_minutes`, so a shorter beat interval only
+    produces cheap "Skipping" runs. A `CommandError` is logged with its
+    traceback, not re-raised: the next tick retries anyway.
+    """
+    # Celery redirects stdout to the log at WARNING level, and the command
+    # prints a "Skipping" line on most ticks; capture it and log at DEBUG instead.
+    out = io.StringIO()
+    try:
+        call_command("fetch_model_health", "--provider", provider, stdout=out)
+    except CommandError:
+        logger.exception("fetch_model_health_task: provider %s failed.", provider)
+    finally:
+        output = out.getvalue()
+        if output:
+            logger.debug(output)
+
+
+@app.task(
+    ignore_result=True,
+    soft_time_limit=DEINDEX_TASK_SOFT_TIME_LIMIT,
+    time_limit=DEINDEX_TASK_TIME_LIMIT,
+)
+def deindex_inactive_collections_task():
+    """Run `deindex_inactive_collections` from Celery beat on a cron schedule."""
+    try:
+        call_command("deindex_inactive_collections")
+    except CommandError:
+        logger.exception("deindex_inactive_collections_task failed.")

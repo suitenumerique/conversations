@@ -1,6 +1,34 @@
 """Django configuration mixin for Celery broker, result backend and task limits."""
 
+from celery.schedules import crontab
 from configurations import values
+
+# Providers the fetch_model_health command supports. Duplicated from the
+# command's own PROVIDERS dict (chat.management.commands.fetch_model_health)
+# because settings must not import that module, which imports Django models.
+MODEL_HEALTH_POLL_PROVIDERS = ("albert",)
+
+
+def crontab_from_string(value):
+    """Parse a five-field cron string into a Celery crontab.
+
+    Celery runs the schedule only when both `day_of_month` and `day_of_week`
+    match. Vixie cron runs it when either matches.
+    """
+    fields = value.split()
+    if len(fields) != 5:
+        raise ValueError(
+            "DEINDEX_INACTIVE_COLLECTIONS_CRON must have five space-separated fields "
+            f"(minute hour day_of_month month day_of_week), got {value!r}."
+        )
+    minute, hour, day_of_month, month_of_year, day_of_week = fields
+    return crontab(
+        minute=minute,
+        hour=hour,
+        day_of_month=day_of_month,
+        month_of_year=month_of_year,
+        day_of_week=day_of_week,
+    )
 
 
 class CelerySettings:
@@ -68,3 +96,47 @@ class CelerySettings:
         environ_name="DOCUMENT_PARSE_RESULT_TIMEOUT_SECONDS",
         environ_prefix=None,
     )
+    # Both periodic tasks default to off: only Albert deployments have a health
+    # endpoint to poll and RAG collections to clean.
+    MODEL_HEALTH_POLL_PROVIDER = values.Value(
+        "", environ_name="MODEL_HEALTH_POLL_PROVIDER", environ_prefix=None
+    )
+    # How often beat enqueues the poll. The command's cache lock, sized by
+    # ModelHealthSettings.poll_interval_minutes, decides when a poll really runs.
+    MODEL_HEALTH_POLL_INTERVAL_SECONDS = values.PositiveIntegerValue(
+        60, environ_name="MODEL_HEALTH_POLL_INTERVAL_SECONDS", environ_prefix=None
+    )
+    # Five-field cron string ("0 2 * * *"). Empty disables the task.
+    DEINDEX_INACTIVE_COLLECTIONS_CRON = values.Value(
+        "", environ_name="DEINDEX_INACTIVE_COLLECTIONS_CRON", environ_prefix=None
+    )
+
+    @property
+    def CELERY_BEAT_SCHEDULE(self):  # pylint: disable=invalid-name
+        """Beat schedule built from the MODEL_HEALTH_POLL_* and DEINDEX_* settings."""
+        schedule = {}
+        if self.MODEL_HEALTH_POLL_PROVIDER:
+            if self.MODEL_HEALTH_POLL_PROVIDER not in MODEL_HEALTH_POLL_PROVIDERS:
+                raise ValueError(
+                    f"MODEL_HEALTH_POLL_PROVIDER must be one of {MODEL_HEALTH_POLL_PROVIDERS}, "
+                    f"got {self.MODEL_HEALTH_POLL_PROVIDER!r}."
+                )
+            interval = self.MODEL_HEALTH_POLL_INTERVAL_SECONDS
+            if interval < 1:
+                raise ValueError(
+                    f"MODEL_HEALTH_POLL_INTERVAL_SECONDS must be at least 1, got {interval!r}."
+                )
+            schedule["fetch-model-health"] = {
+                "task": "chat.tasks.fetch_model_health_task",
+                "schedule": interval,
+                "args": (self.MODEL_HEALTH_POLL_PROVIDER,),
+                # A poll that waited a full interval in the queue is stale; drop it
+                # so a worker outage does not produce a burst of polls on recovery.
+                "options": {"expires": interval},
+            }
+        if self.DEINDEX_INACTIVE_COLLECTIONS_CRON:
+            schedule["deindex-inactive-collections"] = {
+                "task": "chat.tasks.deindex_inactive_collections_task",
+                "schedule": crontab_from_string(self.DEINDEX_INACTIVE_COLLECTIONS_CRON),
+            }
+        return schedule
