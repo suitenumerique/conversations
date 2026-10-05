@@ -91,7 +91,7 @@ class Command(BaseCommand):
                 "(= regression) when compared against the baseline."
             )
 
-        # Span-based evaluators (HasMatchingSpan & co) read pydantic-evals'
+        # Span-based evaluators (CalledTool & co) read pydantic-evals'
         # span_tree, which is only populated when a real OTel SDK tracer provider
         # is installed. logfire.configure(send_to_logfire=False) sets one up
         # locally (no network, no token); Agent.instrument_all() makes pydantic-ai

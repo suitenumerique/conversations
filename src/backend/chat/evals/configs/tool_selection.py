@@ -4,12 +4,11 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from pydantic_ai import RunContext
-from pydantic_evals.evaluators import HasMatchingSpan
 
 from chat.clients.pydantic_ai import AIAgentService
 from chat.evals import EvalInputs
 from chat.evals.configs.base import EvalConfig
-from chat.evals.evaluators import HasNoMatchingSpan
+from chat.evals.evaluators import CalledTool, DidNotCallTool
 from chat.evals.production_agent import (
     EVAL_FAKE_DOCUMENT_LISTING,
     build_production_agent_service,
@@ -88,6 +87,6 @@ def make_tool_selection_task_fn(model_hrid: str):
 TOOL_SELECTION = EvalConfig(
     name="tool_selection",
     dataset_path=_DATASET_PATH,
-    dataset_evaluator_types=[HasMatchingSpan, HasNoMatchingSpan],
+    dataset_evaluator_types=[CalledTool, DidNotCallTool],
     make_task_fn=make_tool_selection_task_fn,
 )

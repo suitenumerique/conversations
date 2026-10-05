@@ -16,11 +16,10 @@ from pathlib import Path
 
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
-from pydantic_evals.evaluators import HasMatchingSpan
 
 from chat.evals import EvalInputs
 from chat.evals.configs.base import EvalConfig
-from chat.evals.evaluators import HasNoMatchingSpan
+from chat.evals.evaluators import CalledTool, DidNotCallTool
 from chat.evals.production_agent import (
     EVAL_FAKE_DOCUMENT_LISTING,
     build_production_agent_service,
@@ -41,13 +40,13 @@ _DATASET_PATH = Path(__file__).resolve().parent.parent / "datasets" / "faithfuln
 _NO_PASSAGES = "No matching passages were found."
 
 # Referenced by dotted path from the dataset YAML `config.extra_evaluators`.
-RAN_RAG_TOOL = HasMatchingSpan(
-    query={"has_attributes": {"gen_ai.tool.name": "document_search_rag"}},
+RAN_RAG_TOOL = CalledTool(
+    name_regex="^document_search_rag$",
     evaluation_name="ran_document_search_rag",
 )
 
-DID_NOT_USE_WEB_SEARCH = HasNoMatchingSpan(
-    query={"has_attributes": {"gen_ai.tool.name": "web_search"}},
+DID_NOT_USE_WEB_SEARCH = DidNotCallTool(
+    name_regex="^web_search$",
     evaluation_name="did_not_call_web_search",
 )
 

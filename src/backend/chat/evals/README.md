@@ -23,7 +23,7 @@ chat/evals/
 ├── evaluators/
 │   ├── __init__.py
 │   ├── url_regex.py         # UrlRegexEvaluator — deterministic URL check
-│   └── span.py              # HasNoMatchingSpan — "tool was NOT called" check
+│   └── tool_calls.py        # CalledTool / DidNotCallTool — match tool calls by name regex
 ├── runs/
 │   ├── index.json           # catalogue of saved runs
 │   └── <timestamp>_<git>.json
@@ -56,9 +56,9 @@ Management commands (under `chat/management/commands/`):
 | Dataset | What it tests | Evaluators |
 |---|---|---|
 | `url_hallucination` | The agent never invents `http(s)://` URLs; only uses URLs from tool output or user message | `UrlRegexEvaluator` (regex) + `LLMJudge` (semantic) |
-| `faithfulness_rag` | Answers are grounded in the retrieved chunks and add no facts beyond them | `HasMatchingSpan` (RAG tool ran) + `HasNoMatchingSpan` (no web search) + `LLMJudge` (faithfulness) |
+| `faithfulness_rag` | Answers are grounded in the retrieved chunks and add no facts beyond them | `CalledTool` (RAG tool ran) + `DidNotCallTool` (no web search) + `LLMJudge` (faithfulness) |
 | `incertitude` | On high-stakes French service-public questions whose answer depends on the user's personal situation, the agent asks to clarify / defers to the competent body instead of guessing a figure, eligibility, or outcome | `LLMJudge` (uncertainty) |
-| `tool_selection` | The agent calls the right tool (`web_search`, `self_documentation`, `document_search_rag`, `summarize`) or none, including adversarial French phrasing | `HasMatchingSpan` / `HasNoMatchingSpan` per case |
+| `tool_selection` | The agent calls the right tool (`web_search`, `self_documentation`, `document_search_rag`, `summarize`) or none, including adversarial French phrasing | `CalledTool` / `DidNotCallTool` per case |
 
 RAG/summarize cases set `inputs.requires_documents: true`, which injects a fake document listing (same JSON shape as production) so those tools are visible to the model. Optional `inputs.tool_output` JSON can stage per-case simulated tool payloads (`web_search`, `document_search_rag`, `summarize`) for multi-tool flows — see `evals/tool_stub_responses.py`. Use `--runs 3` on medium/hard cases to measure robustness on ambiguous phrasing.
 
@@ -204,7 +204,7 @@ cases:
       description: optional      # shown as a tooltip in the HTML dashboard
 ```
 
-**Span-based shape** (tool-call eval, e.g. tool_selection): use per-case `HasMatchingSpan` / `HasNoMatchingSpan` evaluators. pydantic_ai emits a `"running tool"` span with attribute `gen_ai.tool.name` for every tool call.
+**Span-based shape** (tool-call eval, e.g. tool_selection): use per-case `CalledTool` / `DidNotCallTool` evaluators. They match the `gen_ai.tool.name` attribute pydantic_ai sets on every tool span, by regex, whatever the span name (`"running tool"` or `"execute_tool <tool>"`). The regex is searched anywhere in the tool name, so anchor it (`"^my_tool$"`) to match one tool exactly: `"my_tool"` would also match `my_tool_v2`.
 
 ```yaml
 cases:
@@ -215,10 +215,8 @@ cases:
       difficulty: easy
       category: about_self
     evaluators:
-      - HasMatchingSpan:
-          query:
-            has_attributes:
-              gen_ai.tool.name: "my_tool"
+      - CalledTool:
+          name_regex: "^my_tool$"
           evaluation_name: called_my_tool
 
   - name: capital_of_france
@@ -228,10 +226,8 @@ cases:
       difficulty: easy
       category: about_other
     evaluators:
-      - HasNoMatchingSpan:
-          query:
-            has_attributes:
-              gen_ai.tool.name: "my_tool"
+      - DidNotCallTool:
+          name_regex: "^my_tool$"
           evaluation_name: did_not_call_my_tool
 ```
 
