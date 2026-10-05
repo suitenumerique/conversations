@@ -28,6 +28,7 @@ import { SummarizationProgress } from '@/features/chat/components/SummarizationP
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
 import { getMessageCo2Impact } from '@/features/chat/utils/getMessageCo2Impact';
 import { getMessageText } from '@/features/chat/utils/getMessageText';
+import { isMessageInterrupted } from '@/features/chat/utils/isMessageInterrupted';
 
 import { ChatErrorType } from './ChatError';
 
@@ -202,6 +203,8 @@ export interface MessageItemProps {
   streamingMessageHeight: number | null;
   status: 'submitted' | 'streaming' | 'ready' | 'error';
   chatErrorType?: ChatErrorType;
+  /** True while the backend reports a turn still running for this conversation. */
+  isConversationStreaming?: boolean;
   onRetry?: () => void;
   conversationId: string | undefined;
   isSourceOpen: string | null;
@@ -218,6 +221,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   streamingMessageHeight,
   status,
   chatErrorType,
+  isConversationStreaming = false,
   onRetry,
   conversationId,
   isSourceOpen,
@@ -261,6 +265,13 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     (status === 'streaming' || status === 'submitted');
 
   const co2ImpactKg = getMessageCo2Impact(message);
+
+  // A stored checkpoint of a turn that never finished: the text stops where
+  // the stream was cut, so say so rather than let it read as a full answer.
+  // Unless the turn is merely running without us, in which case the text is
+  // not final and the conversation already says so above the composer.
+  const isInterrupted =
+    isMessageInterrupted(message) && !isConversationStreaming;
 
   const sourceParts = React.useMemo(
     () =>
@@ -567,6 +578,14 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
             )}
           </Box>
 
+          {isInterrupted && (
+            <Box $margin={{ top: 'tiny' }} data-testid="interrupted-answer">
+              <Text $theme="greyscale" $variation="600" $size="sm">
+                {t('This answer was interrupted and is incomplete.')}
+              </Text>
+            </Box>
+          )}
+
           {message.role === 'assistant' &&
             hasAssistantOutput &&
             !(isLastAssistantMessage && status === 'streaming') && (
@@ -693,6 +712,13 @@ const arePropsEqual = (
     return false;
   }
 
+  if (
+    isMessageInterrupted(prevProps.message) !==
+    isMessageInterrupted(nextProps.message)
+  ) {
+    return false;
+  }
+
   // Check parts changes (for streaming tool invocations and sources)
   const prevPartsLength = prevProps.message.parts.length;
   const nextPartsLength = nextProps.message.parts.length;
@@ -747,6 +773,10 @@ const arePropsEqual = (
     return false;
   }
   if (prevProps.chatErrorType !== nextProps.chatErrorType) {
+    return false;
+  }
+
+  if (prevProps.isConversationStreaming !== nextProps.isConversationStreaming) {
     return false;
   }
   if (prevProps.onRetry !== nextProps.onRetry) {
