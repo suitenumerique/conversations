@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Security
+
+- 🔒️(project) keep user prompts out of logs and telemetry
+
 ## [0.0.25] - 2026-10-01
 
 ### Added

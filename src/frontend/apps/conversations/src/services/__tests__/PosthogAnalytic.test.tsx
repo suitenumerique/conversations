@@ -1,5 +1,7 @@
+import { render } from '@testing-library/react';
 import posthog from 'posthog-js';
 import { PropsWithChildren } from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { PostHogAnalytic } from '../PosthogAnalytic';
 
@@ -8,6 +10,7 @@ vi.mock('posthog-js', () => ({
     identify: vi.fn(),
     alias: vi.fn(),
     capture: vi.fn(),
+    init: vi.fn(),
   },
 }));
 
@@ -60,5 +63,25 @@ describe('PostHogAnalytic.trackEvent', () => {
 
     expect(posthog.capture).not.toHaveBeenCalled();
     expect(posthog.identify).not.toHaveBeenCalled();
+  });
+});
+
+describe('PostHogProvider', () => {
+  it('keeps user prompts out of autocapture and recordings', () => {
+    const analytic = new PostHogAnalytic({
+      id: 'posthog-id',
+      host: 'https://posthog.example.com',
+    });
+
+    render(<MemoryRouter>{analytic.Provider()}</MemoryRouter>);
+
+    expect(posthog.init).toHaveBeenCalledWith(
+      'posthog-id',
+      expect.objectContaining({
+        mask_all_text: true,
+        mask_all_element_attributes: true,
+        disable_session_recording: true,
+      }),
+    );
   });
 });

@@ -75,6 +75,11 @@ export function PostHogProvider({
       },
       capture_pageview: false,
       capture_pageleave: true,
+      // Messages and conversation titles are user prompts: autocapture must
+      // not read element text or attributes, and recordings would show them.
+      mask_all_text: true,
+      mask_all_element_attributes: true,
+      disable_session_recording: true,
     });
   }, [conf?.host, conf?.id]);
 

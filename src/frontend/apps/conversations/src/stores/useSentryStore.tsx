@@ -19,7 +19,12 @@ export const useSentryStore = create<SentryState>((set, get) => ({
     const sentry = Sentry.init({
       dsn,
       environment,
-      integrations: [Sentry.replayIntegration()],
+      integrations: [
+        // Conversation titles start as the user's first prompt, and click
+        // breadcrumbs record the clicked elements' aria-label and title.
+        Sentry.breadcrumbsIntegration({ dom: false }),
+        Sentry.replayIntegration({ maskAllText: true, maskAllInputs: true }),
+      ],
       release: packageJson.version,
       replaysSessionSampleRate: 0.1,
       replaysOnErrorSampleRate: 1.0,
