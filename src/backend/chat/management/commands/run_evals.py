@@ -299,6 +299,17 @@ class Command(BaseCommand):
             )
         return evaluators
 
+    @staticmethod
+    def _without_llm_judges(dataset: Dataset) -> None:
+        """Drop every LLMJudge, dataset-level and per-case (YAML), from the dataset."""
+
+        def keep(evaluators):
+            return [evaluator for evaluator in evaluators if not isinstance(evaluator, LLMJudge)]
+
+        dataset.evaluators = keep(dataset.evaluators)
+        for case in dataset.cases:
+            case.evaluators = keep(case.evaluators)
+
     def _run_dataset(
         self, config: EvalConfig, options: dict, use_llm_judge: bool
     ) -> EvaluationReport:
@@ -308,6 +319,8 @@ class Command(BaseCommand):
         dataset = self._load_dataset(config, options["case"])
         # Extend (not replace): keep dataset-level evaluators declared in the YAML.
         dataset.evaluators = [*dataset.evaluators, *self._build_evaluators(config, use_llm_judge)]
+        if not use_llm_judge:
+            self._without_llm_judges(dataset)
 
         if config.make_task_fn is not None:
             run_agent = config.make_task_fn(settings.LLM_DEFAULT_MODEL_HRID)

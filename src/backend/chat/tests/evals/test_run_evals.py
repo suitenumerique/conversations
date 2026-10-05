@@ -4,6 +4,7 @@
 from django.core.management.base import CommandError
 
 import pytest
+from pydantic_evals.evaluators import LLMJudge
 
 from chat.evals.configs import REGISTRY
 from chat.evals.target.runtime import Target
@@ -27,6 +28,18 @@ def test_case_filter_selects_only_datasets_containing_the_case():
     ]
 
     assert [config.name for config in matching] == ["url_hallucination"]
+
+
+def test_without_llm_judges_strips_dataset_and_case_judges():
+    """--no-llm-judge must drop every LLMJudge, including the per-case ones in the YAML."""
+    dataset = Command()._load_dataset(REGISTRY["chat_instructions"], None)
+    assert any(isinstance(e, LLMJudge) for case in dataset.cases for e in case.evaluators)
+
+    Command._without_llm_judges(dataset)
+
+    evaluators = [*dataset.evaluators, *(e for case in dataset.cases for e in case.evaluators)]
+    assert evaluators
+    assert not any(isinstance(e, LLMJudge) for e in evaluators)
 
 
 def _options(**overrides):
