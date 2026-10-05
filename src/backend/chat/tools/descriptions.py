@@ -151,3 +151,38 @@ CONVERSATION_SUMMARY_TOOL_DESCRIPTION = (
     "information and the previous summary.\n\n"
     "## Updated Summary:\n"
 )
+
+TABULAR_SYSTEM_PROMPT = """
+[Internal context] The user attached these spreadsheet files to this conversation: {files}.
+Their rows are NOT in your context. For any question about their content (counts,
+totals, averages, filters, lists, comparisons), first call describe_tables to get
+the table and column names, then call query_table.
+Never estimate, guess or compute values yourself: answer only with the numbers
+returned by query_table. If a query fails, fix it using the error message and retry.
+"""
+
+DESCRIBE_TABLES_TOOL_DESCRIPTION = """
+List the tables loaded from the user's spreadsheet files (CSV, Excel): table names,
+source file, row count, columns with their type, and a few sample rows.
+Call it before query_table.
+"""
+
+QUERY_TABLE_TOOL_DESCRIPTION = """
+Compute results from a spreadsheet table: filter rows, group them, aggregate
+(count, sum, mean, median, min, max, nunique), sort and limit. Use it for any
+count, total, average, ranking or list from spreadsheet data.
+
+- Use the exact table and column names from describe_tables.
+- filters are combined with AND; use op "in" with a list for alternatives.
+- Without group_by and aggregations, matching rows are returned.
+- Aggregate result columns are named <column>_<func> (count of rows: "count");
+  sort on these names.
+- For a date column, group_by may set period to year, quarter or month.
+- join adds the columns of a second table (inner join on left_on = right_on).
+- At most 100 rows are returned: aggregate rather than listing rows when you can.
+
+Example, paid amount per service, highest first:
+table="invoices", filters=[{"column": "status", "op": "==", "value": "Paid"}],
+group_by=[{"column": "service"}], aggregations=[{"func": "sum", "column": "amount"}],
+sort=[{"column": "amount_sum", "descending": true}]
+"""

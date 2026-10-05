@@ -3,6 +3,9 @@
 
 from unittest.mock import MagicMock, patch
 
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+
 import pytest
 from asgiref.sync import sync_to_async
 from celery.exceptions import TimeoutError as CeleryTimeoutError
@@ -11,6 +14,7 @@ from pydantic_ai.messages import DocumentUrl
 from chat.clients.pydantic_ai import DOCUMENT_URL_PREFIX, AIAgentService
 from chat.enums import CollectionIndexState
 from chat.factories import ChatConversationFactory
+from chat.models import AttachmentStatus, ChatConversationAttachment
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -98,6 +102,41 @@ async def test_index_state_not_saved_when_rag_document_id_is_none():
 
     await conversation.arefresh_from_db()
     assert conversation.index_state == CollectionIndexState.DEINDEXED
+
+
+@pytest.mark.asyncio
+async def test_markdown_companion_does_not_overwrite_original():
+    """A non-text upload's markdown companion is stored at its own key.
+
+    Saving it at the source key would replace the original bytes in storage.
+    """
+    conversation = await sync_to_async(ChatConversationFactory)(collection_id="col-1")
+    service = AIAgentService(conversation, user=conversation.owner)
+
+    original_bytes = b"PK\x03\x04 fake xlsx bytes"
+    source_key = await sync_to_async(default_storage.save)(
+        f"{conversation.pk}/attachments/sheet.xlsx", ContentFile(original_bytes)
+    )
+    document = DocumentUrl(
+        url=f"{DOCUMENT_URL_PREFIX}{source_key}",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    with (
+        patch("chat.clients.pydantic_ai.document_store_backend", _mock_backend_class()),
+        patch(
+            "chat.clients.pydantic_ai.parse_and_store_conversation_document_task",
+            _mock_parse_task("doc-42"),
+        ),
+    ):
+        await service._parse_input_documents([document])
+
+    companion = await ChatConversationAttachment.objects.aget(conversion_from=source_key)
+    assert companion.key != source_key
+    assert companion.upload_state == AttachmentStatus.READY
+    with default_storage.open(source_key, "rb") as source_file:
+        assert source_file.read() == original_bytes
+    with default_storage.open(companion.key, "rb") as companion_file:
+        assert companion_file.read() == b"parsed content"
 
 
 @pytest.mark.asyncio

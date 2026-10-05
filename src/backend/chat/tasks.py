@@ -26,9 +26,21 @@ from chat.constants import (
     DEINDEX_TASK_TIME_LIMIT,
     SUMMARIZATION_TASK_SOFT_TIME_LIMIT,
     SUMMARIZATION_TASK_TIME_LIMIT,
+    TABULAR_MIME_TYPES,
+    TABULAR_QUERY_MAX_ROWS,
+    TABULAR_TASK_SOFT_TIME_LIMIT,
+    TABULAR_TASK_TIME_LIMIT,
 )
 from chat.llm_configuration import get_model_configuration
-from chat.models import ChatConversation, ChatConversationAttachment
+from chat.models import AttachmentStatus, ChatConversation, ChatConversationAttachment
+from chat.tabular import (
+    TableQuery,
+    TabularError,
+    TabularFile,
+    build_dataset,
+    describe_tables,
+    run_table_query,
+)
 from conversations.celery_app import app
 
 logger = logging.getLogger(__name__)
@@ -192,3 +204,33 @@ def deindex_inactive_collections_task():
         call_command("deindex_inactive_collections")
     except CommandError:
         logger.exception("deindex_inactive_collections_task failed.")
+
+
+@app.task(soft_time_limit=TABULAR_TASK_SOFT_TIME_LIMIT, time_limit=TABULAR_TASK_TIME_LIMIT)
+def run_tabular_query_task(conversation_id: str, query: dict | None = None) -> dict:
+    """Load the conversation's spreadsheets into DataFrames, then describe them or run `query`.
+
+    Enqueued by the tabular tools, which block on the result. Loading untrusted
+    files happens here, off the web worker and under the task time limits.
+    Stateless: the files are reloaded on every call. `query` is a `TableQuery`
+    dumped to JSON. Returns `{"ok": bool, "content": str}`; on failure `content`
+    is an error message meant for the model.
+    """
+    attachments = ChatConversationAttachment.objects.filter(
+        conversation_id=conversation_id,
+        content_type__in=TABULAR_MIME_TYPES,
+        upload_state=AttachmentStatus.READY,
+    ).order_by("created_at", "id")
+    files = []
+    for attachment in attachments:
+        with default_storage.open(attachment.key, "rb") as file:
+            files.append(TabularFile(attachment.file_name, attachment.content_type, file.read()))
+
+    dataset = build_dataset(files)
+    if query is None:
+        return {"ok": True, "content": describe_tables(dataset)}
+    try:
+        content = run_table_query(dataset, TableQuery.model_validate(query), TABULAR_QUERY_MAX_ROWS)
+    except TabularError as exc:
+        return {"ok": False, "content": str(exc)}
+    return {"ok": True, "content": content}

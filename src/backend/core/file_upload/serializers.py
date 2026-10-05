@@ -7,6 +7,8 @@ from django.conf import settings
 import magic
 from rest_framework import serializers
 
+from core.file_upload.mime_types import resolve_csv_content_type
+
 
 class FileUploadSerializer(serializers.Serializer):  # pylint: disable=abstract-method
     """Receive file upload requests."""
@@ -28,6 +30,8 @@ class FileUploadSerializer(serializers.Serializer):  # pylint: disable=abstract-
         mime = magic.Magic(mime=True)
         magic_mime_type = mime.from_buffer(file.read(1024))
         file.seek(0)  # Reset file pointer to the beginning after reading
+        # libmagic cannot tell most CSV files from plain text: trust the .csv name.
+        magic_mime_type = resolve_csv_content_type(file.name, magic_mime_type)
         self.context["is_unsafe"] = False
         if settings.ATTACHMENT_CHECK_UNSAFE_MIME_TYPES_ENABLED:
             self.context["is_unsafe"] = magic_mime_type in settings.ATTACHMENT_UNSAFE_MIME_TYPES
