@@ -1,0 +1,54 @@
+# Longues conversations : une règle ou un fait donné au tour 1 doit survivre au résumé de
+# l'historique (v0.0.22+). Les tours 2–5 collent trois comptes rendus longs chacun pour que
+# l'historique dépasse le budget (~101k tokens) avant le tour noté, tout en tenant dans les
+# 128k de v0.0.21. expect_history_summary rend un run invalide si le résumé n'a pas eu lieu.
+# Historique avant le tour noté (tiktoken) : ≈ 107,4k tokens (cas 1–3), ≈ 54k (contrôle).
+
+evaluators:
+- ToolsUsed
+cases:
+- name: regle_langue
+  inputs:
+    user_message: "Pendant toute cette conversation, réponds uniquement en anglais, même si je t'écris en français. Je vais te transmettre plusieurs comptes rendus de réunion."
+    follow_ups: &long_pastes
+    - "Voici trois comptes rendus :\n\n{{paste:long-cr-01}}\n\n{{paste:long-cr-02}}\n\n{{paste:long-cr-03}}\n\nQui a participé à ces réunions ?"
+    - "Voici trois autres comptes rendus :\n\n{{paste:long-cr-04}}\n\n{{paste:long-cr-01}}\n\n{{paste:long-cr-02}}\n\nQuelles décisions ont été prises sur le budget ?"
+    - "Voici encore trois comptes rendus :\n\n{{paste:long-cr-03}}\n\n{{paste:long-cr-04}}\n\n{{paste:long-cr-01}}\n\nQuelles sont les prochaines échéances ?"
+    - "Et ces trois derniers :\n\n{{paste:long-cr-02}}\n\n{{paste:long-cr-03}}\n\n{{paste:long-cr-04}}\n\nQui est responsable de l'hébergement ?"
+    - "Résume en trois phrases l'avancement global du projet."
+    expect_history_summary: true
+  metadata: {difficulty: hard, category: summary_rule_language, description: "Règle de langue après résumé"}
+  evaluators:
+  - Language: {code: en}
+- name: regle_signature
+  inputs:
+    user_message: "Pendant toute cette conversation, termine chacune de tes réponses par le mot FIN, seul sur la dernière ligne. Je vais te transmettre plusieurs comptes rendus de réunion."
+    follow_ups: *long_pastes
+    expect_history_summary: true
+  metadata: {difficulty: hard, category: summary_rule_ending, description: "Règle de fin de réponse après résumé"}
+  evaluators:
+  - Regex: {pattern: '(?-i:^\W*FIN\W*\Z)'}
+- name: fait_initial
+  inputs:
+    user_message: "Mon numéro de dossier est 4512-B, retiens-le. Je vais te transmettre plusieurs comptes rendus de réunion."
+    follow_ups:
+    - "Voici trois comptes rendus :\n\n{{paste:long-cr-01}}\n\n{{paste:long-cr-02}}\n\n{{paste:long-cr-03}}\n\nQui a participé à ces réunions ?"
+    - "Voici trois autres comptes rendus :\n\n{{paste:long-cr-04}}\n\n{{paste:long-cr-01}}\n\n{{paste:long-cr-02}}\n\nQuelles décisions ont été prises sur le budget ?"
+    - "Voici encore trois comptes rendus :\n\n{{paste:long-cr-03}}\n\n{{paste:long-cr-04}}\n\n{{paste:long-cr-01}}\n\nQuelles sont les prochaines échéances ?"
+    - "Et ces trois derniers :\n\n{{paste:long-cr-02}}\n\n{{paste:long-cr-03}}\n\n{{paste:long-cr-04}}\n\nQui est responsable de l'hébergement ?"
+    - "Au fait, quel est mon numéro de dossier ?"
+    expect_history_summary: true
+  metadata: {difficulty: hard, category: summary_fact, description: "Fait du tour 1 après résumé"}
+  evaluators:
+  - FactRecall: {facts: ["4512-B"]}
+- name: controle_sous_budget
+  inputs:
+    user_message: "Pendant toute cette conversation, réponds uniquement en anglais, même si je t'écris en français. Je vais te transmettre plusieurs comptes rendus de réunion."
+    follow_ups:
+    - "Voici trois comptes rendus :\n\n{{paste:long-cr-01}}\n\n{{paste:long-cr-02}}\n\n{{paste:long-cr-03}}\n\nQui a participé à ces réunions ?"
+    - "Voici trois autres comptes rendus :\n\n{{paste:long-cr-04}}\n\n{{paste:long-cr-01}}\n\n{{paste:long-cr-02}}\n\nQuelles décisions ont été prises sur le budget ?"
+    - "Résume en trois phrases l'avancement global du projet."
+    expect_history_summary: false
+  metadata: {difficulty: medium, category: summary_control, description: "Même règle sous le budget (aucun résumé)"}
+  evaluators:
+  - Language: {code: en}

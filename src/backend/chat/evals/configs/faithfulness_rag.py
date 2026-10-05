@@ -16,16 +16,14 @@ from pathlib import Path
 
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
-from pydantic_evals.evaluators import HasMatchingSpan
 
 from chat.evals import EvalInputs
 from chat.evals.configs.base import EvalConfig
-from chat.evals.evaluators import HasNoMatchingSpan
 from chat.evals.production_agent import (
     EVAL_FAKE_DOCUMENT_LISTING,
     build_production_agent_service,
     production_agent_deps,
-    stub_document_search_rag,
+    stubbed_tools,
 )
 from chat.evals.tool_stub_responses import (
     ToolStubResponses,
@@ -40,17 +38,6 @@ _DATASET_PATH = Path(__file__).resolve().parent.parent / "datasets" / "faithfuln
 # the documents don't contain the answer instead of inventing one.
 _NO_PASSAGES = "No matching passages were found."
 
-# Referenced by dotted path from the dataset YAML `config.extra_evaluators`.
-RAN_RAG_TOOL = HasMatchingSpan(
-    query={"has_attributes": {"gen_ai.tool.name": "document_search_rag"}},
-    evaluation_name="ran_document_search_rag",
-)
-
-DID_NOT_USE_WEB_SEARCH = HasNoMatchingSpan(
-    query={"has_attributes": {"gen_ai.tool.name": "web_search"}},
-    evaluation_name="did_not_call_web_search",
-)
-
 
 def _build_faithfulness_rag_service(model_hrid: str):
     """Production RAG wiring with web search disabled (faithfulness isolation)."""
@@ -62,16 +49,14 @@ def _build_faithfulness_rag_service(model_hrid: str):
     )
 
 
-def _stub_document_search_rag(
-    _ctx: RunContext, _query: str, _document_id: str | None = None
-) -> ToolReturn:
+def _stub_document_search_rag(_ctx: RunContext, **_kwargs) -> ToolReturn:
     return get_current_tool_stubs().document_search_rag_return()
 
 
 def make_faithfulness_rag_task_fn(model_hrid: str):
     """Build the task function: production wiring + stub RAG implementation."""
     service = _build_faithfulness_rag_service(model_hrid)
-    stub_document_search_rag(service, _stub_document_search_rag)
+    tools = stubbed_tools(service, {"document_search_rag": _stub_document_search_rag})
     agent = service.conversation_agent
 
     async def run_agent(inputs: EvalInputs) -> str:
@@ -85,7 +70,8 @@ def make_faithfulness_rag_task_fn(model_hrid: str):
         try:
             # message_history=[] keeps each case isolated: the eval session
             # reuses one conversation, so never replay a prior case's turns.
-            return (await agent.run(inputs.user_message, deps=deps, message_history=[])).output
+            with agent.override(tools=tools):
+                return (await agent.run(inputs.user_message, deps=deps, message_history=[])).output
         finally:
             reset_current_tool_stubs(token)
 

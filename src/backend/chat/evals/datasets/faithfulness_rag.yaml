@@ -2,27 +2,37 @@
 # partir des passages récupérés, sans inventer de faits. Chunks staged via stub tool
 # (pas injectés dans le prompt). Évaluateurs : spans + LLMJudge (fidélité au contexte).
 
-config:
-  extra_evaluators:
-    - chat.evals.configs.faithfulness_rag.RAN_RAG_TOOL          # instance → used as-is
-    - chat.evals.configs.faithfulness_rag.DID_NOT_USE_WEB_SEARCH
-  llm_judge_rubric: |
-    You are evaluating whether an AI assistant's answer is FAITHFUL to the document passages it retrieved.
+evaluators:
+- HasMatchingSpan:
+    query:
+      has_attributes:
+        gen_ai.tool.name: document_search_rag
+    evaluation_name: ran_document_search_rag
+- HasNoMatchingSpan:
+    query:
+      has_attributes:
+        gen_ai.tool.name: web_search
+    evaluation_name: did_not_call_web_search
+- LLMJudge:
+    rubric: |
+      You are evaluating whether an AI assistant's answer is FAITHFUL to the document passages it retrieved.
 
-    The retrieved passages are provided in the input under 'tool_output'. Treat them as the ONLY source of truth. The user's question is in 'user_message'.
+      The retrieved passages are provided in the input under 'tool_output'. Treat them as the ONLY source of truth. The user's question is in 'user_message'.
 
-    PASS — all of these hold:
-    • Every factual claim in the answer is directly supported by, or a faithful paraphrase/derivation of, the retrieved passages.
-    • When the passages do not contain the requested information, the answer says so (e.g. 'the documents don't specify') instead of inventing an answer.
-    • Simple derivations from the passages (e.g. arithmetic on numbers that appear in them) are allowed.
+      PASS — all of these hold:
+      • Every factual claim in the answer is directly supported by, or a faithful paraphrase/derivation of, the retrieved passages.
+      • When the passages do not contain the requested information, the answer says so (e.g. 'the documents don't specify') instead of inventing an answer.
+      • Simple derivations from the passages (e.g. arithmetic on numbers that appear in them) are allowed.
 
-    FAIL — any of these:
-    • The answer states a fact that is not present in and cannot be derived from the retrieved passages, even if that fact is true in the real world.
-    • The answer contradicts the retrieved passages.
-    • The answer fabricates specifics (names, dates, numbers, prices) absent from the passages.
+      FAIL — any of these:
+      • The answer states a fact that is not present in and cannot be derived from the retrieved passages, even if that fact is true in the real world.
+      • The answer contradicts the retrieved passages.
+      • The answer fabricates specifics (names, dates, numbers, prices) absent from the passages.
 
-    Judge ONLY grounding in the passages — not whether the answer matches real-world knowledge. An answer that is correct in reality but unsupported by the passages must FAIL.
-
+      Judge ONLY grounding in the passages — not whether the answer matches real-world knowledge. An answer that is correct in reality but unsupported by the passages must FAIL.
+    include_input: true
+    assertion:
+      include_reason: true
 cases:
   # ── Easy ──────────────────────────────────────────────────────────────────
 

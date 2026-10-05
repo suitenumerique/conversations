@@ -59,6 +59,11 @@ Management commands (under `chat/management/commands/`):
 | `faithfulness_rag` | Answers are grounded in the retrieved chunks and add no facts beyond them | `HasMatchingSpan` (RAG tool ran) + `HasNoMatchingSpan` (no web search) + `LLMJudge` (faithfulness) |
 | `incertitude` | On high-stakes French service-public questions whose answer depends on the user's personal situation, the agent asks to clarify / defers to the competent body instead of guessing a figure, eligibility, or outcome | `LLMJudge` (uncertainty) |
 | `tool_selection` | The agent calls the right tool (`web_search`, `self_documentation`, `document_search_rag`, `summarize`) or none, including adversarial French phrasing | `HasMatchingSpan` / `HasNoMatchingSpan` per case |
+| `multi_doc_synthesis` | The agent follows synthesis instructions on attached meeting reports; runs **against a target stack over HTTP** (any git tag) | Deterministic per case (`FactRecall`, `MaxWords`, `ExactBullets`, `HasMarkdownTable`, `Language`) + optional per-case `LLMJudge`; `ToolsUsed` label |
+| `chat_instructions` | The agent follows format and writing instructions in a chat without documents (lengths, bullets, tables, JSON, imposed openings/endings, rewrites, rules kept over several turns); runs **against a target stack** | Deterministic per case (`MaxWords`, `ExactBullets`, `Regex`, `MustNotMatch`, `ValidJson`, `StartsWith`/`EndsWith`, …) + per-case `LLMJudge` where needed; `ToolsUsed` label |
+| `web_search` | With smart web search opted in, the agent searches when needed and not otherwise, cites sources and invents no URL; runs **against a target stack** | `ToolCalled` / `ToolNotCalled`, `SourcesCount`, `UrlCount`, `UrlRegexEvaluator`, format checks; `ToolsUsed` label |
+| `project_instructions` | The agent follows a project's custom instructions and uses its documents; runs **against a target stack** | Deterministic per case (`Language`, `FactRecall`, `MustNotMatch`, `EndsWith`, …); `ToolsUsed` label |
+| `long_chat` | Rules and facts given at turn 1 survive history summarization (and a control under the summary budget); runs **against a target stack** | `Language`, `Regex`, `FactRecall`; a run is invalid if the summary did (not) happen as expected |
 
 RAG/summarize cases set `inputs.requires_documents: true`, which injects a fake document listing (same JSON shape as production) so those tools are visible to the model. Optional `inputs.tool_output` JSON can stage per-case simulated tool payloads (`web_search`, `document_search_rag`, `summarize`) for multi-tool flows — see `evals/tool_stub_responses.py`. Use `--runs 3` on medium/hard cases to measure robustness on ambiguous phrasing.
 
@@ -105,6 +110,22 @@ Model selection:
 - tested model = `LLM_DEFAULT_MODEL_HRID`
 - judge model = `LLM_EVAL_JUDGE_MODEL_HRID` (falls back to `LLM_DEFAULT_MODEL_HRID` if empty;
   a warning is printed when judge == tested model, since self-grading is biased)
+
+### Running against a target stack (any git tag)
+
+`multi_doc_synthesis`, `chat_instructions`, `web_search`, `project_instructions` and `long_chat` talk HTTP to a running stack started from a git tag:
+
+```bash
+src/backend/chat/evals/target/run_target.sh up v0.0.21 albert-mistral-medium-2508
+make eval EVAL_ARGS='--dataset multi_doc_synthesis --target-url http://host.docker.internal:18071 --target-tag v0.0.21 --target-model albert-mistral-medium-2508 --runs 3 --save --comment "v0.0.21 × 2508"'
+src/backend/chat/evals/target/run_target.sh down v0.0.21
+```
+
+Saved runs record `target_version`, `target_model` and `target_url` in `params`.
+`--save` is allowed with `--dataset` for target runs: compare them run-vs-run
+(`make eval-compare EVAL_ARGS="--run B --against A"`). Without a target, `make eval`
+skips these five datasets. An empty answer or stream error fails the case as an
+infrastructure failure (reported separately), not as a model regression.
 
 ### Saving runs, baselines, and comparison
 

@@ -1,0 +1,61 @@
+# Instructions de projet (llm_instructions) et documents de projet. Chaque cas crée un projet
+# neuf puis la conversation dedans.
+
+evaluators:
+- ToolsUsed
+cases:
+- name: projet_anglais
+  inputs:
+    user_message: "Quels sont les horaires habituels d'ouverture d'une mairie ?"
+    project_instructions: "Réponds toujours en anglais, quelle que soit la langue de la question."
+  metadata: {difficulty: easy, category: project_language, description: "Instruction de projet : anglais"}
+  evaluators:
+  - Language: {code: en}
+- name: projet_signature
+  inputs:
+    user_message: "Comment rédiger un compte rendu de réunion efficace ?"
+    project_instructions: "Termine chaque réponse par la signature « — Équipe ALTO »."
+  metadata: {difficulty: medium, category: project_signature, description: "Instruction de projet : signature finale"}
+  evaluators:
+  - EndsWith: {suffix: "— Équipe ALTO"}
+- name: projet_sans_puces
+  inputs:
+    user_message: "Donne-moi des idées pour animer un atelier participatif avec des habitants."
+    project_instructions: "N'utilise jamais de listes à puces ni de listes numérotées : écris toujours en paragraphes."
+  metadata: {difficulty: medium, category: project_no_lists, description: "Instruction de projet : pas de listes"}
+  evaluators:
+  - MustNotMatch: {patterns: ['^\s*(?:[-*+•]|\d+[.)])\s+']}
+- name: projet_vouvoiement
+  inputs:
+    user_message: "Explique-moi tout ce qu'il faut savoir pour organiser un séminaire d'équipe de deux jours."
+    project_instructions: "Vouvoie toujours l'utilisateur et ne dépasse jamais 100 mots par réponse."
+  metadata: {difficulty: medium, category: project_length_register, description: "Instruction de projet : vouvoiement + ≤ 100 mots"}
+  evaluators:
+  - MaxWords: {limit: 100}
+  - MustNotMatch: {patterns: ['\btu\b', '\bton\b', '\btes\b', '\btoi\b', '\bte\b']}
+- name: projet_anglais_3_tours
+  inputs:
+    user_message: "Qu'est-ce qu'un plan local d'urbanisme ?"
+    follow_ups:
+    - "Qui le vote ?"
+    - "Combien de temps dure sa révision en général ?"
+    project_instructions: "Réponds toujours en anglais, quelle que soit la langue de la question."
+  metadata: {difficulty: medium, category: project_persistence, description: "Instruction de projet tenue sur 3 tours"}
+  evaluators:
+  - Language: {code: en}
+- name: projet_docs_5_puces
+  inputs:
+    user_message: "Synthétise les documents du projet."
+    project_instructions: "Présente toujours tes synthèses en exactement 5 puces."
+    project_attachments: [court-cr-01, court-cr-02, court-cr-03, court-cr-04]
+  metadata: {difficulty: hard, category: project_docs_format, description: "Documents de projet + 5 puces"}
+  evaluators:
+  - ExactBullets: {count: 5}
+  - FactRecall: {facts: ["380 000", "1er septembre", "Julien Ferrand"], min_ratio: 0.67}
+- name: projet_docs_controle
+  inputs:
+    user_message: "Synthétise les documents du projet."
+    project_attachments: [court-cr-01, court-cr-02, court-cr-03, court-cr-04]
+  metadata: {difficulty: medium, category: project_docs_control, description: "Documents de projet sans instruction"}
+  evaluators:
+  - FactRecall: {facts: ["380 000", "1er septembre", "Julien Ferrand"], min_ratio: 0.67}

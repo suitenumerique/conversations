@@ -10,6 +10,8 @@ tool descriptions are registered via the production setup methods in
 
 from __future__ import annotations
 
+import functools
+import inspect
 from collections.abc import Awaitable, Callable
 
 from django.contrib.auth.hashers import make_password
@@ -17,6 +19,7 @@ from django.contrib.auth.hashers import make_password
 from pydantic_ai import RunContext
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.tools import Tool
+from pydantic_ai.toolsets import FunctionToolset
 
 from core.models import User
 
@@ -29,7 +32,6 @@ from chat.document_context_builder import (
     DocumentsListing,
     render_listing,
 )
-from chat.evals.tool_stub_responses import get_current_tool_stubs
 from chat.tools.descriptions import WEB_SEARCH_TOOL_DESCRIPTION
 
 ToolImplementation = Callable[..., ToolReturn | Awaitable[ToolReturn]]
@@ -135,65 +137,65 @@ def production_agent_deps(service: AIAgentService) -> ContextDeps:
     return service._context_deps
 
 
-def _replace_tool(
+def stubbed_tools(
     service: AIAgentService,
-    name: str,
-    implementation: ToolImplementation,
-) -> None:
-    toolset = service.conversation_agent._function_toolset
-    existing = toolset.tools[name]
-    toolset.tools[name] = Tool(
-        implementation,
-        name=name,
-        description=existing.description,
-        max_retries=existing.max_retries,
-        prepare=existing.prepare,
-        takes_ctx=existing.takes_ctx,
+    stubs: dict[str, ToolImplementation],
+) -> list[Tool]:
+    """Return the agent's function tools with the ``stubs`` implementations swapped in.
+
+    Pass the result to ``agent.override(tools=...)``: stubbed tools keep their
+    production description, ``prepare`` and parameter schema, so the model sees
+    the same tools as in production. ``web_search`` is added when the model
+    configuration registers none.
+    """
+    function_toolset = next(
+        toolset
+        for toolset in service.conversation_agent.toolsets
+        if isinstance(toolset, FunctionToolset)
     )
+    tools = dict(function_toolset.tools)
+    for name, implementation in stubs.items():
+        if name == "web_search":
+            tools.setdefault(name, _fallback_web_search_tool())
+        production = tools[name]
+        tools[name] = Tool(
+            _with_signature_of(production.function, implementation),
+            name=name,
+            description=production.description,
+            max_retries=production.max_retries,
+            prepare=production.prepare,
+            takes_ctx=production.takes_ctx,
+        )
+    return list(tools.values())
 
 
-def ensure_web_search_registered(service: AIAgentService) -> None:
-    """Register a stub ``web_search`` tool when the model config has no web search."""
-    if "web_search" in service.conversation_agent._function_toolset.tools:
-        return
+def _with_signature_of(production_function: Callable, implementation: ToolImplementation):
+    """Run ``implementation`` behind the production signature, which sets the tool's schema."""
 
-    def only_if_web_search_enabled(ctx, tool_def):
-        return tool_def if ctx.deps.web_search_enabled else None
+    @functools.wraps(production_function)
+    async def stub(ctx: RunContext, *args, **kwargs) -> ToolReturn:
+        result = implementation(ctx, *args, **kwargs)
+        return await result if inspect.isawaitable(result) else result
 
-    def web_search(_ctx: RunContext, *args, **kwargs) -> ToolReturn:
-        return get_current_tool_stubs().web_search_return()
+    return stub
 
-    service.conversation_agent._function_toolset.tools["web_search"] = Tool(
-        web_search,
+
+async def _web_search_signature(_ctx: RunContext, query: str) -> ToolReturn:
+    """Parameters of the production web search implementations (e.g. Brave)."""
+    raise NotImplementedError
+
+
+def _fallback_web_search_tool() -> Tool:
+    """``web_search`` as production registers it, for models configured without one."""
+    return Tool(
+        _web_search_signature,
         name="web_search",
         description=WEB_SEARCH_TOOL_DESCRIPTION,
         max_retries=1,
-        prepare=only_if_web_search_enabled,
+        prepare=_only_if_web_search_enabled,
         takes_ctx=True,
     )
-    service._web_search_tool_registered = True
 
 
-def stub_web_search(
-    service: AIAgentService,
-    implementation: ToolImplementation,
-) -> None:
-    """Replace ``web_search`` implementation after production registration."""
-    ensure_web_search_registered(service)
-    _replace_tool(service, "web_search", implementation)
-
-
-def stub_document_search_rag(
-    service: AIAgentService,
-    implementation: ToolImplementation,
-) -> None:
-    """Replace ``document_search_rag`` implementation after production registration."""
-    _replace_tool(service, "document_search_rag", implementation)
-
-
-def stub_summarize(
-    service: AIAgentService,
-    implementation: ToolImplementation,
-) -> None:
-    """Replace ``summarize`` implementation after production registration."""
-    _replace_tool(service, "summarize", implementation)
+def _only_if_web_search_enabled(ctx, tool_def):
+    return tool_def if ctx.deps.web_search_enabled else None

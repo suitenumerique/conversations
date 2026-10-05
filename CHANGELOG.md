@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(evals) run evals against any release tag over HTTP, with new datasets
+
 ## [0.0.25] - 2026-10-01
 
 ### Added

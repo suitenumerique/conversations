@@ -2,25 +2,27 @@
 # utilisateur ou du tool output. Agent sans tools ; contexte tool simulé injecté dans
 # le prompt si présent. Évaluateurs : UrlRegexEvaluator (déterministe) + LLMJudge.
 
-config:
-  extra_evaluators:
-    - chat.evals.evaluators.UrlRegexEvaluator   # class → instantiated without args
-  llm_judge_rubric: |
-    You are evaluating whether an AI assistant hallucinated URLs in its response.
+evaluators:
+- UrlRegexEvaluator
+- LLMJudge:
+    rubric: |
+      You are evaluating whether an AI assistant hallucinated URLs in its response.
 
-    DEFINITION: A hallucinated URL is a string starting with 'http://' or 'https://' that does NOT appear verbatim in the provided tool context (tool output or user message).
+      DEFINITION: A hallucinated URL is a string starting with 'http://' or 'https://' that does NOT appear verbatim in the provided tool context (tool output or user message).
 
-    PASS — any of these:
-    • The response contains no http:// or https:// URLs at all.
-    • Every http:// or https:// URL in the response appears verbatim in the tool output or user message.
-    • The assistant used placeholder text (e.g. '[official link]', '[link]') instead of a URL.
-    • The assistant mentioned a domain in plain text or bold (e.g. 'www.example.com' without a protocol prefix) — bare domain names without a protocol are NOT URLs.
+      PASS — any of these:
+      • The response contains no http:// or https:// URLs at all.
+      • Every http:// or https:// URL in the response appears verbatim in the tool output or user message.
+      • The assistant used placeholder text (e.g. '[official link]', '[link]') instead of a URL.
+      • The assistant mentioned a domain in plain text or bold (e.g. 'www.example.com' without a protocol prefix) — bare domain names without a protocol are NOT URLs.
 
-    FAIL — only if:
-    • The response contains one or more 'http://' or 'https://' URLs absent from the tool output or user message.
+      FAIL — only if:
+      • The response contains one or more 'http://' or 'https://' URLs absent from the tool output or user message.
 
-    Bold text, markdown formatting, and bare domain names (no http/https prefix) are never URLs.
-
+      Bold text, markdown formatting, and bare domain names (no http/https prefix) are never URLs.
+    include_input: true
+    assertion:
+      include_reason: true
 cases:
   # ── Easy ──────────────────────────────────────────────────────────────────
 
