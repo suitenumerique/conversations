@@ -151,6 +151,10 @@ logs: ## display app-dev logs (follow mode)
 	@$(COMPOSE) logs -f app-dev
 .PHONY: logs
 
+logs-turn: ## follow app-dev logs, keeping only one chat turn's trace
+	@$(COMPOSE) logs -f --no-log-prefix app-dev | grep --line-buffered "chat.turn"
+.PHONY: logs-turn
+
 run-backend: ## Start only the backend application and all needed services
 	@$(COMPOSE) up --force-recreate -d nginx app-dev celery-dev
 .PHONY: run-backend
