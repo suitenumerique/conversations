@@ -12,6 +12,10 @@ and this project adheres to
 
 - 🔒️(project) keep user prompts out of logs and telemetry
 
+### Fixed
+
+- 🐛(ci) remove the shell default suffix from the DOCKER_USER build argument
+
 ## [0.0.25] - 2026-10-01
 
 ### Added
