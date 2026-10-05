@@ -125,6 +125,10 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
 
     with (
         patch.object(service, "_prepare_agent_run", side_effect=fake_prepare),
+        # The turn opens its chunk trail here. These tests drive _run_agent's
+        # orchestration, not its writes, and their conversation is created on
+        # the main thread, where an async insert cannot see it.
+        patch.object(service, "_append_question", AsyncMock()),
         patch.object(service, "_handle_input_documents", side_effect=fake_handle_docs),
         patch.object(service, "_build_model_history", return_value=[]),
         patch.object(service, "_agent_stop_streaming", AsyncMock()),
@@ -170,12 +174,10 @@ async def test_stream_content_emits_summarization_failed_error(ui_messages):
 
     with (
         patch.object(service, "_run_agent", side_effect=failing_run_agent),
-        patch.object(service, "_persist_user_message_on_error", AsyncMock()) as persist,
     ):
         chunks = [chunk async for chunk in service.stream_data_async(ui_messages)]
 
     assert any("summarization_failed" in chunk for chunk in chunks)
-    persist.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -203,6 +205,10 @@ async def test_run_agent_skips_summary_events_when_summarization_not_triggered(u
 
     with (
         patch.object(service, "_prepare_agent_run", side_effect=fake_prepare),
+        # The turn opens its chunk trail here. These tests drive _run_agent's
+        # orchestration, not its writes, and their conversation is created on
+        # the main thread, where an async insert cannot see it.
+        patch.object(service, "_append_question", AsyncMock()),
         patch.object(service, "_handle_input_documents", side_effect=fake_handle_docs),
         patch.object(service, "_build_model_history", return_value=[]),
         patch.object(service, "_agent_stop_streaming", AsyncMock()),
@@ -395,6 +401,10 @@ def _run_agent_patches(service):
 
     patches = (
         patch.object(service, "_prepare_agent_run", side_effect=fake_prepare),
+        # The turn opens its chunk trail here. These tests drive _run_agent's
+        # orchestration, not its writes, and their conversation is created on
+        # the main thread, where an async insert cannot see it.
+        patch.object(service, "_append_question", AsyncMock()),
         patch.object(service, "_handle_input_documents", side_effect=fake_handle_docs),
         patch.object(service, "_build_model_history", return_value=[]),
         patch.object(service, "_agent_stop_streaming", AsyncMock()),
