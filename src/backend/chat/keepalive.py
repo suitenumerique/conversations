@@ -33,13 +33,51 @@ def get_keepalive_message() -> str:
     return encoder.encode(event)
 
 
+async def _consume_stream_async(
+    stream: AsyncIterator[str], q: asyncio.Queue, finished: asyncio.Event
+) -> None:
+    """Background task that consumes the original stream into a queue."""
+
+    try:
+        async for stream_item in stream:
+            await q.put(stream_item)
+    except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
+        # Pass exceptions through the queue so the consumer can re-raise them.
+        # This ensures errors aren't silently swallowed.
+        await q.put(exc)
+    finally:
+        finished.set()
+        await q.put(None)  # Sentinel to signal completion
+
+
+async def _call_keepalive_async(on_keepalive) -> None:
+    """Hand the keepalive to its callback, if there is one.
+
+    Failures are logged and swallowed: a beat that cannot be written is not
+    worth losing the answer over.
+    """
+    if on_keepalive is None:
+        return
+    try:
+        await on_keepalive()
+    except Exception:  # pylint: disable=broad-except
+        logger.exception("Keepalive callback failed")
+
+
 async def stream_with_keepalive_async(
     stream: AsyncIterator[str],
+    on_keepalive=None,
 ) -> AsyncIterator[str]:
     """Wrap an async iterator to emit keepalive during long pauses.
 
     Args:
         stream: The async iterator to wrap
+        on_keepalive: Awaited each time a pause is long enough to need a
+            keepalive. This loop is the only thing that ticks while the stream
+            produces nothing - the source can sit for minutes on a document
+            parse or a tool call - so it is also the only place from which
+            something blocked can prove it is still running. Failures are
+            logged and swallowed: a keepalive must not take the stream down.
     Yields:
         Items from the original stream, plus keepalive messages during pauses
     Raises:
@@ -49,21 +87,7 @@ async def stream_with_keepalive_async(
     finished = asyncio.Event()
     keepalive_message = get_keepalive_message()
 
-    async def producer():
-        """Background task that consumes the original stream into a queue."""
-
-        try:
-            async for stream_item in stream:
-                await q.put(stream_item)
-        except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
-            # Pass exceptions through the queue so the consumer can re-raise them.
-            # This ensures errors aren't silently swallowed.
-            await q.put(exc)
-        finally:
-            finished.set()
-            await q.put(None)  # Sentinel to signal completion
-
-    producer_task = asyncio.create_task(producer())
+    producer_task = asyncio.create_task(_consume_stream_async(stream, q, finished))
 
     try:
         while True:
@@ -81,6 +105,7 @@ async def stream_with_keepalive_async(
                     break
 
                 logger.debug("Send keepalive")
+                await _call_keepalive_async(on_keepalive)
                 yield keepalive_message
     finally:
         # Cleanup
@@ -108,8 +133,70 @@ def get_current_time() -> float:
     return time.monotonic()
 
 
-def stream_with_keepalive_sync(stream: Iterator[str]) -> Iterator[str]:
-    """Wraps a synchronous stream with keepalive messages."""
+def _consume_stream_sync(
+    stream: Iterator[str], q: queue.Queue, stream_done: threading.Event
+) -> None:
+    """Read from source stream and forward chunks to queue."""
+    try:
+        for chunk in stream:
+            if stream_done.is_set():
+                return  # early exit
+            q.put(chunk, timeout=1)  # Arbitrary timeout prevents blocking forever
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.exception("Error in stream consumption")
+        q.put(e)
+    finally:
+        stream_done.set()
+
+
+def _send_keepalives(
+    q: queue.Queue,
+    stream_done: threading.Event,
+    keepalive_message: str,
+    last_yield_time: list,
+) -> None:
+    """Inject keepalive messages when idle too long.
+
+    Uses get_current_time() (time.monotonic) instead of time.time()
+    to avoid issues with freezegun in tests.
+    """
+    while not stream_done.is_set():
+        # Sleep before checking to give main loop time to process and update timestamp
+        time.sleep(0.5)  # let main loop process first, empiric value
+        if get_current_time() - last_yield_time[0] >= settings.KEEPALIVE_INTERVAL:
+            try:
+                q.put(keepalive_message, timeout=0.1)
+            except queue.Full:
+                pass
+
+
+def _call_keepalive_sync(on_keepalive) -> None:
+    """Hand the keepalive to its callback, if there is one.
+
+    Failures are logged and swallowed: a beat that cannot be written is not
+    worth losing the answer over.
+    """
+    if on_keepalive is None:
+        return
+    try:
+        on_keepalive()
+    except Exception:  # pylint: disable=broad-except
+        logger.exception("Keepalive callback failed")
+
+
+def stream_with_keepalive_sync(stream: Iterator[str], on_keepalive=None) -> Iterator[str]:
+    """Wraps a synchronous stream with keepalive messages.
+
+    `on_keepalive` is called each time a pause is long enough to need one, for
+    the same reason as in the async variant: this loop is the only thing still
+    running while the source produces nothing. It is called from the request's
+    own thread, not the keepalive thread, so it uses the connection that is
+    already open. Failures are logged and swallowed.
+
+    The source and the keepalive clock each run in their own thread and reach
+    this loop through `q`; `_consume_stream_sync` and `_send_keepalives` are
+    those threads.
+    """
 
     q: queue.Queue = queue.Queue()
     stream_done = threading.Event()
@@ -117,36 +204,11 @@ def stream_with_keepalive_sync(stream: Iterator[str]) -> Iterator[str]:
     # Mutable container so threads can read/write shared timestamp
     last_yield_time = [get_current_time()]
 
-    def consume_stream():
-        """Read from source stream and forward chunks to queue."""
-        try:
-            for chunk in stream:
-                if stream_done.is_set():
-                    return  # early exit
-                q.put(chunk, timeout=1)  # Arbitrary timeout prevents blocking forever
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.exception("Error in stream consumption")
-            q.put(e)
-        finally:
-            stream_done.set()
-
-    def send_keepalives():
-        """Inject keepalive messages when idle too long.
-
-        Uses get_current_time() (time.monotonic) instead of time.time()
-        to avoid issues with freezegun in tests.
-        """
-        while not stream_done.is_set():
-            # Sleep before checking to give main loop time to process and update timestamp
-            time.sleep(0.5)  # let main loop process first, empiric value
-            if get_current_time() - last_yield_time[0] >= settings.KEEPALIVE_INTERVAL:
-                try:
-                    q.put(keepalive_message, timeout=0.1)
-                except queue.Full:
-                    pass
-
-    for target in (consume_stream, send_keepalives):
-        threading.Thread(target=target, daemon=True).start()
+    for target, args in (
+        (_consume_stream_sync, (stream, q, stream_done)),
+        (_send_keepalives, (q, stream_done, keepalive_message, last_yield_time)),
+    ):
+        threading.Thread(target=target, args=args, daemon=True).start()
 
     try:
         # Continue while stream is active or queue has still items
@@ -156,15 +218,17 @@ def stream_with_keepalive_sync(stream: Iterator[str]) -> Iterator[str]:
             except queue.Empty:
                 continue
 
-            # Re-raise from consume_stream
+            # Re-raise from _consume_stream_sync
             if isinstance(item, Exception):
                 raise item
 
-            # The keepalive thread can queue a message while the source stream is
-            # finishing, which would put it after the terminator frame. Nothing
-            # needs keeping alive once the stream is done, so drop it.
-            if item == keepalive_message and stream_done.is_set():
-                continue
+            if item == keepalive_message:
+                # The keepalive thread can queue a message while the source stream is
+                # finishing, which would put it after the terminator frame. Nothing
+                # needs keeping alive once the stream is done, so drop it.
+                if stream_done.is_set():
+                    continue
+                _call_keepalive_sync(on_keepalive)
 
             yield item
             last_yield_time[0] = get_current_time()
