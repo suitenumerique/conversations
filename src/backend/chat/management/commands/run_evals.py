@@ -19,6 +19,7 @@ from chat.evals.configs import REGISTRY
 from chat.evals.configs.base import EvalConfig, split_dataset_file
 from chat.evals.report_builder import build_dataset_result
 from chat.evals.storage import build_run_record, save_run
+from chat.evals.target.runtime import Target, configure_target
 from chat.evals.tool_output import capture_tool_output_from_run
 
 
@@ -79,17 +80,26 @@ class Command(BaseCommand):
             action="store_true",
             help="Include model outputs in saved runs (off by default).",
         )
+        parser.add_argument(
+            "--target-url",
+            default=None,
+            help="Base URL of the target stack for HTTP datasets "
+            "(e.g. http://host.docker.internal:18071).",
+        )
+        parser.add_argument(
+            "--target-tag", default=None, help="Git ref the target runs (e.g. v0.0.21)."
+        )
+        parser.add_argument(
+            "--target-model", default=None, help="LLM_DEFAULT_MODEL_HRID of the target."
+        )
 
     def handle(self, *args, **options):
         if options["runs"] < 1:
             raise CommandError("Number of runs must be at least 1")
 
-        if options["save"] and (options["case"] or options["dataset"]):
-            raise CommandError(
-                "--save cannot be combined with --case or --dataset: a partial run "
-                "would register every omitted case/dataset as a coverage gap "
-                "(= regression) when compared against the baseline."
-            )
+        target = self._resolve_target(options)
+        self._check_save_options(options, target)
+        configure_target(target)
 
         # Span-based evaluators (HasMatchingSpan & co) read pydantic-evals'
         # span_tree, which is only populated when a real OTel SDK tracer provider
@@ -108,17 +118,10 @@ class Command(BaseCommand):
         use_llm_judge = not options["no_llm_judge"]
         self._configure_judge(use_llm_judge)
 
-        configs = [REGISTRY[options["dataset"]]] if options["dataset"] else list(REGISTRY.values())
-
-        case_name = options["case"]
-        if case_name and not options["dataset"]:
-            # Filter by case name across all datasets: run only the datasets that
-            # contain it, silently skipping those where the case is absent.
-            configs = [
-                config for config in configs if case_name in self._dataset_case_names(config)
-            ]
-            if not configs:
-                raise CommandError(f"No case named '{case_name}' in any dataset.")
+        configs = self._selected_configs(options, target)
+        skipped = [c.name for c in REGISTRY.values() if c.requires_target and c not in configs]
+        if skipped and not options["dataset"]:
+            self.stdout.write(f"Skipping target datasets (no --target-url): {', '.join(skipped)}\n")
 
         self.stdout.write(f"Running evals for: {', '.join(config.name for config in configs)}\n")
 
@@ -149,6 +152,12 @@ class Command(BaseCommand):
             "datasets": list(datasets.keys()),
             "case_filter": options["case"],
         }
+        if (target := self._resolve_target(options)) is not None:
+            params |= {
+                "target_version": target.tag,
+                "target_model": target.model,
+                "target_url": target.url,
+            }
         record = build_run_record(
             datasets=datasets,
             params=params,
@@ -164,6 +173,53 @@ class Command(BaseCommand):
                 f"runs/case: {options['runs']})\n"
             )
         )
+
+    @staticmethod
+    def _resolve_target(options: dict) -> Target | None:
+        """Build the target from --target-* options; all or none must be given."""
+        values = (options["target_url"], options["target_tag"], options["target_model"])
+        if not any(values):
+            return None
+        if not all(values):
+            raise CommandError(
+                "A target needs all of --target-url, --target-tag and --target-model."
+            )
+        return Target(*values)
+
+    @staticmethod
+    def _check_save_options(options: dict, target: Target | None) -> None:
+        """--save never with --case; with --dataset only for target runs."""
+        if options["save"] and (options["case"] or (options["dataset"] and target is None)):
+            raise CommandError(
+                "--save cannot be combined with --case, nor with --dataset outside a "
+                "target run: a partial run would register every omitted case/dataset "
+                "as a coverage gap (= regression) when compared against the baseline."
+            )
+
+    @classmethod
+    def _selected_configs(cls, options: dict, target: Target | None) -> list[EvalConfig]:
+        """Datasets to run, honouring --dataset, --case and target availability."""
+        if options["dataset"]:
+            config = REGISTRY[options["dataset"]]
+            if config.requires_target and target is None:
+                raise CommandError(
+                    f"Dataset '{config.name}' needs a target: pass --target-url, "
+                    "--target-tag and --target-model."
+                )
+            return [config]
+        configs = [
+            config
+            for config in REGISTRY.values()
+            if target is not None or not config.requires_target
+        ]
+        case_name = options["case"]
+        if case_name:
+            # Filter by case name across all datasets: run only the datasets that
+            # contain it, silently skipping those where the case is absent.
+            configs = [config for config in configs if case_name in cls._dataset_case_names(config)]
+            if not configs:
+                raise CommandError(f"No case named '{case_name}' in any dataset.")
+        return configs
 
     def _configure_judge(self, use_llm_judge: bool) -> None:
         if not use_llm_judge:

@@ -49,6 +49,8 @@ class EvalConfig:  # pylint: disable=too-many-instance-attributes
     make_task_fn: TaskFactory | None = None
     # Evaluator types referenced only in the dataset YAML (per-case), not at dataset level.
     dataset_evaluator_types: list[type] = field(default_factory=list)
+    # True for datasets that drive a target stack over HTTP (--target-* options).
+    requires_target: bool = False
 
     @cached_property
     def _yaml_config(self) -> dict:
