@@ -56,6 +56,8 @@ In `conversations/celery_settings.py` (`CelerySettings`, mixed into `Base`):
   the poll task.
 - `DEINDEX_INACTIVE_COLLECTIONS_CRON` — default `""` (off). Five-field cron
   string for the de-index task.
+- `ARENA_PURGE_CONTENT_CRON` — default `""` (off). Five-field cron string for
+  the Arena retention purge.
 
 In `Test`: `CELERY_TASK_ALWAYS_EAGER = True` — tasks run synchronously in-process,
 no broker or worker needed during tests.
@@ -111,7 +113,7 @@ the outcome on a model or cache key, as above.
 
 ## Periodic tasks
 
-Celery beat enqueues two tasks, built into `CELERY_BEAT_SCHEDULE` by
+Celery beat enqueues three tasks, built into `CELERY_BEAT_SCHEDULE` by
 `conversations/celery_settings.py`:
 
 - `fetch-model-health` runs `chat.tasks.fetch_model_health_task`, which calls
@@ -120,9 +122,14 @@ Celery beat enqueues two tasks, built into `CELERY_BEAT_SCHEDULE` by
 - `deindex-inactive-collections` runs
   `chat.tasks.deindex_inactive_collections_task`, which calls the
   `deindex_inactive_collections` management command, on a cron schedule.
+- `purge-arena-content` runs `chat.tasks.purge_arena_content_task`, which
+  calls the `purge_arena_content` management command, on a cron schedule set
+  by `ARENA_PURGE_CONTENT_CRON` (default `""`, off). Set it daily wherever the
+  Arena is enabled; see [Arena](arena.md#retention).
 
-Both entries are off by default: only Albert deployments have a model-health
-endpoint to poll and RAG collections to clean. Three env settings control them:
+All entries are off by default: only Albert deployments have a model-health
+endpoint to poll and RAG collections to clean, and only deployments with the
+Arena enabled have Arena content to purge. Four env settings control them:
 
 - `MODEL_HEALTH_POLL_PROVIDER` — default `""` (off). Set to `"albert"` to turn
   on the poll entry. An unknown provider name raises `ValueError` when
@@ -132,8 +139,10 @@ endpoint to poll and RAG collections to clean. Three env settings control them:
   way, like a bad cron string.
 - `DEINDEX_INACTIVE_COLLECTIONS_CRON` — default `""` (off). A five-field cron
   string turns on the de-index entry.
+- `ARENA_PURGE_CONTENT_CRON` — default `""` (off). A five-field cron string
+  turns on the Arena purge entry.
 
-The cron string and the interval are both evaluated in UTC: `TIME_ZONE =
+The cron strings and the interval are all evaluated in UTC: `TIME_ZONE =
 "UTC"` in `conversations/settings.py`, and `CELERY_TIMEZONE` is not set, so
 Celery beat also uses UTC. This matches the old Kubernetes CronJob, which
 ran on the cluster's UTC clock.
@@ -148,9 +157,9 @@ so a worker outage does not produce a burst of polls on recovery. The
 de-index entry has no expiry, so a missed run still happens when the worker
 recovers.
 
-`DEINDEX_INACTIVE_COLLECTIONS_CRON` fields follow cron field order: `minute
-hour day_of_month month day_of_week`. A string with a field count other than
-five raises `ValueError` when settings load, so every process (web, worker,
+`DEINDEX_INACTIVE_COLLECTIONS_CRON` and `ARENA_PURGE_CONTENT_CRON` fields
+follow cron field order: `minute hour day_of_month month day_of_week`. A
+string with a field count other than five raises `ValueError` when settings load, so every process (web, worker,
 beat) fails to start.
 
 When both `day_of_month` and `day_of_week` are restricted, Celery runs the
@@ -172,7 +181,7 @@ untracked file after every local run.
 
 ### Queues
 
-Both periodic tasks run on the default queue, the same queue as the
+All periodic tasks run on the default queue, the same queue as the
 conversation document-parse task that a chat turn awaits. A long de-index run
 can delay a parse behind it. To isolate them, route the periodic tasks to
 their own queue with `CELERY_TASK_ROUTES` and add a second

@@ -208,6 +208,8 @@ export interface MessageItemProps {
   isMobile: boolean;
   onCopyToClipboard: (content: string) => void;
   onOpenSources: (messageId: string) => void;
+  /** Hide the bottom action bar (copy, actions, sources, energy, feedback). */
+  hideActions?: boolean;
 }
 
 const MessageItemComponent: React.FC<MessageItemProps> = ({
@@ -223,6 +225,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   isSourceOpen,
   onCopyToClipboard,
   onOpenSources,
+  hideActions = false,
 }) => {
   const { t } = useTranslation();
   const { data: config } = useConfig();
@@ -568,6 +571,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
           </Box>
 
           {message.role === 'assistant' &&
+            !hideActions &&
             hasAssistantOutput &&
             !(isLastAssistantMessage && status === 'streaming') && (
               <Box
@@ -759,6 +763,9 @@ const arePropsEqual = (
     return false;
   }
   if (prevProps.conversationId !== nextProps.conversationId) {
+    return false;
+  }
+  if (prevProps.hideActions !== nextProps.hideActions) {
     return false;
   }
 

@@ -14,44 +14,52 @@ import { KEY_LIST_CONVERSATION } from '@/features/chat/api/useConversations';
 import { KEY_LIST_PROJECT } from '@/features/chat/api/useProjects';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 
-const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
-  let url: string;
-  if (typeof input === 'string') {
-    url = input;
-  } else if (input instanceof URL) {
-    url = input.toString();
-  } else if (input instanceof Request) {
-    url = input.url;
-  } else {
-    throw new Error('Unsupported input type for fetchAPIAdapter');
-  }
+const makeFetchAPIAdapter =
+  (extraSearchParams?: Record<string, string>) =>
+  (input: RequestInfo | URL, init?: RequestInit) => {
+    let url: string;
+    if (typeof input === 'string') {
+      url = input;
+    } else if (input instanceof URL) {
+      url = input.toString();
+    } else if (input instanceof Request) {
+      url = input.url;
+    } else {
+      throw new Error('Unsupported input type for fetchAPIAdapter');
+    }
 
-  const searchParams = new URLSearchParams();
+    const searchParams = new URLSearchParams();
 
-  // Read at request time, not at render time: the transport is built once but
-  // these preferences change between messages.
-  const { forceWebSearch, forceDatagouv, selectedModelHrid } =
-    useChatPreferencesStore.getState();
+    // Read at request time, not at render time: the transport is built once but
+    // these preferences change between messages.
+    const { forceWebSearch, forceDatagouv, selectedModelHrid } =
+      useChatPreferencesStore.getState();
 
-  if (forceWebSearch) {
-    searchParams.append('force_web_search', 'true');
-  }
+    if (forceWebSearch) {
+      searchParams.append('force_web_search', 'true');
+    }
 
-  if (forceDatagouv) {
-    searchParams.append('force_datagouv', 'true');
-  }
+    if (forceDatagouv) {
+      searchParams.append('force_datagouv', 'true');
+    }
 
-  if (selectedModelHrid) {
-    searchParams.append('model_hrid', selectedModelHrid);
-  }
+    if (extraSearchParams) {
+      // Arena candidates: the backend picks the model per side, so the pinned
+      // model preference must not travel with the request.
+      Object.entries(extraSearchParams).forEach(([key, value]) => {
+        searchParams.append(key, value);
+      });
+    } else if (selectedModelHrid) {
+      searchParams.append('model_hrid', selectedModelHrid);
+    }
 
-  if (searchParams.toString()) {
-    const separator = url.includes('?') ? '&' : '?';
-    url = `${url}${separator}${searchParams.toString()}`;
-  }
+    if (searchParams.toString()) {
+      const separator = url.includes('?') ? '&' : '?';
+      url = `${url}${separator}${searchParams.toString()}`;
+    }
 
-  return fetchAPI(url, init);
-};
+    return fetchAPI(url, init);
+  };
 
 interface ConversationMetadataEvent {
   type: 'conversation_metadata';
@@ -201,12 +209,18 @@ export interface UseChatOptions {
    * Called when a forced connector could not be reached this turn.
    */
   onConnectorUnavailable?: () => void;
+  /**
+   * Query params appended to every request of this chat. When set, the
+   * `model_hrid` preference is not appended (arena candidates).
+   */
+  extraSearchParams?: Record<string, string>;
 }
 
 export function useChat({
   api,
   onImagesSkipped,
   onConnectorUnavailable,
+  extraSearchParams,
   ...options
 }: UseChatOptions) {
   const queryClient = useQueryClient();
@@ -220,9 +234,22 @@ export function useChat({
   const onConnectorUnavailableRef = useRef(onConnectorUnavailable);
   onConnectorUnavailableRef.current = onConnectorUnavailable;
 
+  // Serialized so a caller passing a fresh object literal each render does not
+  // rebuild the transport.
+  const extraSearchParamsKey = extraSearchParams
+    ? JSON.stringify(extraSearchParams)
+    : undefined;
   const transport = useMemo(
-    () => new DefaultChatTransport({ api, fetch: fetchAPIAdapter }),
-    [api],
+    () =>
+      new DefaultChatTransport({
+        api,
+        fetch: makeFetchAPIAdapter(
+          extraSearchParamsKey
+            ? (JSON.parse(extraSearchParamsKey) as Record<string, string>)
+            : undefined,
+        ),
+      }),
+    [api, extraSearchParamsKey],
   );
 
   const onData = useCallback<ChatOnDataCallback<UIMessage>>(

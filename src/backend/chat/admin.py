@@ -1,11 +1,18 @@
 """Admin classes and registrations for chat application."""
 
+from django import forms
+from django.conf import settings
 from django.contrib import admin
+from django.core.exceptions import PermissionDenied
 from django.db.models import BigIntegerField, Exists, F, Func, OuterRef, Subquery, Value
 from django.db.models.functions import Coalesce
+from django.shortcuts import get_object_or_404, render
 from django.template.defaultfilters import filesizeformat
+from django.urls import path, reverse
+from django.utils.html import format_html
 
 from . import models
+from .arena_results import build_results
 from .model_health import set_model_health
 
 
@@ -261,3 +268,183 @@ class ChatProjectAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+
+# --------------------------------------------------------------------------- #
+# Arena
+# --------------------------------------------------------------------------- #
+
+
+def _saved_value(instance, field: str) -> str | None:
+    """The field's value on a saved object, None on an object being created."""
+    if instance._state.adding:  # noqa: SLF001 # pylint: disable=protected-access
+        return None
+    return getattr(instance, field)
+
+
+def _configured_model_field(label: str, current: str | None = None) -> forms.ChoiceField:
+    """A dropdown of the active models of the LLM configuration.
+
+    `current` is the saved value of an existing object: it stays selectable once
+    its model is deactivated, so the dropdown does not silently show another model.
+    """
+    choices = [
+        (hrid, f"{model.human_readable_name} ({hrid})")
+        for hrid, model in settings.LLM_CONFIGURATIONS.items()
+        if model.is_active
+    ]
+    if current and current not in dict(choices):
+        choices.append((current, f"{current} (inactive)"))
+    return forms.ChoiceField(label=label, choices=choices)
+
+
+class ArenaExperimentForm(forms.ModelForm):
+    """Experiment form with the champion picked from the configured models."""
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        model = models.ArenaExperiment
+        fields = (
+            "name",
+            "description",
+            "is_active",
+            "champion_model_hrid",
+            "sampling_rate",
+            "daily_cap_per_user",
+            "min_votes_for_conclusion",
+        )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["champion_model_hrid"] = _configured_model_field(
+            "Champion (production model)",
+            _saved_value(self.instance, "champion_model_hrid"),
+        )
+
+
+class ArenaChallengerForm(forms.ModelForm):
+    """Challenger form with the model picked from the configured models."""
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        model = models.ArenaChallenger
+        fields = ("experiment", "model_hrid")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["model_hrid"] = _configured_model_field(
+            "Challenger", _saved_value(self.instance, "model_hrid")
+        )
+
+
+class ArenaChallengerInline(admin.TabularInline):
+    """Challengers of an experiment, edited on the experiment page."""
+
+    model = models.ArenaChallenger
+    form = ArenaChallengerForm
+    extra = 1
+    fields = ("model_hrid",)
+
+
+@admin.register(models.ArenaExperiment)
+class ArenaExperimentAdmin(admin.ModelAdmin):
+    """Blind champion-versus-challenger experiments, with a results page per experiment."""
+
+    form = ArenaExperimentForm
+    inlines = [ArenaChallengerInline]
+    list_display = (
+        "name",
+        "is_active",
+        "champion_model_hrid",
+        "sampling_rate",
+        "daily_cap_per_user",
+        "challenger_list",
+        "results_link",
+    )
+    list_filter = ("is_active",)
+    fieldsets = (
+        (None, {"fields": ("name", "description", "is_active")}),
+        (
+            "Sampling",
+            {"fields": ("sampling_rate", "daily_cap_per_user", "min_votes_for_conclusion")},
+        ),
+        (
+            "Champion",
+            {
+                "description": (
+                    "The champion is the model conversations are pinned to (the production "
+                    "model). It is on one side of every arena turn. The other side is ONE "
+                    "challenger drawn at random from the list below; which side each model is "
+                    "shown on is shuffled per turn. Conversations pinned to another model are "
+                    "never compared."
+                ),
+                "fields": ("champion_model_hrid",),
+            },
+        ),
+    )
+
+    @admin.display(description="Challengers")
+    def challenger_list(self, obj):
+        """Comma separated challenger hrids."""
+        return ", ".join(obj.challengers.values_list("model_hrid", flat=True)) or "-"
+
+    @admin.display(description="Results")
+    def results_link(self, obj):
+        """Link to the results page of the experiment."""
+        url = reverse("admin:chat_arenaexperiment_results", args=[obj.pk])
+        return format_html('<a href="{}">Results</a>', url)
+
+    def get_urls(self):
+        """Add the results page under the experiment's admin URLs."""
+        custom = [
+            path(
+                "<uuid:object_id>/results/",
+                self.admin_site.admin_view(self.results_view),
+                name="chat_arenaexperiment_results",
+            ),
+        ]
+        return custom + super().get_urls()
+
+    def results_view(self, request, object_id):
+        """Render the win rate of each challenger for one experiment.
+
+        Gated by the dedicated ``view_arena_results`` permission so results can be
+        read without being a superuser.
+        """
+        if not request.user.has_perm("chat.view_arena_results"):
+            raise PermissionDenied
+        experiment = get_object_or_404(models.ArenaExperiment, pk=object_id)
+        results = build_results(experiment)
+        context = {
+            **self.admin_site.each_context(request),
+            "opts": self.opts,
+            "title": f"Arena results: {experiment.name}",
+            "experiment": experiment,
+            "results": results,
+        }
+        return render(request, "admin/chat/arenaexperiment/results.html", context)
+
+
+@admin.register(models.ArenaComparison)
+class ArenaComparisonAdmin(admin.ModelAdmin):
+    """Read-only log of blind comparisons."""
+
+    list_display = (
+        "drawn_at",
+        "experiment",
+        "challenger_model_hrid",
+        "champion_side",
+        "status",
+        "winner",
+    )
+    list_filter = ("experiment", "status", "winner", "challenger_model_hrid")
+    date_hierarchy = "drawn_at"
+    search_fields = ("conversation__id", "user__email")
+    readonly_fields = [
+        field.name
+        for field in models.ArenaComparison._meta.fields  # noqa: SLF001 # pylint: disable=protected-access
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

@@ -8,6 +8,25 @@ from asgiref.sync import sync_to_async
 
 from core.models import SiteConfiguration
 
+ARENA_DOCUMENTATION = {"self_documentation": "You are an AI assistant in a blind comparison."}
+
+
+def anonymize_arena_documentation(value):
+    """Redact legacy self-documentation tool payloads, including restored UI parts."""
+    if isinstance(value, list):
+        return [anonymize_arena_documentation(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {key: anonymize_arena_documentation(item) for key, item in value.items()}
+    if (
+        value.get("tool_name", value.get("toolName")) == "self_documentation"
+        or value.get("type") == "tool-self_documentation"
+    ):
+        for key in ("content", "output", "result"):
+            if key in result:
+                result[key] = dict(ARENA_DOCUMENTATION)
+    return result
+
 
 async def load_db_self_documentation() -> str:
     """Load self documentation from DB. Returns empty string if not set"""
@@ -17,9 +36,15 @@ async def load_db_self_documentation() -> str:
 
 
 async def build_self_documentation_payload(
-    *, model_hrid: str, model_configuration: Any, tools_configuration: Dict[str, bool]
+    *,
+    model_hrid: str,
+    model_configuration: Any,
+    tools_configuration: Dict[str, bool],
+    arena_mode: bool = False,
 ) -> Dict[str, Any]:
     """Return a single payload combining static documentation and runtime details."""
+    if arena_mode:
+        return dict(ARENA_DOCUMENTATION)
     static_doc = await load_db_self_documentation()
 
     provider = getattr(model_configuration, "provider", None)

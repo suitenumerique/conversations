@@ -3,7 +3,10 @@
 from datetime import timedelta
 from typing import Sequence
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -14,7 +17,14 @@ from core.models import BaseModel
 
 from chat.ai_sdk_types import UIMessage
 from chat.constants import HISTORY_SUMMARY_CLAIM_TTL_SECONDS
-from chat.enums import AttachmentIndexState, CollectionIndexState
+from chat.enums import (
+    ArenaComparisonStatus,
+    ArenaRole,
+    ArenaSide,
+    ArenaVoteOutcome,
+    AttachmentIndexState,
+    CollectionIndexState,
+)
 
 User = get_user_model()
 
@@ -161,6 +171,7 @@ class ChatConversation(BaseModel):
         blank=True,
         help_text="Agent usage for the chat conversation, provided by OpenAI API",
     )
+    arena_version = models.PositiveIntegerField(default=0)
 
     collection_id = models.CharField(
         blank=True,
@@ -400,3 +411,248 @@ class ModelHealth(models.Model):
 
     def __str__(self):
         return f"{self.provider}/{self.model_id}: {self.status}"
+
+
+def default_champion_hrid():
+    """Default the champion to the production model."""
+    return settings.LLM_DEFAULT_MODEL_HRID
+
+
+class ArenaExperiment(BaseModel):
+    """
+    A blind A/B experiment pitting the production model (champion) against challengers.
+
+    At most one experiment is active at a time. Every arena turn draws one challenger
+    and streams both answers side by side; the user's pick is recorded in an
+    ``ArenaComparison`` and committed to the conversation. The conversation itself
+    stays pinned to the champion whichever side wins.
+    """
+
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(
+        default=False,
+        help_text="Only one experiment can be active at a time.",
+    )
+    champion_model_hrid = models.CharField(
+        max_length=100,
+        default=default_champion_hrid,
+        help_text="HRID of the production model every challenger is compared against.",
+    )
+    sampling_rate = models.FloatField(
+        default=0.1,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+        help_text="Share of eligible turns that become arena turns (0 to 1).",
+    )
+    daily_cap_per_user = models.PositiveIntegerField(
+        default=1,
+        help_text="Maximum arena turns a single user sees per day.",
+    )
+    min_votes_for_conclusion = models.PositiveIntegerField(
+        default=100,
+        help_text=(
+            "Below this number of votes a challenger row is labeled 'indicative' on the "
+            "results page. A label, not a gate."
+        ),
+    )
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        ordering = ["-created_at"]
+        permissions = [("view_arena_results", "Can view arena results")]
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        """Enforce a single active experiment and a configured champion."""
+        super().clean()
+        if self.champion_model_hrid not in settings.LLM_CONFIGURATIONS:
+            raise ValidationError(
+                {"champion_model_hrid": "This model is not in the LLM configuration."}
+            )
+        if self.is_active:
+            others = ArenaExperiment.objects.filter(is_active=True).exclude(pk=self.pk)
+            if others.exists():
+                raise ValidationError(
+                    {"is_active": "Another experiment is already active. Deactivate it first."}
+                )
+
+    @property
+    def champion_tools(self) -> list[str]:
+        """Tool list configured on the champion, used to validate challengers."""
+        return list(settings.LLM_CONFIGURATIONS[self.champion_model_hrid].tools)
+
+
+class ArenaChallenger(BaseModel):
+    """A model compared against the champion inside an experiment."""
+
+    experiment = models.ForeignKey(
+        ArenaExperiment, related_name="challengers", on_delete=models.CASCADE
+    )
+    model_hrid = models.CharField(max_length=100)
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        constraints = [
+            models.UniqueConstraint(
+                fields=["experiment", "model_hrid"], name="arena_challenger_unique_per_experiment"
+            )
+        ]
+
+    def __str__(self):
+        return self.model_hrid
+
+    def clean(self):
+        """A challenger must be a configured, active model with the champion's tool list.
+
+        Same tools on both sides keeps the comparison about the model, not the
+        configuration.
+        """
+        super().clean()
+        configuration = settings.LLM_CONFIGURATIONS.get(self.model_hrid)
+        if configuration is None or not configuration.is_active:
+            raise ValidationError(
+                {"model_hrid": "This model is not an active model of the LLM configuration."}
+            )
+        if self.experiment_id is None:
+            return
+        if self.model_hrid == self.experiment.champion_model_hrid:
+            raise ValidationError({"model_hrid": "The champion cannot be its own challenger."})
+        if sorted(configuration.tools) != sorted(self.experiment.champion_tools):
+            raise ValidationError(
+                {
+                    "model_hrid": (
+                        "This model does not have the same tool list as the champion "
+                        f"({', '.join(self.experiment.champion_tools) or 'no tools'})."
+                    )
+                }
+            )
+
+
+class ArenaComparison(BaseModel):
+    """
+    One blind comparison: the champion and a challenger answered the same user turn.
+
+    Per-role metrics are flat ``champion_*`` / ``challenger_*`` columns so the results
+    page can aggregate them in SQL. The two payloads hold the candidate answers until
+    the winner is committed to the conversation; the loser payload is kept for analysis.
+    """
+
+    # PROTECT: the comparisons are the experiment's data. Deactivate an experiment
+    # instead of deleting it; deleting one with comparisons is refused by the admin.
+    experiment = models.ForeignKey(
+        ArenaExperiment, related_name="comparisons", on_delete=models.PROTECT
+    )
+    conversation = models.ForeignKey(
+        ChatConversation,
+        related_name="arena_comparisons",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    user = models.ForeignKey(
+        User, related_name="arena_comparisons", on_delete=models.SET_NULL, null=True, blank=True
+    )
+    turn = models.PositiveIntegerField(
+        default=0, help_text="Index of the user message in the conversation."
+    )
+    tools_stripped = models.BooleanField(
+        default=False, help_text="Side-effect tools were removed from both models."
+    )
+
+    champion_model_hrid = models.CharField(max_length=100)
+    challenger_model_hrid = models.CharField(max_length=100)
+    champion_side = models.CharField(max_length=5, choices=ArenaSide.choices())
+
+    status = models.CharField(
+        max_length=10,
+        choices=ArenaComparisonStatus.choices(),
+        default=ArenaComparisonStatus.PENDING,
+    )
+    winner = models.CharField(
+        max_length=10, choices=ArenaVoteOutcome.choices(), blank=True, default=""
+    )
+    drawn_at = models.DateTimeField(default=timezone.now)
+    voted_at = models.DateTimeField(null=True, blank=True)
+    time_to_vote_ms = models.PositiveIntegerField(null=True, blank=True)
+    conversation_version = models.PositiveIntegerField(default=0)
+    input_snapshot = models.JSONField(null=True, blank=True)
+    closed_reason = models.CharField(max_length=30, blank=True, default="")
+    champion_started_at = models.DateTimeField(null=True, blank=True)
+    challenger_started_at = models.DateTimeField(null=True, blank=True)
+
+    champion_prompt_tokens = models.PositiveIntegerField(null=True, blank=True)
+    champion_completion_tokens = models.PositiveIntegerField(null=True, blank=True)
+    champion_latency_ms = models.PositiveIntegerField(null=True, blank=True)
+    champion_first_token_ms = models.PositiveIntegerField(null=True, blank=True)
+    champion_co2_impact = models.FloatField(null=True, blank=True)
+    champion_trace_id = models.CharField(max_length=100, blank=True, default="")
+    champion_finished_at = models.DateTimeField(null=True, blank=True)
+    champion_error = models.TextField(blank=True, default="")
+    champion_payload = models.JSONField(null=True, blank=True)
+    champion_committed = models.BooleanField(
+        default=False,
+        help_text=(
+            "The champion answer is already in the conversation history. It is written as"
+            " soon as the champion finishes so nothing is lost if the user never votes; a"
+            " vote for the challenger swaps it."
+        ),
+    )
+
+    challenger_prompt_tokens = models.PositiveIntegerField(null=True, blank=True)
+    challenger_completion_tokens = models.PositiveIntegerField(null=True, blank=True)
+    challenger_latency_ms = models.PositiveIntegerField(null=True, blank=True)
+    challenger_first_token_ms = models.PositiveIntegerField(null=True, blank=True)
+    challenger_co2_impact = models.FloatField(null=True, blank=True)
+    challenger_trace_id = models.CharField(max_length=100, blank=True, default="")
+    challenger_finished_at = models.DateTimeField(null=True, blank=True)
+    challenger_error = models.TextField(blank=True, default="")
+    challenger_payload = models.JSONField(null=True, blank=True)
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        ordering = ["-drawn_at"]
+        indexes = [
+            models.Index(fields=["experiment", "status"]),
+            models.Index(fields=["user", "drawn_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.champion_model_hrid} vs {self.challenger_model_hrid} [{self.status}]"
+
+    @property
+    def challenger_side(self) -> str:
+        """Side the challenger was displayed on."""
+        return ArenaSide.RIGHT if self.champion_side == ArenaSide.LEFT else ArenaSide.LEFT
+
+    def role_for_side(self, side: str) -> str:
+        """Map a displayed side back to the model role that produced it."""
+        return ArenaRole.CHAMPION if side == self.champion_side else ArenaRole.CHALLENGER
+
+    def model_hrid_for_side(self, side: str) -> str:
+        """HRID of the model displayed on ``side``."""
+        if self.role_for_side(side) == ArenaRole.CHAMPION:
+            return self.champion_model_hrid
+        return self.challenger_model_hrid
+
+    def side_finished(self, role: str) -> bool:
+        """Whether the given role finished streaming (successfully or not)."""
+        return getattr(self, f"{role}_finished_at") is not None
+
+    def side_succeeded(self, role: str) -> bool:
+        """Whether the given role finished with a payload and no error."""
+        return self.side_finished(role) and not getattr(self, f"{role}_error")
+
+    def payload_for_side(self, side: str) -> dict | None:
+        """Stored answer of the model displayed on ``side``, if it produced one."""
+        return getattr(self, f"{self.role_for_side(side)}_payload")
+
+    def is_restorable(self) -> bool:
+        """Whether both answers are complete, so the choice can be shown again.
+
+        A comparison the user left without voting stays pending and is rebuilt
+        from these payloads on the next visit. One that never got both answers
+        (a stream cut short) has nothing to compare and is resolved instead.
+        """
+        return all(
+            self.side_succeeded(role) and getattr(self, f"{role}_payload")
+            for role in (ArenaRole.CHAMPION, ArenaRole.CHALLENGER)
+        )

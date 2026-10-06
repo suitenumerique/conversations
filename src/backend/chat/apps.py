@@ -10,3 +10,8 @@ class ChatDefaultConfig(AppConfig):
     name = "chat"
     app_label = "chat"
     verbose_name = _("chat application")
+
+    def ready(self):
+        """Register deletion propagation for retained Arena metrics."""
+        # pylint: disable-next=unused-import,import-outside-toplevel
+        from chat import arena_retention  # noqa: PLC0415

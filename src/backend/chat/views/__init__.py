@@ -4,6 +4,7 @@ The implementation is split across submodules; this package re-exports the
 public view classes so ``core.urls`` and existing imports keep working.
 """
 
+from chat.views.arena import ArenaMixin
 from chat.views.attachments import (
     BaseAttachmentViewSet,
     ChatConversationAttachmentViewSet,
@@ -18,6 +19,7 @@ from chat.views.llm_config import LLMConfigurationView
 from chat.views.projects import ChatProjectViewSet
 
 __all__ = [
+    "ArenaMixin",
     "AssistantHealthView",
     "BaseAttachmentViewSet",
     "ChatAttachmentMixin",

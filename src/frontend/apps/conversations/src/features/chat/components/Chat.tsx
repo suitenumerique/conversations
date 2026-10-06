@@ -1,6 +1,7 @@
 import { Button, Modal, ModalSize } from '@gouvfr-lasuite/cunningham-react';
 import { InfiniteData, useQueryClient } from '@tanstack/react-query';
 import {
+  ChatStatus,
   FileUIPart,
   SourceUrlUIPart,
   UIMessage,
@@ -24,22 +25,27 @@ import {
   APIError,
   errorCauses,
   fetchAPI,
+  isAPIError,
   isRateLimitError,
   rateLimitMessage,
 } from '@/api';
 import { Box, HorizontalSeparator, Icon, Loader, Text } from '@/components';
 import { useToast } from '@/components/ToastProvider';
-import { useConfig } from '@/core';
+import { useConfig, useFeatureEnabled } from '@/core';
 import { useProjectAttachments } from '@/features/attachments/api/useProjectAttachments';
 import { useReindexProjectAttachment } from '@/features/attachments/api/useReindexProjectAttachment';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
 import { getUploadContentType } from '@/features/attachments/utils/fileTypes';
+import { ArenaAcknowledgement, drawArena } from '@/features/chat/api/useArena';
 import {
   ImagesSkippedEventKind,
   stampImagesSkippedOnLatestUserMessage,
   useChat,
 } from '@/features/chat/api/useChat';
-import { getConversation } from '@/features/chat/api/useConversation';
+import {
+  KEY_CONVERSATION,
+  getConversation,
+} from '@/features/chat/api/useConversation';
 import { useCreateChatConversation } from '@/features/chat/api/useCreateConversation';
 import {
   LLMModel,
@@ -54,10 +60,14 @@ import { ImageProcessingUnavailableBanner } from '@/features/chat/components/Ima
 import { InputChat } from '@/features/chat/components/InputChat';
 import { MessageItem } from '@/features/chat/components/MessageItem';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
+import { ArenaIntro } from '@/features/chat/components/arena/ArenaIntro';
+import { ArenaThanks } from '@/features/chat/components/arena/ArenaThanks';
+import { ArenaTurn } from '@/features/chat/components/arena/ArenaTurn';
 import {
   STATUS_LINK_KINDS,
   getReindexErrorMessage,
 } from '@/features/chat/components/reindexErrorMessages';
+import { ChatConversation, ChatMessage } from '@/features/chat/types';
 import { useSourcePanelAnchor } from '@/features/sources-panel';
 import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
@@ -82,6 +92,48 @@ const IMAGES_BANNER_STORAGE_PREFIX = 'conversations:images-banner-dismissed:';
 
 const imagesBannerStorageKey = (conversationId: string) =>
   `${IMAGES_BANNER_STORAGE_PREFIX}${conversationId}`;
+
+/** Plain text of a message, used to re-label a restored arena question. */
+const messageText = (message: ChatMessage) =>
+  message.parts
+    .map((part) => (part.type === 'text' ? part.text : ''))
+    .join('')
+    .trim();
+
+/** The arena turn in progress, see `arena` in `Chat`. */
+type ArenaState = {
+  comparisonId: string;
+  userText: string;
+  files: FileUIPart[];
+  userMessageId: string;
+  restoredAnswers?: { left: ChatMessage; right: ChatMessage };
+};
+
+/** The open comparison a reopened conversation puts back on screen, if any. */
+const restorableArena = (conversation: ChatConversation): ArenaState | null => {
+  const pending = conversation.pending_arena_comparison;
+  const lastMessage = conversation.messages.at(-1);
+  if (
+    !pending?.restorable ||
+    !pending.answers ||
+    lastMessage?.role !== 'user'
+  ) {
+    return null;
+  }
+  return {
+    comparisonId: pending.id,
+    userText: messageText(lastMessage),
+    files: [],
+    userMessageId: lastMessage.id,
+    restoredAnswers: pending.answers,
+  };
+};
+
+/** While the arena candidates stream, the composer shows the stop button. */
+const composerStatus = (
+  arenaStreaming: boolean,
+  status: ChatStatus,
+): ChatStatus => (arenaStreaming ? 'streaming' : status);
 
 // Define Attachment type locally (mirroring backend structure)
 export interface Attachment {
@@ -115,6 +167,22 @@ export const Chat = ({
 
   const { data: llmConfig } = useLLMConfiguration();
   const [selectedModel, setSelectedModel] = useState<LLMModel | null>(null);
+  const arenaEnabled = useFeatureEnabled('arena');
+  // The arena turn in progress: two candidate answers are streamed by
+  // `ArenaTurn` instead of the main chat, until the user votes. A comparison
+  // left without a vote stays open: reopening the conversation puts it back on
+  // screen with `restoredAnswers` rather than silently resolving it.
+  const [arena, setArena] = useState<ArenaState | null>(null);
+  const [arenaStreaming, setArenaStreaming] = useState(false);
+  // Figures of the last vote, shown in the thanks card once `ArenaTurn` is
+  // gone; cleared when the card has collapsed.
+  const [arenaThanks, setArenaThanks] = useState<ArenaAcknowledgement | null>(
+    null,
+  );
+  // Slot rendered next to `InputChat`, outside the scrollable message area,
+  // so the arena vote bar (portalled into it) never scrolls with the chat.
+  const [arenaVoteBarContainer, setArenaVoteBarContainer] =
+    useState<HTMLDivElement | null>(null);
 
   const [conversationId, setConversationId] = useState(initialConversationId);
   const apiUrl = conversationId
@@ -241,9 +309,21 @@ export const Chat = ({
   // Held while a submission is on its way to a send. Until that send starts the
   // status stays `ready`, so the composer still accepts Enter.
   const submitLockRef = useRef(false);
+  const drawInFlightRef = useRef(false);
 
   const { mutate: createChatConversation } = useCreateChatConversation();
   const queryClient = useQueryClient();
+  // The candidate streams record the inference-load cooldown, but their
+  // cooldown events reach the candidate chats, not this one: re-read it from
+  // the backend once they are over.
+  const arenaWasStreamingRef = useRef(false);
+  useEffect(() => {
+    if (arenaWasStreamingRef.current && !arenaStreaming) {
+      void queryClient.invalidateQueries({ queryKey: ['chat-cooldown'] });
+    }
+    arenaWasStreamingRef.current = arenaStreaming;
+  }, [arenaStreaming, queryClient]);
+
   const [isReadingInstructions, setIsReadingInstructions] = useState(false);
   const readingInstructionsStartRef = useRef<number>(0);
   const aprilFools = useAprilFools();
@@ -403,7 +483,26 @@ export const Chat = ({
   };
 
   const handleStop = () => {
-    void stopGeneration();
+    const stopping = stopGeneration();
+    // Stopping an arena turn drops the split: the poison pill ends both
+    // candidate streams and the backend closes the comparison immediately.
+    // The champion answer may already be committed, so the history is taken
+    // from the server once the stop lands; otherwise the question stays on
+    // screen so the user can rephrase it.
+    if (!arena) {
+      void stopping;
+      return;
+    }
+    setArena(null);
+    setArenaStreaming(false);
+    if (conversationId) {
+      const id = conversationId;
+      void stopping
+        .catch(() => undefined)
+        .then(() => getConversation({ id }))
+        .then((fresh) => setMessages(fresh.messages))
+        .catch(() => undefined);
+    }
   };
 
   const handleSubmitWrapper = (event: FormEvent<HTMLFormElement>) => {
@@ -804,6 +903,9 @@ export const Chat = ({
       hasSentRef.current = false;
       setInitialConversationMessages(undefined);
       setMessages([]);
+      setArena(null);
+      setArenaStreaming(false);
+      setArenaThanks(null);
     }
     setImagesSkipped(false);
     // Drop the previous conversation's project so its indexing gate can't leak
@@ -833,6 +935,9 @@ export const Chat = ({
           const conversation = await getConversation({
             id: initialConversationId,
           });
+          // History initialization is read-only. An incomplete comparison may
+          // still be streaming in this page or another tab.
+          const restoredArena = restorableArena(conversation);
           if (!ignore) {
             // v5 keeps the messages inside the chat instance, which was built
             // when the id changed — before this fetch resolved.
@@ -846,6 +951,10 @@ export const Chat = ({
             // two lands first.
             if (!hasSentRef.current) {
               setMessages(conversation.messages);
+              // Same reason: only the initial state may put an open comparison
+              // back on screen — never a re-run over a turn started since.
+              setArena(restoredArena);
+              setArenaStreaming(false);
             }
             setImagesSkipped(conversation.images_skipped ?? false);
             setConversationProjectId(conversation.project?.id ?? null);
@@ -931,9 +1040,131 @@ export const Chat = ({
       filename: attachment.name,
     }));
 
-  const send = (text: string, attachments: Attachment[]) => {
+  const focusLastMessage = useCallback(() => {
+    requestAnimationFrame(() => {
+      const elements =
+        chatContainerRef.current?.querySelectorAll<HTMLElement>(
+          '[data-message-id]',
+        );
+      const last = elements?.[elements.length - 1];
+      if (last) {
+        last.tabIndex = -1;
+        last.focus({ preventScroll: true });
+      }
+    });
+  }, []);
+
+  // The split collapses into a normal message: take the server's messages
+  // (the committed answer among them) and move focus onto it.
+  const finishArena = useCallback(
+    (
+      conversation: ChatConversation | null,
+      acknowledgement: ArenaAcknowledgement | null = null,
+    ) => {
+      if (conversation) {
+        setMessages(conversation.messages);
+      }
+      setArena(null);
+      setArenaStreaming(false);
+      setArenaThanks(acknowledgement);
+      void queryClient.invalidateQueries({
+        queryKey: [KEY_CONVERSATION, conversationId],
+      });
+      focusLastMessage();
+    },
+    [conversationId, queryClient, setMessages, focusLastMessage],
+  );
+
+  const handleArenaAbandoned = useCallback(
+    (conversation: ChatConversation | null) => {
+      if (conversation) {
+        finishArena(conversation);
+        // Neither side produced an answer: say so, the question is kept for a
+        // retry exactly as on a failed normal turn.
+        if (conversation.messages.at(-1)?.role !== 'assistant') {
+          setChatErrorModal({
+            title: t('Error'),
+            message: <Text>{t('An error occurred. Please try again.')}</Text>,
+          });
+        }
+        return;
+      }
+      setArena(null);
+      setArenaStreaming(false);
+      if (conversationId) {
+        void getConversation({ id: conversationId })
+          .then((fresh) => setMessages(fresh.messages))
+          .catch(() => undefined);
+      }
+    },
+    [conversationId, finishArena, setMessages, t],
+  );
+
+  const handleArenaError = useCallback(
+    (error: Error) => {
+      console.error('Arena error:', error);
+      // The comparison was already closed (a vote in another tab, a stop):
+      // take the server's history instead of keeping a split nobody can close.
+      if (isAPIError(error) && error.status === 409 && conversationId) {
+        void getConversation({ id: conversationId })
+          .then((fresh) => finishArena(fresh))
+          .catch(() => undefined);
+        return;
+      }
+      setChatErrorModal({
+        title: t('Error'),
+        message: <Text>{t('An error occurred. Please try again.')}</Text>,
+      });
+    },
+    [conversationId, finishArena, t],
+  );
+
+  const send = async (
+    text: string,
+    attachments: Attachment[],
+    // The creation handoff calls `send` from a closure that predates
+    // `setConversationId`, so it passes the fresh id explicitly.
+    targetConversationId: string | undefined = conversationId,
+  ) => {
+    // A second send while the draw is pending would draw (and send) again.
+    if (drawInFlightRef.current) {
+      return;
+    }
     hasSentRef.current = true;
-    void sendMessage({ text, files: toFileParts(attachments) });
+    const fileParts = toFileParts(attachments);
+    if (arenaEnabled && targetConversationId) {
+      const userMessageId = `arena-user-${Date.now()}`;
+      const userMessage: UIMessage = {
+        id: userMessageId,
+        role: 'user',
+        parts: [{ type: 'text', text }, ...fileParts],
+      };
+      drawInFlightRef.current = true;
+      let draw;
+      try {
+        draw = await drawArena(
+          targetConversationId,
+          forceWebSearch,
+          userMessage,
+          selectedModelHrid,
+          forceDatagouv,
+        );
+      } finally {
+        drawInFlightRef.current = false;
+      }
+      if (draw.arena) {
+        setMessages((prev) => [...prev, userMessage]);
+        setArena({
+          comparisonId: draw.comparison_id,
+          userText: text,
+          files: fileParts,
+          userMessageId,
+        });
+        setInput('');
+        return;
+      }
+    }
+    void sendMessage({ text, files: fileParts });
     setInput('');
   };
 
@@ -955,9 +1186,34 @@ export const Chat = ({
     }
   };
 
+  const showArenaVoteRequired = () => {
+    setChatErrorModal({
+      title: t('Choose an answer'),
+      message: (
+        <Text>
+          {arenaStreaming
+            ? t(
+                'Both answers are still being written. Pick the one you prefer once they are done.',
+              )
+            : t(
+                'Pick the answer you prefer above to continue this conversation.',
+              )}
+        </Text>
+      ),
+    });
+  };
+
   const runSubmit = async () => {
     // Inference-load cooldown: block new messages until the wait elapses.
     if (cooldownUntil && Date.now() < cooldownUntil) {
+      return;
+    }
+
+    // A comparison waiting for a vote is never resolved implicitly: the user
+    // has to pick a side before the conversation can go on, so the two answers
+    // never vanish without an explanation.
+    if (arena) {
+      showArenaVoteRequired();
       return;
     }
 
@@ -1023,10 +1279,17 @@ export const Chat = ({
             // After setting the conversationId, submit the pending message
             setTimeout(() => {
               if (pendingFirstMessage) {
-                send(
-                  pendingFirstMessage.input,
-                  pendingFirstMessage.attachments ?? [],
-                );
+                // The conversation page sends the message it finds in the
+                // pending store. With the arena on, sending it from here too
+                // (a second submission whose creation won) would draw a second
+                // comparison for the same question.
+                if (!arenaEnabled) {
+                  void send(
+                    pendingFirstMessage.input,
+                    pendingFirstMessage.attachments ?? [],
+                    data.id,
+                  );
+                }
                 setFiles(null);
                 if (fileInputRef.current) {
                   fileInputRef.current.value = '';
@@ -1067,7 +1330,7 @@ export const Chat = ({
     setChatErrorType('generic');
     lastSubmissionRef.current = { input, files };
 
-    send(input, attachments);
+    await send(input, attachments);
     // Attendre un peu avant de vider les fichiers pour s'assurer qu'ils sont traités
     setTimeout(() => {
       setFiles(null);
@@ -1076,6 +1339,35 @@ export const Chat = ({
       }
     }, 100);
   };
+
+  // An arena turn never puts the main chat in `submitted`, so the scroll to
+  // the question above does not fire: do it here when the split opens.
+  const arenaUserMessageId = arena?.userMessageId;
+  useEffect(() => {
+    if (!arenaUserMessageId) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      const container = chatContainerRef.current;
+      const messageElement = container?.querySelector<HTMLElement>(
+        `[data-message-id="${arenaUserMessageId}"]`,
+      );
+      if (container && messageElement) {
+        container.scrollTo({
+          top: Math.max(0, messageElement.offsetTop - 100),
+          behavior: 'smooth',
+        });
+      }
+    });
+  }, [arenaUserMessageId]);
+
+  // History handed to the candidates: everything but the user message the
+  // arena turn answers (each candidate chat appends its own copy of it).
+  const arenaHistory = useMemo(
+    () =>
+      arena ? messages.filter((m) => m.id !== arena.userMessageId) : messages,
+    [messages, arena],
+  );
 
   return (
     <Box
@@ -1162,7 +1454,33 @@ export const Chat = ({
             })}
           </Box>
         )}
+        {!arena && arenaThanks && (
+          <ArenaThanks
+            acknowledgement={arenaThanks}
+            onDone={() => setArenaThanks(null)}
+          />
+        )}
+        {arena && conversationId && (
+          <>
+            <ArenaIntro />
+            <ArenaTurn
+              key={arena.comparisonId}
+              conversationId={conversationId}
+              comparisonId={arena.comparisonId}
+              userText={arena.userText}
+              files={arena.files}
+              history={arenaHistory}
+              restoredAnswers={arena.restoredAnswers}
+              onVoted={finishArena}
+              onAbandoned={handleArenaAbandoned}
+              onError={handleArenaError}
+              onStreamingChange={setArenaStreaming}
+              voteBarContainer={arenaVoteBarContainer}
+            />
+          </>
+        )}
         {!aprilFools.isActive &&
+        !arena &&
         ((status !== 'ready' && status !== 'streaming' && status !== 'error') ||
           isUploadingFiles) ? (
           <Box
@@ -1214,12 +1532,20 @@ export const Chat = ({
         {showImagesBanner && (
           <ImageProcessingUnavailableBanner onDismiss={dismissImagesBanner} />
         )}
+        {arena && conversationId && (
+          <Box
+            ref={setArenaVoteBarContainer}
+            $width="100%"
+            $maxWidth="var(--chat-content-max-width, 750px)"
+            $margin={{ all: 'auto' }}
+          />
+        )}
         <InputChat
           messagesLength={messages.length}
           input={input}
           handleInputChange={handleInputChange}
           handleSubmit={handleSubmitWrapper}
-          status={status}
+          status={composerStatus(arenaStreaming, status)}
           files={files}
           onScrollToBottom={scrollToBottom}
           setFiles={setFiles}

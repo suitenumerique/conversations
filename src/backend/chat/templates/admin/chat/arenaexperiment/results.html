@@ -1,0 +1,74 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+  .arena-results { max-width: 900px; }
+  .arena-kpis { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 24px; }
+  .arena-kpi { border: 1px solid var(--hairline-color, #ddd); border-radius: 4px; padding: 10px 14px; min-width: 110px; }
+  .arena-kpi .label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--body-quiet-color, #666); }
+  .arena-kpi .value { font-size: 20px; font-variant-numeric: tabular-nums; }
+  .arena-results table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
+  .arena-results th, .arena-results td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--hairline-color, #ddd); font-variant-numeric: tabular-nums; }
+  .arena-results th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  .arena-indicative { color: var(--body-quiet-color, #777); }
+  .arena-indicative .arena-flag { font-size: 11px; border: 1px solid currentColor; border-radius: 3px; padding: 0 5px; margin-left: 6px; }
+  .arena-note { color: var(--body-quiet-color, #666); font-size: 12px; }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; <a href="{% url opts|admin_urlname:'change' experiment.pk %}">{{ experiment.name }}</a>
+  &rsaquo; Results
+</div>
+{% endblock %}
+
+{% block content %}
+{% with h=results.header %}
+<div class="arena-results">
+  <p>
+    Champion <strong>{{ experiment.champion_model_hrid }}</strong>,
+    sampling rate {{ experiment.sampling_rate }}, daily cap {{ experiment.daily_cap_per_user }} per user,
+    {% if experiment.is_active %}<strong>active</strong>{% else %}inactive{% endif %}.
+  </p>
+
+  <div class="arena-kpis">
+    <div class="arena-kpi"><span class="label">Comparisons</span><span class="value">{{ h.total }}</span></div>
+    <div class="arena-kpi"><span class="label">Votes</span><span class="value">{{ h.voted }}</span></div>
+    <div class="arena-kpi"><span class="label">Abandoned</span><span class="value">{{ h.abandoned }}</span></div>
+    <div class="arena-kpi"><span class="label">Errored</span><span class="value">{{ h.errored }}</span></div>
+    <div class="arena-kpi"><span class="label">Pending</span><span class="value">{{ h.pending }}</span></div>
+    <div class="arena-kpi"><span class="label">Refused draws</span><span class="value">{{ h.refused_draws }}</span></div>
+  </div>
+
+  <h2>Challengers against the champion</h2>
+  <table>
+    <thead>
+      <tr><th>Challenger</th><th>Comparisons</th><th>Votes</th><th>Win rate</th><th>95% interval</th></tr>
+    </thead>
+    <tbody>
+      {% for row in results.challengers %}
+      <tr class="{% if row.indicative %}arena-indicative{% endif %}">
+        <td>{{ row.model_hrid }}{% if row.indicative %}<span class="arena-flag">indicative</span>{% endif %}</td>
+        <td>{{ row.comparisons }}</td>
+        <td>{{ row.votes }}</td>
+        <td>{% if row.win_rate is not None %}{% widthratio row.win_rate 1 100 %}%{% else %}–{% endif %}</td>
+        <td>{% if row.ci_low is not None %}{% widthratio row.ci_low 1 100 %}% – {% widthratio row.ci_high 1 100 %}%{% else %}–{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">No challenger yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="arena-note">
+    Win rate is the share of votes where the challenger's answer was preferred over the champion's.
+    A row stays indicative until it has {{ h.threshold }} votes and its 95% interval excludes 50%.
+    Refused draws are sampled turns whose conversation was not on the champion, so no comparison was made.
+  </p>
+</div>
+{% endwith %}
+{% endblock %}

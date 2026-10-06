@@ -61,6 +61,34 @@ def test_both_settings_produce_two_entries():
     assert set(schedule) == {"fetch-model-health", "deindex-inactive-collections"}
 
 
+def test_arena_purge_entry_maps_cron_fields_to_crontab_kwargs():
+    """ARENA_PURGE_CONTENT_CRON set builds one crontab-based schedule entry."""
+
+    class TestSettings(Base):
+        """Fake test settings with the Arena retention purge enabled."""
+
+        ARENA_PURGE_CONTENT_CRON = "0 3 * * *"
+
+    schedule = TestSettings().CELERY_BEAT_SCHEDULE
+
+    assert list(schedule) == ["purge-arena-content"]
+    entry = schedule["purge-arena-content"]
+    assert entry["task"] == "chat.tasks.purge_arena_content_task"
+    assert entry["schedule"] == crontab(minute="0", hour="3")
+
+
+def test_arena_purge_property_rejects_bad_cron():
+    """A bad ARENA_PURGE_CONTENT_CRON raises ValueError naming that setting."""
+
+    class TestSettings(Base):
+        """Fake test settings with a malformed Arena purge cron string."""
+
+        ARENA_PURGE_CONTENT_CRON = "0 3 * *"
+
+    with pytest.raises(ValueError, match="ARENA_PURGE_CONTENT_CRON"):
+        _ = TestSettings().CELERY_BEAT_SCHEDULE
+
+
 def test_crontab_from_string_rejects_wrong_field_count():
     """A cron string without five fields raises ValueError."""
     with pytest.raises(ValueError):

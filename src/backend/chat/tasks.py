@@ -192,3 +192,12 @@ def deindex_inactive_collections_task():
         call_command("deindex_inactive_collections")
     except CommandError:
         logger.exception("deindex_inactive_collections_task failed.")
+
+
+@app.task(ignore_result=True)
+def purge_arena_content_task():
+    """Run `purge_arena_content` from Celery beat on a cron schedule."""
+    try:
+        call_command("purge_arena_content")
+    except CommandError:
+        logger.exception("purge_arena_content_task failed.")

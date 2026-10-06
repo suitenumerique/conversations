@@ -70,3 +70,39 @@ class ChatProjectAttachmentFactory(factory.django.DjangoModelFactory):
 
     class Meta:
         model = models.ChatConversationAttachment
+
+
+class ArenaExperimentFactory(factory.django.DjangoModelFactory):
+    """Factory for arena experiments (inactive by default, champion = default model)."""
+
+    name = factory.Sequence(lambda n: f"experiment {n}")
+    is_active = False
+    sampling_rate = 1.0
+    daily_cap_per_user = 100
+
+    class Meta:
+        model = models.ArenaExperiment
+
+
+class ArenaChallengerFactory(factory.django.DjangoModelFactory):
+    """Factory for arena challengers."""
+
+    experiment = factory.SubFactory(ArenaExperimentFactory)
+    model_hrid = "challenger-model"
+
+    class Meta:
+        model = models.ArenaChallenger
+
+
+class ArenaComparisonFactory(factory.django.DjangoModelFactory):
+    """Factory for arena comparisons, pending with the champion on the left by default."""
+
+    experiment = factory.SubFactory(ArenaExperimentFactory)
+    conversation = factory.SubFactory(ChatConversationFactory)
+    user = factory.LazyAttribute(lambda obj: obj.conversation.owner)
+    champion_model_hrid = factory.LazyAttribute(lambda obj: obj.experiment.champion_model_hrid)
+    challenger_model_hrid = "challenger-model"
+    champion_side = "left"
+
+    class Meta:
+        model = models.ArenaComparison
