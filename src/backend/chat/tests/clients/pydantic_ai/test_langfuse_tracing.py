@@ -130,6 +130,43 @@ async def test_langfuse_span_created_when_enabled_and_analytics_allowed(
 
 @pytest.mark.asyncio
 @responses.activate
+async def test_langfuse_span_created_for_user_without_email(
+    agent_model,
+    ui_messages,
+    settings,
+    langfuse_client,
+):
+    """A user without an email still gets an answer, traced without a domain."""
+    settings.LANGFUSE_ENABLED = True
+
+    responses.add(
+        responses.POST,
+        "https://langfuse.example.com/api/public/otel/v1/traces",
+        json={"success": True},
+        status=200,
+    )
+
+    user = await sync_to_async(UserFactory)(email=None, allow_conversation_analytics=True)
+    conversation = await sync_to_async(ChatConversationFactory)(owner=user)
+
+    service = AIAgentService(conversation, user=user)
+    results = []
+    with service.conversation_agent.override(model=agent_model):
+        async for result in service.stream_data_async(ui_messages):
+            results.append(result)
+
+    assert stream_text(results) == "Hello! I'm doing well, thank you for asking."
+
+    langfuse_client.flush()
+
+    assert len(responses.calls) == 1
+    body = responses.calls[0].request.body
+    assert str(user.sub).encode() in body
+    assert b"user_fqdn" not in body
+
+
+@pytest.mark.asyncio
+@responses.activate
 async def test_langfuse_span_created_when_enabled_and_analytics_disabled(
     agent_model,
     ui_messages,

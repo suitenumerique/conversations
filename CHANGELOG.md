@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- 🐛(back) answer users who have no email when Langfuse is enabled #788
+
 ### Security
 
 - 🔒️(project) keep user prompts out of logs and telemetry

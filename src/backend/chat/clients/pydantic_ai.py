@@ -546,9 +546,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     propagate_attributes(
                         user_id=str(self.user.sub),
                         session_id=str(self.conversation.pk),
-                        metadata={
-                            "user_fqdn": self.user.email.split("@")[-1],
-                        },
+                        # Accounts created without an email (some OIDC providers)
+                        # have no domain to report: tracing must not break the answer.
+                        metadata=(
+                            {"user_fqdn": self.user.email.split("@")[-1]} if self.user.email else {}
+                        ),
                     )
                 )
                 self._langfuse_span = stack.enter_context(
