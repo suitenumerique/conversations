@@ -1,10 +1,10 @@
 {
   "name": "main",
-  "label": "Baseline main",
-  "created_at": "2026-09-08T09:53:39.534363+00:00",
-  "run_id": "2026-09-08T09-19-11-966553Z_471d974_5cb6fd",
+  "label": "add datagouv_selection",
+  "created_at": "2026-10-05T11:47:43.214999+00:00",
+  "run_id": "2026-10-05T08-56-30-064394Z_e64c555_25cb27",
   "run_file": "baselines/main_run.json",
-  "git_commit": "471d974",
-  "model_hrid": "default-model",
-  "judge_model_hrid": "albert-openai-gpt-oss-120b"
+  "git_commit": "e64c555",
+  "model_hrid": "albert-mistral-medium-2508",
+  "judge_model_hrid": "fallback-model-1"
 }

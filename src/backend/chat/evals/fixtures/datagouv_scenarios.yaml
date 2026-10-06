@@ -1,0 +1,357 @@
+defibrillateurs_nantes:
+  search_datasets: |
+    Found 119 dataset(s) for query: 'défibrillateurs'
+    Page 1 of results:
+
+    1. Géo'DAE - Base Nationale des Défibrillateurs
+       ID: 61556e1e9d6adb2df86eb0fc
+       Organization: Atlasanté
+       Tags: arret-cardiaque, dae, declaration, defibrillateur, defibrillateurs-automatises-externes
+       Resources: 2
+       URL: https://www.data.gouv.fr/datasets/geodae-base-nationale-des-defibrillateurs
+
+    2. Défibrillateurs du réseau RATP
+       ID: 6340f5cfe42bc68a88eacfa5
+       Organization: Régie autonome des transports parisiens (RATP)
+       Tags: dae, defibrillateur, secours
+       Resources: 4
+       URL: https://www.data.gouv.fr/datasets/defibrillateurs-du-reseau-ratp
+  list_dataset_resources: |
+    Resources in dataset: Géo'DAE - Base Nationale des Défibrillateurs
+    Dataset ID: 61556e1e9d6adb2df86eb0fc
+    Total resources: 2
+
+    1. geodae.csv
+       Resource ID: edb6a9e1-2f16-4bbf-99e7-c3eb6b90794c
+       Format: csv
+       Size: 73.9 MB
+       MIME type: text/csv
+       Type: main
+       URL: https://static.data.gouv.fr/resources/geodae-base-nationale-des-defibrillateurs/20260930-100010/geodae.csv
+
+    2. geodae.json
+       Resource ID: 86ea48a0-dd94-4a23-b71c-80d3041d7db2
+       Format: json
+       Size: 205.6 MB
+       MIME type: application/json
+       Type: main
+       URL: https://static.data.gouv.fr/resources/geodae-base-nationale-des-defibrillateurs/20260930-130039/geodae.json
+  query_resource_data: |
+    Querying resource: geodae.csv
+    Resource ID: edb6a9e1-2f16-4bbf-99e7-c3eb6b90794c
+    Dataset: Géo'DAE - Base Nationale des Défibrillateurs (ID: 61556e1e9d6adb2df86eb0fc)
+
+    Filter: c_com_nom exact Nantes
+
+    Total rows (Tabular API): 937
+    Total pages: 313 (page size: 3)
+    Retrieved: 3 row(s) from page 1
+    Columns: __id, c_nom, c_adr_num, c_adr_voie, c_com_nom, c_acc, c_etat_fonct
+
+    Data (3 rows):
+      Row 1:
+        __id: 4485
+        c_nom: DAE Fidélia Assistance Nantes
+        c_adr_num: 7
+        c_adr_voie: Allée Jacques Berque
+        c_com_nom: Nantes
+        c_acc: Intérieur
+        c_etat_fonct: En fonctionnement
+      Row 2:
+        __id: 4488
+        c_nom: DAE Sodexo Centre Ouest
+        c_adr_num: 10
+        c_adr_voie: RUE EDOUARD NIGNON
+        c_com_nom: Nantes
+        c_acc: Intérieur
+        c_etat_fonct: En fonctionnement
+      Row 3:
+        __id: 4489
+        c_nom: DAE THIERRY IMMOBILIER
+        c_adr_num: 10
+        c_adr_voie: Rue Sarrazin
+        c_com_nom: Nantes
+        c_acc: Intérieur
+        c_etat_fonct: En fonctionnement
+
+    📄 More data available. Use page=2 to see the next page.
+etablissements_lille:
+  search_datasets: |
+    Found 25 dataset(s) for query: 'annuaire éducation'
+    Page 1 of results:
+
+    1. Annuaire de l'éducation
+       ID: 5889d03fa3a72974cbf0d5b1
+       Organization: Ministères de l'Éducation nationale
+       Tags: cfa, cite-scolaire, colleges, demi-pension, donnees-de-reference
+       Resources: 5
+       URL: https://www.data.gouv.fr/datasets/annuaire-de-leducation
+
+    2. Annuaire des bureaux des entreprises des lycées professionnels et polyvalents
+       ID: 6503d805d0fd3360f16e33b0
+       Organization: Ministères de l'Éducation nationale
+       Tags: annuaire, bureau-des-entreprises, etablissements-dont-ips, lycees-professionnels, organisation-du-systeme-scolaire
+       Resources: 4
+       URL: https://www.data.gouv.fr/datasets/annuaire-des-bureaux-des-entreprises-des-lycees-professionnels-et-polyvalents
+  list_dataset_resources: |
+    Resources in dataset: Annuaire de l'éducation
+    Dataset ID: 5889d03fa3a72974cbf0d5b1
+    Total resources: 5
+
+    2. fr-en-annuaire-education.csv
+       Resource ID: b22f04bf-64a8-495d-b8bb-d84dbc4c7983
+       Format: csv
+       MIME type: text/csv
+       Type: main
+       URL: https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-annuaire-education/exports/csv?use_labels=true
+
+    3. fr-en-annuaire-education.json
+       Resource ID: a4829d44-c26f-47ea-beea-d9cb32493444
+       Format: json
+       MIME type: application/json
+       Type: main
+       URL: https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-annuaire-education/exports/json
+  query_resource_data: |
+    Querying resource: fr-en-annuaire-education.csv
+    Resource ID: b22f04bf-64a8-495d-b8bb-d84dbc4c7983
+    Dataset: Annuaire de l'éducation (ID: 5889d03fa3a72974cbf0d5b1)
+
+    Filter: Nom_commune exact Lille
+
+    Total rows (Tabular API): 193
+    Total pages: 65 (page size: 3)
+    Retrieved: 3 row(s) from page 1
+    Columns: __id, Nom_etablissement, Type_etablissement, Statut_public_prive, Adresse_1, Nom_commune
+
+    Data (3 rows):
+      Row 1:
+        __id: 3520
+        Nom_etablissement: Ecole maternelle Roger Salengro
+        Type_etablissement: Ecole
+        Statut_public_prive: Public
+        Adresse_1: Rue Anatole France
+        Nom_commune: Lille
+      Row 2:
+        __id: 3531
+        Nom_etablissement: Ecole maternelle Pauline Kergomard
+        Type_etablissement: Ecole
+        Statut_public_prive: Public
+        Adresse_1: 2 rue Georges Mandel
+        Nom_commune: Lille
+      Row 3:
+        __id: 3532
+        Nom_etablissement: Ecole maternelle La Bruyère
+        Type_etablissement: Ecole
+        Statut_public_prive: Public
+        Adresse_1: 8 rue de l'Escaut
+        Nom_commune: Lille
+
+    📄 More data available. Use page=2 to see the next page.
+cog_brest:
+  search_datasets: |
+    Found 177 dataset(s) for query: 'code officiel géographique'
+    Page 1 of results:
+
+    1. Code officiel géographique
+       ID: 58c984b088ee386cdb1261f3
+       Organization: Institut national de la statistique et des études économiques (Insee)
+       Tags: code-geographique, decoupages-administratifs, geospatiales, hvd
+       Resources: 33
+       URL: https://www.data.gouv.fr/datasets/code-officiel-geographique-1
+
+    2. ADMIN EXPRESS, ADMIN EXPRESS COG, ADMIN EXPRESS COG CARTO, ADMIN EXPRESS COG CARTO PE, ADMIN EXPRESS COG CARTO PLUS PE
+       ID: 5808de39c751df1e0679df72
+       Organization: Institut national de l'information géographique et forestière
+       Tags: demographies, denominations-geographiques, donnees-ouvertes, inspire, repartition-de-la-population
+       Resources: 242
+       URL: https://www.data.gouv.fr/datasets/admin-express-admin-express-cog-admin-express-cog-carto-admin-express-cog-carto-pe-admin-express-cog-carto-plus-pe
+  list_dataset_resources: |
+    Resources in dataset: Code officiel géographique
+    Dataset ID: 58c984b088ee386cdb1261f3
+    Total resources: 33
+
+    13. Millésime 2026 : Liste des départements au 01/01/2026
+       Resource ID: e5f32177-5841-4a46-9c17-f8ff94bd38fc
+       Format: csv
+       Type: main
+       URL: https://www.insee.fr/fr/statistiques/fichier/8740222/v_departement_2026.csv
+
+    16. Millésime 2026 : Liste des communes, arrondissements municipaux, communes déléguées et communes associées au 01/01/2026
+       Resource ID: c5800591-813b-4ce2-9a3f-739a9c5d9558
+       Format: csv
+       Type: main
+       URL: https://www.insee.fr/fr/statistiques/fichier/8740222/v_commune_2026.csv
+  query_resource_data: |
+    Querying resource: Millésime 2026 : Liste des communes, arrondissements municipaux, communes déléguées et communes associées au 01/01/2026
+    Resource ID: c5800591-813b-4ce2-9a3f-739a9c5d9558
+    Dataset: Code officiel géographique (ID: 58c984b088ee386cdb1261f3)
+
+    Filter: LIBELLE exact Brest
+
+    Total rows (Tabular API): 1
+    Total pages: 1 (page size: 2)
+    Retrieved: 1 row(s) from page 1
+    Columns: __id, COM, REG, DEP, LIBELLE
+
+    Data (1 row):
+      Row 1:
+        __id: 11023
+        COM: 29019
+        REG: 53
+        DEP: 29
+        LIBELLE: Brest
+cog_laval:
+  search_datasets: |
+    Found 177 dataset(s) for query: 'code officiel géographique'
+    Page 1 of results:
+
+    1. Code officiel géographique
+       ID: 58c984b088ee386cdb1261f3
+       Organization: Institut national de la statistique et des études économiques (Insee)
+       Tags: code-geographique, decoupages-administratifs, geospatiales, hvd
+       Resources: 33
+       URL: https://www.data.gouv.fr/datasets/code-officiel-geographique-1
+
+    2. ADMIN EXPRESS, ADMIN EXPRESS COG, ADMIN EXPRESS COG CARTO, ADMIN EXPRESS COG CARTO PE, ADMIN EXPRESS COG CARTO PLUS PE
+       ID: 5808de39c751df1e0679df72
+       Organization: Institut national de l'information géographique et forestière
+       Tags: demographies, denominations-geographiques, donnees-ouvertes, inspire, repartition-de-la-population
+       Resources: 242
+       URL: https://www.data.gouv.fr/datasets/admin-express-admin-express-cog-admin-express-cog-carto-admin-express-cog-carto-pe-admin-express-cog-carto-plus-pe
+  list_dataset_resources: |
+    Resources in dataset: Code officiel géographique
+    Dataset ID: 58c984b088ee386cdb1261f3
+    Total resources: 33
+
+    13. Millésime 2026 : Liste des départements au 01/01/2026
+       Resource ID: e5f32177-5841-4a46-9c17-f8ff94bd38fc
+       Format: csv
+       Type: main
+       URL: https://www.insee.fr/fr/statistiques/fichier/8740222/v_departement_2026.csv
+
+    16. Millésime 2026 : Liste des communes, arrondissements municipaux, communes déléguées et communes associées au 01/01/2026
+       Resource ID: c5800591-813b-4ce2-9a3f-739a9c5d9558
+       Format: csv
+       Type: main
+       URL: https://www.insee.fr/fr/statistiques/fichier/8740222/v_commune_2026.csv
+  query_resource_data: |
+    Querying resource: Millésime 2026 : Liste des communes, arrondissements municipaux, communes déléguées et communes associées au 01/01/2026
+    Resource ID: c5800591-813b-4ce2-9a3f-739a9c5d9558
+    Dataset: Code officiel géographique (ID: 58c984b088ee386cdb1261f3)
+
+    Filter: LIBELLE exact Laval
+
+    Total rows (Tabular API): 1
+    Total pages: 1 (page size: 2)
+    Retrieved: 1 row(s) from page 1
+    Columns: __id, COM, REG, DEP, LIBELLE
+
+    Data (1 row):
+      Row 1:
+        __id: 20907
+        COM: 53130
+        REG: 52
+        DEP: 53
+        LIBELLE: Laval
+cog_gers:
+  search_datasets: |
+    Found 177 dataset(s) for query: 'code officiel géographique'
+    Page 1 of results:
+
+    1. Code officiel géographique
+       ID: 58c984b088ee386cdb1261f3
+       Organization: Institut national de la statistique et des études économiques (Insee)
+       Tags: code-geographique, decoupages-administratifs, geospatiales, hvd
+       Resources: 33
+       URL: https://www.data.gouv.fr/datasets/code-officiel-geographique-1
+
+    2. ADMIN EXPRESS, ADMIN EXPRESS COG, ADMIN EXPRESS COG CARTO, ADMIN EXPRESS COG CARTO PE, ADMIN EXPRESS COG CARTO PLUS PE
+       ID: 5808de39c751df1e0679df72
+       Organization: Institut national de l'information géographique et forestière
+       Tags: demographies, denominations-geographiques, donnees-ouvertes, inspire, repartition-de-la-population
+       Resources: 242
+       URL: https://www.data.gouv.fr/datasets/admin-express-admin-express-cog-admin-express-cog-carto-admin-express-cog-carto-pe-admin-express-cog-carto-plus-pe
+  list_dataset_resources: |
+    Resources in dataset: Code officiel géographique
+    Dataset ID: 58c984b088ee386cdb1261f3
+    Total resources: 33
+
+    13. Millésime 2026 : Liste des départements au 01/01/2026
+       Resource ID: e5f32177-5841-4a46-9c17-f8ff94bd38fc
+       Format: csv
+       Type: main
+       URL: https://www.insee.fr/fr/statistiques/fichier/8740222/v_departement_2026.csv
+
+    16. Millésime 2026 : Liste des communes, arrondissements municipaux, communes déléguées et communes associées au 01/01/2026
+       Resource ID: c5800591-813b-4ce2-9a3f-739a9c5d9558
+       Format: csv
+       Type: main
+       URL: https://www.insee.fr/fr/statistiques/fichier/8740222/v_commune_2026.csv
+  query_resource_data: |
+    Querying resource: Millésime 2026 : Liste des communes, arrondissements municipaux, communes déléguées et communes associées au 01/01/2026
+    Resource ID: c5800591-813b-4ce2-9a3f-739a9c5d9558
+    Dataset: Code officiel géographique (ID: 58c984b088ee386cdb1261f3)
+
+    Filter: DEP exact 32
+
+    Total rows (Tabular API): 458
+    Total pages: 229 (page size: 2)
+    Retrieved: 2 row(s) from page 1
+    Columns: __id, COM, REG, DEP, LIBELLE
+
+    Data (2 rows):
+      Row 1:
+        __id: 12598
+        COM: 32001
+        REG: 76
+        DEP: 32
+        LIBELLE: Aignan
+      Row 2:
+        __id: 12599
+        COM: 32002
+        REG: 76
+        DEP: 32
+        LIBELLE: Ansan
+
+    📄 More data available. Use page=2 to see the next page.
+qualite_air:
+  search_datasets: |
+    Found 547 dataset(s) for query: 'qualité de l'air'
+    Page 1 of results:
+
+    1. Données « temps réel » de mesure des concentrations de polluants atmosphériques réglementés
+       ID: 5b98b648634f415309d52a50
+       Organization: Laboratoire Central de Surveillance de la Qualité de l'Air
+       Tags: air, hvd, observation-de-la-terre-et-environnement, pollution-atmospherique, surveillance
+       Resources: 11
+       URL: https://www.data.gouv.fr/datasets/donnees-temps-reel-de-mesure-des-concentrations-de-polluants-atmospheriques-reglementes-1
+
+    2. Qualité de l'air
+       ID: 6a3df9a9a08f1a039954d337
+       Organization: SNCF
+       Tags: gares, gares-souterraines, qualite-de-lair
+       Resources: 2
+       URL: https://www.data.gouv.fr/datasets/qualite-de-lair-1
+
+    3. Indices Qualité de l'air (Citeair) journaliers  par polluant sur l'Île-de-France, les départements, les communes franciliennes et les arrondissements parisiens
+       ID: 5a4651eb88ee380bb9eff81e
+       Organization: Airparif
+       Tags: qualite-de-lair
+       Resources: 9
+       URL: https://www.data.gouv.fr/datasets/indices-qualite-de-lair-citeair-journaliers-par-polluant-sur-lile-de-france-les-departements-les-communes-franciliennes-et-les-arrondissements-parisiens
+api_adresse:
+  search_dataservices: |
+    Found 321 third-party API(s) for query: 'adresse'
+    Page 1 of results:
+
+    1. API Adresse (Base Adresse Nationale - BAN)
+       ID: 672cf67802ef6b1be63b8975
+       Description: L' API Adresse permet d'interroger facilement la Base Adresse Nationale.
+
+    ### A quoi sert l'API Adresse ?
+
+    En intégrant l'API dans votre système d'information, vous pouvez facilement rechercher une ad...
+       Organization: Institut national de l'information géographique et forestière
+       Base API URL: https://data.geopf.fr/geocodage/
+       Tags: adresse, ban, base, carte, code-postal
+       URL: https://www.data.gouv.fr/dataservices/672cf67802ef6b1be63b8975

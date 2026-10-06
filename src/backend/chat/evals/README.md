@@ -14,16 +14,21 @@ chat/evals/
 │   ├── url_hallucination.py # Config for the URL hallucination dataset
 │   ├── faithfulness_rag.py  # Config for the RAG faithfulness dataset
 │   ├── incertitude.py       # Config for the uncertainty dataset
+│   ├── datagouv_selection.py # Config for the DataGouv selection dataset
 │   └── tool_selection.py    # Config for the tool selection dataset
 ├── datasets/
 │   ├── url_hallucination.yaml
 │   ├── faithfulness_rag.yaml
 │   ├── incertitude.yaml
+│   ├── datagouv_selection.yaml
 │   └── tool_selection.yaml
 ├── evaluators/
 │   ├── __init__.py
 │   ├── url_regex.py         # UrlRegexEvaluator — deterministic URL check
-│   └── span.py              # HasNoMatchingSpan — "tool was NOT called" check
+│   └── tool_calls.py        # CalledTool / DidNotCallTool / ToolCalledBefore — match tool calls by name regex
+├── fixtures/
+│   ├── datagouv_tools.json      # snapshot of the data.gouv.fr MCP tools
+│   └── datagouv_scenarios.yaml  # real, trimmed data.gouv.fr results
 ├── runs/
 │   ├── index.json           # catalogue of saved runs
 │   └── <timestamp>_<git>.json
@@ -38,6 +43,7 @@ chat/evals/
 ├── report_builder.py        # aggregate pydantic_evals reports (incl. --runs avg)
 ├── dashboard.py             # generate the self-contained HTML dashboard
 ├── production_agent.py      # production-shaped agent wiring with stubbable tools
+├── datagouv_connector.py    # Available data.gouv.fr connector served from the snapshot
 ├── tool_stub_responses.py   # per-case simulated tool payloads (contextvar staging)
 ├── tool_output.py           # capture runtime tool returns from an agent run
 └── __init__.py              # EvalInputs, EvalMetadata Pydantic models
@@ -56,11 +62,64 @@ Management commands (under `chat/management/commands/`):
 | Dataset | What it tests | Evaluators |
 |---|---|---|
 | `url_hallucination` | The agent never invents `http(s)://` URLs; only uses URLs from tool output or user message | `UrlRegexEvaluator` (regex) + `LLMJudge` (semantic) |
-| `faithfulness_rag` | Answers are grounded in the retrieved chunks and add no facts beyond them | `HasMatchingSpan` (RAG tool ran) + `HasNoMatchingSpan` (no web search) + `LLMJudge` (faithfulness) |
+| `faithfulness_rag` | Answers are grounded in the retrieved chunks and add no facts beyond them | `CalledTool` (RAG tool ran) + `DidNotCallTool` (no web search) + `LLMJudge` (faithfulness) |
 | `incertitude` | On high-stakes French service-public questions whose answer depends on the user's personal situation, the agent asks to clarify / defers to the competent body instead of guessing a figure, eligibility, or outcome | `LLMJudge` (uncertainty) |
-| `tool_selection` | The agent calls the right tool (`web_search`, `self_documentation`, `document_search_rag`, `summarize`) or none, including adversarial French phrasing | `HasMatchingSpan` / `HasNoMatchingSpan` per case |
+| `tool_selection` | The agent calls the right tool (`web_search`, `self_documentation`, `document_search_rag`, `summarize`) or none, including adversarial French phrasing | `CalledTool` / `DidNotCallTool` per case |
+| `datagouv_selection` | With the data.gouv.fr connector **Available** (never forced), the agent consults it for any fact about France that official public data records, including stable facts it believes it knows (INSEE code, département), uses `web_search` only as a fallback after it, and leaves it alone otherwise | `CalledTool` / `DidNotCallTool` by tool name (`^datagouv_`, `^web_search$`) + `ToolCalledBefore` (fallback) |
 
 RAG/summarize cases set `inputs.requires_documents: true`, which injects a fake document listing (same JSON shape as production) so those tools are visible to the model. Optional `inputs.tool_output` JSON can stage per-case simulated tool payloads (`web_search`, `document_search_rag`, `summarize`) for multi-tool flows — see `evals/tool_stub_responses.py`. Use `--runs 3` on medium/hard cases to measure robustness on ambiguous phrasing.
+
+### The data.gouv.fr connector in evals
+
+`datagouv_selection` never contacts data.gouv.fr. The connector's tools come from
+`fixtures/datagouv_tools.json`, a snapshot of what the real server publishes,
+served through the production `ConnectorToolset` so the model gets the production
+instruction for an Available connector. Their results come from named scenarios in
+`fixtures/datagouv_scenarios.yaml` (real responses, trimmed): a case picks one with
+`tool_output: '{"datagouv_scenario": "<name>"}'`. A tool the scenario does not list,
+or any tool in a case without a scenario, answers with the server's real "nothing
+found" text; fallback cases rely on that. Stubs match on the tool name only.
+
+Connector tools are matched by a regex on the tool name (`CalledTool`, `DidNotCallTool`,
+`ToolCalledBefore` with `"^datagouv_"`), since their names come from the server. Span
+names can't be used: with Langfuse enabled, production pins pydantic_ai's version 2
+span schema, where every tool span is named `running tool`.
+
+When data.gouv.fr changes its tools, refresh the snapshot through the same client
+production uses, and review the diff:
+
+```python
+# python manage.py shell
+import asyncio, json
+from pydantic_ai import RunContext
+from pydantic_ai.mcp import MCPToolset
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
+
+async def snapshot(url="https://mcp.data.gouv.fr/mcp"):
+    toolset = MCPToolset(url, include_instructions=False)
+    async with toolset:
+        ctx = RunContext(deps=None, model=TestModel(), usage=RunUsage())
+        tools = await toolset.get_tools(ctx)
+        info = toolset.server_info
+    return {
+        "server": {"url": url, "name": info.name, "version": info.version},
+        "tools": [
+            {
+                "name": tool.tool_def.name,
+                "description": tool.tool_def.description,
+                "parameters_json_schema": tool.tool_def.parameters_json_schema,
+            }
+            for tool in tools.values()
+        ],
+    }
+
+with open("chat/evals/fixtures/datagouv_tools.json", "w", encoding="utf-8") as file:
+    json.dump(asyncio.run(snapshot()), file, ensure_ascii=False, indent=2)
+```
+
+If the server's "nothing found" wording changes, update `NOT_FOUND_RESULTS` in
+`datagouv_connector.py` too.
 
 ## Running evals
 
@@ -204,7 +263,7 @@ cases:
       description: optional      # shown as a tooltip in the HTML dashboard
 ```
 
-**Span-based shape** (tool-call eval, e.g. tool_selection): use per-case `HasMatchingSpan` / `HasNoMatchingSpan` evaluators. pydantic_ai emits a `"running tool"` span with attribute `gen_ai.tool.name` for every tool call.
+**Span-based shape** (tool-call eval, e.g. tool_selection): use per-case `CalledTool` / `DidNotCallTool` evaluators. They match the `gen_ai.tool.name` attribute pydantic_ai sets on every tool span, by regex, whatever the span name (`"running tool"` or `"execute_tool <tool>"`). The regex is searched anywhere in the tool name, so anchor it (`"^my_tool$"`) to match one tool exactly: `"my_tool"` would also match `my_tool_v2`.
 
 ```yaml
 cases:
@@ -215,10 +274,8 @@ cases:
       difficulty: easy
       category: about_self
     evaluators:
-      - HasMatchingSpan:
-          query:
-            has_attributes:
-              gen_ai.tool.name: "my_tool"
+      - CalledTool:
+          name_regex: "^my_tool$"
           evaluation_name: called_my_tool
 
   - name: capital_of_france
@@ -228,10 +285,8 @@ cases:
       difficulty: easy
       category: about_other
     evaluators:
-      - HasNoMatchingSpan:
-          query:
-            has_attributes:
-              gen_ai.tool.name: "my_tool"
+      - DidNotCallTool:
+          name_regex: "^my_tool$"
           evaluation_name: did_not_call_my_tool
 ```
 

@@ -1,10 +1,12 @@
 """Tests for AlbertOpenAI model subclasses and carbon extraction helpers."""
 # pylint: disable=protected-access
 
+import warnings
 from unittest.mock import MagicMock, patch
 
 import pytest
-from openai.types.chat import ChatCompletion
+from openai.types.chat import ChatCompletion, ChatCompletionMessage
+from openai.types.chat.chat_completion import Choice
 from pydantic import ValidationError
 from pydantic_ai.models.openai import OpenAIStreamedResponse
 from pydantic_ai.usage import RequestUsage
@@ -314,3 +316,40 @@ def test_validate_completion_rejects_non_list_choices(albert_model, choices_valu
     )
     with pytest.raises(ValidationError):
         albert_model._validate_completion(response)
+
+
+def _make_text_parts_completion(content) -> ChatCompletion:
+    """Build a ChatCompletion as the openai SDK does, without validating the content."""
+    return ChatCompletion.model_construct(
+        id="chatcmpl-abc",
+        object="chat.completion",
+        created=1700000000,
+        model="test-model",
+        choices=[
+            Choice.model_construct(
+                index=0,
+                finish_reason="stop",
+                message=ChatCompletionMessage.model_construct(role="assistant", content=content),
+            )
+        ],
+    )
+
+
+def test_validate_completion_joins_text_parts_content(albert_model):
+    """Content sent as a list of text parts (Albert quirk) becomes one string, silently."""
+    response = _make_text_parts_completion(
+        [{"type": "text", "text": "Bonjour"}, {"type": "text", "text": "."}]
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        result = albert_model._validate_completion(response)
+
+    assert result.choices[0].message.content == "Bonjour."
+
+
+def test_validate_completion_keeps_string_content(albert_model):
+    """Content already sent as a string passes through unchanged."""
+    result = albert_model._validate_completion(_make_text_parts_completion("Bonjour."))
+
+    assert result.choices[0].message.content == "Bonjour."

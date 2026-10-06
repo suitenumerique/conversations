@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(back) evaluate and improve when the assistant consults DataGouv
+
 ### Security
 
 - 🔒️(project) keep user prompts out of logs and telemetry
