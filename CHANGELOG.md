@@ -15,6 +15,7 @@ and this project adheres to
 ### Changed
 
 - ⬆️(dependencies) upgrade back-end and front-end dependencies
+- 👷(ci) allow re-releasing the Helm chart on demand
 
 ## [0.0.25] - 2026-10-01
 

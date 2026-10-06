@@ -5,6 +5,8 @@ on:
   push:
     paths:
       - src/helm/conversations/**
+      - .github/workflows/release-helm-chart.yaml
+  workflow_dispatch:
 
 permissions:
   contents: read
