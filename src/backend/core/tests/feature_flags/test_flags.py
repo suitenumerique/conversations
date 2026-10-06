@@ -83,7 +83,8 @@ def test_round_trip_serialization():
     assert restored == original
     assert raw == (
         '{"web_search":"dynamic","document_upload":"enabled",'
-        '"presentation_generation":"disabled","datagouv_connector":"disabled"}'
+        '"presentation_generation":"disabled","datagouv_connector":"disabled",'
+        '"router":"disabled"}'
     )
 
     raw_alias = original.model_dump_json(by_alias=True)
@@ -91,7 +92,8 @@ def test_round_trip_serialization():
     assert restored_alias == original
     assert raw_alias == (
         '{"web-search":"dynamic","document-upload":"enabled",'
-        '"presentation-generation":"disabled","datagouv-connector":"disabled"}'
+        '"presentation-generation":"disabled","datagouv-connector":"disabled",'
+        '"router":"disabled"}'
     )
 
 

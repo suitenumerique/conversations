@@ -29,7 +29,7 @@ import {
 } from '@/api';
 import { Box, HorizontalSeparator, Icon, Loader, Text } from '@/components';
 import { useToast } from '@/components/ToastProvider';
-import { useConfig } from '@/core';
+import { useConfig, useFeatureEnabled } from '@/core';
 import { useProjectAttachments } from '@/features/attachments/api/useProjectAttachments';
 import { useReindexProjectAttachment } from '@/features/attachments/api/useReindexProjectAttachment';
 import { useUploadFile } from '@/features/attachments/hooks/useUploadFile';
@@ -53,6 +53,7 @@ import { ChatError, ChatErrorType } from '@/features/chat/components/ChatError';
 import { ImageProcessingUnavailableBanner } from '@/features/chat/components/ImageProcessingUnavailableBanner';
 import { InputChat } from '@/features/chat/components/InputChat';
 import { MessageItem } from '@/features/chat/components/MessageItem';
+import { RoutingCaption } from '@/features/chat/components/RoutingCaption';
 import { SourceItemList } from '@/features/chat/components/SourceItemList';
 import {
   STATUS_LINK_KINDS,
@@ -64,6 +65,10 @@ import { useResponsiveStore } from '@/stores';
 
 import { useSourceMetadataCache } from '../hooks';
 import { useAprilFools } from '../hooks/useAprilFools';
+import {
+  restorePinnedTier,
+  useConversationTier,
+} from '../hooks/useConversationTier';
 import { useChatPreferencesStore } from '../stores/useChatPreferencesStore';
 import { usePendingChatStore } from '../stores/usePendingChatStore';
 import { useScrollStore } from '../stores/useScrollStore';
@@ -82,6 +87,36 @@ const IMAGES_BANNER_STORAGE_PREFIX = 'conversations:images-banner-dismissed:';
 
 const imagesBannerStorageKey = (conversationId: string) =>
   `${IMAGES_BANNER_STORAGE_PREFIX}${conversationId}`;
+
+/**
+ * With the router on, the answer bubble carries its own "Choosing the model…"
+ * caption as soon as the stream creates it.
+ */
+const answerBubbleShowsRouting = (
+  routerEnabled: boolean,
+  messages: readonly { role: string }[],
+) => routerEnabled && messages.at(-1)?.role === 'assistant';
+
+/**
+ * Pending-answer status: the routing caption with the router on, else
+ * `children`. Uploads and project instructions keep their own message.
+ */
+const PendingAnswerStatus = ({
+  routerEnabled,
+  isUploadingFiles,
+  isReadingInstructions,
+  children,
+}: {
+  routerEnabled: boolean;
+  isUploadingFiles: boolean;
+  isReadingInstructions: boolean;
+  children: React.ReactNode;
+}) =>
+  routerEnabled && !isUploadingFiles && !isReadingInstructions ? (
+    <RoutingCaption pending />
+  ) : (
+    <>{children}</>
+  );
 
 // Define Attachment type locally (mirroring backend structure)
 export interface Attachment {
@@ -110,11 +145,18 @@ export const Chat = ({
     toggleForceDatagouv,
     selectedModelHrid,
     setSelectedModelHrid,
+    selectedTier,
+    adoptTierConversation,
     setSourcesPanelOpen,
   } = useChatPreferencesStore();
 
   const { data: llmConfig } = useLLMConfiguration();
   const [selectedModel, setSelectedModel] = useState<LLMModel | null>(null);
+  // With the `router` feature flag on, the tier selector replaces the model
+  // selector and each turn is routed. Read from the flag, not from the tiers
+  // of the LLM configuration, so a message sent before that query resolves
+  // is routed too instead of pinning the stored model.
+  const routerEnabled = useFeatureEnabled('router');
 
   const [conversationId, setConversationId] = useState(initialConversationId);
   const apiUrl = conversationId
@@ -160,6 +202,12 @@ export const Chat = ({
     setSelectedModel(model);
     setSelectedModelHrid(model.hrid);
   };
+
+  const handleTierSelect = useConversationTier({
+    initialConversationId,
+    conversationId,
+    routerEnabled,
+  });
 
   const navigate = useNavigate();
   const [files, setFiles] = useState<FileList | null>(null);
@@ -367,6 +415,7 @@ export const Chat = ({
     stop: stopChat,
     setMessages,
     cooldownUntil,
+    routingByMessageId,
   } = useChat({
     // `useChat` rebuilds the chat whenever its id differs from the instance's,
     // and an instance with no id gets a generated one - so `undefined` never
@@ -377,6 +426,7 @@ export const Chat = ({
     onError: onErrorChat,
     onImagesSkipped,
     onConnectorUnavailable,
+    routerEnabled,
   });
 
   const stopGeneration = async () => {
@@ -849,6 +899,11 @@ export const Chat = ({
             }
             setImagesSkipped(conversation.images_skipped ?? false);
             setConversationProjectId(conversation.project?.id ?? null);
+            restorePinnedTier(
+              conversation.pinned_tier,
+              initialConversationId,
+              hasSentRef.current,
+            );
             setHasInitialized(true);
           }
         } catch {
@@ -1018,6 +1073,10 @@ export const Chat = ({
             setConversationProjectId(pendingProjectId ?? null);
             setProjectId(null);
             setConversationId(data.id);
+            // The tier picked before the first message was pinned on the
+            // new-chat screen: hand it to the conversation it created, so the
+            // remount at /chat/<id> keeps it instead of resetting to Auto.
+            adoptTierConversation(data.id);
             // Update the URL to /chat/<id>
             void navigate(`/chat/${data.id}`);
             // After setting the conversationId, submit the pending message
@@ -1134,6 +1193,8 @@ export const Chat = ({
                       isMobile={isMobile}
                       onCopyToClipboard={copyToClipboard}
                       onOpenSources={openSources}
+                      routing={routingByMessageId[message.id]}
+                      routingEnabled={routerEnabled}
                     />
                   )}
                   {/* Inject the prank right after the last user message */}
@@ -1163,7 +1224,12 @@ export const Chat = ({
           </Box>
         )}
         {!aprilFools.isActive &&
-        ((status !== 'ready' && status !== 'streaming' && status !== 'error') ||
+        ((status !== 'ready' &&
+          status !== 'streaming' &&
+          status !== 'error' &&
+          // Keeping this block up under the answer bubble's own routing
+          // caption would show it twice.
+          !answerBubbleShowsRouting(routerEnabled, messages)) ||
           isUploadingFiles) ? (
           <Box
             $direction="row"
@@ -1177,15 +1243,21 @@ export const Chat = ({
               ${streamingMessageHeight ? `min-height: ${streamingMessageHeight}px;` : 'auto'}
             `}
           >
-            <Loader />
-            <Text $theme="neutral" $variation="tertiary" $size="md">
-              {(() => {
-                if (isUploadingFiles) return t('Uploading files...');
-                if (isReadingInstructions)
-                  return t('Reading project instructions...');
-                return t('Thinking...');
-              })()}
-            </Text>
+            <PendingAnswerStatus
+              routerEnabled={routerEnabled}
+              isUploadingFiles={isUploadingFiles}
+              isReadingInstructions={isReadingInstructions}
+            >
+              <Loader />
+              <Text $theme="neutral" $variation="tertiary" $size="md">
+                {(() => {
+                  if (isUploadingFiles) return t('Uploading files...');
+                  if (isReadingInstructions)
+                    return t('Reading project instructions...');
+                  return t('Thinking...');
+                })()}
+              </Text>
+            </PendingAnswerStatus>
           </Box>
         ) : null}
         {status === 'error' &&
@@ -1231,6 +1303,8 @@ export const Chat = ({
           onToggleDatagouv={toggleDatagouv}
           selectedModel={selectedModel}
           onModelSelect={handleModelSelect}
+          selectedTier={selectedTier}
+          onTierSelect={handleTierSelect}
           isUploadingFiles={isUploadingFiles}
           isIndexingFiles={isIndexingFiles}
           failedIndexingCount={failedIndexingIds.length}

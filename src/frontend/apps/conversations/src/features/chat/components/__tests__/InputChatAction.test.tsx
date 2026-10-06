@@ -13,6 +13,12 @@ vi.mock('../ModelSelector', () => ({
   ),
 }));
 
+vi.mock('../TierSelector', () => ({
+  TierSelector: ({ selectedTier }: { selectedTier: string }) => (
+    <div data-testid="tier-selector" data-tier={selectedTier} />
+  ),
+}));
+
 vi.mock('../SendButton', () => ({
   SendButton: ({
     onClick,
@@ -272,6 +278,23 @@ describe('InputChatActions', () => {
   it('should not render model selector when onModelSelect is undefined', () => {
     render(<InputChatActions {...defaultProps} onModelSelect={undefined} />);
 
+    expect(screen.queryByTestId('model-selector')).not.toBeInTheDocument();
+  });
+
+  it('should render the tier selector instead of the model selector when onTierSelect is provided', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        onModelSelect={vi.fn()}
+        onTierSelect={vi.fn()}
+        selectedTier="complex"
+      />,
+    );
+
+    expect(screen.getByTestId('tier-selector')).toHaveAttribute(
+      'data-tier',
+      'complex',
+    );
     expect(screen.queryByTestId('model-selector')).not.toBeInTheDocument();
   });
 

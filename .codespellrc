@@ -12,6 +12,7 @@ skip =
     **/uv.lock,
     ./docker/files/etc/mime.types,
     ./src/backend/chat/evals,
+    ./src/backend/chat/router/prompts.py,
 check-filenames = true
 ignore-words-list =
     afterAll,

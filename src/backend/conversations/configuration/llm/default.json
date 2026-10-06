@@ -28,6 +28,7 @@
       "profile": null,
       "settings": {},
       "is_active": true,
+      "role": "utility",
       "icon": null,
       "system_prompt": "settings.SUMMARIZATION_SYSTEM_PROMPT",
       "tools": []

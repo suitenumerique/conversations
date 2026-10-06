@@ -27,6 +27,7 @@ import { SuggestionCarousel } from '@/features/chat/components/SuggestionCarouse
 import { WelcomeMessage } from '@/features/chat/components/WelcomeMessage';
 import { useFileDragDrop } from '@/features/chat/hooks/useFileDragDrop';
 import { useFileUrls } from '@/features/chat/hooks/useFileUrls';
+import { TierSlug } from '@/features/chat/types';
 import { useResponsiveStore } from '@/stores';
 
 import FilesIcon from '../assets/files.svg?react';
@@ -59,6 +60,8 @@ interface InputChatProps {
   onStop?: () => void;
   selectedModel?: LLMModel | null;
   onModelSelect?: (model: LLMModel) => void;
+  selectedTier?: TierSlug;
+  onTierSelect?: (tier: TierSlug) => void;
   isUploadingFiles?: boolean;
   isIndexingFiles?: boolean;
   failedIndexingCount?: number;
@@ -159,6 +162,8 @@ export const InputChat = ({
   onStop,
   selectedModel,
   onModelSelect,
+  selectedTier,
+  onTierSelect,
   isUploadingFiles = false,
   isIndexingFiles = false,
   failedIndexingCount = 0,
@@ -613,6 +618,8 @@ export const InputChat = ({
                 }
                 onModelSelect={onModelSelect}
                 selectedModel={selectedModel || null}
+                onTierSelect={onTierSelect}
+                selectedTier={selectedTier}
                 status={status}
                 inputHasContent={Boolean(input?.trim())}
                 sendDisabled={cooldownRemaining > 0}

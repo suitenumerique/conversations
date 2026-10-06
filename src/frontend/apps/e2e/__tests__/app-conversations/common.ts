@@ -8,6 +8,7 @@ export const CONFIG = {
     'datagouv-connector': 'disabled',
     'document-upload': 'enabled',
     'presentation-generation': 'disabled',
+    router: 'disabled',
     'web-search': 'enabled',
   },
   FILE_UPLOAD_MODE: 'presigned_url',

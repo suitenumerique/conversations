@@ -16,6 +16,28 @@ from chat.model_health import (
 )
 
 
+def first_healthy(candidates: list[str]) -> str:
+    """Return the first candidate healthy enough to serve, else the first one.
+
+    ``candidates[0]`` is the main model: it is kept unless its cached health
+    crosses the main eviction threshold. The others are fallbacks, taken in
+    order when they are configured and their health does not cross the
+    fallback threshold. When everything is down the main model is returned and
+    the caller is expected to surface the outage banner.
+    """
+    main_hrid = candidates[0]
+    main_status = get_status_for_hrid(main_hrid)
+    if not crosses_threshold(main_status, get_main_eviction_threshold()):
+        return main_hrid
+
+    for fb_hrid in candidates[1:]:
+        fb_status = get_status_for_hrid(fb_hrid)
+        if not is_fallback_down(fb_hrid, fb_status):
+            return fb_hrid
+
+    return main_hrid
+
+
 def resolve_effective_model_hrid(requested_hrid: str | None) -> str:
     """Return the HRID the next new conversation should use.
 
@@ -35,16 +57,10 @@ def resolve_effective_model_hrid(requested_hrid: str | None) -> str:
     if requested_hrid is not None and requested_hrid != default_hrid:
         return requested_hrid
 
-    main_status = get_status_for_hrid(default_hrid)
-    if not crosses_threshold(main_status, get_main_eviction_threshold()):
-        return default_hrid
-
-    for fb_hrid in (
-        settings.LLM_FALLBACK_MODEL_HRID_1,
-        settings.LLM_FALLBACK_MODEL_HRID_2,
-    ):
-        fb_status = get_status_for_hrid(fb_hrid)
-        if not is_fallback_down(fb_hrid, fb_status):
-            return fb_hrid
-
-    return default_hrid
+    return first_healthy(
+        [
+            default_hrid,
+            settings.LLM_FALLBACK_MODEL_HRID_1,
+            settings.LLM_FALLBACK_MODEL_HRID_2,
+        ]
+    )

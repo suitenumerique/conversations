@@ -151,6 +151,10 @@ class LLModel(BaseModel):
     # the threshold). Smaller for models with more GPUs allocated. Falls back to
     # the ChatCooldownSettings default_factor when unset. See chat/rate_limiting.py.
     cooldown_factor: float | None = None
+    # Role of the model in the application: "chat" models are offered to users
+    # (model selector, router tiers), "utility" models run background jobs such
+    # as summarization and are never proposed as a conversation model.
+    role: Literal["chat", "utility"] = "chat"
 
     @field_validator("tools", mode="before")
     @classmethod

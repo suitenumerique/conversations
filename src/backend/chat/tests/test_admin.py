@@ -5,10 +5,11 @@ from django.core.cache import cache
 
 import pytest
 
-from chat.admin import ChatConversationAdmin, ModelHealthAdmin
+from chat.admin import ChatConversationAdmin, ModelHealthAdmin, RoutingTierSettingsForm
 from chat.factories import ChatConversationFactory
+from chat.llm_configuration import LLModel
 from chat.model_health import model_health_cache_key
-from chat.models import ChatConversation, ModelHealth
+from chat.models import ChatConversation, ModelHealth, RoutingTierSettings
 
 # Big enough for the stored size to stand out from a short conversation's.
 HEAVY_HISTORY = [{"role": "user", "content": f"message number {i} " * 40} for i in range(5000)]
@@ -43,3 +44,68 @@ def test_conversation_admin_changelist_ranks_by_stored_size():
         heavy.pk,
         light.pk,
     ]
+
+
+@pytest.fixture(name="tier_models")
+def tier_models_fixture(settings):
+    """Two chat models and a utility one."""
+    defaults = {"is_active": True, "system_prompt": "hi", "tools": []}
+    settings.LLM_CONFIGURATIONS = {
+        "small": LLModel(
+            hrid="small", model_name="test:small", human_readable_name="Small", **defaults
+        ),
+        "large": LLModel(
+            hrid="large", model_name="test:large", human_readable_name="Large", **defaults
+        ),
+        "summarizer": LLModel(
+            hrid="summarizer",
+            model_name="test:summarizer",
+            human_readable_name="Summarizer",
+            role="utility",
+            **defaults,
+        ),
+    }
+    settings.LLM_DEFAULT_MODEL_HRID = "large"
+    settings.LLM_TIER_SIMPLE_MODEL_HRID = ""
+
+
+@pytest.mark.django_db
+def test_routing_tier_settings_form_offers_chat_models_only(tier_models):  # pylint: disable=unused-argument
+    """Tier dropdowns list chat models; the router may run on any configured model."""
+    form = RoutingTierSettingsForm(instance=RoutingTierSettings.get_solo())
+
+    assert form.fields["simple_model_hrid"].choices == [
+        ("", "Use the setting (large)"),
+        ("small", "Small (small)"),
+        ("large", "Large (large)"),
+    ]
+    assert [value for value, _ in form.fields["simple_alternatives"].choices] == [
+        "small",
+        "large",
+    ]
+    assert "summarizer" in [value for value, _ in form.fields["router_model_hrid"].choices]
+
+
+@pytest.mark.django_db
+def test_routing_tier_settings_form_saves_alternatives_as_a_list(tier_models):  # pylint: disable=unused-argument
+    """The multi-select is stored as a plain list of HRIDs in the JSON field."""
+    form = RoutingTierSettingsForm(
+        data={
+            "simple_model_hrid": "small",
+            "simple_alternatives": ["large"],
+            "standard_model_hrid": "",
+            "complex_model_hrid": "large",
+            "router_model_hrid": "summarizer",
+            "confidence_threshold": "0.8",
+        },
+        instance=RoutingTierSettings.get_solo(),
+    )
+    assert form.is_valid(), form.errors
+    form.save()
+
+    tier_settings = RoutingTierSettings.get_solo()
+    assert tier_settings.simple_alternatives == ["large"]
+    assert tier_settings.standard_alternatives == []
+    assert tier_settings.model_for("standard") == "large"
+    assert tier_settings.router_model_hrid == "summarizer"
+    assert tier_settings.confidence_threshold == 0.8
