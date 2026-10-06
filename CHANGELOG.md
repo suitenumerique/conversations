@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- ⚡️(front) disable posthog-js periodic feature flag reloads
+
 ### Security
 
 - 🔒️(project) keep user prompts out of logs and telemetry

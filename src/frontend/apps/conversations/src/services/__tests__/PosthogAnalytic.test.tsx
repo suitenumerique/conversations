@@ -84,4 +84,18 @@ describe('PostHogProvider', () => {
       }),
     );
   });
+
+  it('disables periodic feature flag reloads', () => {
+    const analytic = new PostHogAnalytic({
+      id: 'posthog-id',
+      host: 'https://posthog.example.com',
+    });
+
+    render(<MemoryRouter>{analytic.Provider()}</MemoryRouter>);
+
+    expect(posthog.init).toHaveBeenCalledWith(
+      'posthog-id',
+      expect.objectContaining({ remote_config_refresh_interval_ms: 0 }),
+    );
+  });
 });
