@@ -68,7 +68,8 @@ def ai_settings_fixture(settings):
 
 def _instruction_texts(agent) -> list[str]:
     texts = []
-    for instruction in agent._instructions:
+    for sourced in agent._instructions:
+        instruction = sourced.instruction
         texts.append(instruction() if callable(instruction) else instruction)
     return texts
 

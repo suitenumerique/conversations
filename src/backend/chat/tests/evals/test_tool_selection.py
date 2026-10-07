@@ -59,9 +59,9 @@ def ai_settings_fixture(settings):
 
 def _resolve_instruction(service, name: str) -> str:
     matches = [
-        fn
-        for fn in service.conversation_agent._instructions
-        if callable(fn) and fn.__name__ == name
+        sourced.instruction
+        for sourced in service.conversation_agent._instructions
+        if callable(sourced.instruction) and sourced.instruction.__name__ == name
     ]
     assert matches, f"instruction '{name}' not registered on the agent"
     return matches[0]()

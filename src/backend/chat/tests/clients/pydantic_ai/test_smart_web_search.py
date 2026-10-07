@@ -92,8 +92,8 @@ def test_force_websearch_overrides_smart_search_disabled(_llm_config_with_websea
     assert service.conversation_agent.is_web_search_configured() is True
     assert service._context_deps.web_search_enabled is True
     assert any(
-        callable(instr) and "web_search" in instr()
-        for instr in service.conversation_agent._instructions
+        callable(sourced.instruction) and "web_search" in sourced.instruction()
+        for sourced in service.conversation_agent._instructions
     )
     with service.conversation_agent.override(model=TestModel(), deps=service._context_deps):
         response = service.conversation_agent.run_sync("Search the web for something.")

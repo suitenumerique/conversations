@@ -3,7 +3,6 @@
 import json
 
 import pytest
-import respx
 from freezegun import freeze_time
 
 from chat.agents.conversation import PREVENT_URL_HALLUCINATION_INSTRUCTION
@@ -64,7 +63,6 @@ def settings_with_concatenation(settings):
         ],
     ),
 )
-@respx.mock
 def test_post_conversation_concatenate(
     api_client,
     hello_conversation_data,

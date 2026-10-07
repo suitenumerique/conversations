@@ -274,7 +274,7 @@ def fixture_mock_summarization_agent():
 
 @pytest.fixture(name="mock_openai_stream")
 @freeze_time("2025-07-25T10:36:35.297675Z")
-def fixture_mock_openai_stream():
+def fixture_mock_openai_stream(httpx2_mock):
     """
     Fixture to mock the OpenAI stream response for document search queries.
     """
@@ -323,7 +323,7 @@ def fixture_mock_openai_stream():
         for line in openai_stream.splitlines(keepends=True):
             yield line.encode()
 
-    route = respx.post("https://www.external-ai-service.com/chat/completions").mock(
+    route = httpx2_mock.post("https://www.external-ai-service.com/chat/completions").mock(
         return_value=httpx.Response(200, stream=mock_stream())
     )
 
@@ -510,6 +510,7 @@ def test_post_conversation_with_document_upload(
         "state": "complete",
         "timestamp": timezone_now,
         "usage": {
+            "audio_seconds": 0.0,
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
             "cache_write_tokens": 0,
@@ -521,6 +522,7 @@ def test_post_conversation_with_document_upload(
             "output_tokens": 8,
         },
         "run_id": _run_id,
+        "workspace_ref": None,
     }
     instruction_2 = chat_conversation.pydantic_messages[2]["instructions"]
     _assert_document_instructions(instruction_2, today_prompt_date, "sample.pdf")
@@ -573,6 +575,7 @@ def test_post_conversation_with_document_upload(
         "state": "complete",
         "timestamp": timezone_now,
         "usage": {
+            "audio_seconds": 0.0,
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
             "cache_write_tokens": 0,
@@ -584,6 +587,7 @@ def test_post_conversation_with_document_upload(
             "output_tokens": 12,
         },
         "run_id": _run_id,
+        "workspace_ref": None,
     }
 
 
@@ -837,6 +841,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "state": "complete",
         "timestamp": timezone_now,
         "usage": {
+            "audio_seconds": 0.0,
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
             "cache_write_tokens": 0,
@@ -848,6 +853,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             "output_tokens": 1,
         },
         "run_id": _run_id,
+        "workspace_ref": None,
     }
     instruction_2 = chat_conversation.pydantic_messages[2]["instructions"]
     _assert_document_instructions(instruction_2, today_prompt_date, "sample.pdf")
@@ -894,6 +900,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         "state": "complete",
         "timestamp": timezone_now,
         "usage": {
+            "audio_seconds": 0.0,
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
             "cache_write_tokens": 0,
@@ -905,6 +912,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
             "output_tokens": 6,
         },
         "run_id": _run_id,
+        "workspace_ref": None,
     }
 
 
@@ -1091,6 +1099,7 @@ def test_post_conversation_with_odt_document_upload(
         "state": "complete",
         "timestamp": timezone_now,
         "usage": {
+            "audio_seconds": 0.0,
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
             "cache_write_tokens": 0,
@@ -1102,6 +1111,7 @@ def test_post_conversation_with_odt_document_upload(
             "output_tokens": 8,
         },
         "run_id": _run_id,
+        "workspace_ref": None,
     }
     instruction_2 = chat_conversation.pydantic_messages[2]["instructions"]
     _assert_document_instructions(instruction_2, today_prompt_date, "sample.odt")
@@ -1154,6 +1164,7 @@ def test_post_conversation_with_odt_document_upload(
         "state": "complete",
         "timestamp": timezone_now,
         "usage": {
+            "audio_seconds": 0.0,
             "cache_audio_read_tokens": 0,
             "cache_read_tokens": 0,
             "cache_write_tokens": 0,
@@ -1165,4 +1176,5 @@ def test_post_conversation_with_odt_document_upload(
             "output_tokens": 12,
         },
         "run_id": _run_id,
+        "workspace_ref": None,
     }

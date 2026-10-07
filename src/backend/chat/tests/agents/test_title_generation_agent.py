@@ -50,4 +50,4 @@ def test_title_generation_agent_instructions():
         "that accurately summarize conversation content and help the user quickly identify the "
         "conversation.\n\n"
     )
-    assert instructions[0] == expected
+    assert instructions[0].instruction == expected

@@ -225,6 +225,7 @@ def test_post_conversation_with_local_image_url(
             "state": "complete",
             "timestamp": "2025-10-18T20:48:20.286204Z",
             "usage": {
+                "audio_seconds": 0.0,
                 "cache_audio_read_tokens": 0,
                 "cache_read_tokens": 0,
                 "cache_write_tokens": 0,
@@ -236,6 +237,7 @@ def test_post_conversation_with_local_image_url(
                 "output_tokens": 9,
             },
             "run_id": _run_id,
+            "workspace_ref": None,
         },
     ]
 
@@ -778,6 +780,7 @@ def test_post_conversation_with_local_image_url_in_history(
             "state": "complete",
             "timestamp": "2025-10-18T20:48:20.286204Z",
             "usage": {
+                "audio_seconds": 0.0,
                 "cache_audio_read_tokens": 0,
                 "cache_read_tokens": 0,
                 "cache_write_tokens": 0,
@@ -789,5 +792,6 @@ def test_post_conversation_with_local_image_url_in_history(
                 "output_tokens": 11,
             },
             "run_id": _run_id,
+            "workspace_ref": None,
         },
     ]

@@ -19,6 +19,7 @@ and this project adheres to
 ### Changed
 
 - ⬆️(dependencies) upgrade back-end and front-end dependencies
+- ⬆️(back) upgrade pydantic-ai to 2.52.0 and switch to httpx2
 
 ## [0.0.25] - 2026-10-01
 

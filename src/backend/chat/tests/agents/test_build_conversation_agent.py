@@ -15,6 +15,7 @@ from chat.llm_configuration import LLModel, LLMProvider
 
 def assert_base_instructions(instructions, date_str=None, language_str=""):
     """Assert the standard set of ConversationAgent instructions are registered."""
+    instructions = [sourced.instruction for sourced in instructions]
     assert len(instructions) == 4
     assert instructions[0] == "You are a helpful assistant"
     assert instructions[1].__name__ == "add_the_date"
@@ -80,7 +81,7 @@ def test_add_dynamic_system_prompt():
     assert_base_instructions(agent._instructions, date_str="Today is Friday 25/07/2025.")
 
     agent = ConversationAgent(model_hrid="default-model", language="fr-fr")
-    assert agent._instructions[2]() == "Answer in french."
+    assert agent._instructions[2].instruction() == "Answer in french."
 
 
 def test_agent_is_web_search_configured():

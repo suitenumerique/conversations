@@ -245,9 +245,11 @@ def test_model_message_to_ui_message_invalid_content_type():
     class DummyContent:
         """Dummy class for testing invalid content types."""
 
-    model_message = ModelRequest(
-        parts=[UserPromptPart(content=[DummyContent()], timestamp=None)], kind="request"
-    )
+    # UserPromptPart rejects unknown content at construction, so swap it in afterwards
+    # to exercise the converter's own guard.
+    user_prompt_part = UserPromptPart(content=["placeholder"], timestamp=None)
+    user_prompt_part.content = [DummyContent()]
+    model_message = ModelRequest(parts=[user_prompt_part], kind="request")
     with pytest.raises(ValueError, match="Unsupported UserContent in UserPromptPart"):
         model_message_to_ui_message(model_message)
 

@@ -10,6 +10,7 @@ from rest_framework.throttling import SimpleRateThrottle
 UI_MESSAGE_STREAM_HEADER = "x-vercel-ai-ui-message-stream"
 
 ZERO_USAGE = {
+    "audio_seconds": 0.0,
     "cache_audio_read_tokens": 0,
     "cache_read_tokens": 0,
     "cache_write_tokens": 0,

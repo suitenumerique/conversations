@@ -3,7 +3,6 @@
 import json
 
 import pytest
-import respx
 from freezegun import freeze_time
 from rest_framework import status
 
@@ -26,8 +25,8 @@ _HELLO_THERE_STREAM = (
 )
 
 
-def _get_system_messages(last_respx_call):
-    payload = json.loads(last_respx_call.request.content)
+def _get_system_messages(last_call):
+    payload = json.loads(last_call.request.content)
     return [m["content"] for m in payload["messages"] if m["role"] == "system"]
 
 
@@ -82,7 +81,6 @@ def project_hello_data_fixture():
         ],
     ),
 )
-@respx.mock
 def test_post_conversation_includes_project_llm_instructions(
     api_client, mock_openai_stream, project_hello_data, with_project, expected_system_messages
 ):
@@ -106,5 +104,5 @@ def test_post_conversation_includes_project_llm_instructions(
     )
     assert response_content == _HELLO_THERE_STREAM
 
-    assert _get_system_messages(respx.calls.last) == expected_system_messages
+    assert _get_system_messages(mock_openai_stream.calls.last) == expected_system_messages
     assert mock_openai_stream.called

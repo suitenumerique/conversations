@@ -7,7 +7,6 @@ import json
 from django.core.cache import cache as django_cache
 
 import pytest
-import respx
 from freezegun import freeze_time
 from rest_framework import status
 
@@ -58,7 +57,6 @@ def routed_llm_configs(settings):
 
 
 @freeze_time(FROZEN)
-@respx.mock
 def test_new_conversation_pins_default_when_main_is_healthy(
     api_client, mock_openai_stream, hello_conversation_data
 ):
@@ -78,7 +76,6 @@ def test_new_conversation_pins_default_when_main_is_healthy(
 
 
 @freeze_time(FROZEN)
-@respx.mock
 def test_new_conversation_pins_fallback_when_main_is_red(
     api_client, mock_openai_stream, hello_conversation_data, health_cache
 ):
@@ -98,7 +95,6 @@ def test_new_conversation_pins_fallback_when_main_is_red(
 
 
 @freeze_time(FROZEN)
-@respx.mock
 def test_existing_conversation_keeps_pinned_model_even_if_param_changes(
     api_client, mock_openai_stream, hello_conversation_data
 ):
@@ -120,7 +116,6 @@ def test_existing_conversation_keeps_pinned_model_even_if_param_changes(
 
 
 @freeze_time(FROZEN)
-@respx.mock
 def test_explicit_non_default_model_in_request_is_pinned(
     api_client, mock_openai_stream, hello_conversation_data
 ):
@@ -138,7 +133,6 @@ def test_explicit_non_default_model_in_request_is_pinned(
 
 
 @freeze_time(FROZEN)
-@respx.mock
 def test_main_yellow_stays_on_main_under_default_threshold(
     api_client, mock_openai_stream, hello_conversation_data, health_cache
 ):
@@ -160,7 +154,6 @@ def test_main_yellow_stays_on_main_under_default_threshold(
 
 
 @freeze_time(FROZEN)
-@respx.mock
 def test_main_yellow_stays_on_main_when_threshold_raised_to_red(
     api_client, mock_openai_stream, hello_conversation_data, health_cache
 ):
@@ -182,7 +175,6 @@ def test_main_yellow_stays_on_main_when_threshold_raised_to_red(
 
 
 @freeze_time(FROZEN)
-@respx.mock
 def test_main_red_with_yellow_fb1_stays_on_fb1_under_default_fallback_threshold(
     api_client, mock_openai_stream, hello_conversation_data, health_cache, settings
 ):
@@ -210,7 +202,6 @@ def test_main_red_with_yellow_fb1_stays_on_fb1_under_default_fallback_threshold(
 
 
 @freeze_time(FROZEN)
-@respx.mock
 def test_fallback_threshold_red_accepts_yellow_fb1(
     api_client, mock_openai_stream, hello_conversation_data, health_cache
 ):

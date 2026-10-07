@@ -6,7 +6,6 @@ from django.utils import timezone
 
 import httpx
 import pytest
-import respx
 from freezegun import freeze_time
 
 from chat.factories import ChatConversationFactory
@@ -99,7 +98,6 @@ def _make_stream(with_co2: bool) -> str:
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
-@respx.mock
 def test_albert_co2_impact_appears_in_metadata_and_stream(
     api_client,
     mock_openai_stream_multi_calls,
@@ -180,10 +178,10 @@ def test_albert_co2_impact_appears_in_metadata_and_stream(
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
-@respx.mock
 def test_albert_co2_impact_preserved_when_second_request_has_no_co2(
     api_client,
     albert_conversation,
+    httpx2_mock,
 ):
     """
     When a subsequent request returns no CO2 data (e.g. transient absence of
@@ -204,7 +202,7 @@ def test_albert_co2_impact_preserved_when_second_request_has_no_co2(
 
         return httpx.Response(200, stream=mock_stream())
 
-    respx.post("https://www.external-ai-service.com/chat/completions").mock(
+    httpx2_mock.post("https://www.external-ai-service.com/chat/completions").mock(
         side_effect=create_response
     )
 

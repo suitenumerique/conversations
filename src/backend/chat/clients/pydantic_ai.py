@@ -97,7 +97,6 @@ from django.utils.translation import gettext_lazy as _
 from asgiref.sync import sync_to_async
 from celery.exceptions import TimeoutError as CeleryTimeoutError
 from langfuse import get_client, propagate_attributes
-from mistralai.client.errors import HTTPValidationError, SDKError
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
 from pydantic_ai.capabilities import Instrumentation, ProcessHistory
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
@@ -564,9 +563,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 async for event in self._run_agent(messages, force_web_search, force_datagouv):
                     for translated in translator.translate(event):
                         yield self.event_encoder.encode(translated)
-            except (ModelHTTPError, HTTPValidationError, SDKError) as exc:
-                # HTTPValidationError and SDKError are mistral-specific exceptions not
-                # wrapped by pydantic_ai into ModelHTTPError.
+            except ModelHTTPError as exc:
                 error_code = resolve_llm_error_code(exc.status_code)
                 if error_code is None:
                     raise

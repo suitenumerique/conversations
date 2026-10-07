@@ -108,7 +108,7 @@ def test_unreachable_forced_connector_tells_the_model_to_say_so(service):
     """The answer is produced, but it owns up to what it could not consult."""
     _force(service, connected=False)
 
-    instruction = service.conversation_agent._instructions[-1]()
+    instruction = service.conversation_agent._instructions[-1].instruction()
     assert "could not" in instruction.lower()
     assert "data.gouv.fr" in instruction
 

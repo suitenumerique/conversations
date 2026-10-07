@@ -629,9 +629,9 @@ def test_project_attachment_updated_at_invalidates_cache(_llm_config_two_models)
 def _resolve_instruction(service, name):
     """Find a registered Pydantic-AI instruction callable by name and invoke it."""
     matches = [
-        fn
-        for fn in service.conversation_agent._instructions  # pylint: disable=protected-access
-        if callable(fn) and fn.__name__ == name
+        sourced.instruction
+        for sourced in service.conversation_agent._instructions  # pylint: disable=protected-access
+        if callable(sourced.instruction) and sourced.instruction.__name__ == name
     ]
     assert matches, f"instruction '{name}' not registered on the agent"
     return matches[0]()

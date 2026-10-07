@@ -316,6 +316,7 @@ def test_post_conversation_with_local_pdf_document_url(
             "state": "complete",
             "timestamp": timestamp,
             "usage": {
+                "audio_seconds": 0.0,
                 "cache_audio_read_tokens": 0,
                 "cache_read_tokens": 0,
                 "cache_write_tokens": 0,
@@ -327,6 +328,7 @@ def test_post_conversation_with_local_pdf_document_url(
                 "output_tokens": 9,
             },
             "run_id": _run_id,
+            "workspace_ref": None,
         },
     ]
 
@@ -799,6 +801,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
             "state": "complete",
             "timestamp": "2025-10-18T20:48:20.286204Z",
             "usage": {
+                "audio_seconds": 0.0,
                 "cache_audio_read_tokens": 0,
                 "cache_read_tokens": 0,
                 "cache_write_tokens": 0,
@@ -810,6 +813,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
                 "output_tokens": 11,
             },
             "run_id": _run_id,
+            "workspace_ref": None,
         },
     ]
 
@@ -1002,6 +1006,7 @@ def test_post_conversation_with_local_not_pdf_document_url(
             "state": "complete",
             "timestamp": timestamp,
             "usage": {
+                "audio_seconds": 0.0,
                 "cache_audio_read_tokens": 0,
                 "cache_read_tokens": 0,
                 "cache_write_tokens": 0,
@@ -1013,5 +1018,6 @@ def test_post_conversation_with_local_not_pdf_document_url(
                 "output_tokens": 7,
             },
             "run_id": _run_id,
+            "workspace_ref": None,
         },
     ]

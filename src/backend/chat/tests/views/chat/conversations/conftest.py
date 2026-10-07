@@ -7,7 +7,6 @@ from django.utils import timezone
 
 import httpx
 import pytest
-import respx
 from freezegun import freeze_time
 
 
@@ -59,7 +58,7 @@ def _create_openai_stream_data():
     )
 
 
-def _create_mock_openai_route(with_delays: bool = False, delay_seconds: float = 1.0):
+def _create_mock_openai_route(httpx2_mock, with_delays: bool = False, delay_seconds: float = 1.0):
     """Create a mock OpenAI stream route with optional delays."""
     openai_stream = _create_openai_stream_data()
 
@@ -71,25 +70,25 @@ def _create_mock_openai_route(with_delays: bool = False, delay_seconds: float = 
                 # Delay after second line to trigger keepalive during streaming
                 await asyncio.sleep(delay_seconds)
 
-    return respx.post("https://www.external-ai-service.com/chat/completions").mock(
+    return httpx2_mock.post("https://www.external-ai-service.com/chat/completions").mock(
         return_value=httpx.Response(200, stream=mock_stream())
     )
 
 
 @pytest.fixture(name="mock_openai_stream")
 @freeze_time("2025-07-25T10:36:35.297675Z")
-def fixture_mock_openai_stream():
+def fixture_mock_openai_stream(httpx2_mock):
     """
     Fixture to mock the OpenAI stream response (no delays).
 
     See https://platform.openai.com/docs/api-reference/chat-streaming/streaming
     """
-    return _create_mock_openai_route(with_delays=False)
+    return _create_mock_openai_route(httpx2_mock, with_delays=False)
 
 
 @pytest.fixture(name="mock_openai_stream_multi_calls")
 @freeze_time("2025-07-25T10:36:35.297675Z")
-def fixture_mock_openai_stream_multi_calls():
+def fixture_mock_openai_stream_multi_calls(httpx2_mock):
     """
     Mock the Albert OpenAI-compatible streaming response with CO2 impact data.
 
@@ -106,24 +105,24 @@ def fixture_mock_openai_stream_multi_calls():
 
         return httpx.Response(200, stream=mock_stream())
 
-    return respx.post("https://www.external-ai-service.com/chat/completions").mock(
+    return httpx2_mock.post("https://www.external-ai-service.com/chat/completions").mock(
         side_effect=create_fresh_stream
     )
 
 
 @pytest.fixture(name="mock_openai_stream_slow")
-def fixture_mock_openai_stream_slow():
+def fixture_mock_openai_stream_slow(httpx2_mock):
     """
     Fixture to mock the OpenAI stream response with delays to trigger keepalives.
 
     No @freeze_time decorator because asyncio.sleep() needs real time to work properly.
     """
-    return _create_mock_openai_route(with_delays=True, delay_seconds=1.0)
+    return _create_mock_openai_route(httpx2_mock, with_delays=True, delay_seconds=1.0)
 
 
 @pytest.fixture(name="mock_openai_stream_with_title_generation")
 @freeze_time("2025-07-25T10:36:35.297675Z")
-def fixture_mock_openai_stream_with_title_generation():
+def fixture_mock_openai_stream_with_title_generation(httpx2_mock):
     """
     Fixture to mock the OpenAI stream response.
 
@@ -190,7 +189,7 @@ def fixture_mock_openai_stream_with_title_generation():
             return create_stream_response()
         return create_non_stream_response()
 
-    route = respx.post("https://www.external-ai-service.com/chat/completions").mock(
+    route = httpx2_mock.post("https://www.external-ai-service.com/chat/completions").mock(
         side_effect=handle_request
     )
 
@@ -199,10 +198,10 @@ def fixture_mock_openai_stream_with_title_generation():
 
 @pytest.fixture(name="mock_openai_no_stream")
 @freeze_time("2025-07-25T10:36:35.297675Z")
-def fixture_mock_openai_no_stream():
+def fixture_mock_openai_no_stream(httpx2_mock):
     """Fixture to mock the OpenAI response."""
 
-    route = respx.post("https://www.external-ai-service.com/chat/completions").mock(
+    route = httpx2_mock.post("https://www.external-ai-service.com/chat/completions").mock(
         return_value=httpx.Response(
             200,
             json={
@@ -278,7 +277,7 @@ def fixture_mock_openai_no_stream():
 
 @pytest.fixture(name="mock_openai_stream_image")
 @freeze_time("2025-07-25T10:36:35.297675Z")
-def fixture_mock_openai_stream_image():
+def fixture_mock_openai_stream_image(httpx2_mock):
     """
     Mock a very simple OpenAI stream that *mentions* the image
     in its textual reply (the real test is that the image URL is
@@ -329,7 +328,7 @@ def fixture_mock_openai_stream_image():
         for line in openai_stream.splitlines(keepends=True):
             yield line.encode()
 
-    route = respx.post("https://www.external-ai-service.com/chat/completions").mock(
+    route = httpx2_mock.post("https://www.external-ai-service.com/chat/completions").mock(
         return_value=httpx.Response(200, stream=mock_stream())
     )
     return route
@@ -337,7 +336,7 @@ def fixture_mock_openai_stream_image():
 
 @pytest.fixture(name="mock_openai_stream_tool")
 @freeze_time("2025-07-25T10:36:35.297675Z")
-def fixture_mock_openai_stream_tool():
+def fixture_mock_openai_stream_tool(httpx2_mock):
     """
     Mock both API calls in the tool call flow:
     1. First call returns function call
@@ -515,7 +514,7 @@ def fixture_mock_openai_stream_tool():
             return httpx.Response(200, stream=mock_second_response_failing_stream())
         return httpx.Response(200, stream=mock_second_response_stream())
 
-    route = respx.post("https://www.external-ai-service.com/chat/completions").mock(
+    route = httpx2_mock.post("https://www.external-ai-service.com/chat/completions").mock(
         side_effect=[
             httpx.Response(200, stream=mock_first_response_stream()),
             tool_answer_side_effect,

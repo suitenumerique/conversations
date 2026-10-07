@@ -1,11 +1,9 @@
 """Unit tests for AIAgentService stream methods."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import httpx
 import pytest
 from asgiref.sync import sync_to_async
-from mistralai.client.errors import HTTPValidationError, HTTPValidationErrorData, SDKError
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 
 from chat.ai_sdk_types import UIMessage
@@ -151,44 +149,13 @@ async def test_stream_data_async_emits_model_connection_error_on_api_error():
 
 
 @pytest.mark.asyncio
-async def test_stream_data_async_emits_model_busy_on_sdk_error_503():
-    """Mistral SDKError with 503 emits model_busy ErrorPart."""
+async def test_stream_data_async_emits_model_wrong_type_on_422():
+    """422 ModelHTTPError emits model_wrong_type ErrorPart."""
     conversation = await sync_to_async(ChatConversationFactory)()
     service = AIAgentService(conversation, user=conversation.owner)
 
-    mock_response = MagicMock(spec=httpx.Response)
-    mock_response.status_code = 503
-    mock_response.text = ""
-    mock_response.headers = httpx.Headers()
-
     def mock_run_agent(*args, **kwargs):
-        return AsyncRaiseIterator(
-            SDKError(message="service unavailable", raw_response=mock_response)
-        )
-
-    with patch.object(service, "_run_agent", side_effect=mock_run_agent):
-        results = []
-        async for result in service.stream_data_async([]):
-            results.append(result)
-
-    assert stream_body(results) == ['{"type":"error","errorText":"model_busy"}']
-
-
-@pytest.mark.asyncio
-async def test_stream_data_async_emits_model_wrong_type_on_http_validation_error_422():
-    """Mistral HTTPValidationError with 422 emits model_wrong_type ErrorPart."""
-    conversation = await sync_to_async(ChatConversationFactory)()
-    service = AIAgentService(conversation, user=conversation.owner)
-
-    mock_response = MagicMock(spec=httpx.Response)
-    mock_response.status_code = 422
-    mock_response.text = ""
-    mock_response.headers = httpx.Headers()
-
-    def mock_run_agent(*args, **kwargs):
-        return AsyncRaiseIterator(
-            HTTPValidationError(data=HTTPValidationErrorData(), raw_response=mock_response)
-        )
+        return AsyncRaiseIterator(ModelHTTPError(status_code=422, model_name="test-model"))
 
     with patch.object(service, "_run_agent", side_effect=mock_run_agent):
         results = []
