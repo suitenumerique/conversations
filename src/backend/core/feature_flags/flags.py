@@ -46,6 +46,7 @@ class FeatureFlags(BaseModel):
     document_upload: FeatureToggle = FeatureToggle.DISABLED
     presentation_generation: FeatureToggle = FeatureToggle.DISABLED
     datagouv_connector: FeatureToggle = FeatureToggle.DISABLED
+    voice_prompt: FeatureToggle = FeatureToggle.DISABLED
 
     def __getattr__(self, name: str):
         """Dynamically get specific RAG document search tool feature flags from settings."""
