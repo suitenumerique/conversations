@@ -1,6 +1,6 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { DropdownMenu, type DropdownMenuItem } from '@gouvfr-lasuite/ui-kit';
-import { memo, useMemo, useState } from 'react';
+import { type ReactNode, memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import DatagouvIcon from '@/assets/icons/uikit-custom/datagouv.svg?react';
@@ -44,6 +44,10 @@ interface InputChatActionsProps {
   sendDisabled?: boolean;
   /** Handler for stop button */
   onStop?: () => void;
+  /** Voice prompt control, rendered next to the send button - hidden if undefined */
+  voicePrompt?: ReactNode;
+  /** Voice prompt recording bar - when set, it replaces every action of the row */
+  recordingBar?: ReactNode;
 }
 
 const STYLES = {
@@ -86,6 +90,8 @@ export const InputChatActions = memo(
     inputHasContent,
     sendDisabled = false,
     onStop,
+    voicePrompt,
+    recordingBar,
   }: InputChatActionsProps) => {
     const { t } = useTranslation();
     const { spacingsTokens } = useCunninghamTheme();
@@ -149,6 +155,19 @@ export const InputChatActions = memo(
       onDatagouvToggle,
       forceDatagouv,
     ]);
+
+    if (recordingBar) {
+      return (
+        <Box
+          $direction="row"
+          $padding={STYLES.actionsGap}
+          $align="center"
+          $css={ACTIONS_OPACITY_CSS}
+        >
+          {recordingBar}
+        </Box>
+      );
+    }
 
     return (
       <Box
@@ -255,6 +274,8 @@ export const InputChatActions = memo(
               />
             </Box>
           )}
+
+          {voicePrompt}
 
           <SendButton
             status={status}

@@ -52,6 +52,8 @@ export interface ConfigResponse {
   theme_customization?: ThemeCustomization;
   status_banner?: StatusBanner;
   maintenance?: MaintenanceConfig | null;
+  voice_prompt_enabled?: boolean;
+  voice_prompt_max_duration?: number;
   chat_upload_accept?: string;
   DOCS_BASE_URL?: string;
   project_files_max_count?: number;
