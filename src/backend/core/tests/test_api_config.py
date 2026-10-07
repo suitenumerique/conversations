@@ -81,6 +81,8 @@ def test_api_config(is_authenticated):
         "attachment_max_size": 10,
         "status_banner": None,
         "maintenance": None,
+        "voice_prompt_enabled": False,
+        "voice_prompt_max_duration": 300,
     }
 
 
@@ -266,6 +268,8 @@ async def test_api_config_async(is_authenticated):
         "attachment_max_size": 10,
         "status_banner": None,
         "maintenance": None,
+        "voice_prompt_enabled": False,
+        "voice_prompt_max_duration": 300,
     }
 
 
@@ -421,3 +425,14 @@ def test_api_config_status_banner_window(now_offset_hours, expected_visible):
         assert response.json()["status_banner"] is not None
     else:
         assert response.json()["status_banner"] is None
+
+
+@override_settings(TRANSCRIPTION_HRID="speech-model", VOICE_PROMPT_MAX_DURATION=120)
+def test_api_config_voice_prompt_enabled():
+    """Voice prompts are advertised as soon as a transcription model is configured."""
+    response = APIClient().get("/api/v1.0/config/")
+
+    assert response.status_code == HTTP_200_OK
+    content = response.json()
+    assert content["voice_prompt_enabled"] is True
+    assert content["voice_prompt_max_duration"] == 120
