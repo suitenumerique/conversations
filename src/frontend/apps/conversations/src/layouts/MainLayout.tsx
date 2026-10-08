@@ -3,7 +3,7 @@ import { css } from 'styled-components';
 
 import { Box } from '@/components';
 import { useConfig } from '@/core/config';
-import { BannerStack } from '@/features/banner';
+import { BannerStack, useNewVersionBanner } from '@/features/banner';
 import { useAssistantHealth } from '@/features/chat/api/useAssistantHealth';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { Header } from '@/features/header';
@@ -26,6 +26,7 @@ export function MainLayout({
   const { isPanelOpen, isSourcesPanelOpen } = useChatPreferencesStore();
   const { data: config } = useConfig();
   const { data: assistantHealth } = useAssistantHealth();
+  const newVersionBanner = useNewVersionBanner();
   const [sourcesAnchorEl, setSourcesAnchorEl] = useState<HTMLDivElement | null>(
     null,
   );
@@ -83,6 +84,7 @@ export function MainLayout({
               banners={[
                 ...(config?.status_banner ? [config.status_banner] : []),
                 ...(assistantHealth?.banners ?? []),
+                ...(newVersionBanner ? [newVersionBanner] : []),
               ]}
             />
           </Box>

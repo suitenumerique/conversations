@@ -30,6 +30,9 @@ Whenever we are cooking a new release (e.g. `4.18.1`), we should follow the stan
 
       The new images don't exist _yet_: they will be created automatically later in the process.
 
+    The backend and frontend versions must match: the frontend compares its own version with
+    the one the backend reports, and asks users to reload when they differ.
+
 4.  Update the project's `Changelog` following the [keepachangelog](https://keepachangelog.com/en/0.3.0/) recommendations.
     Move the `[unreleased]` items under a new `[4.18.1]` heading, then edit the bottom of the file
     following this model:
@@ -91,7 +94,8 @@ Once the release is done and the images are on Docker Hub:
     (`production/values.assistant.yaml.gotmpl`):
 
     - bump the backend image tag (`image.tag`) and the frontend image tag (`frontend.image.tag`)
-      to the new version, with the `v` prefix:
+      to the same new version, with the `v` prefix (a version mismatch shows users a reload
+      banner):
 
       ```yaml
       image:

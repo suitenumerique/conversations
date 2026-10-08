@@ -32,6 +32,7 @@ vi.mock('@/features/left-panel', () => ({
 }));
 
 vi.mock('@/features/banner', () => ({
+  useNewVersionBanner: () => undefined,
   BannerStack: ({ banners }: { banners: { title: string }[] }) => (
     <div data-testid="banner-stack">
       {(banners ?? []).map((b, i) => (

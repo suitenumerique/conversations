@@ -1,9 +1,7 @@
-import { StatusBanner } from '@/core/config/api/useConfig';
-
-import { Banner } from './Banner';
+import { Banner, BannerProps } from './Banner';
 
 interface BannerStackProps {
-  banners: StatusBanner[];
+  banners: BannerProps[];
 }
 
 export const BannerStack = ({ banners }: BannerStackProps) => {

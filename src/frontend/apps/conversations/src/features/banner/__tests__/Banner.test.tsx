@@ -86,6 +86,24 @@ describe('Banner', () => {
     expect(screen.getByTestId('banner-icon')).toBeInTheDocument();
   });
 
+  it('renders the action as a button calling its handler', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <Banner
+        level="warning"
+        title="New version"
+        content=""
+        action={{ label: 'Reload', onClick }}
+      />,
+      { wrapper: AppWrapper },
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Reload' }));
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
   it('renders no icon svg for info level', () => {
     render(<Banner level="info" title="Notice" content="" />, {
       wrapper: AppWrapper,

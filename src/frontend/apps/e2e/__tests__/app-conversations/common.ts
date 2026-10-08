@@ -1,6 +1,8 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
+import packageJson from '../../package.json';
+
 export const CONFIG = {
   DOCS_BASE_URL: null,
   ENVIRONMENT: 'development',
@@ -27,6 +29,8 @@ export const CONFIG = {
   ],
   LANGUAGE_CODE: 'en-us',
   POSTHOG_KEY: {},
+  // Released together with the backend, which reports its own version.
+  RELEASE: packageJson.version,
   SENTRY_DSN: null,
   STATUS_PAGE_URL: null,
   theme_customization: {},
