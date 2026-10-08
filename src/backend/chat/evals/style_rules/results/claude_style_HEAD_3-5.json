@@ -1,0 +1,186 @@
+{
+  "run_id": "2026-10-05T15-14-48-805448Z_1ff84e4_589c76",
+  "created_at": "2026-10-05T15:14:48.805899+00:00",
+  "comment": "claude_style HEAD x mistral-medium-3-5",
+  "git": {
+    "commit": "1ff84e40b5349a9ced840b1d90a5b1e4c8437b21",
+    "commit_short": "1ff84e4",
+    "branch": "maxenceh/regression-analysis",
+    "dirty": true
+  },
+  "params": {
+    "model_hrid": "default-model",
+    "judge_model_hrid": "albert-openai-gpt-oss-120b",
+    "llm_judge": true,
+    "runs_per_case": 5,
+    "datasets": [
+      "claude_style"
+    ],
+    "case_filter": null,
+    "target_version": "HEAD",
+    "target_model": "mistral-medium-3-5",
+    "target_url": "http://host.docker.internal:18071"
+  },
+  "dataset_hashes": {
+    "claude_style": "sha256:4f35251218f7a0d6e160dd672601ebce01c16716d5657dceb9bb81705fd6dca9"
+  },
+  "summary": {
+    "overall_pass_rate": 0.0
+  },
+  "datasets": {
+    "claude_style": {
+      "cases_total": 5,
+      "cases_passed": 0,
+      "pass_rate": 0.0,
+      "pass_rate_avg_repeats": 0.0,
+      "evaluators": {
+        "LLMJudge": {
+          "avg_score": 0.0,
+          "pass_rate": 0.0
+        },
+        "Regex": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        },
+        "sans_formule_creuse": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        },
+        "sans_gras": {
+          "avg_score": 0.16,
+          "pass_rate": 0.0
+        },
+        "sans_puces": {
+          "avg_score": 0.3333,
+          "pass_rate": 0.3333
+        },
+        "sans_titres": {
+          "avg_score": 0.6,
+          "pass_rate": 0.5
+        }
+      },
+      "cases": [
+        {
+          "name": "claude_style_avis",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "style_opinion",
+            "description": "Avis argumenté plutôt qu'une liste de « ça dépend »",
+            "doc_set": null
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.0,
+            "sans_formule_creuse": 1.0,
+            "sans_gras": 0.0
+          },
+          "reasons": {
+            "LLMJudge": "Uses bold formatting and adds a closing recap ('En résumé'), both prohibited by the style rules.",
+            "sans_gras": "turn 1/1: forbidden: \\*\\*[^*\\n]+\\*\\*"
+          },
+          "task_duration_ms": 17964.9
+        },
+        {
+          "name": "claude_style_contradiction",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "style_honesty",
+            "description": "L'utilisateur a tort : corriger avec tact (Nébula Cloud)",
+            "doc_set": null
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.0,
+            "Regex": 1.0,
+            "sans_formule_creuse": 1.0,
+            "sans_gras": 0.8,
+            "sans_puces": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response uses bold formatting (**...**) which violates the rule that no bold should be used.",
+            "sans_gras": "turn 1/1: forbidden: \\*\\*[^*\\n]+\\*\\*"
+          },
+          "task_duration_ms": 10391.5
+        },
+        {
+          "name": "claude_style_conversation_6_tours",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "style_drift",
+            "description": "6 tours conversationnels : pas de puces ni de titres à aucun tour",
+            "doc_set": null
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.0,
+            "sans_formule_creuse": 1.0,
+            "sans_gras": 0.0,
+            "sans_puces": 0.0,
+            "sans_titres": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The response neither answers the user's question about COPAR nor avoids bold formatting; both violate the style rules.",
+            "sans_gras": "turn 1/6: forbidden: \\*\\*[^*\\n]+\\*\\*",
+            "sans_puces": "turn 1/6: forbidden: ^\\s*(?:[-*+•]|\\d+[.)])\\s+"
+          },
+          "task_duration_ms": 38146.3
+        },
+        {
+          "name": "claude_style_premier_tour",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "style_first_turn",
+            "description": "Témoin 1 tour : prose sans puces ni titres",
+            "doc_set": null
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.0,
+            "sans_formule_creuse": 1.0,
+            "sans_gras": 0.0,
+            "sans_puces": 0.0,
+            "sans_titres": 0.2
+          },
+          "reasons": {
+            "LLMJudge": "The answer uses bold markup and ends with a recap sentence starting with \"En résumé,\" both prohibited by the style rules.",
+            "sans_gras": "turn 1/1: forbidden: \\*\\*[^*\\n]+\\*\\*",
+            "sans_puces": "turn 1/1: forbidden: ^\\s*(?:[-*+•]|\\d+[.)])\\s+",
+            "sans_titres": "turn 1/1: forbidden: ^\\s*#{1,6}\\s"
+          },
+          "task_duration_ms": 9772.3
+        },
+        {
+          "name": "claude_style_procedure",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "style_procedure",
+            "description": "Procédure : liste permise, gras toujours interdit",
+            "doc_set": null
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.0,
+            "sans_formule_creuse": 1.0,
+            "sans_gras": 0.0
+          },
+          "reasons": {
+            "LLMJudge": "The answer uses bold markup (e.g., **procédure spécifique**) which the style rules forbid; all other rules are met.",
+            "sans_gras": "turn 1/1: forbidden: \\*\\*[^*\\n]+\\*\\*"
+          },
+          "task_duration_ms": 54917.2
+        }
+      ],
+      "failures": 0
+    }
+  }
+}
