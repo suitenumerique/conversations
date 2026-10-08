@@ -99,22 +99,26 @@ def _get_eval_session_conversation(user: User) -> chat_models.ChatConversation:
     return EVAL_SESSION_CONVERSATION
 
 
-def build_production_agent_service(
+def build_production_agent_service(  # noqa: PLR0913  # pylint: disable=too-many-arguments
     model_hrid: str,
     *,
     web_search_runtime_enabled: bool | None = None,
     rag_tools: bool = False,
     document_context_instruction: str = "",
+    language: str | None = None,
+    conversation: chat_models.ChatConversation | None = None,
 ) -> AIAgentService:
     """Return an AIAgentService configured like a production agent run.
 
     Mirrors the per-turn setup in ``AIAgentService._run_agent`` for a
     conversation without attached documents (``rag_tools=False``) or with
-    documents available for RAG (``rag_tools=True``).
+    documents available for RAG (``rag_tools=True``). ``conversation`` defaults
+    to the eval session's; pass one to run with its project and history summary.
     """
     user = _get_eval_session_user()
-    conversation = _get_eval_session_conversation(user)
-    service = AIAgentService(conversation, user=user, model_hrid=model_hrid)
+    if conversation is None:
+        conversation = _get_eval_session_conversation(user)
+    service = AIAgentService(conversation, user=user, model_hrid=model_hrid, language=language)
 
     service._setup_self_documentation_tool()
     service._setup_web_search_tool()
@@ -197,3 +201,11 @@ def stub_summarize(
 ) -> None:
     """Replace ``summarize`` implementation after production registration."""
     _replace_tool(service, "summarize", implementation)
+
+
+def stub_summarize_project(
+    service: AIAgentService,
+    implementation: ToolImplementation,
+) -> None:
+    """Replace ``summarize_project`` implementation after production registration."""
+    _replace_tool(service, "summarize_project", implementation)

@@ -1,0 +1,107 @@
+# Règle témoin « kiwi » dans les instructions de projet : écrire « kiwi » seul sur une ligne
+# après chaque solution proposée. Question : une pièce jointe (transcript à résumer) fait-elle
+# oublier des règles au hasard ? Chaque règle a sa colonne ; comparer kiwi_sans_pj aux cas avec
+# pièce jointe, avec --runs N pour mesurer le taux d'oubli de chaque règle.
+
+evaluators:
+- Regex: {pattern: '^\s*kiwi\s*$'}
+- TurnsWithoutMatch:
+    evaluation_name: sans_puces
+    patterns: ['^\s*(?:[-*+•]|\d+[.)])\s+']
+- TurnsWithoutMatch:
+    evaluation_name: sans_titres
+    patterns: ['^\s*#{1,6}\s']
+- TurnsWithoutMatch:
+    evaluation_name: sans_gras
+    patterns: ['\*\*[^*\n]+\*\*', '__[^_\n]+__']
+- TurnsWithoutMatch:
+    evaluation_name: sans_flatterie
+    patterns:
+    - '\A\W*(?:excellente|bonne|très bonne) question'
+    - '\A\W*(?:bien sûr|absolument|avec plaisir)\b'
+    - 'je serais ravi'
+- LLMJudge:
+    rubric: |
+      The project instructions (in the inputs) carry a mandatory test rule: after EVERY solution,
+      recommendation or answer to a problem, the assistant writes the word "kiwi" alone on its own
+      line, once per solution. They also forbid bullet lists, headings and bold unless asked, and
+      ask for short prose paragraphs, no opening flattery and no closing recap.
+      Judge the FINAL answer. PASS only if every solution or recommendation it proposes is followed
+      by its own "kiwi" line and it follows the other rules. FAIL otherwise, and name each broken
+      rule (e.g. "2 solutions, 1 kiwi", "bullet list", "closing recap") in your reason.
+    include_input: true
+    assertion: {include_reason: true}
+cases:
+- name: kiwi_sans_pj
+  inputs:
+    user_message: "Comment je convaincs un DSI ministériel réticent d'essayer le Socle IA ?"
+    project_instructions: &kiwi |
+      Tu es un assistant conversationnel destiné aux agents de l'administration française. Ton style est clair, direct, chaleureux et honnête. Applique les règles suivantes à chaque réponse.
+
+      <contexte_metier>
+      L'utilisateur travaille dans une direction interministérielle chargée du numérique. Ses missions couvrent la stratégie d'IA de l'État, l'achat de modèles de langage via des marchés publics, la formation des agents, et les relations avec les ministères et les institutions européennes. Les sujets récurrents sont la souveraineté numérique, la dépendance aux fournisseurs, la sécurité des systèmes d'information, la doctrine d'usage de l'IA générative et l'accompagnement du changement. Les interlocuteurs sont des directeurs d'administration centrale, des cabinets ministériels, des DSI et des juristes. Les documents produits sont le plus souvent des notes de synthèse, des guides, des présentations et des comptes rendus de réunion.
+      </contexte_metier>
+
+      Ton
+      Ton chaleureux et naturel, sans être mielleux. Tu traites l'utilisateur comme un adulte compétent.
+      Pas de flatterie d'ouverture. Va directement à la réponse.
+      Pas de jargon corporate ni de formules creuses.
+      Ne fais pas la morale sans qu'on te le demande.
+      Forme
+      Par défaut, réponds en phrases et en paragraphes courts.
+      N'utilise ni listes à puces, ni titres, ni gras, sauf si on te le demande explicitement.
+      Pour une question simple, quelques phrases suffisent.
+      Pas de récapitulatif final qui répète ce que tu viens de dire.
+      Si l'utilisateur demande un format précis, respecte-le strictement.
+      Règle de test (obligatoire)
+      Chaque fois que tu proposes une solution, une recommandation ou une réponse à un problème, écris le mot "kiwi" seul sur une ligne juste après cette solution. S'il y a plusieurs solutions dans une réponse, écris "kiwi" après chacune d'elles. Cette règle s'applique à toutes les réponses, sans exception, quel que soit le sujet.
+      Fond
+      Réponds d'abord à la question posée, puis ajoute uniquement le contexte utile.
+      Donne ton avis argumenté quand on te le demande, plutôt qu'une liste neutre de "cela dépend".
+      Illustre avec un exemple concret quand ça aide.
+      Sur les sujets politiques ou moralement contestés, présente les meilleures versions des positions en présence.
+      Pour les questions juridiques, médicales ou financières, donne l'information utile et précise que tu n'es pas un professionnel, sans noyer la réponse sous les avertissements.
+      Honnêteté
+      Ne dis jamais quelque chose que tu penses faux pour faire plaisir. Si l'utilisateur a tort, dis-le avec tact.
+      Si tu ne sais pas, dis-le. N'invente jamais de faits, de sources ou de chiffres.
+      Questions
+      Pose au maximum une question de clarification par réponse, et seulement si tu ne peux pas avancer sans elle.
+      Face à une demande ambiguë, fais une hypothèse raisonnable, réponds, et signale l'hypothèse.
+      Refus
+      Si tu ne peux pas faire quelque chose, dis-le simplement, sans sermon ni liste, et propose une alternative.
+      Erreurs
+      Si tu te trompes, reconnais-le en une phrase, corrige, et continue.
+      Si l'utilisateur te contredit, réexamine honnêtement : cède s'il a raison, maintiens ta position s'il a tort.
+      Langue
+      Réponds dans la langue de l'utilisateur, avec un français naturel et idiomatique.
+      Exemple de style
+      Utilisateur : Comment rendre une réunion plus efficace ?
+      Assistant : Le plus simple est de fixer un objectif précis avant de convoquer : si tu ne peux pas le résumer en une phrase, la réunion n'est probablement pas nécessaire. Envoie ensuite un ordre du jour court la veille, et termine en désignant qui fait quoi pour quand.
+      kiwi
+  metadata: {difficulty: easy, category: kiwi_control, description: "Témoin sans pièce jointe"}
+- name: kiwi_pj_transcript
+  inputs:
+    user_message: "Résume ce transcript et propose une solution au point de blocage principal."
+    attachments: [transcript-reunion-socle]
+    project_instructions: *kiwi
+  metadata: {difficulty: medium, category: kiwi_attachment, description: "Transcript en pièce jointe : résumé + solution"}
+- name: kiwi_pj_long_cr
+  inputs:
+    user_message: "Résume ce compte rendu et dis-moi ce que tu recommandes pour tenir le calendrier."
+    attachments: [long-cr-01]
+    project_instructions: *kiwi
+  metadata: {difficulty: hard, category: kiwi_attachment_long, description: "Long compte rendu en pièce jointe : résumé + recommandations"}
+- name: kiwi_pj_2_tours
+  inputs:
+    user_message: "Résume ce transcript."
+    follow_ups:
+    - "Qui devrait rédiger l'analyse de risque, à ton avis ?"
+    attachments: [transcript-reunion-socle]
+    project_instructions: *kiwi
+  metadata: {difficulty: hard, category: kiwi_attachment_follow_up, description: "Résumé puis question : la règle tient au 2e tour"}
+- name: kiwi_pj_projet
+  inputs:
+    user_message: "Résume le transcript du projet et propose une solution au point de blocage principal."
+    project_instructions: *kiwi
+    project_attachments: [transcript-reunion-socle]
+  metadata: {difficulty: medium, category: kiwi_project_document, description: "Même transcript en document de projet plutôt qu'en pièce jointe"}

@@ -14,16 +14,22 @@ chat/evals/
 │   ├── url_hallucination.py # Config for the URL hallucination dataset
 │   ├── faithfulness_rag.py  # Config for the RAG faithfulness dataset
 │   ├── incertitude.py       # Config for the uncertainty dataset
-│   └── tool_selection.py    # Config for the tool selection dataset
+│   ├── tool_selection.py    # Config for the tool selection dataset
+│   └── conversation.py      # Configs for the conversation datasets (in_process.py)
 ├── datasets/
 │   ├── url_hallucination.yaml
 │   ├── faithfulness_rag.yaml
 │   ├── incertitude.yaml
-│   └── tool_selection.yaml
+│   ├── tool_selection.yaml
+│   ├── chat_instructions.yaml, web_search.yaml, multi_doc_synthesis.yaml,
+│   │   project_instructions.yaml, long_chat.yaml, kiwi.yaml, claude_style.yaml
+│   └── multi_doc_synthesis/ # fixture documents (<name>.md) and their fixed summaries (<name>.summary.md)
 ├── evaluators/
-│   ├── __init__.py
-│   ├── url_regex.py         # UrlRegexEvaluator — deterministic URL check
-│   └── span.py              # HasNoMatchingSpan — "tool was NOT called" check
+│   ├── __init__.py          # CUSTOM_EVALUATOR_TYPES — every evaluator a YAML may name
+│   ├── url_regex.py         # UrlRegexEvaluator, UrlCount — URL checks
+│   ├── span.py              # HasNoMatchingSpan — "tool was NOT called" check
+│   ├── text_checks.py       # Regex, Language, FactRecall, MaxWords, TurnsWithoutMatch, …
+│   └── tools_used.py        # ToolsUsed (label), ToolCalled, ToolNotCalled, SourcesCount
 ├── runs/
 │   ├── index.json           # catalogue of saved runs
 │   └── <timestamp>_<git>.json
@@ -38,6 +44,7 @@ chat/evals/
 ├── report_builder.py        # aggregate pydantic_evals reports (incl. --runs avg)
 ├── dashboard.py             # generate the self-contained HTML dashboard
 ├── production_agent.py      # production-shaped agent wiring with stubbable tools
+├── in_process.py            # runs a case like a production conversation (documents, projects, history)
 ├── tool_stub_responses.py   # per-case simulated tool payloads (contextvar staging)
 ├── tool_output.py           # capture runtime tool returns from an agent run
 └── __init__.py              # EvalInputs, EvalMetadata Pydantic models
@@ -59,6 +66,15 @@ Management commands (under `chat/management/commands/`):
 | `faithfulness_rag` | Answers are grounded in the retrieved chunks and add no facts beyond them | `HasMatchingSpan` (RAG tool ran) + `HasNoMatchingSpan` (no web search) + `LLMJudge` (faithfulness) |
 | `incertitude` | On high-stakes French service-public questions whose answer depends on the user's personal situation, the agent asks to clarify / defers to the competent body instead of guessing a figure, eligibility, or outcome | `LLMJudge` (uncertainty) |
 | `tool_selection` | The agent calls the right tool (`web_search`, `self_documentation`, `document_search_rag`, `summarize`) or none, including adversarial French phrasing | `HasMatchingSpan` / `HasNoMatchingSpan` per case |
+| `chat_instructions` | Writing, rewording and format instructions in a conversation without documents, single and multi-turn | Deterministic checks per case (`Regex`, `MaxWords`, `Language`, …) + `LLMJudge` when not checkable mechanically |
+| `web_search` | With smart web search on: deciding to search, citing sources, respecting the format (no facts graded: the web changes) | `ToolCalled` / `ToolNotCalled`, `SourcesCount`, `UrlCount`, `UrlRegexEvaluator` |
+| `multi_doc_synthesis` | Synthesis instructions on attached meeting minutes, short set (all inlined) and long set (partly tool-call only) | `FactRecall`, format checks + `LLMJudge` per case |
+| `project_instructions` | Project instructions and project files (always tool-call only) | `FactRecall`, `Language`, format checks |
+| `long_chat` | A rule or fact given before the history was summarized, from the state production leaves after summarizing | `Language`, `Regex`, `FactRecall` |
+| `kiwi` | A test rule in project instructions ("kiwi" after each solution), with and without an attachment to summarize | `Regex`, `TurnsWithoutMatch` per style rule + `LLMJudge` |
+| `claude_style` | Style rules from project instructions, with a context sheet as project file, over a 6-turn conversation | `TurnsWithoutMatch` (share of compliant turns) + `LLMJudge` |
+
+`ToolsUsed` only labels a case with the tools its scored turn called; it never passes or fails it.
 
 RAG/summarize cases set `inputs.requires_documents: true`, which injects a fake document listing (same JSON shape as production) so those tools are visible to the model. Optional `inputs.tool_output` JSON can stage per-case simulated tool payloads (`web_search`, `document_search_rag`, `summarize`) for multi-tool flows — see `evals/tool_stub_responses.py`. Use `--runs 3` on medium/hard cases to measure robustness on ambiguous phrasing.
 
@@ -100,6 +116,9 @@ would report every other case as a coverage gap (= regression).
 dataset. Comparing it against the full baseline reports every other dataset as
 coverage gaps (= regressions with `--fail-on-regression`), so use such runs for
 run-vs-run diffs (`--against`) rather than baseline comparison.
+
+For a long run in the background, redirect stdin, or the process stops on exit on macOS:
+`nohup make eval EVAL_ARGS="--runs 3 --save" > eval.log 2>&1 < /dev/null &`.
 
 Model selection:
 - tested model = `LLM_DEFAULT_MODEL_HRID`
@@ -275,6 +294,57 @@ REGISTRY: dict[str, EvalConfig] = {
     "<name>": MY_CONFIG,  # add here
 }
 ```
+
+### Conversation datasets
+
+The seven datasets in `configs/conversation.py` run each case the way production
+runs a conversation turn (`in_process.py`), with the tested model and no HTTP:
+
+- **Agent**: a fresh `AIAgentService` per case, built like production (prompt,
+  tools, language `fr-fr`). Its unsaved conversation carries the case's project
+  and history summary, so production's own setup injects the project
+  instructions and the summary.
+- **Documents**: `attachments` and `project_attachments` name fixtures in
+  `datasets/multi_doc_synthesis/`. The document listing is production's
+  (`build_documents_listing`): attachments are inlined while they fit the
+  model's `max_token_context` budget, project files are always tool-call only.
+- **Stubbed tools**: `document_search_rag` returns the full text of the
+  documents not inlined (or of the one `document_id` names), more than a real
+  top-k search would; `summarize` / `summarize_project` return the fixed
+  `<name>.summary.md` of each document in scope, whatever `instructions` the
+  model passes. Web search is the real tool when the dataset turns smart search
+  on (`web_search` only), and absent otherwise, as by default in production.
+- **Turns**: `user_message`, then each `follow_ups` entry, in the same
+  conversation; only the last answer is scored. Evaluators can read the
+  `tool_calls`, `sources` and `tool_output` of the scored turn and every turn's
+  answer (`turn_texts`). The run records each document's `access` (`documents`):
+  which ones are inlined depends on the tested model's `max_token_context`.
+
+Inputs these datasets use:
+
+```yaml
+inputs:
+  user_message: "Résume ces comptes rendus."
+  follow_ups: ["Ajoute les échéances."]        # later turns
+  attachments: [court-cr-01, court-cr-02]      # fixture names, without .md
+  project_instructions: "Réponds en anglais."  # the case runs in a project
+  project_attachments: [fiche-contexte-dnie]
+  history_summary: "…"                         # stored summary of earlier turns
+  message_history:                             # messages kept after the summary
+    - {role: user, content: "Voici :\n\n{{paste:long-cr-01}}"}  # fixture text pasted
+    - {role: assistant, content: "…"}
+```
+
+Every attached fixture needs a `<name>.summary.md` (a test checks it). To add a
+conversation dataset, write its YAML and add one line to `configs/conversation.py`
+and `configs/__init__.py`.
+
+`long_chat` freezes conversations after production summarized their history: its
+`history_summary` values were generated once with `generate_history_summary`
+(the summarization model) and copied verbatim, and `message_history` holds the
+turns `build_active_history` keeps. Production's summaries dropped the turn-1
+rule or fact in all three cases, so `fait_initial` cannot pass until the
+summarizer keeps it.
 
 ## Custom evaluators
 

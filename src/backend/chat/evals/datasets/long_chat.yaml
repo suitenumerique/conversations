@@ -1,0 +1,457 @@
+# Longues conversations, figées dans l'état qu'elles ont après le résumé de l'historique.
+# Chaque cas part de 5 échanges : une règle ou un fait au tour 1, puis 4 tours qui collent chacun
+# trois comptes rendus longs (≈ 108k tokens, au-delà du budget d'historique de 131072 tokens de
+# contexte). history_summary est le résumé que la production en a tiré (generate_history_summary,
+# default-summarization-model, généré une fois et copié tel quel) ; message_history est la fenêtre
+# qu'elle garde ensuite (build_active_history : les 3 derniers échanges). Le tour 1 n'est donc
+# visible que par le résumé, qui l'a omis dans les trois cas : fait_initial ne peut pas réussir, et
+# les règles ne tiennent qu'en imitant les réponses récentes. controle_sous_budget garde la règle
+# dans l'historique (≈ 54k tokens, aucun résumé).
+
+evaluators:
+- ToolsUsed
+cases:
+- name: regle_langue
+  inputs:
+    user_message: Résume en trois phrases l'avancement global du projet.
+    history_summary: |-
+      ### **Updated Summary of ALTO Project (as of 15 April 2026):**
+
+      1. **Project Overview:**
+         - The ALTO project aims to overhaul the user appointment portal for Vallée-Basse’s departmental services, addressing inefficiencies in the current system (slow performance, lack of mobile compatibility, manual re-entry of data, and security vulnerabilities).
+         - **Key Objectives:** Reduce phone calls related to appointments by half, achieve 80% online bookings, and eliminate manual data re-entry by agents.
+
+      2. **Budget:**
+         - Initial budget: **€450,000** (development: €260K, hosting: €90K, training: €60K, accessibility: €40K).
+         - **Revised Budget (18 March):** Reduced to **€380,000** due to a **€70,000 credit freeze** (ministry-level).
+           - **Adjustments:**
+             - Development: **€200K** (SMS reminder module deferred; email reminders retained).
+             - Training: **€50K** (partial shift to remote sessions).
+             - Hosting and accessibility budgets unchanged.
+           - **Deferred Features:** SMS reminders (prioritized for future funding), customizable dashboards for site managers.
+
+      3. **Hosting:**
+         - **Initial Plan:** External hosting tender won by **Nuage Ligérien** (€29K/year), but **security concerns** arose:
+           - Data localization in France not guaranteed during major incidents (backup center in another EU country).
+           - Subcontractor access from outside the EU.
+         - **Decision (15 April):** Abandon Nuage Ligérien. **Switch to ministerial data center** (no additional hosting cost; €12K setup fee).
+           - **Impact:** Go-live delayed from **15 June to 1 September 2026** due to 8-week setup time.
+           - **Security:** Fully compliant (data stored exclusively in France, state-run).
+
+      4. **Timeline & Milestones:**
+         - **Pilot Phase:**
+           - **4 May 2026:** Pilot launch on **Saint-Aubin and Montclair sites** (25% of appointments; rural users).
+           - **Duration:** 4 weeks (training for pilot agents: **27 April**).
+           - **Environment:** Temporary, secured infrastructure (real data limited to pilot sites).
+         - **Development:**
+           - Provider selected **30 March**; kickoff **7 April**.
+           - Testable version delivered **27 April** (for pilot).
+           - Final version (with pilot feedback + accessibility fixes): **End of June**.
+         - **Go-Live:**
+           - **1 September 2026:** Full deployment across all sites.
+           - **August:** Training for remaining agents (remote + on-site).
+           - **September:** Enhanced support for first weeks (referents on each site).
+
+      5. **Team & Governance:**
+         - **Core Team:**
+           - **Project Lead:** Mme Hélène Vasseur.
+           - **Deputy Project Manager:** M. Julien Ferrand (joined **1 April**; oversees pilot).
+           - **IT/Security:** M. Karim Benali (hosting), M. Paul Girard (security).
+           - **HR/Training:** Mme Sophie Lemarchand, M. Thomas Ricard.
+           - **Accessibility:** Mme Inès Moreau.
+         - **Local Correspondents:** Designated per site to relay feedback.
+
+      6. **Accessibility:**
+         - **Audit Results (15 April):** 72% compliance with RGAA standards.
+           - **Issues:** Color contrast, keyboard navigation, form error messages.
+           - **Action:** Fixes required before go-live; **second audit** planned for final version.
+         - **Involvement:** Disability association representative participating in tests/pilot.
+
+      7. **Risks & Mitigations:**
+         - **Hosting Security Risk:** Resolved by switching to ministerial data center.
+         - **Budget Risk:** Mitigated via fallback plan; SMS module deferred.
+         - **Peak Period Go-Live:** Addressed with pilot learnings + reinforced support.
+         - **Agent Availability:** Training scheduled around leave periods; remote options.
+
+      8. **Communication:**
+         - **Internal:** Monthly newsletters, intranet updates, Q&A form for agents.
+         - **Pilot Users:** Posters, flyers, website notices, and mayoral outreach (from **end of April**).
+         - **General Public:** Campaign delayed to **end of August** (post-pilot insights).
+
+      9. **Key Decisions:**
+         - **14 Jan:** Budget approved; go-live set for 15 June.
+         - **11 Feb:** Nuage Ligérien selected (pending security approval); accessibility audit ordered.
+         - **18 March:** Budget cut to €380K; SMS module deferred; pilot confirmed.
+         - **15 April:** Ministerial data center chosen; go-live delayed to **1 September**; pilot maintained.
+
+      10. **Next Deadlines:**
+          - **30 April:** Notify Nuage Ligérien of contract cancellation (M. Benali).
+          - **10 June:** Pilot review presentation (M. Ferrand).
+          - **30 June:** Accessibility fixes (Mme Moreau).
+          - **End August:** Training for non-pilot sites.
+          - **1 September:** Full deployment.
+
+      ---
+      **Note:** The project remains on track to meet core objectives despite budget cuts and hosting delays, with a focus on security, accessibility, and agent/user adoption.
+    message_history:
+    - role: user
+      content: |-
+        Voici trois autres comptes rendus :
+
+        {{paste:long-cr-04}}
+
+        {{paste:long-cr-01}}
+
+        {{paste:long-cr-02}}
+
+        Quelles décisions ont été prises sur le budget ?
+    - role: assistant
+      content: |-
+        On the budget:
+
+        - 14 January: the committee approves a €450,000 envelope including VAT (development €260,000, hosting €90,000, training €60,000, accessibility €40,000), with a contingency margin of about 8% per lot.
+        - 11 February: Nuage Ligérien's offer (€29,000 a year, €87,000 over three years) fits the hosting lot; the SMS reminder module becomes an optional tranche and Mr Benali is asked for a fallback plan.
+        - 15 April: the envelope stays at €380,000 after the credit freeze; choosing the ministerial data centre adds no hosting cost (€12,000 for setup), and Mr Aubry wants the freed credits to bring back SMS reminders first.
+    - role: user
+      content: |-
+        Voici encore trois comptes rendus :
+
+        {{paste:long-cr-03}}
+
+        {{paste:long-cr-04}}
+
+        {{paste:long-cr-01}}
+
+        Quelles sont les prochaines échéances ?
+    - role: assistant
+      content: |-
+        As of the latest committee (15 April 2026):
+
+        - 30 April: Mr Benali tells Nuage Ligérien no contract will be signed;
+        - 4 May: the four-week pilot starts in Saint-Aubin and Montclair;
+        - 10 June: Mr Ferrand presents the pilot review to the committee;
+        - mid-June: the final environment is ready at the ministerial data centre;
+        - 30 June: accessibility fixes, owned by Ms Moreau;
+        - July: security tests, load tests and the second accessibility audit;
+        - end of August: training for the four other sites;
+        - 1 September 2026: go-live on every site.
+    - role: user
+      content: |-
+        Et ces trois derniers :
+
+        {{paste:long-cr-02}}
+
+        {{paste:long-cr-03}}
+
+        {{paste:long-cr-04}}
+
+        Qui est responsable de l'hébergement ?
+    - role: assistant
+      content: 'Hosting is handled by Mr Karim Benali, head of information systems: he ran the tender, studied the alternative and must tell Nuage Ligérien the contract is dropped. Mr Paul Girard, the security officer, issued the negative opinion on Nuage Ligérien on 9 April. Since the 15 April committee, the portal will be hosted at the ministerial data centre, run by State staff.'
+  metadata:
+    difficulty: hard
+    category: summary_rule_language
+    description: Règle de langue posée avant le résumé
+  evaluators:
+  - Language:
+      code: en
+- name: regle_signature
+  inputs:
+    user_message: Résume en trois phrases l'avancement global du projet.
+    history_summary: |-
+      **Résumé mis à jour du projet ALTO (au 15 avril 2026) :**
+
+      Le projet ALTO vise à refondre le portail de prise de rendez-vous des usagers de la direction départementale de Vallée-Basse. **Objectifs principaux** : réduire de moitié les appels liés aux rendez-vous, atteindre 80 % de rendez-vous en ligne, et supprimer la ressaisie manuelle par les agents. Le périmètre inclut la prise de rendez-vous en ligne, la gestion des agendas, les confirmations/rappels (courriel maintenu, SMS reporté), et la production de statistiques.
+
+      **Budget** : Initialement fixé à **450 000 € TTC** (développement 260 000 €, hébergement 90 000 €, formation 60 000 €, accessibilité 40 000 €). Après un **gel de crédits de 70 000 €** (mars 2026), l’enveloppe est réduite à **380 000 € TTC** :
+      - Développement : 200 000 € (report du module SMS et simplification des statistiques).
+      - Formation : 50 000 € (remplacement partiel des sessions sur site par des classes virtuelles).
+      - Hébergement et accessibilité : maintenus.
+
+      **Calendrier révisé** :
+      - **4 mai 2026** : Démarrage du **pilote** sur les sites de **Saint-Aubin et Montclair** (4 semaines, environnement provisoire).
+      - **10 juin 2026** : Bilan du pilote présenté au comité.
+      - **Mi-juin** : Mise à disposition de l’environnement définitif au **centre de données ministériel** (choisi après avis défavorable sur Nuage Ligérien pour non-respect de la localisation des données en France en cas d’incident).
+      - **Fin août** : Formation des agents des 4 autres sites.
+      - **1er septembre 2026** : Mise en service générale (reportée du 15 juin en raison du changement d’hébergement).
+
+      **Équipe et gouvernance** :
+      - **Mme Claire Dumoulin** (directrice) préside les comités de pilotage mensuels.
+      - **Mme Hélène Vasseur** (cheffe de projet) anime les comités de projet hebdomadaires.
+      - **M. Julien Ferrand** (chef de projet adjoint, arrivé le 1er avril) gère le pilote et la mise en service.
+      - **M. Karim Benali** (responsable SI) supervise l’hébergement et le développement.
+      - **M. Paul Girard** (RSSI) a validé les exigences de sécurité (localisation France, chiffrement, traçabilité).
+      - **M. Thomas Ricard** (formation) et **Mme Inès Moreau** (accessibilité, audit RGAA à 72 % sur les maquettes) complètent l’équipe.
+
+      **Décisions clés** :
+      - **Hébergement** : Abandon de Nuage Ligérien (avis défavorable du RSSI) au profit du **centre de données ministériel** (sécurité conforme, coût limité à 12 000 € d’installation).
+      - **Pilote** : Maintenu sur Saint-Aubin et Montclair avec formation prioritaire des agents (semaine du 27 avril).
+      - **Accessibilité** : Audit sur maquettes terminé (72 % de conformité RGAA), corrections en cours pour la version finale.
+      - **Communication** : Transparence sur le report (sécurité des données) et maintien des canaux existants (téléphone, guichet).
+
+      **Risques principaux** :
+      - Respect du délai de 8 semaines pour le centre de données ministériel.
+      - Mise en service en période de forte affluence (septembre), atténuée par le pilote et un dispositif d’accompagnement renforcé.
+      - Financement futur du module SMS (priorité identifiée).
+
+      **Prochaines échéances** :
+      - **30 avril** : Information de Nuage Ligérien (M. Benali).
+      - **10 juin** : Bilan du pilote (M. Ferrand).
+      - **30 juin** : Corrections d’accessibilité (Mme Moreau).
+
+      FIN
+    message_history:
+    - role: user
+      content: |-
+        Voici trois autres comptes rendus :
+
+        {{paste:long-cr-04}}
+
+        {{paste:long-cr-01}}
+
+        {{paste:long-cr-02}}
+
+        Quelles décisions ont été prises sur le budget ?
+    - role: assistant
+      content: |-
+        Sur le budget :
+
+        - 14 janvier : le comité valide une enveloppe de 450 000 € TTC (développement 260 000 €, hébergement 90 000 €, formation 60 000 €, accessibilité 40 000 €), avec une marge pour aléas d'environ 8 % par lot.
+        - 11 février : l'offre de Nuage Ligérien (29 000 € par an, 87 000 € sur trois ans) tient dans le lot hébergement ; le module de rappel par SMS devient une tranche optionnelle et un scénario de repli est demandé à M. Benali.
+        - 15 avril : l'enveloppe reste à 380 000 € TTC après le gel de crédits ; le choix du centre de données ministériel n'entraîne pas de surcoût d'hébergement (12 000 € d'installation), et M. Aubry souhaite que les crédits libérés financent en priorité le retour du SMS.
+
+        FIN
+    - role: user
+      content: |-
+        Voici encore trois comptes rendus :
+
+        {{paste:long-cr-03}}
+
+        {{paste:long-cr-04}}
+
+        {{paste:long-cr-01}}
+
+        Quelles sont les prochaines échéances ?
+    - role: assistant
+      content: |-
+        Selon le dernier état (comité du 15 avril 2026) :
+
+        - 30 avril : M. Benali informe Nuage Ligérien qu'aucun contrat ne sera conclu ;
+        - 4 mai : démarrage du pilote à Saint-Aubin et Montclair, pour quatre semaines ;
+        - 10 juin : bilan du pilote présenté au comité par M. Ferrand ;
+        - mi-juin : environnement définitif au centre de données ministériel ;
+        - 30 juin : corrections d'accessibilité, sous la responsabilité de Mme Moreau ;
+        - juillet : tests de sécurité, tests de charge et second audit d'accessibilité ;
+        - fin août : formation des agents des quatre autres sites ;
+        - 1er septembre 2026 : mise en service sur tous les sites.
+
+        FIN
+    - role: user
+      content: |-
+        Et ces trois derniers :
+
+        {{paste:long-cr-02}}
+
+        {{paste:long-cr-03}}
+
+        {{paste:long-cr-04}}
+
+        Qui est responsable de l'hébergement ?
+    - role: assistant
+      content: |-
+        Le dossier hébergement est porté par M. Karim Benali, responsable des systèmes d'information : il a mené la consultation, étudié le scénario alternatif et doit informer Nuage Ligérien de l'abandon du contrat. M. Paul Girard, responsable de la sécurité, a rendu l'avis défavorable sur Nuage Ligérien le 9 avril. Depuis le comité du 15 avril, le portail sera hébergé au centre de données ministériel, exploité par des agents de l'État.
+
+        FIN
+  metadata:
+    difficulty: hard
+    category: summary_rule_ending
+    description: Règle de fin de réponse posée avant le résumé
+  evaluators:
+  - Regex:
+      pattern: (?-i:^\W*FIN\W*\Z)
+- name: fait_initial
+  inputs:
+    user_message: Au fait, quel est mon numéro de dossier ?
+    history_summary: |-
+      **Résumé mis à jour du projet ALTO (au 15 avril 2026) :**
+
+      Le projet ALTO vise à refondre le portail de prise de rendez-vous des usagers de la Direction départementale des services de Vallée-Basse. **Objectifs principaux** : réduire de moitié les appels liés aux rendez-vous, atteindre 80 % de rendez-vous en ligne, et supprimer la ressaisie manuelle par les agents.
+
+      **Budget** : Initialement fixé à **450 000 € TTC** (développement 260 000 €, hébergement 90 000 €, formation 60 000 €, accessibilité 40 000 €). Après un **gel de crédits de 70 000 €** (mars 2026), l’enveloppe est ramenée à **380 000 € TTC** :
+      - Développement : **200 000 €** (report du module de rappel par SMS et simplification des écrans de statistiques).
+      - Formation : **50 000 €** (remplacement partiel des sessions sur site par des classes virtuelles).
+      - Hébergement et accessibilité : maintenus à **90 000 €** et **40 000 €**.
+
+      **Hébergement** :
+      - **11 février** : Choix de la société **Nuage Ligérien** (29 000 €/an) sous réserve de l’avis de sécurité.
+      - **9 avril** : **Avis défavorable** de M. Paul Girard (RSSI) en raison de l’impossibilité de garantir la localisation des données en France en cas d’incident majeur et de l’accès d’un sous-traitant hors UE.
+      - **15 avril** : Décision d’héberger le portail au **centre de données ministériel** (sécurité conforme, données 100 % en France, délai de 8 semaines, coût limité à 12 000 € d’installation). Le contrat avec Nuage Ligérien ne sera pas signé. M. Benali doit informer Nuage Ligérien avant le **30 avril**.
+
+      **Calendrier révisé** :
+      - **4 mai 2026** : Démarrage du **pilote** sur les sites de **Saint-Aubin et Montclair** (environnement provisoire sécurisé).
+      - **Fin mai** : Fin du pilote et préparation du bilan (présenté au comité du **10 juin**).
+      - **Mi-juin** : Mise à disposition de l’environnement définitif au centre de données ministériel.
+      - **Fin août** : Formation des agents des 4 autres sites (formation à distance pour s’adapter aux congés).
+      - **1er septembre 2026** : Mise en service générale (reportée du 15 juin en raison du changement d’hébergement). Un **dispositif d’accompagnement renforcé** est prévu en septembre.
+
+      **Équipe projet** :
+      - **Mme Hélène Vasseur** : Cheffe de projet (coordination générale, suivi des prestataires).
+      - **M. Julien Ferrand** : Chef de projet adjoint (recruté, en poste depuis le **1er avril**), responsable du pilote, de la relation avec les sites et de la préparation de la mise en service.
+      - **M. Karim Benali** : Responsable des systèmes d’information (hébergement, développement).
+      - **M. Paul Girard** : Responsable de la sécurité des systèmes d’information (avis critiques sur l’hébergement).
+      - **M. Thomas Ricard** : Responsable de la formation (plan adapté avec sessions à distance).
+      - **Mme Inès Moreau** : Référente accessibilité (audit RGAA en cours, corrections à livrer avant le **30 juin**).
+
+      **Accessibilité** :
+      - Audit des maquettes terminé : **taux de conformité de 72 %** (défauts sur contrastes, navigation clavier, formulaires). Corrections en cours par le prestataire de développement. Un **second audit** sera réalisé sur la version finale avant la mise en service.
+
+      **Pilote** :
+      - Sites : **Saint-Aubin** (6 200 rendez-vous/an) et **Montclair** (4 300 rendez-vous/an), choisis pour leur complémentarité et leur volontariat.
+      - Organisation : Formation des agents la **semaine du 27 avril**, présence de M. Ferrand sur site la première semaine, points hebdomadaires, recueil des retours via questionnaires et entretiens.
+      - Indicateurs cibles : 60 % de rendez-vous en ligne, réduction d’un quart des appels au standard, 12 % de rendez-vous non honorés (avec rappel par courriel uniquement).
+
+      **Risques majeurs** :
+      1. **Non-respect du délai de 8 semaines** pour la mise à disposition du centre de données ministériel (impact élevé sur la date du 1er septembre).
+      2. **Mise en service en période de forte affluence** (rentrée de septembre) : atténué par le pilote et l’accompagnement renforcé.
+      3. **Financement du module de rappel par SMS** : reporté à une version ultérieure (priorité identifiée par le secrétaire général M. Denis Aubry si crédits disponibles).
+
+      **Prochaines échéances** :
+      - **24 avril** : Finalisation de l’organisation du pilote (M. Ferrand).
+      - **27 avril** : Livraison de la première version testable du portail et formation des agents des sites pilotes.
+      - **30 avril** : Information de Nuage Ligérien (M. Benali).
+      - **10 juin** : Bilan du pilote présenté au comité (M. Ferrand).
+      - **30 juin** : Corrections d’accessibilité (Mme Moreau).
+
+      **Décisions clés** :
+      - Validation des objectifs et du périmètre (14 janvier).
+      - Report du module SMS et réduction du budget (18 mars).
+      - Abandon de Nuage Ligérien et choix du centre de données ministériel (15 avril).
+      - Report de la mise en service au **1er septembre 2026**.
+
+      **Communication** :
+      - Transparence sur les reports (sécurité des données, calendrier).
+      - Campagne d’information des usagers décalée à **fin août**, enrichie des enseignements du pilote.
+      - Session d’information interne en visioconférence **fin avril** avec la directrice.
+
+      **Participants aux comités** :
+      - **Membres permanents** : Mme Dumoulin (directrice), Mme Vasseur, M. Benali, M. Ricard, Mme Moreau, M. Girard, M. Aubry (secrétaire général).
+      - **Invités** : Chargé de communication, responsables de sites, correspondants locaux, représentante d’une association d’usagers en situation de handicap.
+    message_history:
+    - role: user
+      content: |-
+        Voici trois autres comptes rendus :
+
+        {{paste:long-cr-04}}
+
+        {{paste:long-cr-01}}
+
+        {{paste:long-cr-02}}
+
+        Quelles décisions ont été prises sur le budget ?
+    - role: assistant
+      content: |-
+        Sur le budget :
+
+        - 14 janvier : le comité valide une enveloppe de 450 000 € TTC (développement 260 000 €, hébergement 90 000 €, formation 60 000 €, accessibilité 40 000 €), avec une marge pour aléas d'environ 8 % par lot.
+        - 11 février : l'offre de Nuage Ligérien (29 000 € par an, 87 000 € sur trois ans) tient dans le lot hébergement ; le module de rappel par SMS devient une tranche optionnelle et un scénario de repli est demandé à M. Benali.
+        - 15 avril : l'enveloppe reste à 380 000 € TTC après le gel de crédits ; le choix du centre de données ministériel n'entraîne pas de surcoût d'hébergement (12 000 € d'installation), et M. Aubry souhaite que les crédits libérés financent en priorité le retour du SMS.
+    - role: user
+      content: |-
+        Voici encore trois comptes rendus :
+
+        {{paste:long-cr-03}}
+
+        {{paste:long-cr-04}}
+
+        {{paste:long-cr-01}}
+
+        Quelles sont les prochaines échéances ?
+    - role: assistant
+      content: |-
+        Selon le dernier état (comité du 15 avril 2026) :
+
+        - 30 avril : M. Benali informe Nuage Ligérien qu'aucun contrat ne sera conclu ;
+        - 4 mai : démarrage du pilote à Saint-Aubin et Montclair, pour quatre semaines ;
+        - 10 juin : bilan du pilote présenté au comité par M. Ferrand ;
+        - mi-juin : environnement définitif au centre de données ministériel ;
+        - 30 juin : corrections d'accessibilité, sous la responsabilité de Mme Moreau ;
+        - juillet : tests de sécurité, tests de charge et second audit d'accessibilité ;
+        - fin août : formation des agents des quatre autres sites ;
+        - 1er septembre 2026 : mise en service sur tous les sites.
+    - role: user
+      content: |-
+        Et ces trois derniers :
+
+        {{paste:long-cr-02}}
+
+        {{paste:long-cr-03}}
+
+        {{paste:long-cr-04}}
+
+        Qui est responsable de l'hébergement ?
+    - role: assistant
+      content: 'Le dossier hébergement est porté par M. Karim Benali, responsable des systèmes d''information : il a mené la consultation, étudié le scénario alternatif et doit informer Nuage Ligérien de l''abandon du contrat. M. Paul Girard, responsable de la sécurité, a rendu l''avis défavorable sur Nuage Ligérien le 9 avril. Depuis le comité du 15 avril, le portail sera hébergé au centre de données ministériel, exploité par des agents de l''État.'
+  metadata:
+    difficulty: hard
+    category: summary_fact
+    description: Fait donné avant le résumé
+  evaluators:
+  - FactRecall:
+      facts:
+      - 4512-B
+- name: controle_sous_budget
+  inputs:
+    user_message: Résume en trois phrases l'avancement global du projet.
+    message_history:
+    - role: user
+      content: Pendant toute cette conversation, réponds uniquement en anglais, même si je t'écris en français. Je vais te transmettre plusieurs comptes rendus de réunion.
+    - role: assistant
+      content: 'Understood: I will answer only in English for the rest of this conversation. Send me the meeting minutes whenever you are ready.'
+    - role: user
+      content: |-
+        Voici trois comptes rendus :
+
+        {{paste:long-cr-01}}
+
+        {{paste:long-cr-02}}
+
+        {{paste:long-cr-03}}
+
+        Qui a participé à ces réunions ?
+    - role: assistant
+      content: |-
+        All three ALTO steering committees (14 January, 11 February and 18 March 2026) gathered the same core members:
+
+        - Ms Claire Dumoulin, director, who chairs;
+        - Ms Hélène Vasseur, project manager;
+        - Mr Karim Benali, head of information systems;
+        - Ms Sophie Lemarchand, head of human resources;
+        - Mr Thomas Ricard, head of training;
+        - Mr Paul Girard, information systems security officer.
+
+        Ms Inès Moreau, accessibility lead, attended on 14 January and 11 February and sent apologies on 18 March. Mr Denis Aubry, secretary general, was excused on 14 January and attended afterwards. Non-voting guests also attended: staff representatives from Saint-Aubin and Montclair, the internal communications officer, the sites' local contacts, then the pilot sites' managers.
+    - role: user
+      content: |-
+        Voici trois autres comptes rendus :
+
+        {{paste:long-cr-04}}
+
+        {{paste:long-cr-01}}
+
+        {{paste:long-cr-02}}
+
+        Quelles décisions ont été prises sur le budget ?
+    - role: assistant
+      content: |-
+        On the budget:
+
+        - 14 January: the committee approves a €450,000 envelope including VAT (development €260,000, hosting €90,000, training €60,000, accessibility €40,000), with a contingency margin of about 8% per lot.
+        - 11 February: Nuage Ligérien's offer (€29,000 a year, €87,000 over three years) fits the hosting lot; the SMS reminder module becomes an optional tranche and Mr Benali is asked for a fallback plan.
+        - 15 April: the envelope stays at €380,000 after the credit freeze; choosing the ministerial data centre adds no hosting cost (€12,000 for setup), and Mr Aubry wants the freed credits to bring back SMS reminders first.
+  metadata:
+    difficulty: medium
+    category: summary_control
+    description: Même règle, historique sous le budget (aucun résumé)
+  evaluators:
+  - Language:
+      code: en
