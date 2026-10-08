@@ -24,6 +24,10 @@ and this project adheres to
 - ⬆️(dependencies) upgrade back-end and front-end dependencies
 - ⬆️(back) upgrade pydantic-ai to 2.52.0 and switch to httpx2
 
+### Fixed
+
+- 🐛(front) keep streamed answers rendering until they end #789
+
 ## [0.0.25] - 2026-10-01
 
 ### Added

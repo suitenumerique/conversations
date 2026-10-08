@@ -7,7 +7,7 @@ import { CompletedMarkdownBlock, RawTextBlock } from '../MessageBlock';
 
 // Mock react-markdown (ESM module not compatible with Jest)
 vi.mock('react-markdown', () => ({
-  MarkdownHooks: ({ children }: { children: string }) => {
+  default: ({ children }: { children: string }) => {
     // Simple mock that renders markdown-like content
     // This tests the component integration, not the markdown parsing itself
     return <div data-testid="markdown-content">{children}</div>;
@@ -38,7 +38,7 @@ const renderWithProviders = (ui: React.ReactNode) => {
 };
 
 describe('CompletedMarkdownBlock', () => {
-  it('renders content through MarkdownHooks', async () => {
+  it('renders content through the markdown renderer', async () => {
     await act(async () => {
       renderWithProviders(<CompletedMarkdownBlock content="Hello world" />);
     });
