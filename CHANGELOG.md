@@ -12,6 +12,7 @@ and this project adheres to
 
 - ✨(evals) add in-process datasets for instructions, documents and long chats
 - ✨(evals) choose the tested model and compare partial runs
+- ✨(evals) add rule-by-rule style analysis tooling
 
 ### Fixed
 
