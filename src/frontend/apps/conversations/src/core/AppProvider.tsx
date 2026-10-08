@@ -1,4 +1,5 @@
 import { CunninghamProvider } from '@gouvfr-lasuite/cunningham-react';
+import * as Sentry from '@sentry/react';
 import {
   QueryCache,
   QueryClient,
@@ -7,7 +8,7 @@ import {
 import { useEffect } from 'react';
 
 import { isAPIError } from '@/api';
-import { ToastProvider } from '@/components';
+import { ErrorFallback, ToastProvider } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { Auth, KEY_AUTH, setAuthUrl } from '@/features/auth';
 import { useResponsiveStore } from '@/stores';
@@ -72,7 +73,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       <CunninghamProvider theme={theme}>
         <ConfigProvider>
           <ToastProvider>
-            <Auth>{children}</Auth>
+            {/* Wraps Auth too: its loading state renders a lazy chunk. */}
+            <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
+              <Auth>{children}</Auth>
+            </Sentry.ErrorBoundary>
           </ToastProvider>
         </ConfigProvider>
       </CunninghamProvider>
