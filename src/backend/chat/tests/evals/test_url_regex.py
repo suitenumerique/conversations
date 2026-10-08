@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from chat.evals.evaluators.url_regex import UrlRegexEvaluator
+from chat.evals.evaluators.url_regex import UrlCount, UrlRegexEvaluator
 
 
 def _ctx(output, *, user_message="", tool_output=None, attributes=None):
@@ -35,3 +35,11 @@ def test_url_present_in_user_message_is_allowed():
         _ctx(output="Go to https://ok.example/a", user_message="https://ok.example/a")
     )
     assert result.value is True
+
+
+def test_url_count_counts_distinct_urls():
+    """The same URL twice counts once; trailing punctuation is ignored."""
+    ctx = _ctx("Voir https://a.fr/x. Et https://a.fr/x, puis https://b.fr.")
+
+    assert UrlCount(minimum=2).evaluate(ctx).value is True
+    assert UrlCount(minimum=3).evaluate(ctx).value is False

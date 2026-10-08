@@ -8,6 +8,7 @@ from pathlib import Path
 from django.utils.module_loading import import_string
 
 import yaml
+from pydantic_evals import Dataset
 from pydantic_evals.evaluators import Evaluator
 
 from chat.agents.conversation import ConversationAgent
@@ -63,11 +64,20 @@ class EvalConfig:  # pylint: disable=too-many-instance-attributes
     def extra_evaluators(self) -> list[Evaluator]:
         """Dataset-level evaluators from the YAML ``config`` block.
 
-        Each entry is a dotted path to either an Evaluator instance (used
-        as-is) or an Evaluator class (instantiated without arguments).
+        Each entry is either a dotted path to an Evaluator instance (used
+        as-is) or an Evaluator class (instantiated without arguments), or a
+        pydantic_evals evaluator spec taking arguments (``- Regex: {pattern: …}``).
         """
         evaluators = []
-        for dotted_path in self._yaml_config.get("extra_evaluators", []):
-            resolved = import_string(dotted_path)
-            evaluators.append(resolved() if isinstance(resolved, type) else resolved)
+        for entry in self._yaml_config.get("extra_evaluators", []):
+            if isinstance(entry, str):
+                resolved = import_string(entry)
+                evaluators.append(resolved() if isinstance(resolved, type) else resolved)
+            else:
+                spec_dataset = Dataset.from_dict(
+                    {"cases": [], "evaluators": [entry]},
+                    custom_evaluator_types=self.dataset_evaluator_types,
+                    default_name=self.name,
+                )
+                evaluators.extend(spec_dataset.evaluators)
         return evaluators

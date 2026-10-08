@@ -48,3 +48,17 @@ class UrlRegexEvaluator(Evaluator):
                 reason=f"URLs not from tool_output/user_message: {', '.join(sorted(hallucinated))}",
             )
         return EvaluationReason(value=True, reason=None)
+
+
+@dataclass(repr=False)
+class UrlCount(Evaluator):
+    """Pass when the answer text contains at least `minimum` distinct URLs."""
+
+    minimum: int = 1
+
+    def evaluate(self, ctx: EvaluatorContext) -> EvaluationReason:
+        found = len(_extract_urls(ctx.output) if isinstance(ctx.output, str) else set())
+        passed = found >= self.minimum
+        return EvaluationReason(
+            value=passed, reason=None if passed else f"{found} URLs < {self.minimum}"
+        )

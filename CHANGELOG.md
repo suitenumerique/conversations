@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(evals) add in-process datasets for instructions, documents and long chats
+
 ### Fixed
 
 - ⚡️(front) disable posthog-js periodic feature flag reloads

@@ -202,10 +202,12 @@ class Command(BaseCommand):
         return {case["name"] for case in dataset_data.get("cases", []) if "name" in case}
 
     def _load_dataset(self, config: EvalConfig, case_name: str | None) -> Dataset:
-        custom_evaluator_types = [
-            *config.dataset_evaluator_types,
-            *[type(e) for e in config.extra_evaluators],
-        ]
+        # dict.fromkeys: an extra evaluator's type may already be a dataset evaluator type.
+        custom_evaluator_types = list(
+            dict.fromkeys(
+                [*config.dataset_evaluator_types, *[type(e) for e in config.extra_evaluators]]
+            )
+        )
         # The optional top-level `config` block (rubric, evaluator paths) is
         # ours, not pydantic_evals': strip it before parsing the dataset.
         _, dataset_data = split_dataset_file(config.dataset_path)
@@ -243,6 +245,17 @@ class Command(BaseCommand):
             )
         return evaluators
 
+    @staticmethod
+    def _without_llm_judges(dataset: Dataset) -> None:
+        """Drop every LLMJudge declared in the YAML, dataset-level and per-case."""
+
+        def keep(evaluators):
+            return [evaluator for evaluator in evaluators if not isinstance(evaluator, LLMJudge)]
+
+        dataset.evaluators = keep(dataset.evaluators)
+        for case in dataset.cases:
+            case.evaluators = keep(case.evaluators)
+
     def _run_dataset(
         self, config: EvalConfig, options: dict, use_llm_judge: bool
     ) -> EvaluationReport:
@@ -252,6 +265,8 @@ class Command(BaseCommand):
         dataset = self._load_dataset(config, options["case"])
         # Extend (not replace): keep dataset-level evaluators declared in the YAML.
         dataset.evaluators = [*dataset.evaluators, *self._build_evaluators(config, use_llm_judge)]
+        if not use_llm_judge:
+            self._without_llm_judges(dataset)
 
         if config.make_task_fn is not None:
             run_agent = config.make_task_fn(settings.LLM_DEFAULT_MODEL_HRID)
