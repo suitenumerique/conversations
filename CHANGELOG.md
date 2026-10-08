@@ -11,6 +11,7 @@ and this project adheres to
 ### Fixed
 
 - ⚡️(front) disable posthog-js periodic feature flag reloads
+- 🐛(back) join Albert list content in non-streamed completions
 
 ### Security
 

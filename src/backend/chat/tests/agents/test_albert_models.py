@@ -314,3 +314,43 @@ def test_validate_completion_rejects_non_list_choices(albert_model, choices_valu
     )
     with pytest.raises(ValidationError):
         albert_model._validate_completion(response)
+
+
+def _make_text_completion(content) -> MagicMock:
+    """Build a ChatCompletion mock whose message content is the given value."""
+    response = MagicMock(spec=ChatCompletion)
+    response.model_dump = lambda **_: {
+        "id": "chatcmpl-abc",
+        "object": "chat.completion",
+        "created": 1700000000,
+        "model": "test-model",
+        "service_tier": None,
+        "usage": None,
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": content, "refusal": None},
+            }
+        ],
+    }
+    return response
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        (
+            [{"type": "text", "text": "Bonjour "}, {"type": "text", "text": "monde"}],
+            "Bonjour monde",
+        ),
+        (["Bonjour ", {"type": "text", "text": "monde"}], "Bonjour monde"),
+        ([{"type": "reference", "ids": [1]}, {"type": "text", "text": "monde"}], "monde"),
+        ([{"type": "reference", "ids": [1]}], None),
+        ("Bonjour monde", "Bonjour monde"),
+    ],
+)
+def test_validate_completion_joins_list_content(albert_model, content, expected):
+    """Albert's list content (text parts) is joined into a string before validation."""
+    result = albert_model._validate_completion(_make_text_completion(content))
+    assert result.choices[0].message.content == expected
