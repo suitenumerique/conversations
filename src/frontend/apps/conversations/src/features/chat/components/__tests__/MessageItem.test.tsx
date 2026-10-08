@@ -30,6 +30,10 @@ vi.mock('rehype-katex', () => ({ default: () => {} }));
 vi.mock('remark-gfm', () => ({ default: () => {} }));
 vi.mock('remark-math', () => ({ default: () => {} }));
 
+// lottie-web polls `document.readyState` on an interval once imported; if the
+// file ends first, the tick fires after jsdom teardown and fails the run.
+vi.mock('lottie-react', () => ({ Lottie: () => null }));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
