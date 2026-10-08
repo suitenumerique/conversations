@@ -11,6 +11,7 @@ and this project adheres to
 ### Fixed
 
 - ⚡️(front) disable posthog-js periodic feature flag reloads
+- 🐛(front) avoid stale pages and blank screens after a deploy
 
 ### Security
 

@@ -13,6 +13,12 @@ export default defineConfig({
   // volume owned by root while the container runs as the host user: the
   // dependency optimizer cannot write there. This path sits in the bind mount.
   cacheDir: '.vite',
+  build: {
+    // Default is assets/, which public/assets/ (logos, favicons: stable names)
+    // also lands in. A separate directory lets nginx cache the content-hashed
+    // build output forever without also pinning those files.
+    assetsDir: '_app',
+  },
   resolve: {
     alias: {
       '@': new URL('./src', import.meta.url).pathname,
