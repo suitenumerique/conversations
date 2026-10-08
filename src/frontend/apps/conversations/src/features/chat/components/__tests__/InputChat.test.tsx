@@ -85,6 +85,7 @@ const defaultProps = {
   messagesLength: 0,
   input: '',
   handleInputChange: vi.fn(),
+  setInput: vi.fn(),
   handleSubmit: vi.fn(),
   status: 'ready' as const,
   files: null,

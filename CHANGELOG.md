@@ -8,6 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(back) add voice prompt transcription endpoint
+- ✨(front) let users dictate their prompt
+
 ### Fixed
 
 - ⚡️(front) disable posthog-js periodic feature flag reloads

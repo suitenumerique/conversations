@@ -24,9 +24,15 @@ import { InputChatActions } from '@/features/chat/components/InputChatAction';
 import { InputChatBanner } from '@/features/chat/components/InputChatBanner';
 import { ProjectWelcomeMessage } from '@/features/chat/components/ProjectWelcomeMessage';
 import { SuggestionCarousel } from '@/features/chat/components/SuggestionCarousel';
+import { VoicePromptBar } from '@/features/chat/components/VoicePromptBar';
+import { VoicePromptButton } from '@/features/chat/components/VoicePromptButton';
 import { WelcomeMessage } from '@/features/chat/components/WelcomeMessage';
 import { useFileDragDrop } from '@/features/chat/hooks/useFileDragDrop';
 import { useFileUrls } from '@/features/chat/hooks/useFileUrls';
+import {
+  VoicePromptError,
+  useVoicePrompt,
+} from '@/features/chat/hooks/useVoicePrompt';
 import { useResponsiveStore } from '@/stores';
 
 import FilesIcon from '../assets/files.svg?react';
@@ -46,6 +52,7 @@ interface InputChatProps {
   messagesLength: number;
   input: string | null;
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  setInput: React.Dispatch<React.SetStateAction<string>>;
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   status: string | null;
   files: FileList | null;
@@ -142,10 +149,18 @@ const SCROLL_DOWN_WRAPPER_CSS = `
   margin: auto;
   max-width: var(--chat-content-max-width, 750px);
 `;
+
+const DEFAULT_VOICE_PROMPT_MAX_DURATION = 300;
+
+// The Transcript goes after whatever the user already typed, never over it.
+const appendTranscript = (current: string, transcript: string) =>
+  current.trim() ? `${current.trimEnd()} ${transcript}` : transcript;
+
 export const InputChat = ({
   messagesLength,
   input,
   handleInputChange,
+  setInput,
   handleSubmit,
   status,
   files,
@@ -289,6 +304,55 @@ export const InputChat = ({
     return () => clearInterval(interval);
   }, [cooldownUntil]);
 
+  const voicePromptEnabled = Boolean(conf?.voice_prompt_enabled);
+  const voicePromptMaxDuration =
+    conf?.voice_prompt_max_duration ?? DEFAULT_VOICE_PROMPT_MAX_DURATION;
+
+  const handleTranscript = useCallback(
+    (transcript: string) => {
+      // Functional update: the user may have kept typing while transcribing.
+      setInput((current) => appendTranscript(current, transcript));
+      requestAnimationFrame(() => {
+        const textarea = textareaRef.current;
+        if (!textarea) {
+          return;
+        }
+        textarea.focus();
+        textarea.setSelectionRange(
+          textarea.value.length,
+          textarea.value.length,
+        );
+      });
+    },
+    [setInput],
+  );
+
+  const handleVoicePromptError = useCallback(
+    (error: VoicePromptError) => {
+      const messages: Record<VoicePromptError, string> = {
+        permission: t('Microphone access is needed to dictate your message.'),
+        empty: t('No speech was recognized in your recording.'),
+        'too-large': t('Your recording is too large to be transcribed.'),
+        throttled: t(
+          'You have dictated too many messages. Please try again later.',
+        ),
+        failed: t(
+          'Your recording could not be transcribed. Please try again or type your message.',
+        ),
+      };
+      showToast('error', messages[error]);
+    },
+    [showToast, t],
+  );
+
+  const voicePrompt = useVoicePrompt({
+    maxDurationSeconds: voicePromptMaxDuration,
+    onTranscript: handleTranscript,
+    onError: handleVoicePromptError,
+  });
+  // Sending mid-dictation would lose the Transcript on its way.
+  const isVoicePromptBusy = voicePrompt.state !== 'idle';
+
   // During a cooldown the textarea stays enabled so the user can still draft a
   // message; only sending is blocked (see handleTextareaKeyDown + the send
   // button below). Indexing no longer blocks sending: the banner warns that
@@ -340,12 +404,13 @@ export const InputChat = ({
         if (isInputDisabled) return;
         if (status === 'streaming' || status === 'submitted') return;
         if (cooldownRemaining > 0) return;
+        if (isVoicePromptBusy) return;
         const textarea = e.target as HTMLTextAreaElement;
         textarea.style.height = '0';
         e.currentTarget.form?.requestSubmit?.();
       }
     },
-    [isInputDisabled, status, cooldownRemaining],
+    [isInputDisabled, status, cooldownRemaining, isVoicePromptBusy],
   );
 
   const handleFormSubmit = useCallback(
@@ -615,8 +680,28 @@ export const InputChat = ({
                 selectedModel={selectedModel || null}
                 status={status}
                 inputHasContent={Boolean(input?.trim())}
-                sendDisabled={cooldownRemaining > 0}
+                sendDisabled={cooldownRemaining > 0 || isVoicePromptBusy}
                 onStop={onStop}
+                voicePrompt={
+                  voicePromptEnabled ? (
+                    <VoicePromptButton
+                      disabled={isInputDisabled}
+                      onStart={() => void voicePrompt.start()}
+                    />
+                  ) : undefined
+                }
+                recordingBar={
+                  voicePrompt.state === 'idle' ? undefined : (
+                    <VoicePromptBar
+                      state={voicePrompt.state}
+                      elapsedSeconds={voicePrompt.elapsedSeconds}
+                      maxDurationSeconds={voicePromptMaxDuration}
+                      getVolume={voicePrompt.getVolume}
+                      onConfirm={voicePrompt.stop}
+                      onCancel={voicePrompt.cancel}
+                    />
+                  )
+                }
               />
             </Box>
           </Box>

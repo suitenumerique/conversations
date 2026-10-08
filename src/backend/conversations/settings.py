@@ -407,6 +407,18 @@ class Base(
                 environ_name="API_PROJECT_CREATE_DAILY_THROTTLE_RATE",
                 environ_prefix=None,
             ),
+            # Each transcription can cost up to VOICE_PROMPT_MAX_DURATION of
+            # speech recognition on the shared provider.
+            "transcription_hourly": values.Value(
+                default="30/hour",
+                environ_name="API_TRANSCRIPTION_HOURLY_THROTTLE_RATE",
+                environ_prefix=None,
+            ),
+            "transcription_daily": values.Value(
+                default="200/day",
+                environ_name="API_TRANSCRIPTION_DAILY_THROTTLE_RATE",
+                environ_prefix=None,
+            ),
         },
     }
 
@@ -731,6 +743,29 @@ class Base(
         environ_name="OCR_BATCH_PAGES",
         environ_prefix=None,
     )
+
+    # Voice prompt transcription. TRANSCRIPTION_HRID names the LLM_CONFIGURATIONS
+    # entry of the speech-recognition model; leaving it unset disables voice prompts.
+    TRANSCRIPTION_HRID = values.Value(
+        None,
+        environ_name="TRANSCRIPTION_HRID",
+        environ_prefix=None,
+    )
+    TRANSCRIPTION_TIMEOUT = values.PositiveIntegerValue(
+        default=60,
+        environ_name="TRANSCRIPTION_TIMEOUT",
+        environ_prefix=None,
+    )
+    VOICE_PROMPT_MAX_DURATION = values.PositiveIntegerValue(
+        default=300,  # seconds, enforced by the frontend recorder
+        environ_name="VOICE_PROMPT_MAX_DURATION",
+        environ_prefix=None,
+    )
+    VOICE_PROMPT_MAX_SIZE = values.PositiveIntegerValue(
+        default=10 * (2**20),  # 10MB, well above 5 minutes at 32 kbps
+        environ_name="VOICE_PROMPT_MAX_SIZE",
+        environ_prefix=None,
+    )
     MIN_AVG_CHARS_FOR_TEXT_EXTRACTION = values.PositiveIntegerValue(
         default=200,
         environ_name="MIN_AVG_CHARS_FOR_TEXT_EXTRACTION",
@@ -989,6 +1024,19 @@ class Base(
             )
 
     @classmethod
+    def _validate_transcription_hrid(cls):
+        """Fail at boot if voice prompts point at an unknown LLM configuration entry."""
+        if not cls.TRANSCRIPTION_HRID:
+            return
+        llm_configs = load_llm_configuration(cls._llm_configuration_file_path)
+        if cls.TRANSCRIPTION_HRID not in llm_configs:
+            raise ValueError(
+                f"TRANSCRIPTION_HRID '{cls.TRANSCRIPTION_HRID}' not found in "
+                "LLM_CONFIGURATIONS. Please add a matching model entry or unset "
+                "TRANSCRIPTION_HRID to disable voice prompts."
+            )
+
+    @classmethod
     def post_setup(cls):
         """Post setup configuration.
         This is the place where you can configure settings that require other
@@ -1063,6 +1111,8 @@ class Base(
                     f"OCR_HRID '{cls.OCR_HRID}' not found in LLM_CONFIGURATIONS. "
                     "Please add a matching provider entry or set OCR_HRID to an existing key."
                 )
+
+        cls._validate_transcription_hrid()
 
         # Langfuse initialization
         if cls.LANGFUSE_ENABLED:
@@ -1244,6 +1294,8 @@ class Test(Base):
             "conversation_create_daily": "100/day",
             "project_create_hourly": "10/hour",
             "project_create_daily": "100/day",
+            "transcription_hourly": "30/hour",
+            "transcription_daily": "200/day",
         },
     }
 

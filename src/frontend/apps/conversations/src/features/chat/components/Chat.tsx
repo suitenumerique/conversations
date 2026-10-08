@@ -1218,6 +1218,7 @@ export const Chat = ({
           messagesLength={messages.length}
           input={input}
           handleInputChange={handleInputChange}
+          setInput={setInput}
           handleSubmit={handleSubmitWrapper}
           status={status}
           files={files}

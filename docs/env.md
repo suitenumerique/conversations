@@ -24,6 +24,10 @@ These are the environment variables you can set for the `conversations-backend` 
 | AWS_S3_REGION_NAME                              | region name for s3 endpoint                                                                                                       |                                                         |
 | AWS_STORAGE_BUCKET_NAME                         | bucket name for s3 endpoint                                                                                                       | conversations-media-storage                             |
 | ATTACHMENT_MAX_SIZE                             | maximum size of document in bytes                                                                                                 | 10485760                                                |
+| TRANSCRIPTION_HRID                              | `LLM_CONFIGURATIONS` entry of the speech-recognition model that transcribes voice prompts (OpenAI-compatible `/audio/transcriptions`, e.g. Albert `openweight-audio`). Unset disables voice prompts. | None |
+| TRANSCRIPTION_TIMEOUT                           | Timeout in seconds of a voice prompt transcription request | 60 |
+| VOICE_PROMPT_MAX_DURATION                       | Maximum duration of a voice prompt in seconds (the recorder stops automatically) | 300 |
+| VOICE_PROMPT_MAX_SIZE                           | Maximum size of a voice prompt recording in bytes. Recordings are uploaded through the application ingress: its body size limit must allow this size (with nginx-ingress, set `nginx.ingress.kubernetes.io/proxy-body-size`, whose default is 1m) | 10485760 |
 | ATTACHMENT_PARSE_MAX_UNCOMPRESSED_SIZE          | max declared uncompressed size (bytes) for a ZIP-container document (DOCX/XLSX/PPTX/ODT); rejects decompression bombs before parse | 209715200                                               |
 | ATTACHMENT_PARSE_MAX_COMPRESSION_RATIO          | max uncompressed/compressed ratio for a ZIP-container document; rejects suspiciously compressible decompression bombs             | 100                                                     |
 | ATTACHMENT_PARSE_MAX_PDF_PAGES                  | max page count for an in-process PDF parse (AdaptivePdfParser); caps the per-page extract loop                                     | 2000                                                    |
@@ -125,6 +129,8 @@ These are the environment variables you can set for the `conversations-backend` 
 | API_CONVERSATION_CREATE_DAILY_THROTTLE_RATE     | Daily limit on conversation creation, per user. See [Rate limiting](#rate-limiting)                                               | 100/day                                                 |
 | API_PROJECT_CREATE_HOURLY_THROTTLE_RATE         | Hourly limit on project creation, per user. See [Rate limiting](#rate-limiting)                                                   | 10/hour                                                 |
 | API_PROJECT_CREATE_DAILY_THROTTLE_RATE          | Daily limit on project creation, per user. See [Rate limiting](#rate-limiting)                                                    | 100/day                                                 |
+| API_TRANSCRIPTION_HOURLY_THROTTLE_RATE          | Hourly limit on voice prompt transcriptions, per user | 30/hour |
+| API_TRANSCRIPTION_DAILY_THROTTLE_RATE           | Daily limit on voice prompt transcriptions, per user | 200/day |
 
 
 ## Access control
