@@ -1,5 +1,6 @@
 """Custom pydantic-ai model subclasses for Albert API providers."""
 
+import logging
 from typing import Any
 
 from openai.types import chat
@@ -10,6 +11,8 @@ from pydantic_ai.models.openai import (
     _ChatCompletion,
 )
 from pydantic_ai.providers.openai import OpenAIProvider
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_co2_impact(raw_usage) -> float | None:
@@ -33,6 +36,32 @@ def _convert_impact_to_factor_20(impact_kg_co2_eq: float) -> int:
     Values below 1e-20 would return 0
     """
     return int(impact_kg_co2_eq * 10**20)
+
+
+def content_parts_to_text(parts: list) -> str | None:
+    """Join a list of content parts (str or {"text": ...} dicts) into one string.
+
+    Albert sometimes returns message content as a list of parts instead of a
+    string, e.g. with citation/reference parts alongside the text. Non-text parts
+    are dropped; None when no text is left.
+    """
+    text_parts = []
+    for part in parts:
+        if isinstance(part, str):
+            text_parts.append(part)
+        elif isinstance(part, dict):
+            text_parts.append(part.get("text") or "")
+        else:
+            logger.info("Unexpected content part type: %s", type(part))
+    return "".join(text_parts) or None
+
+
+def _join_list_content(choices: list) -> None:
+    """Replace list-shaped message content with its joined text, in place."""
+    for choice in choices:
+        message = choice.get("message") if isinstance(choice, dict) else None
+        if isinstance(message, dict) and isinstance(message.get("content"), list):
+            message["content"] = content_parts_to_text(message["content"])
 
 
 class AlbertOpenAIProvider(OpenAIProvider):
@@ -101,8 +130,11 @@ class AlbertOpenAIChatModel(OpenAIChatModel):
         2. On multi-turn tool-call conversations, the second response sometimes
            returns a non-standard `object` value. This is normalized before
            passing to _ChatCompletion.model_validate().
+        3. message.content may be a list of text parts — joined into a string.
+           warnings=False: the openai SDK types content as str and would warn on
+           dumping the list.
         """
-        data = response.model_dump()
+        data = response.model_dump(warnings=False)
 
         if data.get("object") != "chat.completion":
             data["object"] = "chat.completion"
@@ -115,5 +147,6 @@ class AlbertOpenAIChatModel(OpenAIChatModel):
         choices = data.get("choices")
         if isinstance(choices, list):
             _normalize_tool_call_types(choices)
+            _join_list_content(choices)
 
         return _ChatCompletion.model_validate(data)

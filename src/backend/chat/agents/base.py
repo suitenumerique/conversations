@@ -1,7 +1,6 @@
 """Base module for PydanticAI agents."""
 
 import dataclasses
-import logging
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -13,8 +12,6 @@ from pydantic_ai.models import get_user_agent
 from pydantic_ai.profiles import ModelProfile
 
 from chat.tools import get_pydantic_tools_by_name
-
-logger = logging.getLogger(__name__)
 
 
 def _patch_openai_streaming_list_content():
@@ -35,26 +32,16 @@ def _patch_openai_streaming_list_content():
     import pydantic_ai.models.openai as openai_models  # noqa: PLC0415
     from pydantic_ai.models.openai import OpenAIStreamedResponse  # noqa: PLC0415
 
+    from chat.providers.albert_models import content_parts_to_text  # noqa: PLC0415
+
     if getattr(openai_models, "__safe_text_delta_patched__", False):
         return
 
     _original_map_text_delta = OpenAIStreamedResponse._map_text_delta  # noqa: SLF001
 
     def _safe_map_text_delta(self, choice):
-        content = choice.delta.content
-        if isinstance(content, list):
-            text_parts = []
-            for item in content:
-                if isinstance(item, str):
-                    text_parts.append(item)
-                elif isinstance(item, dict):
-                    text_parts.append(item.get("text") or "")
-                else:
-                    logger.info(
-                        "Unexpected content part type in streaming delta: %s",
-                        type(item),
-                    )
-            choice.delta.content = "".join(text_parts) or None
+        if isinstance(choice.delta.content, list):
+            choice.delta.content = content_parts_to_text(choice.delta.content)
         yield from _original_map_text_delta(self, choice)
 
     OpenAIStreamedResponse._map_text_delta = _safe_map_text_delta  # noqa: SLF001

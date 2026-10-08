@@ -8,9 +8,17 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(evals) add in-process datasets for instructions, documents and long chats
+- ✨(evals) choose the tested model and compare partial runs
+- ✨(evals) add rule-by-rule style analysis tooling
+- ✨(evals) run datasets against a git ref over HTTP
+
 ### Fixed
 
 - ⚡️(front) disable posthog-js periodic feature flag reloads
+- 🐛(back) join Albert list content in non-streamed completions
 
 ### Security
 

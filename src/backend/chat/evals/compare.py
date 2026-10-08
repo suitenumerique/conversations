@@ -302,8 +302,15 @@ def _compare_datasets(
     )
 
 
-def compare_runs(before: dict[str, Any], after: dict[str, Any]) -> RunComparison:
-    """Compare two saved run records and return structured deltas."""
+def compare_runs(
+    before: dict[str, Any], after: dict[str, Any], *, missing_dataset_is_gap: bool = True
+) -> RunComparison:
+    """Compare two saved run records and return structured deltas.
+
+    A dataset only in `before` is a coverage gap (every case regresses) when
+    `missing_dataset_is_gap`, as against a baseline. Otherwise it is only noted: run-vs-run
+    comparisons cover the datasets both runs have (e.g. single-dataset runs).
+    """
     comparison = RunComparison(
         before_run_id=before["run_id"],
         after_run_id=after["run_id"],
@@ -319,6 +326,11 @@ def compare_runs(before: dict[str, Any], after: dict[str, Any]) -> RunComparison
             comparison.warnings.append(f"Dataset '{dataset_name}' is missing from before run.")
             continue
         if after_dataset is None:
+            if not missing_dataset_is_gap:
+                comparison.warnings.append(
+                    f"Dataset '{dataset_name}' is not in after run: not compared."
+                )
+                continue
             comparison.warnings.append(f"Dataset '{dataset_name}' is missing from after run.")
             comparison.dataset_comparisons.append(
                 _dataset_comparison_missing_after(dataset_name, before_dataset)

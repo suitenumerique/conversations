@@ -1,0 +1,160 @@
+# Consignes en conversation sans document — rédaction, reformulation, contraintes de forme.
+# Évaluateurs déterministes par cas (+ LLMJudge quand le critère n'est pas vérifiable
+# mécaniquement) ; ToolsUsed = étiquette.
+
+evaluators:
+- ToolsUsed
+cases:
+- name: mail_formel
+  inputs:
+    user_message: "Rédige un mail au maire de Saint-Herblain, M. Lucas Prévost, pour reporter au 14 novembre la réunion du 7 novembre sur la rénovation de l'école Jean-Moulin. Commence par une ligne « Objet : … », vouvoie le destinataire et ne dépasse pas 120 mots."
+  metadata: {difficulty: medium, category: format_mail, description: "Mail formel : objet, vouvoiement, ≤ 120 mots"}
+  evaluators:
+  - MaxWords: {limit: 120}
+  - Regex: {pattern: '\A\W*objet\s*:'}
+  - FactRecall: {facts: ["14 novembre"]}
+  - LLMJudge:
+      rubric: "The user asked for an email to a mayor postponing a meeting, in formal administrative French, addressing the recipient with 'vous'. PASS if the answer is an email with a formal, courteous tone and uses 'vous' (never 'tu'). FAIL if the tone is informal or familiar, or if it is not an email. Ignore length and the subject line (checked elsewhere)."
+      include_input: true
+- name: debut_fin_imposes
+  inputs:
+    user_message: "Écris un court message à la directrice pour lui annoncer que le rapport annuel sera remis avec une semaine de retard. Le message doit commencer exactement par « Madame la Directrice, » et se terminer exactement par « Cordialement »."
+  metadata: {difficulty: easy, category: imposed_edges, description: "Début et fin imposés"}
+  evaluators:
+  - StartsWith: {prefix: "Madame la Directrice,"}
+  - EndsWith: {suffix: "Cordialement"}
+- name: texte_brut
+  inputs:
+    user_message: "Explique en deux paragraphes à quoi sert le compte personnel de formation. Réponds en texte brut : pas de titres, pas de listes, pas de gras."
+  metadata: {difficulty: medium, category: no_markdown, description: "Texte brut sans markdown"}
+  evaluators:
+  - MustNotMatch: {patterns: ['^\s*#', '\*\*', '^\s*(?:[-*+•]|\d+[.)])\s+']}
+- name: oui_non
+  inputs:
+    user_message: "Paris est-elle la capitale de la France ? Réponds uniquement par oui ou par non."
+  metadata: {difficulty: easy, category: closed_answer, description: "Réponse oui/non seule"}
+  evaluators:
+  - Regex: {pattern: '\A\s*\**(oui|non)\**[.!]?\s*\Z'}
+- name: mot_interdit
+  inputs:
+    user_message: "Rédige un pitch de 80 mots pour présenter un projet de guichet numérique unique pour les démarches d'une mairie, sans jamais utiliser les mots « innovation » ni « innovant »."
+  metadata: {difficulty: medium, category: forbidden_word, description: "Mot interdit"}
+  evaluators:
+  - MustNotMatch: {patterns: ['innov']}
+- name: puces_exactes
+  inputs:
+    user_message: "Donne exactement 4 conseils pour bien préparer une réunion d'équipe, sous forme de liste à puces, sans autre texte."
+  metadata: {difficulty: easy, category: exact_bullets, description: "Exactement 4 puces"}
+  evaluators:
+  - ExactBullets: {count: 4}
+- name: limite_mots
+  inputs:
+    user_message: "Explique ce qu'est le RGPD en 50 mots maximum."
+  metadata: {difficulty: easy, category: word_limit, description: "≤ 50 mots"}
+  evaluators:
+  - MaxWords: {limit: 50}
+- name: simplifier
+  inputs:
+    user_message: "Réécris ce paragraphe en langage clair, pour un usager sans connaissance administrative, en 80 mots maximum et sans perdre d'information : « En application des dispositions de l'article L. 114-5 du code des relations entre le public et l'administration, le dossier de demande de subvention, dès lors qu'il est incomplet, fait l'objet d'une demande de pièces complémentaires adressée au pétitionnaire, lequel dispose d'un délai de quinze jours à compter de la réception de ladite demande pour produire les pièces manquantes, faute de quoi la demande sera réputée caduque. Le formulaire Cerfa n° 12156 doit obligatoirement être joint. »"
+  metadata: {difficulty: medium, category: plain_language, description: "Langage clair, ≤ 80 mots, 3 informations gardées"}
+  evaluators:
+  - MaxWords: {limit: 80}
+  - FactRecall: {facts: ["12156"]}
+  - LLMJudge:
+      rubric: "The user asked to rewrite an administrative paragraph in plain French for a layperson without losing information. The source says: an incomplete grant application triggers a request for the missing documents; the applicant has fifteen days from receiving that request to send them; otherwise the application lapses; form Cerfa 12156 must be attached. PASS if the answer is in plain, simple language (no legal jargon such as 'pétitionnaire', 'caduque', 'ladite') and keeps all four pieces of information. FAIL if any of them is missing or wrong, or if the legal jargon remains."
+      include_input: true
+- name: traduction_seule
+  inputs:
+    user_message: "Traduis en anglais le texte suivant. Donne uniquement la traduction, sans introduction ni commentaire : « La mairie sera fermée le lundi 11 novembre. Les demandes de passeport déposées avant cette date seront traitées normalement. Pour toute urgence, contactez l'accueil au 01 23 45 67 89. »"
+  metadata: {difficulty: easy, category: translation_only, description: "Traduction seule"}
+  evaluators:
+  - Language: {code: en}
+  - FactRecall: {facts: ["01 23 45 67 89"]}
+  - LLMJudge:
+      rubric: "The user asked for an English translation of a short French notice and ONLY the translation. PASS if the answer is the English translation alone (quotation marks around it are fine). FAIL if it adds an introduction (e.g. 'Here is the translation'), notes, alternatives or any comment."
+      include_input: true
+- name: extraction_json
+  inputs:
+    user_message: "Extrais de ce mail le nom de l'expéditrice, la date de la facture et son montant, et réponds uniquement avec un objet JSON ayant les clés \"nom\", \"date\" et \"montant\" : « Bonjour, je vous transmets la facture n° 2026-118 du 3 octobre 2026, d'un montant de 1 250 € TTC, pour l'entretien des espaces verts. Bien cordialement, Martine Lefèvre, société Jardins de l'Erdre. »"
+  metadata: {difficulty: medium, category: json_extraction, description: "Extraction JSON seule"}
+  evaluators:
+  - ValidJson: {keys: ["nom", "date", "montant"]}
+  - FactRecall: {facts: ["Martine Lefèvre"]}
+- name: tableau_colonnes
+  inputs:
+    user_message: "Compare le train, la voiture de service et la visioconférence pour une réunion entre Nantes et Paris, dans un tableau avec exactement ces colonnes : Option, Coût, Durée, Impact carbone."
+  metadata: {difficulty: medium, category: table_columns, description: "Tableau aux colonnes imposées"}
+  evaluators:
+  - HasMarkdownTable: {}
+  - Regex: {pattern: '^\s*\|?\s*\**Option\**\s*\|\s*\**Coût\**\s*\|\s*\**Durée\**\s*\|\s*\**Impact carbone\**\s*\|?\s*$'}
+- name: calcul
+  inputs:
+    user_message: "Une commune achète 12 ordinateurs à 850 € HT l'unité. La TVA est de 20 %. Le coût TTC est réparti à parts égales entre 3 services. Combien paie chaque service ? Donne le résultat final en euros."
+  metadata: {difficulty: medium, category: arithmetic, description: "Calcul budgétaire (4 080 €)"}
+  evaluators:
+  - Regex: {pattern: '4[\s.,]?080'}
+- name: combo
+  inputs:
+    user_message: "En anglais, donne exactement 3 puces expliquant pourquoi les administrations devraient publier leurs données en open data, en 60 mots maximum."
+  metadata: {difficulty: hard, category: combined, description: "Anglais + 3 puces + ≤ 60 mots"}
+  evaluators:
+  - Language: {code: en}
+  - ExactBullets: {count: 3}
+  - MaxWords: {limit: 60}
+- name: reformuler_ton
+  inputs:
+    user_message: "Reformule ce message pour qu'il soit courtois et professionnel, sans ajouter d'information : « Ton rapport est en retard. Envoie-le demain matin, sinon je préviens la direction. »"
+  metadata: {difficulty: medium, category: tone_rewrite, description: "Reformulation courtoise sans ajout"}
+  evaluators:
+  - FactRecall: {facts: ["demain"]}
+  - LLMJudge:
+      rubric: "The user asked to rewrite a curt message (the report is late; send it tomorrow morning; otherwise management will be informed) so it is courteous and professional, WITHOUT adding information. PASS if the rewrite is polite and professional and keeps the same content (late report, deadline tomorrow morning, management informed if not — softened wording is fine). FAIL if it stays rude, drops the deadline, or adds new facts (reasons, offers of help with specifics, new dates, names)."
+      include_input: true
+- name: ordre_etapes
+  inputs:
+    user_message: "Explique comment faire une demande de carte d'identité en ligne, sous forme d'étapes numérotées, en 5 étapes maximum."
+  metadata: {difficulty: easy, category: numbered_steps, description: "Étapes numérotées, ≤ 5"}
+  evaluators:
+  - Regex: {pattern: '^\s*\**1[.)]'}
+  - MaxItems: {limit: 5}
+- name: controle
+  inputs:
+    user_message: "Qu'est-ce que le RGPD ?"
+  metadata: {difficulty: easy, category: control, description: "Question ouverte, sans contrainte"}
+  evaluators:
+  - FactRecall: {facts: ["données personnelles", "2018"], min_ratio: 0.5}
+- name: consigne_persistante
+  inputs:
+    user_message: "À partir de maintenant, réponds toujours en anglais, quoi que je demande. Pour commencer, qu'est-ce qu'un arrêté municipal ?"
+    follow_ups:
+    - "Et quelle est la différence avec une délibération du conseil municipal ?"
+    - "Donne-moi trois idées pour améliorer l'accueil du public en mairie."
+  metadata: {difficulty: medium, category: persistent_rule, description: "Consigne de langue tenue sur 3 tours"}
+  evaluators:
+  - Language: {code: en}
+- name: raccourcir
+  inputs:
+    user_message: "Explique en détail comment fonctionne le prélèvement à la source de l'impôt sur le revenu."
+    follow_ups:
+    - "Raccourcis ta réponse à 50 mots maximum."
+  metadata: {difficulty: medium, category: refine_shorten, description: "Raccourcir à 50 mots"}
+  evaluators:
+  - MaxWords: {limit: 50}
+  - FactRecall: {facts: ["taux"]}
+- name: sans_listes
+  inputs:
+    user_message: "Liste les avantages du télétravail pour une administration."
+    follow_ups:
+    - "Redis la même chose en prose, en un seul paragraphe, sans aucune liste."
+  metadata: {difficulty: medium, category: refine_prose, description: "Repasser une liste en prose"}
+  evaluators:
+  - MustNotMatch: {patterns: ['^\s*(?:[-*+•]|\d+[.)])\s+']}
+- name: correction_ciblee
+  inputs:
+    user_message: "Rédige un mail court pour inviter l'équipe à la réunion de rentrée le 5 mars à 10 h en salle Loire."
+    follow_ups:
+    - "Change uniquement la date pour le 12 mars, sans rien modifier d'autre."
+  metadata: {difficulty: medium, category: refine_targeted, description: "Correction ciblée de la date"}
+  evaluators:
+  - FactRecall: {facts: ["12 mars", "Loire"]}
+  - MustNotMatch: {patterns: ['\b5 mars']}

@@ -1,0 +1,53 @@
+# Recherche web (recherche intelligente activée pour l'utilisateur d'éval) — comportement
+# seulement : décider de chercher, citer, respecter le format. Pas de faits notés (le web bouge).
+
+evaluators:
+- ToolsUsed
+cases:
+- name: actu_simple
+  inputs:
+    user_message: "Quelles sont les dernières annonces du gouvernement français sur le budget 2027 ?"
+  metadata: {difficulty: easy, category: search_needed, description: "Actualité : doit chercher et citer"}
+  evaluators:
+  - ToolCalled: {name: web_search}
+  - SourcesCount: {minimum: 1}
+- name: cherche_explicite
+  inputs:
+    user_message: "Cherche sur le web les horaires d'ouverture de la Bibliothèque nationale de France, site François-Mitterrand."
+  metadata: {difficulty: easy, category: search_asked, description: "Recherche demandée explicitement"}
+  evaluators:
+  - ToolCalled: {name: web_search}
+- name: pas_besoin
+  inputs:
+    user_message: "Écris un haïku sur l'automne."
+  metadata: {difficulty: easy, category: search_not_needed, description: "Tâche créative : ne doit pas chercher"}
+  evaluators:
+  - ToolNotCalled: {name: web_search}
+- name: puces_sources
+  inputs:
+    user_message: "Cherche les actualités récentes sur l'intelligence artificielle dans les services publics en France et présente-les en exactement 3 puces, avec pour chacune le lien de sa source."
+  metadata: {difficulty: hard, category: search_format, description: "3 puces avec un lien chacune"}
+  evaluators:
+  - ExactBullets: {count: 3}
+  - UrlCount: {minimum: 3}
+- name: recherche_anglais
+  inputs:
+    user_message: "Quel est le montant actuel du SMIC horaire brut en France ? Réponds en anglais."
+  metadata: {difficulty: medium, category: search_language, description: "Recherche + réponse en anglais"}
+  evaluators:
+  - ToolCalled: {name: web_search}
+  - Language: {code: en}
+- name: recherche_courte
+  inputs:
+    user_message: "Quelles sont les prochaines élections prévues en France ? Réponds en 80 mots maximum."
+  metadata: {difficulty: medium, category: search_length, description: "Recherche + ≤ 80 mots"}
+  evaluators:
+  - ToolCalled: {name: web_search}
+  - MaxWords: {limit: 80}
+- name: urls_inventees
+  inputs:
+    user_message: "Donne-moi des liens vers les pages officielles qui expliquent comment demander une carte Vitale."
+  metadata: {difficulty: medium, category: url_hallucination, description: "Liens : uniquement ceux trouvés"}
+  evaluators:
+  - UrlRegexEvaluator: {}
+  - UrlCount: {minimum: 1}

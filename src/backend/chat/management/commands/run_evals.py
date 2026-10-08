@@ -18,7 +18,10 @@ from chat.evals import EvalInputs, EvalMetadata
 from chat.evals.configs import REGISTRY
 from chat.evals.configs.base import EvalConfig, split_dataset_file
 from chat.evals.report_builder import build_dataset_result
+from chat.evals.served_model import report_served_model
 from chat.evals.storage import build_run_record, save_run
+from chat.evals.target.runtime import Target, configure_target
+from chat.evals.target.wire import wire_for_tag
 from chat.evals.tool_output import capture_tool_output_from_run
 
 
@@ -75,6 +78,24 @@ class Command(BaseCommand):
             help="Note stored with a saved run (e.g. what changed in this version).",
         )
         parser.add_argument(
+            "--model",
+            default=None,
+            help="HRID of the model to test (default: LLM_DEFAULT_MODEL_HRID). With a "
+            "git ref's stack, it must match --target-model.",
+        )
+        parser.add_argument(
+            "--target-url",
+            default=None,
+            help="Base URL of a git ref's stack (e.g. http://host.docker.internal:18071): "
+            "datasets run there over HTTP. Use make eval-target, which starts the stack.",
+        )
+        parser.add_argument(
+            "--target-tag", default=None, help="Git ref the target runs (e.g. v0.0.21)."
+        )
+        parser.add_argument(
+            "--target-model", default=None, help="LLM_DEFAULT_MODEL_HRID of the target."
+        )
+        parser.add_argument(
             "--include-outputs",
             action="store_true",
             help="Include model outputs in saved runs (off by default).",
@@ -84,12 +105,10 @@ class Command(BaseCommand):
         if options["runs"] < 1:
             raise CommandError("Number of runs must be at least 1")
 
-        if options["save"] and (options["case"] or options["dataset"]):
-            raise CommandError(
-                "--save cannot be combined with --case or --dataset: a partial run "
-                "would register every omitted case/dataset as a coverage gap "
-                "(= regression) when compared against the baseline."
-            )
+        self._check_save_options(options)
+        target = self._resolve_target(options)
+        model = self._resolve_model(options, target)
+        configure_target(target)
 
         # Span-based evaluators (HasMatchingSpan & co) read pydantic-evals'
         # span_tree, which is only populated when a real OTel SDK tracer provider
@@ -108,30 +127,116 @@ class Command(BaseCommand):
         use_llm_judge = not options["no_llm_judge"]
         self._configure_judge(use_llm_judge)
 
-        configs = [REGISTRY[options["dataset"]]] if options["dataset"] else list(REGISTRY.values())
-
-        case_name = options["case"]
-        if case_name and not options["dataset"]:
-            # Filter by case name across all datasets: run only the datasets that
-            # contain it, silently skipping those where the case is absent.
-            configs = [
-                config for config in configs if case_name in self._dataset_case_names(config)
-            ]
-            if not configs:
-                raise CommandError(f"No case named '{case_name}' in any dataset.")
-
-        self.stdout.write(f"Running evals for: {', '.join(config.name for config in configs)}\n")
+        configs, skipped = self._selected_configs(options, target)
+        if skipped:
+            self.stdout.write(
+                f"Skipping datasets that only run on the working tree: {', '.join(skipped)}\n"
+            )
+        where = f", target: {target.tag}" if target else ""
+        self.stdout.write(
+            f"Running evals for: {', '.join(config.name for config in configs)} "
+            f"(model: {model}{where})\n"
+        )
+        served = self._report_served_model(model)
 
         reports = [
-            (config, self._run_dataset(config, options, use_llm_judge)) for config in configs
+            (config, self._run_dataset(config, options, use_llm_judge, over_http=bool(target)))
+            for config in configs
         ]
         for config, report in reports:
             self._render_report(report, options, config)
 
         if options["save"]:
-            self._save_reports(reports, options, use_llm_judge)
+            extra_params = {"served_model": served}
+            if target:
+                extra_params |= {
+                    "target_version": target.tag,
+                    "target_model": target.model,
+                    "target_url": target.url,
+                    "skipped_datasets": skipped,
+                }
+            self._save_reports(reports, options, use_llm_judge, extra_params=extra_params)
 
-    def _save_reports(self, reports, options: dict, use_llm_judge: bool) -> None:
+    @staticmethod
+    def _resolve_target(options: dict) -> Target | None:
+        """Build the target from --target-* options; all or none must be given."""
+        values = (options["target_url"], options["target_tag"], options["target_model"])
+        if not any(values):
+            return None
+        if not all(values):
+            raise CommandError(
+                "A target needs all of --target-url, --target-tag and --target-model."
+            )
+        try:
+            wire_for_tag(options["target_tag"])
+        except ValueError as error:
+            raise CommandError(str(error)) from error
+        return Target(*values)
+
+    @classmethod
+    def _selected_configs(
+        cls, options: dict, target: Target | None
+    ) -> tuple[list[EvalConfig], list[str]]:
+        """Datasets to run and those skipped, honouring --dataset, --case and the target.
+
+        A git ref's stack is only reachable over HTTP: datasets without an HTTP task
+        (stubbed tools, frozen states) need this process's own code, so they are skipped.
+        """
+        if options["dataset"]:
+            config = REGISTRY[options["dataset"]]
+            if target and config.http_task is None:
+                raise CommandError(
+                    f"Dataset '{config.name}' only runs on the working tree (drop --target-*)."
+                )
+            return [config], []
+        skipped = [
+            config.name for config in REGISTRY.values() if target and config.http_task is None
+        ]
+        configs = [config for config in REGISTRY.values() if config.name not in skipped]
+        case_name = options["case"]
+        if case_name:
+            # Filter by case name across all datasets: run only the datasets that
+            # contain it, silently skipping those where the case is absent.
+            configs = [config for config in configs if case_name in cls._dataset_case_names(config)]
+            if not configs:
+                raise CommandError(f"No case named '{case_name}' in any dataset.")
+        return configs, skipped
+
+    @staticmethod
+    def _check_save_options(options: dict) -> None:
+        """--save never with --case: a run missing cases can't be compared case by case."""
+        if options["save"] and options["case"]:
+            raise CommandError(
+                "--save cannot be combined with --case: a partial run would register every "
+                "omitted case as a coverage gap (= regression) when compared."
+            )
+
+    @staticmethod
+    def _resolve_model(options: dict, target: Target | None = None) -> str:
+        """The tested model; it becomes the default model of this process."""
+        model = options["model"] or (target.model if target else settings.LLM_DEFAULT_MODEL_HRID)
+        if target and model != target.model:
+            raise CommandError(
+                f"--model {model} differs from --target-model {target.model}: the "
+                "target stack answers with the model it was started with."
+            )
+        if model not in settings.LLM_CONFIGURATIONS:
+            raise CommandError(f"Unknown model '{model}': not in the LLM configuration.")
+        # Task factories and the judge fallback read it.
+        settings.LLM_DEFAULT_MODEL_HRID = model
+        return model
+
+    def _report_served_model(self, model: str) -> str | None:
+        """Print the model that really answers (providers alias names); None if unknown."""
+        try:
+            return report_served_model(model, write=self.stdout.write)
+        except Exception as error:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            self.stderr.write(self.style.WARNING(f"Could not check the served model: {error}\n"))
+            return None
+
+    def _save_reports(
+        self, reports, options: dict, use_llm_judge: bool, *, extra_params: dict
+    ) -> None:
         judge_model_hrid = self._resolve_judge_model_hrid()
         datasets = {
             config.name: build_dataset_result(
@@ -148,6 +253,7 @@ class Command(BaseCommand):
             "runs_per_case": options["runs"],
             "datasets": list(datasets.keys()),
             "case_filter": options["case"],
+            **extra_params,
         }
         record = build_run_record(
             datasets=datasets,
@@ -243,17 +349,32 @@ class Command(BaseCommand):
             )
         return evaluators
 
+    @staticmethod
+    def _without_llm_judges(dataset: Dataset) -> None:
+        """Drop every LLMJudge declared in the YAML, dataset-level and per-case."""
+
+        def keep(evaluators):
+            return [evaluator for evaluator in evaluators if not isinstance(evaluator, LLMJudge)]
+
+        dataset.evaluators = keep(dataset.evaluators)
+        for case in dataset.cases:
+            case.evaluators = keep(case.evaluators)
+
     def _run_dataset(
-        self, config: EvalConfig, options: dict, use_llm_judge: bool
+        self, config: EvalConfig, options: dict, use_llm_judge: bool, *, over_http: bool = False
     ) -> EvaluationReport:
         """Run evals for a single dataset config and return its evaluation report."""
         self.stdout.write(f"\n=== Dataset: {config.name} ===\n")
 
         dataset = self._load_dataset(config, options["case"])
+        if not use_llm_judge:
+            self._without_llm_judges(dataset)
         # Extend (not replace): keep dataset-level evaluators declared in the YAML.
         dataset.evaluators = [*dataset.evaluators, *self._build_evaluators(config, use_llm_judge)]
 
-        if config.make_task_fn is not None:
+        if over_http:
+            run_agent = config.http_task(settings.LLM_DEFAULT_MODEL_HRID)
+        elif config.make_task_fn is not None:
             run_agent = config.make_task_fn(settings.LLM_DEFAULT_MODEL_HRID)
         else:
             agent_cls = config.agent_class or (

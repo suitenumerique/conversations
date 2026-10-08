@@ -1,0 +1,194 @@
+{
+  "run_id": "2026-10-05T15-03-01-512245Z_1ff84e4_bf0e5d",
+  "created_at": "2026-10-05T15:03:01.512571+00:00",
+  "comment": "kiwi HEAD x mistral-medium-3-5",
+  "git": {
+    "commit": "1ff84e40b5349a9ced840b1d90a5b1e4c8437b21",
+    "commit_short": "1ff84e4",
+    "branch": "maxenceh/regression-analysis",
+    "dirty": true
+  },
+  "params": {
+    "model_hrid": "default-model",
+    "judge_model_hrid": "albert-openai-gpt-oss-120b",
+    "llm_judge": true,
+    "runs_per_case": 5,
+    "datasets": [
+      "kiwi"
+    ],
+    "case_filter": null,
+    "target_version": "HEAD",
+    "target_model": "mistral-medium-3-5",
+    "target_url": "http://host.docker.internal:18071"
+  },
+  "dataset_hashes": {
+    "kiwi": "sha256:c83bd133992ccd364120ea6c2f8aea40b5baad289a0afb1b85d3073d97b08c1c"
+  },
+  "summary": {
+    "overall_pass_rate": 0.0
+  },
+  "datasets": {
+    "kiwi": {
+      "cases_total": 5,
+      "cases_passed": 0,
+      "pass_rate": 0.0,
+      "pass_rate_avg_repeats": 0.32,
+      "evaluators": {
+        "LLMJudge": {
+          "avg_score": 0.32,
+          "pass_rate": 0.0
+        },
+        "Regex": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        },
+        "sans_flatterie": {
+          "avg_score": 1.0,
+          "pass_rate": 1.0
+        },
+        "sans_gras": {
+          "avg_score": 0.36,
+          "pass_rate": 0.2
+        },
+        "sans_puces": {
+          "avg_score": 0.8,
+          "pass_rate": 0.6
+        },
+        "sans_titres": {
+          "avg_score": 0.96,
+          "pass_rate": 0.8
+        }
+      },
+      "cases": [
+        {
+          "name": "kiwi_pj_2_tours",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "kiwi_attachment_follow_up",
+            "description": "Résumé puis question : la règle tient au 2e tour",
+            "doc_set": null
+          },
+          "repeats": 5,
+          "pass_rate": 0.8,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.8,
+            "Regex": 1.0,
+            "sans_flatterie": 1.0,
+            "sans_gras": 0.8,
+            "sans_puces": 0.8,
+            "sans_titres": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The answer gives multiple recommendations (DSI responsibility, external resource, training) but provides only one \"kiwi\" line, so not one per solution; it uses bullet list formatting and bold text, both prohibited.",
+            "sans_gras": "turn 2/2: forbidden: \\*\\*[^*\\n]+\\*\\*",
+            "sans_puces": "turn 2/2: forbidden: ^\\s*(?:[-*+•]|\\d+[.)])\\s+"
+          },
+          "task_duration_ms": 31704.0
+        },
+        {
+          "name": "kiwi_pj_long_cr",
+          "metadata": {
+            "difficulty": "hard",
+            "category": "kiwi_attachment_long",
+            "description": "Long compte rendu en pièce jointe : résumé + recommandations",
+            "doc_set": null
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.0,
+            "Regex": 1.0,
+            "sans_flatterie": 1.0,
+            "sans_gras": 0.0,
+            "sans_puces": 0.2,
+            "sans_titres": 0.8
+          },
+          "reasons": {
+            "LLMJudge": "Multiple recommendations are given but only one \"kiwi\" line appears; bold formatting and a heading are used; final paragraph repeats a recap of the meeting, violating the no‑recap rule.",
+            "sans_gras": "turn 1/1: forbidden: \\*\\*[^*\\n]+\\*\\*",
+            "sans_puces": "turn 1/1: forbidden: ^\\s*(?:[-*+•]|\\d+[.)])\\s+",
+            "sans_titres": "turn 1/1: forbidden: ^\\s*#{1,6}\\s"
+          },
+          "task_duration_ms": 30745.2
+        },
+        {
+          "name": "kiwi_pj_projet",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "kiwi_project_document",
+            "description": "Même transcript en document de projet plutôt qu'en pièce jointe",
+            "doc_set": null
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.0,
+            "Regex": 1.0,
+            "sans_flatterie": 1.0,
+            "sans_gras": 0.0,
+            "sans_puces": 1.0,
+            "sans_titres": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The answer uses bold markup (**...**) which is prohibited; otherwise the kiwi rule and style constraints are met.",
+            "sans_gras": "turn 1/1: forbidden: \\*\\*[^*\\n]+\\*\\*"
+          },
+          "task_duration_ms": 29587.6
+        },
+        {
+          "name": "kiwi_pj_transcript",
+          "metadata": {
+            "difficulty": "medium",
+            "category": "kiwi_attachment",
+            "description": "Transcript en pièce jointe : résumé + solution",
+            "doc_set": null
+          },
+          "repeats": 5,
+          "pass_rate": 0.0,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.0,
+            "Regex": 1.0,
+            "sans_flatterie": 1.0,
+            "sans_gras": 0.0,
+            "sans_puces": 1.0,
+            "sans_titres": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "The answer gives two recommendations (pilot launch and external risk analysis) but provides only one \"kiwi\" line, and it uses bold formatting, which is prohibited.",
+            "sans_gras": "turn 1/1: forbidden: \\*\\*[^*\\n]+\\*\\*"
+          },
+          "task_duration_ms": 23013.1
+        },
+        {
+          "name": "kiwi_sans_pj",
+          "metadata": {
+            "difficulty": "easy",
+            "category": "kiwi_control",
+            "description": "Témoin sans pièce jointe",
+            "doc_set": null
+          },
+          "repeats": 5,
+          "pass_rate": 0.8,
+          "passed": false,
+          "avg_scores": {
+            "LLMJudge": 0.8,
+            "Regex": 1.0,
+            "sans_flatterie": 1.0,
+            "sans_gras": 1.0,
+            "sans_puces": 1.0,
+            "sans_titres": 1.0
+          },
+          "reasons": {
+            "LLMJudge": "Both recommendations are each followed by a solitary 'kiwi' line and no prohibited formatting is used"
+          },
+          "task_duration_ms": 34996.5
+        }
+      ],
+      "failures": 0
+    }
+  }
+}

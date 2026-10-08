@@ -1,0 +1,520 @@
+# Synthèse multi-documents — l'agent doit respecter les consignes de synthèse sur des
+# comptes rendus joints. Évaluateurs déterministes par cas (+ LLMJudge par cas si déclaré) ;
+# ToolsUsed = étiquette.
+
+evaluators:
+- ToolsUsed
+cases:
+- name: smoke_responsable
+  inputs:
+    user_message: D'après le document joint, qui est responsable du suivi ? Réponds en une phrase.
+    attachments:
+    - smoke-cr
+  metadata:
+    difficulty: easy
+    category: control
+    doc_set: short
+    description: Vérifie la chaîne complète (upload, réponse, scoring) sur une cible
+  evaluators:
+  - FactRecall:
+      facts:
+      - Arlette Quenouille
+- name: theme_short
+  inputs:
+    user_message: Fais une synthèse de ces quatre comptes rendus organisée par thème (budget, calendrier,
+      hébergement, équipe, accompagnement des agents) et non réunion par réunion.
+    attachments: &id001
+    - court-cr-01
+    - court-cr-02
+    - court-cr-03
+    - court-cr-04
+  metadata:
+    difficulty: medium
+    category: theme
+    doc_set: short
+    description: Synthèse par thème, pas par réunion
+  evaluators: &id002
+  - LLMJudge:
+      rubric: The user asked for a synthesis of four meeting minutes organized BY THEME (for example budget,
+        schedule, hosting, team, support of the agents), not meeting by meeting. PASS if the answer is
+        structured by theme, each theme gathering information from several meetings. FAIL if it is organized
+        chronologically or meeting by meeting (sections per meeting date). Judge only the organisation,
+        not completeness.
+      include_input: true
+  - FactRecall:
+      facts:
+      - 380 000
+      - 1er septembre
+      - Julien Ferrand
+      min_ratio: 0.67
+- name: action_table_short
+  inputs:
+    user_message: 'Dresse un tableau de toutes les actions décidées lors de ces réunions, avec trois colonnes
+      : action, responsable, échéance.'
+    attachments: *id001
+  metadata:
+    difficulty: medium
+    category: action_table
+    doc_set: short
+    description: Tableau action | responsable | échéance
+  evaluators: &id004
+  - HasMarkdownTable: {}
+  - FactRecall:
+      facts:
+      - Hélène Vasseur
+      - Karim Benali
+      - Sophie Lemarchand
+      - Thomas Ricard
+      - Inès Moreau
+      - Julien Ferrand
+      - Paul Girard
+      - 30 janvier
+      - 6 février
+      - 28 février
+      - 25 février
+      - 20 mars
+      - 31 mars
+      - 8 avril
+      - 24 avril
+      - 10 avril
+      - 30 avril
+      - 30 juin
+      - 10 juin
+      min_ratio: 0.75
+- name: actions_only_short
+  inputs:
+    user_message: Liste uniquement les actions à mener (qui fait quoi et pour quand), sans aucune introduction
+      ni aucun autre commentaire.
+    attachments: *id001
+  metadata:
+    difficulty: medium
+    category: actions_only
+    doc_set: short
+    description: Uniquement les actions, rien d'autre
+  evaluators: &id005
+  - LLMJudge:
+      rubric: The user asked for ONLY the list of actions to carry out (who does what, by when), with
+        no introduction, no conclusion, no summary of decisions or discussions and no other comment. PASS
+        if the answer is essentially a list of actions (a one-line title is tolerated). FAIL if it adds
+        an introductory sentence, a summary, context or concluding remarks.
+      include_input: true
+  - FactRecall:
+      facts:
+      - Hélène Vasseur
+      - Karim Benali
+      - Sophie Lemarchand
+      - Thomas Ricard
+      - Inès Moreau
+      - Julien Ferrand
+      - Paul Girard
+      min_ratio: 0.85
+- name: max_150_words_short
+  inputs:
+    user_message: Résume ces comptes rendus en 150 mots maximum.
+    attachments: *id001
+  metadata:
+    difficulty: medium
+    category: max_150_words
+    doc_set: short
+    description: Contrainte de longueur ≤ 150 mots
+  evaluators: &id006
+  - MaxWords:
+      limit: 150
+  - FactRecall:
+      facts:
+      - 380 000
+      - 1er septembre
+      min_ratio: 0.5
+- name: five_bullets_short
+  inputs:
+    user_message: Donne-moi exactement 5 points clés à retenir de ces réunions, sous forme de liste à
+      puces, et rien d'autre.
+    attachments: *id001
+  metadata:
+    difficulty: medium
+    category: five_bullets
+    doc_set: short
+    description: Exactement 5 puces
+  evaluators: &id007
+  - ExactBullets:
+      count: 5
+- name: english_short
+  inputs:
+    user_message: Write a summary of these meeting minutes in English.
+    attachments: *id001
+  metadata:
+    difficulty: easy
+    category: english
+    doc_set: short
+    description: Réponse en anglais
+  evaluators: &id008
+  - Language:
+      code: en
+  - FactRecall:
+      facts:
+      - Julien Ferrand
+      - Nuage Ligérien
+      min_ratio: 0.5
+- name: note_directrice_short
+  inputs:
+    user_message: 'Rédige une note de synthèse de ces réunions à l''attention de la directrice, Mme Dumoulin
+      : ton formel, phrases complètes, sans jargon technique ni abréviation non expliquée.'
+    attachments: *id001
+  metadata:
+    difficulty: hard
+    category: note_directrice
+    doc_set: short
+    description: Note formelle à la directrice
+  evaluators: &id009
+  - LLMJudge:
+      rubric: 'The user asked for a synthesis note addressed to the director, Mme Dumoulin: formal administrative
+        tone, complete sentences, no technical jargon and no unexplained abbreviations. An abbreviation
+        counts as explained if it is spelled out at least once anywhere in the note; common administrative
+        abbreviations and units (€, TTC, n°) need no explanation. Before failing for an abbreviation,
+        quote it and check the whole note for its expansion. Bullet points are acceptable when the note
+        is mainly written in complete sentences. PASS if the note is formal, mainly in complete sentences
+        and every non-common abbreviation is explained or avoided. FAIL if it is informal, mostly telegraphic
+        fragments, or uses an abbreviation that is never explained.'
+      include_input: true
+  - FactRecall:
+      facts:
+      - 380 000
+      - 1er septembre
+      min_ratio: 0.5
+- name: contradictions_short
+  inputs:
+    user_message: Relève les décisions qui ont été contredites ou modifiées d'une réunion à l'autre, en
+      précisant pour chacune la décision initiale et la décision finale.
+    attachments: *id001
+  metadata:
+    difficulty: hard
+    category: contradictions
+    doc_set: short
+    description: Contradictions plantées entre réunions
+  evaluators: &id010
+  - LLMJudge:
+      rubric: 'The meeting minutes contain three decisions later changed: the budget (450 000 € validated
+        in January, reduced to 380 000 € in March), the go-live date (15 June, postponed to 1 September
+        in April) and the hosting (external host Nuage Ligérien chosen in February, abandoned in April
+        for the ministerial data centre). PASS if the answer identifies all three changes and gives both
+        the initial and the final decision for each. FAIL if one is missing or if an initial or final
+        value is wrong.'
+      include_input: true
+  - FactRecall:
+      facts:
+      - 450 000
+      - 380 000
+      - 15 juin
+      - 1er septembre
+      - Nuage Ligérien
+      min_ratio: 0.8
+- name: combo_theme_table_300_short
+  inputs:
+    user_message: Fais une synthèse par thème de ces comptes rendus, en 300 mots maximum, et termine par
+      un tableau des actions (action, responsable, échéance).
+    attachments: *id001
+  metadata:
+    difficulty: hard
+    category: combo_theme_table_300
+    doc_set: short
+    description: Combinaison thème + tableau + ≤ 300 mots
+  evaluators: &id011
+  - MaxWords:
+      limit: 300
+  - HasMarkdownTable: {}
+  - LLMJudge:
+      rubric: The user asked for a synthesis of four meeting minutes organized BY THEME (for example budget,
+        schedule, hosting, team, support of the agents), not meeting by meeting. PASS if the answer is
+        structured by theme, each theme gathering information from several meetings. FAIL if it is organized
+        chronologically or meeting by meeting (sections per meeting date). Judge only the organisation,
+        not completeness. In addition, the answer must END with a table of actions (action, owner, deadline).
+        FAIL if there is no such final table.
+      include_input: true
+- name: control_summary_short
+  inputs:
+    user_message: Résume ces documents.
+    attachments: *id001
+  metadata:
+    difficulty: easy
+    category: control_summary
+    doc_set: short
+    description: Contrôle sans consigne particulière
+  evaluators: &id012
+  - FactRecall:
+      facts:
+      - 380 000
+      - 1er septembre
+      - Julien Ferrand
+      - Saint-Aubin
+      - 72 %
+      min_ratio: 0.6
+- name: theme_long
+  inputs:
+    user_message: Fais une synthèse de ces quatre comptes rendus organisée par thème (budget, calendrier,
+      hébergement, équipe, accompagnement des agents) et non réunion par réunion.
+    attachments: &id003
+    - long-cr-01
+    - long-cr-02
+    - long-cr-03
+    - long-cr-04
+  metadata:
+    difficulty: medium
+    category: theme
+    doc_set: long
+    description: Synthèse par thème, pas par réunion
+  evaluators: *id002
+- name: action_table_long
+  inputs:
+    user_message: 'Dresse un tableau de toutes les actions décidées lors de ces réunions, avec trois colonnes
+      : action, responsable, échéance.'
+    attachments: *id003
+  metadata:
+    difficulty: medium
+    category: action_table
+    doc_set: long
+    description: Tableau action | responsable | échéance
+  evaluators: *id004
+- name: actions_only_long
+  inputs:
+    user_message: Liste uniquement les actions à mener (qui fait quoi et pour quand), sans aucune introduction
+      ni aucun autre commentaire.
+    attachments: *id003
+  metadata:
+    difficulty: medium
+    category: actions_only
+    doc_set: long
+    description: Uniquement les actions, rien d'autre
+  evaluators: *id005
+- name: max_150_words_long
+  inputs:
+    user_message: Résume ces comptes rendus en 150 mots maximum.
+    attachments: *id003
+  metadata:
+    difficulty: medium
+    category: max_150_words
+    doc_set: long
+    description: Contrainte de longueur ≤ 150 mots
+  evaluators: *id006
+- name: five_bullets_long
+  inputs:
+    user_message: Donne-moi exactement 5 points clés à retenir de ces réunions, sous forme de liste à
+      puces, et rien d'autre.
+    attachments: *id003
+  metadata:
+    difficulty: medium
+    category: five_bullets
+    doc_set: long
+    description: Exactement 5 puces
+  evaluators: *id007
+- name: english_long
+  inputs:
+    user_message: Write a summary of these meeting minutes in English.
+    attachments: *id003
+  metadata:
+    difficulty: easy
+    category: english
+    doc_set: long
+    description: Réponse en anglais
+  evaluators: *id008
+- name: note_directrice_long
+  inputs:
+    user_message: 'Rédige une note de synthèse de ces réunions à l''attention de la directrice, Mme Dumoulin
+      : ton formel, phrases complètes, sans jargon technique ni abréviation non expliquée.'
+    attachments: *id003
+  metadata:
+    difficulty: hard
+    category: note_directrice
+    doc_set: long
+    description: Note formelle à la directrice
+  evaluators: *id009
+- name: contradictions_long
+  inputs:
+    user_message: Relève les décisions qui ont été contredites ou modifiées d'une réunion à l'autre, en
+      précisant pour chacune la décision initiale et la décision finale.
+    attachments: *id003
+  metadata:
+    difficulty: hard
+    category: contradictions
+    doc_set: long
+    description: Contradictions plantées entre réunions
+  evaluators: *id010
+- name: combo_theme_table_300_long
+  inputs:
+    user_message: Fais une synthèse par thème de ces comptes rendus, en 300 mots maximum, et termine par
+      un tableau des actions (action, responsable, échéance).
+    attachments: *id003
+  metadata:
+    difficulty: hard
+    category: combo_theme_table_300
+    doc_set: long
+    description: Combinaison thème + tableau + ≤ 300 mots
+  evaluators: *id011
+- name: control_summary_long
+  inputs:
+    user_message: Résume ces documents.
+    attachments: *id003
+  metadata:
+    difficulty: easy
+    category: control_summary
+    doc_set: long
+    description: Contrôle sans consigne particulière
+  evaluators: *id012
+- name: mt_owners_long
+  inputs:
+    user_message: Résume ces comptes rendus.
+    attachments: *id003
+    follow_ups:
+    - Ajoute pour chaque action décidée son responsable et son échéance.
+  metadata:
+    difficulty: hard
+    category: mt_owners
+    doc_set: long
+    description: Raffinement qui exige le contenu source (échéances)
+  evaluators: &id013
+  - FactRecall:
+      facts:
+      - 30 janvier
+      - 6 février
+      - 28 février
+      - 25 février
+      - 20 mars
+      - 31 mars
+      - 8 avril
+      - 24 avril
+      - 10 avril
+      - 30 avril
+      - 30 juin
+      - 10 juin
+      min_ratio: 0.7
+- name: mt_owners_short
+  inputs:
+    user_message: Résume ces comptes rendus.
+    attachments: *id001
+    follow_ups:
+    - Ajoute pour chaque action décidée son responsable et son échéance.
+  metadata:
+    difficulty: hard
+    category: mt_owners
+    doc_set: short
+    description: Raffinement qui exige le contenu source (échéances)
+  evaluators: *id013
+- name: mt_budget_long
+  inputs:
+    user_message: Résume ces comptes rendus.
+    attachments: *id003
+    follow_ups:
+    - Détaille uniquement ce qui a été dit sur le budget au fil des réunions, avec les montants.
+  metadata:
+    difficulty: hard
+    category: mt_budget
+    doc_set: long
+    description: Raffinement budget avec montants par lot
+  evaluators: &id014
+  - LLMJudge:
+      rubric: The user asked to detail ONLY what was said about the budget across the meetings, with the
+        amounts. Mentioning another topic only to explain its budget impact (e.g. a hosting choice that
+        frees credits, a feature postponed to save money) is acceptable. PASS if the answer is focused
+        on the budget and gives amounts. FAIL if substantial parts deal with non-budget topics without
+        a budget angle, or if no amounts are given.
+      include_input: true
+  - FactRecall:
+      facts:
+      - 450 000
+      - 380 000
+      - 260 000
+      - 200 000
+      min_ratio: 0.75
+- name: mt_budget_short
+  inputs:
+    user_message: Résume ces comptes rendus.
+    attachments: *id001
+    follow_ups:
+    - Détaille uniquement ce qui a été dit sur le budget au fil des réunions, avec les montants.
+  metadata:
+    difficulty: hard
+    category: mt_budget
+    doc_set: short
+    description: Raffinement budget avec montants par lot
+  evaluators: *id014
+- name: mt_theme_long
+  inputs:
+    user_message: Résume ces comptes rendus.
+    attachments: *id003
+    follow_ups:
+    - Refais cette synthèse par thème plutôt que réunion par réunion.
+  metadata:
+    difficulty: medium
+    category: mt_theme
+    doc_set: long
+    description: Raffinement de structure
+  evaluators:
+  - LLMJudge:
+      rubric: The user asked for a synthesis of four meeting minutes organized BY THEME (for example budget,
+        schedule, hosting, team, support of the agents), not meeting by meeting. PASS if the answer is
+        structured by theme, each theme gathering information from several meetings. FAIL if it is organized
+        chronologically or meeting by meeting (sections per meeting date). Judge only the organisation,
+        not completeness.
+      include_input: true
+- name: mt_contradictions_long
+  inputs:
+    user_message: Résume ces comptes rendus.
+    attachments: *id003
+    follow_ups:
+    - Quelles décisions ont été contredites lors d'une réunion ultérieure ? Donne la décision initiale
+      et la décision finale.
+  metadata:
+    difficulty: hard
+    category: mt_contradictions
+    doc_set: long
+    description: Contradictions après une première synthèse
+  evaluators:
+  - LLMJudge:
+      rubric: 'The meeting minutes contain three decisions later changed: the budget (450 000 € validated
+        in January, reduced to 380 000 € in March), the go-live date (15 June, postponed to 1 September
+        in April) and the hosting (external host Nuage Ligérien chosen in February, abandoned in April
+        for the ministerial data centre). PASS if the answer identifies all three changes and gives both
+        the initial and the final decision for each. FAIL if one is missing or if an initial or final
+        value is wrong.'
+      include_input: true
+  - FactRecall:
+      facts:
+      - 450 000
+      - 15 juin
+      - Nuage Ligérien
+      min_ratio: 0.67
+- name: mt_english_long
+  inputs:
+    user_message: Résume ces comptes rendus.
+    attachments: *id003
+    follow_ups:
+    - Traduis maintenant cette synthèse en anglais, en conservant toutes les décisions.
+  metadata:
+    difficulty: medium
+    category: mt_english
+    doc_set: long
+    description: Changement de langue au tour 2
+  evaluators:
+  - Language:
+      code: en
+  - FactRecall:
+      facts:
+      - Julien Ferrand
+- name: mt_pilot_long
+  inputs:
+    user_message: Résume ces comptes rendus.
+    attachments: *id003
+    follow_ups:
+    - 'Précise ce qui a été décidé sur le pilote : sites concernés, date de lancement et bilan prévu.'
+  metadata:
+    difficulty: hard
+    category: mt_pilot
+    doc_set: long
+    description: Raffinement factuel sur le pilote
+  evaluators:
+  - FactRecall:
+      facts:
+      - Saint-Aubin
+      - Montclair
+      - 4 mai
+      - 10 juin
+      min_ratio: 0.75

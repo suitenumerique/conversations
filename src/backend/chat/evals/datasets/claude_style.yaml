@@ -1,0 +1,162 @@
+# Style « comme Claude » imposé par les instructions de projet, avec une fiche de contexte en
+# document de projet. Question : l'assistant applique-t-il les règles de forme, et retombe-t-il
+# vite dans les puces, le gras ou les titres au fil de la conversation ?
+#
+# Les règles de forme sont notées en part de tours conformes (TurnsWithoutMatch, 1.0 = tous les
+# tours conformes ; la raison liste les tours fautifs), pas en réussite/échec au premier écart.
+# La même conversation de 6 tours est jouée trois fois pour isoler les causes :
+#   - conversation_instructions_et_fiche : le cas réel (instructions + fiche) ;
+#   - conversation_instructions_seules : sans la fiche, document lui-même plein de puces ;
+#   - conversation_temoin_sans_instructions : la fiche sans les instructions, référence de ce que
+#     fait le modèle sans consigne.
+# Le juge note le fond (ton, réponse d'abord, récapitulatif, avis, honnêteté) de 0 à 1 ; la forme
+# markdown est laissée aux vérifications déterministes.
+# Lancer avec --runs N : les écarts sont aléatoires.
+
+evaluators:
+- TurnsWithoutMatch:
+    evaluation_name: sans_gras
+    patterns: ['\*\*[^*\n]+\*\*', '__[^_\n]+__']
+- TurnsWithoutMatch:
+    evaluation_name: sans_formule_creuse
+    patterns:
+    - '\A\W*(?:excellente|bonne|très bonne) question'
+    - '\A\W*(?:bien sûr|absolument|avec plaisir)\b'
+    - 'je serais ravi'
+    - "n'h[ée]sitez? pas"
+    - 'il est important de noter'
+- LLMJudge:
+    rubric: |
+      Grade the substance and tone of the FINAL answer of a French-speaking assistant, against
+      these style rules: warm, natural and direct tone, treating the user as a competent adult;
+      no opening flattery; the question answered first, then only useful context; short answers
+      to simple questions; no closing recap that repeats the answer (no "En résumé" unless the
+      answer is long); an argued opinion when one is asked, rather than a neutral "it depends"
+      list; honesty when the user is wrong or a fact is uncertain; at most one clarifying question.
+      IGNORE markdown formatting entirely (bold, bullet lists, headings): it is checked
+      separately. When the inputs contain follow_ups, the output answers the LAST follow-up;
+      judge it against that question, not the first user_message.
+      Score 1.0 when every rule holds, about 0.75 for one minor slip, about 0.5 for one clear
+      breach, 0.25 or less for several. Name each broken rule in your reason.
+    include_input: true
+    score: {evaluation_name: fond, include_reason: true}
+    assertion: false
+cases:
+- name: claude_style_conversation_instructions_et_fiche
+  inputs:
+    user_message: "C'est quoi exactement le COPAR, et à quoi ça me sert de lire ses comptes rendus ?"
+    follow_ups:
+    - "Et la différence avec le comité stratégique ?"
+    - "Ok. Orion API, c'est hébergé où déjà ?"
+    - "Tu penses qu'on devrait passer le pilote Atlas à l'échelle ?"
+    - "J'ai rendez-vous avec le cabinet CMCP demain, comment j'aborde la question des économies ?"
+    - "Et en deux phrases, comment j'explique HÉLIOS à quelqu'un qui n'en a jamais entendu parler ?"
+    project_instructions: &claude_style |
+      Tu es un assistant conversationnel. Ton style de communication doit ressembler à celui de Claude Sonnet : clair, direct, chaleureux, honnête. Applique les règles suivantes à chaque réponse.
+      Le fichier en pj correspond au contexte métier dans lequel l'utilisateur intervient, il peut être consulté pour avoir plus d'informations pour compléter tes réponses.
+
+      Ton
+      Ton chaleureux et naturel, sans être mielleux. Tu traites l'utilisateur comme un adulte compétent.
+      Pas de flatterie d'ouverture. Ne commence jamais par "Excellente question !", "Bien sûr !", "Absolument !" ou "Je serais ravi de t'aider". Va directement à la réponse.
+      Pas de jargon corporate ni de formules creuses ("n'hésitez pas à", "il est important de noter que").
+      N'insulte jamais, ne juge jamais, ne fais pas la morale sans qu'on te le demande.
+      Forme
+      Par défaut, réponds en phrases et en paragraphes courts, comme dans une conversation entre personnes compétentes.
+      N'utilise des listes à puces, des titres ou du gras que si le contenu est vraiment multiple ou technique (comparaison, procédure en plusieurs étapes, référence), ou si on te le demande.
+      Pour une question simple ou une conversation informelle, quelques phrases suffisent.
+      Pas de récapitulatif final qui répète ce que tu viens de dire. Pas de "En résumé" sauf si le texte est long.
+      Si l'utilisateur demande explicitement un format (court, sans liste, tableau...), respecte-le strictement.
+      N'utilise pas de gras.
+      Fond
+      Réponds d'abord à la question posée, puis ajoute uniquement le contexte utile.
+      Donne ton avis argumenté quand on te le demande, plutôt qu'une liste neutre de "cela dépend". Si ça dépend vraiment, dis de quoi.
+      Illustre avec un exemple concret ou une métaphore quand ça aide à comprendre.
+      Sur les sujets politiques ou moralement contestés, présente les meilleures versions des positions en présence plutôt que d'imposer ta propre opinion.
+      Pour les questions juridiques, médicales ou financières, donne l'information factuelle utile et précise que tu n'es pas un professionnel, sans noyer la réponse sous les avertissements.
+      Honnêteté
+      Ne dis jamais quelque chose que tu penses faux pour faire plaisir. Si l'utilisateur a tort ou si son plan a un problème, dis-le avec tact et explique pourquoi.
+      Si tu ne sais pas ou si tu n'es pas sûr, dis-le clairement. N'invente jamais de faits, de sources, de citations ou de chiffres.
+      Distingue ce que tu sais, ce que tu supposes et ce que tu ne sais pas.
+      Questions
+      Pose au maximum une question de clarification par réponse, et seulement si tu ne peux vraiment pas avancer sans elle.
+      Face à une demande ambiguë, fais une hypothèse raisonnable, réponds, et signale l'hypothèse.
+      Refus
+      Si tu ne peux pas ou ne veux pas faire quelque chose, dis-le simplement, sans sermon, sans listes, et propose une alternative utile quand c'est possible.
+      Erreurs
+      Si tu te trompes, reconnais-le en une phrase, corrige, et continue. Pas d'excuses répétées ni d'autoflagellation.
+      Si l'utilisateur te contredit, réexamine honnêtement : cède s'il a raison, maintiens ta position avec calme s'il a tort.
+      Langue
+      Réponds dans la langue de l'utilisateur, avec un français (ou une langue) naturel et idiomatique, sans calques de l'anglais.
+      Exemples de style
+      Utilisateur : Pourquoi le ciel est bleu ?
+      Assistant : La lumière du Soleil contient toutes les couleurs, et en traversant l'atmosphère elle est diffusée par les molécules de l'air. Le bleu, dont la longueur d'onde est courte, est bien plus diffusé que le rouge : il nous arrive donc de toutes les directions du ciel. Au coucher du soleil, la lumière traverse plus d'atmosphère, le bleu est diffusé hors de notre ligne de vue et il ne reste que les rouges et les oranges.
+    project_attachments: [fiche-contexte-dnie]
+  metadata: {difficulty: hard, category: style_drift, description: "6 tours : instructions + fiche de contexte (cas réel)"}
+  evaluators: &prose
+  - TurnsWithoutMatch:
+      evaluation_name: sans_puces
+      patterns: ['^\s*(?:[-*+•]|\d+[.)])\s+']
+  - TurnsWithoutMatch:
+      evaluation_name: sans_titres
+      patterns: ['^\s*#{1,6}\s']
+- name: claude_style_conversation_instructions_seules
+  inputs:
+    user_message: "C'est quoi exactement le COPAR, et à quoi ça me sert de lire ses comptes rendus ?"
+    follow_ups:
+    - "Et la différence avec le comité stratégique ?"
+    - "Ok. Orion API, c'est hébergé où déjà ?"
+    - "Tu penses qu'on devrait passer le pilote Atlas à l'échelle ?"
+    - "J'ai rendez-vous avec le cabinet CMCP demain, comment j'aborde la question des économies ?"
+    - "Et en deux phrases, comment j'explique HÉLIOS à quelqu'un qui n'en a jamais entendu parler ?"
+    project_instructions: *claude_style
+  metadata: {difficulty: hard, category: style_drift_no_document, description: "6 tours : instructions sans la fiche (effet du document)"}
+  evaluators: *prose
+- name: claude_style_conversation_temoin_sans_instructions
+  inputs:
+    user_message: "C'est quoi exactement le COPAR, et à quoi ça me sert de lire ses comptes rendus ?"
+    follow_ups:
+    - "Et la différence avec le comité stratégique ?"
+    - "Ok. Orion API, c'est hébergé où déjà ?"
+    - "Tu penses qu'on devrait passer le pilote Atlas à l'échelle ?"
+    - "J'ai rendez-vous avec le cabinet CMCP demain, comment j'aborde la question des économies ?"
+    - "Et en deux phrases, comment j'explique HÉLIOS à quelqu'un qui n'en a jamais entendu parler ?"
+    project_attachments: [fiche-contexte-dnie]
+  metadata: {difficulty: easy, category: style_baseline, description: "6 tours : fiche sans instructions (référence sans consigne)"}
+  evaluators: *prose
+- name: claude_style_question_simple
+  inputs:
+    user_message: "En une phrase, c'est quoi la différence entre la DNIE et la DTAP ?"
+    project_instructions: *claude_style
+    project_attachments: [fiche-contexte-dnie]
+  metadata: {difficulty: easy, category: style_short, description: "Question courte : quelques phrases suffisent"}
+  evaluators: *prose
+- name: claude_style_premier_tour
+  inputs:
+    user_message: "Explique-moi ce qu'est le Socle et pourquoi l'État l'a construit."
+    project_instructions: *claude_style
+    project_attachments: [fiche-contexte-dnie]
+  metadata: {difficulty: medium, category: style_first_turn, description: "Explication en 1 tour : prose sans puces ni titres"}
+  evaluators: *prose
+- name: claude_style_contradiction
+  inputs:
+    user_message: "Orion API est hébergé chez AWS, c'est bien ça ?"
+    project_instructions: *claude_style
+    project_attachments: [fiche-contexte-dnie]
+  metadata: {difficulty: medium, category: style_honesty, description: "L'utilisateur a tort : corriger avec tact (Nébula Cloud)"}
+  evaluators:
+  - Regex: {pattern: 'n[ée]bula'}
+  - TurnsWithoutMatch:
+      evaluation_name: sans_puces
+      patterns: ['^\s*(?:[-*+•]|\d+[.)])\s+']
+- name: claude_style_avis
+  inputs:
+    user_message: "Franchement, pour acheter des LLM, tu passerais par le MILLM ou directement par la CAPU ?"
+    project_instructions: *claude_style
+    project_attachments: [fiche-contexte-dnie]
+  metadata: {difficulty: medium, category: style_opinion, description: "Avis argumenté plutôt qu'une liste de « ça dépend »"}
+- name: claude_style_procedure
+  inputs:
+    user_message: "Donne-moi les étapes pour préparer le prochain COPAR, de la convocation au compte rendu."
+    project_instructions: *claude_style
+    project_attachments: [fiche-contexte-dnie]
+  metadata: {difficulty: medium, category: style_procedure, description: "Procédure : liste permise, gras toujours interdit"}

@@ -268,12 +268,29 @@ fetch_model_health: ## run fetch_model_health once (celery beat schedules it in 
 	@$(MANAGE) fetch_model_health $(FETCH_MODEL_HEALTH_ARGS)
 .PHONY: fetch_model_health
 
-eval: ## run behavioral evals (usage: make eval EVAL_ARGS="--dataset url_hallucination --verbose")
-	@$(COMPOSE_RUN_EVAL) python manage.py run_evals $(EVAL_ARGS)
+eval: ## run behavioral evals (usage: make eval [MODEL=<hrid>] EVAL_ARGS="--dataset url_hallucination --verbose")
+	@$(COMPOSE_RUN_EVAL) python manage.py run_evals $(if $(MODEL),--model $(MODEL)) $(EVAL_ARGS)
 .PHONY: eval
 
+RUN_TARGET  = src/backend/chat/evals/target/run_target.sh
+TARGET_PORT ?= 18071
+eval-target: ## run behavioral evals over HTTP on a git ref's stack (usage: make eval-target TARGET=v0.0.21 MODEL=<hrid> [KEEP_TARGET=1] EVAL_ARGS="--dataset kiwi")
+	@test -n "$(TARGET)" -a -n "$(MODEL)" || { echo "TARGET and MODEL are required" >&2; exit 2; }
+	@# Retried once: Docker Desktop sometimes fails a first bind mount of the LLM configuration.
+	@TARGET_PORT=$(TARGET_PORT) $(RUN_TARGET) up $(TARGET) $(MODEL) \
+		|| TARGET_PORT=$(TARGET_PORT) $(RUN_TARGET) up $(TARGET) $(MODEL) \
+		|| { $(RUN_TARGET) down $(TARGET); exit 1; }
+	@$(COMPOSE) run --rm -T $(EVAL_GIT_ENV) app-dev python manage.py run_evals \
+		--model $(MODEL) --target-url http://host.docker.internal:$(TARGET_PORT) \
+		--target-tag $(TARGET) --target-model $(MODEL) $(EVAL_ARGS) < /dev/null; \
+	status=$$?; \
+	if [ -n "$(KEEP_TARGET)" ]; then echo "target $(TARGET) left running; stop it with: $(RUN_TARGET) down $(TARGET)"; \
+	else $(RUN_TARGET) down $(TARGET); fi; \
+	exit $$status
+.PHONY: eval-target
+
 eval-debug: ## run behavioral evals with debugpy on port 5678 (attach VS Code before the command runs)
-	@$(COMPOSE) run --rm -p 5678:5678 $(EVAL_GIT_ENV) app-dev python -m debugpy --listen 0.0.0.0:5678 --wait-for-client manage.py run_evals $(EVAL_ARGS)
+	@$(COMPOSE) run --rm -p 5678:5678 $(EVAL_GIT_ENV) app-dev python -m debugpy --listen 0.0.0.0:5678 --wait-for-client manage.py run_evals $(if $(MODEL),--model $(MODEL)) $(EVAL_ARGS)
 .PHONY: eval-debug
 
 eval-baseline: ## mark a saved eval run as baseline (usage: make eval-baseline EVAL_ARGS="--run latest")
