@@ -51,6 +51,28 @@ def test_missing_after_dataset_records_coverage_gaps():
     assert len(comparison.regressions) == 0
 
 
+def test_run_vs_run_does_not_count_a_missing_dataset_as_gaps():
+    """Run vs run compares shared datasets; one only in `before` is noted, not a regression."""
+    before = _run(
+        run_id="before",
+        datasets={
+            "ds": _dataset(pass_rate=1.0, cases=[_case(name="a", passed=True)]),
+            "kept": _dataset(pass_rate=1.0, cases=[_case(name="k", passed=True)]),
+        },
+    )
+    after = _run(
+        run_id="after",
+        datasets={"kept": _dataset(pass_rate=1.0, cases=[_case(name="k", passed=True)])},
+    )
+
+    comparison = compare_runs(before, after, missing_dataset_is_gap=False)
+
+    assert not comparison.coverage_gaps
+    assert not comparison.has_regression_failures
+    assert [d.dataset for d in comparison.dataset_comparisons] == ["kept"]
+    assert any("'ds' is not in after run" in warning for warning in comparison.warnings)
+
+
 def test_missing_after_case_records_coverage_gap():
     """Test that missing after case records coverage gaps."""
     before = _run(

@@ -268,12 +268,12 @@ fetch_model_health: ## run fetch_model_health once (celery beat schedules it in 
 	@$(MANAGE) fetch_model_health $(FETCH_MODEL_HEALTH_ARGS)
 .PHONY: fetch_model_health
 
-eval: ## run behavioral evals (usage: make eval EVAL_ARGS="--dataset url_hallucination --verbose")
-	@$(COMPOSE_RUN_EVAL) python manage.py run_evals $(EVAL_ARGS)
+eval: ## run behavioral evals (usage: make eval [MODEL=<hrid>] EVAL_ARGS="--dataset url_hallucination --verbose")
+	@$(COMPOSE_RUN_EVAL) python manage.py run_evals $(if $(MODEL),--model $(MODEL)) $(EVAL_ARGS)
 .PHONY: eval
 
 eval-debug: ## run behavioral evals with debugpy on port 5678 (attach VS Code before the command runs)
-	@$(COMPOSE) run --rm -p 5678:5678 $(EVAL_GIT_ENV) app-dev python -m debugpy --listen 0.0.0.0:5678 --wait-for-client manage.py run_evals $(EVAL_ARGS)
+	@$(COMPOSE) run --rm -p 5678:5678 $(EVAL_GIT_ENV) app-dev python -m debugpy --listen 0.0.0.0:5678 --wait-for-client manage.py run_evals $(if $(MODEL),--model $(MODEL)) $(EVAL_ARGS)
 .PHONY: eval-debug
 
 eval-baseline: ## mark a saved eval run as baseline (usage: make eval-baseline EVAL_ARGS="--run latest")

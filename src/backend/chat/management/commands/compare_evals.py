@@ -38,7 +38,7 @@ class Command(BaseCommand):
             if options["against"]:
                 before, _ = resolve_run(options["against"])
                 after, _ = resolve_run(options["run"])
-                comparison = compare_runs(before, after)
+                comparison = compare_runs(before, after, missing_dataset_is_gap=False)
             else:
                 baseline_name = options["baseline"] or "main"
                 comparison = compare_with_baseline(
