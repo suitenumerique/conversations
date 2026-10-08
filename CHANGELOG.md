@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(evals) add in-process datasets for instructions, documents and long chats
+- ✨(evals) choose the tested model and compare partial runs
 
 ### Fixed
 

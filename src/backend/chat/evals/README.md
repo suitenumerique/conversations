@@ -45,6 +45,8 @@ chat/evals/
 ├── dashboard.py             # generate the self-contained HTML dashboard
 ├── production_agent.py      # production-shaped agent wiring with stubbable tools
 ├── in_process.py            # runs a case like a production conversation (documents, projects, history)
+├── served_model.py          # which model the provider really serves for an HRID
+├── MODEL_COMPARISON.md      # how to compare two models
 ├── tool_stub_responses.py   # per-case simulated tool payloads (contextvar staging)
 ├── tool_output.py           # capture runtime tool returns from an agent run
 └── __init__.py              # EvalInputs, EvalMetadata Pydantic models
@@ -86,6 +88,9 @@ All evals run inside Docker via `make eval`.
 # Run all datasets
 make eval
 
+# Test another model than LLM_DEFAULT_MODEL_HRID
+make eval MODEL=mistral-medium-3-5 EVAL_ARGS="--dataset kiwi"
+
 # Run a single dataset
 make eval EVAL_ARGS="--dataset url_hallucination"
 make eval EVAL_ARGS="--dataset tool_selection"
@@ -121,7 +126,9 @@ For a long run in the background, redirect stdin, or the process stops on exit o
 `nohup make eval EVAL_ARGS="--runs 3 --save" > eval.log 2>&1 < /dev/null &`.
 
 Model selection:
-- tested model = `LLM_DEFAULT_MODEL_HRID`
+- tested model = `MODEL=<hrid>` (`--model`), or `LLM_DEFAULT_MODEL_HRID`; each run prints and
+  saves the model the provider really serves (`served_model.py`). To compare two models, see
+  `MODEL_COMPARISON.md`.
 - judge model = `LLM_EVAL_JUDGE_MODEL_HRID` (falls back to `LLM_DEFAULT_MODEL_HRID` if empty;
   a warning is printed when judge == tested model, since self-grading is biased)
 

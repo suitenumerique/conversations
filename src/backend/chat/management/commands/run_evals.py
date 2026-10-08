@@ -18,6 +18,7 @@ from chat.evals import EvalInputs, EvalMetadata
 from chat.evals.configs import REGISTRY
 from chat.evals.configs.base import EvalConfig, split_dataset_file
 from chat.evals.report_builder import build_dataset_result
+from chat.evals.served_model import report_served_model
 from chat.evals.storage import build_run_record, save_run
 from chat.evals.tool_output import capture_tool_output_from_run
 
@@ -75,6 +76,11 @@ class Command(BaseCommand):
             help="Note stored with a saved run (e.g. what changed in this version).",
         )
         parser.add_argument(
+            "--model",
+            default=None,
+            help="HRID of the model to test (default: LLM_DEFAULT_MODEL_HRID).",
+        )
+        parser.add_argument(
             "--include-outputs",
             action="store_true",
             help="Include model outputs in saved runs (off by default).",
@@ -84,12 +90,8 @@ class Command(BaseCommand):
         if options["runs"] < 1:
             raise CommandError("Number of runs must be at least 1")
 
-        if options["save"] and (options["case"] or options["dataset"]):
-            raise CommandError(
-                "--save cannot be combined with --case or --dataset: a partial run "
-                "would register every omitted case/dataset as a coverage gap "
-                "(= regression) when compared against the baseline."
-            )
+        self._check_save_options(options)
+        model = self._resolve_model(options)
 
         # Span-based evaluators (HasMatchingSpan & co) read pydantic-evals'
         # span_tree, which is only populated when a real OTel SDK tracer provider
@@ -120,7 +122,10 @@ class Command(BaseCommand):
             if not configs:
                 raise CommandError(f"No case named '{case_name}' in any dataset.")
 
-        self.stdout.write(f"Running evals for: {', '.join(config.name for config in configs)}\n")
+        self.stdout.write(
+            f"Running evals for: {', '.join(config.name for config in configs)} (model: {model})\n"
+        )
+        served = self._report_served_model(model)
 
         reports = [
             (config, self._run_dataset(config, options, use_llm_judge)) for config in configs
@@ -129,9 +134,38 @@ class Command(BaseCommand):
             self._render_report(report, options, config)
 
         if options["save"]:
-            self._save_reports(reports, options, use_llm_judge)
+            self._save_reports(reports, options, use_llm_judge, served_model=served)
 
-    def _save_reports(self, reports, options: dict, use_llm_judge: bool) -> None:
+    @staticmethod
+    def _check_save_options(options: dict) -> None:
+        """--save never with --case: a run missing cases can't be compared case by case."""
+        if options["save"] and options["case"]:
+            raise CommandError(
+                "--save cannot be combined with --case: a partial run would register every "
+                "omitted case as a coverage gap (= regression) when compared."
+            )
+
+    @staticmethod
+    def _resolve_model(options: dict) -> str:
+        """The tested model; it becomes the default model of this process."""
+        model = options["model"] or settings.LLM_DEFAULT_MODEL_HRID
+        if model not in settings.LLM_CONFIGURATIONS:
+            raise CommandError(f"Unknown model '{model}': not in the LLM configuration.")
+        # Task factories and the judge fallback read it.
+        settings.LLM_DEFAULT_MODEL_HRID = model
+        return model
+
+    def _report_served_model(self, model: str) -> str | None:
+        """Print the model that really answers (providers alias names); None if unknown."""
+        try:
+            return report_served_model(model, write=self.stdout.write)
+        except Exception as error:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            self.stderr.write(self.style.WARNING(f"Could not check the served model: {error}\n"))
+            return None
+
+    def _save_reports(
+        self, reports, options: dict, use_llm_judge: bool, *, served_model: str | None
+    ) -> None:
         judge_model_hrid = self._resolve_judge_model_hrid()
         datasets = {
             config.name: build_dataset_result(
@@ -148,6 +182,7 @@ class Command(BaseCommand):
             "runs_per_case": options["runs"],
             "datasets": list(datasets.keys()),
             "case_filter": options["case"],
+            "served_model": served_model,
         }
         record = build_run_record(
             datasets=datasets,
