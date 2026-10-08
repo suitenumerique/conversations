@@ -5,7 +5,7 @@ Do project instructions that set a writing style hold, over several turns and on
 - `claude_style` (`datasets/claude_style.yaml`): "write like Claude" project instructions (prose by default, lists or headings only for genuinely multiple content, no bold, no opening flattery, no closing recap), with a context sheet (`fiche-contexte-dnie`, fictional) as project document. Question: does the model drift back into bullets or bold, and how fast?
 - `kiwi` (`datasets/kiwi.yaml`): style instructions forbidding lists, headings and bold, plus a witness rule: write `kiwi` alone on a line after each solution. Question: does an attachment (a transcript to summarize) make the model drop rules at random? `kiwi_sans_pj` is the no-attachment control.
 
-Each rule is its own report column: `sans_puces`, `sans_titres`, `sans_gras`, `sans_flatterie` / `sans_formule_creuse` (`TurnsWithoutMatch`: share of turns that respect the rule, 1.0 = all; the reason lists the failing turns), `Regex` (`kiwi` line present / correction mentions Nébula Cloud), and `LLMJudge`.
+Each rule is its own report column: `sans_puces`, `sans_titres`, `sans_gras`, `sans_flatterie` / `sans_formule_creuse` (`TurnsWithoutMatch`: share of turns that respect the rule, 1.0 = all; the reason lists the failing turns), `Regex` (correction mentions Nébula Cloud) and `LLMJudge`. In `kiwi`, the judges only check what a regex cannot: `kiwi_par_solution` scores the share of solutions followed by their own `kiwi` line (0–1, the reason gives the counts), `sans_recap` the closing recap; `kiwi_present` checks that at least one `kiwi` line exists. The results below predate this split (one `Regex` and one all-rules `LLMJudge` column).
 
 ## No model comparison
 
@@ -48,7 +48,7 @@ These results come from the first version of the dataset (pass/fail per rule, ju
 ## Caveats
 
 - The context sheet is itself a bulleted document. The rebuilt `claude_style` runs the 6-turn conversation with and without it, and without the instructions, to separate the two effects.
-- `Regex` only proves at least one `kiwi` line; "one per solution" relies on the judge alone.
+- "One `kiwi` per solution" is judged (`kiwi_par_solution`), not counted by a regex.
 - Judge calls that returned an invalid response (2 in `claude_style`) leave that repeat without a verdict.
 - 5 repeats per case: a 20-point difference is one repeat.
 
@@ -58,7 +58,8 @@ These results come from the first version of the dataset (pass/fail per rule, ju
 make eval MODEL=mistral-medium-3-5 EVAL_ARGS='--dataset kiwi --runs 5 --verbose --save --comment "kiwi local x mistral-medium-3-5"'
 make eval MODEL=mistral-medium-3-5 EVAL_ARGS='--dataset claude_style --runs 5 --verbose --save --comment "claude_style local x mistral-medium-3-5"'
 
-# Compare two saved runs of a dataset (e.g. before and after a fix), rule by rule:
+# Compare saved runs of a dataset (e.g. two models, or before and after a fix), rule by rule,
+# then each rule and all rules averaged over the cases:
 python3 src/backend/chat/evals/style_rules/compare_rules.py "kiwi local x mistral-medium-3-5" "kiwi <other run comment>"
 ```
 

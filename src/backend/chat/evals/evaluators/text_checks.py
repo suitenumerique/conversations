@@ -157,6 +157,13 @@ class Regex(Evaluator):
     """Pass when `pattern` matches somewhere in the answer (case-insensitive, multiline)."""
 
     pattern: str = ""
+    # Report column, so a dataset can name what the pattern checks.
+    evaluation_name: str | None = field(default=None)
+
+    def get_default_evaluation_name(self) -> str:
+        if self.evaluation_name is not None:
+            return self.evaluation_name
+        return self.get_serialization_name()
 
     def evaluate(self, ctx: EvaluatorContext) -> EvaluationReason:
         passed = bool(re.search(self.pattern, _text(ctx), _REGEX_FLAGS))
