@@ -3,6 +3,10 @@
 Providers may serve a requested model name as an alias of another model (Albert answers
 `mistral-medium-2508` with `mistral-medium-3-5-0`). Only streamed chunks carry the serving
 model's name, so this sends one short streamed request.
+
+Self-contained (Django settings and httpx only): `target/run_target.sh` pipes this file
+into `manage.py shell` inside a git ref's containers, whatever their code version,
+followed by a `report_served_model(...)` call.
 """
 
 import json

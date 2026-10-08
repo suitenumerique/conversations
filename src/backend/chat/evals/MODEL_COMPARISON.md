@@ -17,6 +17,21 @@ make eval-compare EVAL_ARGS="--run <Large 4 run id> --against <3.5 run id>"
 
 To skip a dataset (e.g. `claude_style`), run the others one by one with `--dataset <name>` and the same `--comment` prefix; `--against` compares the datasets both runs have and lists the others as not compared.
 
+## The current code against a git ref
+
+```bash
+make eval        MODEL=mistral-medium-3-5                EVAL_ARGS='--runs 3 --save --comment "local x 3-5"'
+make eval-target MODEL=mistral-medium-3-5 TARGET=v0.0.21 EVAL_ARGS='--runs 3 --save --comment "v0.0.21 x 3-5"'
+make eval-compare EVAL_ARGS="--run <local run id> --against <v0.0.21 run id>"
+```
+
+`make eval-target` starts the ref's stack (`target/run_target.sh`), runs the datasets over HTTP, then stops it (`KEEP_TARGET=1` keeps it). Datasets without an HTTP task (`faithfulness_rag`, `tool_selection`, `long_chat`) are skipped and recorded in the run's `skipped_datasets`. The two sides then differ in more than the code:
+
+- over HTTP, documents are uploaded as docx and go through the ref's real RAG and summarization, while in-process runs use the fixtures' text and fixed summaries;
+- `url_hallucination` and `incertitude` run on a bare agent in-process (no tools, no user language), but on the full production agent over HTTP.
+
+So a local-vs-ref difference on those datasets mixes code changes with harness differences: compare a ref with another ref (`HEAD` included) rather than with a local run.
+
 ## Before you start
 
 1. `src/backend/conversations/configuration/llm/custom_llm_configuration.json` (local, not committed) has an entry per model, with the same settings and the same `system_prompt` so only the model differs. That includes `max_token_context` (131072 for every compared model, even Large 4: it decides which documents are inlined), `web_search` (Brave) and `supports_image`. That prompt is production's inline prompt, copied word for word ("based on Mistral Medium 2508" included), not `settings.AI_AGENT_INSTRUCTIONS`. Name models explicitly with `MODEL=`: e.g. `default-model` has no `max_token_context`, so documents are not inlined for it.

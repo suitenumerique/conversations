@@ -46,6 +46,7 @@ chat/evals/
 ├── production_agent.py      # production-shaped agent wiring with stubbable tools
 ├── in_process.py            # runs a case like a production conversation (documents, projects, history)
 ├── served_model.py          # which model the provider really serves for an HRID
+├── target/                  # HTTP runs on a git ref's stack (make eval-target)
 ├── MODEL_COMPARISON.md      # how to compare two models
 ├── tool_stub_responses.py   # per-case simulated tool payloads (contextvar staging)
 ├── tool_output.py           # capture runtime tool returns from an agent run
@@ -124,6 +125,11 @@ run-vs-run diffs (`--against`) rather than baseline comparison.
 
 For a long run in the background, redirect stdin, or the process stops on exit on macOS:
 `nohup make eval EVAL_ARGS="--runs 3 --save" > eval.log 2>&1 < /dev/null &`.
+
+To run the datasets on a git ref's code instead (e.g. a release), over HTTP like the
+frontend: `make eval-target TARGET=v0.0.21 MODEL=<hrid> EVAL_ARGS="--dataset kiwi"`. It
+starts the ref's stack, runs every dataset that has an HTTP task, and stops the stack
+(`KEEP_TARGET=1` keeps it); see `MODEL_COMPARISON.md`.
 
 Model selection:
 - tested model = `MODEL=<hrid>` (`--model`), or `LLM_DEFAULT_MODEL_HRID`; each run prints and
