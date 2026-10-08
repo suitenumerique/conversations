@@ -49,15 +49,17 @@ describe('ConfigProvider - initial language', () => {
   });
 
   it('follows a non-French browser language over the instance default', async () => {
-    await i18n.changeLanguage('de');
+    i18n.addResourceBundle('zz', 'translation', { probe: 'probe' }, true, true);
+    await i18n.changeLanguage('zz');
     const changeLanguageSpy = vi.spyOn(i18n, 'changeLanguage');
     mockUseConfig.mockReturnValue(makeConfig({ LANGUAGE_CODE: 'fr-fr' }));
 
     render(<ConfigProvider>app</ConfigProvider>, { wrapper: AppWrapper });
 
-    await waitFor(() => expect(i18n.resolvedLanguage).toBe('de'));
+    await waitFor(() => expect(i18n.resolvedLanguage).toBe('zz'));
     // The instance default must never pull the UI away from the browser.
     expect(changeLanguageSpy).not.toHaveBeenCalledWith('fr');
     changeLanguageSpy.mockRestore();
+    i18n.removeResourceBundle('zz', 'translation');
   });
 });
