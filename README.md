@@ -54,12 +54,12 @@ You can test Conversations on your browser by visiting this => TBD
 
 **Prerequisite**
 
-Make sure you have a recent version of Docker and [Docker Compose](https://docs.docker.com/compose/install) installed on your laptop, then type:
+Make sure you have Docker Engine 28.0+ (Docker Desktop 4.39+) and [Docker Compose](https://docs.docker.com/compose/install) installed on your laptop, then type:
 
 ```shellscript
 $ docker -v
 
-Docker version 20.10.2, build 2291f61
+Docker version 29.4.0, build 9d7ad9f
 
 $ docker compose version
 

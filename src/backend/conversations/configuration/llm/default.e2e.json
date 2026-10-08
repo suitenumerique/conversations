@@ -36,7 +36,7 @@
   "providers": [
     {
       "hrid": "default-provider",
-      "base_url": "http://host.docker.internal:8900",
+      "base_url": "http://openmockllm-mistral:8000",
       "api_key": "openmockllm-api-key",
       "kind": "mistral"
     }

@@ -11,7 +11,7 @@ services:
     env_file:
       - env.d/development/postgresql
     ports:
-      - "15432:5432"
+      - "127.0.0.1:15432:5432"
 
   redis:
     image: redis:5
@@ -19,7 +19,7 @@ services:
   maildev:
     image: maildev/maildev:latest
     ports:
-      - "1081:1080"
+      - "127.0.0.1:1081:1080"
 
   objectstorage:
     user: ${DOCKER_USER:-1000}
@@ -28,8 +28,8 @@ services:
       - RUSTFS_ACCESS_KEY=conversations
       - RUSTFS_SECRET_KEY=password
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - '127.0.0.1:9000:9000'
+      - '127.0.0.1:9001:9001'
     healthcheck:
       test: ["CMD", "sh", "-c", "curl -f http://127.0.0.1:9000/health/ready && curl -f http://127.0.0.1:9001/rustfs/console/health"]
       interval: 1s
@@ -69,7 +69,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "8071:8000"
+      - "127.0.0.1:8071:8000"
     networks:
       - default
       - lasuite
@@ -161,7 +161,7 @@ services:
   nginx:
     image: nginx:1.25
     ports:
-      - "8083:8083"
+      - "127.0.0.1:8083:8083"
     networks:
       - default
       - lasuite
@@ -188,7 +188,7 @@ services:
       - /home/frontend/node_modules
       - /home/frontend/apps/conversations/node_modules
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
 
   crowdin:
     image: crowdin/cli:3.16.0
@@ -214,8 +214,6 @@ services:
       interval: 1s
       timeout: 2s
       retries: 300
-    ports:
-      - "5433:5432"
     env_file:
       - env.d/development/kc_postgresql
 

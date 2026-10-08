@@ -10,7 +10,7 @@ services:
         API_ORIGIN: "http://localhost:8071"
     image: conversations:frontend-production
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
 
   openmockllm-mistral:
     user: "${DOCKER_USER:-1000}"
@@ -28,5 +28,3 @@ services:
       - mistral
       - --model-name
       - mistral-mock
-    ports:
-      - "8900:8000"

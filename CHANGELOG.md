@@ -17,6 +17,7 @@ and this project adheres to
 ### Security
 
 - 🔒️(project) keep user prompts out of logs and telemetry
+- 🔒️(docker) bind dev compose ports to localhost only
 
 ### Changed
 
