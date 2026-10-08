@@ -47,6 +47,9 @@ class EvalConfig:  # pylint: disable=too-many-instance-attributes
     # Use it when the eval needs control over how the agent is invoked, e.g. to
     # stage per-case context for a stub tool so the model actually calls it.
     make_task_fn: TaskFactory | None = None
+    # Runs a case on a git ref's stack over HTTP, like the frontend (run_evals --target-*).
+    # Datasets without one only run on the working tree.
+    http_task: TaskFactory | None = None
     # Evaluator types referenced only in the dataset YAML (per-case), not at dataset level.
     dataset_evaluator_types: list[type] = field(default_factory=list)
 
