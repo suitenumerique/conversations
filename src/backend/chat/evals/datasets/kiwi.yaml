@@ -4,7 +4,7 @@
 # pièce jointe, avec --runs N pour mesurer le taux d'oubli de chaque règle.
 
 evaluators:
-- Regex: {pattern: '^\s*kiwi\s*$'}
+- Regex: {evaluation_name: kiwi_present, pattern: '^\s*kiwi\s*$'}
 - TurnsWithoutMatch:
     evaluation_name: sans_puces
     patterns: ['^\s*(?:[-*+•]|\d+[.)])\s+']
@@ -20,17 +20,24 @@ evaluators:
     - '\A\W*(?:excellente|bonne|très bonne) question'
     - '\A\W*(?:bien sûr|absolument|avec plaisir)\b'
     - 'je serais ravi'
+# The judges only check what a regex cannot; each gives its own column.
 - LLMJudge:
     rubric: |
       The project instructions (in the inputs) carry a mandatory test rule: after EVERY solution,
       recommendation or answer to a problem, the assistant writes the word "kiwi" alone on its own
-      line, once per solution. They also forbid bullet lists, headings and bold unless asked, and
-      ask for short prose paragraphs, no opening flattery and no closing recap.
-      Judge the FINAL answer. PASS only if every solution or recommendation it proposes is followed
-      by its own "kiwi" line and it follows the other rules. FAIL otherwise, and name each broken
-      rule (e.g. "2 solutions, 1 kiwi", "bullet list", "closing recap") in your reason.
+      line, once per solution. Ignore every other rule (formatting, tone).
+      In the FINAL answer, count S, the distinct solutions or recommendations it proposes, and K,
+      those immediately followed by their own "kiwi" line. Score K/S, between 0 and 1 (1 when
+      S = 0 and there is no "kiwi" line). Give S and K in your reason, e.g. "S=3, K=2".
     include_input: true
-    assertion: {include_reason: true}
+    score: {evaluation_name: kiwi_par_solution, include_reason: true}
+    assertion: false
+- LLMJudge:
+    rubric: |
+      Judge the FINAL answer only on this rule: it must not end with a closing recap or conclusion
+      that repeats what it already said. PASS if it has none, FAIL otherwise. Ignore every other
+      rule (formatting, tone).
+    assertion: {evaluation_name: sans_recap, include_reason: true}
 cases:
 - name: kiwi_sans_pj
   inputs:

@@ -152,6 +152,15 @@ def test_regex_fails_without_match_and_names_pattern():
     assert "^Objet" in result.reason
 
 
+def test_regex_report_column_defaults_to_its_type_or_takes_a_name():
+    """A dataset can name the Regex column after the rule it checks."""
+    assert Regex(pattern="x").get_default_evaluation_name() == "Regex"
+    assert (
+        Regex(pattern="x", evaluation_name="kiwi_present").get_default_evaluation_name()
+        == "kiwi_present"
+    )
+
+
 def test_must_not_match_fails_on_any_forbidden_pattern():
     """One forbidden pattern found is enough to fail, and it is reported."""
     result = MustNotMatch(patterns=[r"\*\*", r"innov"]).evaluate(_ctx("Un projet Innovant."))

@@ -58,6 +58,44 @@ def main(comments):
             cells = " ".join(("-" if s is None else f"{s:.0%}").rjust(34) for s in scores)
             _out(name[:36].ljust(36), rule[:22].ljust(22), cells)
         _out()
+    _summary(runs, names)
+
+
+def _mean(values):
+    return sum(values) / len(values) if values else None
+
+
+def _cell(score) -> str:
+    return ("-" if score is None else f"{score:.0%}").rjust(34)
+
+
+def _summary(runs, names):
+    """Each rule averaged over the compared cases, then all rules together.
+
+    A case passes only if every rule holds, so its pass rate hides a model that breaks one
+    rule less often than another; this average does not.
+    """
+    rules = sorted(
+        {rule for _, cases in runs for name in names for rule in cases[name]["avg_scores"]}
+    )
+    _out("all cases".ljust(36), "(rule average)".ljust(22))
+    for rule in rules:
+        scores = [
+            _mean(
+                [
+                    cases[name]["avg_scores"][rule]
+                    for name in names
+                    if rule in cases[name]["avg_scores"]
+                ]
+            )
+            for _, cases in runs
+        ]
+        _out("".ljust(36), rule[:22].ljust(22), " ".join(_cell(score) for score in scores))
+    compliance = [
+        _mean([score for name in names for score in cases[name]["avg_scores"].values()])
+        for _, cases in runs
+    ]
+    _out("".ljust(36), "all rules".ljust(22), " ".join(_cell(score) for score in compliance))
 
 
 if __name__ == "__main__":
