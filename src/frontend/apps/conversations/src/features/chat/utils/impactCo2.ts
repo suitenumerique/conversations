@@ -1,4 +1,4 @@
-export const IMPACT_CO2_COMPARISONS = 'rechercheweb,email,cafe,visioconference';
+export const IMPACT_CO2_COMPARISONS = 'eaudurobinet,email,visioconference';
 
 export const IMPACT_CO2_SCRIPT_URL = 'https://impactco2.fr/iframe.js';
 export const IMPACT_CO2_WIDGET_TYPE = 'comparateur/etiquette-animee';

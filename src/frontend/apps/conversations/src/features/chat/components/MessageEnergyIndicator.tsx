@@ -132,7 +132,7 @@ export const MessageEnergyIndicator = ({
           <div
             ref={widgetContainerRef}
             data-testid="impact-co2-widget"
-            style={{ width: '100%', minHeight: '120px' }}
+            style={{ marginTop: '30px', width: '100%', minHeight: '120px' }}
           />
         </Box>
       </Modal>

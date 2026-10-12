@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Fixed
 
+- 💄(front) add margin-top for the carbon impact module.
 - ⚡️(front) disable posthog-js periodic feature flag reloads
 - 🐛(front) avoid stale pages and blank screens after a deploy
 - 🐛(front) ask to reload when a new version has been deployed

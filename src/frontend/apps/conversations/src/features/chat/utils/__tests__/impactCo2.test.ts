@@ -6,7 +6,7 @@ import {
 } from '../impactCo2';
 
 const TEST_CO2_IMPACT_KG = 0.00002191613089507352;
-const ENCODED_COMPARISONS = 'rechercheweb%2Cemail%2Ccafe%2Cvisioconference';
+const ENCODED_COMPARISONS = 'eaudurobinet%2Cemail%2Cvisioconference';
 
 describe('impactCo2', () => {
   it('formats kg CO₂eq as a gram value for impactco2', () => {
