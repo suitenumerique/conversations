@@ -101,8 +101,8 @@ def test_main_yellow_fb_yellow_degraded(settings, llm_configs):
     with _patch_health(main="yellow", fb1="yellow"):
         result = compute_assistant_health_banners()
     assert len(result["banners"]) == 1
-    assert result["banners"][0]["level"] == "warning"
-    assert "degraded" in result["banners"][0]["title"]
+    assert result["banners"][0]["level"] == "info"
+    assert result["banners"][0]["title"] == "High traffic"
     assert result["blocked"] is False
 
 
@@ -111,8 +111,8 @@ def test_main_yellow_no_fallback_degraded(settings):
     with _patch_health(main="yellow"):
         result = compute_assistant_health_banners()
     assert len(result["banners"]) == 1
-    assert result["banners"][0]["level"] == "warning"
-    assert "degraded" in result["banners"][0]["title"]
+    assert result["banners"][0]["level"] == "info"
+    assert result["banners"][0]["title"] == "High traffic"
     assert result["blocked"] is False
 
 
@@ -123,8 +123,8 @@ def test_main_yellow_fb1_none_degraded(settings, llm_configs):
     with _patch_health(main="yellow", fb1=None):
         result = compute_assistant_health_banners()
     assert len(result["banners"]) == 1
-    assert result["banners"][0]["level"] == "warning"
-    assert "degraded" in result["banners"][0]["title"]
+    assert result["banners"][0]["level"] == "info"
+    assert result["banners"][0]["title"] == "High traffic"
     assert result["blocked"] is False
 
 
@@ -137,8 +137,8 @@ def test_main_red_fb_yellow_degraded(settings, llm_configs):
     with _patch_health(main="red", fb1="yellow"):
         result = compute_assistant_health_banners()
     assert len(result["banners"]) == 1
-    assert result["banners"][0]["level"] == "warning"
-    assert "degraded" in result["banners"][0]["title"]
+    assert result["banners"][0]["level"] == "info"
+    assert result["banners"][0]["title"] == "High traffic"
     assert result["blocked"] is False
 
 
@@ -150,8 +150,8 @@ def test_main_red_fb1_red_fb2_green_degraded(settings, llm_configs):
     with _patch_health(main="red", fb1="red", fb2="green"):
         result = compute_assistant_health_banners()
     assert len(result["banners"]) == 1
-    assert result["banners"][0]["level"] == "warning"
-    assert "degraded" in result["banners"][0]["title"]
+    assert result["banners"][0]["level"] == "info"
+    assert result["banners"][0]["title"] == "High traffic"
     assert result["blocked"] is False
 
 
@@ -162,8 +162,8 @@ def test_main_red_fb1_red_fb2_yellow_degraded(settings, llm_configs):
     with _patch_health(main="red", fb1="red", fb2="yellow"):
         result = compute_assistant_health_banners()
     assert len(result["banners"]) == 1
-    assert result["banners"][0]["level"] == "warning"
-    assert "degraded" in result["banners"][0]["title"]
+    assert result["banners"][0]["level"] == "info"
+    assert result["banners"][0]["title"] == "High traffic"
     assert result["blocked"] is False
 
 
@@ -175,8 +175,8 @@ def test_main_red_fb1_none_degraded(settings, llm_configs):
     with _patch_health(main="red", fb1=None, fb2="green"):
         result = compute_assistant_health_banners()
     assert len(result["banners"]) == 1
-    assert result["banners"][0]["level"] == "warning"
-    assert "degraded" in result["banners"][0]["title"]
+    assert result["banners"][0]["level"] == "info"
+    assert result["banners"][0]["title"] == "High traffic"
     assert result["blocked"] is False
 
 
@@ -204,13 +204,13 @@ def test_main_red_no_fallback_unavailable(settings):
 
 
 def test_main_red_no_fallback_degraded_when_block_disabled(settings, patch_site_config):
-    # Admin disabled blocking → degraded banner (warning), not unavailable (alert).
+    # Admin disabled blocking → degraded banner (info), not unavailable (alert).
     patch_site_config.block_on_full_outage = False
     with _patch_health(main="red"):
         result = compute_assistant_health_banners()
     assert result["blocked"] is False
-    assert result["banners"][0]["level"] == "warning"
-    assert "degraded" in result["banners"][0]["title"].lower()
+    assert result["banners"][0]["level"] == "info"
+    assert result["banners"][0]["title"] == "High traffic"
 
 
 @pytest.mark.django_db
@@ -250,8 +250,8 @@ def test_fb1_empty_fb2_yellow_degraded(settings, llm_configs):
     with _patch_health(main="red", fb2="yellow"):
         result = compute_assistant_health_banners()
     assert len(result["banners"]) == 1
-    assert result["banners"][0]["level"] == "warning"
-    assert "degraded" in result["banners"][0]["title"]
+    assert result["banners"][0]["level"] == "info"
+    assert result["banners"][0]["title"] == "High traffic"
     assert result["blocked"] is False
 
 
@@ -286,8 +286,8 @@ def test_main_hrid_with_no_explicit_provider(settings):
 
     mock_health.assert_called_once_with("openai", "gpt-4o")
     # main=yellow, no fallbacks → all_down=True (both empty), but main≠red → degraded, not blocked.
-    assert result["banners"][0]["level"] == "warning"
-    assert "degraded" in result["banners"][0]["title"]
+    assert result["banners"][0]["level"] == "info"
+    assert result["banners"][0]["title"] == "High traffic"
     assert result["blocked"] is False
 
 

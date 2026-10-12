@@ -416,7 +416,7 @@ class ModelHealthResponseSerializer(serializers.Serializer):  # pylint: disable=
 class AssistantHealthBannerSerializer(serializers.Serializer):  # pylint: disable=abstract-method
     """Single health banner item."""
 
-    level = serializers.ChoiceField(choices=["warning", "alert"])
+    level = serializers.ChoiceField(choices=["info", "warning", "alert"])
     title = serializers.CharField()
     content = serializers.CharField()
 

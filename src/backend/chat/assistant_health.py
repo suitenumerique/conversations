@@ -22,11 +22,11 @@ _BANNER_SLOW = {
     ),
 }
 _BANNER_DEGRADED = {
-    "level": "warning",
-    "title": _("High traffic - degraded service"),
+    "level": "info",
+    "title": _("High traffic"),
     "content": _(
         "The service is experiencing high demand, "
-        "which is affecting service quality. "
+        "which might affect service quality. "
         "Some features may be impacted. If you encounter an error, "
         "please try again "
         "once this error banner disappears."
