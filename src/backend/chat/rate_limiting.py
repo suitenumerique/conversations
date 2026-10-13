@@ -275,3 +275,15 @@ class ProjectCreateDailyThrottle(AtomicWindowThrottle):
     """Daily ceiling on project creation, per user."""
 
     scope = "project_create_daily"
+
+
+class VoicePromptHourlyThrottle(AtomicWindowThrottle):
+    """Hourly ceiling on voice prompt transcriptions, per user."""
+
+    scope = "voice_prompt_hourly"
+
+
+class VoicePromptDailyThrottle(AtomicWindowThrottle):
+    """Daily ceiling on voice prompt transcriptions, per user."""
+
+    scope = "voice_prompt_daily"

@@ -19,6 +19,7 @@ from chat.views import (
     FileStreamView,
     LLMConfigurationView,
     ModelHealthView,
+    VoicePromptTranscriptionView,
 )
 
 # - Main endpoints
@@ -48,6 +49,11 @@ urlpatterns = [
                 path("model-health/", ModelHealthView.as_view(), name="model-health"),
                 path("assistant-health/", AssistantHealthView.as_view(), name="assistant-health"),
                 path("chat-cooldown/", ChatCooldownView.as_view(), name="chat-cooldown"),
+                path(
+                    "voice-prompt/transcriptions/",
+                    VoicePromptTranscriptionView.as_view(),
+                    name="voice-prompt-transcriptions",
+                ),
                 path(
                     "chats/<uuid:conversation_pk>/",
                     include(conversation_router.urls),

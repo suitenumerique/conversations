@@ -10,6 +10,7 @@ export const CONFIG = {
     'datagouv-connector': 'disabled',
     'document-upload': 'enabled',
     'presentation-generation': 'disabled',
+    'voice-prompt': 'disabled',
     'web-search': 'enabled',
   },
   FILE_UPLOAD_MODE: 'presigned_url',
@@ -60,6 +61,8 @@ export const CONFIG = {
   project_images_max_count: 3,
   attachment_max_size: 10,
   status_banner: null,
+  voice_prompt_enabled: false,
+  voice_prompt_max_duration: 300,
 } as const;
 
 export const overrideConfig = async (

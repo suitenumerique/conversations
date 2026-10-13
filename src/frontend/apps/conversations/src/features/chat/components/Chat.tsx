@@ -1218,6 +1218,7 @@ export const Chat = ({
           messagesLength={messages.length}
           input={input}
           handleInputChange={handleInputChange}
+          setInput={setInput}
           handleSubmit={handleSubmitWrapper}
           status={status}
           files={files}
@@ -1238,6 +1239,7 @@ export const Chat = ({
           isRetryingIndexing={reindexAttachment.isPending}
           errorType={status === 'error' ? chatErrorType : undefined}
           cooldownUntil={cooldownUntil}
+          conversationId={conversationId}
         />
       </Box>
       <Modal
