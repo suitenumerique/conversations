@@ -3,7 +3,7 @@
     {
       "hrid": "default-model",
       "model_name": "settings.AI_MODEL",
-      "human_readable_name": "Default Model",
+      "human_readable_name": "Mistral Medium 3.5",
       "provider_name": "default-provider",
       "profile": null,
       "settings": {},
@@ -21,13 +21,39 @@
       "tools": "settings.AI_AGENT_TOOLS"
     },
     {
+      "hrid": "glm-5.3",
+      "model_name": "false",
+      "human_readable_name": "GLM 5.3",
+      "provider_name": "default-provider",
+      "profile": null,
+      "settings": {},
+      "is_active": true,
+      "supports_image": true,
+      "icon": null,
+      "system_prompt": "settings.AI_AGENT_INSTRUCTIONS",
+      "tools": "settings.AI_AGENT_TOOLS"
+    },
+    {
+      "hrid": "mistral-large",
+      "model_name": "mistral-large-latest",
+      "human_readable_name": "Mistral Large",
+      "provider_name": "default-provider",
+      "profile": null,
+      "settings": {},
+      "is_active": false,
+      "supports_image": true,
+      "icon": null,
+      "system_prompt": "settings.AI_AGENT_INSTRUCTIONS",
+      "tools": "settings.AI_AGENT_TOOLS"
+    },
+    {
       "hrid": "default-summarization-model",
       "model_name": "settings.AI_MODEL",
       "human_readable_name": "Default Summarization Model",
       "provider_name": "default-provider",
       "profile": null,
       "settings": {},
-      "is_active": true,
+      "is_active": false,
       "icon": null,
       "system_prompt": "settings.SUMMARIZATION_SYSTEM_PROMPT",
       "tools": []
