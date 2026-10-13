@@ -104,7 +104,7 @@ class ActivationCodeAdmin(ReadOnlyModelAdmin):
     def usage_display(self, obj):
         """Display usage statistics."""
         max_uses = obj.max_uses if obj.max_uses > 0 else "∞"
-        if obj.current_uses >= obj.max_uses and obj.max_uses > 0:
+        if 0 < obj.max_uses <= obj.current_uses:
             color = "red"
         elif obj.current_uses > 0:
             color = "orange"
