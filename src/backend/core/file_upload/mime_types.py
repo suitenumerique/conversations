@@ -128,3 +128,28 @@ def resolve_markdown_content_type(file_name: str | None, content_type: str | Non
     ):
         return "text/markdown"
     return content_type
+
+
+CSV_EXTENSION = ".csv"
+# Types reported for a CSV file other than text/csv: libmagic sniffs a `;`-separated
+# or non-UTF-8 CSV as text/plain, and on Windows a browser takes the type from the
+# registry, which maps .csv to Excel when it is installed.
+CSV_CLAIMED_MIME_TYPES = [
+    "text/plain",
+    "application/vnd.ms-excel",
+    "application/octet-stream",
+    "",
+]
+
+
+def resolve_csv_content_type(file_name: str | None, content_type: str | None) -> str:
+    """Return text/csv for a .csv file name whose detected or claimed type is unreliable.
+
+    Any other file keeps its type (an empty string when there is none).
+    """
+    content_type = content_type or ""
+    if (file_name or "").lower().endswith(CSV_EXTENSION) and (
+        content_type.lower() in CSV_CLAIMED_MIME_TYPES
+    ):
+        return "text/csv"
+    return content_type

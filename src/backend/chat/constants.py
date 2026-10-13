@@ -14,6 +14,12 @@ PDF_MIME_TYPE = "application/pdf"  # routed to the dedicated PDF parser
 MARKDOWN_MIME_TYPE = "text/markdown"  # markdown companion stored for indexed files
 SSE_MIME_TYPE = "text/event-stream"  # Server-Sent Events streaming responses
 
+# Spreadsheet attachments analyzed through the tabular tools (chat.tabular) instead of
+# being RAG-indexed or inlined in the document context.
+CSV_MIME_TYPES = ("text/csv", "application/csv")
+XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+TABULAR_MIME_TYPES = (*CSV_MIME_TYPES, XLSX_MIME_TYPE)
+
 # Access values exposed to the model in the documents listing. Keep in sync
 # with the `Access` Literal in chat.document_context_builder (Python's Literal
 # can't reference module-level constants).
@@ -29,11 +35,20 @@ SUMMARIZATION_TASK_SOFT_TIME_LIMIT = 110  # seconds, raises SoftTimeLimitExceede
 SUMMARIZATION_TASK_TIME_LIMIT = 120  # seconds, worker is SIGKILLed
 HISTORY_SUMMARY_CLAIM_TTL_SECONDS = SUMMARIZATION_TASK_TIME_LIMIT + 60
 
+
 # De-index task time limits. A run can process DEINDEX_MAX_PER_RUN conversations
 # over HTTP, and the global 180/300 s limits would SIGKILL it mid-run and leave
 # orphan collections. Keep the hard limit below the Redis visibility_timeout of 3600 s.
 DEINDEX_TASK_SOFT_TIME_LIMIT = 1500  # seconds, raises SoftTimeLimitExceeded
 DEINDEX_TASK_TIME_LIMIT = 1800  # seconds, worker is SIGKILLed
+
+# Tabular query limits. The task limits bound the whole load + query; the caller
+# stops waiting a bit after the hard limit.
+TABULAR_QUERY_MAX_ROWS = 100
+TABULAR_TASK_SOFT_TIME_LIMIT = 50  # seconds, raises SoftTimeLimitExceeded
+TABULAR_TASK_TIME_LIMIT = 60  # seconds, worker is SIGKILLed
+TABULAR_RESULT_TIMEOUT_SECONDS = TABULAR_TASK_TIME_LIMIT + 10
+
 
 # After the triggering turn enqueues the summarization task, how long the
 # wait loop tolerates "no live claim yet" before giving up and failing the

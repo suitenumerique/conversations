@@ -20,6 +20,7 @@ from core.analytics import capture_event
 from core.api.viewsets import SerializerPerActionMixin
 from core.file_upload import enums
 from core.file_upload.enums import AttachmentStatus
+from core.file_upload.mime_types import resolve_csv_content_type
 from core.file_upload.mixins import AttachmentMixin
 from core.file_upload.serializers import FileUploadSerializer
 
@@ -129,6 +130,8 @@ class BaseAttachmentViewSet(
         with default_storage.open(attachment.key, "rb") as file:
             mimetype = mime_detector.from_buffer(file.read(2048))
             size = file.size
+        # libmagic cannot tell most CSV files from plain text: trust the .csv name.
+        mimetype = resolve_csv_content_type(attachment.file_name, mimetype)
 
         attachment.upload_state = AttachmentStatus.ANALYZING
         attachment.content_type = mimetype

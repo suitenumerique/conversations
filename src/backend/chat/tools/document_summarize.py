@@ -14,7 +14,7 @@ from pydantic_ai.messages import ToolReturn
 
 from chat import models
 from chat.agents.summarize import SummarizationAgent
-from chat.constants import TEXT_MIME_PREFIX
+from chat.constants import TABULAR_MIME_TYPES, TEXT_MIME_PREFIX
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.utils import last_model_retry_soft_fail, resolve_attachment_by_id
 
@@ -247,9 +247,12 @@ async def document_summarize(
         If document_id is None, summarize every conversation document.
     """
     try:
-        text_attachment_qs = ctx.deps.conversation.attachments.filter(
-            content_type__startswith=TEXT_MIME_PREFIX
-        ).order_by("created_at", "id")
+        # Spreadsheets are analyzed with the tabular tools, not summarized as text.
+        text_attachment_qs = (
+            ctx.deps.conversation.attachments.filter(content_type__startswith=TEXT_MIME_PREFIX)
+            .exclude(content_type__in=TABULAR_MIME_TYPES)
+            .order_by("created_at", "id")
+        )
         text_attachment = await sync_to_async(list)(text_attachment_qs)
 
         return await _summarize_text_attachments(

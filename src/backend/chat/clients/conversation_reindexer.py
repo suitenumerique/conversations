@@ -16,7 +16,7 @@ from core.file_upload.enums import AttachmentStatus
 
 from chat import models
 from chat.clients.error_classification import RAG_ERROR, resolve_rag_error_code
-from chat.constants import TEXT_MIME_PREFIX
+from chat.constants import TABULAR_MIME_TYPES, TEXT_MIME_PREFIX
 from chat.enums import CollectionIndexState
 from chat.vercel_ai_sdk.core import events_v4
 
@@ -106,6 +106,7 @@ async def reindex_conversation(  # pylint: disable=too-many-locals
         a
         for a in ready_attachments
         if a.content_type.startswith(TEXT_MIME_PREFIX)
+        and a.content_type not in TABULAR_MIME_TYPES
         and str(a.id) not in in_context_ids
         and not a.is_indexed
     ]

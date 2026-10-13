@@ -825,7 +825,7 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
     [
         ("sample.txt", "text/plain"),
         ("image.md", "text/markdown"),
-        ("data.csv", "text/csv"),
+        # CSV skips document parsing: see test_conversation_with_spreadsheet.py
     ],
 )
 def test_post_conversation_with_local_not_pdf_document_url(

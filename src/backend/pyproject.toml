@@ -68,6 +68,8 @@ dependencies = [
     "odfdo==3.26.3",
     "django-solo==2.5.1",
     "tiktoken==0.14.0",
+    "pandas==3.0.5",
+    "python-calamine==0.8.2",
 ]
 
 [project.urls]
@@ -103,6 +105,7 @@ dev = [
     "respx==0.23.1",
     "ruff==0.16.9",
     "debugpy>=1.8.20",
+    "openpyxl==3.1.5",
 ]
 
 [tool.setuptools]

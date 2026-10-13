@@ -14,6 +14,15 @@ and this project adheres to
 - ⚡️(front) disable posthog-js periodic feature flag reloads
 - 🐛(front) avoid stale pages and blank screens after a deploy
 - 🐛(front) ask to reload when a new version has been deployed
+ 
+### Added
+
+- ✨(back) analyze csv and xlsx attachments with a structured query tool
+
+### Fixed
+
+- 🐛(back) keep the original upload when storing its markdown conversion
+- 🐛(back) store csv uploads detected as plain text as csv
 
 ### Security
 
