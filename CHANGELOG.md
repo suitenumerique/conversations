@@ -8,17 +8,9 @@ and this project adheres to
 
 ## [Unreleased]
 
-### Fixed
+### Added
 
-- 💄(front) add margin-top for the carbon impact module.
-- ⚡️(front) disable posthog-js periodic feature flag reloads
-- 🐛(front) avoid stale pages and blank screens after a deploy
-- 🐛(front) ask to reload when a new version has been deployed
-
-### Security
-
-- 🔒️(project) keep user prompts out of logs and telemetry
-- 🔒️(docker) bind dev compose ports to localhost only
+- 📝(project) add pull request and AI usage policy
 
 ### Changed
 
@@ -28,7 +20,16 @@ and this project adheres to
 
 ### Fixed
 
+- 💄(front) add margin-top for the carbon impact module.
+- ⚡️(front) disable posthog-js periodic feature flag reloads
+- 🐛(front) avoid stale pages and blank screens after a deploy
+- 🐛(front) ask to reload when a new version has been deployed
 - 🐛(ci) remove the shell default suffix from the DOCKER_USER build argument
+
+### Security
+
+- 🔒️(project) keep user prompts out of logs and telemetry
+- 🔒️(docker) bind dev compose ports to localhost only
 
 ## [0.0.25] - 2026-10-01
 

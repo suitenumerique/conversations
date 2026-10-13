@@ -65,6 +65,28 @@ Please add a line to the changelog describing your development. The changelog en
 - ✨(frontend) add AI to the project #321
 ```
 
+## Pull Request Policy
+
+We welcome contributions, but to keep the project focused and maintainable, we review pull requests according to the following guidelines:
+
+- **Bug fixes**: Always welcome. Please describe the issue, how to reproduce it, and how your change fixes it. Link to an existing issue if possible.
+- **Security fixes**: You must read and comply with our [security policy](SECURITY.md). Report vulnerabilities privately as described there, not through a public issue or pull request.
+- **Deployment and tooling improvements**: Contributions that improve build, CI/CD, packaging, or deployment are welcome.
+- **Unsolicited feature PRs**: New features will be declined unless they match an existing issue or have been discussed and agreed upon with the maintainers beforehand.
+
+Want to propose a new feature? Open an issue or start a discussion first. This allows us to check that the idea matches the project's direction before you put time and effort into the implementation.
+
+## Use of AI / LLM Tools
+
+You may use AI assistants (ChatGPT, Claude and others) when contributing, but you remain fully responsible for what you commit:
+
+- **Understand your code.** You must be able to explain and defend every change in your PR. ("Claude wrote it" is not an answer.)
+- **Test it.** AI-generated code often looks right but isn't. Make sure your changes build, pass the tests, and actually fix the problem.
+- **Keep it focused.** Avoid large, sweeping, or speculative changes produced by an LLM.
+- **Be concise.** Write PR descriptions and issue reports in your own words. Long AI-generated summaries make review harder, not easier.
+
+Low-effort, unreviewed AI-generated PRs or issues will be closed.
+
 ## Pull Requests
 
 It is nice to add information about the purpose of the pull request to help reviewers understand the context and intent of the changes. If you can, add some pictures or a small video to show the changes.
