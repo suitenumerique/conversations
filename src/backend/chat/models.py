@@ -459,6 +459,11 @@ class ChatConversationAttachment(BaseModel):
         null=True,
         help_text="Human-readable reason the last indexing attempt failed, if any",
     )
+    docs_document_id = models.UUIDField(
+        blank=True,
+        null=True,
+        help_text="Id of the Docs document this attachment is a snapshot of, if any",
+    )
 
     class Meta:  # pylint: disable=missing-class-docstring
         constraints = [
