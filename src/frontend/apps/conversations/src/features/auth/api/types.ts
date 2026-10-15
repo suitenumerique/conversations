@@ -16,5 +16,6 @@ export interface User {
   allow_smart_web_search: boolean;
   allow_datagouv_connector: boolean;
   allow_conversation_analytics: boolean;
+  custom_guidelines: string;
   sub?: string;
 }

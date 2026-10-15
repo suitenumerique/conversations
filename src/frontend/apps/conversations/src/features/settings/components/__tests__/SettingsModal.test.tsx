@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { ToastProvider } from '@/components';
 import { User } from '@/features/auth/api/types';
 import '@/i18n/initI18n';
 import { AppWrapper } from '@/tests/utils';
@@ -53,6 +54,7 @@ const user: User = {
   allow_smart_web_search: true,
   allow_conversation_analytics: false,
   allow_datagouv_connector: false,
+  custom_guidelines: 'Be concise.',
 };
 
 beforeEach(() => {
@@ -62,9 +64,14 @@ beforeEach(() => {
 });
 
 // The General tab holds a StyledLink, which needs a router in context.
+// ToastProvider mirrors the production tree (AppProvider) for tabs using
+// useToast / useClipboard. The mocked Modal renders every tab flat, so all
+// tests need it.
 const Wrapper = ({ children }: PropsWithChildren) => (
   <MemoryRouter>
-    <AppWrapper>{children}</AppWrapper>
+    <AppWrapper>
+      <ToastProvider>{children}</ToastProvider>
+    </AppWrapper>
   </MemoryRouter>
 );
 
@@ -110,5 +117,79 @@ describe('SettingsModal connectors tab', () => {
       id: 'user-1',
       allow_datagouv_connector: false,
     });
+  });
+});
+
+describe('SettingsModal personalization tab', () => {
+  const writeText = vi.fn();
+
+  const renderPersonalizationModal = () => renderModal();
+
+  const guidelinesField = () =>
+    within(screen.getByTestId('tab-personalization')).getByLabelText(
+      'Your guidelines',
+    );
+
+  beforeEach(() => {
+    writeText.mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+  });
+
+  it('displays the saved guidelines with save disabled until edited', async () => {
+    renderPersonalizationModal();
+    const field = guidelinesField() as HTMLTextAreaElement;
+    expect(field.value).toBe('Be concise.');
+
+    const tab = screen.getByTestId('tab-personalization');
+    const saveButton = within(tab).getByRole('button', { name: 'Save' });
+    expect(saveButton).toBeDisabled();
+    expect(within(tab).getByText('11/2000')).toBeInTheDocument();
+
+    await userEvent.type(field, '!');
+    expect(saveButton).toBeEnabled();
+    await userEvent.click(saveButton);
+    expect(mockUpdateUser).toHaveBeenCalledWith({
+      id: 'user-1',
+      custom_guidelines: 'Be concise.!',
+    });
+  });
+
+  it('shows the counter and disabled copy and delete when empty', () => {
+    mockUser.mockReturnValue({ ...user, custom_guidelines: '' });
+    renderPersonalizationModal();
+    const field = guidelinesField() as HTMLTextAreaElement;
+    expect(field.value).toBe('');
+
+    const tab = screen.getByTestId('tab-personalization');
+    expect(field.placeholder).toBe(
+      'Example: prefer sharp, concise answers over long explanations.',
+    );
+    expect(within(tab).getByText('0/2000')).toBeInTheDocument();
+    expect(within(tab).getByRole('button', { name: 'Copy' })).toBeDisabled();
+    expect(within(tab).getByRole('button', { name: 'Delete' })).toBeDisabled();
+  });
+
+  it('delete clears the draft without saving', async () => {
+    renderPersonalizationModal();
+    const tab = screen.getByTestId('tab-personalization');
+    await userEvent.click(within(tab).getByRole('button', { name: 'Delete' }));
+    expect((guidelinesField() as HTMLTextAreaElement).value).toBe('');
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+    expect(within(tab).getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('copy sends the draft to the clipboard', async () => {
+    renderPersonalizationModal();
+    const tab = screen.getByTestId('tab-personalization');
+    await userEvent.click(within(tab).getByRole('button', { name: 'Copy' }));
+    expect(writeText).toHaveBeenCalledWith('Be concise.');
+  });
+
+  it('warns against sharing personal information', () => {
+    renderPersonalizationModal();
+    const tab = screen.getByTestId('tab-personalization');
+    expect(
+      within(tab).getByText('Do not share personal information'),
+    ).toBeInTheDocument();
   });
 });

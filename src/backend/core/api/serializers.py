@@ -8,6 +8,12 @@ from core import models
 class UserSerializer(serializers.ModelSerializer):
     """Serialize users."""
 
+    CUSTOM_GUIDELINES_MAX_LENGTH = 2000  # prevent too large prompts, easier to handle here
+
+    custom_guidelines = serializers.CharField(
+        max_length=CUSTOM_GUIDELINES_MAX_LENGTH, required=False, allow_blank=True
+    )
+
     class Meta:
         model = models.User
         fields = [
@@ -15,6 +21,7 @@ class UserSerializer(serializers.ModelSerializer):
             "allow_conversation_analytics",
             "allow_datagouv_connector",
             "allow_smart_web_search",
+            "custom_guidelines",
             "email",
             "full_name",
             "short_name",

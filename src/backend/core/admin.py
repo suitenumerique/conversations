@@ -43,6 +43,7 @@ class UserAdmin(auth_admin.UserAdmin):
                     # user-facing switch yet (#728), so this is the only way to
                     # enrol someone in the beta.
                     "allow_datagouv_connector",
+                    "custom_guidelines",
                 )
             },
         ),

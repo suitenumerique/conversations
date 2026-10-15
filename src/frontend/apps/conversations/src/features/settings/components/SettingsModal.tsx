@@ -16,6 +16,7 @@ import { useAuthQuery } from '@/features/auth/api';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { useResponsiveStore } from '@/stores/useResponsiveStore';
 
+import { PersonalizationTab } from './PersonalizationTab';
 import { SettingsToggleRow } from './SettingsToggleRow';
 
 interface SettingsModalProps {
@@ -227,6 +228,10 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
     </>
   );
 
+  const personalizationSettings = () => {
+    return <PersonalizationTab user={user} />;
+  };
+
   const settingsTabs = [
     {
       id: 'general',
@@ -240,6 +245,12 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
       title: t('Connectors'),
       content: connectorsSettings(),
     },
+    {
+      id: 'personalization',
+      label: t('Personalization'),
+      title: t('Personalization'),
+      content: personalizationSettings(),
+    },
   ];
 
   const tabModalProps = {
@@ -251,7 +262,10 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
     sidebarTitle: t('Settings'),
     variant: 'tab' as const,
     constraints: {
+      // Fixed dialog height so switching tabs never resizes it: taller
+      // content (e.g. personalization) scrolls inside instead.
       minHeight: 'min(430px, calc(100dvh - 3rem))',
+      maxHeight: 'min(430px, calc(100dvh - 3rem))',
     },
   } as unknown as React.ComponentProps<typeof Modal>;
 

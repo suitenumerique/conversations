@@ -63,6 +63,7 @@ def test_api_users_retrieve_me_authenticated():
         "allow_conversation_analytics": user.allow_conversation_analytics,
         "allow_datagouv_connector": user.allow_datagouv_connector,
         "allow_smart_web_search": user.allow_smart_web_search,
+        "custom_guidelines": user.custom_guidelines,
         "email": user.email,
         "full_name": user.full_name,
         "language": user.language,
@@ -206,6 +207,7 @@ def test_api_users_update_authenticated_self():
             "allow_conversation_analytics",
             "allow_datagouv_connector",
             "allow_smart_web_search",
+            "custom_guidelines",
             "language",
             "timezone",
         ]:
@@ -296,12 +298,40 @@ def test_api_users_patch_authenticated_self():
             "allow_conversation_analytics",
             "allow_datagouv_connector",
             "allow_smart_web_search",
+            "custom_guidelines",
             "language",
             "timezone",
         ]:
             assert value == new_user_values[key]
         else:
             assert value == old_user_values[key]
+
+
+def test_api_users_patch_custom_guidelines():
+    """Authenticated users should be able to set their custom guidelines, within the limit."""
+    user = factories.UserFactory()
+
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.patch(
+        f"/api/v1.0/users/{user.id!s}/",
+        {"custom_guidelines": "Always answer in French, tutoiement."},
+        format="json",
+    )
+    assert response.status_code == 200
+    user.refresh_from_db()
+    assert user.custom_guidelines == "Always answer in French, tutoiement."
+    assert response.json()["custom_guidelines"] == "Always answer in French, tutoiement."
+
+    response = client.patch(
+        f"/api/v1.0/users/{user.id!s}/",
+        {"custom_guidelines": "x" * 2001},
+        format="json",
+    )
+    assert response.status_code == 400
+    user.refresh_from_db()
+    assert user.custom_guidelines == "Always answer in French, tutoiement."
 
 
 def test_api_users_patch_authenticated_other():

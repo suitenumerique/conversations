@@ -184,6 +184,16 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         ),
     )
 
+    custom_guidelines = models.TextField(
+        _("custom guidelines"),
+        default="",
+        blank=True,
+        help_text=_(
+            "Personal guidelines the user wants the assistant to follow, "
+            "appended to the system prompt on every conversation."
+        ),
+    )
+
     # Organization SIRET from the OIDC "siret" claim, refreshed on every login.
     # Empty string (not NULL) when absent or malformed, per Django's convention
     # for optional string fields.

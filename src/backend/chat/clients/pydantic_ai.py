@@ -185,6 +185,7 @@ from chat.document_context_builder import (
 from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
 from chat.mcp_servers import DataGouvConnector, enter_mcp_toolsets
+from chat.prompts import USER_GUIDELINES_HEADER
 from chat.rate_limiting import record_and_compute_cooldown
 from chat.tasks import parse_and_store_conversation_document_task, summarize_conversation_history
 from chat.tools.descriptions import (
@@ -396,6 +397,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._conversation_message_token_budget = resolve_conversation_budget(
             self.model_configuration
         )
+
+        user_custom_guidelines = (self.user.custom_guidelines or "").strip()
+        if user_custom_guidelines:
+            guidelines_block = f"{USER_GUIDELINES_HEADER}\n\n{user_custom_guidelines}"
+
+            @self.conversation_agent.instructions
+            def user_custom_guidelines_instruction() -> str:
+                """Inject the user's personal guidelines."""
+                return guidelines_block
 
         # Inject project-level custom instructions if the conversation belongs to a project
         llm_user_instructions = (
