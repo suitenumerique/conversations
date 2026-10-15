@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(back) read La Suite Docs documents from pasted Docs links
+
 ## [0.0.29] - 2026-11-15
 
 ### Added

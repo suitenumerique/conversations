@@ -27,7 +27,7 @@ from core import instrumentation, metrics
 from chat.agent_rag.document_rag_backends.albert_rag_backend import AlbertRagBackend
 from chat.agents.conversation import TitleGenerationAgent
 from chat.clients.exceptions import StreamCancelException
-from chat.docs_client import DocsClient
+from chat.docs_client import DocsClient, DocsFetchError
 from chat.tools.web_search_brave import _query_brave_api_with_endpoint_async
 from chat.tools.web_search_staan import STAAN_SEARCH_URL, staan_search
 
@@ -208,6 +208,24 @@ def test_instrumentation_docs_is_measured(metrics_enabled):
     before = sample(OUTGOING_DURATION, **labels)
 
     DocsClient().create_document("A title", "Some content", session)
+
+    assert sample(OUTGOING_DURATION, **labels) == before + 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_instrumentation_docs_fetch_is_measured(metrics_enabled):
+    """A document read from Docs is measured, under the status Docs answered with."""
+    metrics_enabled.DOCS_BASE_URL = "https://docs.example.com/"
+    document_id = "0b8f1e9a-3c5d-4e2f-9a1b-7c6d5e4f3a21"
+    respx.get(
+        f"https://docs.example.com/external_api/v1.0/documents/{document_id}/formatted-content/"
+    ).mock(return_value=httpx.Response(403))
+    labels = {"service": "docs", "operation": "fetch_document", "status": "403"}
+    before = sample(OUTGOING_DURATION, **labels)
+
+    with pytest.raises(DocsFetchError):
+        await DocsClient().fetch_document_markdown(document_id, {"oidc_access_token": "a-token"})
 
     assert sample(OUTGOING_DURATION, **labels) == before + 1
 

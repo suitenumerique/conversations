@@ -130,7 +130,7 @@ async def _collect_handle_input_documents(service, exc):
     document = BinaryContent(data=b"hello", media_type="text/plain")
     events = []
     async for event in service._handle_input_documents(
-        [document], conversation_has_own_documents=False
+        [document], docs_document_ids=[], conversation_has_own_documents=False
     ):
         events.append(event)
     return events

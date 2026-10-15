@@ -1,6 +1,7 @@
 """EvalConfigs for behavioral evals on ConversationAgent."""
 
 from .base import EvalConfig
+from .docs_links import DOCS_LINKS
 from .faithfulness_rag import FAITHFULNESS_RAG
 from .incertitude import INCERTITUDE
 from .tool_selection import TOOL_SELECTION
@@ -11,6 +12,7 @@ REGISTRY: dict[str, EvalConfig] = {
     "faithfulness_rag": FAITHFULNESS_RAG,
     "incertitude": INCERTITUDE,
     "tool_selection": TOOL_SELECTION,
+    "docs_links": DOCS_LINKS,
 }
 
 __all__ = ["EvalConfig", "REGISTRY"]

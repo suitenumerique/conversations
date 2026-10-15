@@ -270,6 +270,15 @@ describe('ToolInvocationItem', () => {
       expect(screen.queryByRole('link')).not.toBeInTheDocument();
     });
 
+    it('renders docs_links_unreadable message without a status link', () => {
+      renderResultError('docs_links_unreadable');
+
+      expect(
+        screen.getByText('The linked Docs documents could not be read.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    });
+
     it('omits the status link when STATUS_PAGE_URL is not configured', () => {
       mockStatusPageUrl = undefined;
       renderResultError('rag_unavailable');
