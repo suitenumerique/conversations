@@ -131,7 +131,7 @@ async def _collect_handle_input_documents(service, exc):
     usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
     events = []
     async for event in service._handle_input_documents(
-        [document], conversation_has_own_documents=False, usage=usage
+        [document], docs_document_ids=[], conversation_has_own_documents=False, usage=usage
     ):
         events.append(event)
     return events
