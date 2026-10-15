@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - 📝(project) add pull request and AI usage policy
+- ✨(back) read La Suite Docs documents from pasted Docs links
 
 ### Changed
 

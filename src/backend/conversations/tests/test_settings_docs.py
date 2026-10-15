@@ -93,3 +93,19 @@ def test_docs_base_url_empty_string_does_not_raise():
 
     # Should not raise — empty string is falsy, same as None
     TestSettings().post_setup()
+
+
+def test_docs_link_fetching_without_docs_base_url_raises(monkeypatch):
+    """Enabling docs_link_fetching without a Docs instance to read from must raise ValueError."""
+    monkeypatch.setenv("FEATURE_FLAG_DOCS_LINK_FETCHING", "ENABLED")
+
+    class TestSettings(Base):
+        """Fake test settings with Docs link fetching on but no Docs URL."""
+
+        DOCS_BASE_URL = None
+
+    with pytest.raises(ValueError) as excinfo:
+        TestSettings().post_setup()
+
+    assert "docs_link_fetching" in str(excinfo.value)
+    assert "DOCS_BASE_URL" in str(excinfo.value)

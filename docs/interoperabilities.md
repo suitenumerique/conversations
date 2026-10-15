@@ -1,6 +1,11 @@
-# Interoperability — "Edit in Docs"
+# Interoperability with La Suite Docs
 
-## What it does
+Conversations talks to **La Suite Docs** in two ways: **"Edit in Docs"** sends an
+assistant reply to Docs, and **"Read a Docs link"** lets the Assistant read a Docs
+document whose link the user pastes. Both call Docs as the user (see
+[How authentication works](#how-authentication-works-resource-server)).
+
+## What "Edit in Docs" does
 
 **"Edit in Docs"** turns an assistant reply into a real, editable document in
 **La Suite Docs**. In the actions menu under an assistant message, the user clicks
@@ -104,6 +109,85 @@ ProConnect overlay reads them via `secretKeyRef`.
 - Each action **always creates a new document**; there is no update of an existing one.
 - A user who has **never logged into Docs** cannot use the feature (the resource
   server does not provision users).
+
+## Read a Docs link
+
+When a user pastes a link to a document on the connected Docs instance, the
+Assistant reads that document before answering. The user only sees the
+"document parsing" indicator listing the pasted links; snapshots do not show up as
+attachments in the UI.
+
+### Flow
+
+1. Before the model runs, Conversations looks for **Docs links** in the **current**
+   user message only. A Docs link has the same scheme and host as `DOCS_BASE_URL`
+   and a `docs/<uuid>/` path under it (query strings and fragments are ignored).
+   At most `DOCS_LINKS_MAX_PER_MESSAGE` links are read per message; extra links are
+   ignored and logged.
+2. For each link, Conversations calls
+   `GET {DOCS_BASE_URL}/external_api/v1.0/documents/{uuid}/formatted-content/?content_format=markdown`
+   with the user's access token. The pasted URL itself is never fetched: the request
+   is always built from `DOCS_BASE_URL` and the document id.
+3. The markdown is stored as a conversation attachment (a **Docs snapshot**) and
+   indexed like an uploaded file. Small documents are then put directly in the
+   model's context and large ones are reached through document search (RAG), with
+   the same budget as uploads.
+
+```
+┌───────────┐  message with a     ┌───────────────┐  formatted-content   ┌──────────┐
+│  Browser  │  Docs link          │ Conversations │  (as the user)       │   Docs   │
+│           │ ──────────────────► │               │ ───────────────────► │          │
+└───────────┘                     └───────────────┘ ◄─────────────────── └──────────┘
+                                          │            markdown
+                                          ▼
+                              snapshot attachment → inline or RAG → model
+```
+
+### Snapshot and replace
+
+- The content is read **once**, when the link is pasted. Later edits in Docs are not
+  seen until the user pastes the link again.
+- There is **one snapshot per Docs document per conversation**. Pasting the same link
+  again deletes the previous snapshot (stored file, RAG document and attachment row)
+  and stores a fresh one.
+- The model is told which attached document each pasted link points to. Without this,
+  the snapshot is only listed by file name, and the model may answer that it cannot open
+  the URL.
+
+### When a document cannot be read
+
+A failed read never aborts the turn: the other documents are still used, and the
+model is told why the document is missing so it can explain it to the user:
+
+| Docs answer                   | What the model is told                               |
+|-------------------------------|------------------------------------------------------|
+| 400, 401, or no access token  | The Docs session expired / the user never signed in  |
+| 403                           | The user has no access to the document               |
+| 404                           | The document does not exist or was deleted           |
+| 5xx, timeout, network error, non-JSON answer | Docs is unavailable                                  |
+| Content over `ATTACHMENT_MAX_SIZE` | The document is too large                       |
+
+A 403 is also logged as a warning: it is what Docs answers when the
+`formatted_content` action is not allowed (see below).
+
+### Enabling it
+
+- On Conversations: set `DOCS_BASE_URL`, enable `FEATURE_FLAG_DOCUMENT_UPLOAD` and set
+  `FEATURE_FLAG_DOCS_LINK_FETCHING` (see [env.md](env.md)). The feature is off unless
+  all three are set.
+- **On Docs (operator prerequisite):** the `formatted_content` action is **not** in
+  Docs' default `EXTERNAL_API["documents"]["actions"]`, and the resource server
+  rejects with a 403 every action missing from that list. Add `"formatted_content"`
+  to it.
+
+### Limitations
+
+- Only the document's **text** is read, as markdown; images are not transferred.
+- **No live sync**: the snapshot does not follow later edits in Docs (paste the link
+  again to refresh it).
+- As for "Edit in Docs", a user who has **never logged into Docs** cannot use it.
+- Content from a shared document is trusted like an uploaded file (same prompt
+  injection risk, no malware scan since it is markdown generated by Docs).
 
 ## References
 
