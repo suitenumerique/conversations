@@ -63,7 +63,7 @@ export const PersonalizationTab = ({ user }: PersonalizationTabProps) => {
         </Box>
         <Text $size="xs" $theme="greyscale" $variation="600">
           {t(
-            'Avoid passwords, ID numbers, health details or any other sensitive data: only write what you are comfortable sending along with every request.',
+            'Avoid access codes, ID numbers, health details or any other sensitive data: only write what you are comfortable sending along with every request.',
           )}
         </Text>
       </Box>
