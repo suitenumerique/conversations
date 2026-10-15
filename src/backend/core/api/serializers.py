@@ -11,7 +11,10 @@ class UserSerializer(serializers.ModelSerializer):
     CUSTOM_GUIDELINES_MAX_LENGTH = 2000  # prevent too large prompts, easier to handle here
 
     custom_guidelines = serializers.CharField(
-        max_length=CUSTOM_GUIDELINES_MAX_LENGTH, required=False, allow_blank=True
+        max_length=CUSTOM_GUIDELINES_MAX_LENGTH,
+        required=False,
+        allow_blank=True,
+        trim_whitespace=False,
     )
 
     class Meta:

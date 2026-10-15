@@ -334,6 +334,24 @@ def test_api_users_patch_custom_guidelines():
     assert user.custom_guidelines == "Always answer in French, tutoiement."
 
 
+def test_api_users_patch_custom_guidelines_preserves_whitespace():
+    """Leading/trailing whitespace must round-trip so the editor state matches the API."""
+    user = factories.UserFactory()
+
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.patch(
+        f"/api/v1.0/users/{user.id!s}/",
+        {"custom_guidelines": "  Be concise.  "},
+        format="json",
+    )
+    assert response.status_code == 200
+    assert response.json()["custom_guidelines"] == "  Be concise.  "
+    user.refresh_from_db()
+    assert user.custom_guidelines == "  Be concise.  "
+
+
 def test_api_users_patch_authenticated_other():
     """Authenticated users should not be allowed to patch other users."""
     user = factories.UserFactory()
