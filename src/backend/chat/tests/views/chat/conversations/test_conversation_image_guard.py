@@ -21,6 +21,8 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from rest_framework import status
 
 from chat.ai_sdk_types import FileUIPart, TextUIPart, UIMessage
+from chat.clients.exceptions import StreamCancelException
+from chat.clients.pydantic_ai import IMAGE_SKIP_REASON_TEXT_ONLY
 from chat.factories import (
     ChatConversationFactory,
     ChatProjectAttachmentFactory,
@@ -139,6 +141,46 @@ def _persisted_image_urls(conversation) -> list:
         for content in (part["content"] if isinstance(part["content"], list) else [])
         if isinstance(content, dict) and content.get("kind") == "image-url"
     ]
+
+
+def test_an_interrupted_image_skip_turn_shows_its_question_once(
+    api_client, mock_ai_agent_service, text_only_llm
+):
+    """The question is stored twice over: in `messages`, and in the trail.
+
+    A text-only model has the question written to `messages` up front so its
+    `skipped` markers survive the rebuild, and the turn also opens its chunk
+    trail with the same question. A reader must show it once.
+    """
+    chat_conversation = ChatConversationFactory(owner__language="en-us", model_hrid="default-model")
+    api_client.force_login(chat_conversation.owner)
+
+    image_url = f"/media-key/{chat_conversation.pk}/sample.png"
+    message = _image_message(
+        "What is in this image?",
+        attachments=[
+            FileUIPart(type="file", filename="sample.png", mediaType="image/png", url=image_url)
+        ],
+    )
+
+    async def never_finishing(_messages, _info):
+        """Produce a little, then leave the turn unfinished."""
+        yield "Half an"
+        raise StreamCancelException()
+
+    with mock_ai_agent_service(FunctionModel(stream_function=never_finishing)):
+        streamed = api_client.post(
+            f"/api/v1.0/chats/{chat_conversation.pk}/conversation/",
+            data={"messages": [message.model_dump(mode="json")]},
+            format="json",
+        )
+        b"".join(streamed.streaming_content)  # the turn only runs as it is read
+
+    response = api_client.get(f"/api/v1.0/chats/{chat_conversation.pk}/")
+    questions = [stored for stored in response.data["messages"] if stored["role"] == "user"]
+    assert len(questions) == 1, response.data["messages"]
+    # And it is the stored one, which still carries the marker the rebuild drops.
+    assert questions[0]["parts"][1]["skipped"] == {"reason": IMAGE_SKIP_REASON_TEXT_ONLY}
 
 
 def test_image_kept_and_instruction_added_for_text_only_model(
