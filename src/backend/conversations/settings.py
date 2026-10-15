@@ -853,6 +853,10 @@ class Base(
     DOCS_API_TIMEOUT = values.PositiveIntegerValue(
         default=30, environ_name="DOCS_API_TIMEOUT", environ_prefix=None
     )
+    # Docs links read per user message when `docs_link_fetching` is on; extras are ignored.
+    DOCS_LINKS_MAX_PER_MESSAGE = values.PositiveIntegerValue(
+        default=5, environ_name="DOCS_LINKS_MAX_PER_MESSAGE", environ_prefix=None
+    )
 
     AUTO_TITLE_AFTER_USER_MESSAGES = values.PositiveIntegerValue(
         default=None, environ_name="AUTO_TITLE_AFTER_USER_MESSAGES", environ_prefix=None
@@ -949,8 +953,20 @@ class Base(
 
         DocsClient forwards the user's OIDC bearer token and document content to
         DOCS_BASE_URL, so it requires stored access tokens and an encrypted endpoint.
+        Reading pasted Docs links needs a Docs instance to read from.
         """
         if not cls.DOCS_BASE_URL:
+            docs_link_fetching = FeatureToggle[
+                values.Value(
+                    FeatureToggle.DISABLED.name,
+                    environ_name="FEATURE_FLAG_DOCS_LINK_FETCHING",
+                    environ_prefix=None,
+                )
+            ]
+            if not docs_link_fetching.is_always_disabled:
+                raise ValueError(
+                    "The docs_link_fetching feature flag is enabled but DOCS_BASE_URL is not set."
+                )
             return
 
         if not cls.OIDC_STORE_ACCESS_TOKEN:

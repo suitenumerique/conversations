@@ -15,7 +15,7 @@ redis:
   password: pass
 minio:
   enabled: true
-  image: quay.io/minio/minio
+  image: pgsty/silo
   name: minio
   serviceNameOverride: minio
   ingress:
@@ -36,6 +36,8 @@ minio:
   versioning: true
   size: 1Gi
 keycloak:
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
   enabled: true
   image: quay.io/keycloak/keycloak:20.0.1
   name: keycloak

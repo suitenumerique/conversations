@@ -5,9 +5,12 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [react(), svgr()],
   server: {
-    // The dev container publishes 3000 and needs a non-localhost bind.
-    port: 3000,
+    // The dev container publishes 3000 and needs a non-localhost bind. The
+    // Kubernetes deployment sets PORT to the port its Service targets.
+    port: Number(process.env.PORT) || 3000,
     host: true,
+    // The local Kubernetes ingress serves the app on nip.io hostnames.
+    allowedHosts: ['.127.0.0.1.nip.io'],
   },
   // Default is node_modules/.vite, which in the dev container is an anonymous
   // volume owned by root while the container runs as the host user: the
