@@ -73,7 +73,7 @@ def _normalize_tool_call_types(choices: list) -> None:
                 tool_call["type"] = "function"
 
 
-class AlbertOpenAIChatModel(OpenAIChatModel):
+class AlbertOpenAIChatModel(OpenAIChatModel):  # pylint: disable=abstract-method
     """
     OpenAIChatModel subclass that preserves Albert's carbon impact data.
 

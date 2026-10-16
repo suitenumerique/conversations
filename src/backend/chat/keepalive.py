@@ -124,8 +124,7 @@ def stream_with_keepalive_sync(stream: Iterator[str]) -> Iterator[str]:
                 if stream_done.is_set():
                     return  # early exit
                 q.put(chunk, timeout=1)  # Arbitrary timeout prevents blocking forever
-        # pylint: disable=broad-exception-caught
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.exception("Error in stream consumption")
             q.put(e)
         finally:
