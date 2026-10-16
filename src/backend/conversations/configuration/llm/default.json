@@ -22,7 +22,7 @@
     },
     {
       "hrid": "glm-5.3",
-      "model_name": "false",
+      "model_name": "glm-5.3",
       "human_readable_name": "GLM 5.3",
       "provider_name": "default-provider",
       "profile": null,
