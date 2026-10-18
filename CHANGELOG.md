@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(back) add opt-in prometheus metrics on `/metrics`
 - 📝(project) add pull request and AI usage policy
 - ✨(back) make the Sentry backend traces sample rate configurable
 

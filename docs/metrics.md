@@ -1,0 +1,65 @@
+# Prometheus metrics of the backend
+
+The backend ships an **opt-in** instrumentation, [django-prometheus](https://github.com/django-commons/django-prometheus). It is **disabled by default**: when `PROMETHEUS_METRICS_ENABLED` is unset, `django_prometheus` is not in `INSTALLED_APPS`, its middlewares are not installed, the database engine is left alone and `/metrics` is not routed.
+
+## Enabling it
+
+```bash
+PROMETHEUS_METRICS_ENABLED=True
+PROMETHEUS_API_KEY=<a long random secret>   # or PROMETHEUS_API_KEY_FILE
+```
+
+The application **refuses to start** with the metrics enabled and no key: the endpoint would otherwise answer to anybody.
+
+Then scrape `GET /metrics` with the key as a bearer token:
+
+```yaml
+scrape_configs:
+  - job_name: conversations-backend
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/conversations-api-key
+    static_configs:
+      - targets: ["conversations-backend:8000"]
+```
+
+If `SECURE_SSL_REDIRECT` is on (the `Production` configuration) and the scraper reaches the pods directly over plain http, set `PROMETHEUS_METRICS_SSL_REDIRECT_EXEMPT=True` so `/metrics` is not redirected to https.
+
+The redirect does not protect the token: a scrape over http has already sent it in clear when the redirect answers. When the scraper crosses an untrusted network, configure it with an https target (`scheme: https` in the scrape config) so the token only travels over TLS.
+
+## What is measured
+
+- HTTP requests: counts and latency histograms, labelled by **view name**, method and status (`django_http_requests_latency_seconds_by_view_method`, `django_http_responses_total_by_status_view_method_total`, ...).
+- SQL (unless `PROMETHEUS_DB_METRICS_ENABLED=False`): queries, errors and query duration (`django_db_execute_total`, `django_db_query_duration_seconds`, ...). Applies when `DB_ENGINE` is `django.db.backends.postgresql` or `django.db.backends.postgresql_psycopg2` (the default).
+
+No label ever carries a path, a user or a conversation identifier. A request that matches no route is counted under `<unnamed view>`.
+
+Every sample carries a `hostname` label (the pod name in Kubernetes), so the series of several replicas never mix when scraped through one address.
+
+Known limit: the chat endpoint streams its answer. django-prometheus stops its latency timer when the streaming response is returned, not when the stream ends, so the latency of chat requests looks much shorter than what users wait.
+
+## How the endpoint is protected
+
+| Layer | What it guarantees |
+|---|---|
+| Off by default | Nothing is installed, and `/metrics` is a 404, unless the deployment asks for it |
+| Served on `/metrics`, not under `/api/` | The metrics are not reachable through the application ingress until a route is added on purpose |
+| Bearer token | `core.middleware.PrometheusAuthMiddleware` refuses anything but `Authorization: Bearer <PROMETHEUS_API_KEY>`, compared in constant time. It fails closed: no key, no answer |
+| First middleware | A refused call stops there: no session is created, no database or cache access is made |
+| Maintenance mode | `/metrics` keeps answering while maintenance mode returns 503 elsewhere |
+| Labels | No path, user or conversation identifier leaves the application |
+
+The key is a long-lived shared secret. Give it through `PROMETHEUS_API_KEY_FILE` or a Kubernetes secret, keep TLS on wherever it travels, and rotate it by changing the value on both sides.
+
+## uvicorn workers
+
+uvicorn runs several worker processes and a scrape is answered by one of them. The workers therefore all write their numbers to one directory (prometheus_client's multiprocess mode), and whichever answers adds them up. Nothing has to be configured: the directory defaults to `<tmp>/conversations-prometheus-<uid>`, is created with mode `0700`, and the application refuses a directory owned by another user or a symbolic link. Set `PROMETHEUS_MULTIPROC_DIR` to put it elsewhere: it must be writable, and local to the host or the pod (it is **not** shared between replicas).
+
+Known limit: uvicorn recycles its workers (`--limit-max-requests`) and has no hook to tell when one is gone. Every new worker writes new files, and the files of the workers that are gone must stay (their counters are part of the totals). The directory grows, and the scrape gets slower, until the container is replaced. Watch `scrape_duration_seconds` on long runs.
+
+The container entrypoint empties the directory each time the container starts, before uvicorn starts its workers: a container restarted by docker keeps its `/tmp`, and its new workers would reuse the process ids, hence the files, of the old ones. Outside of a container, empty the directory before starting the application.
+
+## Celery
+
+The Celery worker serves no request, so its metrics are never read. Leave `PROMETHEUS_METRICS_ENABLED` off for it.

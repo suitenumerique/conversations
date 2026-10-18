@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 # pylint: disable=too-many-lines
 
 import os
+import stat
+import tempfile
 import tomllib
 from socket import gethostbyname, gethostname
 from urllib.parse import urlparse
@@ -37,6 +39,7 @@ from conversations.brave_settings import BraveSettings
 from conversations.celery_settings import CelerySettings
 from conversations.observability_settings import ObservabilitySettings, scrub_transaction_queries
 from conversations.oidc_settings import OIDCSettings
+from conversations.prometheus_settings import PrometheusSettings
 from conversations.staan_settings import StaanSettings
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -56,11 +59,22 @@ def get_release():
         return "NA"  # Default: not available
 
 
+# The default database engine. Django loads it as an alias of `postgresql`.
+DEFAULT_DB_ENGINE = "django.db.backends.postgresql_psycopg2"
+
+# Database engines django-prometheus can wrap.
+PROMETHEUS_WRAPPABLE_DB_ENGINES = (
+    "django.db.backends.postgresql",
+    DEFAULT_DB_ENGINE,
+)
+
+
 class Base(
     BraveSettings,
     StaanSettings,
     CelerySettings,
     ObservabilitySettings,
+    PrometheusSettings,
     OIDCSettings,
     Configuration,
 ):
@@ -90,6 +104,9 @@ class Base(
 
     # Security
     ALLOWED_HOSTS = values.ListValue([])
+    # Django's default, made explicit because setup_prometheus_metrics may add to it
+    # in place: Production redefines it with the probes
+    SECURE_REDIRECT_EXEMPT = []
     SECRET_KEY = values.Value(None)
     SERVER_TO_SERVER_API_TOKENS = values.ListValue([])
 
@@ -101,7 +118,7 @@ class Base(
     DATABASES = {
         "default": {
             "ENGINE": values.Value(
-                "django.db.backends.postgresql_psycopg2",
+                DEFAULT_DB_ENGINE,
                 environ_name="DB_ENGINE",
                 environ_prefix=None,
             ),
@@ -998,6 +1015,74 @@ class Base(
             )
 
     @classmethod
+    def setup_prometheus_metrics(cls):
+        """Wire django-prometheus into the settings (PROMETHEUS_METRICS_ENABLED)."""
+        if not cls.PROMETHEUS_API_KEY:
+            # fail closed: without a key the endpoint would answer to anybody
+            raise ValueError("PROMETHEUS_METRICS_ENABLED requires PROMETHEUS_API_KEY to be set.")
+
+        # prometheus_client decides whether the workers share their numbers when it is
+        # first imported, by reading this variable from the environment: a setting alone
+        # would come too late.
+        multiproc_dir = cls.PROMETHEUS_MULTIPROC_DIR or os.path.join(
+            tempfile.gettempdir(), f"conversations-prometheus-{os.getuid()}"
+        )
+        try:
+            os.makedirs(multiproc_dir, mode=0o700, exist_ok=True)
+            stat_result = os.lstat(multiproc_dir)
+        except OSError as error:
+            raise ValueError(
+                f"PROMETHEUS_MULTIPROC_DIR ({multiproc_dir}) cannot be created: {error}"
+            ) from error
+        # A shared temporary directory is writable by every local user: refuse a
+        # directory somebody else prepared, or a link to somewhere else.
+        if not stat.S_ISDIR(stat_result.st_mode) or stat_result.st_uid != os.getuid():
+            raise ValueError(
+                f"PROMETHEUS_MULTIPROC_DIR ({multiproc_dir}) must be a directory "
+                "owned by the user running the application."
+            )
+        # An existing directory keeps its mode: refuse one others could write metric
+        # files to, which every worker maps in memory.
+        if stat.S_IMODE(stat_result.st_mode) & (stat.S_IWGRP | stat.S_IWOTH):
+            raise ValueError(
+                f"PROMETHEUS_MULTIPROC_DIR ({multiproc_dir}) must not be writable "
+                "by the group or by other users."
+            )
+        cls.PROMETHEUS_MULTIPROC_DIR = multiproc_dir
+        os.environ["PROMETHEUS_MULTIPROC_DIR"] = multiproc_dir
+
+        # Edited in place: post_setup runs once the settings have been handed to Django,
+        # which only sees a change made through the objects it already holds.
+        if "django_prometheus" not in cls.INSTALLED_APPS:
+            cls.INSTALLED_APPS.append("django_prometheus")
+        # The measuring middlewares go first and last, so that the time spent in every
+        # other middleware is measured. The authentication goes before them all: a
+        # refused scrape touches neither the session store nor the database.
+        auth = "core.middleware.PrometheusAuthMiddleware"
+        before = "django_prometheus.middleware.PrometheusBeforeMiddleware"
+        after = "django_prometheus.middleware.PrometheusAfterMiddleware"
+        if before not in cls.MIDDLEWARE:
+            cls.MIDDLEWARE.insert(0, before)
+            cls.MIDDLEWARE.insert(0, auth)
+            cls.MIDDLEWARE.append(after)
+
+        default_database = cls.DATABASES["default"]
+        if (
+            cls.PROMETHEUS_DB_METRICS_ENABLED
+            and default_database.get("ENGINE") in PROMETHEUS_WRAPPABLE_DB_ENGINES
+        ):
+            default_database["ENGINE"] = "django_prometheus.db.backends.postgresql"
+
+        # The path is core.middleware.METRICS_PATH, not imported here: the settings are
+        # read before the applications are.
+        metrics_pattern = "^metrics$"
+        if (
+            cls.PROMETHEUS_METRICS_SSL_REDIRECT_EXEMPT
+            and metrics_pattern not in cls.SECURE_REDIRECT_EXEMPT
+        ):
+            cls.SECURE_REDIRECT_EXEMPT.append(metrics_pattern)
+
+    @classmethod
     def post_setup(cls):
         """Post setup configuration.
         This is the place where you can configure settings that require other
@@ -1087,6 +1172,9 @@ class Base(
                 release=get_release(),
                 debug=cls.LANGFUSE_DEBUG,
             )
+
+        if cls.PROMETHEUS_METRICS_ENABLED:
+            cls.setup_prometheus_metrics()
 
 
 class Build(Base):
@@ -1201,7 +1289,7 @@ class Test(Base):
     # the repo-root .env or the CI job env).
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.postgresql_psycopg2",
+            "ENGINE": DEFAULT_DB_ENGINE,
             "NAME": "conversations",
             "USER": "dinum",
             "PASSWORD": "pass",
@@ -1393,6 +1481,9 @@ class Production(Base):
     SECURE_HSTS_PRELOAD = True
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_SSL_REDIRECT = True
+    # The probes are called on the process itself, over plain http: a redirect to
+    # https is a probe that fails. /metrics joins them only with
+    # PROMETHEUS_METRICS_SSL_REDIRECT_EXEMPT, see setup_prometheus_metrics
     SECURE_REDIRECT_EXEMPT = [
         "^__lbheartbeat__",
         "^__heartbeat__",

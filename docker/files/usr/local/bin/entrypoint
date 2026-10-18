@@ -31,5 +31,16 @@ if ! whoami > /dev/null 2>&1; then
   fi
 fi
 
+# Prometheus multiprocess mode: the uvicorn workers share their metrics through
+# files in this directory (see setup_prometheus_metrics in the settings, which
+# computes the same default). A container restarted by docker keeps it, and its
+# new workers reuse the pids, hence the files, of the old ones: stale gauges would
+# never go away. Start from an empty directory, once, before any worker exists.
+# Only a directory of ours that is not a link, and only the metric files in it.
+prometheus_dir="${PROMETHEUS_MULTIPROC_DIR:-${TMPDIR:-${TEMP:-${TMP:-/tmp}}}/conversations-prometheus-$(id -u)}"
+if [ -d "${prometheus_dir}" ] && [ ! -L "${prometheus_dir}" ] && [ -O "${prometheus_dir}" ]; then
+  find "${prometheus_dir}" -maxdepth 1 -type f -name '*.db' -delete
+fi
+
 echo "🐳(entrypoint) running your command: ${*}"
 exec "$@"

@@ -17,6 +17,20 @@ urlpatterns = [
     path("", include("core.urls")),
 ]
 
+# Serve the Prometheus metrics only when they are enabled (PROMETHEUS_METRICS_ENABLED).
+# Outside of /api/ on purpose, so that the ingress does not publish them, and behind a
+# bearer token (core.middleware.PrometheusAuthMiddleware), see docs/metrics.md.
+if settings.PROMETHEUS_METRICS_ENABLED:
+    # Imported here so that prometheus_client is only loaded when the metrics are on.
+    from core.metrics import (
+        metrics_view,  # pylint: disable=import-outside-toplevel
+    )
+    from core.middleware import (
+        METRICS_PATH,  # pylint: disable=import-outside-toplevel
+    )
+
+    urlpatterns += [path(METRICS_PATH.lstrip("/"), metrics_view, name="prometheus-metrics")]
+
 if settings.DEBUG:
     urlpatterns = (
         urlpatterns
