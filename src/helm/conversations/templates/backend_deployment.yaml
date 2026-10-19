@@ -1,4 +1,5 @@
 {{- $envVars := include "conversations.common.env" (list . .Values.backend) -}}
+{{- $metricsEnv := include "conversations.backend.metrics.env" . -}}
 {{- $fullName := include "conversations.backend.fullname" . -}}
 {{- $component := "backend" -}}
 apiVersion: apps/v1
@@ -49,6 +50,9 @@ spec:
           env:
             {{- if $envVars}}
             {{- $envVars | indent 12 }}
+            {{- end }}
+            {{- if $metricsEnv }}
+            {{- $metricsEnv | indent 12 }}
             {{- end }}
           {{- with .Values.backend.securityContext }}
           securityContext:

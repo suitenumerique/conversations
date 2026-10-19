@@ -12,6 +12,7 @@ and this project adheres to
 
 - ✨(back) add opt-in prometheus metrics on `/metrics`
 - ✨(back) measure model requests, chat streams and outgoing calls
+- ✨(helm) add a ServiceMonitor and a PodMonitor for the backend metrics
 - 📝(project) add pull request and AI usage policy
 - ✨(back) make the Sentry backend traces sample rate configurable
 

@@ -76,6 +76,32 @@ Known limit: uvicorn recycles its workers (`--limit-max-requests`) and has no ho
 
 The container entrypoint empties the directory each time the container starts, before uvicorn starts its workers: a container restarted by docker keeps its `/tmp`, and its new workers would reuse the process ids, hence the files, of the old ones. Outside of a container, empty the directory before starting the application.
 
+## Kubernetes (Helm chart)
+
+For a Prometheus Operator inside the cluster (kube-prometheus-stack, for instance), the chart scrapes every backend pod directly:
+
+```yaml
+backend:
+  metrics:
+    enabled: true
+  envVars:
+    PROMETHEUS_API_KEY:
+      secretKeyRef:
+        name: backend
+        key: PROMETHEUS_API_KEY
+
+serviceMonitor:   # or podMonitor, whichever kind your Prometheus selects
+  enabled: true
+  labels:
+    release: kube-prometheus-stack   # the label your Prometheus selects monitors by
+```
+
+- `backend.metrics.enabled` sets `PROMETHEUS_METRICS_ENABLED` and `PROMETHEUS_METRICS_SSL_REDIRECT_EXEMPT` on the backend pods only, never on the Celery worker and beat. A value set by hand in `backend.envVars` wins.
+- The monitor presents a bearer token read from a Secret: the one named in `backend.metrics.apiKeySecret` when it is set, or else the one `PROMETHEUS_API_KEY` references (its `secretKeyRef` in `backend.envVars`). The chart refuses to render a monitor when the key does not come from a Secret, rather than letting every scrape fail with a 401.
+- The Prometheus Operator reads that Secret itself: it has to be in the namespace of the monitor, and readable by the operator.
+- If network policies restrict ingress to the namespace, allow the Prometheus pods to reach the backend pods on their `http` port (8000). Otherwise the target stays down, with no error on the application side.
+- Check the target on the Prometheus targets page: one target per backend pod, labelled `job="backend"`.
+
 ## Celery
 
 The Celery worker serves no request, so its metrics are never read. Leave `PROMETHEUS_METRICS_ENABLED` off for it.
