@@ -12,6 +12,8 @@ from pydantic_ai.capabilities import Hooks
 from pydantic_ai.models import get_user_agent
 from pydantic_ai.profiles import ModelProfile
 
+from core import instrumentation
+
 from chat.tools import get_pydantic_tools_by_name
 
 logger = logging.getLogger(__name__)
@@ -225,6 +227,10 @@ class BaseAgent(Agent):
                 return dataclasses.replace(request_context, model_request_parameters=new_params)
 
             _capabilities.append(_hooks)
+
+        _metrics_hooks = instrumentation.llm_metrics_hooks(self.configuration, type(self).__name__)
+        if _metrics_hooks is not None:
+            _capabilities.append(_metrics_hooks)
 
         super().__init__(
             model=_model_instance,

@@ -33,11 +33,27 @@ The redirect does not protect the token: a scrape over http has already sent it 
 - HTTP requests: counts and latency histograms, labelled by **view name**, method and status (`django_http_requests_latency_seconds_by_view_method`, `django_http_responses_total_by_status_view_method_total`, ...).
 - SQL (unless `PROMETHEUS_DB_METRICS_ENABLED=False`): queries, errors and query duration (`django_db_execute_total`, `django_db_query_duration_seconds`, ...). Applies when `DB_ENGINE` is `django.db.backends.postgresql` or `django.db.backends.postgresql_psycopg2` (the default).
 
-No label ever carries a path, a user or a conversation identifier. A request that matches no route is counted under `<unnamed view>`.
+Specific to conversations:
+
+| Metric | Labels | What it tells |
+|---|---|---|
+| `conversations_llm_request_duration_seconds` | `model`, `provider`, `agent`, `status` | Duration of each model request, the whole streamed answer included. `status` is `ok`, the HTTP status of the provider (`429`, `503`, ...), `connection_error`, `cancelled` (stop button, or the turn cut short) or `error`, also when a streamed answer fails midway |
+| `conversations_llm_requests_inflight` | `model`, `provider` | Model requests not answered yet: the first sign that a model is saturated |
+| `conversations_llm_tokens_total` | `model`, `provider`, `agent`, `kind` | Tokens sent (`input`) and received (`output`) by the requests that went through: a streamed answer failing midway counts none |
+| `conversations_llm_time_to_first_token_seconds` | `model`, `provider` | Streamed chat requests only: time until the first part (text, tool call or reasoning) |
+| `conversations_chat_streams_active` | `model` | Chat turns running, including those whose reader left |
+| `conversations_chat_stream_duration_seconds` | `model`, `outcome` | Whole chat turns, including what runs after the reader left. `outcome` is `ok`, the error code shown to the user (`model_rate_limited`, `model_unavailable`, `model_connection_error`, ...), `cancelled` (stop button), `interrupted` (cut short past `MAX_TURN_DURATION` or by a shutdown; a reader leaving does not stop the turn) or `error` |
+| `conversations_outgoing_request_duration_seconds` | `service`, `operation`, `status` | Calls to `albert` (RAG collections, documents, search), `brave`, `staan`, `web_page` (pages fetched for a web search) and `docs` |
+| `conversations_outgoing_requests_inflight` | `service`, `operation` | Those calls not answered yet |
+| `conversations_celery_queue_length` | `queue` | Tasks waiting on the Celery queue, read from the broker at each scrape (unless `PROMETHEUS_CELERY_QUEUE_METRICS_ENABLED=False`). Every replica reports the same number: aggregate with `max`, never `sum` |
+
+`model` is the hrid of the model in the LLM configuration, `agent` the class of the agent (`ConversationAgent`, `TitleGenerationAgent`, `SummarizationAgent`, ...). The gauges are summed over the living uvicorn workers.
+
+No label ever carries a path, a user, a conversation, a prompt, a url or a document name. A request that matches no route is counted under `<unnamed view>`.
 
 Every sample carries a `hostname` label (the pod name in Kubernetes), so the series of several replicas never mix when scraped through one address.
 
-Known limit: the chat endpoint streams its answer. django-prometheus stops its latency timer when the streaming response is returned, not when the stream ends, so the latency of chat requests looks much shorter than what users wait.
+The chat endpoint streams its answer: django-prometheus stops its latency timer when the streaming response is returned, not when the stream ends. Read `conversations_chat_stream_duration_seconds` for how long turns take, not the django latency of the chat view.
 
 ## How the endpoint is protected
 
@@ -63,3 +79,5 @@ The container entrypoint empties the directory each time the container starts, b
 ## Celery
 
 The Celery worker serves no request, so its metrics are never read. Leave `PROMETHEUS_METRICS_ENABLED` off for it.
+
+Known limit: the work done in Celery is therefore not measured. Document parsing and OCR, project indexing (Albert collections and documents created from Celery) and conversation history summaries do not show up in the metrics above. Only the queue length tells whether the workers keep up.

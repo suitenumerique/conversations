@@ -2,6 +2,7 @@
 
 import socket
 from importlib import reload
+from unittest import mock
 
 from django.test import override_settings
 from django.urls import clear_url_caches, resolve
@@ -9,6 +10,8 @@ from django.urls import clear_url_caches, resolve
 import pytest
 from prometheus_client import REGISTRY, Counter, values
 from rest_framework.test import APIClient
+
+from core import metrics
 
 from conversations import urls
 
@@ -31,6 +34,8 @@ def metrics_enabled_fixture(settings, monkeypatch, tmp_path):
     """Configure the application the way PROMETHEUS_METRICS_ENABLED does at startup."""
     settings.PROMETHEUS_METRICS_ENABLED = True
     settings.PROMETHEUS_API_KEY = API_KEY
+    # the broker is not there to be asked: see test_prometheus_metrics_celery_queue_length
+    settings.PROMETHEUS_CELERY_QUEUE_METRICS_ENABLED = False
     settings.MIDDLEWARE = [
         AUTH_MIDDLEWARE,
         BEFORE_MIDDLEWARE,
@@ -133,6 +138,21 @@ def test_prometheus_metrics_served_with_the_api_key():
         in response.content.decode()
     )
     assert not response.cookies
+
+
+@pytest.mark.usefixtures("metrics_enabled")
+def test_prometheus_metrics_celery_queue_length(settings):
+    """The length of the Celery queue is served when asked for, labelled with the host."""
+    settings.PROMETHEUS_CELERY_QUEUE_METRICS_ENABLED = True
+
+    with mock.patch.object(metrics.CeleryQueueCollector, "queue_length", return_value=7):
+        response = APIClient().get("/metrics", HTTP_AUTHORIZATION=f"Bearer {API_KEY}")
+
+    assert response.status_code == 200
+    assert (
+        f'conversations_celery_queue_length{{hostname="{socket.gethostname()}",queue="celery"}} 7.0'
+        in response.content.decode()
+    )
 
 
 @pytest.mark.usefixtures("metrics_enabled")

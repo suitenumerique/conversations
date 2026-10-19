@@ -128,6 +128,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models import Model, infer_model_profile
 
+from core import instrumentation
 from core.analytics import acapture_event
 from core.feature_flags.helpers import is_feature_enabled
 
@@ -842,7 +843,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             return str(uuid.uuid4())
         return f"trace-{trace_id}"
 
-    async def _stream_content(  # noqa: PLR0912  # pylint: disable=too-many-branches
+    async def _stream_content(  # noqa: PLR0912  # pylint: disable=too-many-branches,too-many-statements
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
@@ -852,6 +853,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         await self._clean()
         translator = V4ToV5Translator()
         with ExitStack() as stack:
+            observed_stream = stack.enter_context(instrumentation.chat_stream(self.model_hrid))
             if self._langfuse_available:
                 stack.enter_context(
                     propagate_attributes(
@@ -891,6 +893,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     self.conversation.pk,
                     exc,
                 )
+                observed_stream.outcome = error_code
                 error_event = events_v4.ErrorPart(error=error_code)
                 for translated in translator.translate(error_event):
                     yield self.event_encoder.encode(translated)
@@ -900,6 +903,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     self.conversation.pk,
                     exc,
                 )
+                observed_stream.outcome = "model_connection_error"
                 error_event = events_v4.ErrorPart(error="model_connection_error")
                 for translated in translator.translate(error_event):
                     yield self.event_encoder.encode(translated)
@@ -909,6 +913,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     self.conversation.pk,
                     exc,
                 )
+                observed_stream.outcome = "summarization_failed"
                 error_event = events_v4.ErrorPart(error="summarization_failed")
                 for translated in translator.translate(error_event):
                     yield self.event_encoder.encode(translated)
@@ -920,6 +925,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # would escape mid-response. Falling through closes the stream
                 # with the same flush and DONE frame as a normal end.
                 self._turn_log("stopped by the user, keeping what was produced")
+                observed_stream.outcome = "cancelled"
 
             except asyncio.CancelledError:
                 # Something cancelled the turn where it stood, so it never
@@ -1968,10 +1974,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         response Pydantic AI is building, which is what a snapshot chunk
         stores for the part of the turn not yet closed.
         """
+        observe = instrumentation.streamed_model_request(self.conversation_agent.configuration)
         async with node.stream(run_ctx) as request_stream:
             self._active_agent_stream = request_stream
             try:
-                async for event in request_stream:
+                async for event in observe(request_stream):
                     await self._agent_stop_streaming()
                     if isinstance(event, PartStartEvent):
                         if isinstance(event.part, TextPart):

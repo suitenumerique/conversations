@@ -9,6 +9,8 @@ from django.core.exceptions import PermissionDenied
 
 import httpx
 
+from core import instrumentation
+
 
 class DocsClient:
     """
@@ -40,11 +42,13 @@ class DocsClient:
         # Strip path separators and control characters so the title is a safe filename.
         safe_title = re.sub(r"[/\\\x00-\x1f]", " ", title).strip() or "document"
         file.name = f"{safe_title}.md"
-        response = httpx.post(
-            urljoin(self.api_url, "documents/"),
-            headers={"Authorization": f"Bearer {access_token}"},
-            files={"file": (file.name, file, "text/markdown")},
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
+        with instrumentation.outgoing_request("docs", "create_document") as observed:
+            response = httpx.post(
+                urljoin(self.api_url, "documents/"),
+                headers={"Authorization": f"Bearer {access_token}"},
+                files={"file": (file.name, file, "text/markdown")},
+                timeout=self.timeout,
+            )
+            observed.status = response.status_code
+            response.raise_for_status()
         return response.json()
