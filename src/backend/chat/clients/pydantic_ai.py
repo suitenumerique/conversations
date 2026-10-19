@@ -922,12 +922,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 self._turn_log("stopped by the user, keeping what was produced")
 
             except asyncio.CancelledError:
-                # The reader went away: Django's ASGI handler cancels this task
-                # on a client disconnect, which lands wherever the turn stands
-                # and never reaches the filing below. Waiting for the liveness
-                # window to notice is not good enough: a question asked in the
-                # meantime lands first, and folding this turn afterwards leaves
-                # the two exchanges stored in the wrong order for good.
+                # Something cancelled the turn where it stood, so it never
+                # reaches the filing below. A reader leaving is no longer one of
+                # those things: `stream_with_keepalive_async` leaves the turn
+                # running when its reader goes, which is what lets a refreshed
+                # page pick the answer back up. What is left here is the turn
+                # being torn down from outside, a process going down being the
+                # ordinary case. Waiting for the liveness window to notice is
+                # not good enough: a question asked in the meantime lands first,
+                # and folding this turn afterwards leaves the two exchanges
+                # stored in the wrong order for good.
                 #
                 # Shielded because this is a database write inside a task that
                 # is being torn down. If even the shield is cut, the write is
@@ -939,7 +943,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # scopes are torn down with it, so nothing can be awaited to
                 # file anything. That path keeps the liveness window, as does a
                 # turn whose process dies outright.
-                self._turn_log("the reader went away, filing what was produced")
+                self._turn_log("cancelled, filing what was produced")
                 if not self._turn_landed:
                     self._turn_landed = True
                     with suppress(asyncio.CancelledError):

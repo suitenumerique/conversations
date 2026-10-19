@@ -870,6 +870,15 @@ class Base(
         default=55, environ_name="KEEPALIVE_INTERVAL", environ_prefix=None
     )
 
+    # Longest a turn is supported to run, in seconds from its start. Only a turn
+    # whose reader has left is held to it: with the page gone, nothing else can
+    # cut short a turn stuck on a call that never returns. Past it, the turn is
+    # cancelled and filed as interrupted. Keep it well above the slowest
+    # legitimate turn: an OCR alone can take OCR_TIMEOUT times its retries.
+    MAX_TURN_DURATION = values.PositiveIntegerValue(
+        default=30 * 60, environ_name="MAX_TURN_DURATION", environ_prefix=None
+    )
+
     # pylint: disable=invalid-name
     @property
     def ENVIRONMENT(self):

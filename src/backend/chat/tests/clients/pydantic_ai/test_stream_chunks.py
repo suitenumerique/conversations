@@ -32,6 +32,7 @@ from chat.ai_sdk_types import TextUIPart, UIMessage
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import STREAM_LIVE_WINDOW_SECONDS
 from chat.factories import ChatConversationFactory
+from chat.keepalive import stream_with_keepalive_async
 from chat.models import ChatConversation, ChatStreamChunk
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -858,6 +859,53 @@ async def test_a_cancelled_stream_keeps_the_text_in_hand():
 
     stored = await ChatConversation.objects.aget(pk=conversation.pk)
     assert stored.messages[-1].parts[-1].text == "Hello there"
+
+
+@pytest.mark.asyncio
+async def test_a_reader_that_leaves_does_not_stop_the_turn():
+    """A refresh costs the reader, not the answer.
+
+    Read through the keepalive wrapper, the way the view does, because that is
+    where the turn gets its own task: cancelling the response leaves the turn
+    running, so it lands on its own and a refreshed page picks up a whole
+    answer instead of one filed as interrupted.
+    """
+    conversation = await sync_to_async(ChatConversationFactory)()
+
+    async def hello_then_the_rest(_messages: list[ModelMessage], _info: AgentInfo):
+        """Answer in two parts, far enough apart to walk away in between."""
+        yield "Hello"
+        await asyncio.sleep(0.1)
+        yield " there, and the rest."
+
+    service = _service_with_model(conversation, hello_then_the_rest)
+    received = []
+
+    async def read():
+        """Read the stream the way the ASGI handler does, keepalive included."""
+        async for chunk in stream_with_keepalive_async(
+            service.stream_data_async([QUESTION]), service.beat
+        ):
+            received.append(chunk)
+
+    reader = asyncio.create_task(read())
+    while not any('"delta":"Hello"' in chunk for chunk in received):
+        await asyncio.sleep(0.01)
+    reader.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await reader
+
+    # The turn is on its own from here. Wait for it to land rather than for a
+    # fixed delay, so the test says what it is waiting for.
+    for _ in range(300):
+        stored = await ChatConversation.objects.aget(pk=conversation.pk)
+        if len(stored.messages) == 2:
+            break
+        await asyncio.sleep(0.02)
+
+    assert stored.messages[-1].parts[-1].text == "Hello there, and the rest."
+    assert "interrupted" not in (stored.messages[-1].metadata or {})
+    assert await sync_to_async(conversation.stream_chunks.count)() == 0
 
 
 OTHER_TAB_QUESTION = UIMessage(

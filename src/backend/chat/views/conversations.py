@@ -386,15 +386,9 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         It is used to stop the streaming when the user decides to cancel the chat.
 
         Note:
-            We currently use uWSGI workers, which will not automatically stop the streaming
-            when the request is cancelled by the client. Therefore, we need to
-            explicitly stop the streaming by calling this endpoint.
-            When (if) we switch to Gunicorn with Uvicorn workers, this will not be necessary
-            as the Uvicorn workers will automatically stop the streaming when the request
-            is cancelled. BUT, we will then need to handle the streaming cancellation when the
-            user is simply offline and still waiting for a response and the conversation to
-            be updated with the result. So this endpoint will still be useful to be able to
-            detect the cancellation of the streaming versus the user being offline.
+            Leaving the page does not stop a turn: the server keeps it running
+            so that a refreshed page can pick up the answer. This endpoint is
+            how a user stops one; the turn checks for the flag as it runs.
 
         Args:
             request: The HTTP request object.

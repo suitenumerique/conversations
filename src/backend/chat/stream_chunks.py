@@ -212,10 +212,13 @@ def interrupted_messages(chunks) -> list[UIMessage]:
 def close(conversation, run_id) -> bool:
     """File one turn's trail now, because that turn is over and knows it.
 
-    Stop, a handled provider error, the early returns and a client disconnect
-    all end a turn at a point where something can still run. Leaving them to
-    `persist` means waiting out the liveness window, and a fold that lands
-    after the turn that came next reads out of order forever.
+    Stop, a handled provider error, the early returns and a turn cancelled from
+    outside all end it at a point where something can still run. Leaving them to
+    `persist` means waiting out the liveness window, and a fold that lands after
+    the turn that came next reads out of order forever.
+
+    A client disconnect is not one of them any more: the turn is left running
+    and files nothing, because it still intends to land.
 
     Returns True when something was filed.
     """
