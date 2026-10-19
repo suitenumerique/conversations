@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - 📝(project) add pull request and AI usage policy
+- ✨(back) make the Sentry backend traces sample rate configurable
 
 ### Changed
 

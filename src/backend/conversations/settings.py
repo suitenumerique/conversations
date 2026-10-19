@@ -35,7 +35,7 @@ from chat import prompts
 from chat.llm_configuration import cached_load_llm_configuration, load_llm_configuration
 from conversations.brave_settings import BraveSettings
 from conversations.celery_settings import CelerySettings
-from conversations.observability_settings import ObservabilitySettings
+from conversations.observability_settings import ObservabilitySettings, scrub_transaction_queries
 from conversations.oidc_settings import OIDCSettings
 from conversations.staan_settings import StaanSettings
 
@@ -1015,6 +1015,8 @@ class Base(
                 # Request bodies and stack frame locals carry user prompts.
                 max_request_body_size="never",
                 include_local_variables=False,
+                traces_sample_rate=cls.SENTRY_TRACES_SAMPLE_RATE,
+                before_send_transaction=scrub_transaction_queries,
             )
             sentry_sdk.set_tag("application", "backend")
 
