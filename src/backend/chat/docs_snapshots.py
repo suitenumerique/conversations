@@ -43,6 +43,25 @@ DOCS_FETCH_FAILURE_REASONS = {
 }
 
 
+def docs_read_note(document_id: uuid.UUID, file_name: str) -> str:
+    """Tell the model that a pasted Docs link was read and attached as ``file_name``."""
+    return (
+        "[Internal context] The Docs document linked at "
+        f"{docs_document_url(document_id)} has been read and attached to this "
+        f'conversation as "{file_name}". Use that document to answer; '
+        "do not say you cannot open the link."
+    )
+
+
+def docs_failure_note(document_id: uuid.UUID, failure: DocsFetchFailure) -> str:
+    """Tell the model why a pasted Docs link could not be read."""
+    return (
+        "[Internal context] The Docs document linked at "
+        f"{docs_document_url(document_id)} could not be read: "
+        f"{DOCS_FETCH_FAILURE_REASONS[failure]}. Explain this to the user."
+    )
+
+
 async def _delete_snapshot(
     conversation: models.ChatConversation, attachment: models.ChatConversationAttachment
 ) -> None:
@@ -128,16 +147,7 @@ async def store_docs_snapshots(
         else:
             snapshot = await _store_snapshot(conversation, user, document_id, document, content)
             snapshots.append(snapshot)
-            notes.append(
-                "[Internal context] The Docs document linked at "
-                f"{docs_document_url(document_id)} has been read and attached to this "
-                f'conversation as "{snapshot.file_name}". Use that document to answer; '
-                "do not say you cannot open the link."
-            )
+            notes.append(docs_read_note(document_id, snapshot.file_name))
             continue
-        notes.append(
-            "[Internal context] The Docs document linked at "
-            f"{docs_document_url(document_id)} could not be read: "
-            f"{DOCS_FETCH_FAILURE_REASONS[failure]}. Explain this to the user."
-        )
+        notes.append(docs_failure_note(document_id, failure))
     return snapshots, notes

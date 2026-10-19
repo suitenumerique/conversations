@@ -14,11 +14,13 @@ chat/evals/
 │   ├── url_hallucination.py # Config for the URL hallucination dataset
 │   ├── faithfulness_rag.py  # Config for the RAG faithfulness dataset
 │   ├── incertitude.py       # Config for the uncertainty dataset
+│   ├── docs_links.py        # Config for the pasted Docs links dataset
 │   └── tool_selection.py    # Config for the tool selection dataset
 ├── datasets/
 │   ├── url_hallucination.yaml
 │   ├── faithfulness_rag.yaml
 │   ├── incertitude.yaml
+│   ├── docs_links.yaml
 │   └── tool_selection.yaml
 ├── evaluators/
 │   ├── __init__.py
@@ -59,6 +61,7 @@ Management commands (under `chat/management/commands/`):
 | `faithfulness_rag` | Answers are grounded in the retrieved chunks and add no facts beyond them | `HasMatchingSpan` (RAG tool ran) + `HasNoMatchingSpan` (no web search) + `LLMJudge` (faithfulness) |
 | `incertitude` | On high-stakes French service-public questions whose answer depends on the user's personal situation, the agent asks to clarify / defers to the competent body instead of guessing a figure, eligibility, or outcome | `LLMJudge` (uncertainty) |
 | `tool_selection` | The agent calls the right tool (`web_search`, `self_documentation`, `document_search_rag`, `summarize`) or none, including adversarial French phrasing | `HasMatchingSpan` / `HasNoMatchingSpan` per case |
+| `docs_links` | On a pasted Docs link, the agent answers from the read document (inline or through RAG / summarize) without `web_search`, and explains a failed read without inventing content | `HasMatchingSpan` / `HasNoMatchingSpan` + `Contains` (invented "canary" facts only found in the document) per case + `LLMJudge` |
 
 RAG/summarize cases set `inputs.requires_documents: true`, which injects a fake document listing (same JSON shape as production) so those tools are visible to the model. Optional `inputs.tool_output` JSON can stage per-case simulated tool payloads (`web_search`, `document_search_rag`, `summarize`) for multi-tool flows — see `evals/tool_stub_responses.py`. Use `--runs 3` on medium/hard cases to measure robustness on ambiguous phrasing.
 

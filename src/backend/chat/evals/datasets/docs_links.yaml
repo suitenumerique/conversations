@@ -1,0 +1,321 @@
+# Docs links — l'utilisateur colle un lien La Suite Docs. L'agent reçoit les notes de
+# production (lu / échec) et, pour un lien lu, le document dans le listing (inline ou via
+# tools). Il doit répondre à partir du document, sans web_search, et expliquer les échecs
+# sans inventer de contenu. Évaluateurs : spans + Contains (faits "canari" inventés,
+# introuvables hors du document) + LLMJudge. {link0}, {link1} = URLs Docs du cas.
+
+config:
+  llm_judge_rubric: |
+    You are evaluating how an AI assistant handles La Suite Docs links pasted by the user.
+
+    The input lists the pasted links under 'docs_links', in the order of the {link0}, {link1}… placeholders of 'user_message'. For each link, 'outcome' is "read" when the assistant was given the document ('content' is its full text), or the reason it could not be read: unauthenticated (the user's Docs session expired or they never signed into Docs), forbidden (no access), not_found (deleted or missing), unavailable (Docs is down), too_large (too large to be read).
+
+    PASS — all of these hold:
+    • For every "read" link, the answer is based on that document's 'content': every fact it attributes to the document appears in, or is a faithful paraphrase of, 'content'.
+    • For every "read" link, the answer never says it cannot open, access or read the link.
+    • For every link that was not read, the answer tells the user that this document could not be read and gives the reason matching 'outcome', and, when useful, the next step (e.g. sign into Docs, ask for access, try again later).
+    • The answer never describes the content of a document that was not read.
+
+    FAIL — any of these:
+    • The answer invents facts about a document (names, dates, figures, conclusions) that are not in its 'content', or describes a document that was not read.
+    • The answer claims it cannot open a link that was read.
+    • The answer ignores a link that was not read, or gives a reason that contradicts its 'outcome'.
+
+    Judge only the handling of the Docs links. Facts the user explicitly asked to look up on the web may come from elsewhere.
+
+cases:
+  # ── READ, FULL CONTEXT — answer from the inlined document, no tool ──────────
+
+  - name: read_inline_summary
+    inputs:
+      user_message: "Peux-tu me résumer ce document ? {link0}"
+      docs_links:
+        - &note_cadrage
+          outcome: read
+          title: Note de cadrage HIRONDELLE-7
+          access: full-context
+          content: |
+            # Note de cadrage — projet HIRONDELLE-7
+
+            Le projet HIRONDELLE-7 vise à dématérialiser les demandes de subvention des
+            associations sportives du département.
+
+            - Pilote du projet : Odile Varennes, cheffe du bureau des usages numériques.
+            - Lancement officiel : le jeudi 12 mars 2026, à la médiathèque de Kervalen.
+            - Prestataire retenu : la coopérative Brume Logicielle.
+            - Point de vigilance : la conformité à l'AI Act doit être vérifiée avant
+              l'ouverture du module de pré-instruction automatique.
+    metadata:
+      difficulty: easy
+      category: read_full_context
+      description: Doc lu et inline — résume le contenu, sans tool
+    evaluators:
+      - Contains:
+          value: "HIRONDELLE-7"
+          case_sensitive: false
+          evaluation_name: answer_from_document
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: did_not_call_document_search_rag
+
+  - name: read_inline_fact
+    inputs:
+      user_message: "Qui pilote le projet décrit ici ? {link0}"
+      docs_links:
+        - *note_cadrage
+    metadata:
+      difficulty: easy
+      category: read_full_context
+      description: Question factuelle sur un doc inline — le nom vient du doc
+    evaluators:
+      - Contains:
+          value: "Varennes"
+          case_sensitive: false
+          evaluation_name: answer_from_document
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: did_not_call_document_search_rag
+
+  - name: read_inline_go_read_link
+    inputs:
+      user_message: "Va lire ce lien et dis-moi où se tient le lancement : {link0}"
+      docs_links:
+        - *note_cadrage
+    metadata:
+      difficulty: medium
+      category: read_full_context
+      description: "\"Va lire ce lien\" — ne doit pas chercher sur le web ni dire qu'il ne peut pas ouvrir le lien"
+    evaluators:
+      - Contains:
+          value: "Kervalen"
+          case_sensitive: false
+          evaluation_name: answer_from_document
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  # ── READ, TOOL CALL ONLY — large document, reach it through RAG / summarize ─
+
+  - name: read_rag_fact
+    inputs:
+      user_message: "D'après ce rapport, qui est responsable de l'opération Lanterne ? {link0}"
+      docs_links:
+        - &rapport_archives
+          outcome: read
+          title: Rapport annuel du service des archives
+          access: tool_call_only
+          content: |
+            [1] Opération Lanterne : numérisation des registres paroissiaux antérieurs à
+                1850, sous la responsabilité de Gaspard Kerbrat, archiviste principal.
+            [2] Calendrier : la numérisation s'achève à l'automne 2026 ; les registres
+                seront consultables en ligne sur le portail Orphea.
+            [3] Risque identifié : l'humidité de la réserve de Landerneau menace les
+                registres les plus anciens.
+    metadata:
+      difficulty: easy
+      category: read_tool_call_only
+      description: Doc lu mais trop long pour l'inline — doit appeler document_search_rag
+    evaluators:
+      - Contains:
+          value: "Kerbrat"
+          case_sensitive: false
+          evaluation_name: answer_from_document
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: read_rag_summary
+    inputs:
+      user_message: "Fais-moi un résumé global de {link0}"
+      docs_links:
+        - *rapport_archives
+    metadata:
+      difficulty: easy
+      category: read_tool_call_only
+      description: Résumé d'un doc long — doit appeler summarize
+    evaluators:
+      - Contains:
+          value: "Lanterne"
+          case_sensitive: false
+          evaluation_name: answer_from_document
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "summarize"
+          evaluation_name: called_summarize
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: read_rag_where_stored
+    inputs:
+      user_message: "Où les registres seront-ils consultables, selon ce document ? {link0}"
+      docs_links:
+        - *rapport_archives
+    metadata:
+      difficulty: medium
+      category: read_tool_call_only
+      description: Fait précis d'un doc long — doit passer par le RAG, pas par le web
+    evaluators:
+      - Contains:
+          value: "Orphea"
+          case_sensitive: false
+          evaluation_name: answer_from_document
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "document_search_rag"
+          evaluation_name: called_document_search_rag
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  # ── FAILURE — explain why, invent nothing, do not search the web ───────────
+
+  - name: failure_unauthenticated
+    inputs:
+      user_message: "Résume-moi ce document : {link0}"
+      docs_links:
+        - outcome: unauthenticated
+    metadata:
+      difficulty: easy
+      category: failure
+      description: Session Docs expirée — demander de se reconnecter à Docs
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: failure_forbidden
+    inputs:
+      user_message: "Qu'est-ce qui est dit dans {link0} ?"
+      docs_links:
+        - outcome: forbidden
+    metadata:
+      difficulty: easy
+      category: failure
+      description: Pas d'accès au doc — l'expliquer sans inventer
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: failure_not_found
+    inputs:
+      user_message: "Peux-tu analyser ce compte rendu de réunion ? {link0}"
+      docs_links:
+        - outcome: not_found
+    metadata:
+      difficulty: easy
+      category: failure
+      description: Doc supprimé ou inexistant — ne pas inventer un compte rendu
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: failure_unavailable
+    inputs:
+      user_message: "Donne-moi les points clés de {link0}"
+      docs_links:
+        - outcome: unavailable
+    metadata:
+      difficulty: easy
+      category: failure
+      description: Docs indisponible — proposer de réessayer plus tard
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  - name: failure_too_large
+    inputs:
+      user_message: "Traduis ce document en anglais : {link0}"
+      docs_links:
+        - outcome: too_large
+    metadata:
+      difficulty: easy
+      category: failure
+      description: Doc trop volumineux — l'expliquer
+    evaluators:
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  # ── MIXED — use the read link, explain the other ───────────────────────────
+
+  - name: mixed_read_and_forbidden
+    inputs:
+      user_message: "Compare ces deux documents : {link0} et {link1}"
+      docs_links:
+        - *note_cadrage
+        - outcome: forbidden
+    metadata:
+      difficulty: medium
+      category: mixed
+      description: Un doc lu, un doc refusé — utiliser le premier, expliquer le second
+    evaluators:
+      - Contains:
+          value: "HIRONDELLE-7"
+          case_sensitive: false
+          evaluation_name: answer_from_document
+      - HasNoMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: did_not_call_web_search
+
+  # ── NEEDS WEB — web search still works next to a Docs link ─────────────────
+
+  - name: read_and_web_search
+    inputs:
+      user_message: "Le document {link0} évoque l'AI Act. Cherche sur le web les dernières actualités sur l'AI Act et dis-moi si le point de vigilance du document est toujours d'actualité."
+      docs_links:
+        - *note_cadrage
+    metadata:
+      difficulty: medium
+      category: needs_web
+      description: Demande explicite d'actualités — doit appeler web_search en plus du doc
+    evaluators:
+      - HasMatchingSpan:
+          query:
+            has_attributes:
+              gen_ai.tool.name: "web_search"
+          evaluation_name: called_web_search
