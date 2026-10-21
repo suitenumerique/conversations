@@ -41,6 +41,7 @@ from chat.factories import (
 )
 from chat.file_generation import PresentationBuildError
 from chat.llm_configuration import LLModel, LLMProvider
+from chat.tokens import count_approx_tokens
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.generate_presentation import (
     DOWNLOAD_URL_EXPIRATION,
@@ -505,32 +506,86 @@ async def test_an_unreadable_document_is_skipped():
     assert result.metadata["sources"] == ["present.md"]
 
 
+def mock_summarization(summary):
+    """Stub the summarization pipeline so it returns `summary`."""
+    return mock.patch(
+        "chat.tools.generate_presentation._summarize_text_attachments",
+        new_callable=mock.AsyncMock,
+        return_value=ToolReturn(return_value=summary),
+    )
+
+
+def mock_source_budget(tokens):
+    """Fix the token budget for source documents."""
+    return mock.patch("chat.tools.generate_presentation._source_budget", return_value=tokens)
+
+
 @pytest.mark.asyncio
-async def test_documents_over_budget_are_condensed_first(settings):
+async def test_documents_over_budget_are_condensed_first():
     """
     Documents too long for the agent's prompt go through the summarization
     pipeline, asked to keep the details a deck needs.
     """
-    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0  # no room for verbatim sources
     ctx, conversation, _user = await setup_context()
-    await add_document(conversation, "Un très long rapport", file_name="rapport.md")
+    await add_document(conversation, "Un très long rapport " * 20, file_name="rapport.md")
     received = []
 
     def respond(messages, info):
         received.extend(prompts_of(messages))
         return model_returns_deck(DECK)(messages, info)
 
-    with mock.patch(
-        "chat.tools.generate_presentation._summarize_text_attachments",
-        new_callable=mock.AsyncMock,
-        return_value=ToolReturn(return_value="Synthèse détaillée"),
-    ) as summarize:
+    with mock_source_budget(50), mock_summarization("Synthèse détaillée") as summarize:
         result = await run_tool(ctx, respond=respond)
 
     assert "slide deck" in summarize.call_args.kwargs["instructions"]
-    assert "<documents_summary>\nSynthèse détaillée" in received[0]
+    assert "<documents_summary>\nSynthèse détaillée\n</documents_summary>" in received[0]
     assert "Un très long rapport" not in received[0]
     assert result.metadata["sources"] == ["rapport.md"]
+
+
+@pytest.mark.asyncio
+async def test_a_condensed_summary_over_budget_is_truncated():
+    """
+    A summary still too long for the budget is cut, so the agent never
+    receives more source material than the budget allows.
+    """
+    ctx, conversation, _user = await setup_context()
+    await add_document(conversation, "Un très long rapport " * 20, file_name="rapport.md")
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(DECK)(messages, info)
+
+    with mock_source_budget(50), mock_summarization("Synthèse " * 200):
+        result = await run_tool(ctx, respond=respond)
+
+    sources = received[0].split("## Source documents\n\n", 1)[1]
+    assert sources.startswith("<documents_summary>\nSynthèse")
+    assert count_approx_tokens(sources) <= 50
+    assert result.metadata["sources"] == ["rapport.md"]
+
+
+@pytest.mark.asyncio
+async def test_without_budget_for_sources_the_deck_uses_the_brief_only():
+    """
+    With no room at all for source material, nothing is summarized and the
+    deck is not presented as built from documents the agent never saw.
+    """
+    ctx, conversation, _user = await setup_context()
+    await add_document(conversation, "Un rapport", file_name="rapport.md")
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(DECK)(messages, info)
+
+    with mock_source_budget(0), mock_summarization("Synthèse") as summarize:
+        result = await run_tool(ctx, respond=respond)
+
+    summarize.assert_not_called()
+    assert "Source documents" not in received[0]
+    assert result.metadata["sources"] == []
 
 
 @pytest.mark.asyncio
