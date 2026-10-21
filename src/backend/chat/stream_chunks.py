@@ -27,7 +27,7 @@ from pydantic_ai.messages import (
 )
 
 from chat.ai_sdk_types import UIMessage
-from chat.clients.pydantic_ui_message_converter import model_message_to_ui_message
+from chat.clients.pydantic_ui_message_converter import merge_by_kind, model_message_to_ui_message
 from chat.constants import STREAM_LIVE_WINDOW_SECONDS
 from chat.models import ChatConversation
 
@@ -177,7 +177,7 @@ def interrupted_messages(chunks) -> list[UIMessage]:
         return []
 
     ui_messages = []
-    for message in folded:
+    for message in merge_by_kind(folded):
         ui_message = model_message_to_ui_message(message)
         if ui_message is not None and ui_message.parts:
             ui_messages.append(ui_message)

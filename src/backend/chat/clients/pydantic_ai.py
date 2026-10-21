@@ -162,6 +162,7 @@ from chat.clients.error_classification import (
 )
 from chat.clients.exceptions import StreamCancelException
 from chat.clients.pydantic_ui_message_converter import (
+    merge_by_kind,
     model_message_to_ui_message,
     ui_message_to_user_content,
 )
@@ -2478,18 +2479,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         self._apply_image_actions(final_output, image_actions)
 
-        _merged_final_output_request = ModelRequest(
-            parts=[
-                part for msg in final_output if isinstance(msg, ModelRequest) for part in msg.parts
-            ],
-            kind="request",
-        )
-        _merged_final_output_message = ModelResponse(
-            parts=[
-                part for msg in final_output if isinstance(msg, ModelResponse) for part in msg.parts
-            ],
-            kind="response",
-        )
+        _merged_final_output_request, _merged_final_output_message = merge_by_kind(final_output)
 
         _output_ui_message = model_message_to_ui_message(_merged_final_output_message)
         if ui_sources:
