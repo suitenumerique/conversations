@@ -9,9 +9,10 @@ from django.core.files.storage import default_storage
 from django.utils.text import slugify
 
 from asgiref.sync import sync_to_async
+from pydantic import BaseModel, ValidationError
 from pydantic_ai import ModelRetry, RunContext
 from pydantic_ai.exceptions import AgentRunError
-from pydantic_ai.messages import ToolReturn
+from pydantic_ai.messages import ToolReturn, ToolReturnPart
 
 from core.file_upload.enums import AttachmentStatus
 from core.file_upload.utils import generate_retrieve_policy
@@ -19,7 +20,13 @@ from core.file_upload.utils import generate_retrieve_policy
 from chat import models
 from chat.agents.presentation import PresentationAgent
 from chat.constants import TEXT_MIME_PREFIX
-from chat.file_generation import GENERIC_TEMPLATE, PresentationBuildError, build_presentation
+from chat.file_generation import (
+    GENERIC_TEMPLATE,
+    Presentation,
+    PresentationBuildError,
+    PresentationStyle,
+    build_presentation,
+)
 from chat.tokens import compute_document_budget, count_approx_tokens, truncate_to_tokens
 from chat.tools.document_summarize import _summarize_text_attachments, read_document_content
 from chat.tools.exceptions import ModelCannotRetry
@@ -44,12 +51,15 @@ MAX_NAME_LENGTH = 60
 DOWNLOAD_URL_EXPIRATION = 15 * 60  # 15 minutes
 
 # What the deck cannot do yet. Spelled out in the tool result so the model does
-# not claim to the user that a template or a style instruction was honoured.
+# not claim to the user that a template was honoured.
 UNSUPPORTED_REQUESTS = (
     "The deck always uses the standard template: an attached pptx template or "
-    "slide master, requested colours, fonts, font sizes, logos, images, charts "
-    "and diagrams were NOT applied."
+    "slide master, logos, images, charts and diagrams were NOT applied."
 )
+
+# Tools whose result carries a deck that update_presentation can build on.
+PRESENTATION_TOOLS = ("generate_presentation", "update_presentation")
+PRESENTATION_METADATA_KEY = "presentation"
 
 # Instructions handed to the summarization pipeline when the source documents
 # are too long to be given verbatim to the presentation agent.
@@ -60,6 +70,22 @@ SOURCE_CONDENSE_INSTRUCTIONS = (
 )
 
 SUMMARY_WRAPPER = "<documents_summary>\n{summary}\n</documents_summary>"
+
+
+class StoredPresentation(BaseModel):
+    """
+    What is kept of a deck so that a later turn can restyle or edit it.
+
+    It travels in the tool result's metadata, which is persisted with the
+    conversation history but never sent to the model.
+    """
+
+    presentation: Presentation
+    style: PresentationStyle = PresentationStyle()
+    # The source material the deck was built from, already within the budget,
+    # so that an edit reuses it instead of reading and condensing the documents again.
+    source_material: str = ""
+    source_names: list[str] = []
 
 
 def build_object_name(title: str) -> str:
@@ -196,15 +222,126 @@ async def build_sources(ctx: RunContext, attachments: list) -> tuple[str, list[s
 
 def build_agent_prompt(brief: str, slide_count: int | None, sources: str) -> str:
     """Assemble what the presentation agent is asked to turn into a deck."""
-    parts = [f"## Brief\n\n{brief.strip()}"]
-    if slide_count is not None:
-        parts.append(
-            f"## Number of slides\n\nExactly {slide_count} slides, "
-            "cover and section slides included."
-        )
-    if sources:
-        parts.append(f"## Source documents\n\n{sources}")
-    return "\n\n".join(parts)
+    return _prompt_sections(
+        ("Brief", brief.strip()),
+        (
+            "Number of slides",
+            f"Exactly {slide_count} slides, cover and section slides included."
+            if slide_count
+            else None,
+        ),
+        ("Source documents", sources),
+    )
+
+
+def build_edit_prompt(presentation: Presentation, instructions: str, sources: str) -> str:
+    """Assemble what the presentation agent is asked to change in an existing deck."""
+    return _prompt_sections(
+        ("Current deck", presentation.model_dump_json(exclude_defaults=True)),
+        ("Changes requested", instructions),
+        ("Source documents", sources),
+    )
+
+
+def _prompt_sections(*sections: tuple[str, str | None]) -> str:
+    """Join the non-empty ``(heading, body)`` sections of a prompt."""
+    return "\n\n".join(f"## {heading}\n\n{body}" for heading, body in sections if body)
+
+
+def find_presentations(ctx: RunContext) -> list[StoredPresentation]:
+    """
+    Return the decks generated or updated in the conversation, oldest first.
+
+    Earlier turns are read from the persisted history, since the history the
+    agent runs on has their tool results compacted, metadata included. Results
+    of the current turn are only in the run's own messages.
+    """
+    persisted = [
+        part
+        for message in ctx.deps.conversation.pydantic_messages or []
+        for part in message.get("parts", [])
+        if part.get("part_kind") == "tool-return" and part.get("tool_name") in PRESENTATION_TOOLS
+    ]
+    persisted_call_ids = {part.get("tool_call_id") for part in persisted}
+    metadatas = [part.get("metadata") for part in persisted] + [
+        part.metadata
+        for message in ctx.messages
+        for part in message.parts
+        if isinstance(part, ToolReturnPart)
+        and part.tool_name in PRESENTATION_TOOLS
+        and part.tool_call_id not in persisted_call_ids
+    ]
+
+    decks = []
+    for metadata in metadatas:
+        if not metadata or PRESENTATION_METADATA_KEY not in metadata:
+            continue
+        try:
+            decks.append(StoredPresentation.model_validate(metadata[PRESENTATION_METADATA_KEY]))
+        except ValidationError:
+            logger.warning("Skipping an unreadable stored presentation", exc_info=True)
+    return decks
+
+
+async def run_presentation_agent(
+    ctx: RunContext, prompt: str, slide_count: int | None = None
+) -> Presentation:
+    """Have the presentation agent write the deck described by ``prompt``."""
+    try:
+        result = await PresentationAgent(slide_count=slide_count).run(prompt, usage=ctx.usage)
+    except AgentRunError as exc:
+        # The agent itself failed (model API/HTTP error, unexpected model
+        # behaviour, usage limit): a retry may recover, so let the model try.
+        logger.warning("Presentation agent failed: %s", exc, exc_info=True)
+        raise ModelRetry("The presentation outline could not be produced.") from exc
+    except Exception as exc:
+        # Anything else is a server-side bug, not something a retry fixes.
+        logger.exception("Unexpected error while producing the presentation outline")
+        raise ModelCannotRetry("The presentation outline could not be produced.") from exc
+    return result.output
+
+
+async def save_presentation(
+    ctx: RunContext, stored: StoredPresentation, headline: str
+) -> ToolReturn:
+    """Build and store the deck, and tell the model how to hand it to the user."""
+    presentation = stored.presentation
+    try:
+        blob = await sync_to_async(build_presentation)(GENERIC_TEMPLATE, presentation, stored.style)
+    except PresentationBuildError as exc:
+        # The template is bundled with the application: a failure here is a
+        # deployment problem, not something a different brief would fix.
+        logger.exception("Failed to build the presentation")
+        raise ModelCannotRetry(
+            "The presentation could not be generated because of a server-side error."
+        ) from exc
+
+    try:
+        url = await store_presentation(ctx.deps.conversation, presentation.title, blob)
+    except Exception as exc:
+        logger.exception("Failed to store the generated presentation")
+        raise ModelCannotRetry("The presentation was generated but could not be saved.") from exc
+
+    logger.info(
+        "Saved presentation (%d slides, %d sources) for conversation %s",
+        len(presentation.slides),
+        len(stored.source_names),
+        ctx.deps.conversation.pk,
+    )
+
+    return ToolReturn(
+        return_value=(
+            f"{headline} Give the user this temporary download link: {url} — do not "
+            "restate the deck's content.\n"
+            f"Limitations: {UNSUPPORTED_REQUESTS} If the user asked for any of "
+            "these, tell them plainly that it was not applied; never claim otherwise."
+        ),
+        metadata={
+            "url": url,
+            "sources": stored.source_names,
+            PRESENTATION_METADATA_KEY: stored.model_dump(mode="json"),
+        },
+    )
 
 
 @last_model_retry_soft_fail
@@ -213,6 +350,7 @@ async def generate_presentation(
     brief: str,
     slide_count: int | None = None,
     document_ids: list[str] | None = None,
+    style: PresentationStyle | None = None,
 ) -> ToolReturn:
     """
     Generate a slide deck and return a link to download it.
@@ -228,6 +366,7 @@ async def generate_presentation(
             to use every document attached to the conversation, or pass an
             empty list to use none. Do not include a pptx template the user
             attached as a model to follow: only content sources.
+        style: The colours, fonts and text sizes the user asked for, if any.
 
     Returns:
         ToolReturn: confirmation carrying the download link.
@@ -246,43 +385,8 @@ async def generate_presentation(
         logger.exception("Unexpected error while preparing the presentation sources")
         raise ModelCannotRetry("The source documents could not be prepared.") from exc
 
-    try:
-        result = await PresentationAgent(slide_count=slide_count).run(
-            build_agent_prompt(brief, slide_count, sources), usage=ctx.usage
-        )
-    except AgentRunError as exc:
-        # The agent itself failed (model API/HTTP error, unexpected model
-        # behaviour, usage limit): a retry may recover, so let the model try.
-        logger.warning("Presentation agent failed: %s", exc, exc_info=True)
-        raise ModelRetry("The presentation outline could not be produced.") from exc
-    except Exception as exc:
-        # Anything else is a server-side bug, not something a retry fixes.
-        logger.exception("Unexpected error while producing the presentation outline")
-        raise ModelCannotRetry("The presentation outline could not be produced.") from exc
-
-    presentation = result.output
-
-    try:
-        blob = await sync_to_async(build_presentation)(GENERIC_TEMPLATE, presentation)
-    except PresentationBuildError as exc:
-        # The template is bundled with the application: a failure here is a
-        # deployment problem, not something a different brief would fix.
-        logger.exception("Failed to build the presentation")
-        raise ModelCannotRetry(
-            "The presentation could not be generated because of a server-side error."
-        ) from exc
-
-    try:
-        url = await store_presentation(ctx.deps.conversation, presentation.title, blob)
-    except Exception as exc:
-        logger.exception("Failed to store the generated presentation")
-        raise ModelCannotRetry("The presentation was generated but could not be saved.") from exc
-
-    logger.info(
-        "Generated presentation (%d slides, %d sources) for conversation %s",
-        len(presentation.slides),
-        len(source_names),
-        ctx.deps.conversation.pk,
+    presentation = await run_presentation_agent(
+        ctx, build_agent_prompt(brief, slide_count, sources), slide_count
     )
 
     sources_note = (
@@ -290,13 +394,81 @@ async def generate_presentation(
         if source_names
         else "It was built from the brief only, without any source document."
     )
-    return ToolReturn(
-        return_value=(
-            f"The presentation '{presentation.title}' was generated with "
-            f"{len(presentation.slides)} slides. {sources_note} Give the user this "
-            f"temporary download link: {url} — do not restate the deck's content.\n"
-            f"Limitations: {UNSUPPORTED_REQUESTS} If the user asked for any of "
-            "these, tell them plainly that it was not applied; never claim otherwise."
+    return await save_presentation(
+        ctx,
+        StoredPresentation(
+            presentation=presentation,
+            style=style or PresentationStyle(),
+            source_material=sources,
+            source_names=source_names,
         ),
-        metadata={"url": url, "sources": source_names},
+        f"The presentation '{presentation.title}' was generated with "
+        f"{len(presentation.slides)} slides. {sources_note}",
+    )
+
+
+@last_model_retry_soft_fail
+async def update_presentation(
+    ctx: RunContext,
+    instructions: str | None = None,
+    style: PresentationStyle | None = None,
+    revert: bool = False,
+) -> ToolReturn:
+    """
+    Restyle, edit or revert the last presentation of the conversation, as a new version.
+
+    Args:
+        instructions: The content or layout changes the user asked for, in
+            their own terms (e.g. "expand slide 4", "put slide 3 on two
+            columns"). Leave empty for a style-only change.
+        style: The style changes the user asked for. Only set the fields they
+            want changed: the others keep their current value.
+        revert: Set when the user asks to undo the last change: the previous
+            version is restored exactly as it was, ignoring instructions and style.
+
+    Returns:
+        ToolReturn: confirmation carrying the download link.
+    """
+    instructions = (instructions or "").strip()
+    if not instructions and style is None and not revert:
+        raise ModelRetry("Nothing to change: give instructions, a style, or revert.")
+
+    decks = find_presentations(ctx)
+    if not decks:
+        raise ModelCannotRetry(
+            "There is no presentation to update in this conversation: generate one "
+            "with generate_presentation instead."
+        )
+    if revert:
+        if len(decks) < 2:
+            raise ModelCannotRetry("The presentation has no earlier version to restore.")
+        previous = decks[-2]
+        return await save_presentation(
+            ctx,
+            previous,
+            f"The presentation '{previous.presentation.title}' was restored to its "
+            "previous version, exactly as it was.",
+        )
+
+    stored = decks[-1]
+    presentation = stored.presentation
+    if instructions:
+        # Content changes go through the agent, with the deck's sources so that
+        # what it adds comes from them. A style-only change keeps the content
+        # word for word.
+        presentation = await run_presentation_agent(
+            ctx, build_edit_prompt(presentation, instructions, stored.source_material)
+        )
+
+    updated = stored.model_copy(
+        update={
+            "presentation": presentation,
+            "style": stored.style.updated_with(style) if style else stored.style,
+        }
+    )
+    return await save_presentation(
+        ctx,
+        updated,
+        f"The presentation '{presentation.title}' was updated and now has "
+        f"{len(presentation.slides)} slides.",
     )

@@ -87,16 +87,20 @@ Use this tool whenever the user asks for a presentation, a deck, slides, or a
 support to project in a meeting. The tool writes the slides itself: pass a
 brief describing the subject, the audience and any structure the user asked
 for, not the slides themselves. The tool reads the attached documents on its
-own: point it at the right ones with `document_ids` rather than summarizing
-them in the brief. Pass `slide_count` when the user asked for a number of slides.
+own: point it at the right ones with `document_ids`, and do not summarize or
+search them, neither in the brief nor before calling it. Pass `slide_count`
+when the user asked for a number of slides, and `style` when they asked for
+colours, fonts or text sizes.
+
+To change a deck already generated in the conversation, use
+`update_presentation` instead.
 
 What the tool CANNOT do yet: it always uses the standard template. It cannot
-reuse an attached pptx template or slide master, nor apply requested colours,
-fonts, font sizes or logos, nor insert images, charts or diagrams. When the
-user asks for any of these, still generate the deck, then tell them plainly
-that this part was not applied. Never claim that a template or a style
-instruction was followed, and do not ask the user to describe their template
-instead.
+reuse an attached pptx template or slide master, nor add logos, nor insert
+images, charts or diagrams. When the user asks for any of these, still generate
+the deck, then tell them plainly that this part was not applied. Never claim
+that a template was followed, and do not ask the user to describe their
+template instead.
 
 The tool returns a download link. Pass that link on to the user as-is; do NOT
 restate the deck's content or list the slides.
@@ -114,6 +118,35 @@ Examples that MUST trigger this tool:
 Examples that must NOT trigger this tool:
 - "Résume ce document"
 - "Comment structurer une bonne présentation ?"
+"""
+
+UPDATE_PRESENTATION_TOOL_DESCRIPTION = """
+Change the last slide deck generated in the conversation and return a link to
+the new version.
+
+Use this tool whenever the user asks to change a deck they already got:
+- its style: pass in `style` only the fields they want changed (colours, fonts,
+  text sizes). The content is kept word for word. Unless changed, titles are
+  about 26 pt and text about 14 pt: start from there for "bigger" or "smaller".
+- its content or layout: pass their request in `instructions` (expand, shorten,
+  add, remove or reorder slides, put a slide on two columns, fix a figure...).
+  The tool keeps the deck's source documents: do not summarize or search them.
+- to undo the last change ("reviens à la version d'avant"): set `revert`. The
+  previous version is restored exactly; never rewrite the deck to undo a change.
+A style and instructions can be passed at once.
+
+The same limitations as generate_presentation apply: no attached template,
+logos, images, charts or diagrams. Tell the user plainly when they asked for
+one of these.
+
+The tool returns a download link. Pass that link on to the user as-is; do NOT
+restate the deck's content or list the slides.
+
+Examples that MUST trigger this tool, once a deck was generated:
+- "Mets les titres en bleu"
+- "Agrandis le texte"
+- "Développe la troisième diapositive"
+- "Ajoute une slide sur le budget"
 """
 
 SELF_DOCUMENTATION_SYSTEM_PROMPT = (

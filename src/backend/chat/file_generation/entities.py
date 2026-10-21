@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import Annotated
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -49,6 +50,39 @@ class Presentation(BaseModel):
         if self.slides[0].type != SlideType.COVER:
             raise ValueError("The first slide must be a cover slide.")
         return self
+
+
+HexColor = Annotated[
+    str, Field(pattern=r"^#?[0-9A-Fa-f]{6}$", description="Hex colour, e.g. #000091")
+]
+FontName = Annotated[
+    str,
+    Field(
+        max_length=64,
+        description="Font family, shown only if installed where the deck is opened",
+    ),
+]
+
+
+class PresentationStyle(BaseModel):
+    """
+    Deck-wide style applied over the template's own.
+
+    Every field is optional: an unset one leaves the template's styling in place.
+    Titles are the ``title`` field of each slide; text is every other field.
+    """
+
+    title_color: HexColor | None = None
+    text_color: HexColor | None = None
+    background_color: HexColor | None = None
+    title_font: FontName | None = None
+    text_font: FontName | None = None
+    title_size: float | None = Field(default=None, ge=10, le=96, description="In points")
+    text_size: float | None = Field(default=None, ge=8, le=60, description="In points")
+
+    def updated_with(self, changes: "PresentationStyle") -> "PresentationStyle":
+        """Return this style with every field set in ``changes`` overriding it."""
+        return self.model_copy(update=changes.model_dump(exclude_none=True))
 
 
 @dataclass(frozen=True)

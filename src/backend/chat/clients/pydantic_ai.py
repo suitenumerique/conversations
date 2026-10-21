@@ -202,12 +202,13 @@ from chat.tools.descriptions import (
     GENERATE_PRESENTATION_TOOL_DESCRIPTION,
     SELF_DOCUMENTATION_SYSTEM_PROMPT,
     SELF_DOCUMENTATION_TOOL_DESCRIPTION,
+    UPDATE_PRESENTATION_TOOL_DESCRIPTION,
     WEB_SEARCH_TOOL_DESCRIPTION,
 )
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
 from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize, document_summarize_project
-from chat.tools.generate_presentation import generate_presentation
+from chat.tools.generate_presentation import generate_presentation, update_presentation
 from chat.tools.self_documentation import build_self_documentation_payload
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
@@ -1824,7 +1825,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._web_search_tool_registered = True
 
     def _setup_presentation_tool(self) -> None:
-        """Register the slide deck generation tool when the feature is enabled."""
+        """Register the slide deck generation and update tools when the feature is enabled."""
         if self._presentation_tool_registered or not self._is_presentation_generation_enabled:
             return
 
@@ -1837,6 +1838,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         async def generate_presentation_tool(ctx: RunContext, *args, **kwargs) -> ToolReturn:
             """Wrap the generate_presentation tool to provide context and add the tool."""
             return await generate_presentation(ctx, *args, **kwargs)
+
+        @self.conversation_agent.tool(
+            name="update_presentation",
+            retries=1,
+            description=UPDATE_PRESENTATION_TOOL_DESCRIPTION,
+        )
+        @functools.wraps(update_presentation)
+        async def update_presentation_tool(ctx: RunContext, *args, **kwargs) -> ToolReturn:
+            """Wrap the update_presentation tool to provide context and add the tool."""
+            return await update_presentation(ctx, *args, **kwargs)
 
         self._presentation_tool_registered = True
 
