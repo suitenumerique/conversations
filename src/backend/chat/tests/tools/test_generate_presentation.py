@@ -8,12 +8,14 @@ The only thing mocked is the PresentationAgent's LLM (via FunctionModel) - the
 standard pydantic-ai idiom for driving deterministic model output.
 """
 
+import contextlib
 import re
 import uuid
 from io import BytesIO
 from unittest import mock
 from urllib.parse import parse_qs, urlparse
 
+from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 
 import pptx
@@ -21,15 +23,22 @@ import pytest
 from asgiref.sync import sync_to_async
 from pydantic_ai import ModelResponse, RunContext
 from pydantic_ai.exceptions import AgentRunError, ModelRetry
-from pydantic_ai.messages import ToolCallPart
+from pydantic_ai.messages import ToolCallPart, ToolReturn, UserPromptPart
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.usage import RunUsage
 
+from core.file_upload.enums import AttachmentStatus
 from core.file_upload.mixins import AttachmentMixin
 
 from chat.agents.presentation import PresentationAgent
 from chat.clients.schema import ContextDeps
-from chat.factories import ChatConversationFactory, UserFactory
+from chat.factories import (
+    ChatConversationAttachmentFactory,
+    ChatConversationFactory,
+    ChatProjectAttachmentFactory,
+    ChatProjectFactory,
+    UserFactory,
+)
 from chat.file_generation import PresentationBuildError
 from chat.llm_configuration import LLModel, LLMProvider
 from chat.tools.exceptions import ModelCannotRetry
@@ -91,11 +100,23 @@ def model_returns_deck(deck):
     return respond
 
 
+def prompts_of(messages):
+    """Return the user prompts the presentation agent received."""
+    return [
+        part.content
+        for message in messages
+        for part in getattr(message, "parts", [])
+        if isinstance(part, UserPromptPart)
+    ]
+
+
 @sync_to_async
-def setup_context(max_retries=2):
+def setup_context(max_retries=2, project=False):
     """Build a conversation and a real RunContext in one sync block."""
     user = UserFactory()
-    conversation = ChatConversationFactory(owner=user)
+    conversation = ChatConversationFactory(
+        owner=user, project=ChatProjectFactory(owner=user) if project else None
+    )
     ctx = RunContext(
         model="test",
         usage=RunUsage(input_tokens=0, output_tokens=0),
@@ -107,12 +128,55 @@ def setup_context(max_retries=2):
     return ctx, conversation, user
 
 
-async def run_tool(ctx, brief="Un support sur la sobriété énergétique", deck=None):
-    """Run the tool with the presentation agent's LLM stubbed out."""
-    agent = PresentationAgent()
-    with agent.override(model=FunctionModel(model_returns_deck(deck or DECK))):
-        with mock.patch("chat.tools.generate_presentation.PresentationAgent", return_value=agent):
-            return await generate_presentation(ctx, brief=brief)
+@sync_to_async
+def add_document(conversation, content, *, file_name="note.md", project=None, **kwargs):
+    """Attach a text document to the conversation (or to `project`) and store it."""
+    if project is not None:
+        attachment = ChatProjectAttachmentFactory(
+            project=project,
+            uploaded_by=conversation.owner,
+            file_name=file_name,
+            content_type="text/markdown",
+            upload_state=AttachmentStatus.READY,
+            **kwargs,
+        )
+    else:
+        attachment = ChatConversationAttachmentFactory(
+            conversation=conversation,
+            uploaded_by=conversation.owner,
+            file_name=file_name,
+            content_type="text/markdown",
+            upload_state=kwargs.pop("upload_state", AttachmentStatus.READY),
+            **kwargs,
+        )
+    if content is not None:
+        default_storage.save(attachment.key, ContentFile(content.encode("utf-8")))
+    return attachment
+
+
+async def run_tool(
+    ctx, brief="Un support sur la sobriété énergétique", deck=None, respond=None, **kwargs
+):
+    """
+    Run the tool with the presentation agent's LLM stubbed out.
+
+    The agent is still built by the tool, so the arguments it receives (such as
+    ``slide_count``) are the real ones; only its model is replaced.
+    """
+    respond = respond or model_returns_deck(deck or DECK)
+    with contextlib.ExitStack() as stack:
+
+        def build_agent(**agent_kwargs):
+            agent = PresentationAgent(**agent_kwargs)
+            stack.enter_context(agent.override(model=FunctionModel(respond)))
+            return agent
+
+        stack.enter_context(
+            mock.patch(
+                "chat.tools.generate_presentation.PresentationAgent", side_effect=build_agent
+            )
+        )
+        return await generate_presentation(ctx, brief=brief, **kwargs)
 
 
 def object_key(url):
@@ -297,6 +361,207 @@ async def test_a_storage_failure_soft_fails():
 
     assert isinstance(result, str)
     assert "could not be saved" in result
+
+
+@pytest.mark.asyncio
+async def test_tells_the_model_what_was_not_applied():
+    """
+    The return value spells out what the deck cannot do, so the model does not
+    claim to the user that a template or a style instruction was followed.
+    """
+    ctx, _conversation, _user = await setup_context()
+
+    result = await run_tool(ctx)
+
+    assert "template" in result.return_value
+    assert "NOT applied" in result.return_value
+    assert "never claim otherwise" in result.return_value
+
+
+@pytest.mark.asyncio
+async def test_the_brief_alone_is_used_without_documents():
+    """With no document in the conversation, the agent works from the brief only."""
+    ctx, _conversation, _user = await setup_context()
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(DECK)(messages, info)
+
+    result = await run_tool(ctx, brief="Un sujet précis", respond=respond)
+
+    assert "Un sujet précis" in received[0]
+    assert "Source documents" not in received[0]
+    assert "brief only" in result.return_value
+    assert result.metadata["sources"] == []
+
+
+@pytest.mark.asyncio
+async def test_conversation_documents_reach_the_agent_verbatim():
+    """
+    By default, every document of the conversation is handed to the agent, so
+    the deck is built from the sources rather than from the main model's brief.
+    """
+    ctx, conversation, _user = await setup_context()
+    await add_document(conversation, "Le budget atteint 42 M€.", file_name="rapport.md")
+    await add_document(conversation, "Trois axes prioritaires.", file_name="annexe.md")
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(DECK)(messages, info)
+
+    result = await run_tool(ctx, respond=respond)
+
+    assert '<document name="rapport.md">\nLe budget atteint 42 M€.' in received[0]
+    assert "Trois axes prioritaires." in received[0]
+    assert result.metadata["sources"] == ["rapport.md", "annexe.md"]
+    assert "rapport.md, annexe.md" in result.return_value
+
+
+@pytest.mark.asyncio
+async def test_document_ids_select_the_sources():
+    """
+    `document_ids` narrows the sources, e.g. to leave out a pptx template the
+    user attached as a model, and may target project-library files.
+    """
+    ctx, conversation, _user = await setup_context(project=True)
+    await add_document(conversation, "Contenu du rapport", file_name="rapport.md")
+    await add_document(conversation, "Titre de la présentation", file_name="gabarit.md")
+    project_document = await add_document(
+        conversation, "Note du projet", file_name="projet.md", project=conversation.project
+    )
+    report = await sync_to_async(conversation.attachments.get)(file_name="rapport.md")
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(DECK)(messages, info)
+
+    result = await run_tool(
+        ctx, respond=respond, document_ids=[str(report.id), str(project_document.id)]
+    )
+
+    assert "Contenu du rapport" in received[0]
+    assert "Note du projet" in received[0]
+    assert "Titre de la présentation" not in received[0]
+    assert result.metadata["sources"] == ["rapport.md", "projet.md"]
+
+
+@pytest.mark.asyncio
+async def test_an_empty_document_ids_list_uses_no_document():
+    """An explicit empty list opts out of the conversation documents."""
+    ctx, conversation, _user = await setup_context()
+    await add_document(conversation, "Contenu du rapport")
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(DECK)(messages, info)
+
+    result = await run_tool(ctx, respond=respond, document_ids=[])
+
+    assert "Contenu du rapport" not in received[0]
+    assert result.metadata["sources"] == []
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_document_id_is_offered_for_retry():
+    """An id outside the conversation and its project lets the model correct itself."""
+    ctx, _conversation, _user = await setup_context()
+    other_conversation = await sync_to_async(ChatConversationFactory)()
+    foreign = await add_document(other_conversation, "Secret")
+
+    with pytest.raises(ModelRetry, match="document_id was not found"):
+        await run_tool(ctx, document_ids=[str(foreign.id)])
+
+
+@pytest.mark.asyncio
+async def test_documents_not_ready_are_not_used():
+    """Uploads still being scanned (or quarantined) never reach the agent."""
+    ctx, conversation, _user = await setup_context()
+    await add_document(conversation, "En cours d'analyse", upload_state=AttachmentStatus.ANALYZING)
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(DECK)(messages, info)
+
+    result = await run_tool(ctx, respond=respond)
+
+    assert "En cours d'analyse" not in received[0]
+    assert result.metadata["sources"] == []
+
+
+@pytest.mark.asyncio
+async def test_an_unreadable_document_is_skipped():
+    """A document missing from storage does not prevent building the deck."""
+    ctx, conversation, _user = await setup_context()
+    await add_document(conversation, None, file_name="absent.md")
+    await add_document(conversation, "Contenu lisible", file_name="present.md")
+
+    result = await run_tool(ctx)
+
+    assert result.metadata["sources"] == ["present.md"]
+
+
+@pytest.mark.asyncio
+async def test_documents_over_budget_are_condensed_first(settings):
+    """
+    Documents too long for the agent's prompt go through the summarization
+    pipeline, asked to keep the details a deck needs.
+    """
+    settings.DOCUMENT_CONTEXT_BUDGET_RATIO = 0  # no room for verbatim sources
+    ctx, conversation, _user = await setup_context()
+    await add_document(conversation, "Un très long rapport", file_name="rapport.md")
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(DECK)(messages, info)
+
+    with mock.patch(
+        "chat.tools.generate_presentation._summarize_text_attachments",
+        new_callable=mock.AsyncMock,
+        return_value=ToolReturn(return_value="Synthèse détaillée"),
+    ) as summarize:
+        result = await run_tool(ctx, respond=respond)
+
+    assert "slide deck" in summarize.call_args.kwargs["instructions"]
+    assert "<documents_summary>\nSynthèse détaillée" in received[0]
+    assert "Un très long rapport" not in received[0]
+    assert result.metadata["sources"] == ["rapport.md"]
+
+
+@pytest.mark.asyncio
+async def test_the_requested_slide_count_is_enforced():
+    """
+    A deck of the wrong length is sent back to the model, which gets told how
+    many slides were asked for.
+    """
+    ctx, _conversation, _user = await setup_context()
+    three_slides = {**DECK, "slides": [*DECK["slides"], DECK["slides"][1]]}
+    calls = []
+
+    def respond(messages, info):
+        calls.append(messages)
+        return model_returns_deck(DECK if len(calls) == 1 else three_slides)(messages, info)
+
+    result = await run_tool(ctx, respond=respond, slide_count=3)
+
+    assert len(calls) == 2
+    assert "Exactly 3 slides" in prompts_of(calls[0])[0]
+    assert "exactly 3 were requested" in str(calls[1][-1])
+    assert "3 slides" in result.return_value
+
+
+@pytest.mark.asyncio
+async def test_a_non_positive_slide_count_is_offered_for_retry():
+    """A slide count below one is a model mistake it can correct."""
+    ctx, _conversation, _user = await setup_context()
+
+    with pytest.raises(ModelRetry, match="slide_count"):
+        await run_tool(ctx, slide_count=0)
 
 
 def test_generated_key_cannot_be_served_through_the_media_proxy(settings):
