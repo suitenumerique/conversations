@@ -756,6 +756,44 @@ describe('MessageItem', () => {
       expect(screen.getByTestId('interrupted-answer')).toBeInTheDocument();
     });
 
+    it('does not flag the answer a turn running without us is still writing', async () => {
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={{
+              ...defaultProps.message,
+              metadata: { interrupted: true },
+            }}
+            isLastMessage={true}
+            isConversationStreaming={true}
+          />,
+        );
+      });
+
+      expect(
+        screen.queryByTestId('interrupted-answer'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('keeps flagging an earlier answer while a turn runs without us', async () => {
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={{
+              ...defaultProps.message,
+              metadata: { interrupted: true },
+            }}
+            isLastMessage={false}
+            isConversationStreaming={true}
+          />,
+        );
+      });
+
+      expect(screen.getByTestId('interrupted-answer')).toBeInTheDocument();
+    });
+
     it('leaves a completed answer unflagged', async () => {
       await act(async () => {
         renderWithProviders(<MessageItem {...defaultProps} />);

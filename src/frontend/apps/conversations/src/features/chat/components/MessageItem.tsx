@@ -269,9 +269,11 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   // A stored checkpoint of a turn that never finished: the text stops where
   // the stream was cut, so say so rather than let it read as a full answer.
   // Unless the turn is merely running without us, in which case the text is
-  // not final and the conversation already says so above the composer.
+  // not final and the conversation already says so above the composer. That
+  // turn only ever writes the last message: an earlier answer stays flagged.
   const isInterrupted =
-    isMessageInterrupted(message) && !isConversationStreaming;
+    isMessageInterrupted(message) &&
+    !(isConversationStreaming && isLastMessage);
 
   const sourceParts = React.useMemo(
     () =>
