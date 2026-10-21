@@ -19,6 +19,7 @@ and this project adheres to
 ### Fixed
 
 - 🐛(back) accept list content in non-streaming Albert responses
+- 🐛(back) stop losing chat turns when a document contains NUL characters
 
 ## [0.0.27] - 2026-10-28
 
