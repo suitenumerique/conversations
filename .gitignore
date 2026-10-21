@@ -27,7 +27,6 @@ share/python-wheels/
 *.egg
 MANIFEST
 .DS_Store
-.next/
 
 # Translations	# Translations
 *.mo
