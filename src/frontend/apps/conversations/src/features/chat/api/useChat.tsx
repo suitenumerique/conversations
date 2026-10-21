@@ -258,6 +258,23 @@ export function useChat({
   // blank instead of showing an error and a retry.
   const result = useAiSdkChat({ ...options, transport, onData });
 
+  // A reload cuts the stream with a network TypeError, which the SDK reports as
+  // a failed turn, flashing the error box. Aborting first ends it quietly; the
+  // turn keeps running server-side and is picked up again after the reload.
+  // `beforeunload`, not `pagehide`: Firefox cuts the stream as the navigation
+  // starts, before `pagehide` fires. Only listened to during a turn: Firefox
+  // keeps a page with a `beforeunload` listener out of the back/forward cache.
+  const { status, stop } = result;
+  const isTurnRunning = status === 'submitted' || status === 'streaming';
+  useEffect(() => {
+    if (!isTurnRunning) {
+      return;
+    }
+    const onBeforeUnload = () => void stop();
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [isTurnRunning, stop]);
+
   // Restore the cooldown from the backend (the authoritative source) so it
   // survives a refresh, a new tab, or switching conversations. react-query
   // refetches on mount and on window focus, keeping tabs in sync.
