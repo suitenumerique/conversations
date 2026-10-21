@@ -3,6 +3,7 @@
 import logging
 import secrets
 
+from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.utils.text import slugify
@@ -12,12 +13,17 @@ from pydantic_ai import ModelRetry, RunContext
 from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.messages import ToolReturn
 
+from core.file_upload.enums import AttachmentStatus
 from core.file_upload.utils import generate_retrieve_policy
 
+from chat import models
 from chat.agents.presentation import PresentationAgent
+from chat.constants import TEXT_MIME_PREFIX
 from chat.file_generation import GENERIC_TEMPLATE, PresentationBuildError, build_presentation
+from chat.tokens import compute_document_budget, count_approx_tokens
+from chat.tools.document_summarize import _summarize_text_attachments, read_document_content
 from chat.tools.exceptions import ModelCannotRetry
-from chat.tools.utils import last_model_retry_soft_fail
+from chat.tools.utils import last_model_retry_soft_fail, resolve_attachment_by_id
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +42,22 @@ MAX_NAME_LENGTH = 60
 # Lifetime of the download link. Longer than the default retrieve policy, which
 # is tuned for URLs the LLM reads at once: this one is for a user to click.
 DOWNLOAD_URL_EXPIRATION = 15 * 60  # 15 minutes
+
+# What the deck cannot do yet. Spelled out in the tool result so the model does
+# not claim to the user that a template or a style instruction was honoured.
+UNSUPPORTED_REQUESTS = (
+    "The deck always uses the standard template: an attached pptx template or "
+    "slide master, requested colours, fonts, font sizes, logos, images, charts "
+    "and diagrams were NOT applied."
+)
+
+# Instructions handed to the summarization pipeline when the source documents
+# are too long to be given verbatim to the presentation agent.
+SOURCE_CONDENSE_INSTRUCTIONS = (
+    "This summary will be turned into a slide deck. Keep the structure of the "
+    "document (parts and sub-parts), and every key fact, figure, date, name, "
+    "recommendation and conclusion. Prefer a long, detailed summary over a short one."
+)
 
 
 def build_object_name(title: str) -> str:
@@ -73,23 +95,145 @@ def store_presentation(conversation, title: str, blob: bytes) -> str:
     return generate_retrieve_policy(key, expiration=DOWNLOAD_URL_EXPIRATION)
 
 
+@sync_to_async
+def get_source_attachments(conversation, document_ids: list[str] | None) -> list:
+    """
+    Resolve the text documents the deck is built from.
+
+    With no ``document_ids``, every document of the conversation is used. Ids
+    may also target project-library files. Only READY attachments are eligible,
+    matching the documents listing the model picks its ids from.
+    """
+    conversation_documents = list(
+        conversation.attachments.filter(
+            content_type__startswith=TEXT_MIME_PREFIX,
+            upload_state=AttachmentStatus.READY,
+        ).order_by("created_at", "id")
+    )
+    if document_ids is None:
+        return conversation_documents
+
+    candidates = conversation_documents
+    if conversation.project_id:
+        candidates += list(
+            models.ChatConversationAttachment.objects.filter(
+                project_id=conversation.project_id,
+                content_type__startswith=TEXT_MIME_PREFIX,
+                upload_state=AttachmentStatus.READY,
+            ).order_by("created_at", "id")
+        )
+    # dict.fromkeys drops duplicate ids while keeping the order given.
+    return [
+        resolve_attachment_by_id(candidates, document_id)
+        for document_id in dict.fromkeys(document_ids)
+    ]
+
+
+def _source_budget() -> int:
+    """Token budget for source documents in the presentation agent's prompt."""
+    configuration = settings.LLM_CONFIGURATIONS[settings.LLM_DEFAULT_MODEL_HRID]
+    return compute_document_budget(
+        configuration.max_token_context or settings.DEFAULT_MAX_TOKEN_CONTEXT,
+        settings.DOCUMENT_CONTEXT_BUDGET_RATIO,
+        settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS,
+    )
+
+
+async def build_sources(ctx: RunContext, attachments: list) -> tuple[str, list[str]]:
+    """
+    Return the source material for the deck, and the names of the documents used.
+
+    Documents are given verbatim when they fit the budget. Longer ones go through
+    the summarization pipeline first, asked to keep the details a deck needs.
+    An unreadable document is skipped rather than failing the whole deck.
+    """
+    documents = []
+    for attachment in attachments:
+        try:
+            documents.append(await read_document_content(attachment))
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "Failed to read source document %s for a presentation",
+                attachment.id,
+                exc_info=True,
+            )
+    if not documents:
+        return "", []
+
+    names = [name for name, _content in documents]
+    verbatim = "\n\n".join(
+        f'<document name="{name}">\n{content}\n</document>' for name, content in documents
+    )
+    if count_approx_tokens(verbatim) <= _source_budget():
+        return verbatim, names
+
+    logger.info("Source documents exceed the presentation budget, condensing them first")
+    condensed = await _summarize_text_attachments(
+        attachments,
+        instructions=SOURCE_CONDENSE_INSTRUCTIONS,
+        document_id=None,
+        ctx=ctx,
+        empty_set_message="No source document could be read.",
+    )
+    return f"<documents_summary>\n{condensed.return_value}\n</documents_summary>", names
+
+
+def build_agent_prompt(brief: str, slide_count: int | None, sources: str) -> str:
+    """Assemble what the presentation agent is asked to turn into a deck."""
+    parts = [f"## Brief\n\n{brief.strip()}"]
+    if slide_count is not None:
+        parts.append(
+            f"## Number of slides\n\nExactly {slide_count} slides, "
+            "cover and section slides included."
+        )
+    if sources:
+        parts.append(f"## Source documents\n\n{sources}")
+    return "\n\n".join(parts)
+
+
 @last_model_retry_soft_fail
-async def generate_presentation(ctx: RunContext, brief: str) -> ToolReturn:
+async def generate_presentation(
+    ctx: RunContext,
+    brief: str,
+    slide_count: int | None = None,
+    document_ids: list[str] | None = None,
+) -> ToolReturn:
     """
     Generate a slide deck and return a link to download it.
 
     Args:
         brief: What the deck must cover, in the user's own terms. Include the
-            subject, the audience and any structure the user asked for.
+            subject, the audience, the plan or structure, the key points and the
+            level of detail the user asked for.
+        slide_count: The total number of slides the user asked for, if they
+            gave one. Leave empty otherwise.
+        document_ids: UUIDs of the documents to build the deck from, taken from
+            the `documents` or `project_documents` context arrays. Leave empty
+            to use every document attached to the conversation, or pass an
+            empty list to use none. Do not include a pptx template the user
+            attached as a model to follow: only content sources.
 
     Returns:
         ToolReturn: confirmation carrying the download link.
     """
     if not brief.strip():
         raise ModelRetry("The brief is empty. Describe what the presentation must cover.")
+    if slide_count is not None and slide_count < 1:
+        raise ModelRetry("slide_count must be a positive number, or left empty.")
+
+    attachments = await get_source_attachments(ctx.deps.conversation, document_ids)
+    try:
+        sources, source_names = await build_sources(ctx, attachments)
+    except ModelRetry, ModelCannotRetry:
+        raise
+    except Exception as exc:
+        logger.exception("Unexpected error while preparing the presentation sources")
+        raise ModelCannotRetry("The source documents could not be prepared.") from exc
 
     try:
-        result = await PresentationAgent().run(brief, usage=ctx.usage)
+        result = await PresentationAgent(slide_count=slide_count).run(
+            build_agent_prompt(brief, slide_count, sources), usage=ctx.usage
+        )
     except AgentRunError as exc:
         # The agent itself failed (model API/HTTP error, unexpected model
         # behaviour, usage limit): a retry may recover, so let the model try.
@@ -119,16 +263,24 @@ async def generate_presentation(ctx: RunContext, brief: str) -> ToolReturn:
         raise ModelCannotRetry("The presentation was generated but could not be saved.") from exc
 
     logger.info(
-        "Generated presentation (%d slides) for conversation %s",
+        "Generated presentation (%d slides, %d sources) for conversation %s",
         len(presentation.slides),
+        len(source_names),
         ctx.deps.conversation.pk,
     )
 
+    sources_note = (
+        f"It was built from: {', '.join(source_names)}."
+        if source_names
+        else "It was built from the brief only, without any source document."
+    )
     return ToolReturn(
         return_value=(
             f"The presentation '{presentation.title}' was generated with "
-            f"{len(presentation.slides)} slides. Give the user this temporary "
-            f"download link: {url} — do not restate the deck's content."
+            f"{len(presentation.slides)} slides. {sources_note} Give the user this "
+            f"temporary download link: {url} — do not restate the deck's content.\n"
+            f"Limitations: {UNSUPPORTED_REQUESTS} If the user asked for any of "
+            "these, tell them plainly that it was not applied; never claim otherwise."
         ),
-        metadata={"url": url},
+        metadata={"url": url, "sources": source_names},
     )

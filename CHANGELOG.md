@@ -10,6 +10,8 @@ and this project adheres to
 
 ### Added
 
+- ✨(back) build generated slide decks from the attached documents and
+  honour the requested slide count
 - ✨(back) add opt-in prometheus metrics on `/metrics`
 - ✨(back) measure model requests, chat streams and outgoing calls
 - ✨(helm) add a ServiceMonitor and a PodMonitor for the backend metrics
@@ -25,6 +27,8 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(back) stop claiming a template or a style was applied to a generated
+  slide deck
 - 💄(front) add margin-top for the carbon impact module.
 - ⚡️(front) disable posthog-js periodic feature flag reloads
 - 🐛(front) avoid stale pages and blank screens after a deploy
