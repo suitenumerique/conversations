@@ -18,6 +18,7 @@ and this project adheres to
 
 ### Changed
 
+- 🔒️(back) upgrade certifi and pillow to fix CVEs
 - 🔧(docker) replace maildev with mailcatcher like other La Suite projects
 - ⬆️(dependencies) upgrade back-end and front-end dependencies
 - ⬆️(back) upgrade pydantic-ai to 2.52.0 and switch to httpx2
