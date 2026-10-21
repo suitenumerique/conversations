@@ -13,6 +13,8 @@ and this project adheres to
 - ✨(back) add opt-in output token limit per message
 - ✨(back) build generated slide decks from the attached documents and
   honour the requested slide count
+- 🐛(back) stop claiming a template or a style was applied to a generated
+  slide deck  
 
 ## [0.0.27] - 2026-10-28
 
@@ -46,8 +48,6 @@ and this project adheres to
 
 ### Fixed
 
-- 🐛(back) stop claiming a template or a style was applied to a generated
-  slide deck
 - 💄(front) add margin-top for the carbon impact module.
 - ⚡️(front) disable posthog-js periodic feature flag reloads
 - 🐛(front) avoid stale pages and blank screens after a deploy
