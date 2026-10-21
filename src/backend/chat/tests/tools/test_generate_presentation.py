@@ -1,5 +1,5 @@
 """
-Tests for generate_presentation.
+Tests for generate_presentation and update_presentation.
 
 Real components: Django ORM (factory-built conversation), real default_storage,
 the real pptx template and builder, real RunContext + ContextDeps.
@@ -8,6 +8,7 @@ The only thing mocked is the PresentationAgent's LLM (via FunctionModel) - the
 standard pydantic-ai idiom for driving deterministic model output.
 """
 
+# pylint: disable=too-many-lines
 import contextlib
 import re
 import uuid
@@ -23,7 +24,14 @@ import pytest
 from asgiref.sync import sync_to_async
 from pydantic_ai import ModelResponse, RunContext
 from pydantic_ai.exceptions import AgentRunError, ModelHTTPError, ModelRetry
-from pydantic_ai.messages import TextPart, ToolCallPart, UserPromptPart
+from pydantic_ai.messages import (
+    ModelMessagesTypeAdapter,
+    ModelRequest,
+    TextPart,
+    ToolCallPart,
+    ToolReturnPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.usage import RunUsage
 
@@ -39,7 +47,7 @@ from chat.factories import (
     ChatProjectFactory,
     UserFactory,
 )
-from chat.file_generation import PresentationBuildError
+from chat.file_generation import Presentation, PresentationBuildError, PresentationStyle
 from chat.llm_configuration import LLModel, LLMProvider
 from chat.tokens import count_approx_tokens
 from chat.tools.exceptions import ModelCannotRetry
@@ -47,9 +55,11 @@ from chat.tools.generate_presentation import (
     DOWNLOAD_URL_EXPIRATION,
     GENERATED_FOLDER,
     MAX_SLIDE_COUNT,
+    StoredPresentation,
     build_object_name,
     condense_sources,
     generate_presentation,
+    update_presentation,
 )
 from chat.tools.utils import prompt_boundary
 
@@ -179,16 +189,14 @@ def add_document(conversation, content, *, file_name="note.md", project=None, **
     return attachment
 
 
-async def run_tool(
-    ctx, brief="Un support sur la sobriété énergétique", deck=None, respond=None, **kwargs
-):
+@contextlib.contextmanager
+def stubbed_agent(respond):
     """
-    Run the tool with the presentation agent's LLM stubbed out.
+    Replace the presentation agent's LLM with `respond`.
 
     The agent is still built by the tool, so the arguments it receives (such as
     ``slide_count``) are the real ones; only its model is replaced.
     """
-    respond = respond or model_returns_deck(deck or DECK)
     with contextlib.ExitStack() as stack:
 
         def build_agent(**agent_kwargs):
@@ -201,13 +209,59 @@ async def run_tool(
                 "chat.tools.generate_presentation.PresentationAgent", side_effect=build_agent
             )
         )
+        yield
+
+
+async def run_tool(
+    ctx, brief="Un support sur la sobriété énergétique", deck=None, respond=None, **kwargs
+):
+    """Run generate_presentation with the presentation agent's LLM stubbed out."""
+    with stubbed_agent(respond or model_returns_deck(deck or DECK)):
         return await generate_presentation(ctx, brief=brief, **kwargs)
+
+
+async def run_update(ctx, respond=None, **kwargs):
+    """Run update_presentation with the presentation agent's LLM stubbed out."""
+    with stubbed_agent(respond or model_returns_deck(DECK)):
+        return await update_presentation(ctx, **kwargs)
+
+
+@sync_to_async
+def persist_tool_returns(conversation, *metadatas):
+    """Store earlier turns' tool results carrying `metadatas` in the conversation history."""
+    messages = [
+        ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_name="generate_presentation",
+                    content="The presentation was generated.",
+                    tool_call_id=f"call-{index}",
+                    metadata=metadata,
+                )
+            ]
+        )
+        for index, metadata in enumerate(metadatas)
+    ]
+    conversation.pydantic_messages = ModelMessagesTypeAdapter.dump_python(messages, mode="json")
+    conversation.save()
+
+
+def stored_deck(title="Sobriété énergétique", **kwargs):
+    """Metadata of a stored deck, as generate_presentation leaves it."""
+    deck = {**DECK, "title": title}
+    return {"presentation": StoredPresentation(presentation=deck, **kwargs).model_dump(mode="json")}
 
 
 def object_key(url):
     """Recover the S3 object key from a presigned URL."""
     path = urlparse(url).path
     return path.split(f"/{default_storage.bucket_name}/", 1)[1]
+
+
+def read_deck(url):
+    """Open the stored deck behind a download link."""
+    blob = default_storage.open(object_key(url)).read()
+    return pptx.Presentation(BytesIO(blob))
 
 
 @pytest.mark.asyncio
@@ -570,15 +624,22 @@ async def test_unready_documents_and_spreadsheets_are_not_used():
 
 
 @pytest.mark.asyncio
-async def test_an_unreadable_document_is_skipped():
-    """A document missing from storage does not prevent building the deck."""
+async def test_an_unreadable_document_is_skipped(json_logs):
+    """
+    A document missing from storage does not prevent building the deck. The
+    failure is logged by type only, without the traceback.
+    """
     ctx, conversation, _user = await setup_context()
-    await add_document(conversation, None, file_name="absent.md")
+    absent = await add_document(conversation, None, file_name="absent.md")
     await add_document(conversation, "Contenu lisible", file_name="present.md")
 
     result = await run_tool(ctx)
 
     assert result.metadata["sources"] == ["present.md"]
+    [line] = [line for line in json_logs() if line["event"] == "presentation_source_read_failed"]
+    assert line["attachment_id"] == str(absent.id)
+    assert line["error_type"]
+    assert "exception" not in line
 
 
 def mock_summarization(summary):
@@ -785,3 +846,203 @@ def test_build_object_name_hex_suffix_varies():
     first = build_object_name()
     second = build_object_name()
     assert first != second
+
+
+@pytest.mark.asyncio
+async def test_the_deck_is_kept_for_later_edits():
+    """
+    The requested style reaches the deck, and the result's metadata keeps the
+    deck, its style and the documents it was built from, not their text.
+    """
+    ctx, conversation, _user = await setup_context()
+    document = await add_document(conversation, "Contenu du rapport", file_name="rapport.md")
+
+    result = await run_tool(ctx, style=PresentationStyle(title_color="#000091", text_size=20))
+
+    deck = await sync_to_async(read_deck)(result.metadata["url"])
+    body_runs = deck.slides[1].shapes[1].text_frame.paragraphs[0].runs
+    assert body_runs[0].font.size == pptx.util.Pt(20)
+    stored = StoredPresentation.model_validate(result.metadata["presentation"])
+    assert stored.presentation == Presentation.model_validate(DECK)
+    assert stored.style == PresentationStyle(title_color="#000091", text_size=20)
+    assert stored.source_ids == [str(document.id)]
+    assert stored.source_names == ["rapport.md"]
+    assert "Contenu du rapport" not in str(result.metadata)
+
+
+@pytest.mark.asyncio
+async def test_a_style_change_keeps_the_content_word_for_word():
+    """
+    A style-only update rebuilds the last deck with the merged style, without
+    asking the agent to write it again.
+    """
+    ctx, conversation, _user = await setup_context()
+    await persist_tool_returns(
+        conversation, stored_deck(style=PresentationStyle(title_color="#000091"))
+    )
+
+    def respond(_messages, _info):
+        raise AssertionError("The agent must not run for a style-only change.")
+
+    result = await run_update(ctx, respond=respond, style=PresentationStyle(text_size=20))
+
+    stored = StoredPresentation.model_validate(result.metadata["presentation"])
+    assert stored.presentation == Presentation.model_validate(DECK)
+    assert stored.style == PresentationStyle(title_color="#000091", text_size=20)
+    assert "was updated" in result.return_value
+    assert result.metadata["sources"] == []
+
+    deck = await sync_to_async(read_deck)(result.metadata["url"])
+    title_run = deck.slides[1].shapes[0].text_frame.paragraphs[0].runs[0]
+    assert str(title_run.font.color.rgb) == "000091"
+
+
+@pytest.mark.asyncio
+async def test_a_content_change_goes_through_the_agent_with_the_documents_read_again():
+    """
+    The agent gets the current deck, the requested changes and the deck's
+    documents read again; its new deck replaces the old one. A deleted
+    document is left out, and the model is told so.
+    """
+    ctx, conversation, _user = await setup_context()
+    document = await add_document(conversation, "Le budget atteint 42 M€.", file_name="rapport.md")
+    deleted = await add_document(conversation, "Texte supprimé", file_name="ancien.md")
+    source_ids = [str(document.id), str(deleted.id)]
+    await sync_to_async(deleted.delete)()
+    await persist_tool_returns(
+        conversation,
+        stored_deck(
+            version_id="v1", source_ids=source_ids, source_names=["rapport.md", "ancien.md"]
+        ),
+    )
+    received = []
+    respond = model_records_prompts(received, {**DECK, "title": "Version longue"})
+
+    result = await run_update(ctx, respond=respond, instructions="Ajoute le budget")
+
+    assert '## Current deck\n\n{"title":"Sobriété énergétique"' in received[0]
+    assert "## Changes requested\n\nAjoute le budget" in received[0]
+    assert (
+        '<document_b0b0 name="rapport.md">\nLe budget atteint 42 M€.\n</document_b0b0>'
+        in received[0]
+    )
+    stored = StoredPresentation.model_validate(result.metadata["presentation"])
+    assert stored.presentation.title == "Version longue"
+    assert (stored.source_ids, stored.parent_id) == ([str(document.id)], "v1")
+    assert "Version longue" not in result.return_value
+    assert "1 of its source documents were deleted" in result.return_value
+    assert result.metadata["sources"] == ["rapport.md"]
+
+
+@pytest.mark.asyncio
+async def test_the_latest_deck_is_updated(json_logs):
+    """
+    With several decks, the most recent readable one is updated, whether it
+    comes from an earlier turn or from the current one. An earlier result the
+    run also holds, compacted without its metadata, counts once, as persisted,
+    and a current one counts even when its tool call id repeats an earlier one.
+    An unreadable deck is logged without its content.
+    """
+    ctx, conversation, _user = await setup_context()
+    await persist_tool_returns(
+        conversation,
+        stored_deck("Premier"),
+        stored_deck("Deuxième"),
+        {"presentation": {"presentation": {"slides": "contenu privé"}}},
+    )
+
+    result = await run_update(ctx, style=PresentationStyle(text_size=20))
+    assert result.metadata["presentation"]["presentation"]["title"] == "Deuxième"
+    lines = json_logs()
+    assert any(line["event"] == "presentation_stored_unreadable" for line in lines)
+    assert "contenu privé" not in str(lines)
+
+    compacted = ToolReturnPart(
+        tool_name="generate_presentation", content="Compacted.", tool_call_id="call-1"
+    )
+    ctx.messages = [ModelRequest(parts=[compacted])]
+    result = await run_update(ctx, style=PresentationStyle(text_size=20))
+    assert result.metadata["presentation"]["presentation"]["title"] == "Deuxième"
+
+    # Some providers number tool calls per response, so ids repeat across turns.
+    conversation.pydantic_messages = [
+        *conversation.pydantic_messages,
+        *ModelMessagesTypeAdapter.dump_python(
+            [
+                ModelRequest(
+                    parts=[
+                        ToolReturnPart(
+                            tool_name="update_presentation",
+                            content="The presentation was updated.",
+                            tool_call_id="call-0",
+                            metadata=stored_deck("Troisième"),
+                        )
+                    ]
+                )
+            ],
+            mode="json",
+        ),
+    ]
+    ctx.messages = []
+    result = await run_update(ctx, style=PresentationStyle(text_size=20))
+    assert result.metadata["presentation"]["presentation"]["title"] == "Troisième"
+
+    # The current turn's result is told apart by run, even with a repeated id.
+    ctx.run_id = "run-current"
+    current = ToolReturnPart(
+        tool_name="update_presentation",
+        content="The presentation was updated.",
+        tool_call_id="call-0",
+        metadata=stored_deck("Ce tour-ci"),
+    )
+    ctx.messages = [
+        ModelRequest(parts=[compacted], run_id="run-earlier"),
+        ModelRequest(parts=[current], run_id="run-current"),
+    ]
+    result = await run_update(ctx, style=PresentationStyle(text_size=20))
+    assert result.metadata["presentation"]["presentation"]["title"] == "Ce tour-ci"
+
+
+@pytest.mark.asyncio
+async def test_an_update_needs_changes_and_a_deck():
+    """
+    Neither instructions nor style is a model mistake it can correct. With no
+    deck in the conversation, the model is told to generate one.
+    """
+    ctx, _conversation, _user = await setup_context()
+
+    with pytest.raises(ModelRetry, match="Nothing to change"):
+        await run_update(ctx, instructions="  ")
+
+    result = await run_update(ctx, instructions="Mets les titres en bleu")
+    assert isinstance(result, str)
+    assert "generate_presentation" in result
+
+
+@pytest.mark.asyncio
+async def test_undo_steps_back_one_version_at_a_time():
+    """
+    Each undo restores, without the agent, the version the current one came
+    from, so undoing again goes further back; a first version has none.
+    """
+    ctx, conversation, _user = await setup_context()
+    history = [
+        stored_deck("V1", style=PresentationStyle(text_size=14), version_id="v1"),
+        stored_deck("V2", style=PresentationStyle(text_size=20), version_id="v2", parent_id="v1"),
+        stored_deck("V3", version_id="v3", parent_id="v2"),
+    ]
+
+    # The agent would answer with DECK, whose title is none of these.
+    restored = []
+    for _undo in range(2):
+        await persist_tool_returns(conversation, *history)
+        result = await run_update(ctx, revert=True)
+        history.append(result.metadata)
+        restored.append(StoredPresentation.model_validate(result.metadata["presentation"]))
+
+    assert [deck.presentation.title for deck in restored] == ["V2", "V1"]
+    assert restored[1].style == PresentationStyle(text_size=14)
+    assert "restored to its previous version" in result.return_value
+
+    await persist_tool_returns(conversation, *history)
+    assert "no earlier version" in await run_update(ctx, revert=True)

@@ -14,6 +14,7 @@ and this project adheres to
 - 🔊(back) correlate Sentry, Langfuse and logs through the request id
 - 📝(project) add publiccode.yml
 - ✨(back) build slide decks from attached documents at the requested length
+- ✨(back) restyle and edit a generated slide deck from the conversation
 
 ### Changed
 

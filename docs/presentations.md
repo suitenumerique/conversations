@@ -63,14 +63,45 @@ brief + slide_count + source documents
 - **The template** (`chat/file_generation/templates/generic.pptx` + `generic.py`)
   carries the visual identity (colour scheme, Marianne typeface, layouts). `generic.py`
   only declares which placeholder of which layout receives which field; a test
-  (`check_template`) keeps those bindings consistent with the file.
+  (`check_template`) keeps those bindings consistent with the file. The file was
+  edited by hand to give the cover and section layouts a `Sous-titre` placeholder and
+  to drop the section layout's photo area; `generic.py` lists the edits and how to
+  redo them.
+
+- **The style** (`PresentationStyle`, applied by `chat/file_generation/styling.py`)
+  overrides the template's title and text colours, fonts and sizes and the background
+  colour, when the user asks for them. Unset fields keep the template's styling.
+- **Text fitting** (`styling.py` too): every title and text field is set to shrink to
+  fit its placeholder, and the scale body text needs is stored in the file, because
+  PowerPoint only recomputes it once the text is edited. The scale is estimated from
+  rough font metrics (`CHAR_WIDTH`, `LINE_HEIGHT`, `PARAGRAPH_GAP`): adjust them there
+  if decks overflow or shrink too much. Tables never shrink on their own, so their
+  text is given the reduced size directly.
+
+## Editing a deck
+
+`update_presentation` changes the last deck of the conversation in a later turn and
+saves the result as a new version:
+
+- **style only**: the deck is rebuilt with the merged style, without the agent;
+- **instructions**: the agent rewrites the deck from the current one, the changes
+  requested and the deck's documents, read again (a deleted one is left out, and the
+  model is told so);
+- **revert**: the version the current one came from is restored as it was. Undoing
+  again goes one step further back; there is no redo.
+
+Each version is kept in the tool result's metadata (`StoredPresentation`), persisted
+with the conversation history but never sent to the model or the UI. It keeps the
+ids of the deck's documents, not their text, so the history stays small and the text
+goes when a document is deleted. An edit summarizes long documents again once the
+30-minute summary cache has expired.
 
 ## Limitations
 
 Every deck uses the bundled template. An attached pptx template or slide master,
-requested colours, fonts, font sizes and logos, images, charts and diagrams are not
-supported yet. The tool description and every tool result say so, so the model tells
-the user rather than claiming they were applied.
+logos, images, charts and diagrams are not supported yet. The tool description
+and every tool result say so, so the model tells the user rather than claiming
+they were applied.
 
 When the documents do not all fit, each one gets an equal share of the budget,
 whatever the size of the others: a document over its share is summarized even when

@@ -54,6 +54,13 @@ CONTENT:
   contain.
 - Follow the structure, the plan and the level of detail the brief asks for.
 
+EDITING:
+- When the prompt holds a current deck, return the whole deck with the
+  requested changes applied. Keep every slide and every wording the changes do
+  not touch exactly as they are, presenter notes included, and update the notes
+  of the slides you change. Keep the slides in the same order unless the
+  changes move them.
+
 FORMAT:
 - Only use the slide types listed above, and only fill the fields each one
   declares. The `slide_notes` field is the exception: it is allowed on every slide.
@@ -64,11 +71,12 @@ FORMAT:
 - Write in the language of the brief.
 
 SPEAKING TIME:
-- When the brief gives a speaking time, the presenter notes become the full
-  script the speaker reads aloud, and they must fill that time. Write notes on
-  every slide, at least (minutes x 130) / (number of slides) words each: 15
-  minutes over 8 slides is at least 240 words, two or three full paragraphs, on
-  each slide. A one- or two-sentence note then is a failure.
+- When the brief or the requested changes give a speaking time, the presenter
+  notes become the full script the speaker reads aloud, and they must fill that
+  time. Write notes on every slide, at least (minutes x 130) / (number of
+  slides) words each: 15 minutes over 8 slides is at least 240 words, two or
+  three full paragraphs, on each slide. A one- or two-sentence note then is a
+  failure.
 """
 
 

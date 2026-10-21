@@ -62,13 +62,14 @@ HANGING_INDENT = -342900
 LIST_ITEM = re.compile(r"^( *)(?:(\d+)\.|[-*+]) ")
 
 
-def render(target: BaseShape | TextFrame, markdown_text: str) -> None:
+def render(target: BaseShape | TextFrame, markdown_text: str) -> BaseShape | TextFrame:
     """
-    Render Markdown into a shape or a text frame.
+    Render Markdown into a shape or a text frame, and return what holds the content.
 
     A Markdown table takes over the whole placeholder: when one is present, the
     rest of the content in the same field is dropped, because a pptx table is a
-    separate graphic frame rather than something that can flow with text.
+    separate graphic frame rather than something that can flow with text. That
+    frame is what is returned then.
     """
     html = markdown_lib.markdown(
         _normalize_lists(markdown_text or ""), extensions=["tables", "sane_lists"]
@@ -79,11 +80,11 @@ def render(target: BaseShape | TextFrame, markdown_text: str) -> None:
     if table is not None:
         # pylint: disable=protected-access
         shape = target if isinstance(target, BaseShape) else target._parent  # noqa: SLF001
-        _render_table(shape, table)
-        return
+        return _render_table(shape, table) or target
 
     text_frame = target.text_frame if hasattr(target, "text_frame") else target
     _render_text(text_frame, soup)
+    return target
 
 
 def _normalize_lists(markdown_text: str) -> str:
@@ -152,11 +153,11 @@ def _render_text(text_frame: TextFrame, soup: BeautifulSoup) -> None:
             _render_inline_children(paragraph, node)
 
 
-def _render_table(shape: BaseShape, table_node: Tag) -> None:
+def _render_table(shape: BaseShape, table_node: Tag) -> BaseShape | None:
     """Replace a placeholder's content with a pptx table built from an HTML table."""
     rows = table_node.find_all(TABLE_ROW_TAG)
     if not rows:
-        return
+        return None
 
     row_count = len(rows)
     column_count = max(len(row.find_all(TABLE_CELL_TAGS)) for row in rows)
@@ -183,6 +184,8 @@ def _render_table(shape: BaseShape, table_node: Tag) -> None:
             if is_header_row or cell_node.name == TABLE_HEADER_CELL_TAG:
                 for run in paragraph.runs:
                     run.font.bold = True
+
+    return graphic_frame
 
 
 def _new_paragraph(context: _RenderContext) -> _Paragraph:

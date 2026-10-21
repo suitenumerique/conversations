@@ -203,9 +203,9 @@ def test_the_placeholder_image_is_stripped_from_generated_decks():
     """The template's dummy mountain graphic never reaches a generated deck."""
     deck = build_deck([Slide(type=SlideType.COVER, title="Titre")])
 
-    cover_layout = deck.slides[0].slide_layout
-    pictures = [s for s in cover_layout.shapes if s.shape_type == MSO_SHAPE_TYPE.PICTURE]
-    assert pictures == []
+    for master_or_layout in [*deck.slide_masters, *deck.slide_layouts]:
+        pictures = [s for s in master_or_layout.shapes if s.shape_type == MSO_SHAPE_TYPE.PICTURE]
+        assert pictures == []
 
 
 def test_a_deck_needs_at_least_one_slide():

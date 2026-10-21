@@ -1,13 +1,14 @@
 """Generation of office documents from model-produced specs."""
 
 from .builder import PresentationBuildError, build_presentation
-from .entities import Presentation, Slide, SlideType
+from .entities import Presentation, PresentationStyle, Slide, SlideType
 from .templates import GENERIC_TEMPLATE
 
 __all__ = [
     "GENERIC_TEMPLATE",
     "Presentation",
     "PresentationBuildError",
+    "PresentationStyle",
     "Slide",
     "SlideType",
     "build_presentation",
