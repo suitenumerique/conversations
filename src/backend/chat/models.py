@@ -8,14 +8,13 @@ from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils import timezone
 
-from django_pydantic_field import SchemaField
-
 from core.file_upload.enums import AttachmentStatus
 from core.models import BaseModel
 
 from chat.ai_sdk_types import UIMessage
 from chat.constants import HISTORY_SUMMARY_CLAIM_TTL_SECONDS
 from chat.enums import AttachmentIndexState, CollectionIndexState
+from chat.fields import NulSafeJSONField, NulSafeSchemaField
 
 User = get_user_model()
 
@@ -131,12 +130,12 @@ class ChatConversation(BaseModel):
         help_text="Timestamp when the user manually set the title. If set, prevent automatic "
         "title generation.",
     )
-    ui_messages = models.JSONField(
+    ui_messages = NulSafeJSONField(
         default=list,
         blank=True,
         help_text="UI messages for the chat conversation, sent by frontend, not used",
     )
-    pydantic_messages = models.JSONField(
+    pydantic_messages = NulSafeJSONField(
         default=list,
         blank=True,
         help_text="Pydantic messages for the chat conversation, used for history",
@@ -150,7 +149,7 @@ class ChatConversation(BaseModel):
         default=0,
         help_text="Number of pydantic history messages already compacted into history_summary",
     )
-    messages: Sequence[UIMessage] = SchemaField(
+    messages: Sequence[UIMessage] = NulSafeSchemaField(
         schema=list[UIMessage],
         default=list,
         blank=True,
@@ -340,7 +339,7 @@ class ChatStreamChunk(BaseModel):
         default="",
         help_text="Text produced since the previous chunk",
     )
-    parts = models.JSONField(
+    parts = NulSafeJSONField(
         null=True,
         blank=True,
         help_text=(
