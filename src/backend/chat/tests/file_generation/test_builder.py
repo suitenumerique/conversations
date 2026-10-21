@@ -11,7 +11,7 @@ from io import BytesIO
 
 import pptx
 import pytest
-from pptx.enum.shapes import MSO_SHAPE_TYPE
+from pptx.enum.shapes import MSO_SHAPE_TYPE, PP_PLACEHOLDER
 
 from chat.file_generation.builder import (
     PresentationBuildError,
@@ -20,6 +20,7 @@ from chat.file_generation.builder import (
 )
 from chat.file_generation.entities import Presentation, Slide, SlideType
 from chat.file_generation.templates import GENERIC_TEMPLATE
+from chat.file_generation.templates.generic import TEMPLATE_PATH
 
 
 def build_deck(slides):
@@ -48,6 +49,27 @@ def test_every_slide_type_has_a_layout():
         assert GENERIC_TEMPLATE.get_layout(slide_type) is not None
 
 
+def test_the_template_has_the_edited_layouts():
+    """
+    The bundled template was edited by hand: the cover and section layouts each
+    gained a `Sous-titre` placeholder, and the section layout lost its photo area.
+    """
+    layouts = {
+        layout.name: layout for layout in pptx.Presentation(str(TEMPLATE_PATH)).slide_layouts
+    }
+
+    def subtitle_idx(layout_name):
+        (subtitle,) = [p for p in layouts[layout_name].placeholders if p.name == "Sous-titre"]
+        return subtitle.placeholder_format.idx
+
+    assert subtitle_idx("Titre et sous-titre") == 17
+    assert subtitle_idx("Chapitre") == 14
+    assert all(
+        p.placeholder_format.type != PP_PLACEHOLDER.PICTURE
+        for p in layouts["Chapitre"].placeholders
+    )
+
+
 def test_check_template_rejects_an_unknown_layout():
     """A layout name absent from the pptx file is reported, not silently skipped."""
     broken_layout = dataclasses.replace(GENERIC_TEMPLATE.layouts[0], layout_name="Nonexistent")
@@ -72,9 +94,9 @@ def test_check_template_rejects_an_out_of_range_placeholder():
     "slide,expected_layout,expected_texts",
     [
         (
-            Slide(type=SlideType.COVER, title="Titre"),
+            Slide(type=SlideType.COVER, title="Titre", subtitle="Sous-titre"),
             "Titre et sous-titre",
-            {"Titre"},
+            {"Titre", "Sous-titre"},
         ),
         (
             Slide(type=SlideType.SECTION, title="Partie", subtitle="Sous-titre"),
@@ -113,6 +135,20 @@ def test_each_slide_type_uses_its_layout(slide, expected_layout, expected_texts)
     rendered = deck.slides[1]
     assert rendered.slide_layout.name == expected_layout
     assert set(shape_texts(rendered)) == expected_texts
+
+
+def test_empty_placeholders_are_removed():
+    """No empty placeholder is left for PowerPoint to show as a prompt when editing."""
+    deck = build_deck(
+        [
+            Slide(type=SlideType.COVER, title="Couverture"),
+            Slide(type=SlideType.SECTION, title="Partie"),
+            Slide(type=SlideType.TITLE_ONE_COLUMN, title="Titre", content="Corps"),
+        ]
+    )
+
+    for slide in deck.slides:
+        assert all(shape.text_frame.text.strip() for shape in slide.placeholders)
 
 
 def test_slides_keep_their_order():

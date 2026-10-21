@@ -74,9 +74,20 @@ def _add_slide(deck, layout: SlideLayout, slide: Slide) -> None:
     pptx_slide = deck.slides.add_slide(pptx_layout)
     for shape_index, field in layout.shape_index_to_field.items():
         render(pptx_slide.shapes[shape_index], getattr(slide, field, ""))
+    _remove_empty_placeholders(pptx_slide)
 
     if slide.slide_notes:
         render(pptx_slide.notes_slide.notes_text_frame, slide.slide_notes)
+
+
+def _remove_empty_placeholders(pptx_slide) -> None:
+    """Drop the placeholders left empty, which PowerPoint shows as prompts when editing."""
+    for placeholder in list(pptx_slide.placeholders):
+        if placeholder.has_table or (
+            placeholder.has_text_frame and placeholder.text_frame.text.strip()
+        ):
+            continue
+        placeholder._element.getparent().remove(placeholder._element)  # noqa: SLF001 # pylint: disable=protected-access
 
 
 def check_template(template: PresentationTemplate) -> None:

@@ -87,10 +87,10 @@ Use this tool whenever the user asks for a presentation, a deck, slides, or a
 support to project in a meeting. The tool writes the slides itself: pass a
 brief describing the subject, the audience and any structure the user asked
 for, not the slides themselves. The tool reads the attached documents on its
-own: point it at the right ones with `document_ids` rather than summarizing
-them in the brief. Only point it at the documents relevant to the request, and
-pass an empty list when none are. Pass `slide_count` when the user asked for a
-number of slides.
+own: point it at the right ones with `document_ids`, and do not summarize or
+search them, neither in the brief nor before calling it. Only point it at the
+documents relevant to the request, and pass an empty list when none are. Pass
+`slide_count` when the user asked for a number of slides.
 
 What the tool CANNOT do yet: it always uses the standard template. It cannot
 reuse an attached pptx template or slide master, nor apply requested colours,

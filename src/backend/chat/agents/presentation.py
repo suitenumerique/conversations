@@ -27,12 +27,15 @@ The following slide types are available:
 {layouts}
 
 STRUCTURE:
-- Open with a `cover` slide.
+- Open with a `cover` slide whose title names the subject of the deck. A
+  subtitle the brief gives (authors, date, audience...) goes as is in its
+  `subtitle`.
 - When the brief asks for a number of slides, produce exactly that many slides
   in total, cover and section slides included.
-- Only use `section` slides to separate the main parts of a long deck, each part
-  holding at least two content slides. Never put a section slide before every
-  content slide, and never use one in a deck of fewer than 8 slides.
+- Use `section` slides to separate the main parts of a deck of 8 slides or
+  more. When the brief asks for parts or sections, open each part with a
+  `section` slide, counted in the number of slides requested. Each part holds at
+  least two content slides: never put a section slide before every content slide.
 - Vary the content layouts to keep the deck readable; avoid repeating one type
   throughout.
 
@@ -40,6 +43,9 @@ CONTENT:
 - Every content slide must carry substance: typically 3 to 6 bullet points made
   of informative phrases, with the facts, figures, dates and names that support
   them. A slide holding only a title or a single vague sentence is a failure.
+- A slide holds about 10 lines at most, nested bullets included, a bullet that
+  wraps counting twice. Beyond that, split the content over two slides, use
+  columns, or use a table for repeated items sharing the same attributes.
 - When source documents are provided, build the deck from them: keep their key
   facts, figures and conclusions, and do not invent any. Only use general
   knowledge to fill gaps the sources leave, and never contradict them. Ignore a
@@ -56,6 +62,13 @@ FORMAT:
   so do not put other content alongside it.
 - Add presenter notes in `slide_notes` on slides where context helps the speaker.
 - Write in the language of the brief.
+
+SPEAKING TIME:
+- When the brief gives a speaking time, the presenter notes become the full
+  script the speaker reads aloud, and they must fill that time. Write notes on
+  every slide, at least (minutes x 130) / (number of slides) words each: 15
+  minutes over 8 slides is at least 240 words, two or three full paragraphs, on
+  each slide. A one- or two-sentence note then is a failure.
 """
 
 

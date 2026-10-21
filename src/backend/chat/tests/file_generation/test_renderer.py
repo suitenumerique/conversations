@@ -131,6 +131,46 @@ def test_nested_bullets_keep_their_level(placeholder):
     assert levels == [0, 0, 1]
 
 
+@pytest.mark.parametrize(
+    "markdown,expected",
+    [
+        pytest.param(
+            "- un\n  - imbriqué\n    - très imbriqué\n- deux",
+            [(0, "un"), (1, "imbriqué"), (2, "très imbriqué"), (0, "deux")],
+            id="two-space-nesting",
+        ),
+        pytest.param(
+            "**Pour les agents** :\n- moins de trajets\n- plus de souplesse",
+            [(0, "Pour les agents :"), (0, "moins de trajets"), (0, "plus de souplesse")],
+            id="list-under-text",
+        ),
+        pytest.param(
+            "1. Sobriété numérique\n- Rationaliser les usages\n- Limiter le stockage",
+            [
+                (0, "1. Sobriété numérique"),
+                (0, "Rationaliser les usages"),
+                (0, "Limiter le stockage"),
+            ],
+            id="bullets-after-numbered",
+        ),
+        pytest.param(
+            "1. Sobriété\n    - usages\n    - stockage\n2. Éco-conception",
+            [(0, "1. Sobriété"), (1, "usages"), (1, "stockage"), (0, "2. Éco-conception")],
+            id="bullets-nested-in-numbered",
+        ),
+        pytest.param("2. Les trois scénarios", [(0, "2. Les trois scénarios")], id="start-number"),
+    ],
+)
+def test_lists_written_loosely_render_as_lists(placeholder, markdown, expected):
+    """
+    Lists as models write them (nested by 2 spaces, with no blank line before
+    them or between kinds, numbered from any start) render as proper lists.
+    """
+    render(placeholder, markdown)
+
+    assert [(p.level, p.text) for p in placeholder.text_frame.paragraphs] == expected
+
+
 def test_ordered_lists_are_numbered(placeholder):
     """Ordered items are prefixed with their number as plain text."""
     render(placeholder, "1. un\n2. deux")

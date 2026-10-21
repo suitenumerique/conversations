@@ -9,6 +9,7 @@ Inline styles are only ever set when the Markdown asks for them, never reset to
 their falsy value, so the template's own styling keeps applying otherwise.
 """
 
+import re
 from dataclasses import dataclass
 
 import markdown as markdown_lib
@@ -57,6 +58,9 @@ SAFE_LINK_SCHEMES = ("http://", "https://", "mailto:")
 INDENT_PER_LEVEL = 342900
 HANGING_INDENT = -342900
 
+# A list item line: its indentation, and its number if it is a numbered item.
+LIST_ITEM = re.compile(r"^( *)(?:(\d+)\.|[-*+]) ")
+
 
 def render(target: BaseShape | TextFrame, markdown_text: str) -> None:
     """
@@ -66,7 +70,9 @@ def render(target: BaseShape | TextFrame, markdown_text: str) -> None:
     rest of the content in the same field is dropped, because a pptx table is a
     separate graphic frame rather than something that can flow with text.
     """
-    html = markdown_lib.markdown(markdown_text or "", extensions=["tables"])
+    html = markdown_lib.markdown(
+        _normalize_lists(markdown_text or ""), extensions=["tables", "sane_lists"]
+    )
     soup = BeautifulSoup(html, "html.parser")
 
     table = soup.find(TABLE_TAG)
@@ -78,6 +84,30 @@ def render(target: BaseShape | TextFrame, markdown_text: str) -> None:
 
     text_frame = target.text_frame if hasattr(target, "text_frame") else target
     _render_text(text_frame, soup)
+
+
+def _normalize_lists(markdown_text: str) -> str:
+    """
+    Accept the list syntax models write, which python-markdown is strict about.
+
+    Python-markdown only nests items indented by 4 spaces, and only starts a
+    list, or switches between bulleted and numbered ones, after a blank line.
+    Models often nest by 2 spaces, and write lists right under a line of text
+    or right after a list of the other kind: all are fixed up here.
+    """
+    lines = markdown_text.split("\n")
+    items = [LIST_ITEM.match(line) for line in lines]
+    if any(len(item[1]) % 4 for item in items if item):
+        lines = [item[1] + line if item else line for item, line in zip(items, lines, strict=True)]
+
+    normalized = []
+    for index, (line, item) in enumerate(zip(lines, items, strict=True)):
+        previous = items[index - 1] if index else None
+        continues_list = previous and item and bool(previous[2]) == bool(item[2])
+        if item and normalized and normalized[-1].strip() and not continues_list:
+            normalized.append("")
+        normalized.append(line)
+    return "\n".join(normalized)
 
 
 @dataclass
@@ -168,7 +198,7 @@ def _new_paragraph(context: _RenderContext) -> _Paragraph:
 def _render_list(context: _RenderContext, list_node: Tag, level: int, ordered: bool) -> None:
     """Render a list and its nested lists, one paragraph per item."""
     items = list_node.find_all("li", recursive=False)
-    for index, item in enumerate(items, start=1):
+    for index, item in enumerate(items, start=int(list_node.get("start", 1))):
         _render_list_item(context, item, level, ordered, index)
 
 

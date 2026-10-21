@@ -11,6 +11,16 @@ Two placeholder choices look surprising and are deliberate: in `Couverture` and
 `Titre et sous-titre` the `Title 1` shape is a degenerate 0.2 inch box, so the
 visible block is the one at index 1, which is why the cover title is mapped
 there and the `Couverture` layout is left unused.
+
+The bundled file was edited by hand, in PowerPoint's slide master view:
+- `Titre et sous-titre` gained a body placeholder named `Sous-titre` (idx 17),
+  bound as the cover's subtitle;
+- `Chapitre` lost its photo placeholder (idx 13), which nothing fills and which
+  hid the slide background, and gained a body placeholder named `Sous-titre`
+  (idx 14), bound as the section's subtitle.
+To redo it, duplicate the layout's body placeholder and rename it `Sous-titre`.
+`test_the_template_has_the_edited_layouts` pins these edits, and
+`check_template` the bindings below.
 """
 
 from pathlib import Path
@@ -26,13 +36,16 @@ GENERIC_TEMPLATE = PresentationTemplate(
         SlideLayout(
             slide_type=SlideType.COVER,
             layout_name="Titre et sous-titre",
-            shape_index_to_field={1: "title"},
-            prompt="Cover slide with one large block for the deck title. Fields: title",
+            shape_index_to_field={1: "title", 2: "subtitle"},
+            prompt=(
+                "Cover slide with the deck title and, below it, an optional subtitle "
+                "(authors, date, audience...). Fields: title, subtitle"
+            ),
         ),
         SlideLayout(
             slide_type=SlideType.SECTION,
             layout_name="Chapitre",
-            shape_index_to_field={1: "title", 0: "subtitle"},
+            shape_index_to_field={0: "title", 1: "subtitle"},
             prompt="Section divider slide. Fields: title, subtitle",
         ),
         SlideLayout(
