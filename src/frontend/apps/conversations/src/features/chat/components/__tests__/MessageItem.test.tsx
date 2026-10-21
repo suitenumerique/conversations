@@ -490,6 +490,44 @@ describe('MessageItem', () => {
       ).not.toBeInTheDocument();
     });
 
+    it('does not render copy button while the turn runs without us', async () => {
+      // After a reload mid-answer the client only polls, so its own status
+      // reads "ready" while the backend is still producing the answer.
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            status="ready"
+            isLastMessage={true}
+            isLastAssistantMessage={true}
+            isConversationStreaming={true}
+          />,
+        );
+      });
+
+      expect(
+        screen.queryByRole('button', { name: 'Copy' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('keeps the copy button on the previous answer while the turn runs without us', async () => {
+      // Reloaded before the model wrote anything: the question is the last
+      // message, and the last assistant message is the finished answer before it.
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            status="ready"
+            isLastMessage={false}
+            isLastAssistantMessage={true}
+            isConversationStreaming={true}
+          />,
+        );
+      });
+
+      expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
+    });
+
     it('does not render the action bar before the answer has content', async () => {
       // v5 creates the assistant message as soon as the response starts, with
       // no parts yet. The bar used to render on that empty bubble, putting the

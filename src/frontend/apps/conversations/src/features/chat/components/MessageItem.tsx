@@ -586,9 +586,15 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
             </Box>
           )}
 
+          {/* A turn running without us writes the last message; until it
+              has one, the last assistant message is the previous answer. */}
           {message.role === 'assistant' &&
             hasAssistantOutput &&
-            !(isLastAssistantMessage && status === 'streaming') && (
+            !(
+              isLastAssistantMessage &&
+              (status === 'streaming' ||
+                (isConversationStreaming && isLastMessage))
+            ) && (
               <Box
                 $css="color: #222631; font-size: 12px;"
                 $direction="row"
