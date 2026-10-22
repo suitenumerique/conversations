@@ -397,7 +397,7 @@ async def test_document_search_rag_http_status_error(settings, caplog):
 
     # Verify that error was logged
     assert "RAG document search failed for tool legal_documents" in caplog.records[0].message
-    assert "Document search service is currently unavailable" in caplog.records[1].message
+    assert "(cause: HTTPStatusError, status: None)" in caplog.records[1].message
     # The request url must not reach the logs nor the model
     assert "albert.api.etalab.gouv.fr" not in caplog.text
     assert "albert.api.etalab.gouv.fr" not in tool_result
