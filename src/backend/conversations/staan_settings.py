@@ -37,3 +37,9 @@ class StaanSettings:
         environ_name="STAAN_MIN_SNIPPET_SCORE",
         environ_prefix=None,
     )
+    # Spike: delegate web search to a web_researcher sub-agent (pydantic-ai-harness)
+    WEB_SEARCH_SUBAGENT_ENABLED = values.BooleanValue(
+        default=False,
+        environ_name="WEB_SEARCH_SUBAGENT_ENABLED",
+        environ_prefix=None,
+    )
