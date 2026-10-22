@@ -150,7 +150,11 @@ from chat.agents.local_media_url_processors import (
     update_history_local_urls,
     update_local_urls,
 )
-from chat.agents.web_researcher import WebResearcherAgent
+from chat.agents.web_researcher import (
+    RESEARCH_TIMEOUT_SECONDS,
+    RESEARCH_TOKEN_BUDGET,
+    WebResearcherAgent,
+)
 from chat.ai_sdk_types import (
     FileUIPart,
     SourceUrlUIPart,
@@ -410,22 +414,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         _capabilities: list = [
             ProcessHistory(safe_clean_tool_history),
             *self._web_research_capabilities(),
+            *self._instrumentation_capabilities(),
         ]
-        if self._langfuse_available:
-            _capabilities.append(
-                Instrumentation(
-                    settings=InstrumentationSettings(
-                        include_binary_content=self._store_analytics,
-                        include_content=self._store_analytics,
-                        # Pin the OpenTelemetry schema pydantic-ai emitted before 2.x
-                        # (default is now version 5 with `gen_ai.aggregated_usage.*`
-                        # attribute names). Keeps existing Langfuse dashboards working;
-                        # moving to the newer schema is a separate, deliberate change.
-                        version=2,
-                        use_aggregated_usage_attribute_names=False,
-                    )
-                )
-            )
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
             language=self.language,
@@ -1808,6 +1798,25 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 """Wrap the document_summarize_project tool."""
                 return await document_summarize_project(ctx, *args, **kwargs)
 
+    def _instrumentation_capabilities(self) -> list:
+        """Langfuse instrumentation, shared by the conversation agent and its sub-agents."""
+        if not self._langfuse_available:
+            return []
+        return [
+            Instrumentation(
+                settings=InstrumentationSettings(
+                    include_binary_content=self._store_analytics,
+                    include_content=self._store_analytics,
+                    # Pin the OpenTelemetry schema pydantic-ai emitted before 2.x
+                    # (default is now version 5 with `gen_ai.aggregated_usage.*`
+                    # attribute names). Keeps existing Langfuse dashboards working;
+                    # moving to the newer schema is a separate, deliberate change.
+                    version=2,
+                    use_aggregated_usage_attribute_names=False,
+                )
+            )
+        ]
+
     def _web_research_capabilities(self) -> list:
         """Delegate web search to a web_researcher sub-agent instead of a direct tool."""
         self._web_search_subagent = settings.WEB_SEARCH_SUBAGENT_ENABLED and bool(
@@ -1822,11 +1831,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 return tool_defs
             return [td for td in tool_defs if td.name != "delegate_task"]
 
-        self._web_researcher = WebResearcherAgent(model_hrid=self.model_hrid)
+        self._web_researcher = WebResearcherAgent(
+            model_hrid=self.model_hrid, capabilities=self._instrumentation_capabilities()
+        )
         researcher = SubAgent(
             self._web_researcher,
-            usage_limits=UsageLimits(request_limit=8),
-            timeout_seconds=120,
+            usage_limits=UsageLimits(request_limit=None, total_tokens_limit=RESEARCH_TOKEN_BUDGET),
+            timeout_seconds=RESEARCH_TIMEOUT_SECONDS,
             max_calls=3,
         )
         return [SubAgents(agents=[researcher]), PrepareTools(only_if_web_search_enabled)]
