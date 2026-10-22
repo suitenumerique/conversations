@@ -281,6 +281,36 @@ def test_validate_completion_normalizes_custom_type_with_function_payload(albert
     assert tool_call.function.name == "final_result"
 
 
+def test_validate_completion_joins_list_content(albert_model):
+    """List-shaped message content (Albert/Mistral answer with references) is
+    joined into a string: str items kept, `text` taken from dict items."""
+    response = MagicMock(spec=ChatCompletion)
+    response.model_dump = lambda **_: {
+        "id": "chatcmpl-abc",
+        "object": "chat.completion",
+        "created": 1700000000,
+        "model": "test-model",
+        "service_tier": None,
+        "usage": None,
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "stop",
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "text", "text": "Paris is the capital"},
+                        {"type": "reference", "reference_ids": [1]},
+                        " of France.",
+                    ],
+                },
+            }
+        ],
+    }
+    result = albert_model._validate_completion(response)
+    assert result.choices[0].message.content == "Paris is the capital of France."
+
+
 def _make_malformed_chat_completion(object_value: str, choices_value) -> MagicMock:
     """Build a ChatCompletion mock with non-standard object/choices fields."""
     response = MagicMock(spec=ChatCompletion)
