@@ -90,6 +90,12 @@ spec:
               subPath: {{ .subPath | default "" }}
               readOnly: {{ .readOnly }}
             {{- end }}
+            {{- if .Values.frontend.robotsTxt.enabled }}
+            - name: robots-txt
+              mountPath: /usr/share/nginx/html/robots.txt
+              subPath: robots.txt
+              readOnly: true
+            {{- end }}
       {{- with .Values.frontend.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -137,6 +143,11 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- end }}
+        {{- if .Values.frontend.robotsTxt.enabled }}
+        - name: robots-txt
+          configMap:
+            name: {{ $fullName }}-robots-txt
         {{- end }}
 ---
 {{ if .Values.frontend.pdb.enabled }}

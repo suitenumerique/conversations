@@ -484,6 +484,14 @@ frontend:
   ## @param frontend.extraVolumes Additional volumes to mount on the frontend.
   extraVolumes: []
 
+  ## @param frontend.robotsTxt.enabled Serve a custom robots.txt, e.g. to block crawling of non-production instances
+  ## @param frontend.robotsTxt.content Content of the robots.txt file
+  robotsTxt:
+    enabled: false
+    content: |
+      User-agent: *
+      Allow: /
+
   ## @param frontend.pdb.enabled Enable pdb on frontend
   pdb:
     enabled: true
