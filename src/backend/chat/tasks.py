@@ -26,6 +26,7 @@ from chat.constants import (
     DEINDEX_TASK_TIME_LIMIT,
     SUMMARIZATION_TASK_SOFT_TIME_LIMIT,
     SUMMARIZATION_TASK_TIME_LIMIT,
+    TEXT_MIME_PREFIX,
 )
 from chat.llm_configuration import get_model_configuration
 from chat.models import ChatConversation, ChatConversationAttachment
@@ -80,21 +81,30 @@ def parse_and_store_conversation_document_task(collection_id, s3_key, name, cont
     blocks on the result. The heavy, hostile-input-exposed work (parsing the file,
     storing chunks in the RAG backend) runs here, off the web worker and under the
     Celery task time limits, so a malformed or malicious file cannot hang or exhaust
-    the request process. The caller passes only the storage key; the task reads the
-    file bytes itself so nothing large crosses the broker. Returns
-    `(parsed_content, rag_document_id)`; the caller does the DB and companion writes.
+    the request process. Nothing large crosses the broker or the result backend: the
+    task reads the file bytes from storage by key, and writes the parsed markdown of a
+    non-text file back to storage (`<s3_key>.md`). Returns
+    `(markdown_key, rag_document_id)`, with `markdown_key` None for text files; the
+    caller does the DB writes.
     """
     backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)(collection_id=collection_id)
     with default_storage.open(s3_key, "rb") as file:
         content = file.read()
 
-    return parse_and_store_with_retry(
+    parsed_content, rag_document_id = parse_and_store_with_retry(
         backend,
         name=name,
         content_type=content_type,
         content=content,
         user_sub=user_sub,
     )
+
+    markdown_key = None
+    if not content_type.startswith(TEXT_MIME_PREFIX):
+        markdown_key = default_storage.save(
+            f"{s3_key}.md", io.BytesIO(parsed_content.encode("utf-8"))
+        )
+    return markdown_key, rag_document_id
 
 
 @app.task(

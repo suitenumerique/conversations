@@ -78,8 +78,8 @@ def test_index_project_attachment_task_ignores_missing_attachment():
 
 
 @respx.mock
-def test_parse_and_store_conversation_document_task_returns_parsed_and_id():
-    """The task reads the file from storage, parses + stores it, and returns (content, id)."""
+def test_parse_and_store_conversation_document_task_text_returns_id_only():
+    """A text file is parsed + stored; no markdown companion is written, only the id returns."""
     saved_name = default_storage.save(
         "conv-task-test.txt", ContentFile(b"Hello conversation content")
     )
@@ -88,7 +88,7 @@ def test_parse_and_store_conversation_document_task_returns_parsed_and_id():
             return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 7})
         )
 
-        parsed_content, rag_document_id = parse_and_store_conversation_document_task.delay(
+        result = parse_and_store_conversation_document_task.delay(
             "42",
             saved_name,
             "hello.txt",
@@ -96,10 +96,36 @@ def test_parse_and_store_conversation_document_task_returns_parsed_and_id():
             "user-sub-123",
         ).get()
 
-        assert rag_document_id == "7"
-        assert "Hello conversation content" in parsed_content
+        assert result == (None, "7")
     finally:
         default_storage.delete(saved_name)
+
+
+def test_parse_and_store_conversation_document_task_writes_markdown_to_storage():
+    """A non-text file's parsed content goes to storage; only its key returns.
+
+    The parsed text can be several MB: returning it would push it through the
+    Celery result backend (Redis), which breaks on large payloads.
+    """
+    saved_name = default_storage.save("conv-task-test.pdf", ContentFile(b"%PDF-1.4"))
+    markdown_key = None
+    try:
+        with patch("chat.tasks.parse_and_store_with_retry", return_value=("# Parsed PDF", "8")):
+            markdown_key, rag_document_id = parse_and_store_conversation_document_task.delay(
+                "42",
+                saved_name,
+                "report.pdf",
+                "application/pdf",
+                "user-sub-123",
+            ).get()
+
+        assert rag_document_id == "8"
+        with default_storage.open(markdown_key, "rb") as file:
+            assert file.read() == b"# Parsed PDF"
+    finally:
+        default_storage.delete(saved_name)
+        if markdown_key:
+            default_storage.delete(markdown_key)
 
 
 @pytest.fixture(name="_llm_config", autouse=True)

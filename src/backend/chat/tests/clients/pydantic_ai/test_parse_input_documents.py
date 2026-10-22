@@ -8,9 +8,12 @@ from asgiref.sync import sync_to_async
 from celery.exceptions import TimeoutError as CeleryTimeoutError
 from pydantic_ai.messages import DocumentUrl
 
+from core.file_upload.enums import AttachmentStatus
+
 from chat.clients.pydantic_ai import DOCUMENT_URL_PREFIX, AIAgentService
 from chat.enums import CollectionIndexState
 from chat.factories import ChatConversationFactory
+from chat.models import ChatConversationAttachment
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -37,11 +40,11 @@ def _mock_backend_class():
     return MagicMock(return_value=store)
 
 
-def _mock_parse_task(rag_document_id):
+def _mock_parse_task(rag_document_id, markdown_key=None):
     """Mock the parse task so `.delay(...).get()` returns a fixed parse result."""
     task = MagicMock()
     async_result = MagicMock()
-    async_result.get.return_value = ("parsed content", rag_document_id)
+    async_result.get.return_value = (markdown_key, rag_document_id)
     task.delay.return_value = async_result
     return task
 
@@ -57,23 +60,30 @@ def _mock_failing_parse_task(exception):
 
 @pytest.mark.asyncio
 async def test_index_state_set_to_indexed_when_rag_document_id_returned():
-    """index_state is saved as INDEXED when at least one document is successfully indexed."""
+    """A successful parse marks the conversation INDEXED and records the markdown companion.
+
+    The companion row points at the storage key the task wrote the parsed
+    content to; the content itself never comes back through the result backend.
+    """
     conversation = await sync_to_async(ChatConversationFactory)(collection_id="col-1")
     service = AIAgentService(conversation, user=conversation.owner)
 
-    url = f"{DOCUMENT_URL_PREFIX}{conversation.pk}/attachments/file.txt"
-    document = DocumentUrl(url=url, media_type="text/plain")
+    key = f"{conversation.pk}/attachments/file.pdf"
+    document = DocumentUrl(url=f"{DOCUMENT_URL_PREFIX}{key}", media_type="application/pdf")
     with (
         patch("chat.clients.pydantic_ai.document_store_backend", _mock_backend_class()),
         patch(
             "chat.clients.pydantic_ai.parse_and_store_conversation_document_task",
-            _mock_parse_task("doc-42"),
+            _mock_parse_task("doc-42", markdown_key=f"{key}.md"),
         ),
     ):
         await service._parse_input_documents([document])
 
     await conversation.arefresh_from_db()
     assert conversation.index_state == CollectionIndexState.INDEXED
+    companion = await ChatConversationAttachment.objects.aget(conversion_from=key)
+    assert companion.key == f"{key}.md"
+    assert companion.upload_state == AttachmentStatus.READY
 
 
 @pytest.mark.asyncio

@@ -94,8 +94,10 @@ and `on_failure` callbacks all work without a result backend.
 A result backend exists (`CELERY_RESULT_BACKEND`), but a task returns a value
 only when a caller awaits it with `AsyncResult.get()`. The conversation
 document-parse task is the only one that does this: the chat turn blocks on
-its result to get the parsed content back. The summarization and debug tasks
-are fire-and-forget but still write a result that expires unread. The index
+its result to get the markdown companion's storage key and RAG document id
+back (the parsed text is written to object storage, never returned, so large
+documents stay out of Redis). The summarization and debug tasks are
+fire-and-forget but still write a result that expires unread. The index
 and periodic tasks set `ignore_result=True`, so they never write a
 `celery-task-meta-*` result. Those tasks track their outcome where the rest of
 the app can read it:

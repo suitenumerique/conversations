@@ -456,7 +456,7 @@ When a user sends a message with attachments, the system processes them differen
 
      The point of the heuristic is to avoid the latency/cost of OCR when `pypdf` can already pull clean text out of the PDF.
 
-2. **Conversion artifacts**: For non-text inputs (PDF, DOCX, etc.) a hidden markdown companion attachment is created (`content_type=text/markdown`, `conversion_from=<original.key>`). Conversation attachments create the companion lazily on the first chat turn that needs RAG; project attachments create it at upload time (see [Project Attachments](#project-attachments)). Conversation companions reuse the original's S3 key (the companion overwrites the original blob); project companions are stored at a distinct `<original.key>.md` blob so the original binary remains available for direct retrieval.
+2. **Conversion artifacts**: For non-text inputs (PDF, DOCX, etc.) a hidden markdown companion attachment is created (`content_type=text/markdown`, `conversion_from=<original.key>`). Conversation attachments create the companion lazily on the first chat turn that needs RAG; project attachments create it at upload time (see [Project Attachments](#project-attachments)). Both are stored at a distinct `<original.key>.md` blob so the original binary remains available for direct retrieval. For conversations, the parse Celery task writes this blob itself and returns only its key, so the parsed text never goes through the Celery result backend (Redis).
 
 3. **Hybrid context delivery**: On every chat turn, each text attachment is exposed to the LLM in one of two modes (described in detail below):
    - **`full-context`**: small enough conversation documents are inlined directly into the system instructions so the LLM can read them without calling a tool.

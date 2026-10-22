@@ -26,6 +26,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(back) keep parsed documents out of the Celery result backend
 - 💄(front) add margin-top for the carbon impact module.
 - ⚡️(front) disable posthog-js periodic feature flag reloads
 - 🐛(front) avoid stale pages and blank screens after a deploy

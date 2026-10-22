@@ -86,7 +86,6 @@ import os
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack, suppress
-from io import BytesIO
 from typing import AsyncGenerator, Dict, List, Optional, Tuple, Union
 
 from django.conf import settings
@@ -1591,7 +1590,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 self.user.sub,
             )
             try:
-                parsed_content, rag_document_id = await asyncio.to_thread(
+                markdown_key, rag_document_id = await asyncio.to_thread(
                     async_result.get,
                     timeout=settings.DOCUMENT_PARSE_RESULT_TIMEOUT_SECONDS,
                 )
@@ -1603,7 +1602,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 await asyncio.to_thread(async_result.revoke)
                 raise
             finally:
-                # Drop the (possibly large) parsed-content payload from the result
+                # Drop the result (or the failure traceback) from the result
                 # backend once the task has finished: it has been consumed on
                 # success, and is useless on failure. If the task is still queued
                 # or running (timeout path above), a result written later sits in
@@ -1617,18 +1616,17 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     conversation_id=self.conversation.pk, key=key
                 ).aupdate(rag_document_id=rag_document_id, is_indexed=True)
 
-            if not document.media_type.startswith(TEXT_MIME_PREFIX):
-                md_attachment = await models.ChatConversationAttachment.objects.acreate(
+            # The task already wrote the parsed markdown to storage.
+            if markdown_key:
+                await models.ChatConversationAttachment.objects.acreate(
                     conversation=self.conversation,
                     uploaded_by=self.user,
-                    key=key,
+                    key=markdown_key,
                     file_name=f"{document.identifier}.md",
                     content_type=MARKDOWN_MIME_TYPE,
                     conversion_from=key,
+                    upload_state=models.AttachmentStatus.READY,
                 )
-                default_storage.save(md_attachment.key, BytesIO(parsed_content.encode("utf8")))
-                md_attachment.upload_state = models.AttachmentStatus.READY
-                await md_attachment.asave(update_fields=["upload_state", "updated_at"])
 
         if any_indexed:
             self.conversation.index_state = CollectionIndexState.INDEXED
