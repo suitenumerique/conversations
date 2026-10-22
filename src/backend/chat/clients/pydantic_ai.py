@@ -101,7 +101,7 @@ from asgiref.sync import sync_to_async
 from celery.exceptions import TimeoutError as CeleryTimeoutError
 from langfuse import get_client, propagate_attributes
 from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
-from pydantic_ai.capabilities import Hooks, Instrumentation, ProcessHistory
+from pydantic_ai.capabilities import Hooks, Instrumentation, PrepareTools, ProcessHistory
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import (
     BinaryContent,
@@ -127,6 +127,8 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 from pydantic_ai.models import Model, infer_model_profile
+from pydantic_ai.usage import UsageLimits
+from pydantic_ai_harness.subagents import SubAgent, SubAgents
 
 from core import instrumentation
 from core.analytics import acapture_event
@@ -147,6 +149,11 @@ from chat.agents.local_media_url_processors import (
     project_has_image_attachments,
     update_history_local_urls,
     update_local_urls,
+)
+from chat.agents.web_researcher import (
+    RESEARCH_TIMEOUT_SECONDS,
+    RESEARCH_TOKEN_BUDGET,
+    WebResearcherAgent,
 )
 from chat.ai_sdk_types import (
     FileUIPart,
@@ -404,22 +411,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._history_summary_checkpoint = max(conversation.history_summary_checkpoint, 0)
         self._presentation_tool_registered = False
 
-        _capabilities: list = [ProcessHistory(safe_clean_tool_history)]
-        if self._langfuse_available:
-            _capabilities.append(
-                Instrumentation(
-                    settings=InstrumentationSettings(
-                        include_binary_content=self._store_analytics,
-                        include_content=self._store_analytics,
-                        # Pin the OpenTelemetry schema pydantic-ai emitted before 2.x
-                        # (default is now version 5 with `gen_ai.aggregated_usage.*`
-                        # attribute names). Keeps existing Langfuse dashboards working;
-                        # moving to the newer schema is a separate, deliberate change.
-                        version=2,
-                        use_aggregated_usage_attribute_names=False,
-                    )
-                )
-            )
+        _capabilities: list = [
+            ProcessHistory(safe_clean_tool_history),
+            *self._web_research_capabilities(),
+            *self._instrumentation_capabilities(),
+        ]
         self.conversation_agent = ConversationAgent(
             model_hrid=self.model_hrid,
             language=self.language,
@@ -1324,6 +1320,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         @self.conversation_agent.instructions
         def force_web_search_prompt() -> str:
             """Dynamic system prompt function to force web search."""
+            if self._web_search_subagent:
+                return (
+                    "You must delegate to the web_researcher agent before answering "
+                    "the user request."
+                )
             return "You must call the web_search tool before answering the user request."
 
         return True
@@ -1797,9 +1798,53 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 """Wrap the document_summarize_project tool."""
                 return await document_summarize_project(ctx, *args, **kwargs)
 
+    def _instrumentation_capabilities(self) -> list:
+        """Langfuse instrumentation, shared by the conversation agent and its sub-agents."""
+        if not self._langfuse_available:
+            return []
+        return [
+            Instrumentation(
+                settings=InstrumentationSettings(
+                    include_binary_content=self._store_analytics,
+                    include_content=self._store_analytics,
+                    # Pin the OpenTelemetry schema pydantic-ai emitted before 2.x
+                    # (default is now version 5 with `gen_ai.aggregated_usage.*`
+                    # attribute names). Keeps existing Langfuse dashboards working;
+                    # moving to the newer schema is a separate, deliberate change.
+                    version=2,
+                    use_aggregated_usage_attribute_names=False,
+                )
+            )
+        ]
+
+    def _web_research_capabilities(self) -> list:
+        """Delegate web search to a web_researcher sub-agent instead of a direct tool."""
+        self._web_search_subagent = settings.WEB_SEARCH_SUBAGENT_ENABLED and bool(
+            getattr(self.model_configuration, "web_search", None)
+        )
+        if not self._web_search_subagent:
+            return []
+
+        async def only_if_web_search_enabled(ctx, tool_defs):
+            """Hide the delegation tool when web search is disabled for this turn."""
+            if ctx.deps.web_search_enabled:
+                return tool_defs
+            return [td for td in tool_defs if td.name != "delegate_task"]
+
+        self._web_researcher = WebResearcherAgent(
+            model_hrid=self.model_hrid, capabilities=self._instrumentation_capabilities()
+        )
+        researcher = SubAgent(
+            self._web_researcher,
+            usage_limits=UsageLimits(request_limit=None, total_tokens_limit=RESEARCH_TOKEN_BUDGET),
+            timeout_seconds=RESEARCH_TIMEOUT_SECONDS,
+            max_calls=3,
+        )
+        return [SubAgents(agents=[researcher]), PrepareTools(only_if_web_search_enabled)]
+
     def _setup_web_search_tool(self) -> None:
         """Register model-specific web search tool when configured."""
-        if self._web_search_tool_registered:
+        if self._web_search_tool_registered or self._web_search_subagent:
             return
         configuration = self.conversation_agent.configuration
         if not getattr(configuration, "web_search", None):
@@ -2037,7 +2082,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     if self._datagouv.take_outage():
                         yield _connector_unavailable_notice()
                     if isinstance(event.part, ToolReturnPart):
-                        if event.part.metadata and (sources := event.part.metadata.get("sources")):
+                        sources = list((event.part.metadata or {}).get("sources") or ())
+                        # Sources kept by the web_researcher sub-agent come through deps
+                        sources += self._context_deps.web_research_sources
+                        self._context_deps.web_research_sources.clear()
+                        if sources:
                             for source_url in sources:
                                 source_id = str(uuid.uuid4())
                                 state.ui_sources.append(
