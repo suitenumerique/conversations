@@ -1,11 +1,15 @@
 """Tests for AlbertOpenAI model subclasses and carbon extraction helpers."""
 # pylint: disable=protected-access
 
+import warnings
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from openai.types.chat import ChatCompletion
 from pydantic import ValidationError
+from pydantic_ai.messages import ModelRequest, TextPart
+from pydantic_ai.models import ModelRequestParameters
 from pydantic_ai.models.openai import OpenAIStreamedResponse
 from pydantic_ai.usage import RequestUsage
 
@@ -279,6 +283,52 @@ def test_validate_completion_normalizes_custom_type_with_function_payload(albert
     tool_call = result.choices[0].message.tool_calls[0]
     assert tool_call.type == "function"
     assert tool_call.function.name == "final_result"
+
+
+@pytest.mark.asyncio
+async def test_request_joins_list_content(albert_model, httpx2_mock, caplog):
+    """List-shaped message content (Albert/Mistral answer with references) is
+    joined into a string: str items kept, `text` taken from dict items, other
+    parts dropped with a log of their type only. The answer never reaches a
+    serializer warning."""
+    httpx2_mock.post("https://test-albert-api.com/chat/completions").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl-abc",
+                "object": "chat.completion",
+                "created": 1700000000,
+                "model": "test-model",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {
+                            "role": "assistant",
+                            "content": [
+                                {"type": "text", "text": "Paris is the capital"},
+                                {"type": "reference", "reference_ids": [1]},
+                                42,
+                                " of France.",
+                            ],
+                        },
+                    }
+                ],
+            },
+        )
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        response = await albert_model.request(
+            [ModelRequest.user_text_prompt("Capital of France?")],
+            None,
+            ModelRequestParameters(),
+        )
+
+    assert response.parts == [TextPart(content="Paris is the capital of France.")]
+    assert "Unexpected content part type in completion: <class 'int'>" in caplog.text
+    assert "Paris" not in caplog.text
 
 
 def _make_malformed_chat_completion(object_value: str, choices_value) -> MagicMock:

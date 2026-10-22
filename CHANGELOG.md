@@ -12,6 +12,10 @@ and this project adheres to
 
 - ✨(back) add opt-in output token limit per message
 
+### Fixed
+
+- 🐛(back) accept list content in non-streaming Albert responses
+
 ## [0.0.27] - 2026-10-28
 
 ### Changed
