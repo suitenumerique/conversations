@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-30 10:06+0000\n"
-"PO-Revision-Date: 2026-10-01 15:29\n"
+"POT-Creation-Date: 2026-10-21 15:35+0000\n"
+"PO-Revision-Date: 2026-10-22 14:33\n"
 "Last-Translator: \n"
 "Language-Team: Ukrainian\n"
 "Language: uk_UA\n"
@@ -189,12 +189,12 @@ msgid "The Assistant IA service is currently experiencing high demand. The tool 
 msgstr "Сервіс Помічника ШІ зараз має високий попит. Інструмент продовжує працювати, але може працювати повільніше, або можуть виникати затримки між повідомленнями."
 
 #: chat/assistant_health.py:26
-msgid "High traffic - degraded service"
-msgstr "Високий трафік — погіршена служба"
+msgid "High traffic"
+msgstr "Підвищений трафік"
 
 #: chat/assistant_health.py:28
-msgid "The service is experiencing high demand, which is affecting service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
-msgstr "Послуга має високий попит, що впливає на її якість. Деякі функції можуть працювати гірше. Якщо виникла помилка, спробуйте ще раз, щойно це повідомлення про помилку зникне."
+msgid "The service is experiencing high demand, which might affect service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
+msgstr "На сервіс спостерігається підвищений попит, що може вплинути на якість обслуговування. Це може позначитися на роботі деяких функцій. Якщо ви зіткнулися з помилкою, спробуйте виконати дію ще раз після зникнення цього повідомлення про помилку."
 
 #: chat/assistant_health.py:37
 msgid "Service unavailable"
@@ -204,7 +204,7 @@ msgstr "Служба недоступна"
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
 msgstr "Сервіс наразі недоступний через надмірне навантаження. Команда працює над якомога швидше відновлення роботи Помічника."
 
-#: chat/clients/pydantic_ai.py:1492
+#: chat/clients/pydantic_ai.py:1872
 msgid "Internal Documentation of the AI Assistant"
 msgstr "Внутрішня документація помічника ШІ"
 

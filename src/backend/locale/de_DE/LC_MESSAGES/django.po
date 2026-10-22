@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-30 10:06+0000\n"
-"PO-Revision-Date: 2026-10-01 15:29\n"
+"POT-Creation-Date: 2026-10-21 15:35+0000\n"
+"PO-Revision-Date: 2026-10-22 14:33\n"
 "Last-Translator: \n"
 "Language-Team: German\n"
 "Language: de_DE\n"
@@ -189,11 +189,11 @@ msgid "The Assistant IA service is currently experiencing high demand. The tool 
 msgstr ""
 
 #: chat/assistant_health.py:26
-msgid "High traffic - degraded service"
+msgid "High traffic"
 msgstr ""
 
 #: chat/assistant_health.py:28
-msgid "The service is experiencing high demand, which is affecting service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
+msgid "The service is experiencing high demand, which might affect service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
 msgstr ""
 
 #: chat/assistant_health.py:37
@@ -204,7 +204,7 @@ msgstr ""
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
 msgstr ""
 
-#: chat/clients/pydantic_ai.py:1492
+#: chat/clients/pydantic_ai.py:1872
 msgid "Internal Documentation of the AI Assistant"
 msgstr ""
 
