@@ -9,6 +9,7 @@ from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService
 from chat.factories import ChatConversationFactory
+from chat.models import ChatConversation, ChatStreamChunk
 from chat.tests.utils import stream_body
 from chat.vercel_ai_sdk.core import events_v4
 
@@ -184,3 +185,22 @@ async def test_stream_data_async_reraises_unknown_exceptions():
 # error paths no longer carry a copy of it and there is no helper left to
 # mock. Driving a real run that fails is what proves it now, in
 # `test_stream_chunks.test_a_turn_that_errors_stores_its_question_once`.
+
+
+@pytest.mark.asyncio
+async def test_stream_data_async_conversation_deleted_during_failing_stream():
+    """A conversation deleted mid-stream is not written to when the stream fails."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+
+    async def mock_run_agent(*args, **kwargs):
+        service._pending_text = "partial answer"  # pylint: disable=protected-access
+        await ChatConversation.objects.filter(pk=conversation.pk).adelete()
+        raise ModelAPIError(model_name="test-model", message="Connection error.")
+        yield  # pylint: disable=unreachable
+
+    with patch.object(service, "_run_agent", side_effect=mock_run_agent):
+        results = [result async for result in service.stream_data_async([])]
+
+    assert stream_body(results) == ['{"type":"error","errorText":"model_connection_error"}']
+    assert not await ChatStreamChunk.objects.filter(conversation_id=conversation.pk).aexists()
