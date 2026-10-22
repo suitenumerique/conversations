@@ -92,8 +92,9 @@ from typing import AsyncGenerator, Dict, List, Optional, Tuple, Union
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
@@ -653,9 +654,29 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         path shields this, and a shield covers one awaitable, so the flush and
         the fold have to be inside the same one to be ordered at all once the
         task around them is being torn down.
+
+        Skipped when the conversation was deleted while the turn ran: there is
+        nothing left to file into, and writing a chunk for it would fail. The
+        check runs again when the write fails, since the delete can land
+        between the first check and the write: the chunk's own validation then
+        rejects the gone conversation, the insert does if the delete lands
+        later still, and the filing's locked re-read finds no row if it lands
+        after the flush. Any of these is raised while the conversation exists.
         """
-        await self._flush_text()
-        await sync_to_async(close_turn_trail)(self.conversation, self._turn_run_id)
+        if not await self._conversation_exists():
+            self._turn_log("conversation deleted, nothing to file")
+            return
+        try:
+            await self._flush_text()
+            await sync_to_async(close_turn_trail)(self.conversation, self._turn_run_id)
+        except ValidationError, IntegrityError, models.ChatConversation.DoesNotExist:
+            if await self._conversation_exists():
+                raise
+            self._turn_log("conversation deleted while filing, nothing to file")
+
+    async def _conversation_exists(self) -> bool:
+        """Whether the conversation is still in the database."""
+        return await models.ChatConversation.objects.filter(pk=self.conversation.pk).aexists()
 
     async def _flush_text(self) -> None:
         """Write the text in hand, if any."""

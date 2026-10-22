@@ -2,13 +2,17 @@
 
 from unittest.mock import patch
 
+from django.db import IntegrityError
+
 import pytest
 from asgiref.sync import sync_to_async
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 
+from chat import stream_chunks
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService
 from chat.factories import ChatConversationFactory
+from chat.models import ChatConversation, ChatStreamChunk
 from chat.tests.utils import stream_body
 from chat.vercel_ai_sdk.core import events_v4
 
@@ -184,3 +188,87 @@ async def test_stream_data_async_reraises_unknown_exceptions():
 # error paths no longer carry a copy of it and there is no helper left to
 # mock. Driving a real run that fails is what proves it now, in
 # `test_stream_chunks.test_a_turn_that_errors_stores_its_question_once`.
+
+
+@pytest.mark.asyncio
+async def test_stream_data_async_conversation_deleted_during_failing_stream():
+    """A conversation deleted mid-stream is not written to when the stream fails."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+
+    async def mock_run_agent(*args, **kwargs):
+        service._pending_text = "partial answer"  # pylint: disable=protected-access
+        await ChatConversation.objects.filter(pk=conversation.pk).adelete()
+        raise ModelAPIError(model_name="test-model", message="Connection error.")
+        yield  # pylint: disable=unreachable
+
+    with patch.object(service, "_run_agent", side_effect=mock_run_agent):
+        results = [result async for result in service.stream_data_async([])]
+
+    assert stream_body(results) == ['{"type":"error","errorText":"model_connection_error"}']
+    assert not await ChatStreamChunk.objects.filter(conversation_id=conversation.pk).aexists()
+
+
+async def _run_failing_turn(service, acreate):
+    """Drive a turn that fails with text in hand, its chunk insert replaced."""
+
+    async def mock_run_agent(*args, **kwargs):
+        service._pending_text = "partial answer"  # pylint: disable=protected-access
+        raise ModelAPIError(model_name="test-model", message="Connection error.")
+        yield  # pylint: disable=unreachable
+
+    with (
+        patch.object(service, "_run_agent", side_effect=mock_run_agent),
+        patch.object(ChatStreamChunk.objects, "acreate", side_effect=acreate),
+    ):
+        return [result async for result in service.stream_data_async([])]
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_stream_data_async_conversation_deleted_between_check_and_insert():
+    """A delete landing after the existence check still ends the stream cleanly."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+    real_acreate = ChatStreamChunk.objects.acreate
+
+    async def delete_then_insert(**kwargs):
+        await ChatConversation.objects.filter(pk=conversation.pk).adelete()
+        return await real_acreate(**kwargs)
+
+    results = await _run_failing_turn(service, delete_then_insert)
+
+    assert stream_body(results) == ['{"type":"error","errorText":"model_connection_error"}']
+    assert not await ChatStreamChunk.objects.filter(conversation_id=conversation.pk).aexists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_stream_data_async_insert_failure_reraised_when_conversation_exists():
+    """An insert failure is not swallowed while the conversation still exists."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+
+    with pytest.raises(IntegrityError, match="unrelated"):
+        await _run_failing_turn(service, IntegrityError("unrelated"))
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+async def test_stream_data_async_conversation_deleted_while_trail_is_filed():
+    """A delete landing after the flush, as the trail is filed, still ends cleanly."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+    real_fold = stream_chunks.fold
+
+    def delete_then_fold(trail):
+        # Runs after `close` has read the trail and before its locked re-read.
+        ChatConversation.objects.filter(pk=conversation.pk).delete()
+        return real_fold(trail)
+
+    with patch("chat.stream_chunks.fold", side_effect=delete_then_fold) as mock_fold:
+        results = await _run_failing_turn(service, ChatStreamChunk.objects.acreate)
+
+    assert mock_fold.called
+    assert stream_body(results) == ['{"type":"error","errorText":"model_connection_error"}']
+    assert not await ChatStreamChunk.objects.filter(conversation_id=conversation.pk).aexists()

@@ -22,6 +22,7 @@ and this project adheres to
 - 🐛(back) stop losing chat turns when a document contains NUL characters
 - 🐛(ci) key the Playwright browser cache on the Ubuntu release
 - 🔇(back) log tool retries as warnings, keep the cause on exhaustion
+- 🐛(back) skip filing a turn whose conversation was deleted
 
 ## [0.0.27] - 2026-10-28
 
