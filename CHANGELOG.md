@@ -26,6 +26,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🔇(back) log tool retries as warnings, keep the cause on exhaustion
 - 💄(front) add margin-top for the carbon impact module.
 - ⚡️(front) disable posthog-js periodic feature flag reloads
 - 🐛(front) avoid stale pages and blank screens after a deploy
