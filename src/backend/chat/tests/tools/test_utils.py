@@ -6,6 +6,7 @@ from typing import get_type_hints
 
 import pytest
 from pydantic_ai import ModelRetry, RunContext
+from pydantic_ai.exceptions import ModelHTTPError
 
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.utils import last_model_retry_soft_fail
@@ -75,7 +76,7 @@ async def test_last_model_retry_soft_fail_normal_execution():
 
 
 @pytest.mark.asyncio
-async def test_last_model_retry_soft_fail_handles_retry_exception():
+async def test_last_model_retry_soft_fail_handles_retry_exception(caplog):
     """Test that the decorator handles ModelRetry exceptions correctly."""
 
     @last_model_retry_soft_fail
@@ -96,19 +97,36 @@ async def test_last_model_retry_soft_fail_handles_retry_exception():
     ctx = MockContext()
 
     # Test when retries haven't been exhausted - should re-raise
-    with pytest.raises(ModelRetry):
+    with caplog.at_level(logging.WARNING), pytest.raises(ModelRetry):
         await failing_tool(ctx, should_fail=True)
+
+    # A retry is expected behaviour: it must not reach Sentry as an error
+    assert [record.levelno for record in caplog.records] == [logging.WARNING]
 
 
 @pytest.mark.asyncio
-async def test_last_model_retry_soft_fail_returns_message_when_max_retries_reached():
+@pytest.mark.parametrize(
+    ("cause", "expected_log"),
+    [
+        (
+            ModelHTTPError(
+                status_code=400, model_name="model", body="My secret prompt is too long"
+            ),
+            "Max retries reached for tool 'failing_tool' (cause: ModelHTTPError, status: 400).",
+        ),
+        (None, "Max retries reached for tool 'failing_tool'."),
+    ],
+)
+async def test_last_model_retry_soft_fail_returns_message_when_max_retries_reached(
+    caplog, cause, expected_log
+):
     """Test that the decorator returns the error message when max retries is reached."""
 
     @last_model_retry_soft_fail
     async def failing_tool(_ctx: RunContext, should_fail: bool) -> str:
         """Tool that can raise ModelRetry."""
         if should_fail:
-            raise ModelRetry("Please retry with different parameters.")
+            raise ModelRetry("Please retry with different parameters.") from cause
         return "Success"
 
     # Create a mock context with max retries already reached
@@ -122,7 +140,14 @@ async def test_last_model_retry_soft_fail_returns_message_when_max_retries_reach
     ctx = MockContext()
 
     # Test when retries have been exhausted - should return message
-    result = await failing_tool(ctx, should_fail=True)
+    with caplog.at_level(logging.WARNING):
+        result = await failing_tool(ctx, should_fail=True)
+
+    # Exhausted retries are logged as an error naming the cause, never its content
+    error = caplog.records[-1]
+    assert error.levelno == logging.ERROR
+    assert error.getMessage() == expected_log
+    assert "My secret prompt" not in caplog.text
     assert result == (
         "Please retry with different parameters. "
         "You must explain this to the user and not try to answer based on your knowledge."
@@ -174,7 +199,7 @@ async def test_last_model_retry_soft_fail_does_not_log_run_context(caplog):
         def __repr__(self):
             return "RunContext(prompt='My secret prompt')"
 
-    with caplog.at_level(logging.ERROR), pytest.raises(ModelRetry):
+    with caplog.at_level(logging.WARNING), pytest.raises(ModelRetry):
         await failing_tool(MockContext())
 
     assert "Tool 'failing_tool' raised ModelRetry: Please retry." in caplog.text

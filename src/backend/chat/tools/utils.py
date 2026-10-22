@@ -5,7 +5,9 @@ import logging
 import uuid
 from typing import Any, Callable, Iterable
 
+import httpx
 from pydantic_ai import ModelRetry, RunContext
+from pydantic_ai.exceptions import ModelHTTPError
 
 from chat import models
 from chat.tools.exceptions import ModelCannotRetry
@@ -35,6 +37,18 @@ def resolve_attachment_by_id(
     raise ModelRetry("document_id was not found among attached text documents.")
 
 
+def _describe_cause(exc: ModelRetry) -> str:
+    """Name the cause's type and HTTP status, never its message (urls, user content)."""
+    cause = exc.__cause__
+    if cause is None:
+        return ""
+    if isinstance(cause, ModelHTTPError):
+        return f" (cause: {type(cause).__name__}, status: {cause.status_code})"
+    if isinstance(cause, httpx.HTTPStatusError):
+        return f" (cause: {type(cause).__name__}, status: {cause.response.status_code})"
+    return f" (cause: {type(cause).__name__})"
+
+
 def last_model_retry_soft_fail(
     tool_func: Callable[..., Any],
 ) -> Callable[..., Any]:
@@ -58,9 +72,11 @@ def last_model_retry_soft_fail(
         except ModelCannotRetry as exc:
             return str(exc.message)
         except ModelRetry as exc:
-            logger.error("Tool '%s' raised ModelRetry: %s", ctx.tool_name, exc.message)
+            logger.warning("Tool '%s' raised ModelRetry: %s", ctx.tool_name, exc.message)
             if (ctx.retries.get(ctx.tool_name, 0) + 1) >= ctx.max_retries:
-                logger.error("Max retries reached for tool '%s'.", ctx.tool_name)
+                logger.error(
+                    "Max retries reached for tool '%s'%s.", ctx.tool_name, _describe_cause(exc)
+                )
                 # A bit of a hack to signal that we cannot retry here, while preventing
                 # the LLM to generate an outdated answer.
                 # We may define a more specific exception later base on ModelRetry which

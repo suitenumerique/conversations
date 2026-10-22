@@ -75,7 +75,7 @@ def _create_document_search_rag(agent, name, description, backend, ids):
         except HTTPStatusError as exc:
             # str(exc) carries the request url: log the status code only.
             status_code = exc.response.status_code
-            logger.error("RAG document search failed for tool %s (status %s)", name, status_code)
+            logger.warning("RAG document search failed for tool %s (status %s)", name, status_code)
             raise ModelRetry(
                 f"Document search service is currently unavailable (status {status_code})."
             ) from exc

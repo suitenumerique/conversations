@@ -361,7 +361,7 @@ async def test_add_document_rag_search_tool_function_call(settings):
 @respx.mock
 async def test_document_search_rag_http_status_error(settings, caplog):
     """Test that HTTPStatusError is properly handled and logged."""
-    caplog.set_level(logging.ERROR, logger="chat.tools.document_generic_search_rag")
+    caplog.set_level(logging.WARNING)
 
     # Mock the API to return a 500 error
     respx.post("https://albert.api.etalab.gouv.fr/v1/search").mock(
@@ -395,9 +395,15 @@ async def test_document_search_rag_http_status_error(settings, caplog):
         "explain this to the user and not try to answer based on your knowledge."
     )
 
-    # Verify that error was logged
-    assert "RAG document search failed for tool legal_documents" in caplog.records[0].message
-    assert "Document search service is currently unavailable" in caplog.records[1].message
+    # The failure is a retry (warning): only the exhausted retries reach Sentry as an error
+    logs = [(record.levelno, record.getMessage()) for record in caplog.records]
+    assert (
+        logging.WARNING,
+        "RAG document search failed for tool legal_documents (status 500)",
+    ) in logs
+    errors = [message for level, message in logs if level == logging.ERROR]
+    assert len(errors) == 1
+    assert "(cause: HTTPStatusError, status: 500)" in errors[0]
     # The request url must not reach the logs nor the model
     assert "albert.api.etalab.gouv.fr" not in caplog.text
     assert "albert.api.etalab.gouv.fr" not in tool_result
