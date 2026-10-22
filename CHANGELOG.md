@@ -8,7 +8,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-### Added
+## [0.0.25] - 2026-10-22
 
 - ✨(back) add opt-in prometheus metrics on `/metrics`
 - ✨(back) measure model requests, chat streams and outgoing calls
@@ -534,7 +534,9 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 - 🔧(evals) add run_evals management command
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.25...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.26...main
+
+[0.0.26]: https://github.com/suitenumerique/conversations/compare/v0.0.25...v0.0.26
 
 [0.0.25]: https://github.com/suitenumerique/conversations/compare/v0.0.24...v0.0.25
 
