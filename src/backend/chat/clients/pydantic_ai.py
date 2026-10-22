@@ -608,7 +608,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         path shields this, and a shield covers one awaitable, so the flush and
         the fold have to be inside the same one to be ordered at all once the
         task around them is being torn down.
+
+        Skipped when the conversation was deleted while the turn ran: there is
+        nothing left to file into, and writing a chunk for it would fail.
         """
+        if not await models.ChatConversation.objects.filter(pk=self.conversation.pk).aexists():
+            self._turn_log("conversation deleted, nothing to file")
+            return
         await self._flush_text()
         await sync_to_async(close_turn_trail)(self.conversation, self._turn_run_id)
 
