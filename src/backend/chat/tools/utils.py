@@ -6,6 +6,7 @@ import uuid
 from typing import Any, Callable, Iterable
 
 from pydantic_ai import ModelRetry, RunContext
+from pydantic_ai.exceptions import ModelHTTPError
 
 from chat import models
 from chat.tools.exceptions import ModelCannotRetry
@@ -58,9 +59,16 @@ def last_model_retry_soft_fail(
         except ModelCannotRetry as exc:
             return str(exc.message)
         except ModelRetry as exc:
-            logger.error("Tool '%s' raised ModelRetry: %s", ctx.tool_name, exc.message)
+            logger.warning("Tool '%s' raised ModelRetry: %s", ctx.tool_name, exc.message)
             if (ctx.retries.get(ctx.tool_name, 0) + 1) >= ctx.max_retries:
-                logger.error("Max retries reached for tool '%s'.", ctx.tool_name)
+                # Only the cause's type and status: its message can carry urls or user content
+                cause = exc.__cause__
+                logger.error(
+                    "Max retries reached for tool '%s' (cause: %s, status: %s).",
+                    ctx.tool_name,
+                    type(cause).__name__ if cause else None,
+                    cause.status_code if isinstance(cause, ModelHTTPError) else None,
+                )
                 # A bit of a hack to signal that we cannot retry here, while preventing
                 # the LLM to generate an outdated answer.
                 # We may define a more specific exception later base on ModelRetry which
