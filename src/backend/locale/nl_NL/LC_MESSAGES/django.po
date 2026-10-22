@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-30 10:06+0000\n"
-"PO-Revision-Date: 2026-10-01 15:29\n"
+"POT-Creation-Date: 2026-10-21 15:35+0000\n"
+"PO-Revision-Date: 2026-10-22 14:33\n"
 "Last-Translator: \n"
 "Language-Team: Dutch\n"
 "Language: nl_NL\n"
@@ -161,20 +161,20 @@ msgstr "gebruikersregistratieverzoeken"
 
 #: chat/agent_rag/document_converter/guards.py:61
 msgid "Document expands beyond the allowed size and was rejected."
-msgstr ""
+msgstr "Document overschrijdt de toegestane grootte en is afgewezen."
 
 #: chat/agent_rag/document_converter/guards.py:73
 msgid "Document has a suspicious compression ratio and was rejected."
-msgstr ""
+msgstr "Document heeft een verdachte compressieverhouding en is afgewezen."
 
 #: chat/agent_rag/document_converter/guards.py:98
 msgid "Document has too many pages and was rejected."
-msgstr ""
+msgstr "Document heeft te veel pagina's en is afgewezen."
 
 #: chat/agent_rag/document_converter/odt.py:30
 #, python-format
 msgid "Failed to parse ODT document: %(error)s"
-msgstr ""
+msgstr "Fout bij het analyseren van ODT-document: %(error)s"
 
 #: chat/apps.py:12
 msgid "chat application"
@@ -182,46 +182,46 @@ msgstr "chatapplicatie"
 
 #: chat/assistant_health.py:17
 msgid "High traffic - slowdowns"
-msgstr ""
+msgstr "Hoge verkeersdruk - vertragingen"
 
 #: chat/assistant_health.py:19
 msgid "The Assistant IA service is currently experiencing high demand. The tool remains operational but may be slower, or you may experience delays between messages."
-msgstr ""
+msgstr "De Assistant IA-service heeft momenteel hoge vraag. Het hulpmiddel blijft operationeel, maar kan trager zijn of u kunt vertragingen tussen berichten ervaren."
 
 #: chat/assistant_health.py:26
-msgid "High traffic - degraded service"
+msgid "High traffic"
 msgstr ""
 
 #: chat/assistant_health.py:28
-msgid "The service is experiencing high demand, which is affecting service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
+msgid "The service is experiencing high demand, which might affect service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
 msgstr ""
 
 #: chat/assistant_health.py:37
 msgid "Service unavailable"
-msgstr ""
+msgstr "Dienst niet beschikbaar"
 
 #: chat/assistant_health.py:39
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
-msgstr ""
+msgstr "De dienst is momenteel niet beschikbaar vanwege overbelasting. Het team werkt aan het herstellen van de Assistant zo snel mogelijk."
 
-#: chat/clients/pydantic_ai.py:1492
+#: chat/clients/pydantic_ai.py:1872
 msgid "Internal Documentation of the AI Assistant"
-msgstr ""
+msgstr "Interne documentatie van de AI-assistent"
 
 #: chat/views/attachments.py:305
 #, python-format
 msgid "This project already has the maximum of %(cap)d images. Remove one before uploading another."
-msgstr ""
+msgstr "Dit project heeft al het maximum van %(cap)d afbeeldingen. Verwijder er één voordat u er een andere uploadt."
 
 #: chat/views/attachments.py:321
 #, python-format
 msgid "This project already has the maximum of %(cap)d files. Remove one before uploading another."
-msgstr ""
+msgstr "Dit project heeft al het maximum van %(cap)d bestanden. Verwijder er één voordat u er een andere uploadt."
 
 #: chat/views/edit_in_docs.py:37
 #, python-format
 msgid "[L'Assistant] New document %(date)s"
-msgstr ""
+msgstr "[L'Assistant] Nieuw document %(date)s"
 
 #: core/admin.py:30
 msgid "Personal info"
@@ -237,27 +237,27 @@ msgstr "Belangrijke data"
 
 #: core/admin.py:161
 msgid "Self documentation"
-msgstr ""
+msgstr "Zelfdocumentatie"
 
 #: core/admin.py:164
 msgid "Markdown documentation about this service. Exposed to the conversation agent so it can answer questions users ask about the app itself."
-msgstr ""
+msgstr "Markdown-documentatie over deze service. Beschikbaar voor de gespreksagent zodat het vragen kan beantwoorden die gebruikers stellen over de app zelf."
 
 #: core/admin.py:172
 msgid "Status banner"
-msgstr ""
+msgstr "Statusbalk"
 
 #: core/admin.py:175
 msgid "Shown to all users at the top of the app. Leave title and content empty to disable."
-msgstr ""
+msgstr "Zichtbaar voor alle gebruikers aan de bovenkant van de app. Laat titel en inhoud leeg om te deactiveren."
 
 #: core/admin.py:188
 msgid "Assistant"
-msgstr ""
+msgstr "Assistent"
 
 #: core/admin.py:212
 msgid "The MAINTENANCE_MODE environment variable is set: maintenance is forced ON regardless of the value below."
-msgstr ""
+msgstr "De omgevingsvariabele MAINTENANCE_MODE is ingesteld: onderhoud is gedwongen AAN, ongeacht de waarde hieronder."
 
 #: core/models.py:41
 msgid "id"
@@ -365,19 +365,19 @@ msgstr "Of de gebruiker toestemming geeft om smart web zoekfuncties te gebruiken
 
 #: core/models.py:178
 msgid "allow data.gouv connector"
-msgstr ""
+msgstr "toestaan data.gouv-connector"
 
 #: core/models.py:181
 msgid "Whether the user asked for the data.gouv connector. This records a choice, not an entitlement: the connector also requires the beta feature flag and a configured endpoint."
-msgstr ""
+msgstr "Of de gebruiker de data.gouv-connector heeft gevraagd. Dit registreert een keuze, niet een recht: de connector vereist ook de beta-functieflag en een geconfigureerde eindpunt."
 
 #: core/models.py:191
 msgid "organization SIRET"
-msgstr ""
+msgstr "organisatie SIRET"
 
 #: core/models.py:195
 msgid "SIRET of the user's organization, as provided by the identity provider."
-msgstr ""
+msgstr "SIRET van de organisatie van de gebruiker, zoals aangeleverd door de identiteitsprovider."
 
 #: core/models.py:206
 msgid "users"
@@ -385,131 +385,131 @@ msgstr "gebruikers"
 
 #: core/models.py:222
 msgid "Info"
-msgstr ""
+msgstr "Info"
 
 #: core/models.py:223
 msgid "Warning"
-msgstr ""
+msgstr "Waarschuwing"
 
 #: core/models.py:224
 msgid "Alert"
-msgstr ""
+msgstr "Alarm"
 
 #: core/models.py:231
 msgid "Self documentation content. Must be valid markdown."
-msgstr ""
+msgstr "Zelfdocumentatie-inhoud. Moet geldige markdown zijn."
 
 #: core/models.py:238
 msgid "Status banner - level"
-msgstr ""
+msgstr "Statusbalk - niveau"
 
 #: core/models.py:245
 msgid "Status banner - title"
-msgstr ""
+msgstr "Statusbalk - titel"
 
 #: core/models.py:249
 msgid "Status banner - content"
-msgstr ""
+msgstr "Statusbalk - inhoud"
 
 #: core/models.py:254
 msgid "Status banner - starts at"
-msgstr ""
+msgstr "Statusbalk - begint op"
 
 #: core/models.py:255
 msgid "If set, the banner is hidden before this date."
-msgstr ""
+msgstr "Als ingesteld, wordt de balk verborgen vóór deze datum."
 
 #: core/models.py:260
 msgid "Status banner - ends at"
-msgstr ""
+msgstr "Statusbalk - eindigt op"
 
 #: core/models.py:261
 msgid "If set, the banner is hidden after this date."
-msgstr ""
+msgstr "Als ingesteld, wordt de balk verborgen na deze datum."
 
 #: core/models.py:266
 msgid "Block chat input on full outage"
-msgstr ""
+msgstr "Chat-invoer blokkeren bij volledige storing"
 
 #: core/models.py:269
 msgid "When enabled, the chat input is disabled while all AI models are unavailable. Disable to keep the input active and show a degraded-service warning instead."
-msgstr ""
+msgstr "Wanneer ingeschakeld, is de chat-invoer uitgeschakeld terwijl alle AI-modellen onbeschikbaar zijn. Uitschakelen om de invoer actief te houden en in plaats daarvan een waarschuwing voor verlaagde service weer te geven."
 
 #: core/models.py:287
 msgid "Site Configuration"
-msgstr ""
+msgstr "Site-instellingen"
 
 #: core/models.py:300
 msgid "Enabled"
-msgstr ""
+msgstr "Ingeschakeld"
 
 #: core/models.py:301
 msgid "When checked, the app is in maintenance mode for end-users."
-msgstr ""
+msgstr "Wanneer aangevinkt, is de app in onderhoudsmodus voor eindgebruikers."
 
 #: core/models.py:306
 msgid "Message"
-msgstr ""
+msgstr "Bericht"
 
 #: core/models.py:307
 msgid "Shown on the maintenance page. Leave blank for the default message."
-msgstr ""
+msgstr "Weergegeven op de onderhoudspagina. Laat leeg voor het standaardbericht."
 
 #: core/models.py:312
 msgid "Starts at"
-msgstr ""
+msgstr "Start op"
 
 #: core/models.py:313
 msgid "If set, maintenance is inactive before this date."
-msgstr ""
+msgstr "Als ingesteld, is onderhoud onactief vóór deze datum."
 
 #: core/models.py:318
 msgid "Ends at"
-msgstr ""
+msgstr "Eindigt op"
 
 #: core/models.py:319
 msgid "If set, maintenance is inactive after this date."
-msgstr ""
+msgstr "Als ingesteld, is onderhoud onactief na deze datum."
 
 #: core/models.py:357
 msgid "Maintenance Mode"
-msgstr ""
+msgstr "Onderhoudsmodus"
 
 #: core/models.py:411
 msgid "email address"
-msgstr ""
+msgstr "e-mailadres"
 
 #: core/models.py:413
 msgid "email address allowed to bypass the role requirement"
-msgstr ""
+msgstr "e-mailadres dat toegestaan is om de rolvereiste te omzeilen"
 
 #: core/models.py:418
 msgid "inactive entries are ignored without being deleted"
-msgstr ""
+msgstr "inactieve items worden genegeerd zonder te worden verwijderd"
 
 #: core/models.py:421
 msgid "note"
-msgstr ""
+msgstr "opmerking"
 
 #: core/models.py:423
 msgid "optional reason for granting this bypass"
-msgstr ""
+msgstr "optionele reden voor het verlenen van deze omzeiling"
 
 #: core/models.py:426
 msgid "expires on"
-msgstr ""
+msgstr "verloopt op"
 
 #: core/models.py:429
 msgid "optional date after which this bypass no longer applies"
-msgstr ""
+msgstr "optionele datum waarop deze omzeiling niet meer van toepassing is"
 
 #: core/models.py:434
 msgid "access bypass email"
-msgstr ""
+msgstr "toegangsschakelaar e-mail"
 
 #: core/models.py:435
 msgid "access bypass emails"
-msgstr ""
+msgstr "toegangsschakelaar e-mails"
 
 #: core/templates/mail/html/invitation.html:162
 #: core/templates/mail/text/invitation.txt:3
