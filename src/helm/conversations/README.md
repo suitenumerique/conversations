@@ -167,6 +167,8 @@
 | `frontend.persistence.volume-name.mountPath`           | Path where the volume should be mounted to                                          |                                  |
 | `frontend.extraVolumeMounts`                           | Additional volumes to mount on the frontend.                                        | `[]`                             |
 | `frontend.extraVolumes`                                | Additional volumes to mount on the frontend.                                        | `[]`                             |
+| `frontend.robotsTxt.enabled`                           | Serve a custom robots.txt, e.g. to block crawling of non-production instances       | `false`                          |
+| `frontend.robotsTxt.content`                           | Content of the robots.txt file                                                      | `User-agent: *\nAllow: /\n`      |
 | `frontend.pdb.enabled`                                 | Enable pdb on frontend                                                              | `true`                           |
 
 ### posthog
