@@ -304,6 +304,25 @@ def test_validate_completion_normalizes_non_standard_object(albert_model):
     assert result.choices == []
 
 
+def test_validate_completion_joins_list_content(albert_model):
+    """List-shaped message content (Albert quirk) is joined into a string."""
+    response = _make_malformed_chat_completion(
+        object_value="chat.completion",
+        choices_value=[
+            {
+                "index": 0,
+                "finish_reason": "stop",
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "Hello "}, {"type": "text", "text": "!"}],
+                },
+            }
+        ],
+    )
+    result = albert_model._validate_completion(response)
+    assert result.choices[0].message.content == "Hello !"
+
+
 @pytest.mark.parametrize("choices_value", [None, {"index": 0}, "oops"])
 def test_validate_completion_rejects_non_list_choices(albert_model, choices_value):
     """A malformed non-list `choices` must raise a clear ValidationError, not be
