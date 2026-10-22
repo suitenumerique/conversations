@@ -18,14 +18,19 @@ from core.file_upload.enums import AttachmentStatus
 from core.file_upload.utils import generate_retrieve_policy
 
 from chat import models
+from chat.agent_rag.document_converter.guards import guard_zip_bomb
 from chat.agents.presentation import PresentationAgent
-from chat.constants import TEXT_MIME_PREFIX
+from chat.constants import PPTX_MIME_TYPE, TEXT_MIME_PREFIX
 from chat.file_generation import (
     GENERIC_TEMPLATE,
     Presentation,
     PresentationBuildError,
     PresentationStyle,
+    TemplatedPresentation,
+    TemplateOutline,
+    build_from_template,
     build_presentation,
+    outline_template,
 )
 from chat.tokens import compute_document_budget, count_approx_tokens, truncate_to_tokens
 from chat.tools.document_summarize import _summarize_text_attachments, read_document_content
@@ -51,11 +56,8 @@ MAX_NAME_LENGTH = 60
 DOWNLOAD_URL_EXPIRATION = 15 * 60  # 15 minutes
 
 # What the deck cannot do yet. Spelled out in the tool result so the model does
-# not claim to the user that a template was honoured.
-UNSUPPORTED_REQUESTS = (
-    "The deck always uses the standard template: an attached pptx template or "
-    "slide master, logos, images, charts and diagrams were NOT applied."
-)
+# not claim to the user that it was done.
+UNSUPPORTED_REQUESTS = "New logos, images, charts and diagrams were NOT added."
 
 # Tools whose result carries a deck that update_presentation can build on.
 PRESENTATION_TOOLS = ("generate_presentation", "update_presentation")
@@ -80,8 +82,10 @@ class StoredPresentation(BaseModel):
     conversation history but never sent to the model.
     """
 
-    presentation: Presentation
+    presentation: Presentation | TemplatedPresentation
     style: PresentationStyle = PresentationStyle()
+    # Storage key of the user's pptx the deck copies its slides from, if any.
+    template_key: str = ""
     # The source material the deck was built from, already within the budget,
     # so that an edit reuses it instead of reading and condensing the documents again.
     source_material: str = ""
@@ -132,29 +136,61 @@ def get_source_attachments(conversation, document_ids: list[str] | None) -> list
     may also target project-library files. Only READY attachments are eligible,
     matching the documents listing the model picks its ids from.
     """
-    conversation_documents = list(
-        conversation.attachments.filter(
-            content_type__startswith=TEXT_MIME_PREFIX,
-            upload_state=AttachmentStatus.READY,
-        ).order_by("created_at", "id")
-    )
     if document_ids is None:
-        return conversation_documents
-
-    candidates = conversation_documents
-    if conversation.project_id:
-        candidates += list(
-            models.ChatConversationAttachment.objects.filter(
-                project_id=conversation.project_id,
-                content_type__startswith=TEXT_MIME_PREFIX,
-                upload_state=AttachmentStatus.READY,
-            ).order_by("created_at", "id")
-        )
+        return _ready_text_attachments(conversation=conversation)
+    candidates = _readable_attachments(conversation)
     # dict.fromkeys drops duplicate ids while keeping the order given.
     return [
         resolve_attachment_by_id(candidates, document_id)
         for document_id in dict.fromkeys(document_ids)
     ]
+
+
+def _readable_attachments(conversation) -> list:
+    """The documents the model may point to: the conversation's, then its project's."""
+    attachments = _ready_text_attachments(conversation=conversation)
+    if conversation.project_id:
+        attachments += _ready_text_attachments(project_id=conversation.project_id)
+    return attachments
+
+
+def _ready_text_attachments(**scope) -> list:
+    return list(
+        models.ChatConversationAttachment.objects.filter(
+            content_type__startswith=TEXT_MIME_PREFIX,
+            upload_state=AttachmentStatus.READY,
+            **scope,
+        ).order_by("created_at", "id")
+    )
+
+
+@sync_to_async
+def get_template_key(conversation, template_id: str) -> str:
+    """
+    Resolve the storage key of the pptx a template id points to.
+
+    The model only sees the Markdown companion of an uploaded pptx, so the id
+    is the companion's: the pptx is the attachment it was converted from.
+    """
+    companion = resolve_attachment_by_id(_readable_attachments(conversation), template_id)
+    template = models.ChatConversationAttachment.objects.filter(
+        conversation_id=companion.conversation_id,
+        project_id=companion.project_id,
+        key=companion.conversion_from,
+        content_type=PPTX_MIME_TYPE,
+    ).first()
+    if template is None:
+        raise ModelRetry("template_id must point to an attached pptx file.")
+    return template.key
+
+
+@sync_to_async
+def read_template(key: str) -> bytes:
+    """Read the user's pptx from storage, refusing a decompression bomb."""
+    with default_storage.open(key) as file:
+        blob = file.read()
+    guard_zip_bomb(blob)
+    return blob
 
 
 def _source_budget() -> int:
@@ -220,7 +256,9 @@ async def build_sources(ctx: RunContext, attachments: list) -> tuple[str, list[s
     return SUMMARY_WRAPPER.format(summary=summary), names
 
 
-def build_agent_prompt(brief: str, slide_count: int | None, sources: str) -> str:
+def build_agent_prompt(
+    brief: str, slide_count: int | None, sources: str, template: TemplateOutline | None
+) -> str:
     """Assemble what the presentation agent is asked to turn into a deck."""
     return _prompt_sections(
         ("Brief", brief.strip()),
@@ -230,15 +268,22 @@ def build_agent_prompt(brief: str, slide_count: int | None, sources: str) -> str
             if slide_count
             else None,
         ),
+        ("User's slides", template and template.description),
         ("Source documents", sources),
     )
 
 
-def build_edit_prompt(presentation: Presentation, instructions: str, sources: str) -> str:
+def build_edit_prompt(
+    presentation: Presentation | TemplatedPresentation,
+    instructions: str,
+    sources: str,
+    template: TemplateOutline | None,
+) -> str:
     """Assemble what the presentation agent is asked to change in an existing deck."""
     return _prompt_sections(
         ("Current deck", presentation.model_dump_json(exclude_defaults=True)),
         ("Changes requested", instructions),
+        ("User's slides", template and template.description),
         ("Source documents", sources),
     )
 
@@ -283,12 +328,40 @@ def find_presentations(ctx: RunContext) -> list[StoredPresentation]:
     return decks
 
 
+def charts_note(
+    presentation: Presentation | TemplatedPresentation, template: TemplateOutline | None
+) -> str:
+    """Tell the model which slides copy a chart of the user's, whose data was not updated."""
+    if template is None or not (slides := template.copied_charts(presentation)):
+        return ""
+    return (
+        f" Slides {', '.join(map(str, slides))} copy a chart of the user's pptx with its "
+        "original data: tell the user it was not updated."
+    )
+
+
+async def load_template_outline(key: str) -> TemplateOutline:
+    """Describe the user's slides for the presentation agent."""
+    try:
+        return await sync_to_async(outline_template)(await read_template(key))
+    except Exception as exc:
+        logger.warning("Failed to read the presentation template %s", key, exc_info=True)
+        raise ModelCannotRetry(
+            "The user's pptx could not be read as a template: it may have been deleted "
+            "or be damaged. You must explain this to the user."
+        ) from exc
+
+
 async def run_presentation_agent(
-    ctx: RunContext, prompt: str, slide_count: int | None = None
-) -> Presentation:
+    ctx: RunContext,
+    prompt: str,
+    slide_count: int | None = None,
+    template: TemplateOutline | None = None,
+) -> Presentation | TemplatedPresentation:
     """Have the presentation agent write the deck described by ``prompt``."""
     try:
-        result = await PresentationAgent(slide_count=slide_count).run(prompt, usage=ctx.usage)
+        agent = PresentationAgent(slide_count=slide_count, template=template)
+        result = await agent.run(prompt, usage=ctx.usage)
     except AgentRunError as exc:
         # The agent itself failed (model API/HTTP error, unexpected model
         # behaviour, usage limit): a retry may recover, so let the model try.
@@ -307,13 +380,24 @@ async def save_presentation(
     """Build and store the deck, and tell the model how to hand it to the user."""
     presentation = stored.presentation
     try:
-        blob = await sync_to_async(build_presentation)(GENERIC_TEMPLATE, presentation, stored.style)
-    except PresentationBuildError as exc:
-        # The template is bundled with the application: a failure here is a
-        # deployment problem, not something a different brief would fix.
+        if stored.template_key:
+            template = await read_template(stored.template_key)
+            blob = await sync_to_async(build_from_template)(template, presentation, stored.style)
+        else:
+            blob = await sync_to_async(build_presentation)(
+                GENERIC_TEMPLATE, presentation, stored.style
+            )
+    except Exception as exc:
+        # Neither is something a different brief would fix: the bundled template
+        # failing is a deployment problem, the user's one a pptx we cannot use.
         logger.exception("Failed to build the presentation")
+        reason = (
+            "the user's pptx could not be used as a template"
+            if stored.template_key
+            else "of a server-side error"
+        )
         raise ModelCannotRetry(
-            "The presentation could not be generated because of a server-side error."
+            f"The presentation could not be generated because {reason}."
         ) from exc
 
     try:
@@ -345,12 +429,14 @@ async def save_presentation(
 
 
 @last_model_retry_soft_fail
-async def generate_presentation(
+async def generate_presentation(  # noqa: PLR0913 # pylint: disable=too-many-arguments
     ctx: RunContext,
+    *,
     brief: str,
     slide_count: int | None = None,
     document_ids: list[str] | None = None,
     style: PresentationStyle | None = None,
+    template_id: str | None = None,
 ) -> ToolReturn:
     """
     Generate a slide deck and return a link to download it.
@@ -367,6 +453,9 @@ async def generate_presentation(
             empty list to use none. Do not include a pptx template the user
             attached as a model to follow: only content sources.
         style: The colours, fonts and text sizes the user asked for, if any.
+        template_id: UUID of an attached pptx, taken from the `documents` or
+            `project_documents` context arrays, when the user wants the deck
+            built on it: as a template, a model, or a deck to start from.
 
     Returns:
         ToolReturn: confirmation carrying the download link.
@@ -376,7 +465,16 @@ async def generate_presentation(
     if slide_count is not None and slide_count < 1:
         raise ModelRetry("slide_count must be a positive number, or left empty.")
 
-    attachments = await get_source_attachments(ctx.deps.conversation, document_ids)
+    template_key, template = "", None
+    if template_id:
+        template_key = await get_template_key(ctx.deps.conversation, template_id)
+        template = await load_template_outline(template_key)
+
+    attachments = [
+        attachment
+        for attachment in await get_source_attachments(ctx.deps.conversation, document_ids)
+        if str(attachment.id) != template_id
+    ]
     try:
         sources, source_names = await build_sources(ctx, attachments)
     except ModelRetry, ModelCannotRetry:
@@ -386,9 +484,10 @@ async def generate_presentation(
         raise ModelCannotRetry("The source documents could not be prepared.") from exc
 
     presentation = await run_presentation_agent(
-        ctx, build_agent_prompt(brief, slide_count, sources), slide_count
+        ctx, build_agent_prompt(brief, slide_count, sources, template), slide_count, template
     )
 
+    template_note = ", out of the slides of the user's pptx" if template_key else ""
     sources_note = (
         f"It was built from: {', '.join(source_names)}."
         if source_names
@@ -401,9 +500,11 @@ async def generate_presentation(
             style=style or PresentationStyle(),
             source_material=sources,
             source_names=source_names,
+            template_key=template_key,
         ),
         f"The presentation '{presentation.title}' was generated with "
-        f"{len(presentation.slides)} slides. {sources_note}",
+        f"{len(presentation.slides)} slides{template_note}. {sources_note}"
+        f"{charts_note(presentation, template)}",
     )
 
 
@@ -451,13 +552,17 @@ async def update_presentation(
         )
 
     stored = decks[-1]
-    presentation = stored.presentation
+    presentation, template = stored.presentation, None
     if instructions:
         # Content changes go through the agent, with the deck's sources so that
         # what it adds comes from them. A style-only change keeps the content
         # word for word.
+        if stored.template_key:
+            template = await load_template_outline(stored.template_key)
         presentation = await run_presentation_agent(
-            ctx, build_edit_prompt(presentation, instructions, stored.source_material)
+            ctx,
+            build_edit_prompt(presentation, instructions, stored.source_material, template),
+            template=template,
         )
 
     updated = stored.model_copy(
@@ -470,5 +575,5 @@ async def update_presentation(
         ctx,
         updated,
         f"The presentation '{presentation.title}' was updated and now has "
-        f"{len(presentation.slides)} slides.",
+        f"{len(presentation.slides)} slides.{charts_note(presentation, template)}",
     )

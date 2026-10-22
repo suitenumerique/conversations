@@ -52,6 +52,24 @@ class Presentation(BaseModel):
         return self
 
 
+class TemplatedSlide(BaseModel):
+    """A slide copied from one of the user's own slides, with new texts."""
+
+    template_slide: int = Field(description="Number of the user's slide to copy, from 1")
+    texts: dict[int, str] = Field(
+        default_factory=dict,
+        description="New Markdown text of the copied slide's text shapes, by shape id",
+    )
+    slide_notes: str = ""
+
+
+class TemplatedPresentation(BaseModel):
+    """A whole deck built out of the user's own slides."""
+
+    title: str
+    slides: list[TemplatedSlide] = Field(min_length=1)
+
+
 HexColor = Annotated[
     str, Field(pattern=r"^#?[0-9A-Fa-f]{6}$", description="Hex colour, e.g. #000091")
 ]

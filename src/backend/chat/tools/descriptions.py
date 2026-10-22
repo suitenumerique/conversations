@@ -95,12 +95,13 @@ colours, fonts or text sizes.
 To change a deck already generated in the conversation, use
 `update_presentation` instead.
 
-What the tool CANNOT do yet: it always uses the standard template. It cannot
-reuse an attached pptx template or slide master, nor add logos, nor insert
-images, charts or diagrams. When the user asks for any of these, still generate
-the deck, then tell them plainly that this part was not applied. Never claim
-that a template was followed, and do not ask the user to describe their
-template instead.
+When the user attaches a pptx to use as a template, a model, or a deck to start
+from, pass it as `template_id`: the deck is then built out of copies of its
+slides and keeps their design. Without it, the deck uses the standard template.
+
+What the tool CANNOT do: add logos, insert images, charts or diagrams, or change
+the ones of the user's slides. When the user asks for any of these, still
+generate the deck, then tell them plainly that this part was not applied.
 
 The tool returns a download link. Pass that link on to the user as-is; do NOT
 restate the deck's content or list the slides.
@@ -135,9 +136,8 @@ Use this tool whenever the user asks to change a deck they already got:
   previous version is restored exactly; never rewrite the deck to undo a change.
 A style and instructions can be passed at once.
 
-The same limitations as generate_presentation apply: no attached template,
-logos, images, charts or diagrams. Tell the user plainly when they asked for
-one of these.
+The same limitations as generate_presentation apply: no new logos, images,
+charts or diagrams. Tell the user plainly when they asked for one of these.
 
 The tool returns a download link. Pass that link on to the user as-is; do NOT
 restate the deck's content or list the slides.

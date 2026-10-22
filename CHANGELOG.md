@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(back) build a generated slide deck out of the user's own pptx
 - ✨(back) restyle and edit a generated slide deck from the conversation
 - ✨(back) build generated slide decks from the attached documents and
   honour the requested slide count
@@ -28,6 +29,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(back) keep the original file of a document attached to a conversation
 - 🐛(back) render the lists and section subtitles of generated slide decks
   correctly
 - 🐛(back) stop claiming a template or a style was applied to a generated

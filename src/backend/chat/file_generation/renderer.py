@@ -18,6 +18,7 @@ from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.oxml.ns import qn
 from pptx.oxml.xmlchemy import OxmlElement
 from pptx.shapes.base import BaseShape
+from pptx.table import Table
 from pptx.text.text import TextFrame, _Paragraph
 from pptx.util import Pt
 
@@ -172,11 +173,21 @@ def _render_table(shape: BaseShape, table_node: Tag) -> BaseShape | None:
             row_count, column_count, shape.left, shape.top, shape.width, shape.height
         )
 
-    table = graphic_frame.table
-    for row_index, row_node in enumerate(rows):
+    _fill_table(graphic_frame.table, rows)
+    return graphic_frame
+
+
+def render_into_table(table: Table, markdown_text: str) -> None:
+    """Fill the cells of an existing table from a Markdown table, as far as both go."""
+    html = markdown_lib.markdown(markdown_text or "", extensions=["tables"])
+    _fill_table(table, BeautifulSoup(html, "html.parser").find_all(TABLE_ROW_TAG))
+
+
+def _fill_table(table: Table, rows: list[Tag]) -> None:
+    """Fill a table's cells with the inline content of HTML table rows."""
+    for row, row_node in zip(table.rows, rows, strict=False):
         is_header_row = row_node.parent.name == TABLE_HEADER_GROUP_TAG
-        for column_index, cell_node in enumerate(row_node.find_all(TABLE_CELL_TAGS)):
-            cell = table.cell(row_index, column_index)
+        for cell, cell_node in zip(row.cells, row_node.find_all(TABLE_CELL_TAGS), strict=False):
             cell.text_frame.clear()
             cell.text_frame.word_wrap = True
 
@@ -187,8 +198,6 @@ def _render_table(shape: BaseShape, table_node: Tag) -> BaseShape | None:
             if is_header_row or cell_node.name == TABLE_HEADER_CELL_TAG:
                 for run in paragraph.runs:
                     run.font.bold = True
-
-    return graphic_frame
 
 
 def _new_paragraph(context: _RenderContext) -> _Paragraph:

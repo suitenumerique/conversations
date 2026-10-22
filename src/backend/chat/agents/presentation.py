@@ -6,7 +6,12 @@ from django.conf import settings
 
 from pydantic_ai import ModelRetry, RunContext
 
-from chat.file_generation import GENERIC_TEMPLATE, Presentation
+from chat.file_generation import (
+    GENERIC_TEMPLATE,
+    Presentation,
+    TemplatedPresentation,
+    TemplateOutline,
+)
 
 from .base import BaseAgent
 
@@ -18,11 +23,15 @@ def _build_layout_instructions() -> str:
     )
 
 
-PRESENTATION_SYSTEM_PROMPT = """
+INTRODUCTION = """
 You are an agent specializing in building slide decks. From a brief, and from
 the source documents when some are provided, produce a structured presentation:
 a deck title and an ordered list of slides.
+"""
 
+PRESENTATION_SYSTEM_PROMPT = (
+    INTRODUCTION
+    + """
 The following slide types are available:
 {layouts}
 
@@ -38,7 +47,33 @@ STRUCTURE:
   least two content slides: never put a section slide before every content slide.
 - Vary the content layouts to keep the deck readable; avoid repeating one type
   throughout.
+- Only use the slide types listed above, and only fill the fields each one
+  declares. The `slide_notes` field is the exception: it is allowed on every slide.
+"""
+)
 
+TEMPLATE_SYSTEM_PROMPT = (
+    INTRODUCTION
+    + """
+The user gave a deck of their own, described slide by slide in the prompt.
+Build the new deck out of copies of its slides, so that it keeps their design.
+
+STRUCTURE:
+- Each new slide copies one of the user's slides, picked by its number in
+  `template_slide`, and gives in `texts` a text to every one of its shapes, by
+  shape id: the current text to keep it, a new one to change it, an empty one
+  to clear it. Separate the lines of a text with a blank line. A table takes a
+  Markdown table of the same size.
+- Pick the user's slide whose layout fits the content: their cover for the
+  cover, their section dividers between parts, their content slides for the
+  content. A slide may be copied several times; the slides not copied are dropped.
+- Replace every sample text of the slides you copy. Pictures and charts are
+  copied as they are: avoid slides whose pictures or charts do not fit the content.
+- When the brief asks for a number of slides, produce exactly that many slides.
+"""
+)
+
+SHARED_RULES = """
 CONTENT:
 - Every content slide must carry substance: typically 3 to 6 bullet points made
   of informative phrases, with the facts, figures, dates and names that support
@@ -61,8 +96,6 @@ EDITING:
   changes move them.
 
 FORMAT:
-- Only use the slide types listed above, and only fill the fields each one
-  declares. The `slide_notes` field is the exception: it is allowed on every slide.
 - Write field content in Markdown. Inline styles, links, nested lists (indent
   with 4 spaces) and tables are supported. A table takes over its whole field,
   so do not put other content alongside it.
@@ -78,32 +111,45 @@ FORMAT:
 class PresentationAgent(BaseAgent):
     """Create a Pydantic AI Agent producing a structured deck from a brief."""
 
-    def __init__(self, *, slide_count: int | None = None, **kwargs):
+    def __init__(
+        self,
+        *,
+        slide_count: int | None = None,
+        template: TemplateOutline | None = None,
+        **kwargs,
+    ):
         """
         Initialize the agent with the configured model.
 
-        When ``slide_count`` is set, a deck of any other length is sent back to
-        the model for correction.
+        With a ``template``, the deck is built out of copies of the user's own
+        slides. A deck of any other length than ``slide_count``, or copying
+        slides or shapes the template does not have, is sent back to the model
+        for correction.
         """
+        self.template = template
         super().__init__(
             model_hrid=settings.LLM_DEFAULT_MODEL_HRID,
-            output_type=Presentation,
+            output_type=TemplatedPresentation if template else Presentation,
             retries=2,
             **kwargs,
         )
 
-        if slide_count is not None:
-
-            @self.output_validator
-            def check_slide_count(_ctx: RunContext, output: Presentation) -> Presentation:
-                """Hold the model to the number of slides the user asked for."""
-                if len(output.slides) != slide_count:
-                    raise ModelRetry(
-                        f"The deck has {len(output.slides)} slides but exactly "
-                        f"{slide_count} were requested, cover and section slides "
-                        "included. Produce the deck again with that many slides."
-                    )
-                return output
+        @self.output_validator
+        def check_deck(_ctx: RunContext, output):
+            """Hold the model to the slide count asked for, and to the template's slides."""
+            if slide_count is not None and len(output.slides) != slide_count:
+                raise ModelRetry(
+                    f"The deck has {len(output.slides)} slides but exactly "
+                    f"{slide_count} were requested, cover and section slides "
+                    "included. Produce the deck again with that many slides."
+                )
+            if template and (error := template.check(output)):
+                raise ModelRetry(error)
+            return output
 
     def get_system_prompt(self) -> str:
-        return PRESENTATION_SYSTEM_PROMPT.format(layouts=_build_layout_instructions())
+        if self.template:
+            return TEMPLATE_SYSTEM_PROMPT + SHARED_RULES
+        return (
+            PRESENTATION_SYSTEM_PROMPT.format(layouts=_build_layout_instructions()) + SHARED_RULES
+        )

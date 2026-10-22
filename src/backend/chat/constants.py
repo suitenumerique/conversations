@@ -12,6 +12,9 @@ IMAGE_MIME_PREFIX = "image/"
 # Full MIME types used to label or route specific payloads.
 PDF_MIME_TYPE = "application/pdf"  # routed to the dedicated PDF parser
 MARKDOWN_MIME_TYPE = "text/markdown"  # markdown companion stored for indexed files
+PPTX_MIME_TYPE = (  # a user's slide deck, usable as a template for generated ones
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+)
 SSE_MIME_TYPE = "text/event-stream"  # Server-Sent Events streaming responses
 
 # Access values exposed to the model in the documents listing. Keep in sync
