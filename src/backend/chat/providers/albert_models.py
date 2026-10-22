@@ -73,6 +73,25 @@ def _normalize_tool_call_types(choices: list) -> None:
                 tool_call["type"] = "function"
 
 
+def _join_list_content(choices: list) -> None:
+    """Join list-shaped message `content` into a string in place.
+
+    Keeps str items and takes `text` from dict items, like the streaming patch
+    in chat/agents/base.py.
+    """
+    for choice in choices:
+        message = choice.get("message") or {}
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        text_parts = [
+            item if isinstance(item, str) else item.get("text") or ""
+            for item in content
+            if isinstance(item, (str, dict))
+        ]
+        message["content"] = "".join(text_parts) or None
+
+
 class AlbertOpenAIChatModel(OpenAIChatModel):  # pylint: disable=abstract-method
     """
     OpenAIChatModel subclass that preserves Albert's carbon impact data.
@@ -94,13 +113,15 @@ class AlbertOpenAIChatModel(OpenAIChatModel):  # pylint: disable=abstract-method
     def _validate_completion(self, response: chat.ChatCompletion) -> _ChatCompletion:
         """Normalize Albert API quirks before validation.
 
-        Albert's OpenAI-compatible API has two known non-conformances:
+        Albert's OpenAI-compatible API has three known non-conformances:
         1. tool_calls[].type may not be 'function' — normalized to 'function',
            unless the tool call is a genuine custom tool call (type='custom'
            with a `custom` payload, which the openai SDK requires).
         2. On multi-turn tool-call conversations, the second response sometimes
            returns a non-standard `object` value. This is normalized before
            passing to _ChatCompletion.model_validate().
+        3. Mistral models may return message.content as a list of parts (e.g.
+           when the answer carries references) — joined into a string.
         """
         data = response.model_dump()
 
@@ -115,5 +136,6 @@ class AlbertOpenAIChatModel(OpenAIChatModel):  # pylint: disable=abstract-method
         choices = data.get("choices")
         if isinstance(choices, list):
             _normalize_tool_call_types(choices)
+            _join_list_content(choices)
 
         return _ChatCompletion.model_validate(data)
