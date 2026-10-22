@@ -3,6 +3,15 @@ entries:
   conversations:
   - apiVersion: v2
     appVersion: latest
+    created: "2026-10-22T08:25:00.932003352Z"
+    digest: 2575320abd4da4a994732aed5809e303cb825f4d35806a8f03c7a4ec70fbc201
+    name: conversations
+    type: application
+    urls:
+    - https://suitenumerique.github.io/conversations/conversations-0.0.12.tgz
+    version: 0.0.12
+  - apiVersion: v2
+    appVersion: latest
     created: "2026-10-19T14:43:41.899607061Z"
     digest: 64cab56878aa63b4912475790d94ca703c7f4919d15525d6ad4d3b56cb3ade44
     name: conversations
@@ -100,4 +109,4 @@ entries:
     urls:
     - https://suitenumerique.github.io/conversations/conversations-0.0.1.tgz
     version: 0.0.1
-generated: "2026-10-19T14:43:41.897905224Z"
+generated: "2026-10-22T08:25:00.929375602Z"
