@@ -3,11 +3,15 @@
 
 from unittest.mock import MagicMock, patch
 
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+
 import pytest
 from asgiref.sync import sync_to_async
 from celery.exceptions import TimeoutError as CeleryTimeoutError
 from pydantic_ai.messages import DocumentUrl
 
+from chat import models
 from chat.clients.pydantic_ai import DOCUMENT_URL_PREFIX, AIAgentService
 from chat.enums import CollectionIndexState
 from chat.factories import ChatConversationFactory
@@ -145,3 +149,32 @@ async def test_task_is_revoked_when_result_wait_times_out():
 
     task.delay.return_value.revoke.assert_called_once()
     task.delay.return_value.forget.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_a_non_text_document_keeps_its_file_beside_its_markdown_companion():
+    """The parsed Markdown is stored apart: the original file is left as uploaded."""
+    conversation = await sync_to_async(ChatConversationFactory)(collection_id="col-1")
+    service = AIAgentService(conversation, user=conversation.owner)
+    key = f"{conversation.pk}/attachments/deck.pptx"
+    await sync_to_async(default_storage.save)(key, ContentFile(b"original pptx bytes"))
+
+    document = DocumentUrl(
+        url=f"{DOCUMENT_URL_PREFIX}{key}",
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    )
+    with (
+        patch("chat.clients.pydantic_ai.document_store_backend", _mock_backend_class()),
+        patch(
+            "chat.clients.pydantic_ai.parse_and_store_conversation_document_task",
+            _mock_parse_task("doc-42"),
+        ),
+    ):
+        await service._parse_input_documents([document])
+
+    companion = await models.ChatConversationAttachment.objects.aget(conversion_from=key)
+    assert companion.key == f"{key}.md"
+    assert await sync_to_async(lambda: default_storage.open(key).read())() == b"original pptx bytes"
+    assert await sync_to_async(lambda: default_storage.open(companion.key).read())() == (
+        b"parsed content"
+    )
