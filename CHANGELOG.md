@@ -40,6 +40,10 @@ and this project adheres to
 - 🔒️(project) keep user prompts out of logs and telemetry
 - 🔒️(docker) bind dev compose ports to localhost only
 
+### Fixed
+
+- 🐛(front) keep streamed answers rendering until they end #789
+
 ## [0.0.25] - 2026-10-01
 
 ### Added

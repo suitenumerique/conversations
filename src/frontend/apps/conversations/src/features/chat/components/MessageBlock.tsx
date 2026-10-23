@@ -1,7 +1,7 @@
 // Memoized components for a single completed markdown blocks - only re-renders when content changes
 import rehypeShikiFromHighlighter from '@shikijs/rehype/core';
 import React, { use } from 'react';
-import { Components, MarkdownHooks } from 'react-markdown';
+import Markdown, { Components } from 'react-markdown';
 import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -83,14 +83,18 @@ export const CompletedMarkdownBlock = React.memo(
         ? rehypePluginsDarkPromise
         : rehypePluginsLightPromise,
     );
+    // Render synchronously: `use` already waited for the highlighter, so every
+    // plugin is sync. `MarkdownHooks` would mount empty and set its tree from
+    // an effect, one nested update per new block; a burst of streamed
+    // paragraphs then exceeds React's update depth and aborts the stream.
     return (
-      <MarkdownHooks
+      <Markdown
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={rehypePlugins}
         components={MARKDOWN_COMPONENTS}
       >
         {content}
-      </MarkdownHooks>
+      </Markdown>
     );
   },
   (prev, next) => prev.content === next.content,
