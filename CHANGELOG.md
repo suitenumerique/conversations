@@ -18,6 +18,8 @@ and this project adheres to
 
 ### Changed
 
+- 🔒️(front) upgrade dompurify to 3.4.17 to fix security issues
+- 🔒️(back) upgrade djangorestframework to 3.18.3 to fix security issues
 - 🔒️(back) upgrade brotli to fix CVE-2026-111497
 - 🔒️(back) upgrade certifi and pillow to fix CVEs
 - 🔧(docker) replace maildev with mailcatcher like other La Suite projects
