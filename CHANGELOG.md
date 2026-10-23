@@ -18,6 +18,7 @@ and this project adheres to
 
 ### Changed
 
+- 🔒️(back) upgrade brotli to fix CVE-2026-111497
 - 🔒️(back) upgrade certifi and pillow to fix CVEs
 - 🔧(docker) replace maildev with mailcatcher like other La Suite projects
 - ⬆️(dependencies) upgrade back-end and front-end dependencies

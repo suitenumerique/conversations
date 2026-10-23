@@ -27,7 +27,7 @@ requires-python = "~=3.14.6"
 dependencies = [
     "beautifulsoup4==4.15.0",
     "boto3==1.43.108",
-    "Brotli==1.2.0",
+    "Brotli==1.2.1",
     "celery[redis]==5.6.3",
     "django-configurations==2.5.1",
     "django-cors-headers==4.9.0",
@@ -117,7 +117,7 @@ universal = true
 [tool.uv]
 exclude-newer = "7 days"
 # Security fixes newer than the cooldown; drop once older than 7 days
-exclude-newer-package = { certifi = "2026-10-21", pillow = "2026-10-17" }
+exclude-newer-package = { brotli = "2026-10-23", certifi = "2026-10-21", pillow = "2026-10-17" }
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
     "sys_platform == 'darwin'",
