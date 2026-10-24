@@ -27,6 +27,19 @@ def count_approx_tokens(text: str) -> int:
         return (non_space_chars + 2) // 3
 
 
+def truncate_to_tokens(text: str, max_tokens: int) -> str:
+    """Cut `text` down to at most `max_tokens` tokens, as counted by count_approx_tokens."""
+    if count_approx_tokens(text) <= max_tokens:
+        return text
+    try:
+        encoding = _get_token_encoding()
+        return encoding.decode(encoding.encode(text)[:max_tokens])
+    except Exception:  # pylint: disable=broad-except #noqa: BLE001
+        logger.warning("Failed to truncate with tiktoken, falling back to heuristic.")
+        # Mirror the heuristic of count_approx_tokens: about 3 characters per token.
+        return text[: max_tokens * 3]
+
+
 def compute_document_budget(
     max_token_context: int, budget_ratio: float, security_buffer: int
 ) -> int:
