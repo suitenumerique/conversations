@@ -6,9 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
+## [0.0.26] - 2026-10-22
 
 - ✨(back) add opt-in prometheus metrics on `/metrics`
 - ✨(back) measure model requests, chat streams and outgoing calls
@@ -537,7 +535,9 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 - 🔧(evals) add run_evals management command
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.25...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.26...main
+
+[0.0.26]: https://github.com/suitenumerique/conversations/compare/v0.0.25...v0.0.26
 
 [0.0.25]: https://github.com/suitenumerique/conversations/compare/v0.0.24...v0.0.25
 

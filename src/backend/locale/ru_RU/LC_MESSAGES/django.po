@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-30 10:06+0000\n"
-"PO-Revision-Date: 2026-10-01 15:29\n"
+"POT-Creation-Date: 2026-10-21 15:35+0000\n"
+"PO-Revision-Date: 2026-10-22 14:33\n"
 "Last-Translator: \n"
 "Language-Team: Russian\n"
 "Language: ru_RU\n"
@@ -182,19 +182,19 @@ msgstr "приложение чата"
 
 #: chat/assistant_health.py:17
 msgid "High traffic - slowdowns"
-msgstr "Высокий трафик - замедление"
+msgstr "Интенсивный трафик - замедление в работе"
 
 #: chat/assistant_health.py:19
 msgid "The Assistant IA service is currently experiencing high demand. The tool remains operational but may be slower, or you may experience delays between messages."
 msgstr "Услуга Помощника ИИ в настоящее время испытывает высокую нагрузку. Инструмент продолжает работать, но может работать медленнее, или вы можете замечать задержки между сообщениями."
 
 #: chat/assistant_health.py:26
-msgid "High traffic - degraded service"
-msgstr "Высокий трафик - ухудшение работы"
+msgid "High traffic"
+msgstr "Интенсивный трафик"
 
 #: chat/assistant_health.py:28
-msgid "The service is experiencing high demand, which is affecting service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
-msgstr "Сервис испытывает высокую нагрузку, что влияет на его качество. Некоторые функции могут быть затронуты. Если вы столкнетесь с ошибкой, пожалуйста, попробуйте ещё раз, когда это сообщение об ошибке исчезнет."
+msgid "The service is experiencing high demand, which might affect service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
+msgstr "В настоящее время наблюдается высокий спрос на данную услугу, что может повлиять на качество обслуживания. Возможны ограничения в работе некоторых функций. Если у вас возникла ошибка, пожалуйста, повторите попытку после того, как это уведомление об ошибке исчезнет."
 
 #: chat/assistant_health.py:37
 msgid "Service unavailable"
@@ -204,7 +204,7 @@ msgstr "Служба недоступна"
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
 msgstr "В настоящее время сервис недоступен из-за чрезмерной нагрузки. Команда работает над скорейшим восстановлением работы Помощника."
 
-#: chat/clients/pydantic_ai.py:1492
+#: chat/clients/pydantic_ai.py:1872
 msgid "Internal Documentation of the AI Assistant"
 msgstr "Внутренняя документация ИИ помощника"
 
