@@ -54,6 +54,9 @@ MAX_NAME_LENGTH = 60
 # is tuned for URLs the LLM reads at once: this one is for a user to click.
 DOWNLOAD_URL_EXPIRATION = 15 * 60  # 15 minutes
 
+# Beyond this, a deck costs more to write than any request needs.
+MAX_SLIDE_COUNT = 60
+
 # What the deck cannot do yet. Spelled out in the tool result so the model does
 # not claim to the user that it was done.
 UNSUPPORTED_REQUESTS = "New logos, images, charts and diagrams were NOT added."
@@ -325,13 +328,20 @@ def find_presentations(ctx: RunContext) -> list[StoredPresentation]:
 async def load_template_outline(key: str) -> TemplateOutline:
     """Describe the user's slides for the presentation agent."""
     try:
-        return await sync_to_async(outline_template)(await read_template(key))
+        outline = await sync_to_async(outline_template)(await read_template(key))
     except Exception as exc:
         logger.warning("Failed to read the presentation template %s", key, exc_info=True)
         raise ModelCannotRetry(
             "The user's pptx could not be read as a template: it may have been deleted "
             "or be damaged. You must explain this to the user."
         ) from exc
+    # Its whole text goes into the agent's prompt, as source documents do.
+    if count_approx_tokens(outline.description) > _source_budget():
+        raise ModelCannotRetry(
+            "The user's pptx holds too much text to be used as a template. You must "
+            "explain this to the user, and suggest a shorter deck."
+        )
+    return outline
 
 
 async def run_presentation_agent(
@@ -444,8 +454,8 @@ async def generate_presentation(  # noqa: PLR0913 # pylint: disable=too-many-arg
     """
     if not brief.strip():
         raise ModelRetry("The brief is empty. Describe what the presentation must cover.")
-    if slide_count is not None and slide_count < 1:
-        raise ModelRetry("slide_count must be a positive number, or left empty.")
+    if slide_count is not None and not 1 <= slide_count <= MAX_SLIDE_COUNT:
+        raise ModelRetry(f"slide_count must be between 1 and {MAX_SLIDE_COUNT}, or left empty.")
 
     template_key, template = "", None
     if template_id:

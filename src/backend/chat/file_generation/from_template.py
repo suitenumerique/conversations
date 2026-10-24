@@ -26,6 +26,13 @@ from chat.file_generation.styling import TITLE_FIELD, apply_text_style
 
 # Attributes in this namespace hold relationship ids, e.g. r:embed on a picture.
 RELATIONSHIP_ATTRIBUTE = qn("r:id").removesuffix("id")
+# What a copy must not bring along: links to other slides, which would keep the
+# slides the deck drops inside its file, and review comments, legacy and modern.
+NOT_COPIED = (
+    RT.SLIDE,
+    RT.COMMENTS,
+    "http://schemas.microsoft.com/office/2018/10/relationships/comments",
+)
 # Paragraph properties that make a paragraph a bulleted or numbered list item.
 LIST_MARKERS = (qn("a:buAutoNum"), qn("a:buChar"))
 # The number the renderer writes as text at the start of a numbered list item.
@@ -134,6 +141,12 @@ def build_from_template(
         deck.slides._sldIdLst.remove(slide_id)  # noqa: SLF001 # pylint: disable=protected-access
         deck.part.drop_rel(slide_id.rId)
 
+    # The user's deck may be shared: do not hand over who wrote it.
+    properties = deck.core_properties
+    for name in ("author", "category", "comments", "keywords", "last_modified_by", "subject"):
+        setattr(properties, name, "")
+    properties.title = presentation.title[:255]
+
     output = BytesIO()
     deck.save(output)
     return output.getvalue()
@@ -147,20 +160,27 @@ def _copy_slide(deck, source):
 
     # Pictures and charts point to other parts through relationships: relate
     # the copy to the same parts, under the ids it gives them.
+    rels = source.part.rels.values()
     new_ids = {
         rel.rId: slide.part.relate_to(
             rel.target_ref if rel.is_external else rel.target_part,
             rel.reltype,
             is_external=rel.is_external,
         )
-        for rel in source.part.rels.values()
-        if rel.reltype not in (RT.SLIDE_LAYOUT, RT.NOTES_SLIDE)
+        for rel in rels
+        if rel.reltype not in (RT.SLIDE_LAYOUT, RT.NOTES_SLIDE, *NOT_COPIED)
     }
+    dropped_ids = {rel.rId for rel in rels if rel.reltype in NOT_COPIED}
     for source_element in source.shapes._spTree.iter_shape_elms():  # noqa: SLF001 # pylint: disable=protected-access
         element = copy.deepcopy(source_element)
-        for node in element.iter():
-            for name, value in node.attrib.items():
-                if name.startswith(RELATIONSHIP_ATTRIBUTE) and value in new_ids:
+        for node in list(element.iter()):
+            for name, value in list(node.attrib.items()):
+                if not name.startswith(RELATIONSHIP_ATTRIBUTE):
+                    continue
+                if value in dropped_ids:  # A link to another slide, gone with it.
+                    node.getparent().remove(node)
+                    break
+                if value in new_ids:
                     node.set(name, new_ids[value])
         slide.shapes._spTree.append(element)  # noqa: SLF001 # pylint: disable=protected-access
 

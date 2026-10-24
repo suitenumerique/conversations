@@ -5,6 +5,7 @@ Real components: python-pptx. The user's deck is made with python-pptx's own
 default template, built in memory and read back as a user would open it.
 """
 
+import zipfile
 from io import BytesIO
 from pathlib import Path
 
@@ -273,3 +274,27 @@ def test_a_slide_made_from_a_layout_takes_the_look_of_its_sample_text():
     run = slide.shapes.title.text_frame.paragraphs[0].runs[0]
     assert run.font.size == Pt(40)
     assert run.font.color.theme_color == MSO_THEME_COLOR.ACCENT_6
+
+
+def test_the_slides_a_deck_drops_do_not_stay_inside_its_file():
+    """A copied slide linking to a dropped one, as a clickable agenda does, does not keep it."""
+    deck = pptx.Presentation()
+    agenda = deck.slides.add_slide(deck.slide_layouts[5])
+    agenda.shapes.title.text = "Sommaire"
+    dropped = deck.slides.add_slide(deck.slide_layouts[5])
+    dropped.shapes.title.text = "Confidentiel"
+    dropped.notes_slide.notes_text_frame.text = "Note confidentielle"
+    link = agenda.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(1), Inches(2), Inches(2), Inches(1))
+    link.click_action.target_slide = dropped
+    deck.core_properties.author = "Agent du ministère"
+    blob = BytesIO()
+    deck.save(blob)
+    presentation = TemplatedPresentation(title="Deck", slides=[TemplatedSlide(template_slide=1)])
+
+    output = build_from_template(blob.getvalue(), presentation, PresentationStyle())
+
+    archive = zipfile.ZipFile(BytesIO(output))
+    assert not any(b"onfidentiel" in archive.read(name) for name in archive.namelist())
+    built = pptx.Presentation(BytesIO(output))
+    assert built.core_properties.author == ""
+    assert built.core_properties.title == "Deck"

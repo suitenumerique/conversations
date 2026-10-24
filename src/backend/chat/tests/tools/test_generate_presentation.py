@@ -671,6 +671,15 @@ async def test_a_non_positive_slide_count_is_offered_for_retry():
         await run_tool(ctx, slide_count=0)
 
 
+@pytest.mark.asyncio
+async def test_a_slide_count_beyond_the_maximum_is_offered_for_retry():
+    """A deck of thousands of slides is refused before costing anything."""
+    ctx, _conversation, _user = await setup_context()
+
+    with pytest.raises(ModelRetry, match="slide_count"):
+        await run_tool(ctx, slide_count=1000)
+
+
 def test_generated_key_cannot_be_served_through_the_media_proxy(settings):
     """
     The download must be reachable ONLY via the presigned URL, never through the
@@ -972,6 +981,18 @@ async def test_a_template_id_not_pointing_to_a_pptx_is_offered_for_retry():
 
     with pytest.raises(ModelRetry, match="attached pptx"):
         await run_tool(ctx, template_id=str(document.id))
+
+
+@pytest.mark.asyncio
+async def test_a_template_with_too_much_text_is_refused():
+    """The user's whole deck goes into the prompt: one too large for it is refused."""
+    ctx, conversation, _user = await setup_context()
+    _template, companion = await add_template(conversation)
+
+    with mock_source_budget(10):
+        result = await run_tool(ctx, template_id=str(companion.id))
+
+    assert "too much text to be used as a template" in result
 
 
 @pytest.mark.asyncio
