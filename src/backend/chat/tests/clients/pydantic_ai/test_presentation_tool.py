@@ -36,8 +36,8 @@ def ai_settings_fixture(settings):
     return settings
 
 
-def test_presentation_tool_registered_when_flag_enabled(feature_flags):
-    """The tool is available on the agent when the feature flag is enabled."""
+def test_presentation_tools_registered_when_flag_enabled(feature_flags):
+    """The generation and update tools are available when the feature flag is enabled."""
     feature_flags.presentation_generation = FeatureToggle.ENABLED
     user = UserFactory()
     conversation = ChatConversationFactory(owner=user)
@@ -46,10 +46,11 @@ def test_presentation_tool_registered_when_flag_enabled(feature_flags):
     service._setup_presentation_tool()
 
     assert "generate_presentation" in service.conversation_agent._function_toolset.tools
+    assert "update_presentation" in service.conversation_agent._function_toolset.tools
 
 
-def test_presentation_tool_absent_when_flag_disabled(feature_flags):
-    """The tool is not registered when the feature flag is disabled."""
+def test_presentation_tools_absent_when_flag_disabled(feature_flags):
+    """Neither tool is registered when the feature flag is disabled."""
     feature_flags.presentation_generation = FeatureToggle.DISABLED
     user = UserFactory()
     conversation = ChatConversationFactory(owner=user)
@@ -58,3 +59,4 @@ def test_presentation_tool_absent_when_flag_disabled(feature_flags):
     service._setup_presentation_tool()
 
     assert "generate_presentation" not in service.conversation_agent._function_toolset.tools
+    assert "update_presentation" not in service.conversation_agent._function_toolset.tools

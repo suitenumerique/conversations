@@ -635,7 +635,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
         'data: {"type":"tool-output-available","toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47'
         '","output":"Unknown tool name: \'get_current_weather\'. '
         "Available tools: 'generate_presentation', "
-        "'self_documentation'\"}\n\n"
+        "'self_documentation', 'update_presentation'\"}\n\n"
         'data: {"type":"text-start","id":"0"}\n\n'
         'data: {"type":"text-delta","id":"0","delta":"I cannot give you an answer to that."}'
         "\n\n"
@@ -739,7 +739,8 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
             "parts": [
                 {
                     "content": "Unknown tool name: 'get_current_weather'. "
-                    "Available tools: 'generate_presentation', 'self_documentation'",
+                    "Available tools: 'generate_presentation', 'self_documentation', "
+                    "'update_presentation'",
                     "part_kind": "retry-prompt",
                     "timestamp": FROZEN_TIMESTAMP,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",

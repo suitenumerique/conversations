@@ -189,6 +189,7 @@ const getStreamingToolLabel = (
     case 'summarize':
       return t('Summarizing...');
     case 'generate_presentation':
+    case 'update_presentation':
       return t('Generating the slides...');
     default:
       return t('Search...');
