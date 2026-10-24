@@ -39,7 +39,6 @@ from core.file_upload.mixins import AttachmentMixin
 
 from chat.agents.presentation import PresentationAgent
 from chat.clients.schema import ContextDeps
-from chat.constants import PPTX_MIME_TYPE
 from chat.factories import (
     ChatConversationAttachmentFactory,
     ChatConversationFactory,
@@ -922,7 +921,8 @@ def add_template(conversation):
         conversation=conversation,
         uploaded_by=conversation.owner,
         file_name="gabarit.pptx",
-        content_type=PPTX_MIME_TYPE,
+        # As browsers often send it, rather than the pptx content type.
+        content_type="application/octet-stream",
         upload_state=AttachmentStatus.READY,
     )
     default_storage.save(template.key, ContentFile(blob.getvalue()))
@@ -954,7 +954,7 @@ async def test_a_template_id_builds_the_deck_out_of_the_user_slides():
 
     result = await run_tool(ctx, respond=respond, template_id=str(companion.id))
 
-    assert "## User's slides\n\nSlide 1, layout 'Title Slide':" in received[0]
+    assert "## User's deck\n\nSlide 1, layout 'Title Slide':" in received[0]
     assert "Source documents" not in received[0]
     stored = StoredPresentation.model_validate(result.metadata["presentation"])
     assert stored.template_key == template.key
@@ -995,7 +995,7 @@ async def test_a_templated_deck_is_edited_on_its_template():
 
     result = await run_update(ctx, respond=respond, instructions="Raccourcis le titre")
 
-    assert "## User's slides" in received[0]
+    assert "## User's deck" in received[0]
     assert StoredPresentation.model_validate(result.metadata["presentation"]).template_key == (
         template.key
     )

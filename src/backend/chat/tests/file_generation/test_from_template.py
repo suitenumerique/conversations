@@ -11,7 +11,10 @@ from pathlib import Path
 import pptx
 from pptx.chart.data import CategoryChartData
 from pptx.enum.chart import XL_CHART_TYPE
+from pptx.enum.dml import MSO_THEME_COLOR
 from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
+from pptx.oxml.ns import qn
+from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Inches, Pt
 
 from chat.file_generation import (
@@ -60,9 +63,26 @@ def test_the_outline_describes_each_slide():
 
     assert outline.shape_ids == (frozenset({2, 3}), frozenset({2, 3}))
     assert "Slide 1, layout 'Title Slide':" in outline.description
-    assert "- shape 2 (center_title): 'Titre de la présentation'" in outline.description
-    assert '- shape 3 (object): "Texte d\'exemple"' in outline.description
+    assert '- shape 2 (center_title, 22×4 cm): "Titre de la présentation"' in outline.description
+    assert '- shape 3 (body, 23×13 cm): "Texte d\'exemple"' in outline.description
     assert "- also holds: picture" in outline.description
+    assert (
+        "Layout 'Title and Content':\n- shape 2 (title, 23×3 cm)\n- shape 3 (body, 23×13 cm)"
+        in (outline.description)
+    )
+    assert outline.layout_shape_ids["Title and Content"] == frozenset({2, 3})
+
+
+def test_a_slide_can_be_made_from_a_layout():
+    """A new slide made from one of the user's layouts gets its placeholders filled."""
+    deck = build(
+        TemplatedSlide(template_slide=1),
+        TemplatedSlide(layout="Title and Content", texts={2: "Résumé", 3: "- un\n- deux"}),
+    )
+
+    assert len(deck.slides) == 2
+    assert deck.slides[1].slide_layout.name == "Title and Content"
+    assert texts(deck.slides[1]) == ["Résumé", "un\ndeux"]
 
 
 def test_slides_are_copied_with_new_texts_and_the_originals_dropped():
@@ -83,10 +103,20 @@ def test_slides_are_copied_with_new_texts_and_the_originals_dropped():
         assert picture.image.blob == PICTURE.read_bytes()
 
 
-def test_an_empty_text_clears_a_shape():
+def test_an_empty_text_removes_a_shape():
+    """A shape the new slide does not use, a sample text or a table, is removed."""
     deck = build(TemplatedSlide(template_slide=2, texts={2: "Titre de contenu", 3: ""}))
 
-    assert texts(deck.slides[0]) == ["Titre de contenu", ""]
+    assert texts(deck.slides[0]) == ["Titre de contenu"]
+
+
+def test_a_shape_given_no_text_or_its_own_is_kept_as_it_is():
+    """A shape left out, or given back its text, keeps its hand-set formatting untouched."""
+    deck = build(TemplatedSlide(template_slide=2, texts={2: "Constats", 3: "Texte d'exemple\n"}))
+
+    body = deck.slides[0].shapes[1].text_frame
+    assert body.text == "Texte d'exemple"
+    assert body.paragraphs[0].runs[0].font.size == Pt(20)
 
 
 def test_the_look_of_hand_formatted_text_is_kept_under_the_style():
@@ -99,6 +129,37 @@ def test_the_look_of_hand_formatted_text_is_kept_under_the_style():
     run = deck.slides[0].shapes[1].text_frame.paragraphs[0].runs[0]
     assert run.font.size == Pt(20)
     assert str(run.font.color.rgb) == "000091"
+
+
+def test_a_rewritten_list_keeps_the_numbering_of_the_shape():
+    """An agenda given a new entry keeps its own automatic numbering, not a typed one."""
+    deck = pptx.Presentation()
+    agenda = deck.slides.add_slide(deck.slide_layouts[1])
+    agenda.placeholders[1].text = "Budget\nProjets"
+    for paragraph in agenda.placeholders[1].text_frame.paragraphs:
+        numbering = OxmlElement("a:buAutoNum")
+        numbering.set("type", "arabicPeriod")
+        paragraph._p.get_or_add_pPr().append(numbering)  # pylint: disable=protected-access
+    blob = BytesIO()
+    deck.save(blob)
+    presentation = TemplatedPresentation(
+        title="Deck",
+        slides=[TemplatedSlide(template_slide=1, texts={3: "1. Budget\n2. Cyber\n3. Projets"})],
+    )
+
+    body = (
+        pptx.Presentation(
+            BytesIO(build_from_template(blob.getvalue(), presentation, PresentationStyle()))
+        )
+        .slides[0]
+        .placeholders[1]
+        .text_frame
+    )
+    assert [paragraph.text for paragraph in body.paragraphs] == ["Budget", "Cyber", "Projets"]
+    assert all(
+        paragraph._p.pPr.find(qn("a:buAutoNum")) is not None  # pylint: disable=protected-access
+        for paragraph in body.paragraphs
+    )
 
 
 def test_presenter_notes_are_attached():
@@ -114,10 +175,16 @@ def test_the_outline_rejects_slides_and_shapes_the_user_deck_does_not_have():
     def check(*slides):
         return outline.check(TemplatedPresentation(title="Deck", slides=list(slides)))
 
-    assert check(TemplatedSlide(template_slide=2, texts={2: "ok", 3: "ok"})) is None
+    assert check(TemplatedSlide(template_slide=2, texts={2: "ok"})) is None
     assert "copies slide 5" in check(TemplatedSlide(template_slide=5))
-    assert "shapes [9]" in check(TemplatedSlide(template_slide=1, texts={2: "", 3: "", 9: "?"}))
-    assert "no text to shapes [3]" in check(TemplatedSlide(template_slide=1, texts={2: "ok"}))
+    assert "shapes [9]" in check(TemplatedSlide(template_slide=1, texts={9: "?"}))
+    assert "layout 'Inconnu'" in check(TemplatedSlide(layout="Inconnu"))
+    assert "its shapes are [2]" in check(TemplatedSlide(layout="Title Only", texts={9: "?"}))
+    copied_twice = check(
+        TemplatedSlide(template_slide=2, texts={2: "Un", 3: "un"}),
+        TemplatedSlide(template_slide=2, texts={2: "Deux"}),
+    )
+    assert "copied several times, but gives no text to shapes [3]" in copied_twice
 
 
 def deck_with_table_group_and_chart() -> bytes:
@@ -125,7 +192,7 @@ def deck_with_table_group_and_chart() -> bytes:
     deck = pptx.Presentation()
     slide = deck.slides.add_slide(deck.slide_layouts[6])
     table = slide.shapes.add_table(2, 2, Inches(0.5), Inches(0.5), Inches(4), Inches(1)).table
-    for row, values in enumerate([("Poste", "Montant"), ("Fonctionnement", "820 k€")]):
+    for row, values in enumerate([("Poste", "Montant"), ("Fonctionnement", "820 k€\nvoté")]):
         table.cell(row, 0).text, table.cell(row, 1).text = values
     group = slide.shapes.add_group_shape()
     for index, label in enumerate(["Projet A", "Projet B"]):
@@ -150,10 +217,11 @@ def test_tables_and_grouped_texts_are_described_and_filled():
     outline = outline_template(blob)
     table_id, *tile_ids = sorted(outline.shape_ids[0])
 
-    assert "(table): '| Poste | Montant |\\n|---|---|\\n| Fonctionnement | 820 k€ |'" in (
-        outline.description
+    assert (
+        '(table, 10×3 cm): "| Poste | Montant |\\n|---|---|\\n| Fonctionnement | 820 k€<br>voté |"'
+        in (outline.description)
     )
-    assert "'Projet A'" in outline.description
+    assert '"Projet A"' in outline.description
 
     presentation = TemplatedPresentation(
         title="Deck",
@@ -161,7 +229,7 @@ def test_tables_and_grouped_texts_are_described_and_filled():
             TemplatedSlide(
                 template_slide=1,
                 texts={
-                    table_id: "| Poste | Montant |\n|---|---|\n| Fonctionnement | 850 k€ |",
+                    table_id: "| Poste | Montant |\n|---|---|\n| Fonctionnement | 850 k€<br>voté |",
                     tile_ids[0]: "Portail v2",
                     tile_ids[1]: "Archives orales",
                 },
@@ -173,17 +241,35 @@ def test_tables_and_grouped_texts_are_described_and_filled():
     ).slides[0]
 
     table = next(shape for shape in slide.shapes if shape.has_table).table
-    assert table.cell(1, 1).text == "850 k€"
+    assert table.cell(1, 1).text == "850 k€\vvoté"
     group = next(shape for shape in slide.shapes if shape.shape_type == MSO_SHAPE_TYPE.GROUP)
     assert [tile.text_frame.text for tile in group.shapes] == ["Portail v2", "Archives orales"]
 
 
-def test_slides_copying_a_chart_are_reported():
-    """A copied chart keeps its data: the slides that copy one are listed."""
+def test_the_outline_tells_which_slides_hold_a_chart():
+    """A copied chart keeps its data: the agent is told which slides hold one."""
     outline = outline_template(deck_with_table_group_and_chart())
-    presentation = TemplatedPresentation(
-        title="Deck", slides=[TemplatedSlide(template_slide=1), TemplatedSlide(template_slide=1)]
-    )
 
     assert "- also holds: chart" in outline.description
-    assert outline.copied_charts(presentation) == [1, 2]
+
+
+def test_a_slide_made_from_a_layout_takes_the_look_of_its_sample_text():
+    """A layout styled on its sample text, as LibreOffice saves it, gives that look to new text."""
+    deck = pptx.Presentation()
+    deck.slides.add_slide(deck.slide_layouts[0])
+    sample = deck.slide_layouts.get_by_name("Title Only").placeholders[0].text_frame
+    sample.text = "Titre"
+    sample.paragraphs[0].runs[0].font.size = Pt(40)
+    sample.paragraphs[0].runs[0].font.color.theme_color = MSO_THEME_COLOR.ACCENT_6
+    blob = BytesIO()
+    deck.save(blob)
+    presentation = TemplatedPresentation(
+        title="Deck", slides=[TemplatedSlide(layout="Title Only", texts={2: "Chapitre"})]
+    )
+
+    slide = pptx.Presentation(
+        BytesIO(build_from_template(blob.getvalue(), presentation, PresentationStyle()))
+    ).slides[0]
+    run = slide.shapes.title.text_frame.paragraphs[0].runs[0]
+    assert run.font.size == Pt(40)
+    assert run.font.color.theme_color == MSO_THEME_COLOR.ACCENT_6

@@ -97,7 +97,8 @@ To change a deck already generated in the conversation, use
 
 When the user attaches a pptx to use as a template, a model, or a deck to start
 from, pass it as `template_id`: the deck is then built out of copies of its
-slides and keeps their design. Without it, the deck uses the standard template.
+slides and keeps their design. When the user asks to change that deck, say so
+in the brief. Without it, the deck uses the standard template.
 
 What the tool CANNOT do: add logos, insert images, charts or diagrams, or change
 the ones of the user's slides. When the user asks for any of these, still

@@ -9,6 +9,7 @@ Inline styles are only ever set when the Markdown asks for them, never reset to
 their falsy value, so the template's own styling keeps applying otherwise.
 """
 
+import copy
 import re
 from dataclasses import dataclass
 
@@ -178,9 +179,17 @@ def _render_table(shape: BaseShape, table_node: Tag) -> BaseShape | None:
 
 
 def render_into_table(table: Table, markdown_text: str) -> None:
-    """Fill the cells of an existing table from a Markdown table, as far as both go."""
+    """
+    Fill the cells of an existing table from a Markdown table.
+
+    The table gets copies of its last row for the rows the Markdown adds.
+    """
     html = markdown_lib.markdown(markdown_text or "", extensions=["tables"])
-    _fill_table(table, BeautifulSoup(html, "html.parser").find_all(TABLE_ROW_TAG))
+    rows = BeautifulSoup(html, "html.parser").find_all(TABLE_ROW_TAG)
+    for _ in range(len(rows) - len(table.rows)):
+        last_row = table._tbl.tr_lst[-1]  # noqa: SLF001 # pylint: disable=protected-access
+        last_row.addnext(copy.deepcopy(last_row))
+    _fill_table(table, rows)
 
 
 def _fill_table(table: Table, rows: list[Tag]) -> None:
@@ -188,6 +197,9 @@ def _fill_table(table: Table, rows: list[Tag]) -> None:
     for row, row_node in zip(table.rows, rows, strict=False):
         is_header_row = row_node.parent.name == TABLE_HEADER_GROUP_TAG
         for cell, cell_node in zip(row.cells, row_node.find_all(TABLE_CELL_TAGS), strict=False):
+            if cell_node.get_text(" ").split() == cell.text.split():
+                continue  # Keeps the formatting of the cells that do not change.
+            size = next((run.font.size for run in cell.text_frame.paragraphs[0].runs), None)
             cell.text_frame.clear()
             cell.text_frame.word_wrap = True
 
@@ -195,8 +207,9 @@ def _fill_table(table: Table, rows: list[Tag]) -> None:
             paragraph.clear()
             _render_inline_children(paragraph, cell_node)
 
-            if is_header_row or cell_node.name == TABLE_HEADER_CELL_TAG:
-                for run in paragraph.runs:
+            for run in paragraph.runs:
+                run.font.size = run.font.size or size
+                if is_header_row or cell_node.name == TABLE_HEADER_CELL_TAG:
                     run.font.bold = True
 
 

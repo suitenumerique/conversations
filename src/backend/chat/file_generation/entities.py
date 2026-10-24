@@ -53,9 +53,14 @@ class Presentation(BaseModel):
 
 
 class TemplatedSlide(BaseModel):
-    """A slide copied from one of the user's own slides, with new texts."""
+    """A slide copied from one of the user's own slides or layouts, with new texts."""
 
-    template_slide: int = Field(description="Number of the user's slide to copy, from 1")
+    template_slide: int | None = Field(
+        default=None, description="Number of the user's slide to copy, from 1"
+    )
+    layout: str | None = Field(
+        default=None, description="Name of the user's layout to make a new slide from instead"
+    )
     texts: dict[int, str] = Field(
         default_factory=dict,
         description="New Markdown text of the copied slide's text shapes, by shape id",

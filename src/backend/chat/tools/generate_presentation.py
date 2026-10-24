@@ -20,11 +20,10 @@ from core.file_upload.utils import generate_retrieve_policy
 from chat import models
 from chat.agent_rag.document_converter.guards import guard_zip_bomb
 from chat.agents.presentation import PresentationAgent
-from chat.constants import PPTX_MIME_TYPE, TEXT_MIME_PREFIX
+from chat.constants import TEXT_MIME_PREFIX
 from chat.file_generation import (
     GENERIC_TEMPLATE,
     Presentation,
-    PresentationBuildError,
     PresentationStyle,
     TemplatedPresentation,
     TemplateOutline,
@@ -170,18 +169,13 @@ def get_template_key(conversation, template_id: str) -> str:
     Resolve the storage key of the pptx a template id points to.
 
     The model only sees the Markdown companion of an uploaded pptx, so the id
-    is the companion's: the pptx is the attachment it was converted from.
+    is the companion's: the pptx is the file it was converted from. Browsers
+    often send a pptx with a generic content type, so its extension is checked.
     """
     companion = resolve_attachment_by_id(_readable_attachments(conversation), template_id)
-    template = models.ChatConversationAttachment.objects.filter(
-        conversation_id=companion.conversation_id,
-        project_id=companion.project_id,
-        key=companion.conversion_from,
-        content_type=PPTX_MIME_TYPE,
-    ).first()
-    if template is None:
+    if not (companion.conversion_from or "").lower().endswith(".pptx"):
         raise ModelRetry("template_id must point to an attached pptx file.")
-    return template.key
+    return companion.conversion_from
 
 
 @sync_to_async
@@ -268,7 +262,7 @@ def build_agent_prompt(
             if slide_count
             else None,
         ),
-        ("User's slides", template and template.description),
+        ("User's deck", template and template.description),
         ("Source documents", sources),
     )
 
@@ -283,7 +277,7 @@ def build_edit_prompt(
     return _prompt_sections(
         ("Current deck", presentation.model_dump_json(exclude_defaults=True)),
         ("Changes requested", instructions),
-        ("User's slides", template and template.description),
+        ("User's deck", template and template.description),
         ("Source documents", sources),
     )
 
@@ -326,18 +320,6 @@ def find_presentations(ctx: RunContext) -> list[StoredPresentation]:
         except ValidationError:
             logger.warning("Skipping an unreadable stored presentation", exc_info=True)
     return decks
-
-
-def charts_note(
-    presentation: Presentation | TemplatedPresentation, template: TemplateOutline | None
-) -> str:
-    """Tell the model which slides copy a chart of the user's, whose data was not updated."""
-    if template is None or not (slides := template.copied_charts(presentation)):
-        return ""
-    return (
-        f" Slides {', '.join(map(str, slides))} copy a chart of the user's pptx with its "
-        "original data: tell the user it was not updated."
-    )
 
 
 async def load_template_outline(key: str) -> TemplateOutline:
@@ -503,8 +485,7 @@ async def generate_presentation(  # noqa: PLR0913 # pylint: disable=too-many-arg
             template_key=template_key,
         ),
         f"The presentation '{presentation.title}' was generated with "
-        f"{len(presentation.slides)} slides{template_note}. {sources_note}"
-        f"{charts_note(presentation, template)}",
+        f"{len(presentation.slides)} slides{template_note}. {sources_note}",
     )
 
 
@@ -552,13 +533,12 @@ async def update_presentation(
         )
 
     stored = decks[-1]
-    presentation, template = stored.presentation, None
+    presentation = stored.presentation
     if instructions:
         # Content changes go through the agent, with the deck's sources so that
         # what it adds comes from them. A style-only change keeps the content
         # word for word.
-        if stored.template_key:
-            template = await load_template_outline(stored.template_key)
+        template = await load_template_outline(stored.template_key) if stored.template_key else None
         presentation = await run_presentation_agent(
             ctx,
             build_edit_prompt(presentation, instructions, stored.source_material, template),
@@ -575,5 +555,5 @@ async def update_presentation(
         ctx,
         updated,
         f"The presentation '{presentation.title}' was updated and now has "
-        f"{len(presentation.slides)} slides.{charts_note(presentation, template)}",
+        f"{len(presentation.slides)} slides.",
     )
