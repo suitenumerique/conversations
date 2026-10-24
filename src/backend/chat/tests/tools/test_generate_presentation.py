@@ -421,14 +421,13 @@ async def test_a_storage_failure_soft_fails():
 async def test_tells_the_model_what_was_not_applied():
     """
     The return value spells out what the deck cannot do, so the model does not
-    claim to the user that a template or a style instruction was followed.
+    claim to the user that it was done.
     """
     ctx, _conversation, _user = await setup_context()
 
     result = await run_tool(ctx)
 
-    assert "template" in result.return_value
-    assert "NOT applied" in result.return_value
+    assert "charts and diagrams were NOT added" in result.return_value
     assert "never claim otherwise" in result.return_value
 
 
@@ -672,6 +671,15 @@ async def test_a_non_positive_slide_count_is_offered_for_retry():
         await run_tool(ctx, slide_count=0)
 
 
+@pytest.mark.asyncio
+async def test_a_slide_count_beyond_the_maximum_is_offered_for_retry():
+    """A deck of thousands of slides is refused before costing anything."""
+    ctx, _conversation, _user = await setup_context()
+
+    with pytest.raises(ModelRetry, match="slide_count"):
+        await run_tool(ctx, slide_count=1000)
+
+
 def test_generated_key_cannot_be_served_through_the_media_proxy(settings):
     """
     The download must be reachable ONLY via the presigned URL, never through the
@@ -897,3 +905,118 @@ async def test_reverting_a_first_version_soft_fails():
 
     assert isinstance(result, str)
     assert "no earlier version" in result
+
+
+TEMPLATED_DECK = {
+    "title": "Plan vélo",
+    "slides": [
+        {"template_slide": 1, "texts": {"2": "Plan vélo", "3": ""}},
+        {"template_slide": 2, "texts": {"2": "Constats", "3": "- Plus de cyclistes"}},
+    ],
+}
+
+
+@sync_to_async
+def add_template(conversation):
+    """Attach a pptx as an upload leaves it: the file, and its Markdown companion."""
+    deck = pptx.Presentation()
+    deck.slides.add_slide(deck.slide_layouts[0]).shapes.title.text = "Titre de la présentation"
+    content = deck.slides.add_slide(deck.slide_layouts[1])
+    content.shapes.title.text = "Titre de contenu"
+    blob = BytesIO()
+    deck.save(blob)
+
+    template = ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=conversation.owner,
+        file_name="gabarit.pptx",
+        # As browsers often send it, rather than the pptx content type.
+        content_type="application/octet-stream",
+        upload_state=AttachmentStatus.READY,
+    )
+    default_storage.save(template.key, ContentFile(blob.getvalue()))
+    companion = ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=conversation.owner,
+        file_name="gabarit.md",
+        content_type="text/markdown",
+        upload_state=AttachmentStatus.READY,
+        conversion_from=template.key,
+    )
+    default_storage.save(companion.key, ContentFile(b"Titre de la presentation"))
+    return template, companion
+
+
+@pytest.mark.asyncio
+async def test_a_template_id_builds_the_deck_out_of_the_user_slides():
+    """
+    The agent is shown the user's slides, its deck copies them, and the template
+    is kept for later edits rather than read as a source document.
+    """
+    ctx, conversation, _user = await setup_context()
+    template, companion = await add_template(conversation)
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(TEMPLATED_DECK)(messages, info)
+
+    result = await run_tool(ctx, respond=respond, template_id=str(companion.id))
+
+    assert "## User's deck\n\nSlide 1, layout 'Title Slide':" in received[0]
+    assert "Source documents" not in received[0]
+    stored = StoredPresentation.model_validate(result.metadata["presentation"])
+    assert stored.template_key == template.key
+    assert "out of the slides of the user's pptx" in result.return_value
+
+    deck = await sync_to_async(read_deck)(result.metadata["url"])
+    assert [slide.shapes.title.text for slide in deck.slides] == ["Plan vélo", "Constats"]
+
+
+@pytest.mark.asyncio
+async def test_a_template_id_not_pointing_to_a_pptx_is_offered_for_retry():
+    """Only an attached pptx can serve as a template."""
+    ctx, conversation, _user = await setup_context()
+    document = await add_document(conversation, "Un rapport")
+
+    with pytest.raises(ModelRetry, match="attached pptx"):
+        await run_tool(ctx, template_id=str(document.id))
+
+
+@pytest.mark.asyncio
+async def test_a_template_with_too_much_text_is_refused():
+    """The user's whole deck goes into the prompt: one too large for it is refused."""
+    ctx, conversation, _user = await setup_context()
+    _template, companion = await add_template(conversation)
+
+    with mock_source_budget(10):
+        result = await run_tool(ctx, template_id=str(companion.id))
+
+    assert "too much text to be used as a template" in result
+
+
+@pytest.mark.asyncio
+async def test_a_templated_deck_is_edited_on_its_template():
+    """An edit shows the agent the user's slides again, and keeps building on them."""
+    ctx, conversation, _user = await setup_context()
+    template, _companion = await add_template(conversation)
+    await persist_tool_returns(
+        conversation,
+        {
+            "presentation": StoredPresentation(
+                presentation=TEMPLATED_DECK, template_key=template.key
+            ).model_dump(mode="json")
+        },
+    )
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(TEMPLATED_DECK)(messages, info)
+
+    result = await run_update(ctx, respond=respond, instructions="Raccourcis le titre")
+
+    assert "## User's deck" in received[0]
+    assert StoredPresentation.model_validate(result.metadata["presentation"]).template_key == (
+        template.key
+    )
