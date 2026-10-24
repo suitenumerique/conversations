@@ -33,6 +33,10 @@ and this project adheres to
 - 🐛(front) ask to reload when a new version has been deployed
 - 🐛(ci) remove the shell default suffix from the DOCKER_USER build argument
 
+### Fixed
+
+- 🐛(back) answer users who have no email when Langfuse is enabled #788
+
 ### Security
 
 - 🔒️(project) keep user prompts out of logs and telemetry
