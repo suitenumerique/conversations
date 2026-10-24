@@ -29,6 +29,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(back) skip filing a turn whose conversation was deleted
 - 💄(front) add margin-top for the carbon impact module.
 - ⚡️(front) disable posthog-js periodic feature flag reloads
 - 🐛(front) avoid stale pages and blank screens after a deploy
