@@ -27,6 +27,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(back) keep the original file of a document attached to a conversation
 - 💄(front) add margin-top for the carbon impact module.
 - ⚡️(front) disable posthog-js periodic feature flag reloads
 - 🐛(front) avoid stale pages and blank screens after a deploy

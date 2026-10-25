@@ -1618,17 +1618,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 ).aupdate(rag_document_id=rag_document_id, is_indexed=True)
 
             if not document.media_type.startswith(TEXT_MIME_PREFIX):
-                md_attachment = await models.ChatConversationAttachment.objects.acreate(
+                # A distinct key keeps the original file intact, as the project
+                # indexing does (see agent_rag.indexing._write_markdown_companion).
+                md_key = default_storage.save(f"{key}.md", BytesIO(parsed_content.encode("utf8")))
+                await models.ChatConversationAttachment.objects.acreate(
                     conversation=self.conversation,
                     uploaded_by=self.user,
-                    key=key,
+                    key=md_key,
                     file_name=f"{document.identifier}.md",
                     content_type=MARKDOWN_MIME_TYPE,
                     conversion_from=key,
+                    upload_state=models.AttachmentStatus.READY,
                 )
-                default_storage.save(md_attachment.key, BytesIO(parsed_content.encode("utf8")))
-                md_attachment.upload_state = models.AttachmentStatus.READY
-                await md_attachment.asave(update_fields=["upload_state", "updated_at"])
 
         if any_indexed:
             self.conversation.index_state = CollectionIndexState.INDEXED
