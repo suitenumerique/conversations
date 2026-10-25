@@ -8,6 +8,7 @@ and this project adheres to
 
 ## [0.0.26] - 2026-10-22
 
+- ✨(back) restyle and edit a generated slide deck from the conversation
 - ✨(back) build generated slide decks from the attached documents and
   honour the requested slide count
 - ✨(back) add opt-in prometheus metrics on `/metrics`
@@ -29,6 +30,8 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(back) render the lists and section subtitles of generated slide decks
+  correctly
 - 🐛(back) stop claiming a template or a style was applied to a generated
   slide deck
 - 💄(front) add margin-top for the carbon impact module.

@@ -8,6 +8,7 @@ assertions run against the same shape types production uses.
 
 import pptx
 import pytest
+from pptx.enum.text import MSO_AUTO_SIZE
 
 from chat.file_generation.renderer import render
 from chat.file_generation.templates.generic import TEMPLATE_PATH
@@ -44,6 +45,13 @@ def test_plain_text_is_rendered(placeholder):
     render(placeholder, "Bonjour")
 
     assert placeholder.text_frame.text == "Bonjour"
+
+
+def test_text_shrinks_rather_than_overflows(placeholder):
+    """Rendered text is set to shrink to fit its placeholder."""
+    render(placeholder, "Corps")
+
+    assert placeholder.text_frame.auto_size == MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
 
 
 def test_empty_content_is_safe(placeholder):
@@ -131,11 +139,60 @@ def test_nested_bullets_keep_their_level(placeholder):
     assert levels == [0, 0, 1]
 
 
+def test_bullets_nested_by_two_spaces_keep_their_level(placeholder):
+    """Lists nested by 2 spaces, as models often write them, still nest."""
+    render(placeholder, "- un\n  - imbriqué\n    - très imbriqué\n- deux")
+
+    levels = [paragraph.level for paragraph in placeholder.text_frame.paragraphs]
+    assert levels == [0, 1, 2, 0]
+
+
+def test_a_list_right_under_a_line_of_text_is_a_list(placeholder):
+    """A list with no blank line before it is still rendered as bullets."""
+    render(placeholder, "**Pour les agents** :\n- moins de trajets\n- plus de souplesse")
+
+    assert [paragraph.text for paragraph in placeholder.text_frame.paragraphs] == [
+        "Pour les agents :",
+        "moins de trajets",
+        "plus de souplesse",
+    ]
+
+
+def test_bullets_right_under_a_numbered_item_are_bullets(placeholder):
+    """Bullets following a numbered item with no blank line are not glued to it."""
+    render(placeholder, "1. Sobriété numérique\n- Rationaliser les usages\n- Limiter le stockage")
+
+    assert [paragraph.text for paragraph in placeholder.text_frame.paragraphs] == [
+        "1. Sobriété numérique",
+        "Rationaliser les usages",
+        "Limiter le stockage",
+    ]
+
+
+def test_bullets_nested_under_a_numbered_item_stay_nested(placeholder):
+    """Bullets indented under a numbered item nest in it, and numbering carries on."""
+    render(placeholder, "1. Sobriété\n    - usages\n    - stockage\n2. Éco-conception")
+
+    assert [(p.level, p.text) for p in placeholder.text_frame.paragraphs] == [
+        (0, "1. Sobriété"),
+        (1, "usages"),
+        (1, "stockage"),
+        (0, "2. Éco-conception"),
+    ]
+
+
 def test_ordered_lists_are_numbered(placeholder):
     """Ordered items are prefixed with their number as plain text."""
     render(placeholder, "1. un\n2. deux")
 
     assert placeholder.text_frame.text == "1. un\n2. deux"
+
+
+def test_ordered_lists_keep_their_start_number(placeholder):
+    """A list starting at 2, as a numbered section title is, keeps its number."""
+    render(placeholder, "2. Les trois scénarios")
+
+    assert placeholder.text_frame.text == "2. Les trois scénarios"
 
 
 def test_nested_ordered_lists_restart_numbering(placeholder):

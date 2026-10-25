@@ -72,9 +72,9 @@ def test_check_template_rejects_an_out_of_range_placeholder():
     "slide,expected_layout,expected_texts",
     [
         (
-            Slide(type=SlideType.COVER, title="Titre"),
+            Slide(type=SlideType.COVER, title="Titre", subtitle="Sous-titre"),
             "Titre et sous-titre",
-            {"Titre"},
+            {"Titre", "Sous-titre"},
         ),
         (
             Slide(type=SlideType.SECTION, title="Partie", subtitle="Sous-titre"),
@@ -113,6 +113,20 @@ def test_each_slide_type_uses_its_layout(slide, expected_layout, expected_texts)
     rendered = deck.slides[1]
     assert rendered.slide_layout.name == expected_layout
     assert set(shape_texts(rendered)) == expected_texts
+
+
+def test_empty_placeholders_are_removed():
+    """No empty placeholder is left for PowerPoint to show as a prompt when editing."""
+    deck = build_deck(
+        [
+            Slide(type=SlideType.COVER, title="Couverture"),
+            Slide(type=SlideType.SECTION, title="Partie"),
+            Slide(type=SlideType.TITLE_ONE_COLUMN, title="Titre", content="Corps"),
+        ]
+    )
+
+    for slide in deck.slides:
+        assert all(shape.text_frame.text.strip() for shape in slide.placeholders)
 
 
 def test_slides_keep_their_order():
@@ -167,9 +181,9 @@ def test_the_placeholder_image_is_stripped_from_generated_decks():
     """The template's dummy mountain graphic never reaches a generated deck."""
     deck = build_deck([Slide(type=SlideType.COVER, title="Titre")])
 
-    cover_layout = deck.slides[0].slide_layout
-    pictures = [s for s in cover_layout.shapes if s.shape_type == MSO_SHAPE_TYPE.PICTURE]
-    assert pictures == []
+    for master_or_layout in [*deck.slide_masters, *deck.slide_layouts]:
+        pictures = [s for s in master_or_layout.shapes if s.shape_type == MSO_SHAPE_TYPE.PICTURE]
+        assert pictures == []
 
 
 def test_a_deck_needs_at_least_one_slide():

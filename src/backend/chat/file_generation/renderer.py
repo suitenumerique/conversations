@@ -9,10 +9,12 @@ Inline styles are only ever set when the Markdown asks for them, never reset to
 their falsy value, so the template's own styling keeps applying otherwise.
 """
 
+import re
 from dataclasses import dataclass
 
 import markdown as markdown_lib
 from bs4 import BeautifulSoup, NavigableString, Tag
+from pptx.enum.text import MSO_AUTO_SIZE
 from pptx.oxml.ns import qn
 from pptx.oxml.xmlchemy import OxmlElement
 from pptx.shapes.base import BaseShape
@@ -57,27 +59,57 @@ SAFE_LINK_SCHEMES = ("http://", "https://", "mailto:")
 INDENT_PER_LEVEL = 342900
 HANGING_INDENT = -342900
 
+# A list item line: its indentation, and its number if it is a numbered item.
+LIST_ITEM = re.compile(r"^( *)(?:(\d+)\.|[-*+]) ")
 
-def render(target: BaseShape | TextFrame, markdown_text: str) -> None:
+
+def render(target: BaseShape | TextFrame, markdown_text: str) -> BaseShape | TextFrame:
     """
-    Render Markdown into a shape or a text frame.
+    Render Markdown into a shape or a text frame, and return what holds the content.
 
     A Markdown table takes over the whole placeholder: when one is present, the
     rest of the content in the same field is dropped, because a pptx table is a
-    separate graphic frame rather than something that can flow with text.
+    separate graphic frame rather than something that can flow with text. That
+    frame is what is returned then.
     """
-    html = markdown_lib.markdown(markdown_text or "", extensions=["tables"])
+    html = markdown_lib.markdown(
+        _normalize_lists(markdown_text or ""), extensions=["tables", "sane_lists"]
+    )
     soup = BeautifulSoup(html, "html.parser")
 
     table = soup.find(TABLE_TAG)
     if table is not None:
         # pylint: disable=protected-access
         shape = target if isinstance(target, BaseShape) else target._parent  # noqa: SLF001
-        _render_table(shape, table)
-        return
+        return _render_table(shape, table) or target
 
     text_frame = target.text_frame if hasattr(target, "text_frame") else target
     _render_text(text_frame, soup)
+    return target
+
+
+def _normalize_lists(markdown_text: str) -> str:
+    """
+    Accept the list syntax models write, which python-markdown is strict about.
+
+    Python-markdown only nests items indented by 4 spaces, and only starts a
+    list, or switches between bulleted and numbered ones, after a blank line.
+    Models often nest by 2 spaces, and write lists right under a line of text
+    or right after a list of the other kind: all are fixed up here.
+    """
+    lines = markdown_text.split("\n")
+    items = [LIST_ITEM.match(line) for line in lines]
+    if any(len(item[1]) % 4 for item in items if item):
+        lines = [item[1] + line if item else line for item, line in zip(items, lines, strict=True)]
+
+    normalized = []
+    for index, (line, item) in enumerate(zip(lines, items, strict=True)):
+        previous = items[index - 1] if index else None
+        continues_list = previous and item and bool(previous[2]) == bool(item[2])
+        if item and normalized and normalized[-1].strip() and not continues_list:
+            normalized.append("")
+        normalized.append(line)
+    return "\n".join(normalized)
 
 
 @dataclass
@@ -103,6 +135,8 @@ def _render_text(text_frame: TextFrame, soup: BeautifulSoup) -> None:
     """Fill a text frame with the block-level content of the parsed Markdown."""
     text_frame.clear()
     text_frame.word_wrap = True
+    # Shrink the text rather than let it overflow, e.g. once a style enlarges it.
+    text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
     context = _RenderContext(text_frame=text_frame)
 
     for node in soup.contents:
@@ -122,11 +156,11 @@ def _render_text(text_frame: TextFrame, soup: BeautifulSoup) -> None:
             _render_inline_children(paragraph, node)
 
 
-def _render_table(shape: BaseShape, table_node: Tag) -> None:
+def _render_table(shape: BaseShape, table_node: Tag) -> BaseShape | None:
     """Replace a placeholder's content with a pptx table built from an HTML table."""
     rows = table_node.find_all(TABLE_ROW_TAG)
     if not rows:
-        return
+        return None
 
     row_count = len(rows)
     column_count = max(len(row.find_all(TABLE_CELL_TAGS)) for row in rows)
@@ -154,6 +188,8 @@ def _render_table(shape: BaseShape, table_node: Tag) -> None:
                 for run in paragraph.runs:
                     run.font.bold = True
 
+    return graphic_frame
+
 
 def _new_paragraph(context: _RenderContext) -> _Paragraph:
     """Reuse the text frame's initial empty paragraph, then append new ones."""
@@ -168,7 +204,7 @@ def _new_paragraph(context: _RenderContext) -> _Paragraph:
 def _render_list(context: _RenderContext, list_node: Tag, level: int, ordered: bool) -> None:
     """Render a list and its nested lists, one paragraph per item."""
     items = list_node.find_all("li", recursive=False)
-    for index, item in enumerate(items, start=1):
+    for index, item in enumerate(items, start=int(list_node.get("start", 1))):
         _render_list_item(context, item, level, ordered, index)
 
 

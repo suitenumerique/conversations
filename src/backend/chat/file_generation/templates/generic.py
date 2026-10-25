@@ -11,6 +11,10 @@ Two placeholder choices look surprising and are deliberate: in `Couverture` and
 `Titre et sous-titre` the `Title 1` shape is a degenerate 0.2 inch box, so the
 visible block is the one at index 1, which is why the cover title is mapped
 there and the `Couverture` layout is left unused.
+
+The `Titre et sous-titre` and `Chapitre` layouts were given a subtitle
+placeholder of their own, and `Chapitre` lost its photo area, which nothing
+fills and which hid the slide background.
 """
 
 from pathlib import Path
@@ -26,13 +30,16 @@ GENERIC_TEMPLATE = PresentationTemplate(
         SlideLayout(
             slide_type=SlideType.COVER,
             layout_name="Titre et sous-titre",
-            shape_index_to_field={1: "title"},
-            prompt="Cover slide with one large block for the deck title. Fields: title",
+            shape_index_to_field={1: "title", 2: "subtitle"},
+            prompt=(
+                "Cover slide with the deck title and, below it, an optional subtitle "
+                "(authors, date, audience...). Fields: title, subtitle"
+            ),
         ),
         SlideLayout(
             slide_type=SlideType.SECTION,
             layout_name="Chapitre",
-            shape_index_to_field={1: "title", 0: "subtitle"},
+            shape_index_to_field={0: "title", 1: "subtitle"},
             prompt="Section divider slide. Fields: title, subtitle",
         ),
         SlideLayout(
