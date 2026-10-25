@@ -60,6 +60,8 @@ class ContextDeps:
     session: Optional[Dict] = None
     web_search_enabled: bool = False
     language: str | None = None
+    # Sources kept by the web_researcher sub-agent, drained by the parent stream
+    web_research_sources: List[str] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass

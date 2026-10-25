@@ -13,6 +13,7 @@ and this project adheres to
 - ✨(helm) add a ServiceMonitor and a PodMonitor for the backend metrics
 - 📝(project) add pull request and AI usage policy
 - ✨(back) make the Sentry backend traces sample rate configurable
+- ✨(back) delegate web search to a web researcher sub-agent (opt-in)
 
 ### Changed
 
@@ -27,6 +28,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(back) accept list content in non-streaming Albert responses
 - 💄(front) add margin-top for the carbon impact module.
 - ⚡️(front) disable posthog-js periodic feature flag reloads
 - 🐛(front) avoid stale pages and blank screens after a deploy

@@ -70,6 +70,7 @@ dependencies = [
     "odfdo==3.26.3",
     "django-solo==2.5.1",
     "tiktoken==0.14.0",
+    "pydantic-ai-harness==0.54.0",
 ]
 
 [project.urls]

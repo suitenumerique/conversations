@@ -570,6 +570,7 @@ dependencies = [
     { name = "prometheus-client" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
+    { name = "pydantic-ai-harness" },
     { name = "pydantic-ai-slim", extra = ["mcp", "mistral", "openai"] },
     { name = "pypdf" },
     { name = "python-magic" },
@@ -657,6 +658,7 @@ requires-dist = [
     { name = "prometheus-client", specifier = "==0.26.0" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.6" },
     { name = "pydantic", specifier = "==2.13.5" },
+    { name = "pydantic-ai-harness", specifier = "==0.54.0" },
     { name = "pydantic-ai-slim", extras = ["openai", "mistral", "mcp"], specifier = "==2.54.0" },
     { name = "pydantic-evals", marker = "extra == 'dev'", specifier = "==2.54.0" },
     { name = "pyfakefs", marker = "extra == 'dev'", specifier = "==6.2.0" },
@@ -1576,6 +1578,15 @@ wheels = [
 ]
 
 [[package]]
+name = "json-repair"
+version = "0.64.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/dc/85/bf69dc15a066728bf477b3a3cc16a49f8712acf5a6f9271bf6494f51bb91/json_repair-0.64.0.tar.gz", hash = "sha256:2890be942a7ef20626e4eda4bd91b37485bc5271ac122efe7bb924232fef60ea", size = 53703, upload-time = "2026-10-09T09:10:33.109Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7f/10/98f7c8a5039b791e4801f1307f5571688b4fffa2e589eea9e16be6dcf37f/json_repair-0.64.0-py3-none-any.whl", hash = "sha256:3bf14cf14d8ae96f7bc467e6964d8accd52aaad084f973e38ebe4e43f9d051e4", size = 51984, upload-time = "2026-10-09T09:10:31.708Z" },
+]
+
+[[package]]
 name = "jsonpath-python"
 version = "1.1.6"
 source = { registry = "https://pypi.org/simple" }
@@ -2475,6 +2486,21 @@ wheels = [
 [package.optional-dependencies]
 email = [
     { name = "email-validator" },
+]
+
+[[package]]
+name = "pydantic-ai-harness"
+version = "0.54.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "genai-prices" },
+    { name = "httpx" },
+    { name = "json-repair" },
+    { name = "pydantic-ai-slim" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/37/9f/c187608be9d2cca0818c8c8bf7bf7342a4234ff2c7fea67f8887419d1c98/pydantic_ai_harness-0.54.0.tar.gz", hash = "sha256:f17c824544e29ae688d362f3479c45eb196f3094ab463e035a59f273f34aad63", size = 981273, upload-time = "2026-10-03T03:38:50.227Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5c/64/e86d8ab59e9dca4da616516d866fc14496e141c2eac68cdd2735623ecb81/pydantic_ai_harness-0.54.0-py3-none-any.whl", hash = "sha256:f25231a3d2c68414456f15851359ff7c2c59735c8bbeeca666ee5953187a4cdd", size = 1221122, upload-time = "2026-10-03T03:38:37.429Z" },
 ]
 
 [[package]]

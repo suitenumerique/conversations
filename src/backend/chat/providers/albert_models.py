@@ -73,6 +73,22 @@ def _normalize_tool_call_types(choices: list) -> None:
                 tool_call["type"] = "function"
 
 
+def _join_content_parts(choices: list) -> None:
+    """Join list-shaped message `content` into a plain string in place.
+
+    Albert (Mistral models) may return content as a list of parts, e.g. when the
+    answer carries references; the streaming path is patched the same way in
+    chat.agents.base.
+    """
+    for choice in choices:
+        message = choice.get("message") or {}
+        if isinstance(message.get("content"), list):
+            message["content"] = "".join(
+                part.get("text") or "" if isinstance(part, dict) else str(part)
+                for part in message["content"]
+            )
+
+
 class AlbertOpenAIChatModel(OpenAIChatModel):  # pylint: disable=abstract-method
     """
     OpenAIChatModel subclass that preserves Albert's carbon impact data.
@@ -101,6 +117,7 @@ class AlbertOpenAIChatModel(OpenAIChatModel):  # pylint: disable=abstract-method
         2. On multi-turn tool-call conversations, the second response sometimes
            returns a non-standard `object` value. This is normalized before
            passing to _ChatCompletion.model_validate().
+        3. message.content may be a list of parts instead of a string — joined.
         """
         data = response.model_dump()
 
@@ -115,5 +132,6 @@ class AlbertOpenAIChatModel(OpenAIChatModel):  # pylint: disable=abstract-method
         choices = data.get("choices")
         if isinstance(choices, list):
             _normalize_tool_call_types(choices)
+            _join_content_parts(choices)
 
         return _ChatCompletion.model_validate(data)
