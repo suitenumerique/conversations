@@ -66,7 +66,7 @@ dependencies = [
     "trafilatura==2.3.0",
     "uvicorn==0.54.0",
     "servestatic==4.4.0",
-    "pypdf==6.19.0",
+    "pypdf==6.21.2",
     "odfdo==3.26.3",
     "django-solo==2.5.1",
     "tiktoken==0.14.0",
