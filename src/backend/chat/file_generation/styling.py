@@ -13,7 +13,7 @@ from pptx.slide import Slide as PptxSlide
 from pptx.util import Emu, Pt
 
 from chat.file_generation.entities import PresentationStyle
-from chat.file_generation.renderer import INDENT_PER_LEVEL
+from chat.file_generation.renderer import INDENT_PER_LEVEL, MONO_FONT
 
 # The slide field styled as a title; every other field is styled as text.
 TITLE_FIELD = "title"
@@ -54,13 +54,16 @@ def apply_text_style(shape: BaseShape, field: str, style: PresentationStyle) -> 
     for run in _runs(shape):
         if color and not shape.has_table:
             run.font.color.rgb = _rgb(color)
-        if font and run.font.name is None:
+        if run.font.name == MONO_FONT:
+            continue
+        if font:
             run.font.name = font
-        if size and run.font.size is None:
+        if size:
             run.font.size = Pt(size)
 
     if field != TITLE_FIELD:
-        _shrink_to_fit(shape, size or DEFAULT_TEXT_SIZE)
+        first_size = next((run.font.size for run in _runs(shape) if run.font.size), None)
+        _shrink_to_fit(shape, first_size.pt if first_size else DEFAULT_TEXT_SIZE)
 
 
 def _shrink_to_fit(shape: BaseShape, size: float) -> None:

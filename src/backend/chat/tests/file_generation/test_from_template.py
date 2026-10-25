@@ -1,0 +1,300 @@
+"""
+Tests for building a deck out of the user's own slides.
+
+Real components: python-pptx. The user's deck is made with python-pptx's own
+default template, built in memory and read back as a user would open it.
+"""
+
+import zipfile
+from io import BytesIO
+from pathlib import Path
+
+import pptx
+from pptx.chart.data import CategoryChartData
+from pptx.enum.chart import XL_CHART_TYPE
+from pptx.enum.dml import MSO_THEME_COLOR
+from pptx.enum.shapes import MSO_SHAPE, MSO_SHAPE_TYPE
+from pptx.oxml.ns import qn
+from pptx.oxml.xmlchemy import OxmlElement
+from pptx.util import Inches, Pt
+
+from chat.file_generation import (
+    PresentationStyle,
+    TemplatedPresentation,
+    TemplatedSlide,
+    build_from_template,
+    outline_template,
+)
+
+PICTURE = Path(__file__).parents[3] / "core/static/images/logo.png"
+
+
+def user_deck() -> bytes:
+    """A cover, then a content slide holding a picture and hand-sized text."""
+    deck = pptx.Presentation()
+    cover = deck.slides.add_slide(deck.slide_layouts[0])
+    cover.shapes.title.text = "Titre de la présentation"
+    cover.placeholders[1].text = "Direction - date"
+
+    content = deck.slides.add_slide(deck.slide_layouts[1])
+    content.shapes.title.text = "Titre de contenu"
+    content.placeholders[1].text = "Texte d'exemple"
+    content.placeholders[1].text_frame.paragraphs[0].runs[0].font.size = Pt(20)
+    content.shapes.add_picture(str(PICTURE), Inches(8), Inches(6), Inches(1))
+
+    blob = BytesIO()
+    deck.save(blob)
+    return blob.getvalue()
+
+
+def build(*slides, style=None):
+    """Build a deck out of the user's slides and reopen it."""
+    presentation = TemplatedPresentation(title="Deck", slides=list(slides))
+    blob = build_from_template(user_deck(), presentation, style or PresentationStyle())
+    return pptx.Presentation(BytesIO(blob))
+
+
+def texts(slide):
+    return [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame]
+
+
+def test_the_outline_describes_each_slide():
+    """The agent sees each slide's text shapes, their ids and texts, and other content."""
+    outline = outline_template(user_deck())
+
+    assert outline.shape_ids == (frozenset({2, 3}), frozenset({2, 3}))
+    assert "Slide 1, layout 'Title Slide':" in outline.description
+    assert '- shape 2 (center_title, 22×4 cm): "Titre de la présentation"' in outline.description
+    assert '- shape 3 (body, 23×13 cm): "Texte d\'exemple"' in outline.description
+    assert "- also holds: picture" in outline.description
+    assert (
+        "Layout 'Title and Content':\n- shape 2 (title, 23×3 cm)\n- shape 3 (body, 23×13 cm)"
+        in (outline.description)
+    )
+    assert outline.layout_shape_ids["Title and Content"] == frozenset({2, 3})
+
+
+def test_a_slide_can_be_made_from_a_layout():
+    """A new slide made from one of the user's layouts gets its placeholders filled."""
+    deck = build(
+        TemplatedSlide(template_slide=1),
+        TemplatedSlide(layout="Title and Content", texts={2: "Résumé", 3: "- un\n- deux"}),
+    )
+
+    assert len(deck.slides) == 2
+    assert deck.slides[1].slide_layout.name == "Title and Content"
+    assert texts(deck.slides[1]) == ["Résumé", "un\ndeux"]
+
+
+def test_slides_are_copied_with_new_texts_and_the_originals_dropped():
+    """Each new slide copies a user's slide, keeps its picture, and gets its new texts."""
+    deck = build(
+        TemplatedSlide(template_slide=1, texts={2: "Plan vélo", 3: "Comité"}),
+        TemplatedSlide(template_slide=2, texts={2: "Constats", 3: "- un\n- deux"}),
+        TemplatedSlide(template_slide=2, texts={2: "Suite", 3: "Trois"}),
+    )
+
+    assert [texts(slide) for slide in deck.slides] == [
+        ["Plan vélo", "Comité"],
+        ["Constats", "un\ndeux"],
+        ["Suite", "Trois"],
+    ]
+    for slide in list(deck.slides)[1:]:
+        picture = next(s for s in slide.shapes if s.shape_type == MSO_SHAPE_TYPE.PICTURE)
+        assert picture.image.blob == PICTURE.read_bytes()
+
+
+def test_an_empty_text_removes_a_shape():
+    """A shape the new slide does not use, a sample text or a table, is removed."""
+    deck = build(TemplatedSlide(template_slide=2, texts={2: "Titre de contenu", 3: ""}))
+
+    assert texts(deck.slides[0]) == ["Titre de contenu"]
+
+
+def test_a_shape_given_no_text_or_its_own_is_kept_as_it_is():
+    """A shape left out, or given back its text, keeps its hand-set formatting untouched."""
+    deck = build(TemplatedSlide(template_slide=2, texts={2: "Constats", 3: "Texte d'exemple\n"}))
+
+    body = deck.slides[0].shapes[1].text_frame
+    assert body.text == "Texte d'exemple"
+    assert body.paragraphs[0].runs[0].font.size == Pt(20)
+
+
+def test_the_look_of_hand_formatted_text_is_kept_under_the_style():
+    """New text keeps the size set by hand on the text it replaces, and takes the style."""
+    deck = build(
+        TemplatedSlide(template_slide=2, texts={2: "Constats", 3: "Nouveau texte"}),
+        style=PresentationStyle(text_color="#000091"),
+    )
+
+    run = deck.slides[0].shapes[1].text_frame.paragraphs[0].runs[0]
+    assert run.font.size == Pt(20)
+    assert str(run.font.color.rgb) == "000091"
+
+
+def test_a_rewritten_list_keeps_the_numbering_of_the_shape():
+    """An agenda given a new entry keeps its own automatic numbering, not a typed one."""
+    deck = pptx.Presentation()
+    agenda = deck.slides.add_slide(deck.slide_layouts[1])
+    agenda.placeholders[1].text = "Budget\nProjets"
+    for paragraph in agenda.placeholders[1].text_frame.paragraphs:
+        numbering = OxmlElement("a:buAutoNum")
+        numbering.set("type", "arabicPeriod")
+        paragraph._p.get_or_add_pPr().append(numbering)  # pylint: disable=protected-access
+    blob = BytesIO()
+    deck.save(blob)
+    presentation = TemplatedPresentation(
+        title="Deck",
+        slides=[TemplatedSlide(template_slide=1, texts={3: "1. Budget\n2. Cyber\n3. Projets"})],
+    )
+
+    body = (
+        pptx.Presentation(
+            BytesIO(build_from_template(blob.getvalue(), presentation, PresentationStyle()))
+        )
+        .slides[0]
+        .placeholders[1]
+        .text_frame
+    )
+    assert [paragraph.text for paragraph in body.paragraphs] == ["Budget", "Cyber", "Projets"]
+    assert all(
+        paragraph._p.pPr.find(qn("a:buAutoNum")) is not None  # pylint: disable=protected-access
+        for paragraph in body.paragraphs
+    )
+
+
+def test_presenter_notes_are_attached():
+    deck = build(TemplatedSlide(template_slide=1, slide_notes="À dire à l'oral"))
+
+    assert deck.slides[0].notes_slide.notes_text_frame.text == "À dire à l'oral"
+
+
+def test_the_outline_rejects_slides_and_shapes_the_user_deck_does_not_have():
+    """The agent is told what it copied that does not exist, to correct it."""
+    outline = outline_template(user_deck())
+
+    def check(*slides):
+        return outline.check(TemplatedPresentation(title="Deck", slides=list(slides)))
+
+    assert check(TemplatedSlide(template_slide=2, texts={2: "ok"})) is None
+    assert "copies slide 5" in check(TemplatedSlide(template_slide=5))
+    assert "shapes [9]" in check(TemplatedSlide(template_slide=1, texts={9: "?"}))
+    assert "layout 'Inconnu'" in check(TemplatedSlide(layout="Inconnu"))
+    assert "its shapes are [2]" in check(TemplatedSlide(layout="Title Only", texts={9: "?"}))
+    copied_twice = check(
+        TemplatedSlide(template_slide=2, texts={2: "Un", 3: "un"}),
+        TemplatedSlide(template_slide=2, texts={2: "Deux"}),
+    )
+    assert "copied several times, but gives no text to shapes [3]" in copied_twice
+
+
+def deck_with_table_group_and_chart() -> bytes:
+    """One slide holding a table, a group of two labelled tiles, and a chart."""
+    deck = pptx.Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    table = slide.shapes.add_table(2, 2, Inches(0.5), Inches(0.5), Inches(4), Inches(1)).table
+    for row, values in enumerate([("Poste", "Montant"), ("Fonctionnement", "820 k€\nvoté")]):
+        table.cell(row, 0).text, table.cell(row, 1).text = values
+    group = slide.shapes.add_group_shape()
+    for index, label in enumerate(["Projet A", "Projet B"]):
+        tile = group.shapes.add_shape(
+            MSO_SHAPE.RECTANGLE, Inches(0.5 + 2 * index), Inches(2), Inches(1.5), Inches(1)
+        )
+        tile.text_frame.text = label
+    chart_data = CategoryChartData()
+    chart_data.categories = ["2025"]
+    chart_data.add_series("Visites", (4210,))
+    slide.shapes.add_chart(
+        XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(5), Inches(0.5), Inches(4), Inches(3), chart_data
+    )
+    blob = BytesIO()
+    deck.save(blob)
+    return blob.getvalue()
+
+
+def test_tables_and_grouped_texts_are_described_and_filled():
+    """A table is shown and filled as a Markdown table; texts inside groups change too."""
+    blob = deck_with_table_group_and_chart()
+    outline = outline_template(blob)
+    table_id, *tile_ids = sorted(outline.shape_ids[0])
+
+    assert (
+        '(table, 10×3 cm): "| Poste | Montant |\\n|---|---|\\n| Fonctionnement | 820 k€<br>voté |"'
+        in (outline.description)
+    )
+    assert '"Projet A"' in outline.description
+
+    presentation = TemplatedPresentation(
+        title="Deck",
+        slides=[
+            TemplatedSlide(
+                template_slide=1,
+                texts={
+                    table_id: "| Poste | Montant |\n|---|---|\n| Fonctionnement | 850 k€<br>voté |",
+                    tile_ids[0]: "Portail v2",
+                    tile_ids[1]: "Archives orales",
+                },
+            )
+        ],
+    )
+    slide = pptx.Presentation(
+        BytesIO(build_from_template(blob, presentation, PresentationStyle()))
+    ).slides[0]
+
+    table = next(shape for shape in slide.shapes if shape.has_table).table
+    assert table.cell(1, 1).text == "850 k€\vvoté"
+    group = next(shape for shape in slide.shapes if shape.shape_type == MSO_SHAPE_TYPE.GROUP)
+    assert [tile.text_frame.text for tile in group.shapes] == ["Portail v2", "Archives orales"]
+
+
+def test_the_outline_tells_which_slides_hold_a_chart():
+    """A copied chart keeps its data: the agent is told which slides hold one."""
+    outline = outline_template(deck_with_table_group_and_chart())
+
+    assert "- also holds: chart" in outline.description
+
+
+def test_a_slide_made_from_a_layout_takes_the_look_of_its_sample_text():
+    """A layout styled on its sample text, as LibreOffice saves it, gives that look to new text."""
+    deck = pptx.Presentation()
+    deck.slides.add_slide(deck.slide_layouts[0])
+    sample = deck.slide_layouts.get_by_name("Title Only").placeholders[0].text_frame
+    sample.text = "Titre"
+    sample.paragraphs[0].runs[0].font.size = Pt(40)
+    sample.paragraphs[0].runs[0].font.color.theme_color = MSO_THEME_COLOR.ACCENT_6
+    blob = BytesIO()
+    deck.save(blob)
+    presentation = TemplatedPresentation(
+        title="Deck", slides=[TemplatedSlide(layout="Title Only", texts={2: "Chapitre"})]
+    )
+
+    slide = pptx.Presentation(
+        BytesIO(build_from_template(blob.getvalue(), presentation, PresentationStyle()))
+    ).slides[0]
+    run = slide.shapes.title.text_frame.paragraphs[0].runs[0]
+    assert run.font.size == Pt(40)
+    assert run.font.color.theme_color == MSO_THEME_COLOR.ACCENT_6
+
+
+def test_the_slides_a_deck_drops_do_not_stay_inside_its_file():
+    """A copied slide linking to a dropped one, as a clickable agenda does, does not keep it."""
+    deck = pptx.Presentation()
+    agenda = deck.slides.add_slide(deck.slide_layouts[5])
+    agenda.shapes.title.text = "Sommaire"
+    dropped = deck.slides.add_slide(deck.slide_layouts[5])
+    dropped.shapes.title.text = "Confidentiel"
+    dropped.notes_slide.notes_text_frame.text = "Note confidentielle"
+    link = agenda.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(1), Inches(2), Inches(2), Inches(1))
+    link.click_action.target_slide = dropped
+    deck.core_properties.author = "Agent du ministère"
+    blob = BytesIO()
+    deck.save(blob)
+    presentation = TemplatedPresentation(title="Deck", slides=[TemplatedSlide(template_slide=1)])
+
+    output = build_from_template(blob.getvalue(), presentation, PresentationStyle())
+
+    archive = zipfile.ZipFile(BytesIO(output))
+    assert not any(b"onfidentiel" in archive.read(name) for name in archive.namelist())
+    built = pptx.Presentation(BytesIO(output))
+    assert built.core_properties.author == ""
+    assert built.core_properties.title == "Deck"

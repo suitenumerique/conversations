@@ -9,8 +9,9 @@ assertions run against the same shape types production uses.
 import pptx
 import pytest
 from pptx.enum.text import MSO_AUTO_SIZE
+from pptx.util import Pt
 
-from chat.file_generation.renderer import render
+from chat.file_generation.renderer import render, render_into_table
 from chat.file_generation.templates.generic import TEMPLATE_PATH
 
 BODY_LAYOUT = "Titre et textes 1 colonne"
@@ -217,3 +218,31 @@ def test_a_table_takes_over_the_whole_field(slide, placeholder):
     render(placeholder, "Du texte avant\n\n| A |\n|---|\n| 1 |")
 
     assert "Du texte avant" not in table_of(slide).cell(0, 0).text
+
+
+def test_refilling_a_table_keeps_the_cells_that_do_not_change(slide, placeholder):
+    """Only the cells whose text changes are rewritten, the others keep their formatting."""
+    render(placeholder, "| A | B |\n|---|---|\n| 1 | 2 |")
+    table = table_of(slide)
+    table.cell(1, 0).text_frame.paragraphs[0].runs[0].font.size = Pt(9)
+
+    render_into_table(table, "| A | B |\n|---|---|\n| 1 | 3 |")
+
+    assert table.cell(1, 0).text_frame.paragraphs[0].runs[0].font.size == Pt(9)
+    assert table.cell(1, 1).text == "3"
+
+
+def test_refilling_a_table_adds_the_rows_it_lacks(slide, placeholder):
+    """A refilled table grows with copies of its last row, sized as its rewritten cells were."""
+    render(placeholder, "| A | B |\n|---|---|\n| 1 | 2 |")
+    table = table_of(slide)
+    table.cell(1, 1).text_frame.paragraphs[0].runs[0].font.size = Pt(9)
+
+    render_into_table(table, "| A | B |\n|---|---|\n| 1 | 3 |\n| 4 | 5 |")
+
+    assert [[cell.text for cell in row.cells] for row in table.rows] == [
+        ["A", "B"],
+        ["1", "3"],
+        ["4", "5"],
+    ]
+    assert table.cell(2, 1).text_frame.paragraphs[0].runs[0].font.size == Pt(9)
