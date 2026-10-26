@@ -23,6 +23,7 @@ and this project adheres to
 - 🐛(ci) key the Playwright browser cache on the Ubuntu release
 - 🔇(back) log tool retries as warnings, keep the cause on exhaustion
 - 🐛(back) skip filing a turn whose conversation was deleted
+- 🐛(oidc) log in the active user when several users share an email
 
 ## [0.0.27] - 2026-10-28
 
