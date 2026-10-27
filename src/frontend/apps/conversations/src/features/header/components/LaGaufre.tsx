@@ -45,8 +45,8 @@ export const LaGaufre = () => {
           return {
             backgroundColor: '#fff',
             position: 'fixed',
-            top: 56,
-            right: 20,
+            left: 16,
+            bottom: 60,
           };
         },
       },
