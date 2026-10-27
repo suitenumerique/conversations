@@ -480,7 +480,7 @@ export const InputChat = ({
                 variant="neutral"
                 icon={<Loader />}
                 text={t(
-                  'Files related to this project are being indexed and will be ignored.',
+                  "Processing documents… They'll be available when processing is finished.",
                 )}
               />
             )}

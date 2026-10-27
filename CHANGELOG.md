@@ -18,6 +18,7 @@ and this project adheres to
 
 - 🔒️(front) upgrade undici and zod to fix CVE-2026-109869 and CVE-2023-54404
 - 🔒️(back) upgrade pypdf to 6.21.2 to fix DoS CVEs
+- 💬(front) reword the message shown while project files are processed
 
 ### Fixed
 
