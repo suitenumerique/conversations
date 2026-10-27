@@ -37,7 +37,7 @@
     "typescript": "5.8.3",
     "minimatch": "^10.2.1",
     "flatted": "^3.4.0",
-    "undici": "8.11.2",
+    "undici": "8.12.2",
     "brace-expansion": "^5.0.12",
     "postcss": ">=8.5.28",
     "**/posthog-js/fflate": "^0.4.9",
@@ -47,6 +47,7 @@
     "**/@istanbuljs/load-nyc-config/js-yaml": "^3.15.2",
     "figlet": "1.11.4",
     "handlebars": "^4.7.10",
-    "dompurify": "^3.4.17"
+    "dompurify": "^3.4.17",
+    "zod": "^4.6.6"
   }
 }

@@ -66,7 +66,7 @@ dependencies = [
     "trafilatura==2.3.0",
     "uvicorn==0.54.0",
     "servestatic==4.4.0",
-    "pypdf==6.19.0",
+    "pypdf==6.21.2",
     "odfdo==3.26.3",
     "django-solo==2.5.1",
     "tiktoken==0.14.0",
@@ -117,7 +117,7 @@ universal = true
 [tool.uv]
 exclude-newer = "7 days"
 # Security fixes newer than the cooldown; drop once older than 7 days
-exclude-newer-package = { brotli = "2026-10-23", certifi = "2026-10-21", pillow = "2026-10-17" }
+exclude-newer-package = { brotli = "2026-10-23", certifi = "2026-10-21", pillow = "2026-10-17", pypdf = "2026-10-22" }
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
     "sys_platform == 'darwin'",
