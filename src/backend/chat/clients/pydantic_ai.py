@@ -184,6 +184,8 @@ from chat.constants import (
     SUMMARIZATION_ENQUEUE_CLAIM_GRACE_SECONDS,
     TEXT_MIME_PREFIX,
 )
+from chat.docs_client import docs_document_url, extract_docs_document_ids
+from chat.docs_snapshots import store_docs_snapshots
 from chat.document_context_builder import (
     DocumentsListing,
     build_documents_listing,
@@ -381,13 +383,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if (streaming := self.model_configuration.supports_streaming) is not None:
             self._support_streaming = streaming
 
-        # Feature flags
-        self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
-        self._is_web_search_enabled = is_feature_enabled(self.user, "web_search")
-        self._is_presentation_generation_enabled = is_feature_enabled(
-            self.user, "presentation_generation"
-        )
-        self._is_smart_search_enabled = user.allow_smart_web_search
+        self._init_feature_flags()
         self._datagouv = DataGouvConnector.for_user(self.user, conversation.pk)
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
@@ -450,6 +446,20 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if not self._history_summary:
                 return ""
             return f"{SUMMARY_SYSTEM_PREFIX}{self._history_summary.strip()}"
+
+    def _init_feature_flags(self) -> None:
+        """Evaluate the user's feature flags once, when the service is built."""
+        self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
+        self._is_web_search_enabled = is_feature_enabled(self.user, "web_search")
+        self._is_presentation_generation_enabled = is_feature_enabled(
+            self.user, "presentation_generation"
+        )
+        self._is_docs_link_fetching_enabled = (
+            bool(settings.DOCS_BASE_URL)
+            and self._is_document_upload_enabled
+            and is_feature_enabled(self.user, "docs_link_fetching")
+        )
+        self._is_smart_search_enabled = self.user.allow_smart_web_search
 
     def _turn_log(self, message: str, *args) -> None:
         """Log one step of the turn, stamped with how far into it we are.
@@ -1634,6 +1644,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             self.conversation.index_state = CollectionIndexState.INDEXED
             await self.conversation.asave(update_fields=["index_state", "updated_at"])
 
+    def _setup_docs_links_instruction(self, notes: List[str]) -> None:
+        """Tell the model what happened to each pasted Docs link this turn."""
+        if not notes:
+            return
+
+        @self.conversation_agent.instructions
+        def docs_links_note() -> str:
+            """Inject the outcome of reading each pasted Docs link."""
+            return "\n".join(notes)
+
     def _prepare_prompt(  # noqa: PLR0912  # pylint: disable=too-many-branches
         self, message: UIMessage
     ) -> Tuple[str, List[BinaryContent | ImageUrl], List[BinaryContent]]:
@@ -1877,17 +1897,20 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     async def _handle_input_documents(
         self,
         input_documents: List[BinaryContent | DocumentUrl],
+        docs_document_ids: List[uuid.UUID],
         conversation_has_own_documents: bool,
         usage: Dict[str, Union[int, float]],
     ) -> AsyncGenerator[events_v4.Event | DocumentParsingResult, None]:
         """
         Handle document parsing with streaming progress events.
 
-        This method processes documents attached to the user's message:
+        This method processes documents attached to the user's message and the
+        Docs documents it links to:
         1. Emits a ToolCallPart event to show "document_parsing" in the UI
-        2. Calls _parse_input_documents() to store documents in the vector store
-        3. Emits ToolResultPart with success/error status
-        4. Yields a DocumentParsingResult marker as the final item
+        2. Snapshots the linked Docs documents (failures become model notes)
+        3. Calls _parse_input_documents() to store documents in the vector store
+        4. Emits ToolResultPart with success/error status
+        5. Yields a DocumentParsingResult marker as the final item
 
         The DocumentParsingResult pattern allows the caller to:
         - Yield all events to the stream in real-time
@@ -1904,7 +1927,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             logger.warning("Document upload feature is disabled, ignoring input documents.")
             input_documents = []
 
-        if not input_documents:
+        if not input_documents and not docs_document_ids:
             yield DocumentParsingResult(success=True, has_documents=conversation_has_own_documents)
             return
 
@@ -1912,8 +1935,35 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         yield events_v4.ToolCallPart(
             tool_call_id=_tool_call_id,
             tool_name="document_parsing",
-            args={"documents": [{"identifier": doc.identifier} for doc in input_documents]},
+            args={
+                "documents": [{"identifier": doc.identifier} for doc in input_documents]
+                + [
+                    {"identifier": docs_document_url(document_id)}
+                    for document_id in docs_document_ids
+                ]
+            },
         )
+
+        if docs_document_ids:
+            snapshots, docs_notes = await store_docs_snapshots(
+                self.conversation, self.user, self._context_deps.session or {}, docs_document_ids
+            )
+            self._setup_docs_links_instruction(docs_notes)
+            input_documents = [
+                *input_documents,
+                *(
+                    DocumentUrl(
+                        url=f"{DOCUMENT_URL_PREFIX}{snapshot.key}",
+                        identifier=snapshot.file_name,
+                        media_type=MARKDOWN_MIME_TYPE,
+                    )
+                    for snapshot in snapshots
+                ),
+            ]
+        if not input_documents:
+            yield events_v4.ToolResultPart(tool_call_id=_tool_call_id, result={"state": "done"})
+            yield DocumentParsingResult(success=True, has_documents=conversation_has_own_documents)
+            return
 
         try:
             await self._parse_input_documents(input_documents)
@@ -2329,9 +2379,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if _is_error_finish(event):
                 return
 
+        docs_document_ids = (
+            extract_docs_document_ids(user_prompt, settings.DOCS_LINKS_MAX_PER_MESSAGE)
+            if self._is_docs_link_fetching_enabled
+            else []
+        )
         parsed: list[DocumentParsingResult] = []
         async for event in self._stream_phase(
-            self._handle_input_documents(input_documents, conversation_has_own_documents, usage),
+            self._handle_input_documents(
+                input_documents, docs_document_ids, conversation_has_own_documents, usage
+            ),
             DocumentParsingResult,
             parsed,
         ):

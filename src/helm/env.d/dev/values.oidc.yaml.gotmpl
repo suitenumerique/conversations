@@ -16,3 +16,7 @@ backend:
     OIDC_RP_SCOPES: "openid email"
     # Local Docs is wired to this same Keycloak, so it accepts the stored access token.
     DOCS_BASE_URL: https://docs.127.0.0.1.nip.io/
+    FEATURE_FLAG_DOCS_LINK_FETCHING: ENABLED
+    # Read by the celery CLI as `worker --concurrency`. Unset, it forks one
+    # process per host CPU (~250 MB each), which exhausts the kind node.
+    CELERY_WORKER_CONCURRENCY: "2"
