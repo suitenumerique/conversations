@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.27] - 2026-10-28
+
 ### Fixed
 
 - 🐛(back) add socket timeouts to the Redis cache and Celery clients
@@ -546,7 +548,9 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 - 🔧(evals) add run_evals management command
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.26...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.27...main
+
+[0.0.27]: https://github.com/suitenumerique/conversations/compare/v0.0.26...v0.0.27
 
 [0.0.26]: https://github.com/suitenumerique/conversations/compare/v0.0.25...v0.0.26
 
