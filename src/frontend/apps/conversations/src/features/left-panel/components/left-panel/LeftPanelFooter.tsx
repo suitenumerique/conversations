@@ -5,7 +5,6 @@ import { Box } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { LaGaufre } from '@/features/header/components/LaGaufre';
 import { OnboardingButton } from '@/features/onboarding';
-import { SettingsButton } from '@/features/settings';
 
 const UserInfo = lazy(() =>
   import('@/features/auth/components/UserInfo').then((mod) => ({
@@ -31,19 +30,17 @@ export const LeftPanelFooter = () => {
         height: 52px;
         width: 100%;
         flex: 0 0 auto;
-        border-top: 1px solid
-          var(--c--contextuals--border--surface--primary);
+        border-top: 1px solid var(--c--contextuals--border--surface--primary);
       `}
     >
       <Box $direction="row" $gap={spacingsTokens.sm} $align="center">
-        <OnboardingButton />
-        <SettingsButton />
-      </Box>
-      <Box $direction="row" $gap={spacingsTokens['sm']} $align="center">
-        {showLaGaufre && <LaGaufre />}
         <Suspense fallback={null}>
           <UserInfo />
         </Suspense>
+        {showLaGaufre && <LaGaufre />}
+      </Box>
+      <Box $direction="row" $gap={spacingsTokens['sm']} $align="center">
+        <OnboardingButton />
       </Box>
     </Box>
   );
