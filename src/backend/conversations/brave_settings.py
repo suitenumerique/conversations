@@ -59,6 +59,19 @@ class BraveSettings:
         environ_name="BRAVE_MAX_RESULTS",
         environ_prefix=None,
     )
+    BRAVE_SEARCH_OVERFETCH = values.IntegerValue(
+        default=4,
+        environ_name="BRAVE_SEARCH_OVERFETCH",
+        environ_prefix=None,
+    )
+    BRAVE_BLOCKED_DOMAINS = values.Value(
+        default=(
+            "facebook.com,instagram.com,tiktok.com,twitter.com,x.com,"
+            "linkedin.com,pinterest.com,snapchat.com,threads.com,threads.net"
+        ),
+        environ_name="BRAVE_BLOCKED_DOMAINS",
+        environ_prefix=None,
+    )
     BRAVE_SEARCH_SAFE_SEARCH = values.Value(
         default="moderate",
         environ_name="BRAVE_SEARCH_SAFE_SEARCH",

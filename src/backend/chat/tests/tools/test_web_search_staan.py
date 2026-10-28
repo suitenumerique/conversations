@@ -27,6 +27,7 @@ def fixture_staan_settings(settings):
     settings.STAAN_API_TIMEOUT = 5
     settings.STAAN_MAX_SNIPPETS_PER_URL = 3
     settings.STAAN_MIN_SNIPPET_SCORE = 0.1
+    settings.STAAN_BLOCKED_DOMAINS = ""
 
 
 @pytest.fixture(name="mocked_context")
@@ -227,6 +228,48 @@ async def test_web_search_staan_success(mocked_context):
 
     assert tool_return.return_value["0"]["url"] == "https://example.com/1"
     assert tool_return.metadata["sources"] == {"https://example.com/1"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_web_search_staan_drops_blocked_domains(settings, mocked_context):
+    """Blocklisted domains are filtered before formatting and never reach sources."""
+    settings.STAAN_BLOCKED_DOMAINS = "facebook.com"
+
+    respx.get(STAAN_SEARCH_URL).mock(
+        return_value=httpx.Response(
+            status_code=200,
+            json={
+                "query": {"market": "fr-fr"},
+                "web": {
+                    "results": [
+                        {
+                            "url": "https://www.facebook.com/some-post",
+                            "title": "Social post",
+                            "snippet": "noise",
+                        },
+                        {
+                            "url": "https://example.com/kept",
+                            "title": "Kept",
+                            "snippet": "signal",
+                        },
+                    ]
+                },
+            },
+        ),
+    )
+
+    tool_return = await web_search_staan(mocked_context, "actualité")
+
+    assert list(tool_return.return_value.values()) == [
+        {
+            "url": "https://example.com/kept",
+            "title": "Kept",
+            "snippets": ["signal"],
+            "published_date": "",
+        }
+    ]
+    assert tool_return.metadata["sources"] == {"https://example.com/kept"}
 
 
 @pytest.mark.asyncio

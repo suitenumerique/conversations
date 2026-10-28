@@ -12,7 +12,7 @@ from pydantic_ai.messages import ToolReturn
 from core import instrumentation
 
 from chat.tools.exceptions import ModelCannotRetry
-from chat.tools.utils import last_model_retry_soft_fail
+from chat.tools.utils import filter_blocked_results, last_model_retry_soft_fail, parse_domain_list
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +120,11 @@ async def staan_search(query: str, market: str) -> dict:
         ) from exc
 
 
+def _get_blocked_domains() -> set[str]:
+    """Parse STAAN_BLOCKED_DOMAINS (comma-separated string or iterable) into a set."""
+    return parse_domain_list(getattr(settings, "STAAN_BLOCKED_DOMAINS", ""))
+
+
 def _collect_extra_snippets(result: dict) -> list[str]:
     """Extract the extra snippet chunks of a Staan result.
 
@@ -196,6 +201,14 @@ async def web_search_staan(ctx: RunContext, query: str) -> ToolReturn:
             (payload.get("query") or {}).get("market"),
             market,
         )
+
+        # Drop blocklisted domains before formatting. No overfetch here: the
+        # Staan API always returns 10 results with no count parameter, so
+        # filtering can only shrink the list, never be compensated.
+        if isinstance(payload.get("web"), dict):
+            payload["web"]["results"] = filter_blocked_results(
+                payload["web"].get("results") or [], _get_blocked_domains()
+            )
 
         formatted_results = format_staan(payload)
         if not formatted_results:

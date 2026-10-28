@@ -32,6 +32,7 @@ never fetches or extracts anything on its own.
 | `STAAN_SEARCH_EXTRA_SNIPPETS` | `True` | Ask the API to fetch the pages and return scored chunks |
 | `STAAN_MAX_SNIPPETS_PER_URL` | `3` | Sent as `max_snippets` (the API accepts 1 to 10). The only lever on search size — see below |
 | `STAAN_MIN_SNIPPET_SCORE` | `0.1` | Sent as `min_score`; chunks below it are filtered by the API |
+| `STAAN_BLOCKED_DOMAINS` | social domains (same default as Brave) | Comma-separated domains dropped before formatting, subdomains included |
 
 The endpoint is not configurable: `STAAN_SEARCH_URL` pins
 `https://api.staan.ai/v2/search/web` because `format_staan` parses that version's response

@@ -22,6 +22,7 @@ from chat.tools.web_search_brave import (
     _extract_and_summarize_snippets_async,
     _fetch_and_extract_async,
     _fetch_and_store_async,
+    _filter_blocked_results,
     _query_brave_llm_context_api_async,
     format_tool_return,
     web_search_brave,
@@ -40,6 +41,8 @@ def brave_settings(settings):
     settings.BRAVE_SEARCH_COUNTRY = "US"
     settings.BRAVE_SEARCH_LANG = "en"
     settings.BRAVE_MAX_RESULTS = 3
+    settings.BRAVE_SEARCH_OVERFETCH = 0
+    settings.BRAVE_BLOCKED_DOMAINS = ""
     settings.BRAVE_SEARCH_SAFE_SEARCH = "moderate"
     settings.BRAVE_SEARCH_SPELLCHECK = True
     settings.BRAVE_SEARCH_EXTRA_SNIPPETS = True
@@ -1123,3 +1126,99 @@ def test_format_tool_return_no_results():
 
     assert len(tool_return.return_value) == 0
     assert len(tool_return.metadata["sources"]) == 0
+
+
+def test_filter_blocked_results_keeps_order_and_caps(settings, caplog):
+    """Filtering drops blocklisted URLs early and caps to BRAVE_MAX_RESULTS."""
+    settings.BRAVE_BLOCKED_DOMAINS = "facebook.com, tiktok.com"
+    settings.BRAVE_MAX_RESULTS = 2
+
+    raw = [
+        {"url": "https://facebook.com/a", "title": "A"},
+        {"url": "https://example.com/kept", "title": "Kept"},
+        {"url": "https://www.tiktok.com/b", "title": "B"},
+        {"url": "https://example.com/kept2", "title": "Kept2"},
+    ]
+
+    with caplog.at_level(logging.INFO):
+        kept = _filter_blocked_results(raw)
+
+    assert [r["url"] for r in kept] == ["https://example.com/kept", "https://example.com/kept2"]
+    assert "Filtered 2 blocked web search result(s)" in caplog.text
+    assert "facebook.com" in caplog.text
+    assert "tiktok.com" in caplog.text
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_web_search_brave_filters_blocked_before_fetch(settings, mocked_context):
+    """Blocked results are dropped before fetch/extract and never reach the model."""
+    settings.BRAVE_BLOCKED_DOMAINS = "facebook.com"
+
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
+        return_value=httpx.Response(
+            status_code=200,
+            json={
+                "web": {
+                    "results": [
+                        {
+                            "url": "https://facebook.com/some-post",
+                            "title": "Social post",
+                            "extra_snippets": ["Social snippet"],
+                        },
+                        {
+                            "url": "https://example.com/kept",
+                            "title": "Kept",
+                            "extra_snippets": ["Kept snippet"],
+                        },
+                    ]
+                }
+            },
+        )
+    )
+
+    with patch("chat.tools.web_search_brave._fetch_url_async") as mock_fetch:
+        mock_fetch.side_effect = Exception("fetch_url should not be called")
+        tool_return = await web_search_brave(mocked_context, "test query")
+
+    assert list(tool_return.return_value.values()) == [
+        {
+            "url": "https://example.com/kept",
+            "title": "Kept",
+            "snippets": ["Kept snippet"],
+        }
+    ]
+    assert tool_return.metadata["sources"] == {"https://example.com/kept"}
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_web_search_brave_requests_overfetch_count(settings, mocked_context):
+    """The Brave request `count` includes the overfetch slack."""
+    settings.BRAVE_MAX_RESULTS = 3
+    settings.BRAVE_SEARCH_OVERFETCH = 4
+
+    respx.get(BRAVE_WEB_SEARCH_URL).mock(
+        return_value=httpx.Response(
+            status_code=200,
+            json={
+                "web": {
+                    "results": [
+                        {
+                            "url": "https://example.com/a",
+                            "title": "A",
+                            "extra_snippets": ["Snippet A"],
+                        },
+                    ]
+                }
+            },
+        )
+    )
+
+    with patch("chat.tools.web_search_brave._fetch_url_async") as mock_fetch:
+        mock_fetch.side_effect = Exception("fetch_url should not be called")
+        await web_search_brave(mocked_context, "test query")
+
+    brave_request = respx.calls[0].request
+    qs = parse_qs(brave_request.url.query.decode("utf-8"))
+    assert qs["count"] == ["7"]

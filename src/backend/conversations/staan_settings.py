@@ -37,3 +37,15 @@ class StaanSettings:
         environ_name="STAAN_MIN_SNIPPET_SCORE",
         environ_prefix=None,
     )
+    # Kept as a literal twin of BRAVE_BLOCKED_DOMAINS (same default list) on
+    # purpose: settings modules must not import chat.tools.utils, which pulls
+    # Django models. The parsing/matching/filtering logic itself lives once in
+    # chat.tools.utils and is shared by both backends.
+    STAAN_BLOCKED_DOMAINS = values.Value(
+        default=(
+            "facebook.com,instagram.com,tiktok.com,twitter.com,x.com,"
+            "linkedin.com,pinterest.com,snapchat.com,threads.com,threads.net"
+        ),
+        environ_name="STAAN_BLOCKED_DOMAINS",
+        environ_prefix=None,
+    )

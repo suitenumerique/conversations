@@ -39,12 +39,14 @@ This documentation covers two related tools:
 
 All Brave tools share these common settings:
 
-| Variable            | Required | Default | Description                                        |
-|---------------------|----------|---------|----------------------------------------------------|
-| `BRAVE_API_KEY`     | **Yes**  | None    | Your Brave Search API key                          |
-| `BRAVE_API_TIMEOUT` | No       | 5       | API request timeout in seconds                     |
-| `BRAVE_MAX_RESULTS` | No       | 8       | Maximum number of search results                   |
-| `BRAVE_CACHE_TTL`   | No       | 1800    | Cache time-to-live in seconds (30 minutes)         |
+| Variable                | Required | Default                                                        | Description                                                      |
+|-------------------------|----------|----------------------------------------------------------------|------------------------------------------------------------------|
+| `BRAVE_API_KEY`         | **Yes**  | None                                                           | Your Brave Search API key                                        |
+| `BRAVE_API_TIMEOUT`     | No       | 5                                                              | API request timeout in seconds                                   |
+| `BRAVE_MAX_RESULTS`     | No       | 8                                                              | Maximum number of search results returned after filtering        |
+| `BRAVE_SEARCH_OVERFETCH`| No       | 4                                                              | Extra results requested from Brave to compensate blocklist filtering |
+| `BRAVE_BLOCKED_DOMAINS` | No       | social domains (facebook, instagram, tiktok, x, linkedin, ...) | Comma-separated domains to drop (subdomains included)            |
+| `BRAVE_CACHE_TTL`       | No       | 1800                                                           | Cache time-to-live in seconds (30 minutes)                       |
 
 ### Search Parameters
 

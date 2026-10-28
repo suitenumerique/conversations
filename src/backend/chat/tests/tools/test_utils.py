@@ -8,7 +8,79 @@ import pytest
 from pydantic_ai import ModelRetry, RunContext
 
 from chat.tools.exceptions import ModelCannotRetry
-from chat.tools.utils import last_model_retry_soft_fail
+from chat.tools.utils import (
+    extract_domain,
+    filter_blocked_results,
+    is_blocked_url,
+    last_model_retry_soft_fail,
+    normalize_domain,
+    parse_domain_list,
+)
+
+
+def test_normalize_domain():
+    """Domain normalization is case-insensitive and strips www. and dots."""
+    assert normalize_domain("Facebook.COM") == "facebook.com"
+    assert normalize_domain("  www.tiktok.com. ") == "tiktok.com"
+    assert normalize_domain("") == ""
+
+
+def test_extract_domain():
+    """Hostname extraction handles subdomains, ports and garbage input."""
+    assert extract_domain("https://m.facebook.com/some/page") == "m.facebook.com"
+    assert extract_domain("https://WWW.X.COM:443/u") == "x.com"
+    assert extract_domain("not a url") == ""
+    assert extract_domain("") == ""
+
+
+def test_is_blocked_url_matches_domain_and_subdomains():
+    """Blocked domains match exactly and on subdomains, case-insensitively."""
+    blocked = {"facebook.com", "x.com"}
+
+    assert is_blocked_url("https://facebook.com/some/page", blocked) is True
+    assert is_blocked_url("https://www.facebook.com/page", blocked) is True
+    assert is_blocked_url("https://m.facebook.com/page", blocked) is True
+    assert is_blocked_url("https://X.com/user/status", blocked) is True
+    assert is_blocked_url("https://example.com/page", blocked) is False
+    # Similar suffixes must not match.
+    assert is_blocked_url("https://notfacebook.com/page", blocked) is False
+    assert is_blocked_url("https://facebook.com.evil.com/page", blocked) is False
+    assert is_blocked_url("not a url", blocked) is False
+    assert is_blocked_url("https://facebook.com/page", set()) is False
+    # Blocklist entries are normalized too.
+    assert is_blocked_url("https://facebook.com/page", {"  WWW.Facebook.COM. "}) is True
+
+
+def test_parse_domain_list():
+    """Blocklist settings parse from comma strings, iterables, or falsy values."""
+    assert parse_domain_list("facebook.com, x.com ") == {"facebook.com", "x.com"}
+    assert parse_domain_list(["Facebook.com", "", "x.com"]) == {"facebook.com", "x.com"}
+    assert parse_domain_list("") == set()
+    assert parse_domain_list(None) == set()
+
+
+def test_filter_blocked_results_drops_and_caps(caplog):
+    """Shared filter drops blocklisted URLs, keeps order, and honors the cap."""
+    raw = [
+        {"url": "https://facebook.com/a", "title": "A"},
+        {"url": "https://example.com/kept", "title": "Kept"},
+        {"url": "https://www.tiktok.com/b", "title": "B"},
+        {"url": "https://example.com/kept2", "title": "Kept2"},
+    ]
+
+    with caplog.at_level(logging.INFO):
+        kept = filter_blocked_results(raw, {"facebook.com", "tiktok.com"}, max_results=2)
+
+    assert [r["url"] for r in kept] == ["https://example.com/kept", "https://example.com/kept2"]
+    assert "Filtered 2 blocked web search result(s)" in caplog.text
+
+
+def test_filter_blocked_results_without_cap_or_blocklist():
+    """No cap keeps every survivor; no blocklist keeps everything."""
+    raw = [{"url": "https://example.com/a"}, {"url": "https://example.com/b"}]
+
+    assert filter_blocked_results(raw, {"facebook.com"}) == raw
+    assert filter_blocked_results(raw, set()) == raw
 
 
 def test_last_model_retry_soft_fail_preserves_function_metadata():

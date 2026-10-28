@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import uuid
-from typing import List
+from typing import List, Set
 
 from django.conf import settings
 from django.core.cache import cache
@@ -21,9 +21,41 @@ from trafilatura.meta import reset_caches
 from core import instrumentation
 
 from chat.tools.exceptions import ModelCannotRetry
-from chat.tools.utils import last_model_retry_soft_fail
+from chat.tools.utils import (
+    filter_blocked_results,
+    last_model_retry_soft_fail,
+    parse_domain_list,
+)
 
 logger = logging.getLogger(__name__)
+
+# Upper bound accepted by the Brave Search API for `count`.
+BRAVE_MAX_COUNT = 20
+
+
+def _get_blocked_domains() -> Set[str]:
+    """Parse BRAVE_BLOCKED_DOMAINS (comma-separated string or iterable) into a set."""
+    return parse_domain_list(getattr(settings, "BRAVE_BLOCKED_DOMAINS", ""))
+
+
+def _requested_result_count() -> int:
+    """Number of results to request from Brave to compensate blocklist filtering."""
+    try:
+        max_results = int(settings.BRAVE_MAX_RESULTS)
+    except TypeError, ValueError:
+        max_results = 8
+    try:
+        overfetch = int(getattr(settings, "BRAVE_SEARCH_OVERFETCH", 0) or 0)
+    except TypeError, ValueError:
+        overfetch = 0
+    return max(1, min(max(max_results, 0) + max(overfetch, 0), BRAVE_MAX_COUNT))
+
+
+def _filter_blocked_results(raw_search_results: List[dict]) -> List[dict]:
+    """Drop blocklisted results early, preserving order and capping to BRAVE_MAX_RESULTS."""
+    return filter_blocked_results(
+        raw_search_results, _get_blocked_domains(), settings.BRAVE_MAX_RESULTS
+    )
 
 
 class WebSearchError(Exception):
@@ -239,6 +271,7 @@ async def _query_brave_api_with_endpoint_async(url: str, operation: str, data: d
 async def _query_brave_llm_context_api_async(query: str) -> List[dict]:
     """Query Brave LLM context endpoint and return normalized results."""
     logger.debug("Using LLM context endpoint")
+    requested_count = _requested_result_count()
     return await _query_brave_api_with_endpoint_async(
         "https://api.search.brave.com/res/v1/llm/context",
         "llm_context",
@@ -246,12 +279,12 @@ async def _query_brave_llm_context_api_async(query: str) -> List[dict]:
             "q": query,
             "country": settings.BRAVE_SEARCH_COUNTRY,
             "search_lang": settings.BRAVE_SEARCH_LANG,
-            "count": settings.BRAVE_MAX_RESULTS,
+            "count": requested_count,
             "safesearch": settings.BRAVE_SEARCH_SAFE_SEARCH,
             "spellcheck": settings.BRAVE_SEARCH_SPELLCHECK,
             "result_filter": "web,faq,query",
             "extra_snippets": settings.BRAVE_SEARCH_EXTRA_SNIPPETS,
-            "maximum_number_of_urls": settings.BRAVE_MAX_RESULTS,
+            "maximum_number_of_urls": requested_count,
             "maximum_number_of_tokens": settings.BRAVE_MAX_TOKENS,
             "maximum_number_of_snippets": settings.BRAVE_MAX_SNIPPETS,
             "maximum_number_of_snippets_per_url": settings.BRAVE_MAX_SNIPPETS_PER_URL,
@@ -269,7 +302,7 @@ async def _query_brave_web_search_api_async(query: str) -> List[dict]:
             "q": query,
             "country": settings.BRAVE_SEARCH_COUNTRY,
             "search_lang": settings.BRAVE_SEARCH_LANG,
-            "count": settings.BRAVE_MAX_RESULTS,
+            "count": _requested_result_count(),
             "safesearch": settings.BRAVE_SEARCH_SAFE_SEARCH,
             "spellcheck": settings.BRAVE_SEARCH_SPELLCHECK,
             "result_filter": "web,faq,query",
@@ -320,7 +353,7 @@ async def web_search_brave(_ctx: RunContext, query: str) -> ToolReturn:
     """
     logger.debug("Starting classic web search without RAG backend")
     try:
-        raw_search_results = await _query_brave_web_search_api_async(query)
+        raw_search_results = _filter_blocked_results(await _query_brave_web_search_api_async(query))
 
         await sync_to_async(reset_caches)()  # Clear trafilatura caches to avoid memory bloat/leaks
 
@@ -375,7 +408,9 @@ async def web_search_brave_llm_context(_ctx: RunContext, query: str) -> ToolRetu
     """
     logger.debug("Starting web search with LLM context endpoint")
     try:
-        raw_search_results = await _query_brave_llm_context_api_async(query)
+        raw_search_results = _filter_blocked_results(
+            await _query_brave_llm_context_api_async(query)
+        )
         formatted_result = format_tool_return(raw_search_results)
         if not formatted_result.return_value:
             raise ModelRetry("No valid search results were extracted from Brave LLM context.")
@@ -404,7 +439,7 @@ async def web_search_brave_with_document_backend(ctx: RunContext, query: str) ->
     """
     logger.debug("Starting web search with RAG backend")
     try:
-        raw_search_results = await _query_brave_web_search_api_async(query)
+        raw_search_results = _filter_blocked_results(await _query_brave_web_search_api_async(query))
 
         # Clear trafilatura caches in thread pool to avoid blocking
         loop = asyncio.get_event_loop()
