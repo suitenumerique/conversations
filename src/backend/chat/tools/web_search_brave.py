@@ -23,6 +23,7 @@ from core import instrumentation
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.utils import (
     filter_blocked_results,
+    is_blocked_url,
     last_model_retry_soft_fail,
     parse_domain_list,
 )
@@ -100,13 +101,32 @@ The result should be up to 30 lines long.
     return result.output
 
 
-async def _fetch_url_async(url: str, timeout: int = 30) -> str:
+def _raise_for_blocked_redirect(response: httpx.Response, blocked_domains: Set[str] | None) -> None:
+    """Reject a fetch whose redirect chain touches a blocklisted domain.
+
+    Pure inspection of the already-received response (final URL plus redirect
+    hops): no extra I/O, so it adds no latency and is safe on every concurrent
+    fetch.
+    """
+    if not blocked_domains:
+        return
+    for hop in (*response.history, response):
+        if is_blocked_url(str(hop.url), blocked_domains):
+            raise DocumentFetchError(f"Blocked redirect destination: {hop.url}")
+
+
+async def _fetch_url_async(
+    url: str, timeout: int = 30, blocked_domains: Set[str] | None = None
+) -> str:
     """Fetch URL content asynchronously."""
+    if blocked_domains is None:
+        blocked_domains = _get_blocked_domains()
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
         with instrumentation.outgoing_request("web_page", "fetch") as observed:
             response = await client.get(url)
             observed.status = response.status_code
             response.raise_for_status()
+        _raise_for_blocked_redirect(response, blocked_domains)
         return response.text
 
 
@@ -120,7 +140,9 @@ async def _fetch_and_extract_async(url: str) -> str:
 
     try:
         # Fetch HTML
-        html = await _fetch_url_async(url, timeout=settings.BRAVE_API_TIMEOUT)
+        html = await _fetch_url_async(
+            url, timeout=settings.BRAVE_API_TIMEOUT, blocked_domains=_get_blocked_domains()
+        )
 
         # Extract text in thread pool (trafilatura is CPU-bound)
         document = await sync_to_async(extract)(html, include_comments=False, no_fallback=True)
@@ -129,6 +151,9 @@ async def _fetch_and_extract_async(url: str) -> str:
         await cache.aset(cache_key, document, settings.BRAVE_CACHE_TTL)
         return document
 
+    except DocumentFetchError:
+        # Blocked redirect destination: propagate as-is, never cache it.
+        raise
     except httpx.HTTPError as e:
         logger.warning("HTTP error fetching %s: %s", url, e, exc_info=True)
         raise DocumentFetchError(f"Failed to fetch {url}: {e}") from e

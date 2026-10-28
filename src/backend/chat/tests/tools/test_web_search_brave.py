@@ -1222,3 +1222,55 @@ async def test_web_search_brave_requests_overfetch_count(settings, mocked_contex
     brave_request = respx.calls[0].request
     qs = parse_qs(brave_request.url.query.decode("utf-8"))
     assert qs["count"] == ["7"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_and_extract_drops_redirect_to_blocked_domain(settings):
+    """A page reached through a redirect to a blocklisted domain is discarded."""
+    settings.BRAVE_BLOCKED_DOMAINS = "facebook.com"
+
+    respx.get("https://example.com/redirect").mock(
+        return_value=httpx.Response(
+            status_code=301, headers={"location": "https://facebook.com/some-post"}
+        )
+    )
+    respx.get("https://facebook.com/some-post").mock(
+        return_value=httpx.Response(status_code=200, text="<html><body>noise</body></html>")
+    )
+
+    with patch("chat.tools.web_search_brave.extract") as mock_extract:
+        with patch("chat.tools.web_search_brave.cache") as mock_cache:
+            mock_cache.aget = AsyncMock(return_value=None)
+            mock_cache.aset = AsyncMock()
+
+            with pytest.raises(DocumentFetchError):
+                await _fetch_and_extract_async("https://example.com/redirect")
+
+            # The blocked page body must never be extracted nor cached.
+            mock_extract.assert_not_called()
+            mock_cache.aset.assert_not_called()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_and_extract_follows_redirect_to_allowed_domain(settings):
+    """A redirect to an allowed domain still extracts normally."""
+    settings.BRAVE_BLOCKED_DOMAINS = "facebook.com"
+
+    respx.get("https://example.com/redirect").mock(
+        return_value=httpx.Response(
+            status_code=301, headers={"location": "https://example.com/landing"}
+        )
+    )
+    respx.get("https://example.com/landing").mock(
+        return_value=httpx.Response(status_code=200, text="<html><body>Content</body></html>")
+    )
+
+    with patch("chat.tools.web_search_brave.extract") as mock_extract:
+        with patch("chat.tools.web_search_brave.cache") as mock_cache:
+            mock_cache.aget = AsyncMock(return_value=None)
+            mock_cache.aset = AsyncMock()
+            mock_extract.return_value = "Content"
+
+            assert await _fetch_and_extract_async("https://example.com/redirect") == "Content"
