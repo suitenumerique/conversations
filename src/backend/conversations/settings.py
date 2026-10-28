@@ -1228,6 +1228,17 @@ class Development(Base):
             ),
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                # Fail fast when Redis accepts connections but stops answering
+                "SOCKET_CONNECT_TIMEOUT": values.FloatValue(
+                    0.5,  # timeout in seconds
+                    environ_name="CACHES_SOCKET_CONNECT_TIMEOUT",
+                    environ_prefix=None,
+                ),
+                "SOCKET_TIMEOUT": values.FloatValue(
+                    1,  # timeout in seconds
+                    environ_name="CACHES_SOCKET_TIMEOUT",
+                    environ_prefix=None,
+                ),
             },
         },
     }
@@ -1511,6 +1522,17 @@ class Production(Base):
             ),
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                # Fail fast when Redis accepts connections but stops answering
+                "SOCKET_CONNECT_TIMEOUT": values.FloatValue(
+                    0.5,  # timeout in seconds
+                    environ_name="CACHES_SOCKET_CONNECT_TIMEOUT",
+                    environ_prefix=None,
+                ),
+                "SOCKET_TIMEOUT": values.FloatValue(
+                    1,  # timeout in seconds
+                    environ_name="CACHES_SOCKET_TIMEOUT",
+                    environ_prefix=None,
+                ),
             },
             "KEY_PREFIX": values.Value(
                 "conversations",

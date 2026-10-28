@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- 🐛(back) add socket timeouts to the Redis cache and Celery clients
+
 ### Changed
 
 - 🔒️(front) upgrade undici and zod to fix CVE-2026-109869 and CVE-2023-54404

@@ -58,9 +58,24 @@ class CelerySettings:
         environ_name="CELERY_RESULT_EXPIRES",
         environ_prefix=None,
     )
+    # Bound each Redis command when Redis accepts connections but stops answering.
+    # Waits on a pending result poll every second and keep their own timeout.
+    # Celery reads these for the result backend; CELERY_BROKER_TRANSPORT_OPTIONS
+    # reuses them for the broker.
+    CELERY_REDIS_SOCKET_TIMEOUT = values.FloatValue(
+        5,  # timeout in seconds
+        environ_name="CELERY_REDIS_SOCKET_TIMEOUT",
+        environ_prefix=None,
+    )
+    CELERY_REDIS_SOCKET_CONNECT_TIMEOUT = values.FloatValue(
+        5,  # timeout in seconds
+        environ_name="CELERY_REDIS_SOCKET_CONNECT_TIMEOUT",
+        environ_prefix=None,
+    )
     # Broker-specific tuning passed through to the Redis transport (e.g. visibility_timeout).
     # Empty means defaults; raise visibility_timeout if any task can run longer than 1h.
-    CELERY_BROKER_TRANSPORT_OPTIONS = values.DictValue(
+    # Not CELERY_-prefixed so Celery only reads the merged CELERY_BROKER_TRANSPORT_OPTIONS.
+    BROKER_TRANSPORT_OPTIONS = values.DictValue(
         {},
         environ_name="CELERY_BROKER_TRANSPORT_OPTIONS",
         environ_prefix=None,
@@ -110,6 +125,15 @@ class CelerySettings:
     DEINDEX_INACTIVE_COLLECTIONS_CRON = values.Value(
         "", environ_name="DEINDEX_INACTIVE_COLLECTIONS_CRON", environ_prefix=None
     )
+
+    @property
+    def CELERY_BROKER_TRANSPORT_OPTIONS(self):  # pylint: disable=invalid-name
+        """Broker transport options with the socket timeouts, env values win."""
+        return {
+            "socket_timeout": self.CELERY_REDIS_SOCKET_TIMEOUT,
+            "socket_connect_timeout": self.CELERY_REDIS_SOCKET_CONNECT_TIMEOUT,
+            **self.BROKER_TRANSPORT_OPTIONS,
+        }
 
     @property
     def CELERY_BEAT_SCHEDULE(self):  # pylint: disable=invalid-name
