@@ -12,6 +12,10 @@ and this project adheres to
 
 - ✨(back) add opt-in output token limit per message
 
+### Fixed
+
+- 🐛(oidc) log in the active user when several users share an email
+
 ## [0.0.27] - 2026-10-28
 
 ### Changed
