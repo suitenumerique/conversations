@@ -455,6 +455,42 @@ When a user sends a message with attachments, the system processes them differen
      - Otherwise (scanned, image-only, or low-text-density PDF), the parser falls back to the configured OCR endpoint (`OCR_HRID` provider's `/v1/ocr`, default Mistral OCR), processing the document in `OCR_BATCH_PAGES`-sized batches with `OCR_MAX_RETRIES` retry attempts.
 
      The point of the heuristic is to avoid the latency/cost of OCR when `pypdf` can already pull clean text out of the PDF.
+   - `OpenAICompatibleOcrParser`: same heuristic and batching as `AdaptivePdfParser`, but the OCR fallback calls the OpenAI-compatible `{base_url}/chat/completions` endpoint of the `OCR_HRID` provider. Each batch is sent as a single PDF `file` content part (OpenAI file input format) and returns one markdown string. It works with any provider accepting PDF files in chat completions, e.g. [Scaleway Generative APIs OCR models](https://www.scaleway.com/en/docs/generative-apis/how-to/query-ocr-models/) or OpenAI vision models. Configure it with:
+     - an `LLM_CONFIGURATIONS` model entry named after `OCR_HRID`, whose provider has `base_url` (e.g. `https://api.scaleway.ai/<project_id>/v1` or `https://api.openai.com/v1`) and `api_key`;
+     - `OCR_MODEL` set to the model name, e.g. `lightonocr-3-0.8b` on Scaleway;
+     - `OCR_PROMPT`, only for general-purpose vision models (e.g. OpenAI GPT models), which need an instruction such as `Transcribe this document to markdown, without comments.` Leave it empty for dedicated OCR models, which take the file alone.
+
+     Example with Scaleway (LLM configuration file, see `LLM_CONFIGURATION_FILE_PATH`):
+
+     ```json
+     {
+       "models": [
+         {
+           "hrid": "scaleway-ocr",
+           "model_name": "lightonocr-3-0.8b",
+           "human_readable_name": "Scaleway OCR",
+           "provider_name": "scaleway",
+           "is_active": false
+         }
+       ],
+       "providers": [
+         {
+           "hrid": "scaleway",
+           "base_url": "https://api.scaleway.ai/<project_id>/v1",
+           "api_key": "environ.SCW_SECRET_KEY",
+           "kind": "openai"
+         }
+       ]
+     }
+     ```
+
+     ```bash
+     RAG_DOCUMENT_PARSER=chat.agent_rag.document_converter.parser.OpenAICompatibleOcrParser
+     OCR_HRID=scaleway-ocr
+     OCR_MODEL=lightonocr-3-0.8b
+     ```
+
+     Unlike Mistral OCR, chat completions return one markdown string per batch (not per page). OCR models often wrap their output (or each page) in ```` ```text ```` fences; these are removed when the output is made only of such blocks, real code blocks are kept. A batch that still fails after `OCR_MAX_RETRIES` is skipped with one empty placeholder per page, as with `AdaptivePdfParser`. The base URL is extended with `/chat/completions` (not resolved with `urljoin`) so a path such as the Scaleway project ID is kept. Setting `is_active: false` on the OCR model entry keeps it out of the chat model selector while `OCR_HRID` can still resolve it.
 
 2. **Conversion artifacts**: For non-text inputs (PDF, DOCX, etc.) a hidden markdown companion attachment is created (`content_type=text/markdown`, `conversion_from=<original.key>`). Conversation attachments create the companion lazily on the first chat turn that needs RAG; project attachments create it at upload time (see [Project Attachments](#project-attachments)). Conversation companions reuse the original's S3 key (the companion overwrites the original blob); project companions are stored at a distinct `<original.key>.md` blob so the original binary remains available for direct retrieval.
 
@@ -602,7 +638,16 @@ A `READY` attachment whose `rag_document_id` is null (e.g. parse succeeded but t
 | `MALWARE_DETECTION_BACKEND`                  | `DummyBackend` | Malware scanning backend class                             |
 | `MALWARE_DETECTION_PARAMETERS`               | `{}`           | Backend-specific configuration                             |
 | `RAG_FILES_ACCEPTED_FORMATS`                 | See below      | List of MIME types accepted for file uploads               |
-| `RAG_DOCUMENT_PARSER`                        | `AlbertParser` | Import path of the parser that converts uploads to Markdown (PDF -> Albert API, ODT -> odfdo, others -> MarkItDown) |
+| `RAG_DOCUMENT_PARSER`                        | `AlbertParser` | Import path of the parser that converts uploads to Markdown (PDF -> Albert API, ODT -> odfdo, others -> MarkItDown). Also `AdaptivePdfParser` (Mistral OCR) and `OpenAICompatibleOcrParser` (OpenAI-compatible chat completions OCR, e.g. Scaleway) |
+| `OCR_HRID`                                   | `etalab-plateform-mistral-medium-2508` | LLM configuration model HRID whose provider (`base_url`, `api_key`) serves OCR for `AdaptivePdfParser` / `OpenAICompatibleOcrParser` |
+| `OCR_MODEL`                                  | `mistral-ocr-2512` | OCR model name sent to the provider (e.g. `lightonocr-3-0.8b` for `OpenAICompatibleOcrParser`) |
+| `OCR_PROMPT`                                 | None           | Instruction sent with the PDF by `OpenAICompatibleOcrParser`; only needed for general-purpose vision models |
+| `OCR_TIMEOUT`                                | `240`          | Timeout (seconds) of one OCR request                       |
+| `OCR_MAX_RETRIES`                            | `3`            | Attempts per OCR batch before it is skipped                |
+| `OCR_RETRY_DELAY`                            | `5`            | Delay (seconds) between OCR attempts                       |
+| `OCR_BATCH_PAGES`                            | `10`           | Number of PDF pages sent per OCR request                   |
+| `MIN_AVG_CHARS_FOR_TEXT_EXTRACTION`          | `200`          | Minimum average characters per page to extract PDF text locally instead of OCR |
+| `MIN_TEXT_COVERAGE_FOR_TEXT_EXTRACTION`      | `0.7`          | Minimum share of pages with text to extract PDF text locally instead of OCR |
 | `RAG_DOCUMENT_SEARCH_BACKEND`                | `AlbertRagBackend` | Import path of the vector-search backend used for indexing and search |
 | `PROJECT_FILES_MAX_COUNT`                    | `10`           | Max non-image attachments per project (excludes hidden markdown companions). Enforced at upload-time in `ChatProjectAttachmentViewSet`. Bounds per-turn system-prompt token cost (every entry contributes to `project_documents` on every conversation turn). |
 | `PROJECT_IMAGES_MAX_COUNT`                   | `3`            | Max image attachments per project. Enforced at upload-time. Bounds per-turn vision token cost - every project image is pinned to every turn alongside conversation-message images, and provider request-level image caps (Anthropic ~20/request) clip the trailing entries first. |

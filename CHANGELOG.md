@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(back) add opt-in output token limit per message
+- ✨(back) add an OpenAI-compatible OCR parser for PDF documents
 
 ## [0.0.27] - 2026-10-28
 
