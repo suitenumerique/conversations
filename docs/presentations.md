@@ -29,7 +29,8 @@ tool is registered (and visible to the model) only for requests where it is enab
 ## How it works
 
 ```text
-user brief
+brief + slide_count + source documents
+  → fit to the token budget       verbatim, long ones summarized, truncated, or left out
   → PresentationAgent (LLM)      produces a validated Presentation spec
   → renderer                      Markdown in each field → pptx runs, lists, tables
   → builder                       assembles the deck from the bundled template
@@ -37,10 +38,20 @@ user brief
   → presigned URL                 a time-limited link is returned to the user
 ```
 
+- **Source documents** are the conversation's READY text attachments, or the ones the
+  model picks with `document_ids` (which may also target project-library files; `[]`
+  means none). They are given verbatim when they all fit the document budget
+  (`DOCUMENT_CONTEXT_BUDGET_RATIO` of the default model's context). Otherwise, the
+  documents over their share of the budget go through the summarization pipeline of
+  the `summarize` tool, asked to keep the details a deck needs. The summary is cached
+  on the content for 30 minutes, so a retry or another version of the deck does not
+  summarize again, and it is truncated should it still exceed the budget.
 - **`PresentationAgent`** (`chat/agents/presentation.py`) is a dedicated Pydantic AI
   agent whose structured output is a `Presentation`: a deck title and an ordered list
   of typed slides. Its system prompt lists the available slide types straight from the
-  template bindings.
+  template bindings. When the user asks for a number of slides (`slide_count`, 1 to
+  50, cover and section slides included), a deck of another length is sent back to the
+  model, twice at most.
 - **The spec** (`chat/file_generation/entities.py`) constrains the model: each slide
   has a `type` (`cover`, `section`, `title_one_column`, `title_two_columns`,
   `title_three_columns`) and only the fields that type declares are used.
@@ -53,6 +64,13 @@ user brief
   carries the visual identity (colour scheme, Marianne typeface, layouts). `generic.py`
   only declares which placeholder of which layout receives which field; a test
   (`check_template`) keeps those bindings consistent with the file.
+
+## Limitations
+
+Every deck uses the bundled template. An attached pptx template or slide master,
+requested colours, fonts, font sizes and logos, images, charts and diagrams are not
+supported yet. The tool description and every tool result say so, so the model tells
+the user rather than claiming they were applied.
 
 ## Access model
 
