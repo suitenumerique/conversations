@@ -43,6 +43,10 @@ MAX_NAME_LENGTH = 60
 # is tuned for URLs the LLM reads at once: this one is for a user to click.
 DOWNLOAD_URL_EXPIRATION = 15 * 60  # 15 minutes
 
+# Beyond this, a deck no longer fits the agent's output and keeps failing the
+# slide count check.
+MAX_SLIDE_COUNT = 50
+
 # What the deck cannot do yet. Spelled out in the tool result so the model does
 # not claim to the user that a template or a style instruction was honoured.
 UNSUPPORTED_REQUESTS = (
@@ -222,7 +226,7 @@ async def generate_presentation(
             subject, the audience, the plan or structure, the key points and the
             level of detail the user asked for.
         slide_count: The total number of slides the user asked for, if they
-            gave one. Leave empty otherwise.
+            gave one, at most 50. Leave empty otherwise.
         document_ids: UUIDs of the documents to build the deck from, taken from
             the `documents` or `project_documents` context arrays. Omit it
             (null) to use every document attached to the conversation. Pass an
@@ -235,8 +239,11 @@ async def generate_presentation(
     """
     if not brief.strip():
         raise ModelRetry("The brief is empty. Describe what the presentation must cover.")
-    if slide_count is not None and slide_count < 1:
-        raise ModelRetry("slide_count must be a positive number, or left empty.")
+    if slide_count is not None and not 1 <= slide_count <= MAX_SLIDE_COUNT:
+        raise ModelRetry(
+            f"slide_count must be between 1 and {MAX_SLIDE_COUNT}, or left empty. "
+            "If the user asked for more slides, tell them about this limit."
+        )
 
     attachments = await get_source_attachments(ctx.deps.conversation, document_ids)
     try:

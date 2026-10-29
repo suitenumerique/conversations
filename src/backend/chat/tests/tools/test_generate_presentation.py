@@ -46,6 +46,7 @@ from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.generate_presentation import (
     DOWNLOAD_URL_EXPIRATION,
     GENERATED_FOLDER,
+    MAX_SLIDE_COUNT,
     build_object_name,
     generate_presentation,
 )
@@ -611,12 +612,13 @@ async def test_the_requested_slide_count_is_enforced():
 
 
 @pytest.mark.asyncio
-async def test_a_non_positive_slide_count_is_offered_for_retry():
-    """A slide count below one is a model mistake it can correct."""
+@pytest.mark.parametrize("slide_count", [0, MAX_SLIDE_COUNT + 1])
+async def test_an_out_of_range_slide_count_is_offered_for_retry(slide_count):
+    """A slide count below one or above the cap is a model mistake it can correct."""
     ctx, _conversation, _user = await setup_context()
 
-    with pytest.raises(ModelRetry, match="slide_count"):
-        await run_tool(ctx, slide_count=0)
+    with pytest.raises(ModelRetry, match="slide_count must be between"):
+        await run_tool(ctx, slide_count=slide_count)
 
 
 def test_generated_key_cannot_be_served_through_the_media_proxy(settings):
