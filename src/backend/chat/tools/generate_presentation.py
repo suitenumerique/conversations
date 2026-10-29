@@ -1,6 +1,8 @@
 """Slide deck generation tool for the chat agent."""
 
+import html
 import logging
+import re
 import secrets
 
 from django.conf import settings
@@ -64,6 +66,9 @@ SOURCE_CONDENSE_INSTRUCTIONS = (
 )
 
 SUMMARY_WRAPPER = "<documents_summary>\n{summary}\n</documents_summary>"
+
+# Matches `</document>` and `</documents_summary>`, the tags wrapping the sources.
+CLOSING_TAG_PATTERN = re.compile(r"</(document)", re.IGNORECASE)
 
 
 def build_object_name(title: str) -> str:
@@ -145,6 +150,11 @@ def _source_budget() -> int:
     )
 
 
+def _escape_closing_tags(text: str) -> str:
+    """Stop source text from closing the tags that wrap it in the agent's prompt."""
+    return CLOSING_TAG_PATTERN.sub(r"&lt;/\1", text)
+
+
 async def build_sources(ctx: RunContext, attachments: list) -> tuple[str, list[str]]:
     """
     Return the source material for the deck, and the names of the documents used.
@@ -169,7 +179,8 @@ async def build_sources(ctx: RunContext, attachments: list) -> tuple[str, list[s
 
     names = [name for name, _content in documents]
     verbatim = "\n\n".join(
-        f'<document name="{name}">\n{content}\n</document>' for name, content in documents
+        f'<document name="{html.escape(name)}">\n{_escape_closing_tags(content)}\n</document>'
+        for name, content in documents
     )
     budget = _source_budget()
     if count_approx_tokens(verbatim) <= budget:
@@ -191,7 +202,7 @@ async def build_sources(ctx: RunContext, attachments: list) -> tuple[str, list[s
         ctx=ctx,
         empty_set_message="No source document could be read.",
     )
-    summary = condensed.return_value
+    summary = _escape_closing_tags(condensed.return_value)
     if count_approx_tokens(summary) > summary_budget:
         logger.warning("Condensed sources still exceed the presentation budget, truncating them")
         summary = truncate_to_tokens(summary, summary_budget)
