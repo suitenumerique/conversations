@@ -116,14 +116,14 @@ universal = true
 
 [tool.uv]
 exclude-newer = "7 days"
-# Security fixes newer than the cooldown; drop once older than 7 days
-exclude-newer-package = { brotli = "2026-10-23", certifi = "2026-10-21", pillow = "2026-10-17", pypdf = "2026-10-22" }
 required-environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
     "sys_platform == 'darwin'",
 ]
 override-dependencies = [
+    "authlib>=1.9.1", # CVE-2026-96760, CVE-2026-114615, CVE-2026-114616
     "cryptography>=50.0.0", # GHSA-g6cj-pr64-35w5
+    "dnspython>=2.9.0", # CVE-2026-114605
     "joserfc>=1.6.8", # CVE-2026-49852
     "certifi>=2026.10.19", # GHSA-6q48-6c7w-9gw2
     "pillow>=13.0.0", # CVE-2026-40192, CVE-2026-112397, CVE-2026-112400, CVE-2026-112403, CVE-2026-112404, CVE-2026-112895, CVE-2026-112896, CVE-2026-112897
