@@ -1,11 +1,13 @@
 """Slide deck generation tool for the chat agent."""
 
+import hashlib
 import html
 import logging
 import re
 import secrets
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.utils.text import slugify
@@ -64,6 +66,8 @@ SOURCE_CONDENSE_INSTRUCTIONS = (
     "document (parts and sub-parts), and every key fact, figure, date, name, "
     "recommendation and conclusion. Prefer a long, detailed summary over a short one."
 )
+
+SOURCE_SUMMARY_CACHE_TIMEOUT = 30 * 60  # 30 minutes
 
 SUMMARY_WRAPPER = "<documents_summary>\n{summary}\n</documents_summary>"
 
@@ -155,6 +159,27 @@ def _escape_closing_tags(text: str) -> str:
     return CLOSING_TAG_PATTERN.sub(r"&lt;/\1", text)
 
 
+async def condense_sources(ctx: RunContext, documents: list[tuple[str, str]]) -> str:
+    """
+    Summarize `(name, content)` documents for a deck, reusing a cached summary.
+
+    Summarizing costs several model calls, and the same sources come back when
+    the tool is retried or the user asks for another version of the deck.
+    """
+    fingerprint = hashlib.sha256(SOURCE_CONDENSE_INSTRUCTIONS.encode("utf-8"))
+    for name, content in documents:
+        fingerprint.update(f"\0{name}\0{content}".encode("utf-8"))
+    cache_key = f"presentation_sources:{fingerprint.hexdigest()}"
+
+    summary = await sync_to_async(cache.get)(cache_key)
+    if summary is None:
+        summary = await _summarize_documents(
+            documents, instructions=SOURCE_CONDENSE_INSTRUCTIONS, ctx=ctx
+        )
+        await sync_to_async(cache.set)(cache_key, summary, SOURCE_SUMMARY_CACHE_TIMEOUT)
+    return summary
+
+
 async def build_sources(ctx: RunContext, attachments: list) -> tuple[str, list[str]]:
     """
     Return the source material for the deck, and the names of the documents used.
@@ -209,9 +234,7 @@ async def build_sources(ctx: RunContext, attachments: list) -> tuple[str, list[s
         return "\n\n".join(kept), kept_names
 
     logger.info("Source documents exceed the presentation budget, condensing the long ones")
-    summary = _escape_closing_tags(
-        await _summarize_documents(too_long, instructions=SOURCE_CONDENSE_INSTRUCTIONS, ctx=ctx)
-    )
+    summary = _escape_closing_tags(await condense_sources(ctx, too_long))
     if count_approx_tokens(summary) > summary_budget:
         logger.warning("Condensed sources still exceed the presentation budget, truncating them")
         summary = truncate_to_tokens(summary, summary_budget)

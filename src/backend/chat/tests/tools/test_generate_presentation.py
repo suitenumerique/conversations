@@ -54,7 +54,7 @@ from chat.tools.generate_presentation import (
 # transaction=True is required so writes done via sync_to_async (which run on
 # threadpool connections distinct from the test's wrapping transaction) commit
 # and are flushed via TRUNCATE between tests instead of leaking across them.
-pytestmark = pytest.mark.django_db(transaction=True)
+pytestmark = [pytest.mark.django_db(transaction=True), pytest.mark.usefixtures("clear_cache")]
 
 
 @pytest.fixture(autouse=True)
@@ -544,7 +544,8 @@ async def test_documents_over_budget_are_condensed_first():
     """
     When the documents do not all fit, those over their share of the budget go
     through the summarization pipeline, asked to keep the details a deck needs,
-    while the short ones stay verbatim. Contents already read are handed over.
+    while the short ones stay verbatim. Contents already read are handed over,
+    and the summary is cached for a retry or another version of the deck.
     """
     ctx, conversation, _user = await setup_context()
     long_report = "Un très long rapport " * 20
@@ -558,7 +559,10 @@ async def test_documents_over_budget_are_condensed_first():
 
     with mock_source_budget(50), mock_summarization("Synthèse détaillée") as summarize:
         result = await run_tool(ctx, respond=respond)
+        await run_tool(ctx, respond=respond, slide_count=2)
 
+    summarize.assert_called_once()
+    assert "Synthèse détaillée" in received[1]
     assert summarize.call_args.args[0] == [("rapport.md", long_report)]
     assert "slide deck" in summarize.call_args.kwargs["instructions"]
     assert '<document name="annexe.md">\nTrois axes.\n</document>' in received[0]
