@@ -1,14 +1,19 @@
 """Tests for chat admin classes."""
 
+from uuid import uuid4
+
 from django.contrib.admin.sites import AdminSite
 from django.core.cache import cache
+from django.test import RequestFactory
 
 import pytest
 
-from chat.admin import ChatConversationAdmin, ModelHealthAdmin
+from core.factories import UserFactory
+
+from chat.admin import ChatConversationAdmin, ChatStreamChunkInline, ModelHealthAdmin
 from chat.factories import ChatConversationFactory
 from chat.model_health import model_health_cache_key
-from chat.models import ChatConversation, ModelHealth
+from chat.models import ChatConversation, ChatStreamChunk, ModelHealth
 
 # Big enough for the stored size to stand out from a short conversation's.
 HEAVY_HISTORY = [{"role": "user", "content": f"message number {i} " * 40} for i in range(5000)]
@@ -43,3 +48,36 @@ def test_conversation_admin_changelist_ranks_by_stored_size():
         heavy.pk,
         light.pk,
     ]
+
+
+@pytest.mark.django_db
+def test_conversation_admin_lists_the_chunks_of_a_pending_turn():
+    """The inline names each kind of row without loading what the row carries."""
+    conversation = ChatConversationFactory()
+    run_id = uuid4()
+    for seq, fields in enumerate(
+        [
+            {"parts": [{"kind": "request"}, {"kind": "response"}]},
+            {"text": "a" * 120},
+            {},
+        ]
+    ):
+        ChatStreamChunk.objects.create(conversation=conversation, run_id=run_id, seq=seq, **fields)
+
+    # The inline checks the viewer's permissions, so unlike the changelist above
+    # it needs a request to answer with.
+    request = RequestFactory().get("/")
+    request.user = UserFactory(is_staff=True, is_superuser=True)
+
+    inline = ChatStreamChunkInline(ChatConversation, AdminSite())
+    # Scoped to this conversation: the inline queryset spans the whole table, since
+    # the change page is what narrows it to the object being displayed.
+    chunks = list(inline.get_queryset(request).filter(conversation=conversation))
+
+    assert [inline.content(chunk) for chunk in chunks] == [
+        "snapshot of 2 message(s)",
+        "120 characters of text",
+        "keepalive beat",
+    ]
+    # The point of the annotations: the sizes come back without the payloads.
+    assert chunks[0].get_deferred_fields() == {"parts", "text"}

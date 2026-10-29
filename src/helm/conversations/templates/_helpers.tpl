@@ -183,3 +183,80 @@ data:
   .dockerconfigjson: {{ template "conversations.secret.dockerconfigjson.data" .imageCredentials }}
 {{- end -}}
 {{- end }}
+
+{{/*
+Environment enabling the prometheus metrics on the backend container, and on it
+only: the celery worker and beat serve no request, so their metrics would never
+be read. A pod is only ever scraped over plain http (TLS ends at the ingress, and
+a Prometheus of the cluster calls the pods themselves), so the path is also taken
+out of the redirect to https. Each variable is skipped when backend.envVars sets
+it: an explicit value wins. The bearer token (PROMETHEUS_API_KEY) is not set
+here: it is a secret, given through backend.envVars.
+
+Requires top level scope
+*/}}
+{{- define "conversations.backend.metrics.env" -}}
+{{- if .Values.backend.metrics.enabled -}}
+{{- $named := .Values.backend.envVars | default dict -}}
+{{- range $variable := list "PROMETHEUS_METRICS_ENABLED" "PROMETHEUS_METRICS_SSL_REDIRECT_EXEMPT" -}}
+{{- if not (hasKey $named $variable) }}
+- name: {{ $variable | quote }}
+  value: "True"
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+The Secret a monitor reads the bearer token of a scrape from: the one named in
+backend.metrics.apiKeySecret, or else the one PROMETHEUS_API_KEY is taken from in
+backend.envVars. A token that comes from nowhere the Prometheus Operator can read
+is refused at render time, rather than left to fail at scrape time with a 401.
+
+Requires top level scope
+*/}}
+{{- define "conversations.metrics.apiKeySecret" -}}
+{{- $ref := .Values.backend.metrics.apiKeySecret | default dict -}}
+{{- if not $ref.name -}}
+{{- $fromEnv := index (.Values.backend.envVars | default dict) "PROMETHEUS_API_KEY" -}}
+{{- $ref = (kindIs "map" $fromEnv) | ternary $fromEnv dict -}}
+{{- $ref = $ref.secretKeyRef | default dict -}}
+{{- end -}}
+{{- if not (and $ref.name $ref.key) -}}
+{{- fail "a monitor scrapes with the bearer token of PROMETHEUS_API_KEY, which has to come from a Secret. Give it as a secretKeyRef in backend.envVars, or name the Secret in backend.metrics.apiKeySecret" -}}
+{{- end -}}
+name: {{ $ref.name | quote }}
+key: {{ $ref.key | quote }}
+{{- end }}
+
+{{/*
+The endpoint of a ServiceMonitor or a PodMonitor scraping the backend: its http
+port, the /metrics path, the scrape settings of the monitor and the bearer token.
+
+Requires a dict with "root" (top level scope) and "monitor" (the serviceMonitor
+or podMonitor values)
+*/}}
+{{- define "conversations.metrics.endpoint" -}}
+- port: http
+  path: /metrics
+  scheme: http
+  {{- with .monitor.interval }}
+  interval: {{ . }}
+  {{- end }}
+  {{- with .monitor.scrapeTimeout }}
+  scrapeTimeout: {{ . }}
+  {{- end }}
+  honorLabels: {{ .monitor.honorLabels }}
+  authorization:
+    type: Bearer
+    credentials:
+      {{- include "conversations.metrics.apiKeySecret" .root | nindent 6 }}
+  {{- with .monitor.relabelings }}
+  relabelings:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .monitor.metricRelabelings }}
+  metricRelabelings:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

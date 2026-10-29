@@ -26,8 +26,10 @@ import { MoreActionsButton } from '@/features/chat/components/MoreActionsButton'
 import { SummarizationError } from '@/features/chat/components/SummarizationError';
 import { SummarizationProgress } from '@/features/chat/components/SummarizationProgress';
 import { ToolInvocationItem } from '@/features/chat/components/ToolInvocationItem';
+import { TruncatedResponseMessage } from '@/features/chat/components/TruncatedResponseMessage';
 import { getMessageCo2Impact } from '@/features/chat/utils/getMessageCo2Impact';
 import { getMessageText } from '@/features/chat/utils/getMessageText';
+import { isMessageInterrupted } from '@/features/chat/utils/isMessageInterrupted';
 
 import { ChatErrorType } from './ChatError';
 
@@ -42,6 +44,11 @@ const chatActionIconProps = {
   } as const,
   'aria-hidden': true,
 };
+
+type TruncationMetadata = { truncated?: boolean };
+
+const isMessageTruncated = (message: UIMessage): boolean =>
+  (message.metadata as TruncationMetadata | undefined)?.truncated === true;
 
 // Memoized blocks list to prevent parent re-renders from causing block remounts
 const BlocksList = React.memo(
@@ -202,6 +209,8 @@ export interface MessageItemProps {
   streamingMessageHeight: number | null;
   status: 'submitted' | 'streaming' | 'ready' | 'error';
   chatErrorType?: ChatErrorType;
+  /** True while the backend reports a turn still running for this conversation. */
+  isConversationStreaming?: boolean;
   onRetry?: () => void;
   conversationId: string | undefined;
   isSourceOpen: string | null;
@@ -218,6 +227,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   streamingMessageHeight,
   status,
   chatErrorType,
+  isConversationStreaming = false,
   onRetry,
   conversationId,
   isSourceOpen,
@@ -261,6 +271,15 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     (status === 'streaming' || status === 'submitted');
 
   const co2ImpactKg = getMessageCo2Impact(message);
+
+  // A stored checkpoint of a turn that never finished: the text stops where
+  // the stream was cut, so say so rather than let it read as a full answer.
+  // Unless the turn is merely running without us, in which case the text is
+  // not final and the conversation already says so above the composer. That
+  // turn only ever writes the last message: an earlier answer stays flagged.
+  const isInterrupted =
+    isMessageInterrupted(message) &&
+    !(isConversationStreaming && isLastMessage);
 
   const sourceParts = React.useMemo(
     () =>
@@ -323,6 +342,10 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
         ),
     [toolInvocationParts],
   );
+
+  const isTruncated = React.useMemo(() => {
+    return message.role === 'assistant' && isMessageTruncated(message);
+  }, [message]);
 
   const conversationSummarizeInvocation = React.useMemo(
     () =>
@@ -567,9 +590,25 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
             )}
           </Box>
 
+          {isInterrupted && (
+            <Box $margin={{ top: 'tiny' }} data-testid="interrupted-answer">
+              <Text $theme="greyscale" $variation="600" $size="sm">
+                {t('This answer was interrupted and is incomplete.')}
+              </Text>
+            </Box>
+          )}
+
+          {isTruncated && <TruncatedResponseMessage />}
+
+          {/* A turn running without us writes the last message; until it
+              has one, the last assistant message is the previous answer. */}
           {message.role === 'assistant' &&
             hasAssistantOutput &&
-            !(isLastAssistantMessage && status === 'streaming') && (
+            !(
+              isLastAssistantMessage &&
+              (status === 'streaming' ||
+                (isConversationStreaming && isLastMessage))
+            ) && (
               <Box
                 $css="color: #222631; font-size: 12px;"
                 $direction="row"
@@ -693,6 +732,13 @@ const arePropsEqual = (
     return false;
   }
 
+  if (
+    isMessageInterrupted(prevProps.message) !==
+    isMessageInterrupted(nextProps.message)
+  ) {
+    return false;
+  }
+
   // Check parts changes (for streaming tool invocations and sources)
   const prevPartsLength = prevProps.message.parts.length;
   const nextPartsLength = nextProps.message.parts.length;
@@ -708,6 +754,14 @@ const arePropsEqual = (
   if (
     getSourcePartsCount(prevProps.message) !==
     getSourcePartsCount(nextProps.message)
+  ) {
+    return false;
+  }
+
+  // Check truncation metadata
+  if (
+    isMessageTruncated(prevProps.message) !==
+    isMessageTruncated(nextProps.message)
   ) {
     return false;
   }
@@ -747,6 +801,10 @@ const arePropsEqual = (
     return false;
   }
   if (prevProps.chatErrorType !== nextProps.chatErrorType) {
+    return false;
+  }
+
+  if (prevProps.isConversationStreaming !== nextProps.isConversationStreaming) {
     return false;
   }
   if (prevProps.onRetry !== nextProps.onRetry) {

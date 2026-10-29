@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-30 10:06+0000\n"
-"PO-Revision-Date: 2026-10-01 15:29\n"
+"POT-Creation-Date: 2026-10-21 15:35+0000\n"
+"PO-Revision-Date: 2026-10-28 08:55\n"
 "Last-Translator: \n"
 "Language-Team: French\n"
 "Language: fr_FR\n"
@@ -189,12 +189,12 @@ msgid "The Assistant IA service is currently experiencing high demand. The tool 
 msgstr "L'assistant IA connaît actuellement une forte demande. L'outil reste opérationnel, mais peut être plus lent, ou vous pouvez rencontrer des délais entre les messages."
 
 #: chat/assistant_health.py:26
-msgid "High traffic - degraded service"
-msgstr "Trafic élevé – service dégradé "
+msgid "High traffic"
+msgstr "Trafic élevé"
 
 #: chat/assistant_health.py:28
-msgid "The service is experiencing high demand, which is affecting service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
-msgstr "Le service connaît une forte demande qui impacte la qualité de service. Certaines fonctionnalités peuvent être touchées. En cas d'erreur, veuillez essayer après disparition de ce bandeau d’erreur."
+msgid "The service is experiencing high demand, which might affect service quality. Some features may be impacted. If you encounter an error, please try again once this error banner disappears."
+msgstr "Le service connaît actuellement une forte affluence, ce qui pourrait affecter la qualité du service. Certaines fonctionnalités pourraient être perturbées. Si vous rencontrez une erreur, veuillez réessayer une fois que cette bannière d'erreur aura disparu."
 
 #: chat/assistant_health.py:37
 msgid "Service unavailable"
@@ -204,7 +204,7 @@ msgstr "Service indisponible"
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
 msgstr "Le service est actuellement indisponible en raison d'une charge excessive. L'équipe travaille à rétablir l'assistant dans les plus brefs délais."
 
-#: chat/clients/pydantic_ai.py:1492
+#: chat/clients/pydantic_ai.py:1872
 msgid "Internal Documentation of the AI Assistant"
 msgstr "Documentation interne de l'Assistant IA"
 

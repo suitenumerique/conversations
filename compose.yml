@@ -16,8 +16,8 @@ services:
   redis:
     image: redis:5
 
-  maildev:
-    image: maildev/maildev:latest
+  mailcatcher:
+    image: sj26/mailcatcher:latest
     ports:
       - "127.0.0.1:1081:1080"
 
@@ -81,7 +81,7 @@ services:
         postgresql:
             condition: service_healthy
             restart: true
-        maildev:
+        mailcatcher:
           condition: service_started
         redis:
           condition: service_started
@@ -118,7 +118,7 @@ services:
         postgresql:
             condition: service_healthy
             restart: true
-        maildev:
+        mailcatcher:
           condition: service_started
         redis:
           condition: service_started

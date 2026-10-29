@@ -10,8 +10,8 @@ from pydantic_ai.capabilities import Hooks
 from pydantic_ai.models.mistral import MistralModel, _map_content
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIStreamedResponse
 
-from chat.agents.base import BaseAgent
-from chat.llm_configuration import LLModel, LLMProfile, LLMProvider
+from chat.agents.base import BaseAgent, get_max_output_tokens
+from chat.llm_configuration import LLModel, LLMProfile, LLMProvider, LLMSettings
 from chat.providers.albert_models import AlbertOpenAIChatModel, AlbertOpenAIProvider
 
 # ---------------------------------------------------------------------------
@@ -92,6 +92,58 @@ def test_custom_model_openai(settings):
 
     agent = BaseAgent(model_hrid="openai-compatible-model")
     assert isinstance(agent._model, OpenAIChatModel)
+
+
+def test_custom_model_openai_no_legacy_max_tokens(settings):
+    """OpenAI-compatible models must not mirror the limit into `extra_body.max_tokens`:
+    pydantic-ai already sends `max_completion_tokens`, and strict endpoints (OpenAI,
+    etalab Mistral) reject requests carrying both fields."""
+    settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE = 1234
+    settings.LLM_CONFIGURATIONS = {
+        "openai-compatible-model": LLModel(
+            hrid="custom-gpt-4",
+            model_name="gpt-4",
+            human_readable_name="Custom GPT-4",
+            profile=None,
+            provider=LLMProvider(
+                hrid="openai",
+                kind="openai",
+                base_url="https://test.vllm/v1",
+                api_key="testkey",
+            ),
+            is_active=True,
+            system_prompt="direct",
+            tools=[],
+        ),
+    }
+
+    agent = BaseAgent(model_hrid="openai-compatible-model")
+
+    assert "max_tokens" not in (agent._model.settings or {}).get("extra_body", {})
+
+
+def test_get_max_output_tokens_configured_max_tokens_wins(settings):
+    """A `max_tokens` declared in the LLM configuration must win over the global
+    default, so operators keep a per-model cap."""
+    settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE = 1234
+    configuration = LLModel(
+        hrid="custom-gpt-4",
+        model_name="gpt-4",
+        human_readable_name="Custom GPT-4",
+        profile=None,
+        settings=LLMSettings(max_tokens=99),
+        provider=LLMProvider(
+            hrid="openai",
+            kind="openai",
+            base_url="https://test.vllm/v1",
+            api_key="testkey",
+        ),
+        is_active=True,
+        system_prompt="direct",
+        tools=[],
+    )
+
+    assert get_max_output_tokens(configuration) == 99
 
 
 def test_custom_model_mistral(settings):

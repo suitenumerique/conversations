@@ -429,3 +429,104 @@ describe('useChat forwards the force toggles', () => {
     expect(url).toContain('force_datagouv=true');
   });
 });
+
+// Reloading mid-stream cuts the response body. Firefox and Chrome report it as
+// a network TypeError, not an abort, so the turn would flash as failed.
+describe('useChat on a page reload', () => {
+  const fetchAPIMock = vi.mocked(fetchAPI) as unknown as Mock;
+
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      {children}
+    </QueryClientProvider>
+  );
+
+  it('ends the turn quietly instead of as an error', async () => {
+    let cutByBrowser: () => void = () => {};
+    fetchAPIMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      // Stays open like a running turn; honors the abort signal like fetch.
+      const body = new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(
+              [
+                'data: {"type":"start"}\n\n',
+                'data: {"type":"text-start","id":"0"}\n\n',
+                'data: {"type":"text-delta","id":"0","delta":"Hello"}\n\n',
+              ].join(''),
+            ),
+          );
+          init?.signal?.addEventListener('abort', () =>
+            controller.error(new DOMException('aborted', 'AbortError')),
+          );
+          cutByBrowser = () =>
+            controller.error(new TypeError('Error in input stream'));
+        },
+      });
+      return Promise.resolve({ ok: true, body });
+    });
+
+    const onError = vi.fn();
+    const { result } = renderHook(
+      () => useChat({ id: 'conv-1', api: CHAT_API, onError }),
+      { wrapper },
+    );
+
+    act(() => {
+      void result.current.sendMessage({ text: 'hello' });
+    });
+    await waitFor(() => expect(result.current.status).toBe('streaming'));
+
+    act(() => {
+      window.dispatchEvent(new Event('beforeunload'));
+      cutByBrowser();
+    });
+
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  // Firefox keeps a page with a `beforeunload` listener out of the
+  // back/forward cache, so it must not outlive the turn.
+  it('listens for the unload only while a turn runs', async () => {
+    fetchAPIMock.mockImplementation((url: string) => {
+      if (url.startsWith('chat-cooldown')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ cooldown_seconds: 0 }),
+        });
+      }
+      return Promise.resolve({ ok: true, body: streamOf(FULL_TURN) });
+    });
+    const addSpy = vi.spyOn(window, 'addEventListener');
+    const removeSpy = vi.spyOn(window, 'removeEventListener');
+    const beforeUnloadCalls = (spy: typeof addSpy) =>
+      spy.mock.calls.filter(([type]) => type === 'beforeunload');
+
+    const { result } = renderHook(
+      () => useChat({ id: 'conv-1', api: CHAT_API }),
+      { wrapper },
+    );
+    expect(beforeUnloadCalls(addSpy)).toHaveLength(0);
+
+    await act(async () => {
+      await result.current.sendMessage({ text: 'hello' });
+    });
+    await waitFor(() => expect(result.current.status).toBe('ready'));
+
+    expect(beforeUnloadCalls(addSpy)).toHaveLength(1);
+    expect(beforeUnloadCalls(removeSpy)).toHaveLength(1);
+    addSpy.mockRestore();
+    removeSpy.mockRestore();
+  });
+});

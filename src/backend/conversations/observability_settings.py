@@ -3,11 +3,25 @@
 from configurations import values
 
 
+def scrub_transaction_queries(event, hint):  # pylint: disable=unused-argument
+    """Drop query strings: integrations copy them whatever send_default_pii says."""
+    event.get("request", {}).pop("query_string", None)
+    for span in event.get("spans", []):
+        data = span.get("data")
+        if data:
+            data.pop("http.query", None)
+            data.pop("url.query", None)
+    return event
+
+
 class ObservabilitySettings:
     """Sentry, Posthog, Langfuse and logging."""
 
     # Sentry
     SENTRY_DSN = values.Value(None, environ_name="SENTRY_DSN", environ_prefix=None)
+    SENTRY_TRACES_SAMPLE_RATE = values.FloatValue(
+        None, environ_name="SENTRY_TRACES_SAMPLE_RATE", environ_prefix=None
+    )
 
     # Posthog
     # Looks like "{'id': 'posthog_key', 'host': 'https://product.conversations.127.0.0.1.nip.io'}"

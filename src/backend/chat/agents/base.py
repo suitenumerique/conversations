@@ -12,6 +12,8 @@ from pydantic_ai.capabilities import Hooks
 from pydantic_ai.models import get_user_agent
 from pydantic_ai.profiles import ModelProfile
 
+from core import instrumentation
+
 from chat.tools import get_pydantic_tools_by_name
 
 logger = logging.getLogger(__name__)
@@ -59,6 +61,17 @@ def _patch_openai_streaming_list_content():
 
     OpenAIStreamedResponse._map_text_delta = _safe_map_text_delta  # noqa: SLF001
     openai_models.__safe_text_delta_patched__ = True
+
+
+def get_max_output_tokens(configuration: "chat.llm_configuration.LLModel") -> int | None:
+    """The output token cap for a model, or None for no cap.
+
+    A `max_tokens` declared in the LLM configuration wins, so operators keep a
+    per-model knob; otherwise the global LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE applies,
+    where 0 disables the cap.
+    """
+    _configured = configuration.settings.max_tokens if configuration.settings else None
+    return _configured or settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE or None
 
 
 def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
@@ -225,6 +238,10 @@ class BaseAgent(Agent):
                 return dataclasses.replace(request_context, model_request_parameters=new_params)
 
             _capabilities.append(_hooks)
+
+        _metrics_hooks = instrumentation.llm_metrics_hooks(self.configuration, type(self).__name__)
+        if _metrics_hooks is not None:
+            _capabilities.append(_metrics_hooks)
 
         super().__init__(
             model=_model_instance,

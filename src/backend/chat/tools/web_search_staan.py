@@ -9,6 +9,8 @@ from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
+from core import instrumentation
+
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.utils import last_model_retry_soft_fail
 
@@ -74,12 +76,14 @@ async def staan_search(query: str, market: str) -> dict:
 
     try:
         async with httpx.AsyncClient(timeout=settings.STAAN_API_TIMEOUT) as client:
-            response = await client.get(
-                STAAN_SEARCH_URL,
-                params=params,
-                headers=headers,
-            )
-            response.raise_for_status()
+            with instrumentation.outgoing_request("staan", "search") as observed:
+                response = await client.get(
+                    STAAN_SEARCH_URL,
+                    params=params,
+                    headers=headers,
+                )
+                observed.status = response.status_code
+                response.raise_for_status()
             return response.json()
 
     # httpx renders the failing request url, query string included, into str(exc), so

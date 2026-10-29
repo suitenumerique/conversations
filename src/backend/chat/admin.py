@@ -1,8 +1,17 @@
 """Admin classes and registrations for chat application."""
 
 from django.contrib import admin
-from django.db.models import BigIntegerField, Exists, F, Func, OuterRef, Subquery, Value
-from django.db.models.functions import Coalesce
+from django.db.models import (
+    BigIntegerField,
+    Exists,
+    F,
+    Func,
+    IntegerField,
+    OuterRef,
+    Subquery,
+    Value,
+)
+from django.db.models.functions import Coalesce, Length
 from django.template.defaultfilters import filesizeformat
 
 from . import models
@@ -67,6 +76,72 @@ class ChatConversationAttachmentInline(admin.TabularInline):
         return False
 
 
+class ChatStreamChunkInline(admin.TabularInline):
+    """
+    What a turn has appended so far, listed on the conversation change page.
+
+    Normally empty: a turn that ends folds its chunks into the conversation and drops
+    them in the same transaction. Rows here mean either a turn is streaming right now,
+    or one was cut short and no later turn has folded it in yet.
+
+    Read-only for the same kind of reason as the attachments above: these rows are a
+    running turn's only copy of its answer, and editing or removing them under it would
+    corrupt what the next read folds into the conversation.
+    """
+
+    model = models.ChatStreamChunk
+    extra = 0
+    can_delete = False
+    # The model orders by `seq` alone, which interleaves the rows of two turns streaming
+    # into the same conversation. Grouping by turn needs the timestamp first, the way
+    # `stream_chunks.trails` does it.
+    ordering = ("created_at", "seq")
+    fields = (
+        "run_id",
+        "seq",
+        "content",
+        "message_id",
+        "question_in_messages",
+        "created_at",
+    )
+    readonly_fields = fields
+
+    def get_queryset(self, request):
+        """
+        Say what each row holds without reading what it holds.
+
+        A snapshot carries the whole turn as JSON, and an interrupted answer can leave
+        hundreds of rows behind, so the two payload columns stay out of the query and
+        their sizes are computed in the database instead.
+        """
+        return (
+            super()
+            .get_queryset(request)
+            .annotate(
+                snapshot_messages=Func(
+                    F("parts"), function="jsonb_array_length", output_field=IntegerField()
+                ),
+                text_chars=Length("text"),
+            )
+            .defer("parts", "text")
+        )
+
+    @admin.display(description="Content")
+    def content(self, obj):
+        """Which of the three kinds of row this is, and how much of the turn it carries."""
+        if obj.snapshot_messages is not None:
+            return f"snapshot of {obj.snapshot_messages} message(s)"
+        if obj.text_chars:
+            return f"{obj.text_chars} characters of text"
+        return "keepalive beat"
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(models.ChatConversation)
 class ChatConversationAdmin(admin.ModelAdmin):
     """Admin class for the ChatConversation model"""
@@ -100,7 +175,7 @@ class ChatConversationAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
-    inlines = (ChatConversationAttachmentInline,)
+    inlines = (ChatConversationAttachmentInline, ChatStreamChunkInline)
 
     def get_queryset(self, request):
         """

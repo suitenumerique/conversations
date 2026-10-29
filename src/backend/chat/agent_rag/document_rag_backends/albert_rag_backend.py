@@ -11,6 +11,8 @@ from django.utils.module_loading import import_string
 
 import httpx
 
+from core import instrumentation
+
 from chat.agent_rag.albert_api_constants import Searches
 from chat.agent_rag.constants import RAGWebResult, RAGWebResults, RAGWebUsage
 from chat.agent_rag.document_rag_backends.base_rag_backend import BaseRagBackend
@@ -63,22 +65,42 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         """Albert API expects int Ids."""
         return int(collection_id)
 
+    def _request(self, operation: str, method: str, url: str, **kwargs) -> httpx.Response:
+        """Call the Albert API, measured under `operation`, raising on an error status."""
+        with instrumentation.outgoing_request("albert", operation) as observed:
+            response = httpx.request(
+                method, url, headers=self._headers, timeout=settings.ALBERT_API_TIMEOUT, **kwargs
+            )
+            logger.debug("Albert %s response status: %s", operation, response.status_code)
+            observed.status = response.status_code
+            response.raise_for_status()
+        return response
+
+    async def _arequest(self, operation: str, method: str, url: str, **kwargs) -> httpx.Response:
+        """Asynchronously call the Albert API, as `_request` does."""
+        async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
+            with instrumentation.outgoing_request("albert", operation) as observed:
+                response = await client.request(method, url, headers=self._headers, **kwargs)
+                logger.debug("Albert %s response status: %s", operation, response.status_code)
+                observed.status = response.status_code
+                response.raise_for_status()
+        return response
+
     def create_collection(self, name: str, description: Optional[str] = None) -> str:
         """
         Create a temporary collection for the search operation.
         This method should handle the logic to create or retrieve an existing collection.
         """
-        response = httpx.post(
+        response = self._request(
+            "create_collection",
+            "POST",
             self._collections_endpoint,
-            headers=self._headers,
             json={
                 "name": name,
                 "description": description or self._default_collection_description,
                 "visibility": "private",
             },
-            timeout=settings.ALBERT_API_TIMEOUT,
         )
-        response.raise_for_status()
         self.collection_id = str(response.json()["id"])
         return self.collection_id
 
@@ -87,19 +109,16 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         Create a temporary collection for the search operation.
         This method should handle the logic to create or retrieve an existing collection.
         """
-        async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
-            response = await client.post(
-                self._collections_endpoint,
-                headers=self._headers,
-                json={
-                    "name": name,
-                    "description": description or self._default_collection_description,
-                    "visibility": "private",
-                },
-                timeout=settings.ALBERT_API_TIMEOUT,
-            )
-            response.raise_for_status()
-
+        response = await self._arequest(
+            "create_collection",
+            "POST",
+            self._collections_endpoint,
+            json={
+                "name": name,
+                "description": description or self._default_collection_description,
+                "visibility": "private",
+            },
+        )
         self.collection_id = str(response.json()["id"])
         return self.collection_id
 
@@ -107,33 +126,29 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         """
         Delete the current collection
         """
-        response = httpx.delete(
+        self._request(
+            "delete_collection",
+            "DELETE",
             urljoin(f"{self._collections_endpoint}/", self.collection_id),
-            headers=self._headers,
-            timeout=settings.ALBERT_API_TIMEOUT,
         )
-        response.raise_for_status()
 
     def delete_document(self, document_id: str, **kwargs) -> None:
         """Remove a single document from Albert via DELETE /v1/documents/{id}."""
-        response = httpx.delete(
+        self._request(
+            "delete_document",
+            "DELETE",
             urljoin(f"{self._documents_endpoint}/", str(document_id)),
-            headers=self._headers,
-            timeout=settings.ALBERT_API_TIMEOUT,
         )
-        response.raise_for_status()
 
     async def adelete_collection(self, **kwargs) -> None:
         """
         Asynchronously delete the current collection
         """
-        async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
-            response = await client.delete(
-                urljoin(f"{self._collections_endpoint}/", self.collection_id),
-                headers=self._headers,
-                timeout=settings.ALBERT_API_TIMEOUT,
-            )
-            response.raise_for_status()
+        await self._arequest(
+            "delete_collection",
+            "DELETE",
+            urljoin(f"{self._collections_endpoint}/", self.collection_id),
+        )
 
     def store_document(self, name: str, content: str, **kwargs) -> Optional[str]:
         """
@@ -149,9 +164,10 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             Optional[str]: The Albert document id, used later as a `document_ids`
             filter on `/v1/search` and as the target of `delete_document`.
         """
-        response = httpx.post(
+        response = self._request(
+            "store_document",
+            "POST",
             urljoin(self._base_url, self._documents_endpoint),
-            headers=self._headers,
             files={
                 "file": (f"{name}.md", BytesIO(content.encode("utf-8")), MARKDOWN_MIME_TYPE),
             },
@@ -159,10 +175,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
                 "collection_id": int(self.collection_id),
                 "metadata": json.dumps({"document_name": name}),  # undocumented API
             },
-            timeout=settings.ALBERT_API_TIMEOUT,
         )
-        logger.debug("Store document response status: %s", response.status_code)
-        response.raise_for_status()
         body = response.json()
         document_id = body.get("id")
         if document_id is None:
@@ -184,22 +197,19 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         Returns:
             Optional[str]: See `store_document`.
         """
-        async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
-            response = await client.post(
-                urljoin(self._base_url, self._documents_endpoint),
-                headers=self._headers,
-                files={
-                    "file": (f"{name}.md", BytesIO(content.encode("utf-8")), MARKDOWN_MIME_TYPE),
-                },
-                data={
-                    "collection_id": int(self.collection_id),
-                    "metadata": json.dumps({"document_name": name}),  # undocumented API
-                },
-                timeout=settings.ALBERT_API_TIMEOUT,
-            )
-            logger.debug("Store document response status: %s", response.status_code)
-            response.raise_for_status()
-            body = response.json()
+        response = await self._arequest(
+            "store_document",
+            "POST",
+            urljoin(self._base_url, self._documents_endpoint),
+            files={
+                "file": (f"{name}.md", BytesIO(content.encode("utf-8")), MARKDOWN_MIME_TYPE),
+            },
+            data={
+                "collection_id": int(self.collection_id),
+                "metadata": json.dumps({"document_name": name}),  # undocumented API
+            },
+        )
+        body = response.json()
         document_id = body.get("id")
         if document_id is None:
             raise AlbertMissingDocumentIdError(
@@ -277,13 +287,9 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
     ) -> RAGWebResults:
         """Perform a search using the Albert API based on the provided query."""
         payload = self._build_search_payload(query, results_count, document_name, document_id)
-        response = httpx.post(
-            urljoin(self._base_url, self._search_endpoint),
-            headers=self._headers,
-            json=payload,
-            timeout=settings.ALBERT_API_TIMEOUT,
+        response = self._request(
+            "search", "POST", urljoin(self._base_url, self._search_endpoint), json=payload
         )
-        response.raise_for_status()
         return self._parse_search_response(response.json(), document_name, document_id)
 
     async def asearch(
@@ -296,13 +302,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
     ) -> RAGWebResults:
         """Perform an asynchronous search using the Albert API based on the provided query."""
         payload = self._build_search_payload(query, results_count, document_name, document_id)
-        async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
-            response = await client.post(
-                urljoin(self._base_url, self._search_endpoint),
-                headers=self._headers,
-                json=payload,
-                timeout=settings.ALBERT_API_TIMEOUT,
-            )
-            logger.debug("Search response status: %s", response.status_code)
-            response.raise_for_status()
+        response = await self._arequest(
+            "search", "POST", urljoin(self._base_url, self._search_endpoint), json=payload
+        )
         return self._parse_search_response(response.json(), document_name, document_id)

@@ -45,7 +45,12 @@ In `conversations/celery_settings.py` (`CelerySettings`, mixed into `Base`):
   values so a caller can await a result.
 - `CELERY_RESULT_EXPIRES` — default `3600` seconds. How long an unread task
   result stays in Redis.
-- `CELERY_BROKER_TRANSPORT_OPTIONS` — Redis transport tuning. Empty = defaults.
+- `CELERY_REDIS_SOCKET_TIMEOUT` / `CELERY_REDIS_SOCKET_CONNECT_TIMEOUT` —
+  default `5` seconds, for both the broker and the result backend, so a hung
+  Redis fails calls instead of blocking them. Waits on a pending result keep
+  their own timeout. Must be > 0: 0 makes every call fail.
+- `CELERY_BROKER_TRANSPORT_OPTIONS` — Redis transport tuning, merged over the
+  socket timeouts above (its keys win).
   Raise `visibility_timeout` if any task can run longer than 1h (default 3600s),
   otherwise it gets redelivered and runs twice.
 - `CELERY_TASK_ROUTES` — maps task names to queues, e.g.

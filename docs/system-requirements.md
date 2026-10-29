@@ -84,15 +84,15 @@ Docker Engine 28.0 is required for the dev stack: older versions let other hosts
 
 ## 5. Ports (dev defaults)
 
-| Port      | Service                    |
-|-----------|----------------------------|
-| 3000      | Vite dev server            |
-| 8071      | Django                     |
-| 8080      | Keycloak                   |
-| 8083      | Nginx proxy                |
-| 9000/9001 | MinIO                      |
-| 15432     | PostgreSQL (main)          |
-| 1081      | Maildev (currently unused) |
+| Port      | Service                        |
+|-----------|--------------------------------|
+| 3000      | Vite dev server                |
+| 8071      | Django                         |
+| 8080      | Keycloak                       |
+| 8083      | Nginx proxy                    |
+| 9000/9001 | MinIO                          |
+| 15432     | PostgreSQL (main)              |
+| 1081      | MailCatcher (currently unused) |
 
 ## 6. Sizing Guidelines
 

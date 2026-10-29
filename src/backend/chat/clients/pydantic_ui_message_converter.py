@@ -4,7 +4,6 @@ and UserContent/ModelMessage (pydantic_ai.messages.py).
 """
 
 import base64
-import json
 import uuid
 from typing import List, Optional
 
@@ -75,6 +74,27 @@ def _file_part_to_user_content(part: FileUIPart) -> UserContent:
     # The browser may send a markdown file as application/octet-stream: trust its name.
     media_type = resolve_markdown_content_type(part.filename, part.mediaType)
     return DocumentUrl(url=part.url, media_type=media_type, identifier=part.filename)
+
+
+def merge_by_kind(messages: List[ModelMessage]) -> tuple[ModelRequest, ModelResponse]:
+    """One request and one response, as a turn is shown and stored.
+
+    Each tool round is its own request/response pair; shown one by one, every
+    round would become an empty answer bubble with its own action bar.
+    Only for `messages`: `pydantic_messages` keeps every round for the model.
+    """
+    return (
+        ModelRequest(
+            parts=[part for msg in messages if isinstance(msg, ModelRequest) for part in msg.parts],
+            kind="request",
+        ),
+        ModelResponse(
+            parts=[
+                part for msg in messages if isinstance(msg, ModelResponse) for part in msg.parts
+            ],
+            kind="response",
+        ),
+    )
 
 
 def model_message_to_ui_message(model_message: ModelMessage) -> Optional[UIMessage]:
@@ -211,7 +231,7 @@ def _response_part_to_ui_parts(part: ModelResponsePart) -> List[UIPart]:
                 type=f"{TOOL_PART_PREFIX}{part.tool_name}",
                 toolCallId=part.tool_call_id,
                 state="input-available",
-                input=json.loads(part.args) if isinstance(part.args, str) else part.args or {},
+                input=part.args_as_dict(),
             )
         ]
 

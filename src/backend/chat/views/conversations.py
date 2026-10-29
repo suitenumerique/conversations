@@ -39,6 +39,11 @@ from chat.views.helpers import _bulk_delete_s3_blobs, conditional_refresh_oidc_t
 
 logger = logging.getLogger(__name__)
 
+# Every line tracing one turn goes to this logger rather than the module's, so
+# following a cycle is one filter (`chat.turn`) across the four modules that
+# take part in it, and its level can be raised or lowered on its own.
+turn_logger = logging.getLogger("chat.turn")
+
 
 class ChatAttachmentMixin(AttachmentMixin):  # pylint: disable=abstract-method
     """Mixin to handle attachment authorization for chat conversations."""
@@ -237,9 +242,12 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         requested_model_hrid = query_params_serializer.validated_data["model_hrid"]
 
         raw_messages = request.data.get("messages")
-        logger.info(
-            "Received %d messages",
+        turn_logger.info(
+            "[request %s] POST conversation: %d message(s), model=%s, web_search=%s",
+            pk,
             len(raw_messages) if isinstance(raw_messages, list) else 0,
+            requested_model_hrid or "default",
+            force_web_search,
         )
 
         conversation = self.get_object()
@@ -338,13 +346,22 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             base_stream = ai_service.stream_data_async(
                 messages, force_web_search=force_web_search, force_datagouv=force_datagouv
             )
-            streaming_content = stream_with_keepalive_async(base_stream)
+            # The keepalive loop ticks while the turn is blocked and producing
+            # nothing, which is the only moment a turn can say it is still
+            # running without saying anything else.
+            streaming_content = stream_with_keepalive_async(base_stream, ai_service.beat)
         else:
             logger.debug("Using SYNC streaming for chat conversation.")
             base_stream = ai_service.stream_data(
                 messages, force_web_search=force_web_search, force_datagouv=force_datagouv
             )
-            streaming_content = stream_with_keepalive_sync(base_stream)
+            streaming_content = stream_with_keepalive_sync(base_stream, ai_service.beat_sync)
+
+        turn_logger.info(
+            "[request %s] streaming response opened (%s mode)",
+            pk,
+            "async" if is_async_mode else "sync",
+        )
         response = StreamingHttpResponse(
             streaming_content,
             content_type=SSE_MIME_TYPE,
@@ -369,15 +386,9 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         It is used to stop the streaming when the user decides to cancel the chat.
 
         Note:
-            We currently use uWSGI workers, which will not automatically stop the streaming
-            when the request is cancelled by the client. Therefore, we need to
-            explicitly stop the streaming by calling this endpoint.
-            When (if) we switch to Gunicorn with Uvicorn workers, this will not be necessary
-            as the Uvicorn workers will automatically stop the streaming when the request
-            is cancelled. BUT, we will then need to handle the streaming cancellation when the
-            user is simply offline and still waiting for a response and the conversation to
-            be updated with the result. So this endpoint will still be useful to be able to
-            detect the cancellation of the streaming versus the user being offline.
+            Leaving the page does not stop a turn: the server keeps it running
+            so that a refreshed page can pick up the answer. This endpoint is
+            how a user stops one; the turn checks for the flag as it runs.
 
         Args:
             request: The HTTP request object.

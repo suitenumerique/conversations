@@ -18,6 +18,8 @@ from pydantic_ai.messages import ToolReturn
 from trafilatura import extract
 from trafilatura.meta import reset_caches
 
+from core import instrumentation
+
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.utils import last_model_retry_soft_fail
 
@@ -69,8 +71,10 @@ The result should be up to 30 lines long.
 async def _fetch_url_async(url: str, timeout: int = 30) -> str:
     """Fetch URL content asynchronously."""
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-        response = await client.get(url)
-        response.raise_for_status()
+        with instrumentation.outgoing_request("web_page", "fetch") as observed:
+            response = await client.get(url)
+            observed.status = response.status_code
+            response.raise_for_status()
         return response.text
 
 
@@ -163,8 +167,11 @@ def _normalize_llm_context_results(json_response: dict) -> List[dict]:
     return normalized_results
 
 
-async def _query_brave_api_with_endpoint_async(url: str, data: dict) -> List[dict]:
-    """Query a Brave endpoint and return raw results normalized to our schema."""
+async def _query_brave_api_with_endpoint_async(url: str, operation: str, data: dict) -> List[dict]:
+    """Query a Brave endpoint and return raw results normalized to our schema.
+
+    `operation` names the endpoint in the metrics.
+    """
     headers = {
         "Accept": "application/json",
         "X-Subscription-Token": settings.BRAVE_API_KEY,
@@ -173,8 +180,10 @@ async def _query_brave_api_with_endpoint_async(url: str, data: dict) -> List[dic
 
     try:
         async with httpx.AsyncClient(timeout=settings.BRAVE_API_TIMEOUT) as client:
-            response = await client.get(url, headers=headers, params=params)
-            response.raise_for_status()
+            with instrumentation.outgoing_request("brave", operation) as observed:
+                response = await client.get(url, headers=headers, params=params)
+                observed.status = response.status_code
+                response.raise_for_status()
             json_response = response.json()
 
             # LLM context API: results are under `grounding.generic`
@@ -232,6 +241,7 @@ async def _query_brave_llm_context_api_async(query: str) -> List[dict]:
     logger.debug("Using LLM context endpoint")
     return await _query_brave_api_with_endpoint_async(
         "https://api.search.brave.com/res/v1/llm/context",
+        "llm_context",
         {
             "q": query,
             "country": settings.BRAVE_SEARCH_COUNTRY,
@@ -254,6 +264,7 @@ async def _query_brave_web_search_api_async(query: str) -> List[dict]:
     logger.debug("Using classic web search endpoint")
     return await _query_brave_api_with_endpoint_async(
         "https://api.search.brave.com/res/v1/web/search",
+        "web_search",
         {
             "q": query,
             "country": settings.BRAVE_SEARCH_COUNTRY,

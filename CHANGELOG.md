@@ -10,10 +10,35 @@ and this project adheres to
 
 ### Added
 
-- 📝(project) add pull request and AI usage policy
+- ✨(back) add opt-in output token limit per message
+
+## [0.0.27] - 2026-10-28
 
 ### Changed
 
+- 🔒️(front) upgrade undici and zod to fix CVE-2026-109869 and CVE-2023-54404
+- 🔒️(back) upgrade pypdf to 6.21.2 to fix DoS CVEs
+- 💬(front) reword the message shown while project files are processed
+
+### Fixed
+
+- 🐛(back) add socket timeouts to the Redis cache and Celery clients
+
+## [0.0.26] - 2026-10-22
+
+- ✨(back) add opt-in prometheus metrics on `/metrics`
+- ✨(back) measure model requests, chat streams and outgoing calls
+- ✨(helm) add a ServiceMonitor and a PodMonitor for the backend metrics
+- 📝(project) add pull request and AI usage policy
+- ✨(back) make the Sentry backend traces sample rate configurable
+
+### Changed
+
+- 🔒️(front) upgrade dompurify to 3.4.17 to fix security issues
+- 🔒️(back) upgrade djangorestframework to 3.18.3 to fix security issues
+- 🔒️(back) upgrade brotli to fix CVE-2026-111497
+- 🔒️(back) upgrade certifi and pillow to fix CVEs
+- 🔧(docker) replace maildev with mailcatcher like other La Suite projects
 - ⬆️(dependencies) upgrade back-end and front-end dependencies
 - ⬆️(back) upgrade pydantic-ai to 2.52.0 and switch to httpx2
 - 💄(back) change high traffic wording and lower alert level
@@ -55,6 +80,8 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(back) keep a turn that is interrupted by appending it as it is produced
+- 🚸(front) wait for an answer still generating after leaving the conversation
 - ✅(back) make the project list query counts independent of test order
 - 👷(ci) pull the MinIO images from quay.io instead of Docker Hub
 - 🐛(ci) fix the CHANGELOG check failing when a pull request is opened
@@ -526,7 +553,11 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 - 🔧(evals) add run_evals management command
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.25...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.27...main
+
+[0.0.27]: https://github.com/suitenumerique/conversations/compare/v0.0.26...v0.0.27
+
+[0.0.26]: https://github.com/suitenumerique/conversations/compare/v0.0.25...v0.0.26
 
 [0.0.25]: https://github.com/suitenumerique/conversations/compare/v0.0.24...v0.0.25
 

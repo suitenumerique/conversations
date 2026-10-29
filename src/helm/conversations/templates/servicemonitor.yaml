@@ -1,0 +1,35 @@
+{{- /*
+A ServiceMonitor for a Prometheus Operator inside the cluster, created when the
+metrics of the backend are enabled. It finds the backend pods through their
+Service, and scrapes each of them directly with the bearer token the backend checks, so
+nothing goes through the ingress and no replica is missed. The celery pods carry
+other component labels and are not selected.
+*/ -}}
+{{- if and .Values.backend.metrics.enabled .Values.serviceMonitor.enabled -}}
+{{- $monitor := .Values.serviceMonitor -}}
+{{- $component := "backend" -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "conversations.backend.fullname" . }}
+  namespace: {{ $monitor.namespace | default .Release.Namespace | quote }}
+  labels:
+    {{- include "conversations.common.labels" (list . $component) | nindent 4 }}
+    {{- with $monitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with $monitor.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  jobLabel: app.kubernetes.io/component
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace | quote }}
+  selector:
+    matchLabels:
+      {{- include "conversations.common.selectorLabels" (list . $component) | nindent 6 }}
+  endpoints:
+    {{- include "conversations.metrics.endpoint" (dict "root" . "monitor" $monitor) | nindent 4 }}
+{{- end }}
