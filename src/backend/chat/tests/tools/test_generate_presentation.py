@@ -23,7 +23,7 @@ import pytest
 from asgiref.sync import sync_to_async
 from pydantic_ai import ModelResponse, RunContext
 from pydantic_ai.exceptions import AgentRunError, ModelRetry
-from pydantic_ai.messages import ToolCallPart, ToolReturn, UserPromptPart
+from pydantic_ai.messages import ToolCallPart, UserPromptPart
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.usage import RunUsage
 
@@ -528,9 +528,9 @@ async def test_an_unreadable_document_is_skipped():
 def mock_summarization(summary):
     """Stub the summarization pipeline so it returns `summary`."""
     return mock.patch(
-        "chat.tools.generate_presentation._summarize_text_attachments",
+        "chat.tools.generate_presentation._summarize_documents",
         new_callable=mock.AsyncMock,
-        return_value=ToolReturn(return_value=summary),
+        return_value=summary,
     )
 
 
@@ -542,11 +542,14 @@ def mock_source_budget(tokens):
 @pytest.mark.asyncio
 async def test_documents_over_budget_are_condensed_first():
     """
-    Documents too long for the agent's prompt go through the summarization
-    pipeline, asked to keep the details a deck needs.
+    When the documents do not all fit, those over their share of the budget go
+    through the summarization pipeline, asked to keep the details a deck needs,
+    while the short ones stay verbatim. Contents already read are handed over.
     """
     ctx, conversation, _user = await setup_context()
-    await add_document(conversation, "Un très long rapport " * 20, file_name="rapport.md")
+    long_report = "Un très long rapport " * 20
+    await add_document(conversation, long_report, file_name="rapport.md")
+    await add_document(conversation, "Trois axes.", file_name="annexe.md")
     received = []
 
     def respond(messages, info):
@@ -556,10 +559,12 @@ async def test_documents_over_budget_are_condensed_first():
     with mock_source_budget(50), mock_summarization("Synthèse détaillée") as summarize:
         result = await run_tool(ctx, respond=respond)
 
+    assert summarize.call_args.args[0] == [("rapport.md", long_report)]
     assert "slide deck" in summarize.call_args.kwargs["instructions"]
+    assert '<document name="annexe.md">\nTrois axes.\n</document>' in received[0]
     assert "<documents_summary>\nSynthèse détaillée\n</documents_summary>" in received[0]
     assert "Un très long rapport" not in received[0]
-    assert result.metadata["sources"] == ["rapport.md"]
+    assert result.metadata["sources"] == ["annexe.md", "rapport.md"]
 
 
 @pytest.mark.asyncio

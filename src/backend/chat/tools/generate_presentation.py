@@ -23,7 +23,7 @@ from chat.agents.presentation import PresentationAgent
 from chat.constants import TEXT_MIME_PREFIX
 from chat.file_generation import GENERIC_TEMPLATE, PresentationBuildError, build_presentation
 from chat.tokens import compute_document_budget, count_approx_tokens, truncate_to_tokens
-from chat.tools.document_summarize import _summarize_text_attachments, read_document_content
+from chat.tools.document_summarize import _summarize_documents, read_document_content
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.utils import last_model_retry_soft_fail, resolve_attachment_by_id
 
@@ -159,10 +159,11 @@ async def build_sources(ctx: RunContext, attachments: list) -> tuple[str, list[s
     """
     Return the source material for the deck, and the names of the documents used.
 
-    Documents are given verbatim when they fit the budget. Longer ones go through
-    the summarization pipeline first, asked to keep the details a deck needs, and
-    the summary is cut to the budget should it still exceed it. An unreadable
-    document is skipped rather than failing the whole deck.
+    Documents are given verbatim when they all fit the budget. Otherwise, those
+    within their fair share of the budget stay verbatim and the longer ones go
+    through the summarization pipeline, asked to keep the details a deck needs;
+    the summary is cut to the remaining budget should it still exceed it. An
+    unreadable document is skipped rather than failing the whole deck.
     """
     documents = []
     for attachment in attachments:
@@ -177,36 +178,47 @@ async def build_sources(ctx: RunContext, attachments: list) -> tuple[str, list[s
     if not documents:
         return "", []
 
-    names = [name for name, _content in documents]
-    verbatim = "\n\n".join(
+    blocks = [
         f'<document name="{html.escape(name)}">\n{_escape_closing_tags(content)}\n</document>'
         for name, content in documents
-    )
+    ]
     budget = _source_budget()
+    verbatim = "\n\n".join(blocks)
     if count_approx_tokens(verbatim) <= budget:
-        return verbatim, names
+        return verbatim, [name for name, _content in documents]
 
-    # The wrapping tags count against the budget too.
-    summary_budget = budget - count_approx_tokens(SUMMARY_WRAPPER.format(summary=""))
-    if summary_budget <= 0:
-        # No room for any source material: build the deck from the brief alone
-        # rather than citing documents the agent never saw.
-        logger.warning("No budget left for source documents in the presentation prompt")
-        return "", []
+    share = budget // len(documents)
+    kept, kept_names, too_long = [], [], []
+    for document, block in zip(documents, blocks, strict=True):
+        if count_approx_tokens(block) <= share:
+            kept.append(block)
+            kept_names.append(document[0])
+        else:
+            too_long.append(document)
 
-    logger.info("Source documents exceed the presentation budget, condensing them first")
-    condensed = await _summarize_text_attachments(
-        attachments,
-        instructions=SOURCE_CONDENSE_INSTRUCTIONS,
-        document_id=None,
-        ctx=ctx,
-        empty_set_message="No source document could be read.",
+    # The verbatim documents and the wrapping tags count against the budget too.
+    summary_budget = (
+        budget
+        - count_approx_tokens("\n\n".join([*kept, ""]))
+        - count_approx_tokens(SUMMARY_WRAPPER.format(summary=""))
     )
-    summary = _escape_closing_tags(condensed.return_value)
+    if summary_budget <= 0:
+        # No room left to summarize the long documents: leave them out rather
+        # than citing documents the agent never saw.
+        logger.warning("No budget left for long source documents in the presentation prompt")
+        return "\n\n".join(kept), kept_names
+
+    logger.info("Source documents exceed the presentation budget, condensing the long ones")
+    summary = _escape_closing_tags(
+        await _summarize_documents(too_long, instructions=SOURCE_CONDENSE_INSTRUCTIONS, ctx=ctx)
+    )
     if count_approx_tokens(summary) > summary_budget:
         logger.warning("Condensed sources still exceed the presentation budget, truncating them")
         summary = truncate_to_tokens(summary, summary_budget)
-    return SUMMARY_WRAPPER.format(summary=summary), names
+    return (
+        "\n\n".join([*kept, SUMMARY_WRAPPER.format(summary=summary)]),
+        kept_names + [name for name, _content in too_long],
+    )
 
 
 def build_agent_prompt(brief: str, slide_count: int | None, sources: str) -> str:
