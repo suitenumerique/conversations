@@ -72,6 +72,12 @@ requested colours, fonts, font sizes and logos, images, charts and diagrams are 
 supported yet. The tool description and every tool result say so, so the model tells
 the user rather than claiming they were applied.
 
+When the documents do not all fit, each one gets an equal share of the budget,
+whatever the size of the others: a document over its share is summarized even when
+the room left by shorter ones would have fit it. Summarization also runs however
+little budget remains after the verbatim documents, so a long document may be
+summarized only to be truncated to a few tokens.
+
 ## Access model
 
 The generated deck is a one-off artifact: nothing is recorded in the database. It is
