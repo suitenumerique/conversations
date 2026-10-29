@@ -224,10 +224,11 @@ async def generate_presentation(
         slide_count: The total number of slides the user asked for, if they
             gave one. Leave empty otherwise.
         document_ids: UUIDs of the documents to build the deck from, taken from
-            the `documents` or `project_documents` context arrays. Leave empty
-            to use every document attached to the conversation, or pass an
-            empty list to use none. Do not include a pptx template the user
-            attached as a model to follow: only content sources.
+            the `documents` or `project_documents` context arrays. Omit it
+            (null) to use every document attached to the conversation. Pass an
+            empty list `[]` only to build the deck from the brief alone. Do not
+            include a pptx template the user attached as a model to follow:
+            only content sources.
 
     Returns:
         ToolReturn: confirmation carrying the download link.
