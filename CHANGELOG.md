@@ -12,6 +12,10 @@ and this project adheres to
 
 - ✨(back) add opt-in output token limit per message
 
+### Fixed
+
+- 🐛(back) stop losing chat turns when a document contains NUL characters
+
 ## [0.0.27] - 2026-10-28
 
 ### Changed
