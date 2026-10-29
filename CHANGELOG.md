@@ -12,6 +12,10 @@ and this project adheres to
 
 - ✨(back) add opt-in output token limit per message
 
+### Changed
+
+- 🔒️(back) upgrade authlib, dnspython and pypdf to fix CVEs
+
 ### Fixed
 
 - 🐛(back) accept list content in non-streaming Albert responses
