@@ -12,6 +12,10 @@ and this project adheres to
 
 - ✨(back) add opt-in output token limit per message
 
+### Changed
+
+- 🔒️(back) upgrade authlib and dnspython to fix CVEs
+
 ## [0.0.27] - 2026-10-28
 
 ### Changed
