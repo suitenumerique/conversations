@@ -1,10 +1,4 @@
 import { Button } from '@gouvfr-lasuite/cunningham-react';
-import {
-  Suspense,
-  useEffect as _useEffect,
-  useState as _useState,
-  lazy,
-} from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import { css } from 'styled-components';
@@ -21,13 +15,6 @@ import { useConversationRouteId } from '@/utils';
 import { HEADER_HEIGHT } from '../conf';
 
 import { ButtonToggleLeftPanel } from './ButtonToggleLeftPanel';
-import { LaGaufre } from './LaGaufre';
-
-const UserInfo = lazy(() =>
-  import('@/features/auth/components/UserInfo').then((mod) => ({
-    default: mod.UserInfo,
-  })),
-);
 
 const headerStyles = css`
   display: flex;
@@ -43,9 +30,7 @@ const headerStyles = css`
 
 export const Header = () => {
   const { t } = useTranslation();
-  const { spacingsTokens, componentTokens } = useCunninghamTheme();
-  const showLaGaufre =
-    (componentTokens as Record<string, unknown>)['la-gaufre'] === true;
+  const { spacingsTokens } = useCunninghamTheme();
   const { isDesktop } = useResponsiveStore();
   const { setPanelOpen } = useChatPreferencesStore();
   const { isAtTop } = useChatScroll();
@@ -91,7 +76,7 @@ export const Header = () => {
           <LogoAssistant height="32px" width="auto" />
         )}
       </Box>
-      {!isDesktop ? (
+      {!isDesktop && (
         <Box $direction="row" $gap={spacingsTokens['sm']} $align="center">
           <Box className="selector-header">
             <Button
@@ -106,15 +91,6 @@ export const Header = () => {
               variant="tertiary"
               icon={<NewChatIcon height="24px" />}
             />
-          </Box>
-        </Box>
-      ) : (
-        <Box $align="center" $direction="column">
-          <Box $direction="row" $gap="4px" className="selector-header">
-            {showLaGaufre && <LaGaufre />}
-            <Suspense fallback={null}>
-              <UserInfo />
-            </Suspense>
           </Box>
         </Box>
       )}

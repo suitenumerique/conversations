@@ -3,8 +3,8 @@ import { expect, test } from '@playwright/test';
 import {
   clickUserMenuLogout,
   expectLoginPage,
+  footerUserMenuTrigger,
   getLanguagePickerTrigger,
-  headerUserMenuTrigger,
   keyCloakSignIn,
   overrideConfig,
   randomName,
@@ -17,7 +17,7 @@ test.describe('Header', () => {
     const header = page.locator('header').first();
     await expect(header).toBeVisible();
 
-    await expect(headerUserMenuTrigger(page)).toBeVisible();
+    await expect(footerUserMenuTrigger(page)).toBeVisible();
 
     const langPicker = await getLanguagePickerTrigger(page);
     await expect(langPicker.locator('.c__language-picker__label')).toHaveText(
@@ -36,15 +36,16 @@ test.describe('Header', () => {
     const header = page.locator('header').first();
     await expect(header).toBeVisible();
 
-    await expect(headerUserMenuTrigger(page)).toBeVisible();
+    await expect(footerUserMenuTrigger(page)).toBeVisible();
 
     const langPicker = await getLanguagePickerTrigger(page);
     await expect(langPicker.locator('.c__language-picker__label')).toHaveText(
       /^EN$/i,
     );
 
+    const footer = page.getByTestId('left-panel-footer');
     await expect(
-      header.getByRole('button', {
+      footer.getByRole('button', {
         name: 'Les services de LaSuite',
       }),
     ).toBeVisible();
@@ -56,10 +57,10 @@ test.describe('Header', () => {
     });
     await page.goto('/');
 
-    const header = page.locator('header').first();
+    const footer = page.getByTestId('left-panel-footer');
 
     await expect(
-      header.getByRole('button', {
+      footer.getByRole('button', {
         name: 'Les services de LaSuite',
       }),
     ).toBeVisible();
@@ -71,7 +72,7 @@ test.describe('Header', () => {
     // eslint-disable-next-line playwright/no-wait-for-timeout
     await page.waitForTimeout(1500);
 
-    await header
+    await footer
       .getByRole('button', {
         name: 'Les services de LaSuite',
       })
