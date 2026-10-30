@@ -11,6 +11,15 @@ and this project adheres to
 ### Added
 
 - ✨(back) add opt-in output token limit per message
+- 🔒️(back) lock out repeated failed admin logins
+- 🔒️(back) require strong admin passwords and hash them with Argon2
+- 🔒️(back) add a Content-Security-Policy to backend responses
+- ✨(back) read secrets from files
+
+### Changed
+
+- 🔒️(back) raise HSTS to one year, make subdomains and preload opt-in
+- 🔒️(back) require https for OIDC redirects in production
 
 ### Fixed
 

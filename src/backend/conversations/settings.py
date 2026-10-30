@@ -25,7 +25,9 @@ import sentry_sdk
 from configurations import Configuration, pristinemethod, values
 from corsheaders.defaults import default_headers
 from cryptography.fernet import Fernet
+from csp.constants import NONE
 from langfuse import Langfuse
+from lasuite.configuration.values import SecretFileValue
 from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import ignore_logger
 
@@ -107,7 +109,7 @@ class Base(
     # Django's default, made explicit because setup_prometheus_metrics may add to it
     # in place: Production redefines it with the probes
     SECURE_REDIRECT_EXEMPT = []
-    SECRET_KEY = values.Value(None)
+    SECRET_KEY = SecretFileValue(None)
     SERVER_TO_SERVER_API_TOKENS = values.ListValue([])
 
     # Application definition
@@ -124,7 +126,7 @@ class Base(
             ),
             "NAME": values.Value("conversations", environ_name="DB_NAME", environ_prefix=None),
             "USER": values.Value("dinum", environ_name="DB_USER", environ_prefix=None),
-            "PASSWORD": values.Value("pass", environ_name="DB_PASSWORD", environ_prefix=None),
+            "PASSWORD": SecretFileValue("pass", environ_name="DB_PASSWORD", environ_prefix=None),
             "HOST": values.Value("localhost", environ_name="DB_HOST", environ_prefix=None),
             "PORT": values.Value(5432, environ_name="DB_PORT", environ_prefix=None),
         }
@@ -154,8 +156,8 @@ class Base(
 
     # Media
     AWS_S3_ENDPOINT_URL = values.Value(environ_name="AWS_S3_ENDPOINT_URL", environ_prefix=None)
-    AWS_S3_ACCESS_KEY_ID = values.Value(environ_name="AWS_S3_ACCESS_KEY_ID", environ_prefix=None)
-    AWS_S3_SECRET_ACCESS_KEY = values.Value(
+    AWS_S3_ACCESS_KEY_ID = SecretFileValue(environ_name="AWS_S3_ACCESS_KEY_ID", environ_prefix=None)
+    AWS_S3_SECRET_ACCESS_KEY = SecretFileValue(
         environ_name="AWS_S3_SECRET_ACCESS_KEY", environ_prefix=None
     )
     AWS_S3_REGION_NAME = values.Value(environ_name="AWS_S3_REGION_NAME", environ_prefix=None)
@@ -323,12 +325,54 @@ class Base(
         "posthog.integrations.django.PosthogContextMiddleware",
         "django.contrib.messages.middleware.MessageMiddleware",
         "dockerflow.django.middleware.DockerflowMiddleware",
+        "csp.middleware.CSPMiddleware",
+        "axes.middleware.AxesMiddleware",
     ]
 
     AUTHENTICATION_BACKENDS = [
+        "axes.backends.AxesStandaloneBackend",
         "django.contrib.auth.backends.ModelBackend",
         "core.authentication.backends.OIDCAuthenticationBackend",
     ]
+
+    # Prefer Argon2id while retaining existing hashes for verification and upgrades.
+    PASSWORD_HASHERS = [
+        "django.contrib.auth.hashers.Argon2PasswordHasher",
+        "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+        "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+        "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
+        "django.contrib.auth.hashers.ScryptPasswordHasher",
+    ]
+
+    AUTH_PASSWORD_VALIDATORS = [
+        {
+            "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+            "OPTIONS": {
+                "user_attributes": ("admin_email", "email", "full_name", "short_name"),
+            },
+        },
+        {
+            "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+            "OPTIONS": {"min_length": 12},
+        },
+        {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+        {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    ]
+
+    # Protect the admin password form against account and IP-based brute-force attacks.
+    AXES_ONLY_ADMIN_SITE = True
+    AXES_HANDLER = "core.authentication.axes.AdminAxesDatabaseHandler"
+    AXES_USERNAME_FORM_FIELD = "username"
+    AXES_LOCKOUT_PARAMETERS = ["username", "ip_address"]
+    AXES_FAILURE_LIMIT = values.PositiveIntegerValue(
+        5, environ_name="RATE_LIMIT_ADMIN_LOGIN_FAILURE_LIMIT", environ_prefix=None
+    )
+    # Axes interprets numeric cool-off values as hours (0.25 = 15 minutes).
+    AXES_COOLOFF_TIME = values.FloatValue(
+        0.25, environ_name="RATE_LIMIT_ADMIN_LOGIN_COOLOFF_HOURS", environ_prefix=None
+    )
+    AXES_RESET_ON_SUCCESS = True
+    AXES_RESET_COOL_OFF_ON_FAILURE_DURING_LOCKOUT = False
 
     # Django applications from the highest priority to the lowest
     INSTALLED_APPS = [
@@ -345,6 +389,8 @@ class Base(
         "dockerflow.django",
         "rest_framework",
         "solo.apps.SoloAppConfig",
+        "csp",
+        "axes",
         # Django
         "django.contrib.admin",
         "django.contrib.auth",
@@ -448,7 +494,7 @@ class Base(
     EMAIL_BRAND_NAME = values.Value(None)
     EMAIL_HOST = values.Value(None)
     EMAIL_HOST_USER = values.Value(None)
-    EMAIL_HOST_PASSWORD = values.Value(None)
+    EMAIL_HOST_PASSWORD = SecretFileValue(None)
     EMAIL_LOGO_IMG = values.Value(None)
     EMAIL_PORT = values.PositiveIntegerValue(None)
     EMAIL_USE_TLS = values.BooleanValue(False)
@@ -469,6 +515,37 @@ class Base(
         ],
         environ_name="CORS_ALLOW_HEADERS",
     ) + list(default_headers)
+
+    # Content Security Policy
+    # See https://content-security-policy.com/ for more information.
+    CONTENT_SECURITY_POLICY = {
+        "EXCLUDE_URL_PREFIXES": values.ListValue(
+            ["/admin"],
+            environ_name="CONTENT_SECURITY_POLICY_EXCLUDE_URL_PREFIXES",
+            environ_prefix=None,
+        ),
+        "DIRECTIVES": values.DictValue(
+            default={
+                "default-src": [NONE],
+                "script-src": [NONE],
+                "style-src": [NONE],
+                "img-src": [NONE],
+                "connect-src": [NONE],
+                "font-src": [NONE],
+                "object-src": [NONE],
+                "media-src": [NONE],
+                "frame-src": [NONE],
+                "child-src": [NONE],
+                "form-action": [NONE],
+                "frame-ancestors": [NONE],
+                "base-uri": [NONE],
+                "worker-src": [NONE],
+                "manifest-src": [NONE],
+            },
+            environ_name="CONTENT_SECURITY_POLICY_DIRECTIVES",
+            environ_prefix=None,
+        ),
+    }
 
     # Frontend
     FRONTEND_THEME = values.Value(None, environ_name="FRONTEND_THEME", environ_prefix=None)
@@ -531,7 +608,7 @@ class Base(
         default=60 * 60 * 12, environ_name="SESSION_COOKIE_AGE", environ_prefix=None
     )
 
-    BREVO_API_KEY = values.Value(
+    BREVO_API_KEY = SecretFileValue(
         default=None,
         environ_name="BREVO_API_KEY",
         environ_prefix=None,
@@ -622,7 +699,7 @@ class Base(
 
     # These settings are default values used in the default LLM_CONFIGURATIONS
     # They allow a deployment with only one model without a specific configuration file
-    AI_API_KEY = values.Value(None, environ_name="AI_API_KEY", environ_prefix=None)
+    AI_API_KEY = SecretFileValue(None, environ_name="AI_API_KEY", environ_prefix=None)
     AI_BASE_URL = values.Value(None, environ_name="AI_BASE_URL", environ_prefix=None)
     AI_MODEL = values.Value(None, environ_name="AI_MODEL", environ_prefix=None)
     AI_AGENT_INSTRUCTIONS = values.Value(
@@ -824,7 +901,7 @@ class Base(
     )
 
     # Albert API
-    ALBERT_API_KEY = values.Value(
+    ALBERT_API_KEY = SecretFileValue(
         None,  # Albert API key is not set by default
         environ_name="ALBERT_API_KEY",
         environ_prefix=None,
@@ -1253,6 +1330,10 @@ class Development(Base):
     def __init__(self):
         # pylint: disable=invalid-name
         self.INSTALLED_APPS += ["django_extensions", "drf_spectacular_sidecar"]
+        self.CONTENT_SECURITY_POLICY["EXCLUDE_URL_PREFIXES"] += [
+            f"/api/{self.API_VERSION}/swagger",
+            f"/api/{self.API_VERSION}/redoc",
+        ]
 
 
 class Test(Base):
@@ -1481,7 +1562,6 @@ class Production(Base):
         gethostbyname(gethostname()),
     ]
     CSRF_TRUSTED_ORIGINS = values.ListValue([])
-    SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
 
     # SECURE_PROXY_SSL_HEADER allows to fix the scheme in Django's HttpRequest
@@ -1495,9 +1575,17 @@ class Production(Base):
     # In other cases, you should comment the following line to avoid security issues.
     # SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    SECURE_HSTS_SECONDS = 60
-    SECURE_HSTS_PRELOAD = True
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    # One year, the minimum for the HSTS preload list. Including subdomains and
+    # preloading also bind the other hosts of the domain, so both are opt-in.
+    SECURE_HSTS_SECONDS = values.PositiveIntegerValue(
+        60 * 60 * 24 * 365, environ_name="SECURE_HSTS_SECONDS", environ_prefix=None
+    )
+    SECURE_HSTS_PRELOAD = values.BooleanValue(
+        False, environ_name="SECURE_HSTS_PRELOAD", environ_prefix=None
+    )
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = values.BooleanValue(
+        False, environ_name="SECURE_HSTS_INCLUDE_SUBDOMAINS", environ_prefix=None
+    )
     SECURE_SSL_REDIRECT = True
     # The probes are called on the process itself, over plain http: a redirect to
     # https is a probe that fails. /metrics joins them only with
@@ -1510,6 +1598,11 @@ class Production(Base):
     # Modern browsers require to have the `secure` attribute on cookies with `Samesite=none`
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_SECURE = True
+
+    # Only redirect to https URLs after an OIDC login or logout
+    OIDC_REDIRECT_REQUIRE_HTTPS = values.BooleanValue(
+        default=True, environ_name="OIDC_REDIRECT_REQUIRE_HTTPS", environ_prefix=None
+    )
 
     # Privacy
     SECURE_REFERRER_POLICY = "same-origin"

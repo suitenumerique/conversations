@@ -1,6 +1,7 @@
 """Django configuration mixin for OIDC authorization code flow and userinfo mapping."""
 
 from configurations import values
+from lasuite.configuration.values import SecretFileValue
 
 
 class OIDCSettings:
@@ -16,7 +17,7 @@ class OIDCSettings:
     OIDC_RP_CLIENT_ID = values.Value(
         "conversations", environ_name="OIDC_RP_CLIENT_ID", environ_prefix=None
     )
-    OIDC_RP_CLIENT_SECRET = values.Value(
+    OIDC_RP_CLIENT_SECRET = SecretFileValue(
         None,
         environ_name="OIDC_RP_CLIENT_SECRET",
         environ_prefix=None,
@@ -89,7 +90,7 @@ class OIDCSettings:
     OIDC_STORE_REFRESH_TOKEN = values.BooleanValue(
         default=False, environ_name="OIDC_STORE_REFRESH_TOKEN", environ_prefix=None
     )
-    OIDC_STORE_REFRESH_TOKEN_KEY = values.Value(
+    OIDC_STORE_REFRESH_TOKEN_KEY = SecretFileValue(
         default=None,
         environ_name="OIDC_STORE_REFRESH_TOKEN_KEY",
         environ_prefix=None,

@@ -1,6 +1,7 @@
 """Django configuration mixin for Sentry, Posthog, Langfuse and logging."""
 
 from configurations import values
+from lasuite.configuration.values import SecretFileValue
 
 
 def scrub_transaction_queries(event, hint):  # pylint: disable=unused-argument
@@ -89,7 +90,7 @@ class ObservabilitySettings:
     LANGFUSE_PUBLIC_KEY = values.Value(
         None, environ_name="LANGFUSE_PUBLIC_KEY", environ_prefix=None
     )
-    LANGFUSE_SECRET_KEY = values.Value(
+    LANGFUSE_SECRET_KEY = SecretFileValue(
         None, environ_name="LANGFUSE_SECRET_KEY", environ_prefix=None
     )
     LANGFUSE_HOST = values.Value(None, environ_name="LANGFUSE_HOST", environ_prefix=None)
