@@ -134,11 +134,6 @@ async def _summarize_text_attachments(
     is empty before reading; this lets each caller produce scope-appropriate
     guidance ("no docs in this conversation" vs. "no project files").
     """
-    instructions_hint = (
-        instructions.strip() if instructions else "The summary should contain 2 or 3 parts."
-    )
-    summarization_agent = SummarizationAgent()
-
     if not text_attachment:
         raise ModelCannotRetry(empty_set_message)
 
@@ -156,6 +151,23 @@ async def _summarize_text_attachments(
             "You must explain this to the user and ask them to retry "
             "or provide the documents again."
         )
+
+    final_summary = await _summarize_documents(documents, instructions=instructions, ctx=ctx)
+
+    return ToolReturn(
+        return_value=final_summary,
+        metadata={"sources": {doc[0] for doc in documents}},
+    )
+
+
+async def _summarize_documents(
+    documents: list[tuple[str, str]], *, instructions: str | None, ctx: RunContext
+) -> str:
+    """Chunk, summarize and merge already-read `(name, content)` documents."""
+    instructions_hint = (
+        instructions.strip() if instructions else "The summary should contain 2 or 3 parts."
+    )
+    summarization_agent = SummarizationAgent()
 
     # Chunk documents and summarize each chunk
     chunk_size = settings.SUMMARIZATION_CHUNK_SIZE
@@ -215,10 +227,7 @@ async def _summarize_text_attachments(
     if not final_summary:
         raise ModelRetry("The summarization produced an empty result.")
 
-    return ToolReturn(
-        return_value=final_summary,
-        metadata={"sources": {doc[0] for doc in documents}},
-    )
+    return final_summary
 
 
 @last_model_retry_soft_fail

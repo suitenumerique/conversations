@@ -11,6 +11,10 @@ and this project adheres to
 ### Added
 
 - ✨(back) add opt-in output token limit per message
+- ✨(back) build generated slide decks from the attached documents and
+  honour the requested slide count
+- 🐛(back) stop claiming a template or a style was applied to a generated
+  slide deck  
 
 ### Fixed
 
