@@ -20,6 +20,7 @@ and this project adheres to
 
 - 🐛(back) accept list content in non-streaming Albert responses
 - 🐛(back) stop losing chat turns when a document contains NUL characters
+- 🐛(ci) key the Playwright browser cache on the Ubuntu release
 
 ## [0.0.27] - 2026-10-28
 
