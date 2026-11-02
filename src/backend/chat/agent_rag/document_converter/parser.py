@@ -211,16 +211,12 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
         writer.write(output)
         return output.getvalue()
 
-    def ocr_page_batch(
-        self,
-        name: str,
-        page_content: bytes,
-        start_index: int,
-        end_index: int,
-    ) -> list[str]:
-        """Send page batch to Mistral OCR API with static delay retry."""
+    def build_ocr_payload(
+        self, name: str, page_content: bytes, start_index: int, end_index: int
+    ) -> dict:
+        """Build the Mistral OCR API request body for a page batch."""
         file_data = base64.standard_b64encode(page_content).decode("utf-8")
-        payload = {
+        return {
             "document": {
                 "type": "document_url",
                 "document_name": f"{name}_pages_{start_index + 1}_to_{end_index}",
@@ -228,6 +224,20 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
             },
             "model": settings.OCR_MODEL,
         }
+
+    def extract_ocr_markdown(self, response_data: dict) -> list[str]:
+        """Extract the markdown of each page from a Mistral OCR API response."""
+        return [page.get("markdown", "") for page in response_data.get("pages", [])]
+
+    def ocr_page_batch(
+        self,
+        name: str,
+        page_content: bytes,
+        start_index: int,
+        end_index: int,
+    ) -> list[str]:
+        """Send page batch to the OCR API with static delay retry."""
+        payload = self.build_ocr_payload(name, page_content, start_index, end_index)
 
         last_exception = None
         for attempt in range(self.max_retries):
@@ -240,8 +250,7 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
                 )
                 response.raise_for_status()
 
-                pages = response.json().get("pages", [])
-                return [page.get("markdown", "") for page in pages]
+                return self.extract_ocr_markdown(response.json())
 
             except httpx.HTTPError as e:
                 last_exception = e
@@ -288,3 +297,80 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
                 logger.error("Failed to OCR pages %d-%d: %s", start_index + 1, end_index, str(e))
                 results.extend([""] * (end_index - start_index))
         return "\n\n".join(results)
+
+
+OCR_WRAPPING_FENCE_LANGUAGES = {"", "text", "markdown", "md"}
+
+
+def strip_enclosing_code_fences(content: str) -> str:
+    """
+    Remove the code fences wrapping the OCR output.
+
+    Chat completions OCR models often answer with ```text ... ``` around the whole
+    output or around each page (the last one sometimes left unclosed), which would turn
+    the document into code blocks. Fences are only removed when the output is made of
+    such blocks separated by blank lines; real code blocks are kept.
+    """
+    lines = content.strip().split("\n")
+    kept = []
+    in_fence = False
+    for line in lines:
+        if line.strip().startswith("```"):
+            if (
+                not in_fence
+                and line.strip()[3:].strip().lower() not in OCR_WRAPPING_FENCE_LANGUAGES
+            ):
+                return content
+            in_fence = not in_fence
+            continue
+        if not in_fence and line.strip():
+            return content
+        kept.append(line)
+    return "\n".join(kept).strip()
+
+
+class OpenAICompatibleOcrParser(AdaptivePdfParser):
+    """
+    PDF parser with adaptive text extraction / OCR routing.
+
+    Uses any OpenAI-compatible chat completions endpoint accepting PDF `file` content
+    parts (e.g. Scaleway Generative APIs OCR models such as lightonocr) for scanned/image
+    PDFs. Each batch is sent as a single PDF file and returns a single markdown string.
+    General-purpose vision models also need an instruction, set with OCR_PROMPT.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+        # The base URL may hold a path (e.g. https://api.scaleway.ai/<project_id>/v1),
+        # so it must be extended rather than resolved with urljoin.
+        base_url = settings.LLM_CONFIGURATIONS[settings.OCR_HRID].provider.base_url
+        self.endpoint = f"{base_url.rstrip('/')}/chat/completions"
+
+    def build_ocr_payload(
+        self, name: str, page_content: bytes, start_index: int, end_index: int
+    ) -> dict:
+        """Build the chat completions request body for a page batch."""
+        file_data = base64.standard_b64encode(page_content).decode("utf-8")
+        content = [
+            {
+                "type": "file",
+                "file": {"file_data": f"data:application/pdf;base64,{file_data}"},
+            }
+        ]
+        # Dedicated OCR models take the file alone, vision LLMs need an instruction
+        if settings.OCR_PROMPT:
+            content.append({"type": "text", "text": settings.OCR_PROMPT})
+        return {
+            "model": settings.OCR_MODEL,
+            "messages": [{"role": "user", "content": content}],
+            "stream": False,
+        }
+
+    def extract_ocr_markdown(self, response_data: dict) -> list[str]:
+        """Extract the markdown of the whole batch from a chat completions response."""
+        choices = response_data.get("choices") or []
+        if not choices:
+            return [""]
+        content = choices[0].get("message", {}).get("content") or ""
+        return [strip_enclosing_code_fences(content)]
