@@ -88,7 +88,8 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
         S3 blobs for both project-level and child-conversation attachments are
         cleaned up before the DB cascade runs, since Django CASCADE drops
         attachment rows without touching object storage. Markdown companions
-        share their key with the original, so unique keys are deduplicated.
+        have their own `.md` key; unique keys are deduplicated for historical
+        companions that still share their key with the original.
         """
         # Same NULL-or-empty handling as ChatProjectAttachmentViewSet.get_queryset:
         # collection_id is CharField(null=True, blank=True), so both states exist.

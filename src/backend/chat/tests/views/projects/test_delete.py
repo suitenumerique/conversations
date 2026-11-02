@@ -138,13 +138,40 @@ def test_delete_project_succeeds_when_backend_fails(api_client, albert_settings,
     assert any("Failed to delete RAG collection 42" in record.message for record in caplog.records)
 
 
+def test_delete_project_cleans_up_companion_s3_blob(api_client):
+    """Deleting a project drops the S3 blob of a markdown companion under its own key."""
+    project = ChatProjectFactory()
+    project_attachment = ChatProjectAttachmentFactory(
+        project=project,
+        uploaded_by=project.owner,
+        file_name="brief.pdf",
+        content_type="application/pdf",
+    )
+    companion = ChatProjectAttachmentFactory(
+        project=project,
+        uploaded_by=project.owner,
+        key=f"{project_attachment.key}.md",
+        file_name="brief.pdf.md",
+        content_type="text/markdown",
+        conversion_from=project_attachment.key,
+    )
+    api_client.force_login(project.owner)
+
+    with mock.patch("chat.views.helpers.default_storage.delete") as storage_delete:
+        response = api_client.delete(f"/api/v1.0/projects/{project.pk}/")
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+    deleted_keys = sorted(call.args[0] for call in storage_delete.call_args_list)
+    assert deleted_keys == sorted([project_attachment.key, companion.key])
+
+
 def test_delete_project_cleans_up_s3_blobs(api_client):
     """Deleting a project drops S3 blobs of project + child-conversation attachments.
 
     The bulk cleanup must collect both project-level attachments and
     attachments owned by every child conversation, dedup shared keys
-    (markdown companions reuse the original's key), and run before the
-    DB cascade so the queries still resolve to live rows.
+    (historical markdown companions reuse the original's key), and run
+    before the DB cascade so the queries still resolve to live rows.
     """
     project = ChatProjectFactory()
     conversation = ChatConversationFactory(owner=project.owner, project=project)

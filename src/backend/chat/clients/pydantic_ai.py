@@ -1708,7 +1708,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             if not document.media_type.startswith(TEXT_MIME_PREFIX):
                 # A distinct key keeps the original file intact, as the project
                 # indexing does (see agent_rag.indexing._write_markdown_companion).
-                md_key = default_storage.save(f"{key}.md", BytesIO(parsed_content.encode("utf8")))
+                md_key = await asyncio.to_thread(
+                    default_storage.save, f"{key}.md", BytesIO(parsed_content.encode("utf8"))
+                )
                 await models.ChatConversationAttachment.objects.acreate(
                     conversation=self.conversation,
                     uploaded_by=self.user,

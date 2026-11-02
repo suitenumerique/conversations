@@ -30,8 +30,9 @@ def _bulk_delete_s3_blobs(keys):
 
     Used on conversation/project bulk delete paths where Django CASCADE drops
     attachment rows but never touches object storage. Each failure is logged;
-    none re-raised. Caller passes a deduplicated iterable since markdown
-    companions share the same S3 key as their original.
+    none re-raised. Markdown companions have their own `.md` key, but the
+    caller passes a deduplicated iterable since historical companions may
+    still share their key with the original.
     """
     for key in keys:
         if not key:

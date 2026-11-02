@@ -108,10 +108,36 @@ def test_delete_conversation_succeeds_when_backend_fails(api_client, albert_sett
 
 
 def test_delete_conversation_cleans_up_s3_blobs(api_client):
-    """Deleting a conversation removes its attachments' S3 blobs.
+    """Deleting a conversation removes its attachments' S3 blobs, companion included."""
+    conversation = ChatConversationFactory()
+    original = ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=conversation.owner,
+        file_name="paper.pdf",
+        content_type="application/pdf",
+    )
+    companion = ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=conversation.owner,
+        key=f"{original.key}.md",
+        file_name="paper.pdf.md",
+        content_type="text/markdown",
+        conversion_from=original.key,
+    )
+    api_client.force_login(conversation.owner)
 
-    Markdown companions share their key with the original, so the bulk
-    delete must dedupe to a single S3 call per unique key.
+    with mock.patch("chat.views.helpers.default_storage.delete") as storage_delete:
+        response = api_client.delete(f"/api/v1.0/chats/{conversation.pk}/")
+
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+    deleted_keys = sorted(call.args[0] for call in storage_delete.call_args_list)
+    assert deleted_keys == sorted([original.key, companion.key])
+
+
+def test_delete_conversation_dedupes_legacy_shared_s3_key(api_client):
+    """Historical companions share their key with the original.
+
+    The bulk delete must dedupe to a single S3 call per unique key.
     """
     conversation = ChatConversationFactory()
     original = ChatConversationAttachmentFactory(
@@ -123,7 +149,7 @@ def test_delete_conversation_cleans_up_s3_blobs(api_client):
     ChatConversationAttachmentFactory(
         conversation=conversation,
         uploaded_by=conversation.owner,
-        key=original.key,  # companion shares the original's S3 key
+        key=original.key,  # historical companion shares the original's S3 key
         file_name="paper.pdf.md",
         content_type="text/markdown",
         conversion_from=original.key,

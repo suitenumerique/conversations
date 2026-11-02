@@ -196,8 +196,9 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         delete. The collection drop covers all per-doc Albert state in one
         call, so we do not iterate `delete_document` on each attachment here.
         S3 cleanup is needed because Django CASCADE drops attachment rows
-        without touching object storage. Markdown companions share their key
-        with the original, so unique keys are deduplicated upfront.
+        without touching object storage. Markdown companions have their own
+        `.md` key; unique keys are deduplicated upfront for historical
+        companions that still share their key with the original.
         """
         if instance.collection_id:
             try:
