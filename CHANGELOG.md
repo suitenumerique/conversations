@@ -15,7 +15,7 @@ and this project adheres to
 ### Changed
 
 - 🔒️(back) upgrade authlib, dnspython and pypdf to fix CVEs
-- ⬆️(back) upgrade minor and patch python dependencies
+- ⬆️(back,front) upgrade minor and patch dependencies
 
 ### Fixed
 
