@@ -24,6 +24,7 @@ and this project adheres to
 - 🔇(back) log tool retries as warnings, keep the cause on exhaustion
 - 🐛(back) skip filing a turn whose conversation was deleted
 - 🐛(oidc) log in the active user when several users share an email
+- 🐛(frontend) keep chat working in older browsers
 
 ## [0.0.27] - 2026-10-28
 
