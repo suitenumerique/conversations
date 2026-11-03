@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-21 15:35+0000\n"
-"PO-Revision-Date: 2026-10-28 08:55\n"
+"POT-Creation-Date: 2026-11-03 19:01+0000\n"
+"PO-Revision-Date: 2026-11-03 20:48\n"
 "Last-Translator: \n"
 "Language-Team: Russian\n"
 "Language: ru_RU\n"
@@ -94,7 +94,7 @@ msgstr "использовано"
 msgid "Number of times this code has been used"
 msgstr "Сколько раз этот код был использован"
 
-#: activation_codes/models.py:64 core/models.py:156 core/models.py:416
+#: activation_codes/models.py:64 core/models.py:159 core/models.py:419
 msgid "active"
 msgstr "активный"
 
@@ -123,7 +123,7 @@ msgid "activation codes"
 msgstr "коды активации"
 
 #: activation_codes/models.py:100 activation_codes/models.py:132
-#: core/models.py:205
+#: core/models.py:208
 msgid "user"
 msgstr "пользователь"
 
@@ -204,7 +204,7 @@ msgstr "Служба недоступна"
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
 msgstr "В настоящее время сервис недоступен из-за чрезмерной нагрузки. Команда работает над скорейшим восстановлением работы Помощника."
 
-#: chat/clients/pydantic_ai.py:1872
+#: chat/clients/pydantic_ai.py:1960
 msgid "Internal Documentation of the AI Assistant"
 msgstr "Внутренняя документация ИИ помощника"
 
@@ -283,231 +283,235 @@ msgstr "обновлено"
 msgid "date and time at which a record was last updated"
 msgstr "дата и время последнего обновления записи"
 
-#: core/models.py:91
+#: core/models.py:85
+msgid "Several active users are associated with this email."
+msgstr "С этим адресом связаны несколько активных пользователей."
+
+#: core/models.py:94
 msgid "We couldn't find a user with this sub but the email is already associated with a registered user."
 msgstr "Мы не смогли найти пользователя с этими данными, но этот адрес уже связан с зарегистрированным пользователем."
 
-#: core/models.py:104
+#: core/models.py:107
 msgid "Enter a valid sub. This value may contain only letters, numbers, and @/./+/-/_/: characters."
 msgstr "Введите правильный префикс. Он может содержать только буквы, цифры и символы @/./+/-/_/."
 
-#: core/models.py:110
+#: core/models.py:113
 msgid "sub"
 msgstr "префикс"
 
-#: core/models.py:112
+#: core/models.py:115
 msgid "Required. 255 characters or fewer. Letters, numbers, and @/./+/-/_/: characters only."
 msgstr "Обязательно. 255 символов или меньше. Только буквы, цифры и @/./+/-/_/: /."
 
-#: core/models.py:121
+#: core/models.py:124
 msgid "full name"
 msgstr "полное имя"
 
-#: core/models.py:122
+#: core/models.py:125
 msgid "short name"
 msgstr "короткое имя"
 
-#: core/models.py:124
+#: core/models.py:127
 msgid "identity email address"
 msgstr "личный адрес электронной почты"
 
-#: core/models.py:128
+#: core/models.py:131
 msgid "admin email address"
 msgstr "e-mail администратора"
 
-#: core/models.py:134
+#: core/models.py:137
 msgid "language"
 msgstr "язык"
 
-#: core/models.py:135
+#: core/models.py:138
 msgid "The language in which the user wants to see the interface."
 msgstr "Язык, на котором пользователь хочет видеть интерфейс."
 
-#: core/models.py:143
+#: core/models.py:146
 msgid "The timezone in which the user wants to see times."
 msgstr "Часовой пояс, в котором пользователь хочет видеть время."
 
-#: core/models.py:146
+#: core/models.py:149
 msgid "device"
 msgstr "устройство"
 
-#: core/models.py:148
+#: core/models.py:151
 msgid "Whether the user is a device or a real user."
 msgstr "Пользователь является устройством или человеком."
 
-#: core/models.py:151
+#: core/models.py:154
 msgid "staff status"
 msgstr "статус сотрудника"
 
-#: core/models.py:153
+#: core/models.py:156
 msgid "Whether the user can log into this admin site."
 msgstr "Может ли пользователь войти на этот административный сайт."
 
-#: core/models.py:159
+#: core/models.py:162
 msgid "Whether this user should be treated as active. Unselect this instead of deleting accounts."
 msgstr "Должен ли пользователь рассматриваться как активный. Альтернатива удалению учётных записей."
 
-#: core/models.py:166
+#: core/models.py:169
 msgid "allow conversation analytics"
 msgstr "разрешить аналитику для беседы"
 
-#: core/models.py:168
+#: core/models.py:171
 msgid "Whether the user allows to use their conversations for analytics."
 msgstr "Разрешает ли пользователь использовать свои беседы для аналитики."
 
-#: core/models.py:172
+#: core/models.py:175
 msgid "allow smart web search"
 msgstr "разрешить умный поиск в Интернете"
 
-#: core/models.py:174
+#: core/models.py:177
 msgid "Whether the user allows to use smart web search features."
 msgstr "Разрешает ли пользователь использовать умный поиск в Интернете."
 
-#: core/models.py:178
+#: core/models.py:181
 msgid "allow data.gouv connector"
 msgstr "разрешить соединитель data.gouv"
 
-#: core/models.py:181
+#: core/models.py:184
 msgid "Whether the user asked for the data.gouv connector. This records a choice, not an entitlement: the connector also requires the beta feature flag and a configured endpoint."
 msgstr "Запрашивает ли пользователь соединитель data.gouv. При этом сохраняется выбранный вариант, а не право: соединитель также требует флага бета-версии и настроенной конечной точки."
 
-#: core/models.py:191
+#: core/models.py:194
 msgid "organization SIRET"
 msgstr "номер SIRET организации"
 
-#: core/models.py:195
+#: core/models.py:198
 msgid "SIRET of the user's organization, as provided by the identity provider."
 msgstr "SIRET организации, предоставленный поставщиком удостоверений."
 
-#: core/models.py:206
+#: core/models.py:209
 msgid "users"
 msgstr "пользователи"
 
-#: core/models.py:222
+#: core/models.py:225
 msgid "Info"
 msgstr "Информация"
 
-#: core/models.py:223
+#: core/models.py:226
 msgid "Warning"
 msgstr "Внимание"
 
-#: core/models.py:224
+#: core/models.py:227
 msgid "Alert"
 msgstr "Предупреждение"
 
-#: core/models.py:231
+#: core/models.py:234
 msgid "Self documentation content. Must be valid markdown."
 msgstr "Встроенная документация. Должна содержать корректную разметку."
 
-#: core/models.py:238
+#: core/models.py:241
 msgid "Status banner - level"
 msgstr "Индикатор состояния - уровень"
 
-#: core/models.py:245
+#: core/models.py:248
 msgid "Status banner - title"
 msgstr "Индикатор состояния - заголовок"
 
-#: core/models.py:249
+#: core/models.py:252
 msgid "Status banner - content"
 msgstr "Индикатор состояния - содержимое"
 
-#: core/models.py:254
+#: core/models.py:257
 msgid "Status banner - starts at"
 msgstr "Индикатор состояния - с"
 
-#: core/models.py:255
+#: core/models.py:258
 msgid "If set, the banner is hidden before this date."
 msgstr "Если установлено, индикатор будет скрыт до этой даты."
 
-#: core/models.py:260
+#: core/models.py:263
 msgid "Status banner - ends at"
 msgstr "Индикатор состояния - до"
 
-#: core/models.py:261
+#: core/models.py:264
 msgid "If set, the banner is hidden after this date."
 msgstr "Если установлено, индикатор будет скрыт после этой даты."
 
-#: core/models.py:266
+#: core/models.py:269
 msgid "Block chat input on full outage"
 msgstr "Блокировка ввода текста в чате при полном отключении сети"
 
-#: core/models.py:269
+#: core/models.py:272
 msgid "When enabled, the chat input is disabled while all AI models are unavailable. Disable to keep the input active and show a degraded-service warning instead."
 msgstr "При включении этой функции ввод данных в чат отключается, пока недоступны все модели ИИ. Отключите эту функцию, чтобы оставить ввод данных активным, и вместо этого отображать предупреждение о снижении качества обслуживания."
 
-#: core/models.py:287
+#: core/models.py:290
 msgid "Site Configuration"
 msgstr "Конфигурация сайта"
 
-#: core/models.py:300
+#: core/models.py:303
 msgid "Enabled"
 msgstr "Включено"
 
-#: core/models.py:301
+#: core/models.py:304
 msgid "When checked, the app is in maintenance mode for end-users."
 msgstr "Когда отмечено, приложение находится в режиме обслуживания для конечных пользователей."
 
-#: core/models.py:306
+#: core/models.py:309
 msgid "Message"
 msgstr "Сообщение"
 
-#: core/models.py:307
+#: core/models.py:310
 msgid "Shown on the maintenance page. Leave blank for the default message."
 msgstr "Отображается на странице обслуживания. Оставьте пустым для сообщения по умолчанию."
 
-#: core/models.py:312
+#: core/models.py:315
 msgid "Starts at"
 msgstr "Начало"
 
-#: core/models.py:313
+#: core/models.py:316
 msgid "If set, maintenance is inactive before this date."
 msgstr "Если установлено, обслуживание неактивно до этой даты."
 
-#: core/models.py:318
+#: core/models.py:321
 msgid "Ends at"
 msgstr "Закончится в"
 
-#: core/models.py:319
+#: core/models.py:322
 msgid "If set, maintenance is inactive after this date."
 msgstr "Если установлено, обслуживание неактивно после этой даты."
 
-#: core/models.py:357
+#: core/models.py:360
 msgid "Maintenance Mode"
 msgstr "Режим обслуживания"
 
-#: core/models.py:411
+#: core/models.py:414
 msgid "email address"
 msgstr "адрес электронной почты"
 
-#: core/models.py:413
+#: core/models.py:416
 msgid "email address allowed to bypass the role requirement"
 msgstr "адрес электронной почты, которому разрешено обходить требование роли"
 
-#: core/models.py:418
+#: core/models.py:421
 msgid "inactive entries are ignored without being deleted"
 msgstr "неактивные записи игнорируются без их удаления"
 
-#: core/models.py:421
+#: core/models.py:424
 msgid "note"
 msgstr "примечание"
 
-#: core/models.py:423
+#: core/models.py:426
 msgid "optional reason for granting this bypass"
 msgstr "необязательная причина предоставления этого обхода"
 
-#: core/models.py:426
+#: core/models.py:429
 msgid "expires on"
 msgstr "истекает"
 
-#: core/models.py:429
+#: core/models.py:432
 msgid "optional date after which this bypass no longer applies"
 msgstr "необязательная дата, после которой этот обход больше не применяется"
 
-#: core/models.py:434
+#: core/models.py:437
 msgid "access bypass email"
 msgstr "эл. адрес обходного доступа"
 
-#: core/models.py:435
+#: core/models.py:438
 msgid "access bypass emails"
 msgstr "эл. почта для доступа с обходом"
 
