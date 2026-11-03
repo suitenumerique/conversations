@@ -41,11 +41,11 @@ def _mock_backend_class():
     return MagicMock(return_value=store)
 
 
-def _mock_parse_task(rag_document_id):
+def _mock_parse_task(rag_document_id, companion_key=None):
     """Mock the parse task so `.delay(...).get()` returns a fixed parse result."""
     task = MagicMock()
     async_result = MagicMock()
-    async_result.get.return_value = ("parsed content", rag_document_id)
+    async_result.get.return_value = (companion_key, rag_document_id)
     task.delay.return_value = async_result
     return task
 
@@ -70,7 +70,7 @@ async def test_index_state_set_to_indexed_when_rag_document_id_returned():
     with (
         patch("chat.clients.pydantic_ai.document_store_backend", _mock_backend_class()),
         patch(
-            "chat.clients.pydantic_ai.parse_and_store_conversation_document_task",
+            "chat.clients.pydantic_ai.index_conversation_document_task",
             _mock_parse_task("doc-42"),
         ),
     ):
@@ -94,7 +94,7 @@ async def test_index_state_not_saved_when_rag_document_id_is_none():
     with (
         patch("chat.clients.pydantic_ai.document_store_backend", _mock_backend_class()),
         patch(
-            "chat.clients.pydantic_ai.parse_and_store_conversation_document_task",
+            "chat.clients.pydantic_ai.index_conversation_document_task",
             _mock_parse_task(None),
         ),
     ):
@@ -108,8 +108,8 @@ async def test_index_state_not_saved_when_rag_document_id_is_none():
 async def test_result_is_forgotten_when_parse_task_fails():
     """The result payload is dropped from the result backend even when the task fails.
 
-    Otherwise the (possibly large) parsed content would linger in the result
-    backend until `result_expires`.
+    Otherwise the task result would linger in the result backend until
+    `result_expires`.
     """
     conversation = await sync_to_async(ChatConversationFactory)(collection_id="col-1")
     service = AIAgentService(conversation, user=conversation.owner)
@@ -119,7 +119,7 @@ async def test_result_is_forgotten_when_parse_task_fails():
     task = _mock_failing_parse_task(RuntimeError("parse exploded"))
     with (
         patch("chat.clients.pydantic_ai.document_store_backend", _mock_backend_class()),
-        patch("chat.clients.pydantic_ai.parse_and_store_conversation_document_task", task),
+        patch("chat.clients.pydantic_ai.index_conversation_document_task", task),
         pytest.raises(RuntimeError, match="parse exploded"),
     ):
         await service._parse_input_documents([document])
@@ -142,7 +142,7 @@ async def test_task_is_revoked_when_result_wait_times_out():
     task = _mock_failing_parse_task(CeleryTimeoutError("result wait timed out"))
     with (
         patch("chat.clients.pydantic_ai.document_store_backend", _mock_backend_class()),
-        patch("chat.clients.pydantic_ai.parse_and_store_conversation_document_task", task),
+        patch("chat.clients.pydantic_ai.index_conversation_document_task", task),
         pytest.raises(CeleryTimeoutError, match="result wait timed out"),
     ):
         await service._parse_input_documents([document])
@@ -152,8 +152,11 @@ async def test_task_is_revoked_when_result_wait_times_out():
 
 
 @pytest.mark.asyncio
-async def test_a_non_text_document_keeps_its_file_beside_its_markdown_companion():
-    """The parsed Markdown is stored apart: the original file is left as uploaded."""
+async def test_a_non_text_document_gets_a_companion_row_for_the_task_written_key():
+    """The task writes the Markdown companion; the turn records it as an attachment row.
+
+    The original file is left as uploaded.
+    """
     conversation = await sync_to_async(ChatConversationFactory)(collection_id="col-1")
     service = AIAgentService(conversation, user=conversation.owner)
     key = f"{conversation.pk}/attachments/deck.pptx"
@@ -166,8 +169,8 @@ async def test_a_non_text_document_keeps_its_file_beside_its_markdown_companion(
     with (
         patch("chat.clients.pydantic_ai.document_store_backend", _mock_backend_class()),
         patch(
-            "chat.clients.pydantic_ai.parse_and_store_conversation_document_task",
-            _mock_parse_task("doc-42"),
+            "chat.clients.pydantic_ai.index_conversation_document_task",
+            _mock_parse_task("doc-42", companion_key=f"{key}.md"),
         ),
     ):
         await service._parse_input_documents([document])
@@ -175,6 +178,3 @@ async def test_a_non_text_document_keeps_its_file_beside_its_markdown_companion(
     companion = await models.ChatConversationAttachment.objects.aget(conversion_from=key)
     assert companion.key == f"{key}.md"
     assert await sync_to_async(lambda: default_storage.open(key).read())() == b"original pptx bytes"
-    assert await sync_to_async(lambda: default_storage.open(companion.key).read())() == (
-        b"parsed content"
-    )

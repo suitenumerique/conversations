@@ -42,7 +42,8 @@ class CelerySettings:
     )
     # Result backend: stores task return values so a request can await a task's
     # result. Needed by the conversation document-parse task, which the chat turn
-    # blocks on to get the parsed content back; fire-and-forget tasks (project
+    # blocks on to get the companion key and backend document id back (small
+    # values: the parsed content itself goes to storage); fire-and-forget tasks (project
     # indexing) do not use it. Shares Redis db 0 with the broker - Celery keeps
     # result keys in their own `celery-task-meta-*` namespace.
     CELERY_RESULT_BACKEND = values.Value(
@@ -51,8 +52,8 @@ class CelerySettings:
     # How long unconsumed task results stay in Redis. The document-parse caller
     # forgets its result right after reading it, so this only covers results the
     # caller never read (e.g. a parse finishing after the caller timed out).
-    # Those payloads can be whole parsed documents, so keep the window short
-    # (1h) rather than Celery's 24h default.
+    # Those payloads are small, but there is no reason to keep them for Celery's
+    # 24h default, so keep the window short (1h).
     CELERY_RESULT_EXPIRES = values.IntegerValue(
         3600,
         environ_name="CELERY_RESULT_EXPIRES",

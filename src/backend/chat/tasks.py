@@ -26,6 +26,7 @@ from chat.constants import (
     DEINDEX_TASK_TIME_LIMIT,
     SUMMARIZATION_TASK_SOFT_TIME_LIMIT,
     SUMMARIZATION_TASK_TIME_LIMIT,
+    TEXT_MIME_PREFIX,
 )
 from chat.llm_configuration import get_model_configuration
 from chat.models import ChatConversation, ChatConversationAttachment
@@ -72,17 +73,14 @@ def index_project_attachment_task(attachment_id):
     index_project_attachment(attachment)
 
 
+# Kept unchanged only so workers on this release can still serve web pods from the
+# previous release during a rolling deploy. Remove it in the next release.
 @app.task
 def parse_and_store_conversation_document_task(collection_id, s3_key, name, content_type, user_sub):
-    """Parse a conversation document and store it in the conversation's RAG collection.
+    """Deprecated: superseded by `index_conversation_document_task`.
 
-    Enqueued by `AIAgentService._parse_input_documents` during a chat turn, which
-    blocks on the result. The heavy, hostile-input-exposed work (parsing the file,
-    storing chunks in the RAG backend) runs here, off the web worker and under the
-    Celery task time limits, so a malformed or malicious file cannot hang or exhaust
-    the request process. The caller passes only the storage key; the task reads the
-    file bytes itself so nothing large crosses the broker. Returns
-    `(parsed_content, rag_document_id)`; the caller does the DB and companion writes.
+    Returns `(parsed_content, rag_document_id)` through the result backend, which
+    puts whole parsed documents in Redis.
     """
     backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)(collection_id=collection_id)
     with default_storage.open(s3_key, "rb") as file:
@@ -95,6 +93,64 @@ def parse_and_store_conversation_document_task(collection_id, s3_key, name, cont
         content=content,
         user_sub=user_sub,
     )
+
+
+@app.task
+def index_conversation_document_task(collection_id, s3_key, name, content_type, user_sub):
+    """Parse a conversation document and store it in the conversation's RAG collection.
+
+    Enqueued by `AIAgentService._parse_input_documents` during a chat turn, which
+    blocks on the result. The heavy, hostile-input-exposed work (parsing the file,
+    storing chunks in the RAG backend) runs here, off the web worker and under the
+    Celery task time limits, so a malformed or malicious file cannot hang or exhaust
+    the request process. The caller passes only the storage key; the task reads the
+    file bytes itself so nothing large crosses the broker.
+
+    For a non-text input the task also writes the Markdown companion to storage, so
+    the parsed content never goes through the result backend either: a large parsed
+    document (e.g. a big spreadsheet) written to Redis in one shot can stall it, and
+    Celery logs task return values. Returns `(companion_key, rag_document_id)`, with
+    `companion_key` None for text inputs; the caller does the DB writes.
+
+    Registered under a different name than `parse_and_store_conversation_document_task`
+    because the return value differs: during a rolling deploy, a worker that does not
+    know this task rejects it instead of returning a result the caller misreads.
+    """
+    backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)(collection_id=collection_id)
+    with default_storage.open(s3_key, "rb") as file:
+        content = file.read()
+
+    parsed_content, rag_document_id = parse_and_store_with_retry(
+        backend,
+        name=name,
+        content_type=content_type,
+        content=content,
+        user_sub=user_sub,
+    )
+
+    companion_key = None
+    if not content_type.startswith(TEXT_MIME_PREFIX):
+        # A distinct key keeps the original file intact, as the project indexing
+        # does (see agent_rag.indexing._write_markdown_companion).
+        try:
+            companion_key = default_storage.save(
+                f"{s3_key}.md", io.BytesIO(parsed_content.encode("utf-8"))
+            )
+        except Exception:
+            # The caller never gets the id if this task fails, so nothing would
+            # reference the chunks just stored: remove them before failing.
+            if rag_document_id:
+                try:
+                    backend.delete_document(rag_document_id)
+                except Exception:  # pylint: disable=broad-except
+                    logger.exception(
+                        "Failed to delete RAG document %s from collection %s",
+                        rag_document_id,
+                        collection_id,
+                    )
+            raise
+
+    return companion_key, rag_document_id
 
 
 @app.task(

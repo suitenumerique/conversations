@@ -28,6 +28,7 @@ and this project adheres to
 
 ### Fixed
 
+- 🐛(back) keep parsed conversation documents out of the Celery result backend
 - 🐛(back) accept list content in non-streaming Albert responses
 - 🐛(back) stop losing chat turns when a document contains NUL characters
 - 🐛(ci) key the Playwright browser cache on the Ubuntu release

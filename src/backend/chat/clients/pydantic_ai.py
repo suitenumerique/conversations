@@ -86,7 +86,6 @@ import os
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack, suppress
-from io import BytesIO
 from typing import AsyncGenerator, Dict, List, Optional, Tuple, Union
 
 from django.conf import settings
@@ -199,7 +198,7 @@ from chat.mcp_servers import DataGouvConnector, enter_mcp_toolsets
 from chat.rate_limiting import get_cooldown_remaining, record_and_compute_cooldown
 from chat.stream_chunks import close as close_turn_trail
 from chat.stream_chunks import persist as persist_leftover_chunks
-from chat.tasks import parse_and_store_conversation_document_task, summarize_conversation_history
+from chat.tasks import index_conversation_document_task, summarize_conversation_history
 from chat.tools.descriptions import (
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
@@ -1604,12 +1603,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
              - Enqueues the parse + RAG store on a Celery worker (reading the
                file from storage by key) and blocks on the result
              - Persists the backend document id on the attachment row
-             - Creates a markdown attachment for non-text files (PDF → MD)
+             - Records the markdown companion the task wrote for non-text
+               files (PDF → MD) as an attachment row
 
         Security: Documents are validated to ensure their URLs match the pattern
          `/media-key/{conversation_pk}/...` to prevent cross-conversation access.
 
-        The parse + store runs in the `parse_and_store_conversation_document_task`
+        The parse + store runs in the `index_conversation_document_task`
         Celery task rather than in-process, so the heavy, hostile-input-exposed
         work is off the request process and capped by the Celery task time limits.
         The turn blocks on the task result, so the UX is unchanged.
@@ -1671,7 +1671,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             # thread like the `.get()`/`.forget()` below to keep the event
             # loop free for other streams.
             async_result = await asyncio.to_thread(
-                parse_and_store_conversation_document_task.delay,
+                index_conversation_document_task.delay,
                 self.conversation.collection_id,
                 key,
                 document.identifier,
@@ -1679,7 +1679,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 self.user.sub,
             )
             try:
-                parsed_content, rag_document_id = await asyncio.to_thread(
+                companion_key, rag_document_id = await asyncio.to_thread(
                     async_result.get,
                     timeout=settings.DOCUMENT_PARSE_RESULT_TIMEOUT_SECONDS,
                 )
@@ -1691,11 +1691,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 await asyncio.to_thread(async_result.revoke)
                 raise
             finally:
-                # Drop the (possibly large) parsed-content payload from the result
-                # backend once the task has finished: it has been consumed on
-                # success, and is useless on failure. If the task is still queued
-                # or running (timeout path above), a result written later sits in
-                # Redis until CELERY_RESULT_EXPIRES.
+                # Drop the task result from the result backend once the task has
+                # finished: it has been consumed on success, and is useless on
+                # failure. If the task is still queued or running (timeout path
+                # above), a result written later sits in Redis until
+                # CELERY_RESULT_EXPIRES.
                 await asyncio.to_thread(async_result.forget)
 
             # Persist the backend-side document id on the original attachment row.
@@ -1705,16 +1705,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     conversation_id=self.conversation.pk, key=key
                 ).aupdate(rag_document_id=rag_document_id, is_indexed=True)
 
-            if not document.media_type.startswith(TEXT_MIME_PREFIX):
-                # A distinct key keeps the original file intact, as the project
-                # indexing does (see agent_rag.indexing._write_markdown_companion).
-                md_key = await asyncio.to_thread(
-                    default_storage.save, f"{key}.md", BytesIO(parsed_content.encode("utf8"))
-                )
+            if companion_key:
+                # The task wrote the Markdown companion (non-text inputs only) to
+                # a distinct key, so the original file stays intact; record it.
                 await models.ChatConversationAttachment.objects.acreate(
                     conversation=self.conversation,
                     uploaded_by=self.user,
-                    key=md_key,
+                    key=companion_key,
                     file_name=f"{document.identifier}.md",
                     content_type=MARKDOWN_MIME_TYPE,
                     conversion_from=key,
