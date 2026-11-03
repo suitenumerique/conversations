@@ -86,7 +86,19 @@ Generate a slide deck (.pptx) and return a link to download it.
 Use this tool whenever the user asks for a presentation, a deck, slides, or a
 support to project in a meeting. The tool writes the slides itself: pass a
 brief describing the subject, the audience and any structure the user asked
-for, not the slides themselves.
+for, not the slides themselves. The tool reads the attached documents on its
+own: point it at the right ones with `document_ids` rather than summarizing
+them in the brief. Only point it at the documents relevant to the request, and
+pass an empty list when none are. Pass `slide_count` when the user asked for a
+number of slides.
+
+What the tool CANNOT do yet: it always uses the standard template. It cannot
+reuse an attached pptx template or slide master, nor apply requested colours,
+fonts, font sizes or logos, nor insert images, charts or diagrams. When the
+user asks for any of these, still generate the deck, then tell them plainly
+that this part was not applied. Never claim that a template or a style
+instruction was followed, and do not ask the user to describe their template
+instead.
 
 The tool returns a download link. Pass that link on to the user as-is; do NOT
 restate the deck's content or list the slides.
