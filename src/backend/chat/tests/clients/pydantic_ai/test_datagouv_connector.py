@@ -27,6 +27,7 @@ from core.feature_flags.flags import FeatureToggle
 
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService, DocumentParsingResult
+from chat.clients.schema import ImagePostRunActions
 from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.llm_configuration import LLModel, LLMProvider
 from chat.mcp_servers import (
@@ -35,6 +36,7 @@ from chat.mcp_servers import (
     is_connector_unreachable,
 )
 from chat.turn.event_mapper import TurnEventMapper
+from chat.turn.prompt import TurnInputs
 
 pytestmark = pytest.mark.django_db()
 
@@ -398,8 +400,16 @@ async def test_run_agent_hands_connector_tools_to_the_agent_run(settings, mcp_se
         yield _FakeRun()
 
     async def fake_prepare(_messages):
-        """Return a stub agent-run preparation tuple."""
-        return ("prompt", [], [], [], [], False)
+        """Return stub turn inputs: a bare prompt, nothing attached, no history."""
+        return TurnInputs(
+            user_prompt="prompt",
+            input_images=[],
+            input_documents=[],
+            image_actions=ImagePostRunActions(),
+            history=[],
+            conversation_has_own_documents=False,
+            pre_stream_events=[],
+        )
 
     async def fake_handle_docs(*_args, **_kwargs):
         """Yield a stub document-parsing result with no documents."""

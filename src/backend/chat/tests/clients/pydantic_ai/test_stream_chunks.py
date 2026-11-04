@@ -31,6 +31,7 @@ from chat.constants import STREAM_LIVE_WINDOW_SECONDS
 from chat.factories import ChatConversationFactory
 from chat.keepalive import stream_with_keepalive_async
 from chat.models import ChatConversation, ChatStreamChunk
+from chat.turn.prompt import persist_user_message_for_image_skip
 from chat.turn.usage import TokenMeter
 
 pytestmark = pytest.mark.django_db(transaction=True)
@@ -836,7 +837,7 @@ async def test_an_image_skip_question_keeps_what_another_tab_stored():
     service = _service_with_model(conversation, _hello_model)
     await sync_to_async(_land_from_another_tab)(conversation)
 
-    await service._persist_user_message_for_image_skip(QUESTION)
+    await persist_user_message_for_image_skip(conversation, service._trail, QUESTION)
 
     stored = await ChatConversation.objects.aget(pk=conversation.pk)
     assert [message.id for message in stored.messages] == ["other-1", "q-1"]

@@ -43,9 +43,10 @@ class TurnTrail:  # pylint: disable=too-many-instance-attributes
     fold, overwrite or delete them.
 
     The service sets the attributes it owns the timing of: `message_id` once the
-    stream has one, `image_actions` once the prompt is prepared,
-    `question_stored` when the image-skip path stores the question, `landed`
-    when the turn is filed, and `active_stream` while a model node streams.
+    stream has one, `image_actions` once the prompt is prepared, `landed` when
+    the turn is filed, and `active_stream` while a model node streams.
+    `question_stored` is set by `chat.turn.prompt` when the image-skip path
+    stores the question (the service passes the trail to `prepare_turn_inputs`).
     """
 
     def __init__(self, conversation: models.ChatConversation, log: Callable[..., None]):

@@ -22,7 +22,6 @@ from rest_framework import status
 
 from chat.ai_sdk_types import FileUIPart, TextUIPart, UIMessage
 from chat.clients.exceptions import StreamCancelException
-from chat.clients.pydantic_ai import IMAGE_SKIP_REASON_TEXT_ONLY
 from chat.factories import (
     ChatConversationFactory,
     ChatProjectAttachmentFactory,
@@ -30,6 +29,7 @@ from chat.factories import (
 )
 from chat.llm_configuration import LLModel, LLMProvider
 from chat.models import AttachmentStatus
+from chat.turn.prompt import IMAGE_SKIP_REASON_TEXT_ONLY
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -242,7 +242,7 @@ def test_project_images_not_sent_but_instruction_added_for_text_only_model(
     captured: dict = {}
 
     with patch(
-        "chat.clients.pydantic_ai.build_project_image_urls",
+        "chat.turn.prompt.build_project_image_urls",
         new=AsyncMock(),
     ) as mock_build:
         _run_turn(
@@ -361,7 +361,7 @@ def test_switch_text_only_to_vision_reads_project_image(
 
     turn1 = _image_message("Tell me about the project.", msg_id="1")
     captured1: dict = {}
-    with patch("chat.clients.pydantic_ai.build_project_image_urls", new=AsyncMock()) as mock_build:
+    with patch("chat.turn.prompt.build_project_image_urls", new=AsyncMock()) as mock_build:
         _run_turn(
             api_client,
             mock_ai_agent_service,
@@ -383,7 +383,7 @@ def test_switch_text_only_to_vision_reads_project_image(
     turn2 = _image_message("And what colors are used?", msg_id="2")
     captured2: dict = {}
     with patch(
-        "chat.clients.pydantic_ai.build_project_image_urls",
+        "chat.turn.prompt.build_project_image_urls",
         new=AsyncMock(return_value=[pinned]),
     ) as mock_build:
         _run_turn(

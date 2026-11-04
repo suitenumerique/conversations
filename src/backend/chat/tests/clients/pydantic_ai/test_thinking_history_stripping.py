@@ -16,8 +16,9 @@ from pydantic_ai.messages import (
 )
 
 from chat.ai_sdk_types import TextUIPart, UIMessage
-from chat.clients.pydantic_ai import AIAgentService, _strip_thinking_parts
+from chat.clients.pydantic_ai import AIAgentService
 from chat.factories import ChatConversationFactory
+from chat.turn.prompt import strip_thinking_parts
 
 pytestmark = pytest.mark.django_db()
 
@@ -55,7 +56,7 @@ def _request(*parts):
 )
 def test_strip_thinking_parts(parts_in, expected_parts):
     """ThinkingPart is removed from ModelResponse; non-thinking parts are preserved."""
-    result = _strip_thinking_parts([_response(*parts_in)])
+    result = strip_thinking_parts([_response(*parts_in)])
     assert list(result[0].parts) == expected_parts
 
 
@@ -67,7 +68,7 @@ def test_strip_thinking_parts_mixed_history():
     )
     response_without_thinking = _response(TextPart(content="follow-up"))
 
-    result = _strip_thinking_parts([request, response_with_thinking, response_without_thinking])
+    result = strip_thinking_parts([request, response_with_thinking, response_without_thinking])
 
     assert result[0] is request
     assert list(result[1].parts) == [TextPart(content="answer")]
@@ -101,12 +102,12 @@ async def test_thinking_parts_stripped_when_model_does_not_support_thinking():
 
     with (
         patch(
-            "chat.clients.pydantic_ai.infer_model_profile",
+            "chat.turn.prompt.infer_model_profile",
             return_value=_mock_infer_model_profile(supports_thinking=False),
         ),
-        patch("chat.clients.pydantic_ai.update_history_local_urls", side_effect=lambda _conv, h: h),
+        patch("chat.turn.prompt.update_history_local_urls", side_effect=lambda _conv, h: h),
     ):
-        _, _, _, _, history, _ = await service._prepare_agent_run([ui_message])
+        history = (await service._prepare_agent_run([ui_message])).history
 
     assert len(history) == 1
     assert isinstance(history[0], ModelResponse)
@@ -133,9 +134,9 @@ async def test_thinking_parts_kept_when_model_supports_thinking():
             new_callable=PropertyMock,
             return_value=MagicMock(supports_thinking=True),
         ),
-        patch("chat.clients.pydantic_ai.update_history_local_urls", side_effect=lambda _conv, h: h),
+        patch("chat.turn.prompt.update_history_local_urls", side_effect=lambda _conv, h: h),
     ):
-        _, _, _, _, history, _ = await service._prepare_agent_run([ui_message])
+        history = (await service._prepare_agent_run([ui_message])).history
 
     assert len(history) == 1
     assert isinstance(history[0], ModelResponse)

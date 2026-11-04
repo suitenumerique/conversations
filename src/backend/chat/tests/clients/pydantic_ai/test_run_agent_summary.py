@@ -14,6 +14,7 @@ from asgiref.sync import sync_to_async
 from chat.agents.history_processors import SummarizationRequiredError
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService, DocumentParsingResult
+from chat.clients.schema import ImagePostRunActions
 from chat.constants import (
     HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS,
     HISTORY_SUMMARY_POLL_INTERVAL_SECONDS,
@@ -21,6 +22,7 @@ from chat.constants import (
 from chat.factories import ChatConversationFactory
 from chat.llm_configuration import LLModel, LLMProvider
 from chat.turn.event_mapper import TurnEventMapper
+from chat.turn.prompt import TurnInputs
 from chat.vercel_ai_sdk.core import events_v4
 
 pytestmark = pytest.mark.django_db()
@@ -108,8 +110,16 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
     service = AIAgentService(conversation, user=conversation.owner)
 
     async def fake_prepare(_messages):
-        """Return a stub agent-run preparation tuple."""
-        return ("prompt", [], [], [], [], False)
+        """Return stub turn inputs: a bare prompt, nothing attached, no history."""
+        return TurnInputs(
+            user_prompt="prompt",
+            input_images=[],
+            input_documents=[],
+            image_actions=ImagePostRunActions(),
+            history=[],
+            conversation_has_own_documents=False,
+            pre_stream_events=[],
+        )
 
     async def fake_handle_docs(*_args, **_kwargs):
         """Yield a stub document-parsing result with no documents."""
@@ -187,8 +197,16 @@ async def test_run_agent_skips_summary_events_when_summarization_not_triggered(u
     service = AIAgentService(conversation, user=conversation.owner)
 
     async def fake_prepare(_messages):
-        """Return a stub agent-run preparation tuple."""
-        return ("prompt", [], [], [], [], False)
+        """Return stub turn inputs: a bare prompt, nothing attached, no history."""
+        return TurnInputs(
+            user_prompt="prompt",
+            input_images=[],
+            input_documents=[],
+            image_actions=ImagePostRunActions(),
+            history=[],
+            conversation_has_own_documents=False,
+            pre_stream_events=[],
+        )
 
     async def fake_handle_docs(*_args, **_kwargs):
         """Yield a stub document-parsing result with no documents."""
@@ -382,8 +400,16 @@ def _run_agent_patches(service):
     """The boilerplate patch stack for driving the real _run_agent."""
 
     async def fake_prepare(_messages):
-        """Return a stub agent-run preparation tuple."""
-        return ("prompt", [], [], [], [], False)
+        """Return stub turn inputs: a bare prompt, nothing attached, no history."""
+        return TurnInputs(
+            user_prompt="prompt",
+            input_images=[],
+            input_documents=[],
+            image_actions=ImagePostRunActions(),
+            history=[],
+            conversation_has_own_documents=False,
+            pre_stream_events=[],
+        )
 
     async def fake_handle_docs(*_args, **_kwargs):
         """Yield a stub document-parsing result with no documents."""
