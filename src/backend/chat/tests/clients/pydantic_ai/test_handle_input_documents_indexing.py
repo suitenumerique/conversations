@@ -128,10 +128,9 @@ async def _collect_handle_input_documents(service, exc):
     """Run _handle_input_documents with a single document and a stubbed parse step."""
     service._parse_input_documents = AsyncMock(side_effect=exc)
     document = BinaryContent(data=b"hello", media_type="text/plain")
-    usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
     events = []
     async for event in service._handle_input_documents(
-        [document], conversation_has_own_documents=False, usage=usage
+        [document], conversation_has_own_documents=False
     ):
         events.append(event)
     return events

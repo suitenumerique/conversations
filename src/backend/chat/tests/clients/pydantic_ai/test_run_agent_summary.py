@@ -108,8 +108,7 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
 
     async def fake_prepare(_messages):
         """Return a stub agent-run preparation tuple."""
-        usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
-        return ("prompt", [], [], [], usage, [], False)
+        return ("prompt", [], [], [], [], False)
 
     async def fake_handle_docs(*_args, **_kwargs):
         """Yield a stub document-parsing result with no documents."""
@@ -144,7 +143,7 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
             side_effect=[True, False],
         ),
         patch.object(service._datagouv, "toolsets", return_value=[]),
-        patch("chat.clients.pydantic_ai._extract_co2_from_usage", return_value=0),
+        patch("chat.turn.usage._extract_co2_from_usage", return_value=0),
         patch.object(service, "_wait_for_history_summary", side_effect=_empty_async_gen),
     ):
         events = [event async for event in service._run_agent(ui_messages)]
@@ -188,8 +187,7 @@ async def test_run_agent_skips_summary_events_when_summarization_not_triggered(u
 
     async def fake_prepare(_messages):
         """Return a stub agent-run preparation tuple."""
-        usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
-        return ("prompt", [], [], [], usage, [], False)
+        return ("prompt", [], [], [], [], False)
 
     async def fake_handle_docs(*_args, **_kwargs):
         """Yield a stub document-parsing result with no documents."""
@@ -220,7 +218,7 @@ async def test_run_agent_skips_summary_events_when_summarization_not_triggered(u
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
         patch("chat.clients.pydantic_ai.should_generate_conversation_summary", return_value=False),
         patch.object(service._datagouv, "toolsets", return_value=[]),
-        patch("chat.clients.pydantic_ai._extract_co2_from_usage", return_value=0),
+        patch("chat.turn.usage._extract_co2_from_usage", return_value=0),
         patch.object(service, "_wait_for_history_summary", side_effect=_empty_async_gen),
     ):
         events = [event async for event in service._run_agent(ui_messages)]
@@ -384,8 +382,7 @@ def _run_agent_patches(service):
 
     async def fake_prepare(_messages):
         """Return a stub agent-run preparation tuple."""
-        usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
-        return ("prompt", [], [], [], usage, [], False)
+        return ("prompt", [], [], [], [], False)
 
     async def fake_handle_docs(*_args, **_kwargs):
         """Yield a stub document-parsing result with no documents."""
@@ -415,7 +412,7 @@ def _run_agent_patches(service):
         patch.object(service, "_process_agent_nodes", side_effect=_empty_async_gen),
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
         patch.object(service._datagouv, "toolsets", return_value=[]),
-        patch("chat.clients.pydantic_ai._extract_co2_from_usage", return_value=0),
+        patch("chat.turn.usage._extract_co2_from_usage", return_value=0),
     )
     with ExitStack() as stack:
         for item in patches:

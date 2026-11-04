@@ -398,8 +398,7 @@ async def test_run_agent_hands_connector_tools_to_the_agent_run(settings, mcp_se
 
     async def fake_prepare(_messages):
         """Return a stub agent-run preparation tuple."""
-        usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
-        return ("prompt", [], [], [], usage, [], False)
+        return ("prompt", [], [], [], [], False)
 
     async def fake_handle_docs(*_args, **_kwargs):
         """Yield a stub document-parsing result with no documents."""
@@ -421,7 +420,7 @@ async def test_run_agent_hands_connector_tools_to_the_agent_run(settings, mcp_se
         patch.object(service, "_process_agent_nodes", side_effect=_empty_async_gen),
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
         patch("chat.clients.pydantic_ai.should_generate_conversation_summary", return_value=False),
-        patch("chat.clients.pydantic_ai._extract_co2_from_usage", return_value=0),
+        patch("chat.turn.usage._extract_co2_from_usage", return_value=0),
         patch.object(service, "_wait_for_history_summary", side_effect=_empty_async_gen),
     ):
         messages = [UIMessage(id="msg-1", role="user", content="Hello", parts=[])]

@@ -9,9 +9,9 @@ from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserProm
 from core.file_upload.enums import AttachmentStatus
 
 from chat.agents.local_media_url_processors import build_project_image_urls
-from chat.clients.pydantic_ai import AIAgentService
 from chat.clients.schema import ImagePostRunActions
 from chat.factories import ChatProjectAttachmentFactory, ChatProjectFactory
+from chat.turn.persistence import apply_image_actions
 
 pytestmark = pytest.mark.django_db
 
@@ -94,7 +94,7 @@ def test_skips_non_image_attachments():
 # and end up in `run.result.new_messages()`, but they MUST be stripped before
 # the conversation is persisted - otherwise every turn re-saves them and the
 # next turn replays both the persisted copies AND a freshly-pinned set. The
-# strip is the pure helper `_apply_image_actions`; tests below call it directly.
+# strip is the pure helper `apply_image_actions`; tests below call it directly.
 
 
 def _request_with(*content) -> ModelRequest:
@@ -120,9 +120,7 @@ def test_pinned_image_urls_are_stripped_from_persisted_messages():
         ModelResponse(parts=[TextPart(content="A cat.")], kind="response"),
     ]
 
-    AIAgentService._apply_image_actions(  # pylint: disable=protected-access
-        final_output, ImagePostRunActions(drop={pinned_url})
-    )
+    apply_image_actions(final_output, ImagePostRunActions(drop={pinned_url}))
 
     user_part = final_output[0].parts[0]
     assert _image_urls(user_part) == [in_message_url]
@@ -145,7 +143,7 @@ def test_pinned_drop_and_rewrite_compose_in_one_pass():
         ModelResponse(parts=[TextPart(content="A cat.")], kind="response"),
     ]
 
-    AIAgentService._apply_image_actions(  # pylint: disable=protected-access
+    apply_image_actions(
         final_output,
         ImagePostRunActions(
             rewrite={in_message_signed: in_message_local},
@@ -169,8 +167,6 @@ def test_empty_image_actions_leaves_final_output_unchanged():
         ModelResponse(parts=[TextPart(content="A cat.")], kind="response"),
     ]
 
-    AIAgentService._apply_image_actions(  # pylint: disable=protected-access
-        final_output, ImagePostRunActions()
-    )
+    apply_image_actions(final_output, ImagePostRunActions())
 
     assert _image_urls(final_output[0].parts[0]) == [in_message_url]

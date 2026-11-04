@@ -584,7 +584,7 @@ async def _stale_question_trail(conversation, text="First question"):
 async def test_a_folded_question_only_turn_does_not_swallow_the_next_question():
     """A turn cut before answering leaves `messages` ending on a question.
 
-    `_prepare_update_conversation` read that as "this turn's question is already
+    `prepare_update_conversation` read that as "this turn's question is already
     stored" and skipped the new one, so the next question vanished and its
     answer appeared under the previous one.
     """

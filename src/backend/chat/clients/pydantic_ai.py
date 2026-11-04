@@ -86,7 +86,7 @@ import os
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack, suppress
-from typing import AsyncGenerator, Dict, List, Optional, Tuple, Union
+from typing import AsyncGenerator, List, Optional, Tuple
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -100,7 +100,7 @@ from django.utils.translation import gettext_lazy as _
 from asgiref.sync import sync_to_async
 from celery.exceptions import TimeoutError as CeleryTimeoutError
 from langfuse import get_client, propagate_attributes
-from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
+from pydantic_ai import Agent, InstrumentationSettings, RunContext
 from pydantic_ai.capabilities import Hooks, Instrumentation, ProcessHistory
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UnexpectedModelBehavior
 from pydantic_ai.messages import (
@@ -136,7 +136,7 @@ from core.feature_flags.helpers import is_feature_enabled
 
 from chat import models
 from chat.agents.base import get_max_output_tokens
-from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
+from chat.agents.conversation import ConversationAgent
 from chat.agents.history_processors import (
     SUMMARY_SYSTEM_PREFIX,
     SummarizationRequiredError,
@@ -164,11 +164,7 @@ from chat.clients.error_classification import (
     resolve_rag_error_code,
 )
 from chat.clients.exceptions import StreamCancelException
-from chat.clients.pydantic_ui_message_converter import (
-    merge_by_kind,
-    model_message_to_ui_message,
-    ui_message_to_user_content,
-)
+from chat.clients.pydantic_ui_message_converter import ui_message_to_user_content
 from chat.clients.schema import (
     ContextDeps,
     DocumentParsingResult,
@@ -213,6 +209,13 @@ from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize, document_summarize_project
 from chat.tools.generate_presentation import generate_presentation
 from chat.tools.self_documentation import build_self_documentation_payload
+from chat.turn.persistence import (
+    apply_image_actions,
+    generate_title_if_needed,
+    prepare_update_conversation,
+    truncation_annotation,
+)
+from chat.turn.usage import AgentUsage
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
 from chat.vercel_ai_sdk.encoder.encoder import DONE_FRAME
@@ -317,19 +320,6 @@ def list_images(messages: list[UIMessage]) -> list[str]:
     return [part.filename for part in iter_image_attachments(messages) if part.filename]
 
 
-def _extract_co2_from_usage(usage: RunUsage) -> float:
-    """Extract the CO2 impact from a RunUsage object.
-
-    Reads `co2_impact_factor_20` from usage.details (set by AlbertOpenAIStreamedResponse),
-    reverting the 10^20 integer scaling back to a float in kgCO2eq.
-    Non-Albert providers always return 0 (details key absent).
-    """
-    co2_impact_scale = 10**20
-    if usage_details := usage.details:
-        return usage_details.get("co2_impact_factor_20", 0) / co2_impact_scale
-    return 0
-
-
 # The finish_reason pydantic-ai reports when generation was cut off by the output
 # token limit (one of the pydantic_ai.messages.FinishReason literal values).
 LENGTH_FINISH_REASON: FinishReason = "length"
@@ -337,16 +327,6 @@ LENGTH_FINISH_REASON: FinishReason = "length"
 # Stands in for the answer a turn cut off at the output token limit never wrote, so
 # the question it was asked is not replayed as a second user message in a row.
 TRUNCATED_TURN_FILLER = "[cut off: output token limit reached]"
-
-
-def _truncation_annotation() -> dict[str, bool]:
-    """The flag marking a response cut off at the output token limit.
-
-    Streamed as a v4 message annotation, which the v4->v5 encoder folds into the
-    `finish` message metadata, and persisted directly in the message metadata.
-    One source of truth so the two never drift.
-    """
-    return {"truncated": True}
 
 
 def _keep_truncated_text(messages: list[ModelMessage]) -> list[ModelMessage]:
@@ -744,7 +724,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if not messages:
             return
         messages = copy.deepcopy(messages)
-        self._apply_image_actions(messages, self._turn_image_actions)
+        apply_image_actions(messages, self._turn_image_actions)
         seq = await self._write_chunk(
             parts=json.loads(ModelMessagesTypeAdapter.dump_json(messages).decode("utf-8")),
             question_in_messages=self._question_stored,
@@ -845,7 +825,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     async def _persist_user_message_for_image_skip(self, user_message: UIMessage) -> None:
         """Persist the inbound user message early so it carries the skipped marker.
 
-        ``_prepare_update_conversation`` normally rebuilds the user bubble from
+        ``prepare_update_conversation`` normally rebuilds the user bubble from
         the agent's final_output; that path silently drops attachments the agent
         never saw (because we stripped them), losing the filenames the frontend
         needs to render the "image removed" chip. By saving the original message
@@ -1123,7 +1103,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
     async def _prepare_agent_run(
         self, messages: List[UIMessage]
-    ) -> Tuple[str, List, List, Dict[str, str], Dict[str, Union[int, float]], List, bool]:
+    ) -> Tuple[str, List, List, ImagePostRunActions, List, bool]:
         """
         Prepare all inputs needed before running the agent.
 
@@ -1142,7 +1122,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             - input_images: List of images to send to the model
             - input_documents: List of documents to parse and store
             - image_key_mapping: Maps signed URLs back to storage keys (for saving)
-            - usage: Token usage dict (initialized to zero)
             - history: Validated message history for the agent
             - conversation_has_own_documents: Whether this
             conversation has its own (non-project) text attachments
@@ -1232,8 +1211,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 input=user_prompt if self._store_analytics else "REDACTED",
             )
 
-        usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
-
         conversation_has_own_documents = self._is_document_upload_enabled and (
             bool(self.conversation.collection_id)
             or bool(
@@ -1249,7 +1226,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             input_images,
             input_documents,
             image_actions,
-            usage,
             history,
             conversation_has_own_documents,
         )
@@ -1966,7 +1942,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         input_documents: List[BinaryContent | DocumentUrl],
         conversation_has_own_documents: bool,
-        usage: Dict[str, Union[int, float]],
     ) -> AsyncGenerator[events_v4.Event | DocumentParsingResult, None]:
         """
         Handle document parsing with streaming progress events.
@@ -2017,11 +1992,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             yield (
                 events_v4.FinishMessagePart(
                     finish_reason=events_v4.FinishReason.ERROR,
-                    usage=events_v4.Usage(
-                        prompt_tokens=usage["promptTokens"],
-                        completion_tokens=usage["completionTokens"],
-                        co2_impact=usage["co2_impact"],
-                    ),
+                    # Nothing has reached the model yet.
+                    usage=AgentUsage().to_event(),
                 )
             )
             yield DocumentParsingResult(success=False, has_documents=conversation_has_own_documents)
@@ -2169,18 +2141,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # carry the same id the client already assigned to the live one.
         state.model_response_message_id = self._model_response_message_id
 
-    async def _generate_title_if_needed(self) -> str | None:
-        """Generate and set title if auto-title conditions are met."""
-        user_messages_count = sum(1 for msg in self.conversation.messages if msg.role == "user")
-        if user_messages_count != settings.AUTO_TITLE_AFTER_USER_MESSAGES:
-            return None
-        if self.conversation.title_set_by_user_at:
-            return None
-        title = await self._generate_title()
-        if title:
-            self.conversation.title = title
-        return title
-
     def _update_langfuse_trace(self, run_output) -> None:
         """Update the Langfuse trace with the final output, if analytics are enabled."""
         if not self._langfuse_available or self._langfuse_span is None:
@@ -2192,12 +2152,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         new_messages: list,
         run_output,
-        usage: Dict[str, Union[int, float]],
+        usage: AgentUsage,
         state: StreamingState,
         image_actions: ImagePostRunActions,
     ) -> AsyncGenerator[events_v4.Event, None]:
         """
         Finalize the conversation after the agent run completes.
+
+        `usage` is this turn's alone.
 
         This method handles all post-processing:
         1. Final stop check (allows late cancellation)
@@ -2219,22 +2181,16 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         await self._agent_stop_streaming(force_cache_check=True)
         self._turn_log(
             "run finished: %d prompt and %d completion tokens",
-            usage["promptTokens"],
-            usage["completionTokens"],
+            usage.prompt_tokens,
+            usage.completion_tokens,
         )
 
         # Total tokens the model processed for this request, across every
         # tool-loop round-trip (RAG/web-search results fed back as input count
         # too): that is the real inference load the cooldown should reflect.
-        # Captured before _prepare_update_conversation folds it into the
-        # conversation's cumulative total.
-        request_tokens = int(usage["promptTokens"]) + int(usage["completionTokens"])
+        request_tokens = usage.prompt_tokens + usage.completion_tokens
 
-        # Per-message CO2 impact, captured before _prepare_update_conversation
-        # folds the conversation's cumulative total into usage["co2_impact"].
-        message_co2_impact = usage["co2_impact"]
-
-        await sync_to_async(self._write_finished_turn)(
+        conversation_usage = await sync_to_async(self._write_finished_turn)(
             final_output=new_messages,
             usage=usage,
             ui_sources=state.ui_sources,
@@ -2244,7 +2200,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self._turn_log("turn stored and its chunks dropped")
 
-        generated_title = await self._generate_title_if_needed()
+        generated_title = await generate_title_if_needed(self.conversation, self.language)
         if generated_title:
             await sync_to_async(self.conversation.save)(update_fields=["title", "updated_at"])
             self._turn_log("named the conversation")
@@ -2272,25 +2228,22 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 ]
             )
         self._update_langfuse_trace(run_output)
-        # Stream the CO2 annotation _prepare_update_conversation persists, so the
+        # Stream the CO2 annotation prepare_update_conversation persists, so the
         # live message carries it like a reload does. Only that key is stored:
         # the usage in the finish frame below is streamed but never persisted.
-        if message_co2_impact:
-            yield events_v4.MessageAnnotationPart(annotations=[{"co2_impact": message_co2_impact}])
+        if usage.co2_impact:
+            yield events_v4.MessageAnnotationPart(annotations=[{"co2_impact": usage.co2_impact}])
 
         if self._is_truncated:
-            yield events_v4.MessageAnnotationPart(annotations=[_truncation_annotation()])
+            yield events_v4.MessageAnnotationPart(annotations=[truncation_annotation()])
 
-        # Vercel finish message
+        # Vercel finish message. Its usage is the conversation's running total,
+        # this turn included, not the turn's own.
         yield events_v4.FinishMessagePart(
             finish_reason=(
                 events_v4.FinishReason.LENGTH if self._is_truncated else events_v4.FinishReason.STOP
             ),
-            usage=events_v4.Usage(
-                prompt_tokens=usage["promptTokens"],
-                completion_tokens=usage["completionTokens"],
-                co2_impact=usage["co2_impact"],
-            ),
+            usage=conversation_usage.to_event(),
         )
 
     async def _reindex_phase(
@@ -2408,7 +2361,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             input_images,
             input_documents,
             image_actions,
-            usage,
             history,
             conversation_has_own_documents,
         ) = await self._prepare_agent_run(messages)
@@ -2437,7 +2389,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         parsed: list[DocumentParsingResult] = []
         async for event in self._stream_phase(
-            self._handle_input_documents(input_documents, conversation_has_own_documents, usage),
+            self._handle_input_documents(input_documents, conversation_has_own_documents),
             DocumentParsingResult,
             parsed,
         ):
@@ -2464,7 +2416,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         await self._prepare_tools(force_web_search, conversation_has_own_documents)
 
         async for event in self._stream_agent_run(
-            [user_prompt] + input_images, history, force_datagouv, usage
+            [user_prompt] + input_images, history, force_datagouv
         ):
             yield event
 
@@ -2473,7 +2425,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         agent_input: list,
         history: list[ModelMessage],
         force_datagouv: bool,
-        usage: Dict[str, Union[int, float]],
     ) -> AsyncGenerator[events_v4.Event | events_v5.Event, None]:
         """Iterate the agent graph and store the turn it produced.
 
@@ -2532,122 +2483,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     # Extract values from run before exiting the context manager
                     new_messages = run.result.new_messages()
                     run_output = run.result.output
-                final_usage = run.usage
-                usage["promptTokens"] = final_usage.input_tokens
-                usage["completionTokens"] = final_usage.output_tokens
-                usage["co2_impact"] = _extract_co2_from_usage(final_usage)
+                usage = AgentUsage.from_run(run.usage)
 
         async for event in self._finalize_conversation(
             new_messages, run_output, usage, state, self._turn_image_actions
         ):
             yield event
 
-    @staticmethod
-    def _apply_image_actions(
-        final_output: List[ModelRequest | ModelMessage],
-        image_actions: Optional[ImagePostRunActions],
-    ) -> None:
-        """Rewrite or drop image URLs in every ``UserPromptPart`` of ``final_output``.
-
-        Mutates in place: the merged views, the UI-message conversion, and
-        the ``pydantic_messages`` JSON dump downstream all read from
-        ``final_output``'s parts, so a single in-place pass covers every
-        persistence path. Replacing ``part.content`` with a new list (rather
-        than mutating it during iteration) keeps Pydantic-AI's validation
-        happy.
-        """
-        if not image_actions or not (image_actions.rewrite or image_actions.drop):
-            return
-        for msg in final_output:
-            if not isinstance(msg, ModelRequest):
-                continue
-            for part in msg.parts:
-                if not isinstance(part, UserPromptPart):
-                    continue
-                new_content = []
-                for content in part.content:
-                    if isinstance(content, (ImageUrl, DocumentUrl)):
-                        if content.url in image_actions.drop:
-                            continue
-                        if rewritten := image_actions.rewrite.get(content.url):
-                            content.url = rewritten
-                    new_content.append(content)
-                part.content = new_content
-
-    def _prepare_update_conversation(
-        self,
-        *,
-        final_output: List[ModelRequest | ModelMessage],
-        usage: Dict[str, Union[int, float]],
-        ui_sources: Optional[List[SourceUrlUIPart]] = None,
-        model_response_message_id: str | None = None,
-        image_actions: Optional[ImagePostRunActions] = None,
-    ):  # pylint: disable=too-many-arguments
-        """
-        Save everything related to the conversation.
-
-        Things to improve here:
-         - The way we need to add the UI sources to the final output message.
-
-        Args:
-            final_output (List[ModelRequest | ModelMessage]): The final output from the agent.
-            usage (Dict[str, Union[int, float]]): Token and CO2 usage statistics
-            (mutated in-place to accumulate across turns).
-            model_response_message_id (str | None): Message ID
-            ui_sources (List[SourceUrlUIPart]): Optional UI sources to include.
-            image_actions (ImagePostRunActions | None): Per-turn image-URL
-            surgery to apply before persistence (rewrite presigned URLs back
-            to durable form for in-message images, drop pinned project
-            images outright). See ``ImagePostRunActions`` for details.
-        """
-        self._apply_image_actions(final_output, image_actions)
-
-        _merged_final_output_request, _merged_final_output_message = merge_by_kind(final_output)
-
-        _output_ui_message = model_message_to_ui_message(_merged_final_output_message)
-        if ui_sources:
-            _output_ui_message.parts += ui_sources
-        if model_response_message_id:
-            _output_ui_message.id = model_response_message_id
-        else:
-            logger.warning("model_response_message_id is None")
-
-        co2_impact = usage["co2_impact"]
-        if co2_impact:
-            _output_ui_message.metadata = {
-                **(_output_ui_message.metadata or {}),
-                "co2_impact": co2_impact,
-            }
-
-        if self._is_truncated:
-            _output_ui_message.metadata = {
-                **(_output_ui_message.metadata or {}),
-                **_truncation_annotation(),
-            }
-
-        usage["co2_impact"] += self.conversation.agent_usage.get("co2_impact", 0)
-        usage["promptTokens"] += self.conversation.agent_usage.get("promptTokens", 0)
-        usage["completionTokens"] += self.conversation.agent_usage.get("completionTokens", 0)
-
-        self.conversation.agent_usage = usage
-
-        # Tracked rather than read off the list: a question-only turn folded in
-        # earlier also leaves a trailing user message, and taking that as "this
-        # turn's question is stored" dropped the question being answered here.
-        if not self._question_stored:
-            _request_ui_message = model_message_to_ui_message(_merged_final_output_request)
-            # None when the request holds nothing renderable (system prompt or
-            # tool return only): there is no user bubble to rebuild.
-            if _request_ui_message:
-                self.conversation.messages += [_request_ui_message]
-        self.conversation.messages += [_output_ui_message]
-
-        final_output_json = json.loads(
-            ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")
-        )
-        self.conversation.pydantic_messages += final_output_json
-
-    def _write_finished_turn(self, **kwargs) -> None:
+    def _write_finished_turn(self, **kwargs) -> AgentUsage:
         """Store the turn and drop the chunks it was written from.
 
         One transaction, so the conversation never holds the turn twice: the
@@ -2655,6 +2498,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         The turn is stored before the title is generated, which is an LLM
         round-trip during which a reload would otherwise show the answer
         missing.
+
+        Returns the conversation's usage total, this turn included.
         """
         with transaction.atomic():
             # Re-read under a lock: a turn running in another tab may have
@@ -2664,7 +2509,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 from_queryset=models.ChatConversation.objects.select_for_update(),
                 fields=["messages", "pydantic_messages", "agent_usage"],
             )
-            self._prepare_update_conversation(**kwargs)
+            conversation_usage = prepare_update_conversation(
+                self.conversation,
+                is_truncated=self._is_truncated,
+                question_stored=self._question_stored,
+                **kwargs,
+            )
             self.conversation.save(
                 update_fields=["messages", "pydantic_messages", "agent_usage", "updated_at"]
             )
@@ -2676,40 +2526,4 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             # This turn's trail only: another turn may be streaming into the
             # same conversation from another tab, and its rows are not ours.
             self.conversation.stream_chunks.filter(run_id=self._turn_run_id).delete()
-
-    async def _generate_title(self) -> str | None:
-        """Generate a title for the conversation using LLM based on first messages."""
-
-        # Build context from messages
-        # Note: We intentionally use only msg.content for title generation.
-        # Parts containing tool invocations or reasoning are excluded as they
-        # don't contribute to a meaningful context here
-        context = "\n".join(
-            f"{msg.role}: {(msg.content or '')[:300]}"  # Limit content length per message
-            for msg in self.conversation.messages
-            if msg.content
-        )
-
-        language = self.language or settings.LANGUAGE_CODE
-        prompt = (
-            "Generate a concise title (3-5 words, max 100 characters) for this conversation.\n\n"
-            "Requirements:\n"
-            "- Capture the main topic or user intent\n"
-            "- The title must be a simple string, no markdown\n"
-            "- Help the user quickly identify the conversation\n"
-            f"- Match the language of the user messages (default: {language})\n"
-            "- Avoid the word 'summary' unless explicitly requested\n\n"
-            "Output: Title text only, no quotes, labels, or explanation.\n\n"
-            f"Conversation:\n{context}"
-        )
-        try:
-            agent = TitleGenerationAgent()
-            result = await agent.run(prompt)
-            title = (result.output or "").strip()[:100]  # Enforce max length (conversation.title)
-            logger.info("Generated title for conversation %s", self.conversation.pk)
-            return title if title else None
-        except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
-            logger.warning(
-                "Failed to generate title for conversation %s: %s", self.conversation.pk, exc
-            )
-            return None
+        return conversation_usage

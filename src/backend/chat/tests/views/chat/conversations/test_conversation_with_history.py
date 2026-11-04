@@ -1545,7 +1545,7 @@ def test_post_conversation_add_image_to_conversation_with_tool_history(
 
 
 @freeze_time("2025-07-25T10:36:35.297675Z")
-@patch("chat.clients.pydantic_ai.TitleGenerationAgent", wraps=TitleGenerationAgent)
+@patch("chat.turn.persistence.TitleGenerationAgent", wraps=TitleGenerationAgent)
 def test_post_conversation_triggers_automatic_title_generation_after_first_message(
     mock_title_agent, api_client, mock_openai_stream_with_title_generation, settings
 ):

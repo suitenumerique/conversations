@@ -10,7 +10,7 @@ import pytest
 from chat.ai_sdk_types import DEFAULT_MEDIA_TYPE, UIMessage, upconvert_v4_message
 from chat.clients.pydantic_ui_message_converter import ui_message_to_user_content
 
-# An assistant turn as `_prepare_update_conversation` stored it under v4.
+# An assistant turn as `prepare_update_conversation` stored it under v4.
 V4_ASSISTANT_MESSAGE = {
     "id": "trace-1234",
     "role": "assistant",

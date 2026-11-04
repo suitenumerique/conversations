@@ -1,10 +1,9 @@
-"""Tests for _extract_co2_from_usage in chat.clients.pydantic_ai."""
-# pylint: disable=protected-access
+"""Tests for chat.turn.usage.AgentUsage."""
 
 import pytest
 from pydantic_ai import RunUsage
 
-from chat.clients.pydantic_ai import _extract_co2_from_usage
+from chat.turn.usage import AgentUsage
 
 CO2_SCALE = 10**20
 
@@ -19,5 +18,5 @@ CO2_SCALE = 10**20
 )
 def test_extract_co2_from_usage(usage, expected_kg_co2):
     """Typical Albert value: integer-scaled CO2 is divided back to kgCO2eq."""
-    result = _extract_co2_from_usage(usage)
+    result = AgentUsage.from_run(usage).co2_impact
     assert result == pytest.approx(expected_kg_co2, rel=1e-9)

@@ -10,6 +10,8 @@ from pydantic_ai.messages import ModelResponse, TextPart
 from chat.clients.pydantic_ai import AIAgentService
 from chat.clients.schema import ImagePostRunActions, StreamingState
 from chat.llm_configuration import LLModel
+from chat.turn.persistence import prepare_update_conversation
+from chat.turn.usage import AgentUsage
 from chat.vercel_ai_sdk.core import events_v4
 
 
@@ -43,6 +45,7 @@ def service_fixture(conversation):
     s = object.__new__(AIAgentService)
     s.conversation = conversation
     s.user = SimpleNamespace(pk=1)
+    s.language = None
     s._tokens_recorded = 0
     s._question_stored = False
     s._turn_started_at = 0.0
@@ -63,72 +66,81 @@ def service_fixture(conversation):
 
 @pytest.fixture(name="final_output")
 def final_output_fixture():
-    """Minimal model response for _prepare_update_conversation calls."""
+    """Minimal model response for prepare_update_conversation calls."""
     return [ModelResponse(parts=[TextPart(content="Hello")], kind="response")]
 
 
-# --- _prepare_update_conversation: per-message metadata ---
+# --- prepare_update_conversation: per-message metadata ---
 
 
 @pytest.mark.parametrize("co2_impact", [500, 123])
-def test_co2_metadata_added_when_nonzero(conversation, service, final_output, co2_impact):
+def test_co2_metadata_added_when_nonzero(conversation, final_output, co2_impact):
     """The co2_impact value is added to the assistant message metadata."""
-    service._prepare_update_conversation(
+    prepare_update_conversation(
+        conversation,
         final_output=final_output,
-        usage={"promptTokens": 10, "completionTokens": 5, "co2_impact": co2_impact},
+        usage=AgentUsage(prompt_tokens=10, completion_tokens=5, co2_impact=co2_impact),
         model_response_message_id="msg-1",
+        is_truncated=False,
+        question_stored=False,
     )
 
     assistant_msg = conversation.messages[-1]
     assert assistant_msg.metadata == {"co2_impact": pytest.approx(float(co2_impact))}
 
 
-def test_no_co2_metadata_when_zero(conversation, service, final_output):
+def test_no_co2_metadata_when_zero(conversation, final_output):
     """No co2_impact metadata is added when co2_impact is 0."""
-    service._prepare_update_conversation(
+    prepare_update_conversation(
+        conversation,
         final_output=final_output,
-        usage={"promptTokens": 10, "completionTokens": 5, "co2_impact": 0},
+        usage=AgentUsage(prompt_tokens=10, completion_tokens=5, co2_impact=0),
         model_response_message_id="msg-1",
+        is_truncated=False,
+        question_stored=False,
     )
 
     assistant_msg = conversation.messages[-1]
     assert "co2_impact" not in (assistant_msg.metadata or {})
 
 
-# --- _prepare_update_conversation: cumulative usage across runs ---
+# --- prepare_update_conversation: cumulative usage across runs ---
 
 
 @pytest.mark.parametrize(
     "run1,run2,expected",
     [
         pytest.param(
-            {"promptTokens": 10, "completionTokens": 5, "co2_impact": 1.5e-9},
-            {"promptTokens": 12, "completionTokens": 6, "co2_impact": 2.3e-9},
+            AgentUsage(prompt_tokens=10, completion_tokens=5, co2_impact=1.5e-9),
+            AgentUsage(prompt_tokens=12, completion_tokens=6, co2_impact=2.3e-9),
             {"co2_impact": 1.5e-9 + 2.3e-9, "promptTokens": 22, "completionTokens": 11},
             id="both_runs_have_co2",
         ),
         pytest.param(
-            {"promptTokens": 10, "completionTokens": 5, "co2_impact": 1.5e-9},
-            {"promptTokens": 10, "completionTokens": 5, "co2_impact": 0},
+            AgentUsage(prompt_tokens=10, completion_tokens=5, co2_impact=1.5e-9),
+            AgentUsage(prompt_tokens=10, completion_tokens=5, co2_impact=0),
             {"co2_impact": 1.5e-9, "promptTokens": 20, "completionTokens": 10},
             id="second_run_has_no_co2",
         ),
     ],
 )
-def test_usage_accumulates_across_runs(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913, PLR0917
-    conversation,
-    service,
-    final_output,
-    run1,
-    run2,
-    expected,
-):
+def test_usage_accumulates_across_runs(conversation, final_output, run1, run2, expected):
     """agent_usage accumulates tokens and co2_impact across runs."""
-    service._prepare_update_conversation(
-        final_output=final_output, usage=run1, model_response_message_id="msg-1"
+    prepare_update_conversation(
+        conversation,
+        final_output=final_output,
+        usage=run1,
+        model_response_message_id="msg-1",
+        is_truncated=False,
+        question_stored=False,
     )
-    service._prepare_update_conversation(
-        final_output=final_output, usage=run2, model_response_message_id="msg-2"
+    prepare_update_conversation(
+        conversation,
+        final_output=final_output,
+        usage=run2,
+        model_response_message_id="msg-2",
+        is_truncated=False,
+        question_stored=False,
     )
 
     for key, value in expected.items():
@@ -151,14 +163,14 @@ def test_usage_accumulates_across_runs(  # pylint: disable=too-many-arguments,to
 async def test_finalize_emits_finish_message_with_co2(service, co2_impact):
     """FinishMessagePart always emitted with co2_impact in usage."""
     service._langfuse_available = False
-    usage = {"promptTokens": 10, "completionTokens": 5, "co2_impact": co2_impact}
+    usage = AgentUsage(prompt_tokens=10, completion_tokens=5, co2_impact=co2_impact)
     state = StreamingState(model_response_message_id="test-msg-id")
 
     with (
         patch.object(service, "_agent_stop_streaming", new=AsyncMock()),
         # The write path is the unit under test elsewhere; here only the
         # events finalize emits are.
-        patch.object(service, "_write_finished_turn"),
+        patch.object(service, "_write_finished_turn", return_value=usage),
         patch("chat.clients.pydantic_ai.sync_to_async", side_effect=_fake_sync_to_async),
         patch("chat.clients.pydantic_ai.record_and_compute_cooldown", return_value=0),
     ):
@@ -176,3 +188,39 @@ async def test_finalize_emits_finish_message_with_co2(service, co2_impact):
     finish_events = [e for e in events if isinstance(e, events_v4.FinishMessagePart)]
     assert len(finish_events) == 1
     assert finish_events[0].usage.co2_impact == co2_impact
+
+
+@pytest.mark.asyncio
+async def test_finalize_finish_frame_carries_the_conversation_total(service):
+    """The finish frame streams the conversation's running total; the CO2
+    annotation streams this turn's own impact, the value the message stores."""
+    service._langfuse_available = False
+    turn_usage = AgentUsage(prompt_tokens=10, completion_tokens=5, co2_impact=2.0)
+    conversation_total = AgentUsage(prompt_tokens=110, completion_tokens=55, co2_impact=7.0)
+
+    with (
+        patch.object(service, "_agent_stop_streaming", new=AsyncMock()),
+        patch.object(service, "_write_finished_turn", return_value=conversation_total),
+        patch("chat.clients.pydantic_ai.sync_to_async", side_effect=_fake_sync_to_async),
+        patch("chat.clients.pydantic_ai.record_and_compute_cooldown", return_value=0),
+    ):
+        events = [
+            event
+            async for event in service._finalize_conversation(
+                new_messages=[],
+                run_output="Hello",
+                usage=turn_usage,
+                state=StreamingState(model_response_message_id="test-msg-id"),
+                image_actions=ImagePostRunActions(),
+            )
+        ]
+
+    annotations = [
+        annotation
+        for event in events
+        if isinstance(event, events_v4.MessageAnnotationPart)
+        for annotation in event.annotations
+    ]
+    finish_events = [e for e in events if isinstance(e, events_v4.FinishMessagePart)]
+    assert annotations == [{"co2_impact": 2.0}]
+    assert [e.usage for e in finish_events] == [conversation_total.to_event()]

@@ -71,7 +71,7 @@ def _capturing_model(captured, reply="response"):
     """A FunctionModel that snapshots the request *during* the call.
 
     Image URLs and the active instruction must be captured here: the
-    post-run persistence pass (``_apply_image_actions``) mutates the same
+    post-run persistence pass (``apply_image_actions``) mutates the same
     objects in place (re-presigning history images, dropping pinned project
     images), so reading them after the stream drains is unreliable.
     """
