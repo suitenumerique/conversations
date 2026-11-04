@@ -11,6 +11,7 @@ from chat.clients.pydantic_ai import AIAgentService
 from chat.clients.schema import ImagePostRunActions, StreamingState
 from chat.llm_configuration import LLModel
 from chat.turn.persistence import prepare_update_conversation
+from chat.turn.trail import TurnTrail
 from chat.turn.usage import AgentUsage
 from chat.vercel_ai_sdk.core import events_v4
 
@@ -47,9 +48,8 @@ def service_fixture(conversation):
     s.user = SimpleNamespace(pk=1)
     s.language = None
     s._tokens_recorded = 0
-    s._question_stored = False
     s._turn_started_at = 0.0
-    s._text_rows = s._snapshot_rows = 0
+    s._trail = TurnTrail(conversation, log=s._turn_log)
     s.conversation_agent = SimpleNamespace(
         configuration=LLModel(
             hrid="m",

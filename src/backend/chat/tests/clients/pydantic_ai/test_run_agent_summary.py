@@ -127,7 +127,7 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
         # The turn opens its chunk trail here. These tests drive _run_agent's
         # orchestration, not its writes, and their conversation is created on
         # the main thread, where an async insert cannot see it.
-        patch.object(service, "_append_question", AsyncMock()),
+        patch.object(service._trail, "append_question", AsyncMock()),
         patch.object(service, "_handle_input_documents", side_effect=fake_handle_docs),
         patch.object(service, "_build_model_history", return_value=[]),
         patch.object(service, "_agent_stop_streaming", AsyncMock()),
@@ -206,7 +206,7 @@ async def test_run_agent_skips_summary_events_when_summarization_not_triggered(u
         # The turn opens its chunk trail here. These tests drive _run_agent's
         # orchestration, not its writes, and their conversation is created on
         # the main thread, where an async insert cannot see it.
-        patch.object(service, "_append_question", AsyncMock()),
+        patch.object(service._trail, "append_question", AsyncMock()),
         patch.object(service, "_handle_input_documents", side_effect=fake_handle_docs),
         patch.object(service, "_build_model_history", return_value=[]),
         patch.object(service, "_agent_stop_streaming", AsyncMock()),
@@ -401,7 +401,7 @@ def _run_agent_patches(service):
         # The turn opens its chunk trail here. These tests drive _run_agent's
         # orchestration, not its writes, and their conversation is created on
         # the main thread, where an async insert cannot see it.
-        patch.object(service, "_append_question", AsyncMock()),
+        patch.object(service._trail, "append_question", AsyncMock()),
         patch.object(service, "_handle_input_documents", side_effect=fake_handle_docs),
         patch.object(service, "_build_model_history", return_value=[]),
         patch.object(service, "_agent_stop_streaming", AsyncMock()),

@@ -197,7 +197,7 @@ async def test_stream_data_async_conversation_deleted_during_failing_stream():
     service = AIAgentService(conversation, user=conversation.owner)
 
     async def mock_run_agent(*args, **kwargs):
-        service._pending_text = "partial answer"  # pylint: disable=protected-access
+        service._trail._pending_text = "partial answer"  # pylint: disable=protected-access
         await ChatConversation.objects.filter(pk=conversation.pk).adelete()
         raise ModelAPIError(model_name="test-model", message="Connection error.")
         yield  # pylint: disable=unreachable
@@ -213,7 +213,7 @@ async def _run_failing_turn(service, acreate):
     """Drive a turn that fails with text in hand, its chunk insert replaced."""
 
     async def mock_run_agent(*args, **kwargs):
-        service._pending_text = "partial answer"  # pylint: disable=protected-access
+        service._trail._pending_text = "partial answer"  # pylint: disable=protected-access
         raise ModelAPIError(model_name="test-model", message="Connection error.")
         yield  # pylint: disable=unreachable
 

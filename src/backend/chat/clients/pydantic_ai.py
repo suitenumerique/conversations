@@ -75,12 +75,9 @@ and raises `StreamCancelException` to abort the generator.
 """
 
 import asyncio
-import copy
 import dataclasses
 import functools
 import hashlib
-import itertools
-import json
 import logging
 import os
 import time
@@ -91,9 +88,8 @@ from typing import AsyncGenerator, List, Optional, Tuple
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
@@ -125,7 +121,6 @@ from pydantic_ai.messages import (
     ToolCallPartDelta,
     ToolReturn,
     ToolReturnPart,
-    UserPromptPart,
 )
 from pydantic_ai.models import Model, infer_model_profile
 from pydantic_ai.settings import ModelSettings
@@ -178,8 +173,6 @@ from chat.constants import (
     HISTORY_SUMMARY_POLL_INTERVAL_SECONDS,
     IMAGE_MIME_PREFIX,
     MARKDOWN_MIME_TYPE,
-    STREAM_TEXT_FLUSH_CHARS,
-    STREAM_TEXT_FLUSH_INTERVAL_SECONDS,
     SUMMARIZATION_ENQUEUE_CLAIM_GRACE_SECONDS,
     TEXT_MIME_PREFIX,
 )
@@ -192,7 +185,6 @@ from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
 from chat.mcp_servers import DataGouvConnector, enter_mcp_toolsets
 from chat.rate_limiting import get_cooldown_remaining, record_and_compute_cooldown
-from chat.stream_chunks import close as close_turn_trail
 from chat.stream_chunks import persist as persist_leftover_chunks
 from chat.tasks import index_conversation_document_task, summarize_conversation_history
 from chat.tools.descriptions import (
@@ -210,11 +202,11 @@ from chat.tools.document_summarize import document_summarize, document_summarize
 from chat.tools.generate_presentation import generate_presentation
 from chat.tools.self_documentation import build_self_documentation_payload
 from chat.turn.persistence import (
-    apply_image_actions,
     generate_title_if_needed,
     prepare_update_conversation,
     truncation_annotation,
 )
+from chat.turn.trail import TurnTrail
 from chat.turn.usage import AgentUsage
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
@@ -376,18 +368,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.model_configuration = get_model_configuration(self.model_hrid)
         self.language = language  # might be None
         self._last_stop_check = 0
-        # Per-turn chunk state, reset by _clean: where we are in the sequence,
-        # the text produced since the last row, and when each kind of row was
-        # last written.
-        self._chunk_seq = itertools.count()
-        self._last_text_flush = 0
-        self._pending_text = ""
-        self._active_agent_stream = None
-        self._turn_image_actions: Optional[ImagePostRunActions] = None
         self._tokens_recorded = 0
-        self._turn_started_at, self._text_rows, self._snapshot_rows = 0.0, 0, 0
-        self._turn_run_id = uuid.uuid4()
-        self._turn_landed = self._question_stored = self._tool_step_pending = False
+        self._turn_started_at = 0.0
+        # Per-turn chunk state, replaced by _clean at the start of every stream.
+        self._trail = TurnTrail(conversation, log=self._turn_log)
         # Events queued during _prepare_agent_run for _run_agent to yield before
         # the model is actually called (e.g. images-skipped notices). The list is
         # cleared at the start of every stream via _clean.
@@ -548,241 +532,19 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # otherwise escape the cooldown entirely.
         await self._record_tokens(self._spent_tokens(run))
         if isinstance(event, events_v4.TextPart):
-            await self._append_text(event.text)
+            await self._trail.append_text(event.text)
 
     async def beat(self) -> None:
-        """Prove the turn is still running, when it has nothing to show for it.
+        """Keepalive hook: append a beat row to the current turn's trail.
 
-        A turn blocked on a document parse, a summary or a long tool call
-        produces no rows for minutes, and a trail that stops growing is read as
-        one an interruption left behind. So the keepalive loop - the only thing
-        that ticks while the stream is silent - appends a row that says nothing
-        except when it was written.
-
-        `fold` ignores a row with no text and no parts, and `is_live` already
-        reads the newest row's timestamp, so this needs nothing from either.
-
-        The check and the insert are not one step, so the turn can land in
-        between and take its trail with it. Rechecking afterwards and removing
-        the row is what keeps a landed turn from looking like it is still
-        generating for the length of the liveness window.
+        Bound by the view before the stream starts, so it looks the trail up on
+        every call rather than holding the one in place at the time.
         """
-        if self._turn_landed:
-            return
-        seq = await self._write_chunk()
-        # Not always false, whatever static analysis makes of it: the turn sets this
-        # itself, from its own task or thread, while the insert above is in flight.
-        if self._turn_landed:  # NOSONAR
-            await self._beat_rows(seq).adelete()
+        await self._trail.beat()
 
     def beat_sync(self) -> None:
         """`beat`, for the WSGI path, where the keepalive loop is not async."""
-        if self._turn_landed:
-            return
-        seq = next(self._chunk_seq)
-        models.ChatStreamChunk.objects.create(
-            conversation=self.conversation,
-            run_id=self._turn_run_id,
-            message_id=self._model_response_message_id or "",
-            seq=seq,
-        )
-        turn_logger.info("chunk %d: still running", seq)
-        if self._turn_landed:  # NOSONAR
-            # Landed while this row was being written; see `beat`.
-            self._beat_rows(seq).delete()
-
-    def _beat_rows(self, seq: int):
-        """The one row a beat just wrote, so it can take it back."""
-        return models.ChatStreamChunk.objects.filter(
-            conversation=self.conversation, run_id=self._turn_run_id, seq=seq
-        )
-
-    def _rows_before(self, seq: int):
-        """This turn's rows that a snapshot at `seq` has made unreadable."""
-        return models.ChatStreamChunk.objects.filter(
-            conversation=self.conversation, run_id=self._turn_run_id, seq__lt=seq
-        )
-
-    async def _append_text(self, text: str) -> None:
-        """Append text the model has produced, batched.
-
-        The batching is the whole cost control: a row every quarter second
-        rather than one per token, and each row carries only what is new. A
-        turn cut short loses at most the batch in hand, and only when nothing
-        got the chance to file it: every path that files its own trail flushes
-        first, in `_file_turn_trail`.
-        """
-        self._pending_text += text
-        now = time.monotonic()
-        if (
-            now - self._last_text_flush < STREAM_TEXT_FLUSH_INTERVAL_SECONDS
-            and len(self._pending_text) < STREAM_TEXT_FLUSH_CHARS
-        ):
-            return
-        await self._flush_text()
-
-    async def _file_turn_trail(self) -> None:
-        """Write the text in hand, then file the trail as one exchange.
-
-        The flush comes first because a whole batch of text - up to 200
-        characters, or a quarter second of it - is still in hand when a turn
-        ends this way, and filing without it drops the end of the sentence the
-        reader was already shown.
-
-        One coroutine rather than two awaits at the call site: the cancelled
-        path shields this, and a shield covers one awaitable, so the flush and
-        the fold have to be inside the same one to be ordered at all once the
-        task around them is being torn down.
-
-        Skipped when the conversation was deleted while the turn ran: there is
-        nothing left to file into, and writing a chunk for it would fail. The
-        check runs again when the write fails, since the delete can land
-        between the first check and the write: the chunk's own validation then
-        rejects the gone conversation, the insert does if the delete lands
-        later still, and the filing's locked re-read finds no row if it lands
-        after the flush. Any of these is raised while the conversation exists.
-        """
-        if not await self._conversation_exists():
-            self._turn_log("conversation deleted, nothing to file")
-            return
-        try:
-            await self._flush_text()
-            await sync_to_async(close_turn_trail)(self.conversation, self._turn_run_id)
-        except ValidationError, IntegrityError, models.ChatConversation.DoesNotExist:
-            if await self._conversation_exists():
-                raise
-            self._turn_log("conversation deleted while filing, nothing to file")
-
-    async def _conversation_exists(self) -> bool:
-        """Whether the conversation is still in the database."""
-        return await models.ChatConversation.objects.filter(pk=self.conversation.pk).aexists()
-
-    async def _flush_text(self) -> None:
-        """Write the text in hand, if any."""
-        if not self._pending_text:
-            return
-        text, self._pending_text = self._pending_text, ""
-        self._last_text_flush = time.monotonic()
-        await self._write_chunk(text=text)
-
-    async def _append_snapshot(self, run) -> None:
-        """Append the turn as it stands, structure and all.
-
-        Text rows say what the model wrote; only this says what it was doing.
-        Written when the turn's structure changes and at no other time, since
-        it is the expensive kind of row: the question, and a tool step once its
-        returns are in the run.
-        """
-        # Everything in hand is in the response the snapshot is about to store,
-        # so it is superseded rather than written first.
-        self._pending_text = ""
-        await self._write_snapshot(self._partial_turn_messages(run))
-
-    async def _append_question(self, user_prompt: str, input_images: List) -> None:
-        """Append the question, before anything slow gets the chance to run.
-
-        Everything between the request arriving and the model's first token -
-        preparing the run, re-indexing, parsing an attached document, waiting
-        on a summary - happens before there is any output to snapshot. Leaving
-        it at that would mean a turn cut short in that window stored nothing at
-        all, not even what was asked, and parsing a document alone can hold it
-        open for minutes.
-        """
-        await self._write_snapshot(
-            [
-                ModelRequest(
-                    parts=[UserPromptPart(content=[user_prompt] + list(input_images))],
-                    kind="request",
-                )
-            ]
-        )
-
-    async def _write_snapshot(self, messages: List[ModelMessage]) -> None:
-        """Store `messages` as a snapshot chunk, and drop what it supersedes.
-
-        Copied and rewritten before it is stored: image URLs presigned for the
-        model expire, so what goes on disk carries the durable form. Doing that
-        to the run's own messages would change what the model sees for the rest
-        of the turn.
-
-        Every row before a snapshot is already inside it, because `fold` throws
-        away the text it has collected each time it meets one. Keeping them
-        costs a trail that grows with the square of the steps - each snapshot
-        holds the whole turn so far - for rows no reader can ever reach.
-
-        The delete comes after the insert, never before: the worst a failure
-        between the two can do is leave the rows that would have been left
-        anyway, whereas the other order can leave a trail with no snapshot in
-        it at all.
-
-        `question_in_messages` rides along on every snapshot, not just the
-        question's own. The image-skip path has already put the question in
-        `messages`, markers and all; the snapshot still carries the request,
-        because the history needs it, but a reader must not show it twice, and
-        the row that said so may be one of the rows being dropped here.
-        """
-        if not messages:
-            return
-        messages = copy.deepcopy(messages)
-        apply_image_actions(messages, self._turn_image_actions)
-        seq = await self._write_chunk(
-            parts=json.loads(ModelMessagesTypeAdapter.dump_json(messages).decode("utf-8")),
-            question_in_messages=self._question_stored,
-        )
-        superseded, _ = await self._rows_before(seq).adelete()
-        if superseded:
-            self._turn_log("chunk %d superseded %d row(s)", seq, superseded)
-
-    async def _write_chunk(
-        self, *, text: str = "", parts=None, question_in_messages: bool = False
-    ) -> int:
-        """Append one row to the turn's chunks.
-
-        Two writers share this trail: the turn, and the keepalive beating for
-        it while it is blocked. Under ASGI they are two tasks, under WSGI two
-        threads, so `seq = n; n += 1` is read twice either way and collides on
-        the constraint. `next()` on an `itertools.count` is one atomic step in
-        both.
-        """
-        seq = next(self._chunk_seq)
-        await models.ChatStreamChunk.objects.acreate(
-            conversation=self.conversation,
-            run_id=self._turn_run_id,
-            message_id=self._model_response_message_id or "",
-            seq=seq,
-            text=text,
-            parts=parts,
-            question_in_messages=question_in_messages,
-        )
-        if parts is None and not text:
-            turn_logger.info("chunk %d: still running", seq)
-        elif parts is None:
-            self._text_rows += 1
-            turn_logger.debug(
-                "[turn %s] chunk %d: %d characters of text",
-                self.conversation.pk,
-                seq,
-                len(text),
-            )
-        else:
-            self._snapshot_rows += 1
-            self._turn_log("chunk %d: snapshot of %d message(s)", seq, len(parts))
-        return seq
-
-    def _partial_turn_messages(self, run) -> List[ModelMessage]:
-        """The turn as it stands right now.
-
-        `run.new_messages()` holds the steps already closed. The response still
-        being streamed is not among them, but Pydantic AI builds it as it goes
-        and hands it over on `AgentStream.response`.
-        """
-        messages = list(run.new_messages())
-        stream = self._active_agent_stream
-        if stream is not None:
-            response = stream.response
-            if response.parts and not any(message is response for message in messages):
-                messages.append(response)
-        return messages
+        self._trail.beat_sync()
 
     @staticmethod
     def _spent_tokens(run) -> int:
@@ -830,13 +592,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         never saw (because we stripped them), losing the filenames the frontend
         needs to render the "image removed" chip. By saving the original message
         here (with markers already stamped), the rebuild step short-circuits on
-        ``_question_stored`` and the marked version stands.
+        ``TurnTrail.question_stored`` and the marked version stands.
 
         Guarded on that flag rather than on a trailing user message: a
         question-only turn folded in earlier leaves one too, and reading it as
         "already stored" skipped the markers this exists to keep.
         """
-        if self._question_stored:
+        if self._trail.question_stored:
             return
 
         def store():
@@ -852,7 +614,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 self.conversation.save(update_fields=["messages"])
 
         await sync_to_async(store)()
-        self._question_stored = True
+        self._trail.question_stored = True
 
     def _add_unreadable_images_instruction(self, subject: Optional[str]) -> None:
         """Tell a text-only model an image is present that it cannot read.
@@ -915,6 +677,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 )
 
             self._model_response_message_id = self._new_model_response_message_id()
+            self._trail.message_id = self._model_response_message_id
             self._turn_log(
                 "stream opened, answering as message %s", self._model_response_message_id
             )
@@ -996,26 +759,26 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # file anything. That path keeps the liveness window, as does a
                 # turn whose process dies outright.
                 self._turn_log("cancelled, filing what was produced")
-                if not self._turn_landed:
-                    self._turn_landed = True
+                if not self._trail.landed:
+                    self._trail.landed = True
                     with suppress(asyncio.CancelledError):
-                        await asyncio.shield(self._file_turn_trail())
+                        await asyncio.shield(self._trail.file())
                 raise
 
-            if not self._turn_landed:
+            if not self._trail.landed:
                 # Stop, a handled provider error, an early return: the turn is
                 # over and the code is still running, so file it here rather
                 # than leave it to be found after the liveness window, which
                 # would land it after whatever turn comes next. Marked landed
                 # first so the keepalive stops writing into a trail that is
                 # being filed.
-                self._turn_landed = True
-                await self._file_turn_trail()
+                self._trail.landed = True
+                await self._trail.file()
 
             self._turn_log(
                 "stream closed, %d text rows and %d snapshots written",
-                self._text_rows,
-                self._snapshot_rows,
+                self._trail.text_rows,
+                self._trail.snapshot_rows,
             )
             for translated in translator.flush():
                 yield self.event_encoder.encode(translated)
@@ -1059,21 +822,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._last_stop_check = 0
         self._last_finish_reason = None
         self._pre_stream_events = []
-        self._chunk_seq = itertools.count()
-        self._pending_text = ""
-        self._last_text_flush = 0
-        self._active_agent_stream = None
-        self._turn_image_actions = None
         self._tokens_recorded = 0
         self._turn_started_at = time.monotonic()
-        self._text_rows = 0
-        self._snapshot_rows = 0
-        # Scopes this turn's chunks, so a turn running at the same time on the
-        # same conversation cannot fold, overwrite or delete them.
-        self._turn_run_id = uuid.uuid4()
-        self._turn_landed = False
-        self._question_stored = False
-        self._tool_step_pending = False
+        # A new run id scopes this turn's chunks, so a turn running at the same
+        # time on the same conversation cannot fold, overwrite or delete them.
+        self._trail = TurnTrail(self.conversation, log=self._turn_log)
         await cache.adelete(self._stop_cache_key)
 
     def _build_truncation_hooks(self) -> Hooks:
@@ -2031,13 +1784,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     async def _handle_streaming_response(self, node, run_ctx, state: StreamingState):
         """Stream a model node, emitting text/tool/reasoning deltas as events.
 
-        The stream is held on the service while the node runs: it carries the
+        The stream is held on the trail while the node runs: it carries the
         response Pydantic AI is building, which is what a snapshot chunk
         stores for the part of the turn not yet closed.
         """
         observe = instrumentation.streamed_model_request(self.conversation_agent.configuration)
         async with node.stream(run_ctx) as request_stream:
-            self._active_agent_stream = request_stream
+            self._trail.active_stream = request_stream
             try:
                 async for event in observe(request_stream):
                     await self._agent_stop_streaming()
@@ -2063,7 +1816,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                         elif isinstance(event.delta, ThinkingPartDelta):
                             yield events_v4.ReasoningPart(reasoning=event.delta.content_delta)
             finally:
-                self._active_agent_stream = None
+                self._trail.active_stream = None
 
     async def _handle_model_request_node(
         self, node, run_ctx, state: StreamingState
@@ -2131,7 +1884,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         async for event in self._handle_call_tools_node(node, run_ctx, state):
             yield event
             if isinstance(event, (events_v4.ToolCallPart, events_v4.ToolResultPart)):
-                self._tool_step_pending = True
+                self._trail.note_tool_step()
 
     def _handle_end_node(self, state: StreamingState) -> None:
         """Handle end node - set message ID."""
@@ -2329,12 +2082,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 ModelResponse(parts=[TextPart(content=TRUNCATED_TURN_FILLER)], kind="response")
             )
 
-    async def _snapshot_closed_tool_step(self, run) -> None:
-        """Snapshot the tool cycle that just closed, if one is waiting for it."""
-        if self._tool_step_pending:
-            self._tool_step_pending = False
-            await self._append_snapshot(run)
-
     async def _run_agent(
         self,
         messages: List[UIMessage],
@@ -2374,8 +2121,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         # Held for the snapshots, which rewrite presigned image URLs to their
         # durable form before storing them.
-        self._turn_image_actions = image_actions
-        await self._append_question(user_prompt, input_images)
+        self._trail.image_actions = image_actions
+        await self._trail.append_question(user_prompt, input_images)
         self._turn_log("question stored, so the turn survives whatever runs next")
 
         for pre_event in self._pre_stream_events:
@@ -2416,7 +2163,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         await self._prepare_tools(force_web_search, conversation_has_own_documents)
 
         async for event in self._stream_agent_run(
-            [user_prompt] + input_images, history, force_datagouv
+            [user_prompt] + input_images, history, force_datagouv, image_actions
         ):
             yield event
 
@@ -2425,6 +2172,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         agent_input: list,
         history: list[ModelMessage],
         force_datagouv: bool,
+        image_actions: ImagePostRunActions,
     ) -> AsyncGenerator[events_v4.Event | events_v5.Event, None]:
         """Iterate the agent graph and store the turn it produced.
 
@@ -2449,7 +2197,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 Pydantic AI adds them just before this hook, not when the
                 model request node is handed out, which would be too early.
                 """
-                await self._snapshot_closed_tool_step(run)
+                await self._trail.snapshot_closed_tool_step(run)
                 return request_context
 
             self._turn_log("calling the model")
@@ -2486,7 +2234,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 usage = AgentUsage.from_run(run.usage)
 
         async for event in self._finalize_conversation(
-            new_messages, run_output, usage, state, self._turn_image_actions
+            new_messages, run_output, usage, state, image_actions
         ):
             yield event
 
@@ -2512,18 +2260,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             conversation_usage = prepare_update_conversation(
                 self.conversation,
                 is_truncated=self._is_truncated,
-                question_stored=self._question_stored,
+                question_stored=self._trail.question_stored,
                 **kwargs,
             )
             self.conversation.save(
                 update_fields=["messages", "pydantic_messages", "agent_usage", "updated_at"]
             )
-            # Before the delete, so a beat that reads it from here on returns
-            # without writing. One already past that check can still insert
-            # after the delete, which is why `beat` rechecks and removes its
-            # own row.
-            self._turn_landed = True
-            # This turn's trail only: another turn may be streaming into the
-            # same conversation from another tab, and its rows are not ours.
-            self.conversation.stream_chunks.filter(run_id=self._turn_run_id).delete()
+            self._trail.drop_rows()
         return conversation_usage

@@ -34,6 +34,7 @@ from chat.constants import STREAM_LIVE_WINDOW_SECONDS
 from chat.factories import ChatConversationFactory
 from chat.keepalive import stream_with_keepalive_async
 from chat.models import ChatConversation, ChatStreamChunk
+from chat.turn.trail import TurnTrail
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -61,6 +62,10 @@ def _service_with_model(conversation, stream_function, owner=None):
 async def _chunks(conversation):
     """The conversation's chunks, oldest first."""
     return await sync_to_async(lambda: list(conversation.stream_chunks.all()))()
+
+
+def _ignore_log(*_args) -> None:
+    """Stand-in for the service's turn log, which these tests do not read."""
 
 
 @pytest.mark.asyncio
@@ -120,7 +125,7 @@ async def test_a_turn_that_lands_leaves_no_chunks():
     conversation = await sync_to_async(ChatConversationFactory)()
     service = _service_with_model(conversation, _hello_model)
 
-    with patch("chat.clients.pydantic_ai.STREAM_TEXT_FLUSH_INTERVAL_SECONDS", 0):
+    with patch("chat.turn.trail.STREAM_TEXT_FLUSH_INTERVAL_SECONDS", 0):
         async for _ in service.stream_data_async([QUESTION]):
             pass
 
@@ -154,7 +159,7 @@ async def test_text_is_appended_rather_than_rewritten():
         return await original(**kwargs)
 
     with (
-        patch("chat.clients.pydantic_ai.STREAM_TEXT_FLUSH_INTERVAL_SECONDS", 0),
+        patch("chat.turn.trail.STREAM_TEXT_FLUSH_INTERVAL_SECONDS", 0),
         patch.object(ChatStreamChunk.objects, "acreate", recording_create),
     ):
         async for _ in service.stream_data_async([QUESTION]):
@@ -383,12 +388,11 @@ async def test_a_blocked_turn_says_it_is_still_running():
     runs. The keepalive loop is the only thing ticking then, so the beat it
     appends is what keeps the trail from reading as abandoned."""
     conversation = await sync_to_async(ChatConversationFactory)()
-    service = _service_with_model(conversation, _hello_model)
-    service._model_response_message_id = "m-1"
-    service._turn_run_id = uuid.uuid4()
+    turn = TurnTrail(conversation, log=_ignore_log)
+    turn.message_id = "m-1"
 
-    await service.beat()
-    await service.beat()
+    await turn.beat()
+    await turn.beat()
 
     trail = await _chunks(conversation)
     assert [(chunk.text, chunk.parts) for chunk in trail] == [("", None), ("", None)]
@@ -397,8 +401,8 @@ async def test_a_blocked_turn_says_it_is_still_running():
     assert stream_chunks.is_live(trail) is False
 
     # A turn that is really working stored its question before anything slow.
-    await service._append_question("Say hello", [])
-    await service.beat()
+    await turn.append_question("Say hello", [])
+    await turn.beat()
 
     trail = await _chunks(conversation)
     assert stream_chunks.is_live(trail) is True
@@ -412,17 +416,16 @@ async def test_a_snapshot_drops_the_rows_it_supersedes():
     the trail with the square of the steps for rows no reader can reach.
     """
     conversation = await sync_to_async(ChatConversationFactory)()
-    service = _service_with_model(conversation, _hello_model)
-    service._model_response_message_id = "m-1"
-    service._turn_run_id = uuid.uuid4()
+    turn = TurnTrail(conversation, log=_ignore_log)
+    turn.message_id = "m-1"
 
-    with patch("chat.clients.pydantic_ai.STREAM_TEXT_FLUSH_INTERVAL_SECONDS", 0):
-        await service._append_question("Say hello", [])
-        await service.beat()
-        await service._append_text("Hello")
+    with patch("chat.turn.trail.STREAM_TEXT_FLUSH_INTERVAL_SECONDS", 0):
+        await turn.append_question("Say hello", [])
+        await turn.beat()
+        await turn.append_text("Hello")
         assert len(await _chunks(conversation)) == 3
 
-        await service._write_snapshot(
+        await turn._write_snapshot(
             [
                 ModelRequest(parts=[UserPromptPart(content=["Say hello"])], kind="request"),
                 ModelResponse(parts=[TextPart(content="Hello")], kind="response"),
@@ -440,13 +443,12 @@ async def test_a_superseding_snapshot_still_says_the_question_is_stored():
     """The flag that stops the question being shown twice lives on a row that a
     later snapshot deletes, so every snapshot has to carry it."""
     conversation = await sync_to_async(ChatConversationFactory)()
-    service = _service_with_model(conversation, _hello_model)
-    service._model_response_message_id = "m-1"
-    service._turn_run_id = uuid.uuid4()
-    service._question_stored = True
+    turn = TurnTrail(conversation, log=_ignore_log)
+    turn.message_id = "m-1"
+    turn.question_stored = True
 
-    await service._append_question("Say hello", [])
-    await service._write_snapshot(
+    await turn.append_question("Say hello", [])
+    await turn._write_snapshot(
         [
             ModelRequest(parts=[UserPromptPart(content=["Say hello"])], kind="request"),
             ModelResponse(parts=[TextPart(content="Hello")], kind="response"),
@@ -497,19 +499,18 @@ async def test_a_beat_takes_back_its_row_if_the_turn_landed_meanwhile():
     liveness window.
     """
     conversation = await sync_to_async(ChatConversationFactory)()
-    service = _service_with_model(conversation, _hello_model)
-    service._turn_run_id = uuid.uuid4()
+    turn = TurnTrail(conversation, log=_ignore_log)
 
-    original = AIAgentService._write_chunk
+    original = TurnTrail._write_chunk
 
     async def land_while_writing(self, **kwargs):
         """Write the row, then have the turn land before the beat looks again."""
         seq = await original(self, **kwargs)
-        self._turn_landed = True
+        self.landed = True
         return seq
 
-    with patch.object(AIAgentService, "_write_chunk", land_while_writing):
-        await service.beat()
+    with patch.object(TurnTrail, "_write_chunk", land_while_writing):
+        await turn.beat()
 
     assert await _chunks(conversation) == []
 
@@ -517,19 +518,18 @@ async def test_a_beat_takes_back_its_row_if_the_turn_landed_meanwhile():
 def test_the_sync_beat_takes_back_its_row_too():
     """The WSGI path has the same gap, between two threads rather than tasks."""
     conversation = ChatConversationFactory()
-    service = AIAgentService(conversation, user=conversation.owner)
-    service._turn_run_id = uuid.uuid4()
+    turn = TurnTrail(conversation, log=_ignore_log)
 
     original = ChatStreamChunk.objects.create
 
     def land_while_writing(**kwargs):
         """Write the row, then have the turn land before the beat looks again."""
         chunk = original(**kwargs)
-        service._turn_landed = True
+        turn.landed = True
         return chunk
 
     with patch.object(ChatStreamChunk.objects, "create", land_while_writing):
-        service.beat_sync()
+        turn.beat_sync()
 
     assert not conversation.stream_chunks.exists()
 
