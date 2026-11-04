@@ -17,7 +17,6 @@ backend:
     DJANGO_EMAIL_LOGO_IMG: https://conversations.127.0.0.1.nip.io/assets/logo-suite-numerique.png
     DJANGO_EMAIL_PORT: 1025
     DJANGO_EMAIL_USE_SSL: False
-    LOGGING_LEVEL_HANDLERS_CONSOLE: ERROR
     LOGGING_LEVEL_LOGGERS_ROOT: INFO
     LOGGING_LEVEL_LOGGERS_APP: INFO
     OIDC_OP_JWKS_ENDPOINT: https://keycloak.127.0.0.1.nip.io/realms/conversations/protocol/openid-connect/certs

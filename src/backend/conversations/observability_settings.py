@@ -32,8 +32,8 @@ class ObservabilitySettings:
     )
 
     # Logging
-    # We want to make it easy to log to console but by default we log production
-    # to Sentry and don't want to log to console.
+    # Everything is logged to console; levels are set per logger with the
+    # LOGGING_LEVEL_LOGGERS_* variables.
     LOGGING = {
         "version": 1,
         "disable_existing_loggers": False,

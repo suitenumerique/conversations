@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Removed
+
+- 🔥(helm) remove unused console handler log level variable
+
 ## [0.0.28] - 2026-11-03
 
 ### Changed
