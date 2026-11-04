@@ -10,6 +10,10 @@ and this project adheres to
 
 ## [0.0.28] - 2026-11-03
 
+### Changed
+
+- 🔧(renovate) schedule dependency updates on sunday
+
 ### Added
 
 - ✨(back) add opt-in output token limit per message

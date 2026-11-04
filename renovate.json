@@ -1,6 +1,7 @@
 {
   "extends": ["github>suitenumerique/ci//renovate/default"],
   "dependencyDashboard": true,
+  "schedule": ["on sunday"],
   "labels": ["dependencies", "noChangeLog", "automated"],
   "prConcurrentLimit": 4,
   "branchConcurrentLimit": 4,
@@ -32,6 +33,10 @@
       "matchManagers": ["npm"],
       "matchPackageNames": ["@ai-sdk/react", "@ai-sdk/ui-utils"],
       "allowedVersions": "^1.2.0"
+    },
+    {
+      "matchPackageNames": ["*"],
+      "schedule": ["on sunday"]
     }
   ]
 }
