@@ -10,11 +10,11 @@ import pytest
 from pydantic_ai.messages import FunctionToolResultEvent, ToolReturnPart
 
 from chat.ai_sdk_types import UIMessage
-from chat.clients.pydantic_ai import CONNECTOR_UNAVAILABLE_EVENT_TYPE, AIAgentService
-from chat.clients.schema import StreamingState
+from chat.clients.pydantic_ai import AIAgentService
 from chat.factories import ChatConversationFactory
 from chat.mcp_servers import DataGouvConnector
 from chat.tests.clients.pydantic_ai.test_run_agent_summary import _run_agent_patches
+from chat.turn.event_mapper import CONNECTOR_UNAVAILABLE_EVENT_TYPE, TurnEventMapper
 from chat.vercel_ai_sdk.core import events_v4
 
 pytestmark = pytest.mark.django_db
@@ -232,13 +232,18 @@ async def test_a_failed_tool_result_streams_the_notice(service):
 
         yield events()
 
-    with patch.object(service, "_agent_stop_streaming", AsyncMock()):
-        events = [
-            event
-            async for event in service._handle_call_tools_node(
-                MagicMock(stream=stream), None, StreamingState()
-            )
-        ]
+    mapper = TurnEventMapper(
+        trail=service._trail,
+        meter=service._meter,
+        check_stop=AsyncMock(),
+        model_configuration=service.conversation_agent.configuration,
+        supports_streaming=True,
+        fake_streaming_delay=0,
+        datagouv=service._datagouv,
+    )
+    events = [
+        event async for event in mapper._handle_call_tools_node(MagicMock(stream=stream), None)
+    ]
 
     assert len(_notices(events)) == 1
 

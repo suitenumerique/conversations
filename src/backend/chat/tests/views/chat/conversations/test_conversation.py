@@ -822,7 +822,7 @@ def test_post_conversation_model_selection_new(
     assert json.loads(mock_openai_stream.calls.last.request.content)["model"] == "plop-model"
 
 
-@freeze_time("2025-07-25T10:36:35.297675Z")
+@freeze_time("2025-07-25T10:36:35.297675Z", real_asyncio=True)
 @pytest.mark.parametrize("stream_delay", [None, 0.0001])
 def test_post_conversation_data_protocol_no_stream(
     api_client,

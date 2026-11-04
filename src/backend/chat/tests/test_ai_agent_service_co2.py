@@ -8,11 +8,11 @@ import pytest
 from pydantic_ai.messages import ModelResponse, TextPart
 
 from chat.clients.pydantic_ai import AIAgentService
-from chat.clients.schema import ImagePostRunActions, StreamingState
+from chat.clients.schema import ImagePostRunActions
 from chat.llm_configuration import LLModel
 from chat.turn.persistence import prepare_update_conversation
 from chat.turn.trail import TurnTrail
-from chat.turn.usage import AgentUsage
+from chat.turn.usage import AgentUsage, TokenMeter
 from chat.vercel_ai_sdk.core import events_v4
 
 
@@ -47,7 +47,6 @@ def service_fixture(conversation):
     s.conversation = conversation
     s.user = SimpleNamespace(pk=1)
     s.language = None
-    s._tokens_recorded = 0
     s._turn_started_at = 0.0
     s._trail = TurnTrail(conversation, log=s._turn_log)
     s.conversation_agent = SimpleNamespace(
@@ -61,6 +60,8 @@ def service_fixture(conversation):
         )
     )
     s._last_finish_reason = None
+    s._model_response_message_id = "test-msg-id"
+    s._meter = TokenMeter(s.user.pk, s.conversation_agent.configuration)
     return s
 
 
@@ -164,7 +165,6 @@ async def test_finalize_emits_finish_message_with_co2(service, co2_impact):
     """FinishMessagePart always emitted with co2_impact in usage."""
     service._langfuse_available = False
     usage = AgentUsage(prompt_tokens=10, completion_tokens=5, co2_impact=co2_impact)
-    state = StreamingState(model_response_message_id="test-msg-id")
 
     with (
         patch.object(service, "_agent_stop_streaming", new=AsyncMock()),
@@ -172,7 +172,7 @@ async def test_finalize_emits_finish_message_with_co2(service, co2_impact):
         # events finalize emits are.
         patch.object(service, "_write_finished_turn", return_value=usage),
         patch("chat.clients.pydantic_ai.sync_to_async", side_effect=_fake_sync_to_async),
-        patch("chat.clients.pydantic_ai.record_and_compute_cooldown", return_value=0),
+        patch("chat.turn.usage.record_and_compute_cooldown", return_value=0),
     ):
         events = [
             event
@@ -180,7 +180,7 @@ async def test_finalize_emits_finish_message_with_co2(service, co2_impact):
                 new_messages=[],
                 run_output="Hello",
                 usage=usage,
-                state=state,
+                ui_sources=[],
                 image_actions=ImagePostRunActions(),
             )
         ]
@@ -202,7 +202,7 @@ async def test_finalize_finish_frame_carries_the_conversation_total(service):
         patch.object(service, "_agent_stop_streaming", new=AsyncMock()),
         patch.object(service, "_write_finished_turn", return_value=conversation_total),
         patch("chat.clients.pydantic_ai.sync_to_async", side_effect=_fake_sync_to_async),
-        patch("chat.clients.pydantic_ai.record_and_compute_cooldown", return_value=0),
+        patch("chat.turn.usage.record_and_compute_cooldown", return_value=0),
     ):
         events = [
             event
@@ -210,7 +210,7 @@ async def test_finalize_finish_frame_carries_the_conversation_total(service):
                 new_messages=[],
                 run_output="Hello",
                 usage=turn_usage,
-                state=StreamingState(model_response_message_id="test-msg-id"),
+                ui_sources=[],
                 image_actions=ImagePostRunActions(),
             )
         ]

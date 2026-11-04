@@ -34,6 +34,7 @@ from chat.mcp_servers import (
     DataGouvConnector,
     is_connector_unreachable,
 )
+from chat.turn.event_mapper import TurnEventMapper
 
 pytestmark = pytest.mark.django_db()
 
@@ -417,7 +418,7 @@ async def test_run_agent_hands_connector_tools_to_the_agent_run(settings, mcp_se
         patch.object(service, "_setup_web_search_tool"),
         patch.object(service, "_setup_web_search"),
         patch.object(service, "_check_should_enable_rag", AsyncMock(return_value=False)),
-        patch.object(service, "_process_agent_nodes", side_effect=_empty_async_gen),
+        patch.object(TurnEventMapper, "events", side_effect=_empty_async_gen),
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
         patch("chat.clients.pydantic_ai.should_generate_conversation_summary", return_value=False),
         patch("chat.turn.usage._extract_co2_from_usage", return_value=0),

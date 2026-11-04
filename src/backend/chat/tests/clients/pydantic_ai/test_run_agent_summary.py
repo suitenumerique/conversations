@@ -20,6 +20,7 @@ from chat.constants import (
 )
 from chat.factories import ChatConversationFactory
 from chat.llm_configuration import LLModel, LLMProvider
+from chat.turn.event_mapper import TurnEventMapper
 from chat.vercel_ai_sdk.core import events_v4
 
 pytestmark = pytest.mark.django_db()
@@ -135,7 +136,7 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
         patch.object(service, "_setup_web_search_tool"),
         patch.object(service, "_setup_web_search"),
         patch.object(service, "_check_should_enable_rag", AsyncMock(return_value=False)),
-        patch.object(service, "_process_agent_nodes", side_effect=_empty_async_gen),
+        patch.object(TurnEventMapper, "events", side_effect=_empty_async_gen),
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
         # True at start (phase triggers), False on the re-check (summary landed).
         patch(
@@ -214,7 +215,7 @@ async def test_run_agent_skips_summary_events_when_summarization_not_triggered(u
         patch.object(service, "_setup_web_search_tool"),
         patch.object(service, "_setup_web_search"),
         patch.object(service, "_check_should_enable_rag", AsyncMock(return_value=False)),
-        patch.object(service, "_process_agent_nodes", side_effect=_empty_async_gen),
+        patch.object(TurnEventMapper, "events", side_effect=_empty_async_gen),
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
         patch("chat.clients.pydantic_ai.should_generate_conversation_summary", return_value=False),
         patch.object(service._datagouv, "toolsets", return_value=[]),
@@ -409,7 +410,7 @@ def _run_agent_patches(service):
         patch.object(service, "_setup_web_search_tool"),
         patch.object(service, "_setup_web_search"),
         patch.object(service, "_check_should_enable_rag", AsyncMock(return_value=False)),
-        patch.object(service, "_process_agent_nodes", side_effect=_empty_async_gen),
+        patch.object(TurnEventMapper, "events", side_effect=_empty_async_gen),
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
         patch.object(service._datagouv, "toolsets", return_value=[]),
         patch("chat.turn.usage._extract_co2_from_usage", return_value=0),

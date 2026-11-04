@@ -62,10 +62,10 @@ Events flow through several layers:
         ↓
     stream_data (sync wrapper)
 
-The `StreamingState` dataclass tracks mutable state across the streaming process:
+`chat.turn.event_mapper.TurnEventMapper` maps the agent's nodes to v4 events.
+Its `StreamingState` tracks mutable state across the streaming process:
 - `tool_is_streaming`: Prevents duplicate tool call events when streaming deltas
 - `ui_sources`: Collects source citations from tool results
-- `model_response_message_id`: Links the response to Langfuse traces
 
 ## Stop Mechanism
 
@@ -79,7 +79,6 @@ import dataclasses
 import functools
 import hashlib
 import logging
-import os
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack, suppress
@@ -96,31 +95,21 @@ from django.utils.translation import gettext_lazy as _
 from asgiref.sync import sync_to_async
 from celery.exceptions import TimeoutError as CeleryTimeoutError
 from langfuse import get_client, propagate_attributes
-from pydantic_ai import Agent, InstrumentationSettings, RunContext
+from pydantic_ai import InstrumentationSettings, RunContext
 from pydantic_ai.capabilities import Hooks, Instrumentation, ProcessHistory
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UnexpectedModelBehavior
 from pydantic_ai.messages import (
     BinaryContent,
     DocumentUrl,
     FinishReason,
-    FunctionToolCallEvent,
-    FunctionToolResultEvent,
     ImageUrl,
     ModelMessage,
     ModelMessagesTypeAdapter,
     ModelRequest,
     ModelResponse,
-    PartDeltaEvent,
-    PartStartEvent,
-    RetryPromptPart,
     TextPart,
-    TextPartDelta,
     ThinkingPart,
-    ThinkingPartDelta,
-    ToolCallPart,
-    ToolCallPartDelta,
     ToolReturn,
-    ToolReturnPart,
 )
 from pydantic_ai.models import Model, infer_model_profile
 from pydantic_ai.settings import ModelSettings
@@ -165,7 +154,6 @@ from chat.clients.schema import (
     DocumentParsingResult,
     ImagePostRunActions,
     PreparedHistory,
-    StreamingState,
 )
 from chat.constants import (
     ACCESS_FULL_CONTEXT,
@@ -184,7 +172,7 @@ from chat.document_context_builder import (
 from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
 from chat.mcp_servers import DataGouvConnector, enter_mcp_toolsets
-from chat.rate_limiting import get_cooldown_remaining, record_and_compute_cooldown
+from chat.rate_limiting import get_cooldown_remaining
 from chat.stream_chunks import persist as persist_leftover_chunks
 from chat.tasks import index_conversation_document_task, summarize_conversation_history
 from chat.tools.descriptions import (
@@ -201,13 +189,14 @@ from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize, document_summarize_project
 from chat.tools.generate_presentation import generate_presentation
 from chat.tools.self_documentation import build_self_documentation_payload
+from chat.turn.event_mapper import TurnEventMapper, connector_unavailable_notice
 from chat.turn.persistence import (
     generate_title_if_needed,
     prepare_update_conversation,
     truncation_annotation,
 )
 from chat.turn.trail import TurnTrail
-from chat.turn.usage import AgentUsage
+from chat.turn.usage import AgentUsage, TokenMeter
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
 from chat.vercel_ai_sdk.encoder.encoder import DONE_FRAME
@@ -234,23 +223,6 @@ DOCUMENT_URL_PREFIX = "/media-key/"
 # reasons or events.
 IMAGES_SKIPPED_EVENT_TYPE = "images_skipped"
 IMAGE_SKIP_REASON_TEXT_ONLY = "model_text_only"
-
-# Stream-protocol contract with the frontend. Mirrored in `useChat.tsx`
-# (CONNECTOR_UNAVAILABLE_EVENT_TYPE). Keep both sides in sync.
-CONNECTOR_UNAVAILABLE_EVENT_TYPE = "connector_unavailable"
-
-
-def _connector_unavailable_notice() -> events_v4.DataPart:
-    """The chat notice for a forced connector this turn could not use."""
-    return events_v4.DataPart(
-        data=[
-            {
-                "type": CONNECTOR_UNAVAILABLE_EVENT_TYPE,
-                "kind": "chat_notice",
-                "connector_id": DataGouvConnector.connector_id,
-            }
-        ]
-    )
 
 
 def _is_error_finish(event) -> bool:
@@ -368,7 +340,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.model_configuration = get_model_configuration(self.model_hrid)
         self.language = language  # might be None
         self._last_stop_check = 0
-        self._tokens_recorded = 0
         self._turn_started_at = 0.0
         # Per-turn chunk state, replaced by _clean at the start of every stream.
         self._trail = TurnTrail(conversation, log=self._turn_log)
@@ -435,6 +406,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             capabilities=_capabilities + [self._build_truncation_hooks()],
             deps_type=ContextDeps,
         )
+        # Per-turn token charge, replaced by _clean at the start of every stream.
+        self._meter = TokenMeter(user.pk, self.conversation_agent.configuration)
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
         self._conversation_message_token_budget = resolve_conversation_budget(
             self.model_configuration
@@ -509,31 +482,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # Async internals
     # --------------------------------------------------------------------- #
 
-    async def _write_turn_chunks(self, run, event) -> None:
-        """Append what this event added to the turn: its text, and nothing else.
-
-        The question opened the trail with a snapshot, so there is always a
-        request for the answer to belong to, and every structural change takes
-        another one of its own (`snapshot_closed_tool_step`). Nothing is
-        snapshotted on a timer: a snapshot holds the whole turn, so one every
-        few seconds rewrote the answer so far over and over, for a reader that
-        only ever uses the last of them.
-
-        What this gives up: only text is appended, so reasoning (`ReasoningPart`,
-        from a model with `thinking_tags`) reaches no row of its own. A turn cut
-        short while the model is still thinking therefore stores its question
-        and nothing else, and the conversation shows that question with no
-        answer against it. Giving reasoning the same treatment as text means a
-        row that says which of the two it carries, not a timer: that would put
-        it back in the trail without snapshotting the whole turn again.
-        """
-        # Charged as the turn spends them, alongside the rows that record it:
-        # a turn that never lands spent its tokens all the same, and would
-        # otherwise escape the cooldown entirely.
-        await self._record_tokens(self._spent_tokens(run))
-        if isinstance(event, events_v4.TextPart):
-            await self._trail.append_text(event.text)
-
     async def beat(self) -> None:
         """Keepalive hook: append a beat row to the current turn's trail.
 
@@ -545,27 +493,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     def beat_sync(self) -> None:
         """`beat`, for the WSGI path, where the keepalive loop is not async."""
         self._trail.beat_sync()
-
-    @staticmethod
-    def _spent_tokens(run) -> int:
-        """Tokens this turn has run through the model so far."""
-        usage = run.usage
-        return int(usage.input_tokens) + int(usage.output_tokens)
-
-    async def _record_tokens(self, total_tokens: int) -> int:
-        """Charge the tokens this turn has spent since the last call.
-
-        Recorded as it goes, because a turn that never reaches the end spent
-        its tokens all the same. The window adds up, so the increments total
-        what one final call would have charged.
-        """
-        unrecorded = total_tokens - self._tokens_recorded
-        if unrecorded <= 0:
-            return 0
-        self._tokens_recorded = total_tokens
-        return await sync_to_async(record_and_compute_cooldown)(
-            self.user.pk, self.conversation_agent.configuration, unrecorded
-        )
 
     @staticmethod
     def _mark_image_attachments_skipped(user_message: UIMessage) -> bool:
@@ -822,7 +749,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._last_stop_check = 0
         self._last_finish_reason = None
         self._pre_stream_events = []
-        self._tokens_recorded = 0
+        self._meter = TokenMeter(self.user.pk, self.conversation_agent.configuration)
         self._turn_started_at = time.monotonic()
         # A new run id scopes this turn's chunks, so a turn running at the same
         # time on the same conversation cannot fold, overwrite or delete them.
@@ -1210,7 +1137,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if connected:
             return
 
-        yield _connector_unavailable_notice()
+        yield connector_unavailable_notice()
 
     async def _check_should_enable_rag(self, conversation_has_own_documents: bool) -> bool:
         """Check if RAG should be enabled based on actually-indexed documents.
@@ -1256,53 +1183,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             return await indexed_qs.filter(project_id=self.conversation.project_id).aexists()
 
         return False
-
-    async def _process_agent_nodes(
-        self, run, state: StreamingState
-    ) -> AsyncGenerator[events_v4.Event, None]:
-        """
-        Process nodes from the Pydantic-AI agent iteration loop.
-
-        The agent produces a stream of nodes representing different stages:
-
-        - **UserPromptNode**: The user's input was received (no-op, just logged)
-        - **ModelRequestNode**: The model is generating a response
-          - Streaming: Yields text/tool deltas as they arrive
-          - Non-streaming: Waits for full response, then yields parts
-        - **CallToolsNode**: The model requested tool calls
-          - Executes tools and yields results
-          - Collects source citations into state.ui_sources
-        - **EndNode**: The agent run is complete
-          - Sets state.model_response_message_id (minted at stream start) so
-            the persisted message keeps the id the client was given
-
-        This method delegates to specialized handlers for each node type,
-        passing the shared StreamingState to track cross-node state.
-
-        The stop check (_agent_stop_streaming) is called for each node to
-        allow cancel between processing steps.
-        """
-        async for node in run:
-            await self._agent_stop_streaming()
-            if Agent.is_user_prompt_node(node):
-                # A user prompt node => The user has provided input
-                pass
-
-            elif Agent.is_model_request_node(node):
-                # A model request node => agent is asking the model to generate a response
-                async for event in self._handle_model_request_node(node, run.ctx, state):
-                    await self._write_turn_chunks(run, event)
-                    yield event
-
-            elif Agent.is_call_tools_node(node):
-                # A handle-response node => The model returned some data,
-                # potentially calls a tool
-                async for event in self._stream_tool_node(node, run.ctx, state):
-                    yield event
-
-            elif Agent.is_end_node(node):
-                # Once an End node is reached, the agent run is complete
-                self._handle_end_node(state)
 
     async def _fetch_document_data(
         self, document: "BinaryContent | DocumentUrl"
@@ -1754,146 +1634,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         yield events_v4.ToolResultPart(tool_call_id=_tool_call_id, result={"state": "done"})
         yield DocumentParsingResult(success=True, has_documents=True)
 
-    async def _handle_non_streaming_response(self, node, run_ctx):
-        """Run a model node without streaming, emitting its parts as events."""
-        result = await node.run(run_ctx)
-        for part in result.model_response.parts:
-            if isinstance(part, TextPart):
-                if self._fake_streaming_delay:
-                    for i in range(0, len(part.content), 4):
-                        await self._agent_stop_streaming()
-                        yield events_v4.TextPart(text=part.content[i : i + 4])
-                        if os.environ.get("PYTHON_SERVER_MODE") == "async":
-                            await asyncio.sleep(self._fake_streaming_delay)
-                        else:
-                            # sync mode needed for tests time manipulation
-                            time.sleep(self._fake_streaming_delay)
-                else:
-                    yield events_v4.TextPart(text=part.content)
-            elif isinstance(part, ToolCallPart):
-                yield events_v4.ToolCallPart(
-                    tool_call_id=part.tool_call_id,
-                    tool_name=part.tool_name,
-                    args=part.args_as_dict(),
-                )
-            elif isinstance(part, ThinkingPart):
-                yield events_v4.ReasoningPart(reasoning=part.content)
-            else:
-                logger.warning("Unknown part type: %s", type(part))
-
-    async def _handle_streaming_response(self, node, run_ctx, state: StreamingState):
-        """Stream a model node, emitting text/tool/reasoning deltas as events.
-
-        The stream is held on the trail while the node runs: it carries the
-        response Pydantic AI is building, which is what a snapshot chunk
-        stores for the part of the turn not yet closed.
-        """
-        observe = instrumentation.streamed_model_request(self.conversation_agent.configuration)
-        async with node.stream(run_ctx) as request_stream:
-            self._trail.active_stream = request_stream
-            try:
-                async for event in observe(request_stream):
-                    await self._agent_stop_streaming()
-                    if isinstance(event, PartStartEvent):
-                        if isinstance(event.part, TextPart):
-                            yield events_v4.TextPart(text=event.part.content)
-                        elif isinstance(event.part, ToolCallPart):
-                            yield events_v4.ToolCallStreamingStartPart(
-                                tool_call_id=event.part.tool_call_id,
-                                tool_name=event.part.tool_name,
-                            )
-                        elif isinstance(event.part, ThinkingPart):
-                            yield events_v4.ReasoningPart(reasoning=event.part.content)
-                    elif isinstance(event, PartDeltaEvent):
-                        if isinstance(event.delta, TextPartDelta):
-                            yield events_v4.TextPart(text=event.delta.content_delta)
-                        elif isinstance(event.delta, ToolCallPartDelta):
-                            state.tool_is_streaming = True
-                            yield events_v4.ToolCallDeltaPart(
-                                tool_call_id=event.delta.tool_call_id,
-                                args_text_delta=event.delta.args_delta,
-                            )
-                        elif isinstance(event.delta, ThinkingPartDelta):
-                            yield events_v4.ReasoningPart(reasoning=event.delta.content_delta)
-            finally:
-                self._trail.active_stream = None
-
-    async def _handle_model_request_node(
-        self, node, run_ctx, state: StreamingState
-    ) -> AsyncGenerator[events_v4.Event, None]:
-        """Handle model request node - streaming or non-streaming."""
-        state.tool_is_streaming = False
-        if not self._support_streaming:
-            async for event in self._handle_non_streaming_response(node, run_ctx):
-                yield event
-        else:
-            async for event in self._handle_streaming_response(node, run_ctx, state):
-                yield event
-
-    async def _handle_call_tools_node(
-        self, node, run_ctx, state: StreamingState
-    ) -> AsyncGenerator[events_v4.Event, None]:
-        """Stream a tool-call node, emitting tool result/error events."""
-        async with node.stream(run_ctx) as handle_stream:
-            async for event in handle_stream:
-                await self._agent_stop_streaming()
-                logger.debug("Received request_stream event: %s", type(event))
-                if isinstance(event, FunctionToolCallEvent):
-                    if not state.tool_is_streaming:
-                        yield events_v4.ToolCallPart(
-                            tool_call_id=event.tool_call_id,
-                            tool_name=event.part.tool_name,
-                            args=event.part.args_as_dict(),
-                        )
-                elif isinstance(event, FunctionToolResultEvent):
-                    # An outage reaches the model as a failed ToolReturnPart.
-                    if self._datagouv.take_outage():
-                        yield _connector_unavailable_notice()
-                    if isinstance(event.part, ToolReturnPart):
-                        if event.part.metadata and (sources := event.part.metadata.get("sources")):
-                            for source_url in sources:
-                                source_id = str(uuid.uuid4())
-                                state.ui_sources.append(
-                                    SourceUrlUIPart(
-                                        type="source-url", sourceId=source_id, url=source_url
-                                    )
-                                )
-                                yield events_v4.SourcePart(id=source_id, url=source_url)
-                        yield events_v4.ToolResultPart(
-                            tool_call_id=event.tool_call_id, result=event.part.content
-                        )
-
-                    elif isinstance(event.part, RetryPromptPart):
-                        yield events_v4.ToolResultPart(
-                            tool_call_id=event.tool_call_id, result=event.part.content
-                        )
-                    else:
-                        logger.warning("Unexpected tool result type: %s", type(event.part))
-
-    async def _stream_tool_node(
-        self, node, run_ctx, state: StreamingState
-    ) -> AsyncGenerator[events_v4.Event, None]:
-        """Stream a tool-call node, noting that its step owes a snapshot.
-
-        A tool call is structure rather than more of the same text, and only a
-        snapshot carries structure. The snapshot itself waits: Pydantic AI adds
-        the tool's return to the run when the next model request starts, so
-        taking it here would store a call with no answer, which no provider will
-        replay.
-        """
-        async for event in self._handle_call_tools_node(node, run_ctx, state):
-            yield event
-            if isinstance(event, (events_v4.ToolCallPart, events_v4.ToolResultPart)):
-                self._trail.note_tool_step()
-
-    def _handle_end_node(self, state: StreamingState) -> None:
-        """Handle end node - set message ID."""
-        if state.model_response_message_id:
-            logger.error("_model_response_message_id already set")
-        # Minted (and streamed) by _stream_content: the persisted message must
-        # carry the same id the client already assigned to the live one.
-        state.model_response_message_id = self._model_response_message_id
-
     def _update_langfuse_trace(self, run_output) -> None:
         """Update the Langfuse trace with the final output, if analytics are enabled."""
         if not self._langfuse_available or self._langfuse_span is None:
@@ -1906,7 +1646,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         new_messages: list,
         run_output,
         usage: AgentUsage,
-        state: StreamingState,
+        ui_sources: List[SourceUrlUIPart],
         image_actions: ImagePostRunActions,
     ) -> AsyncGenerator[events_v4.Event, None]:
         """
@@ -1946,8 +1686,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         conversation_usage = await sync_to_async(self._write_finished_turn)(
             final_output=new_messages,
             usage=usage,
-            ui_sources=state.ui_sources,
-            model_response_message_id=state.model_response_message_id,
+            ui_sources=ui_sources,
+            # Minted (and streamed) by _stream_content: the persisted message must
+            # carry the same id the client already assigned to the live one.
+            model_response_message_id=self._model_response_message_id,
             image_actions=image_actions,
         )
 
@@ -1958,7 +1700,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             await sync_to_async(self.conversation.save)(update_fields=["title", "updated_at"])
             self._turn_log("named the conversation")
 
-        await self._record_tokens(request_tokens)
+        await self._meter.charge(request_tokens)
         # Read the cooldown rather than take what that charge returned: the
         # turn charges as it goes, so by now there can be nothing left to
         # charge, and a charge of nothing reports no cooldown even when one is
@@ -2210,9 +1952,17 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 capabilities=[Hooks(before_model_request=snapshot_closed_tool_step)],
                 model_settings=model_settings,
             ) as run:
-                state = StreamingState()
+                mapper = TurnEventMapper(
+                    trail=self._trail,
+                    meter=self._meter,
+                    check_stop=self._agent_stop_streaming,
+                    model_configuration=self.conversation_agent.configuration,
+                    supports_streaming=self._support_streaming,
+                    fake_streaming_delay=self._fake_streaming_delay,
+                    datagouv=self._datagouv,
+                )
                 try:
-                    async for event in self._process_agent_nodes(run, state):
+                    async for event in mapper.events(run):
                         yield event
                 except UnexpectedModelBehavior:
                     # Pydantic AI raises when the token limit cuts a response before
@@ -2221,10 +1971,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     if not self._is_truncated:
                         raise
                     self._turn_log("token limit reached before a usable response")
-                    # The run never reached its End node, so carry the streamed
-                    # message id over by hand: the stored message must keep the
-                    # id the client already has.
-                    self._handle_end_node(state)
                     new_messages = _keep_truncated_text(run.new_messages())
                     run_output = None
                 else:
@@ -2234,7 +1980,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 usage = AgentUsage.from_run(run.usage)
 
         async for event in self._finalize_conversation(
-            new_messages, run_output, usage, state, image_actions
+            new_messages, run_output, usage, mapper.state.ui_sources, image_actions
         ):
             yield event
 
