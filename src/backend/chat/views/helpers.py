@@ -1,15 +1,14 @@
 """Shared helpers for the chat views."""
 
-import logging
-
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.utils.decorators import method_decorator
 
+import structlog
 from botocore.exceptions import BotoCoreError, ClientError
 from lasuite.oidc_login.decorators import refresh_oidc_access_token
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def conditional_refresh_oidc_token(func):
@@ -40,4 +39,4 @@ def _bulk_delete_s3_blobs(keys):
         try:
             default_storage.delete(key)
         except BotoCoreError, ClientError, OSError:
-            logger.exception("Failed to delete S3 object %s", key)
+            logger.exception("s3_object_delete_failed", key=key)

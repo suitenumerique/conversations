@@ -1,15 +1,15 @@
 """Assemble a pptx deck from a validated presentation spec."""
 
-import logging
 from io import BytesIO
 
 import pptx
+import structlog
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
 from chat.file_generation.entities import Presentation, PresentationTemplate, Slide, SlideLayout
 from chat.file_generation.renderer import render
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # SHA1 of the template's bundled "insert image" placeholder graphic
 # (ppt/media/image1.png, a 128x72 mountain icon baked as a real picture into the
@@ -26,7 +26,7 @@ def build_presentation(template: PresentationTemplate, presentation: Presentatio
     try:
         deck = pptx.Presentation(str(template.path))
     except Exception as exc:
-        logger.exception("Failed to open presentation template %s", template.path)
+        logger.exception("presentation_template_open_failed", template_path=str(template.path))
         raise PresentationBuildError(
             f"Could not open the presentation template at {template.path}."
         ) from exc

@@ -15,6 +15,11 @@ and this project adheres to
 ### Changed
 
 - ♻️(back) split the agent service into turn modules
+- 🔊(back) log structured JSON lines in production
+
+### Fixed
+
+- 🔒️(back) keep emails, urls and document names out of the logs
 
 ## [0.0.28] - 2026-11-03
 

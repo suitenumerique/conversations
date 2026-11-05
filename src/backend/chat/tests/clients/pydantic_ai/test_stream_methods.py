@@ -18,6 +18,9 @@ from chat.vercel_ai_sdk.core import events_v4
 
 pytestmark = pytest.mark.django_db()
 
+# A provider error body echoing the input, which must never reach the logs.
+PROVIDER_BODY = "echoed secret document passage"
+
 
 class AsyncRaiseIterator:
     """Async iterator that raises the given exception on the first iteration."""
@@ -150,6 +153,36 @@ async def test_stream_data_async_emits_model_connection_error_on_api_error():
             results.append(result)
 
     assert stream_body(results) == ['{"type":"error","errorText":"model_connection_error"}']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("error", "event", "status_code"),
+    [
+        (
+            ModelHTTPError(status_code=503, model_name="m", body=PROVIDER_BODY),
+            "llm_http_error",
+            503,
+        ),
+        (ModelAPIError(model_name="m", message=PROVIDER_BODY), "llm_connection_error", None),
+    ],
+)
+async def test_stream_data_async_logs_no_provider_message(error, event, status_code, json_logs):
+    """The error line names the failure by status (and type), never by its message."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    service = AIAgentService(conversation, user=conversation.owner)
+
+    def mock_run_agent(*args, **kwargs):
+        return AsyncRaiseIterator(error)
+
+    with patch.object(service, "_run_agent", side_effect=mock_run_agent):
+        _ = [result async for result in service.stream_data_async([])]
+
+    lines = json_logs()
+    [line] = [line for line in lines if line["event"] == event]
+    assert line["status_code"] == status_code
+    assert "error" not in line
+    assert PROVIDER_BODY not in str(lines)
 
 
 @pytest.mark.asyncio

@@ -15,12 +15,13 @@ The translation is stateful for two reasons:
 One instance per stream.
 """
 
-import logging
 from typing import Any, Dict, List, Optional, Tuple
+
+import structlog
 
 from ..core import events_v4, events_v5
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 TEXT_BLOCK = "text"
 REASONING_BLOCK = "reasoning"
@@ -67,7 +68,9 @@ class V4ToV5Translator:
                 if isinstance(annotation, dict):
                     self._annotations.update(annotation)
                 else:
-                    logger.warning("Dropping non-object message annotation: %r", annotation)
+                    logger.warning(
+                        "message_annotation_dropped", annotation_type=type(annotation).__name__
+                    )
             return []
 
         return self._close_block() + self._translate_standalone(event)
@@ -129,7 +132,7 @@ class V4ToV5Translator:
         if isinstance(event, events_v4.FinishMessagePart):
             return [events_v5.FinishMessagePart(messageMetadata=self._message_metadata(event))]
 
-        logger.warning("No v5 translation for v4 event type %s", type(event).__name__)
+        logger.warning("v4_event_untranslated", event_type=type(event).__name__)
         return []
 
     @staticmethod
@@ -149,7 +152,7 @@ class V4ToV5Translator:
                 or not isinstance(item.get("type"), str)
                 or not item["type"]
             ):
-                logger.warning("Dropping data item without a string type: %r", item)
+                logger.warning("data_item_dropped", item_type=type(item).__name__)
                 continue
             parts.append(
                 events_v5.DataPart(type=data_part_type(item["type"]), data=item, transient=True)

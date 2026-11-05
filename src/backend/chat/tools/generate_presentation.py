@@ -1,25 +1,26 @@
 """Slide deck generation tool for the chat agent."""
 
-import logging
 import secrets
 
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.utils.text import slugify
 
+import structlog
 from asgiref.sync import sync_to_async
 from pydantic_ai import ModelRetry, RunContext
 from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.messages import ToolReturn
 
 from core.file_upload.utils import generate_retrieve_policy
+from core.log_fields import safe_error_fields
 
 from chat.agents.presentation import PresentationAgent
 from chat.file_generation import GENERIC_TEMPLATE, PresentationBuildError, build_presentation
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.utils import last_model_retry_soft_fail
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 PPTX_EXTENSION = "pptx"
 
@@ -93,11 +94,11 @@ async def generate_presentation(ctx: RunContext, brief: str) -> ToolReturn:
     except AgentRunError as exc:
         # The agent itself failed (model API/HTTP error, unexpected model
         # behaviour, usage limit): a retry may recover, so let the model try.
-        logger.warning("Presentation agent failed: %s", exc, exc_info=True)
+        logger.warning("presentation_agent_failed", **safe_error_fields(exc))
         raise ModelRetry("The presentation outline could not be produced.") from exc
     except Exception as exc:
         # Anything else is a server-side bug, not something a retry fixes.
-        logger.exception("Unexpected error while producing the presentation outline")
+        logger.exception("presentation_outline_unexpected_error")
         raise ModelCannotRetry("The presentation outline could not be produced.") from exc
 
     presentation = result.output
@@ -107,7 +108,7 @@ async def generate_presentation(ctx: RunContext, brief: str) -> ToolReturn:
     except PresentationBuildError as exc:
         # The template is bundled with the application: a failure here is a
         # deployment problem, not something a different brief would fix.
-        logger.exception("Failed to build the presentation")
+        logger.exception("presentation_build_failed")
         raise ModelCannotRetry(
             "The presentation could not be generated because of a server-side error."
         ) from exc
@@ -115,13 +116,13 @@ async def generate_presentation(ctx: RunContext, brief: str) -> ToolReturn:
     try:
         url = await store_presentation(ctx.deps.conversation, presentation.title, blob)
     except Exception as exc:
-        logger.exception("Failed to store the generated presentation")
+        logger.exception("presentation_store_failed")
         raise ModelCannotRetry("The presentation was generated but could not be saved.") from exc
 
     logger.info(
-        "Generated presentation (%d slides) for conversation %s",
-        len(presentation.slides),
-        ctx.deps.conversation.pk,
+        "presentation_generated",
+        slides=len(presentation.slides),
+        conversation_id=ctx.deps.conversation.pk,
     )
 
     return ToolReturn(

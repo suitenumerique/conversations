@@ -1,6 +1,5 @@
 """Attachment viewsets scoped to chat conversations and projects."""
 
-import logging
 from uuid import uuid4
 
 from django.conf import settings
@@ -11,6 +10,7 @@ from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
 import magic
+import structlog
 from lasuite.malware_detection import malware_detection
 from rest_framework import decorators, mixins, permissions, status, viewsets
 from rest_framework.exceptions import ValidationError
@@ -29,7 +29,7 @@ from chat.enums import AttachmentIndexState
 from chat.tasks import index_project_attachment_task
 from chat.views.helpers import _bulk_delete_s3_blobs
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class BaseAttachmentViewSet(
@@ -185,10 +185,10 @@ class BaseAttachmentViewSet(
 
         try:
             stored_path = default_storage.save(key, file_obj)
-            logger.info("File uploaded to S3: %s", stored_path)
+            logger.info("attachment_uploaded_to_s3", key=stored_path)
         except Exception:  # pylint: disable=broad-except
             logger.exception(
-                "Failed to upload file to S3 for %s %s", self.holder_field, self._holder_pk
+                "attachment_s3_upload_failed", holder=self.holder_field, holder_id=self._holder_pk
             )
             return Response(
                 {"detail": "Failed to upload file to storage"},
@@ -211,10 +211,10 @@ class BaseAttachmentViewSet(
         )
 
         logger.info(
-            "Created attachment %s for %s %s, starting malware detection",
-            attachment.pk,
-            self.holder_field,
-            self._holder_pk,
+            "attachment_created",
+            attachment_id=attachment.pk,
+            holder=self.holder_field,
+            holder_id=self._holder_pk,
         )
 
         malware_detection.analyse_file(
@@ -398,9 +398,9 @@ class ChatProjectAttachmentViewSet(  # pylint: disable=too-many-ancestors
                 backend.delete_document(instance.rag_document_id)
             except Exception:  # pylint: disable=broad-except
                 logger.exception(
-                    "Failed to delete RAG document %s from collection %s",
-                    instance.rag_document_id,
-                    instance.project.collection_id,
+                    "rag_document_delete_failed",
+                    rag_document_id=instance.rag_document_id,
+                    collection_id=instance.project.collection_id,
                 )
 
         # Companion blobs live at their own S3 keys (since the indexing-time
@@ -418,8 +418,8 @@ class ChatProjectAttachmentViewSet(  # pylint: disable=too-many-ancestors
             companion_qs.delete()
         except Exception:  # pylint: disable=broad-except
             logger.exception(
-                "Failed to delete markdown companion for attachment %s (key=%s)",
-                instance.pk,
-                instance.key,
+                "markdown_companion_delete_failed",
+                attachment_id=instance.pk,
+                key=instance.key,
             )
         instance.delete()

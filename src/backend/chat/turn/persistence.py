@@ -1,11 +1,11 @@
 """What a finished turn writes to its conversation: messages, usage, title."""
 
 import json
-import logging
 from typing import List, Optional
 
 from django.conf import settings
 
+import structlog
 from pydantic_ai.messages import (
     DocumentUrl,
     ImageUrl,
@@ -14,6 +14,8 @@ from pydantic_ai.messages import (
     ModelRequest,
     UserPromptPart,
 )
+
+from core.log_fields import safe_error_fields
 
 from chat import models
 from chat.agents.conversation import TitleGenerationAgent
@@ -25,7 +27,7 @@ from chat.turn.usage import AgentUsage
 # Not __name__: "chat.turn.*" would nest under the "chat.turn" turn-trace
 # logger, whose level and log filter are meant to cover the turn trace alone.
 # Keep the name these lines had before the split.
-logger = logging.getLogger("chat.clients.pydantic_ai")
+logger = structlog.get_logger("chat.clients.pydantic_ai")
 
 
 def truncation_annotation() -> dict[str, bool]:
@@ -119,7 +121,7 @@ def prepare_update_conversation(  # noqa: PLR0913  # pylint: disable=too-many-ar
     if model_response_message_id:
         _output_ui_message.id = model_response_message_id
     else:
-        logger.warning("model_response_message_id is None")
+        logger.warning("model_response_message_id_missing")
 
     if usage.co2_impact:
         _output_ui_message.metadata = {
@@ -196,8 +198,10 @@ async def generate_title(conversation: models.ChatConversation, language: str | 
         agent = TitleGenerationAgent()
         result = await agent.run(prompt)
         title = (result.output or "").strip()[:100]  # Enforce max length (conversation.title)
-        logger.info("Generated title for conversation %s", conversation.pk)
+        logger.info("title_generated", conversation_id=conversation.pk)
         return title if title else None
     except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
-        logger.warning("Failed to generate title for conversation %s: %s", conversation.pk, exc)
+        logger.warning(
+            "title_generation_failed", conversation_id=conversation.pk, **safe_error_fields(exc)
+        )
         return None

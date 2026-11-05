@@ -1,11 +1,11 @@
 """What a turn sends the model: the prompt, its attachments and the history."""
 
 import dataclasses
-import logging
 from typing import List, Optional, Tuple
 
 from django.db import transaction
 
+import structlog
 from asgiref.sync import sync_to_async
 from pydantic_ai.messages import (
     BinaryContent,
@@ -36,7 +36,7 @@ from chat.turn.trail import TurnTrail
 # Not __name__: "chat.turn.*" would nest under the "chat.turn" turn-trace
 # logger, whose level and log filter are meant to cover the turn trace alone.
 # Keep the name these lines had before the split.
-logger = logging.getLogger("chat.clients.pydantic_ai")
+logger = structlog.get_logger("chat.clients.pydantic_ai")
 
 # Stream-protocol contract with the frontend. Mirrored in
 # ``useChat.tsx`` (``IMAGES_SKIPPED_EVENT_TYPE`` /
@@ -126,10 +126,10 @@ async def prepare_turn_inputs(
 
     if ignored_images:
         logger.info(
-            "Model %s cannot read images; instructing it to ignore %d image(s) on conversation %s",
-            agent.configuration.hrid,
-            len(input_images),
-            conversation.pk,
+            "images_ignored_by_model",
+            model_hrid=agent.configuration.hrid,
+            image_count=len(input_images),
+            conversation_id=conversation.pk,
         )
         add_unreadable_images_instruction(agent, ", ".join(ignored_images))
         if mark_image_attachments_skipped(messages[-1]):

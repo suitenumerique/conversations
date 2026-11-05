@@ -17,7 +17,7 @@ from django.core.files.storage import default_storage
 import pytest
 from asgiref.sync import sync_to_async
 from pydantic_ai import ModelResponse, RunContext, TextPart
-from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.exceptions import ModelHTTPError, ModelRetry
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.usage import RunUsage
 
@@ -41,6 +41,9 @@ from chat.tools.document_summarize import (
 # threadpool connections distinct from the test's wrapping transaction) commit
 # and are flushed via TRUNCATE between tests instead of leaking across them.
 pytestmark = pytest.mark.django_db(transaction=True)
+
+# A provider error body echoing the input, which must never reach the logs.
+PROVIDER_BODY = "echoed secret document passage"
 
 
 # Setup
@@ -322,6 +325,39 @@ async def test_document_summarize_error_during_chunk_summarization(mock_summariz
 
 
 @pytest.mark.asyncio
+async def test_a_chunk_provider_error_logs_only_type_and_status(
+    mock_summarization_agent, json_logs
+):
+    """The chunk failure and the retry it raises name the provider error by type
+    and status: no message, no traceback, no exception chain, so no body."""
+    ctx, _ = await _setup_conversation([{"file_name": "doc.txt", "content": "data " * 80}])
+
+    def mocked_summary_error(messages, _info=None):
+        """The provider rejects every chunk with a body that echoes the input."""
+        prompt = messages[0].parts[-1].content
+        if "Produce a coherent synthesis" not in prompt:
+            raise ModelHTTPError(status_code=422, model_name="m", body=PROVIDER_BODY)
+        return ModelResponse(parts=[TextPart(content="Final summary")])
+
+    with mock_summarization_agent(FunctionModel(mocked_summary_error)):
+        with pytest.raises(ModelRetry):
+            await document_summarize(ctx, instructions=None)
+
+    lines = json_logs()
+    failures = {
+        line["event"]: line
+        for line in lines
+        if line["event"] in ("summarize_chunk_failed", "summarize_chunks_retryable_error")
+    }
+    assert sorted(failures) == ["summarize_chunk_failed", "summarize_chunks_retryable_error"]
+    for line in failures.values():
+        assert line["error_type"] == "ModelHTTPError"
+        assert line["status_code"] == 422
+        assert "exception" not in line
+    assert PROVIDER_BODY not in str(lines)
+
+
+@pytest.mark.asyncio
 async def test_document_summarize_error_during_merge(mock_summarization_agent):
     """An error during the final merge propagates as ModelRetry."""
     ctx, _ = await _setup_conversation([{"file_name": "doc.txt", "content": "data " * 80}])
@@ -336,6 +372,32 @@ async def test_document_summarize_error_during_merge(mock_summarization_agent):
     with mock_summarization_agent(FunctionModel(mocked_summary_merge_error)):
         with pytest.raises(ModelRetry, match="An error occurred"):
             await document_summarize(ctx, instructions=None)
+
+
+@pytest.mark.asyncio
+async def test_a_merge_provider_error_logs_only_type_and_status(
+    mock_summarization_agent, json_logs
+):
+    """The merge failure names the provider error by type and status, not its body."""
+    ctx, _ = await _setup_conversation([{"file_name": "doc.txt", "content": "data " * 80}])
+
+    def mocked_summary_merge_error(messages, _info=None):
+        """The provider rejects the merge with a body that echoes the input."""
+        prompt = messages[0].parts[-1].content
+        if "Produce a coherent synthesis" in prompt:
+            raise ModelHTTPError(status_code=422, model_name="m", body=PROVIDER_BODY)
+        return ModelResponse(parts=[TextPart(content="Chunk summary")])
+
+    with mock_summarization_agent(FunctionModel(mocked_summary_merge_error)):
+        with pytest.raises(ModelRetry):
+            await document_summarize(ctx, instructions=None)
+
+    lines = json_logs()
+    [line] = [line for line in lines if line["event"] == "summarize_merge_failed"]
+    assert line["error_type"] == "ModelHTTPError"
+    assert line["status_code"] == 422
+    assert "exception" not in line
+    assert PROVIDER_BODY not in str(lines)
 
 
 @pytest.mark.asyncio

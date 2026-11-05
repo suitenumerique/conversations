@@ -78,7 +78,6 @@ import asyncio
 import dataclasses
 import functools
 import hashlib
-import logging
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack, suppress
@@ -92,6 +91,7 @@ from django.db import transaction
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
+import structlog
 from asgiref.sync import sync_to_async
 from celery.exceptions import TimeoutError as CeleryTimeoutError
 from langfuse import get_client, propagate_attributes
@@ -113,6 +113,7 @@ from pydantic_ai.settings import ModelSettings
 from core import instrumentation
 from core.analytics import acapture_event
 from core.feature_flags.helpers import is_feature_enabled
+from core.log_fields import safe_error_fields
 
 from chat import models
 from chat.agents.base import get_max_output_tokens
@@ -197,12 +198,12 @@ from chat.vercel_ai_sdk.encoder.v4_to_v5 import V4ToV5Translator
 # Keep at the top of the file to avoid mocking issues
 document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Every line tracing one turn goes to this logger rather than the module's, so
 # following a cycle is one filter (`chat.turn`) across the four modules that
 # take part in it, and its level can be raised or lowered on its own.
-turn_logger = logging.getLogger("chat.turn")
+turn_logger = structlog.get_logger("chat.turn")
 
 User = get_user_model()
 
@@ -359,7 +360,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 return ""
             return f"{SUMMARY_SYSTEM_PREFIX}{self._history_summary.strip()}"
 
-    def _turn_log(self, message: str, *args) -> None:
+    def _turn_log(self, event: str, **fields) -> None:
         """Log one step of the turn, stamped with how far into it we are.
 
         The turn is the unit worth following in the logs: a request arrives, a
@@ -369,10 +370,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         elapsed = time.monotonic() - self._turn_started_at if self._turn_started_at else 0.0
         turn_logger.info(
-            "[turn %s +%05.1fs] %s",
-            self.conversation.pk,
-            elapsed,
-            message % args if args else message,
+            event, conversation_id=self.conversation.pk, elapsed_s=round(elapsed, 1), **fields
         )
 
     @property
@@ -401,7 +399,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         This method is a placeholder for stopping the streaming operation.
         """
-        logger.info("Stopping streaming for conversation %s", self.conversation.id)
+        logger.info("stream_stop_requested", conversation_id=self.conversation.id)
         cache.set(self._stop_cache_key, "1", timeout=CACHE_TIMEOUT)
 
     # --------------------------------------------------------------------- #
@@ -437,7 +435,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             return str(uuid.uuid4())
         return f"trace-{trace_id}"
 
-    async def _stream_content(  # noqa: PLR0912  # pylint: disable=too-many-branches,too-many-statements
+    async def _stream_content(  # noqa: PLR0912, PLR0915  # pylint: disable=too-many-branches,too-many-statements
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
@@ -464,9 +462,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
             self._model_response_message_id = self._new_model_response_message_id()
             self._trail.message_id = self._model_response_message_id
-            self._turn_log(
-                "stream opened, answering as message %s", self._model_response_message_id
-            )
+            # Every later line of the turn, whatever module writes it, names the answer
+            structlog.contextvars.bind_contextvars(message_id=self._model_response_message_id)
+            self._turn_log("stream_opened")
             yield self.event_encoder.encode(
                 events_v5.MessageStartEvent(messageId=self._model_response_message_id)
             )
@@ -482,11 +480,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 log = (
                     logger.warning if exc.status_code in EXPECTED_LLM_STATUS_CODES else logger.error
                 )
+                # Not the message: it carries the provider's response body.
                 log(
-                    "LLM provider HTTP error (status=%s) for conversation %s: %s",
-                    exc.status_code,
-                    self.conversation.pk,
-                    exc,
+                    "llm_http_error",
+                    status_code=exc.status_code,
+                    conversation_id=self.conversation.pk,
                 )
                 observed_stream.outcome = error_code
                 error_event = events_v4.ErrorPart(error=error_code)
@@ -494,9 +492,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     yield self.event_encoder.encode(translated)
             except ModelAPIError as exc:
                 logger.warning(
-                    "LLM provider connection error for conversation %s: %s",
-                    self.conversation.pk,
-                    exc,
+                    "llm_connection_error",
+                    conversation_id=self.conversation.pk,
+                    **safe_error_fields(exc),
                 )
                 observed_stream.outcome = "model_connection_error"
                 error_event = events_v4.ErrorPart(error="model_connection_error")
@@ -504,9 +502,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     yield self.event_encoder.encode(translated)
             except SummarizationRequiredError as exc:
                 logger.error(
-                    "Summarization required but failed for conversation %s: %s",
-                    self.conversation.pk,
-                    exc,
+                    "history_summary_required_failed",
+                    conversation_id=self.conversation.pk,
+                    error=str(exc),
                 )
                 observed_stream.outcome = "summarization_failed"
                 error_event = events_v4.ErrorPart(error="summarization_failed")
@@ -519,7 +517,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # here because only the WSGI wrapper handles it; under ASGI it
                 # would escape mid-response. Falling through closes the stream
                 # with the same flush and DONE frame as a normal end.
-                self._turn_log("stopped by the user, keeping what was produced")
+                self._turn_log("turn_stopped_by_user")
                 observed_stream.outcome = "cancelled"
 
             except asyncio.CancelledError:
@@ -544,7 +542,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # scopes are torn down with it, so nothing can be awaited to
                 # file anything. That path keeps the liveness window, as does a
                 # turn whose process dies outright.
-                self._turn_log("cancelled, filing what was produced")
+                self._turn_log("turn_cancelled")
                 if not self._trail.landed:
                     self._trail.landed = True
                     with suppress(asyncio.CancelledError):
@@ -562,9 +560,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 await self._trail.file()
 
             self._turn_log(
-                "stream closed, %d text rows and %d snapshots written",
-                self._trail.text_rows,
-                self._trail.snapshot_rows,
+                "stream_closed",
+                text_rows=self._trail.text_rows,
+                snapshot_rows=self._trail.snapshot_rows,
             )
             for translated in translator.flush():
                 yield self.event_encoder.encode(translated)
@@ -593,7 +591,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._last_stop_check = now
 
         if await cache.aget(self._stop_cache_key):
-            logger.info("Streaming stopped by cache key for conversation %s", self.conversation.id)
+            logger.info("stream_stopped", conversation_id=self.conversation.id)
             await cache.adelete(self._stop_cache_key)
             raise StreamCancelException()
         return
@@ -799,11 +797,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if not force_web_search:
             return False
         if not self._is_web_search_enabled:
-            logger.warning("Web search is forced but the feature is disabled, ignoring.")
+            logger.warning("forced_web_search_disabled")
             return False
 
         if not self.conversation_agent.is_web_search_configured():
-            logger.warning("Web search is forced but no web search tool is available, ignoring.")
+            logger.warning("forced_web_search_unavailable")
             return False
 
         self._context_deps.web_search_enabled = True
@@ -1290,7 +1288,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             DocumentParsingResult: Final marker with success status (must be last)
         """
         if not self._is_document_upload_enabled and input_documents:
-            logger.warning("Document upload feature is disabled, ignoring input documents.")
+            logger.warning("input_documents_ignored_upload_disabled")
             input_documents = []
 
         if not input_documents:
@@ -1306,9 +1304,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         try:
             await self._parse_input_documents(input_documents)
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
             error_kind = resolve_rag_error_code(exc)
-            logger.exception("Error parsing input documents (%s): %s", error_kind, exc)
+            # No exc_info: the exception text can echo document content.
+            logger.error(
+                "input_documents_parse_failed",
+                error_kind=error_kind,
+                error_type=type(exc).__name__,
+            )
             yield (
                 events_v4.ToolResultPart(
                     tool_call_id=_tool_call_id,
@@ -1366,9 +1369,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         await self._agent_stop_streaming(force_cache_check=True)
         self._turn_log(
-            "run finished: %d prompt and %d completion tokens",
-            usage.prompt_tokens,
-            usage.completion_tokens,
+            "run_finished",
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
         )
 
         # Total tokens the model processed for this request, across every
@@ -1386,12 +1389,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             image_actions=image_actions,
         )
 
-        self._turn_log("turn stored and its chunks dropped")
+        self._turn_log("turn_stored")
 
         generated_title = await generate_title_if_needed(self.conversation, self.language)
         if generated_title:
             await sync_to_async(self.conversation.save)(update_fields=["title", "updated_at"])
-            self._turn_log("named the conversation")
+            self._turn_log("conversation_named")
 
         await self._meter.charge(request_tokens)
         # Read the cooldown rather than take what that charge returned: the
@@ -1402,7 +1405,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # it is the one the client has to count down.
         cooldown_seconds = await sync_to_async(get_cooldown_remaining)(self.user.pk)
         if cooldown_seconds:
-            self._turn_log("the user owes a %ds cooldown", cooldown_seconds)
+            self._turn_log("cooldown_owed", seconds=cooldown_seconds)
             yield events_v4.DataPart(data=[{"type": "cooldown", "seconds": cooldown_seconds}])
 
         if generated_title:
@@ -1517,7 +1520,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # them before this turn reads the history, so the model sees the
         # interrupted exchange rather than a question with no answer.
         if await sync_to_async(persist_leftover_chunks)(self.conversation):
-            self._turn_log("folded in what a previous turn left behind")
+            self._turn_log("previous_turn_folded")
 
         inputs = await self._prepare_agent_run(messages)
         # Both change as the phases below settle them.
@@ -1525,17 +1528,17 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         conversation_has_own_documents = inputs.conversation_has_own_documents
 
         self._turn_log(
-            "prepared: %d messages of history, %d image(s), %d document(s)",
-            len(history),
-            len(inputs.input_images),
-            len(inputs.input_documents),
+            "turn_prepared",
+            history_messages=len(history),
+            images=len(inputs.input_images),
+            documents=len(inputs.input_documents),
         )
 
         # Held for the snapshots, which rewrite presigned image URLs to their
         # durable form before storing them.
         self._trail.image_actions = inputs.image_actions
         await self._trail.append_question(inputs.user_prompt, inputs.input_images)
-        self._turn_log("question stored, so the turn survives whatever runs next")
+        self._turn_log("question_stored")
 
         for pre_event in inputs.pre_stream_events:
             yield events_v4.DataPart(data=[pre_event])
@@ -1614,7 +1617,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 await self._trail.snapshot_closed_tool_step(run)
                 return request_context
 
-            self._turn_log("calling the model")
+            self._turn_log("model_called")
             async with self.conversation_agent.iter(
                 agent_input,
                 # History passes through the ProcessHistory capability set on the agent.
@@ -1642,7 +1645,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     # truncation notice rather than an error.
                     if not self._is_truncated:
                         raise
-                    self._turn_log("token limit reached before a usable response")
+                    self._turn_log("token_limit_reached")
                     new_messages = _keep_truncated_text(run.new_messages())
                     run_output = None
                 else:

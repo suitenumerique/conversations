@@ -1,15 +1,15 @@
 """ODT Document Converter using odfdo"""
 
-import logging
 import zipfile
 from io import BytesIO
 
 from django.utils.translation import gettext_lazy as _
 
+import structlog
 from lxml.etree import XMLSyntaxError  # pylint: disable=no-name-in-module
 from odfdo import Document
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class OdtParsingError(Exception):
@@ -25,7 +25,7 @@ class OdtToMd:
             doc = Document(BytesIO(content))
             return doc.to_markdown()
         except (TypeError, FileNotFoundError, zipfile.BadZipFile, XMLSyntaxError) as e:
-            logger.error("Failed to parse ODT document: %s", e)
+            logger.error("odt_parse_failed", error_type=type(e).__name__)
             raise OdtParsingError(
                 _("Failed to parse ODT document: %(error)s") % {"error": e}
             ) from e

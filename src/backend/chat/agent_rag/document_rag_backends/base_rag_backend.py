@@ -1,16 +1,16 @@
 """Implementation of the Albert API for RAG document search."""
 
-import logging
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager, contextmanager
 from typing import List, Optional
 
+import structlog
 from asgiref.sync import sync_to_async
 
 from chat.agent_rag.constants import RAGWebResults
 from chat.agent_rag.document_converter.parser import BaseParser
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class BaseRagBackend(ABC):
@@ -186,10 +186,10 @@ class BaseRagBackend(ABC):
             **kwargs: Backend-specific extras (e.g. `session` for OIDC).
         """
         logger.info(
-            "delete_document not supported by %s; document_id=%s left in collection %s.",
-            type(self).__name__,
-            document_id,
-            self.collection_id,
+            "rag_document_delete_unsupported",
+            backend=type(self).__name__,
+            document_id=document_id,
+            collection_id=self.collection_id,
         )
 
     async def adelete_document(self, document_id: str, **kwargs) -> None:

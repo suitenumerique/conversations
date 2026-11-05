@@ -1,6 +1,5 @@
 """Chat conversation viewset and related endpoints."""
 
-import logging
 import os
 from datetime import timedelta
 
@@ -11,6 +10,7 @@ from django.utils import timezone
 from django.utils.module_loading import import_string
 
 import langfuse
+import structlog
 from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, ValidationError
@@ -37,12 +37,12 @@ from chat.views.edit_in_docs import EditInDocsMixin
 from chat.views.filters import ProjectFilter, TitleSearchFilter
 from chat.views.helpers import _bulk_delete_s3_blobs, conditional_refresh_oidc_token
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Every line tracing one turn goes to this logger rather than the module's, so
 # following a cycle is one filter (`chat.turn`) across the four modules that
 # take part in it, and its level can be raised or lowered on its own.
-turn_logger = logging.getLogger("chat.turn")
+turn_logger = structlog.get_logger("chat.turn")
 
 
 class ChatAttachmentMixin(AttachmentMixin):  # pylint: disable=abstract-method
@@ -208,9 +208,9 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
                 )
             except Exception:  # pylint: disable=broad-except
                 logger.exception(
-                    "Failed to delete RAG collection %s for conversation %s",
-                    instance.collection_id,
-                    instance.pk,
+                    "rag_collection_delete_failed",
+                    collection_id=instance.collection_id,
+                    conversation_id=instance.pk,
                 )
 
         attachment_keys = set(instance.attachments.values_list("key", flat=True))
@@ -242,13 +242,14 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         force_datagouv = query_params_serializer.validated_data["force_datagouv"]
         requested_model_hrid = query_params_serializer.validated_data["model_hrid"]
 
+        # Every line of the turn, whatever module writes it, names the conversation
+        structlog.contextvars.bind_contextvars(conversation_id=pk)
         raw_messages = request.data.get("messages")
         turn_logger.info(
-            "[request %s] POST conversation: %d message(s), model=%s, web_search=%s",
-            pk,
-            len(raw_messages) if isinstance(raw_messages, list) else 0,
-            requested_model_hrid or "default",
-            force_web_search,
+            "turn_requested",
+            messages=len(raw_messages) if isinstance(raw_messages, list) else 0,
+            model_hrid=requested_model_hrid or "default",
+            force_web_search=force_web_search,
         )
 
         conversation = self.get_object()
@@ -293,12 +294,12 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             # Log validation error, because it should not happen
             # If there is a problem, we need to fix the frontend or backend...
             # Only the field names: the error details echo the user's input.
-            logger.error("Frontend input error on fields: %s", sorted(exc.detail))
+            logger.error("frontend_input_invalid", fields=sorted(exc.detail))
             raise  # Let DRF handle the exception and return a 400 response
 
         messages = serializer.validated_data["messages"]
 
-        logger.info("Validated %d messages", len(messages))
+        logger.info("messages_validated", count=len(messages))
 
         if not messages:
             return Response({"error": "No messages provided"}, status=status.HTTP_400_BAD_REQUEST)
@@ -343,7 +344,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         is_async_mode = os.environ.get("PYTHON_SERVER_MODE", "sync") == "async"
 
         if is_async_mode:
-            logger.debug("Using ASYNC streaming for chat conversation.")
+            logger.debug("streaming_mode_selected", mode="async")
             base_stream = ai_service.stream_data_async(
                 messages, force_web_search=force_web_search, force_datagouv=force_datagouv
             )
@@ -352,17 +353,13 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             # running without saying anything else.
             streaming_content = stream_with_keepalive_async(base_stream, ai_service.beat)
         else:
-            logger.debug("Using SYNC streaming for chat conversation.")
+            logger.debug("streaming_mode_selected", mode="sync")
             base_stream = ai_service.stream_data(
                 messages, force_web_search=force_web_search, force_datagouv=force_datagouv
             )
             streaming_content = stream_with_keepalive_sync(base_stream, ai_service.beat_sync)
 
-        turn_logger.info(
-            "[request %s] streaming response opened (%s mode)",
-            pk,
-            "async" if is_async_mode else "sync",
-        )
+        turn_logger.info("streaming_response_opened", mode="async" if is_async_mode else "sync")
         response = StreamingHttpResponse(
             streaming_content,
             content_type=SSE_MIME_TYPE,

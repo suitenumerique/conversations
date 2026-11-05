@@ -1,6 +1,5 @@
 """Util to generate S3 authorization headers for object storage access control"""
 
-import logging
 from urllib.parse import urlparse
 
 from django.conf import settings
@@ -8,9 +7,10 @@ from django.core.files.storage import default_storage
 
 import boto3
 import botocore
+import structlog
 from rest_framework import exceptions
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def auth_get_original_url(request):
@@ -31,10 +31,9 @@ def auth_get_original_url(request):
     # Extract the original URL from the request header
     original_url = request.META.get("HTTP_X_ORIGINAL_URL")
     if not original_url:
-        logger.debug("Missing HTTP_X_ORIGINAL_URL header in subrequest")
+        logger.debug("subrequest_original_url_missing")
         raise exceptions.PermissionDenied()
 
-    logger.debug("Original url: '%s'", original_url)
     return urlparse(original_url)
 
 
@@ -47,7 +46,7 @@ def auth_get_url_params(pattern, fragment):
     try:
         return match.groupdict()
     except (ValueError, AttributeError) as exc:
-        logger.debug("Failed to extract parameters from subrequest URL: %s", exc)
+        logger.debug("subrequest_url_params_unmatched", error=type(exc).__name__)
         raise exceptions.PermissionDenied() from exc
 
 

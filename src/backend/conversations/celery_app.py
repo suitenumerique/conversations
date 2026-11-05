@@ -3,6 +3,7 @@
 import os
 
 from celery import Celery
+from celery.signals import setup_logging
 from configurations.importer import install
 
 # Set the default Django settings module for the 'celery' program.
@@ -17,6 +18,10 @@ install(check_options=True)
 # Can be loaded only after install call.
 from django.conf import settings  # pylint: disable=wrong-import-position
 
+from django_structlog.celery.steps import (  # pylint: disable=wrong-import-position
+    DjangoStructLogInitStep,
+)
+
 app = Celery("conversations")
 
 # Using a string here means the worker doesn't have to serialize
@@ -25,5 +30,13 @@ app = Celery("conversations")
 #   should have a `CELERY_` prefix.
 app.config_from_object("django.conf:settings", namespace="CELERY")
 
+# Bind task_id (and the enqueuing request's ids) to every log line of a task
+app.steps["worker"].add(DjangoStructLogInitStep)
+
 # Load task modules from all registered Django apps.
 app.autodiscover_tasks(lambda: settings.INSTALLED_APPS)
+
+
+@setup_logging.connect
+def keep_django_logging(**kwargs):  # pylint: disable=unused-argument
+    """Keep Django's LOGGING (JSON in production): Celery would replace the root handlers."""

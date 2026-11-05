@@ -1,5 +1,9 @@
 """Global fixtures for the backend tests."""
 
+import io
+import json
+import logging
+
 import freezegun
 import posthog
 import pytest
@@ -10,12 +14,32 @@ from httpcore2._backends.sync import SyncBackend as SyncBackend2
 from rest_framework.test import APIClient
 from urllib3.connectionpool import HTTPConnectionPool
 
+from conversations.observability_settings import ObservabilitySettings
+
 # freeze_time() scans every loaded module's attributes via getattr(), which
 # triggers langfuse.api's lazy __getattr__-based submodule imports. If that
 # first-time import of a langfuse pydantic model happens while datetime is
 # already patched, schema generation for its datetime field breaks
 # permanently for the rest of the worker process. Skip scanning langfuse.
 freezegun.configure(extend_ignore_list=["langfuse"])
+
+
+@pytest.fixture(name="json_logs")
+def json_logs_fixture():
+    """Render root logger records with the production JSON formatter; yield the parsed lines."""
+    config = dict(ObservabilitySettings.LOGGING["formatters"]["json"])
+    formatter_class = config.pop("()")
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(formatter_class(**config))
+    root = logging.getLogger()
+    root.addHandler(handler)
+
+    def parsed_lines():
+        return [json.loads(line) for line in stream.getvalue().splitlines()]
+
+    yield parsed_lines
+    root.removeHandler(handler)
 
 
 @pytest.fixture
