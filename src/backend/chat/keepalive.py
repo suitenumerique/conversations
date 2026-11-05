@@ -7,7 +7,7 @@ timeouts while waiting for the stream data.
 """
 
 import asyncio
-import logging
+import contextvars
 import queue
 import threading
 import time
@@ -16,13 +16,14 @@ from typing import AsyncIterator, Iterator
 from django.conf import settings
 from django.db import connections
 
+import structlog
 from asgiref.sync import sync_to_async
 
 from .vercel_ai_sdk.core.events_v5 import DataPart as V5DataPart
 from .vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
 from .vercel_ai_sdk.encoder.v4_to_v5 import data_part_type
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def get_keepalive_message() -> str:
@@ -76,8 +77,7 @@ async def _run_alone(producer_task: asyncio.Task, on_keepalive, deadline: float)
             remaining = deadline - get_current_time()
             if remaining <= 0:
                 logger.warning(
-                    "Turn left alone still running after %ss, cancelling it",
-                    settings.MAX_TURN_DURATION,
+                    "turn_left_alone_cancelled", max_turn_duration_s=settings.MAX_TURN_DURATION
                 )
                 producer_task.cancel()
                 # Let it file itself as interrupted before its connection goes.
@@ -114,7 +114,7 @@ async def _consume_stream_async(
     except Exception as exc:  # pylint: disable=broad-except
         if reader_gone.is_set():
             # Nobody is left to re-raise it, so this is the only trace it leaves.
-            logger.exception("Turn left alone failed")
+            logger.exception("turn_left_alone_failed")
         else:
             # Pass exceptions through the queue so the consumer can re-raise them.
             # This ensures errors aren't silently swallowed.
@@ -135,7 +135,7 @@ async def _call_keepalive_async(on_keepalive) -> None:
     try:
         await on_keepalive()
     except Exception:  # pylint: disable=broad-except
-        logger.exception("Keepalive callback failed")
+        logger.exception("keepalive_callback_failed")
 
 
 async def stream_with_keepalive_async(
@@ -185,7 +185,7 @@ async def stream_with_keepalive_async(
                     # Producer is done, queue is empty (else we would not have timed out)
                     break
 
-                logger.debug("Send keepalive")
+                logger.debug("keepalive_sent")
                 await _call_keepalive_async(on_keepalive)
                 yield keepalive_message
     finally:
@@ -227,7 +227,7 @@ def _consume_stream_sync(
                 return  # early exit
             q.put(chunk, timeout=1)  # Arbitrary timeout prevents blocking forever
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.exception("Error in stream consumption")
+        logger.exception("stream_consumption_failed")
         q.put(e)
     finally:
         stream_done.set()
@@ -265,7 +265,7 @@ def _call_keepalive_sync(on_keepalive) -> None:
     try:
         on_keepalive()
     except Exception:  # pylint: disable=broad-except
-        logger.exception("Keepalive callback failed")
+        logger.exception("keepalive_callback_failed")
 
 
 def stream_with_keepalive_sync(stream: Iterator[str], on_keepalive=None) -> Iterator[str]:
@@ -292,7 +292,10 @@ def stream_with_keepalive_sync(stream: Iterator[str], on_keepalive=None) -> Iter
         (_consume_stream_sync, (stream, q, stream_done)),
         (_send_keepalives, (q, stream_done, keepalive_message, last_yield_time)),
     ):
-        threading.Thread(target=target, args=args, daemon=True).start()
+        # A new thread starts with an empty context: run it in a copy of the
+        # request's, so its log lines keep the request and conversation ids.
+        context = contextvars.copy_context()
+        threading.Thread(target=context.run, args=(target, *args), daemon=True).start()
 
     try:
         # Continue while stream is active or queue has still items

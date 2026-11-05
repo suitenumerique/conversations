@@ -1,11 +1,11 @@
 """Authentication Backends for the Conversations core app."""
 
-import logging
 import re
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation
 
+import structlog
 from lasuite.oidc_login.backends import (
     OIDCAuthenticationBackend as LaSuiteOIDCAuthenticationBackend,
 )
@@ -13,7 +13,7 @@ from lasuite.oidc_login.backends import (
 from core.brevo import add_user_to_brevo_list
 from core.models import AccessBypassEmail, DuplicateEmailError
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # NB: deliberately NOT a SuspiciousOperation/PermissionDenied subclass. Both
@@ -89,10 +89,10 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
             return True
 
         logger.warning(
-            "OIDC access denied for sub %s: roles %s do not include any of %s",
-            claims.get("sub"),
-            user_roles,
-            allowed_roles,
+            "oidc_access_denied_missing_role",
+            sub=claims.get("sub"),
+            roles=user_roles,
+            allowed_roles=allowed_roles,
         )
         raise OIDCRoleAccessDenied("User does not have a role required to access the application.")
 

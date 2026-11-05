@@ -214,7 +214,9 @@ def test_post_conversation_invalid_messages_does_not_log_user_prompt(api_client,
         response = api_client.post(url, {"messages": ["My secret prompt"]}, format="json")
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Frontend input error on fields: ['messages']" in caplog.text
+    [record] = [r for r in caplog.records if r.name == "chat.views.conversations"]
+    assert record.msg["event"] == "frontend_input_invalid"
+    assert record.msg["fields"] == ["messages"]
     assert "My secret prompt" not in caplog.text
 
 
@@ -1008,7 +1010,11 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
 
     assert_data_stream_response(response)
 
-    assert "Using ASYNC streaming for chat conversation" in caplog.text
+    assert {"event": "streaming_mode_selected", "mode": "async"} in [
+        {"event": r.msg["event"], "mode": r.msg.get("mode")}
+        for r in caplog.records
+        if r.name == "chat.views.conversations"
+    ]
 
     # Wait for the streaming content to be fully received => async iterator -> list
     # This fails it the streaming is not an async generator
@@ -1085,7 +1091,11 @@ async def test_post_conversation_async_triggers_keepalive(
 
     assert_data_stream_response(response)
 
-    assert "Using ASYNC streaming for chat conversation" in caplog.text
+    assert {"event": "streaming_mode_selected", "mode": "async"} in [
+        {"event": r.msg["event"], "mode": r.msg.get("mode")}
+        for r in caplog.records
+        if r.name == "chat.views.conversations"
+    ]
 
     # Wait for the streaming content to be fully received => async iterator -> list
     # This fails it the streaming is not an async generator

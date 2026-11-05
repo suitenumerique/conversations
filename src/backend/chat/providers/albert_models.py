@@ -1,8 +1,8 @@
 """Custom pydantic-ai model subclasses for Albert API providers."""
 
-import logging
 from typing import Any
 
+import structlog
 from openai.types import chat
 from pydantic_ai.models.openai import (
     ChatCompletionChunk,
@@ -12,7 +12,7 @@ from pydantic_ai.models.openai import (
 )
 from pydantic_ai.providers.openai import OpenAIProvider
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def _extract_co2_impact(raw_usage) -> float | None:
@@ -94,7 +94,7 @@ def _join_list_content(choices: list) -> None:
             elif isinstance(item, dict):
                 text_parts.append(item.get("text") or "")
             else:
-                logger.info("Unexpected content part type in completion: %s", type(item))
+                logger.info("unexpected_completion_part_type", part_type=type(item).__name__)
         message["content"] = "".join(text_parts) or None
 
 

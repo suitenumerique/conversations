@@ -11,7 +11,6 @@ only the model hrid, the provider, the agent class, the service, the operation
 and the status.
 """
 
-import logging
 import os
 import re
 import socket
@@ -20,6 +19,7 @@ from django.conf import settings
 from django.http import HttpResponse
 from django.views.decorators.http import require_safe
 
+import structlog
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
     CollectorRegistry,
@@ -34,7 +34,7 @@ from prometheus_client.multiprocess import MultiProcessCollector
 
 from conversations.celery_app import app as celery_app
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 HOSTNAME_LABEL = "hostname"
 
@@ -178,7 +178,7 @@ class CeleryQueueCollector:
                 ]
                 return sum(channel.client.llen(key) for key in keys)
         except Exception:  # pylint: disable=broad-exception-caught
-            logger.debug("could not read the celery queue length", exc_info=True)
+            logger.debug("celery_queue_length_unreadable", exc_info=True)
             return None
 
 

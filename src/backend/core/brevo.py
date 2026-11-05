@@ -1,13 +1,13 @@
 """Functions for interacting with Brevo API to manage contacts in a waiting list."""
 
-import logging
 from typing import List, Optional
 
 from django.conf import settings
 
 import httpx
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Brevo answers the "add to list" endpoint with a 400 when it has nothing to add.
 # The message is ambiguous on purpose ("already in list" OR "does not exist"), but we
@@ -26,7 +26,7 @@ def create_contact_in_brevo(email: str) -> bool:
     """
     api_key = settings.BREVO_API_KEY
     if not api_key:
-        logger.info("Brevo API key not configured: skipping creating contact")
+        logger.info("brevo_contact_creation_skipped_not_configured")
         return False
 
     url = "https://api.brevo.com/v3/contacts"
@@ -41,17 +41,12 @@ def create_contact_in_brevo(email: str) -> bool:
     }
     try:
         response = httpx.post(url, json=payload, headers=headers, timeout=5)
-    except httpx.HTTPError as e:
-        logger.exception(e)
+    except httpx.HTTPError:
+        logger.exception("brevo_contact_creation_request_failed")
         return False
 
     if not response.is_success:
-        logger.error(
-            "Error creating contact in Brevo %s: (%s) %s",
-            email,
-            response.status_code,
-            response.text,
-        )
+        logger.error("brevo_contact_creation_failed", status_code=response.status_code)
         return False
 
     return True
@@ -68,14 +63,14 @@ def add_user_to_brevo_list(emails: List[str], list_id: Optional[str]) -> None:
     """
     api_key = settings.BREVO_API_KEY
     if not api_key or not list_id:
-        logger.info("Brevo API key or list ID not configured: skipping adding contact")
+        logger.info("brevo_list_add_skipped_not_configured")
         return
 
     for email in emails:
         # Ensure the contact exists before adding to the list
         # `emails` contains several emails only when used from the admin interface bulk action
         if not create_contact_in_brevo(email):
-            logger.error("Failed to create contact %s in Brevo, skipping adding to list", email)
+            logger.error("brevo_list_add_skipped_contact_creation_failed")
             return
 
     url = f"https://api.brevo.com/v3/contacts/lists/{list_id}/contacts/add"
@@ -89,21 +84,20 @@ def add_user_to_brevo_list(emails: List[str], list_id: Optional[str]) -> None:
     }
     try:
         response = httpx.post(url, json=payload, headers=headers, timeout=5)
-    except httpx.HTTPError as e:
-        logger.exception(e)
+    except httpx.HTTPError:
+        logger.exception("brevo_list_add_request_failed", list_id=list_id)
         return
 
     if response.status_code != 201:
         if response.status_code == 400 and BREVO_NOTHING_TO_ADD_MESSAGE in response.text:
-            logger.info("Contacts %s already in Brevo list (%s)", emails, list_id)
+            logger.info("brevo_contacts_already_in_list", list_id=list_id, count=len(emails))
             return
 
         logger.error(
-            "Error adding contacts to Brevo (%s) %s: (%s) %s",
-            list_id,
-            emails,
-            response.status_code,
-            response.text,
+            "brevo_list_add_failed",
+            list_id=list_id,
+            count=len(emails),
+            status_code=response.status_code,
         )
 
 
@@ -118,7 +112,7 @@ def remove_user_from_brevo_list(emails: List[str], list_id: Optional[str]) -> No
     """
     api_key = settings.BREVO_API_KEY
     if not api_key or not list_id:
-        logger.info("Brevo API key or list ID not configured: skipping removing contact")
+        logger.info("brevo_list_remove_skipped_not_configured")
         return
 
     url = f"https://api.brevo.com/v3/contacts/lists/{list_id}/contacts/remove"
@@ -132,14 +126,13 @@ def remove_user_from_brevo_list(emails: List[str], list_id: Optional[str]) -> No
     }
     try:
         response = httpx.post(url, json=payload, headers=headers, timeout=5)
-    except httpx.HTTPError as e:
-        logger.exception(e)
+    except httpx.HTTPError:
+        logger.exception("brevo_list_remove_request_failed", list_id=list_id)
         return
     if response.status_code != 201:
         logger.error(
-            "Error removing contacts from Brevo (%s) %s: (%s) %s",
-            list_id,
-            emails,
-            response.status_code,
-            response.text,
+            "brevo_list_remove_failed",
+            list_id=list_id,
+            count=len(emails),
+            status_code=response.status_code,
         )

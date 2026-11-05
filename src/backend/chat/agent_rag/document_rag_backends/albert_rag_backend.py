@@ -1,7 +1,6 @@
 """Implementation of the Albert API for RAG document search."""
 
 import json
-import logging
 from io import BytesIO
 from typing import List, Optional
 from urllib.parse import urljoin
@@ -10,6 +9,7 @@ from django.conf import settings
 from django.utils.module_loading import import_string
 
 import httpx
+import structlog
 
 from core import instrumentation
 
@@ -18,7 +18,7 @@ from chat.agent_rag.constants import RAGWebResult, RAGWebResults, RAGWebUsage
 from chat.agent_rag.document_rag_backends.base_rag_backend import BaseRagBackend
 from chat.constants import MARKDOWN_MIME_TYPE
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class AlbertMissingDocumentIdError(RuntimeError):
@@ -71,7 +71,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
             response = httpx.request(
                 method, url, headers=self._headers, timeout=settings.ALBERT_API_TIMEOUT, **kwargs
             )
-            logger.debug("Albert %s response status: %s", operation, response.status_code)
+            logger.debug("albert_response", operation=operation, status=response.status_code)
             observed.status = response.status_code
             response.raise_for_status()
         return response
@@ -81,7 +81,7 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
         async with httpx.AsyncClient(timeout=settings.ALBERT_API_TIMEOUT) as client:
             with instrumentation.outgoing_request("albert", operation) as observed:
                 response = await client.request(method, url, headers=self._headers, **kwargs)
-                logger.debug("Albert %s response status: %s", operation, response.status_code)
+                logger.debug("albert_response", operation=operation, status=response.status_code)
                 observed.status = response.status_code
                 response.raise_for_status()
         return response
@@ -257,9 +257,9 @@ class AlbertRagBackend(BaseRagBackend):  # pylint: disable=too-many-instance-att
 
         if not searches.data and (document_name or document_id):
             logger.info(
-                "RAG search with document_name=%r document_id=%r returned no results.",
-                document_name,
-                document_id,
+                "rag_filtered_search_empty",
+                by_document_name=bool(document_name),
+                document_id=document_id,
             )
 
         return RAGWebResults(

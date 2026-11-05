@@ -1,10 +1,10 @@
 """Pydantic-AI agent nodes and events, mapped to the v4 events the stream carries."""
 
 import asyncio
-import logging
 import uuid
 from typing import AsyncGenerator, Awaitable, Callable, Iterator
 
+import structlog
 from pydantic_ai import Agent
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
@@ -34,7 +34,7 @@ from chat.vercel_ai_sdk.core import events_v4
 # Not __name__: "chat.turn.*" would nest under the "chat.turn" turn-trace
 # logger, whose level and log filter are meant to cover the turn trace alone.
 # Keep the name these lines had before the split.
-logger = logging.getLogger("chat.clients.pydantic_ai")
+logger = structlog.get_logger("chat.clients.pydantic_ai")
 
 # Stream-protocol contract with the frontend. Mirrored in `useChat.tsx`
 # (CONNECTOR_UNAVAILABLE_EVENT_TYPE). Keep both sides in sync.
@@ -166,7 +166,7 @@ class TurnEventMapper:  # pylint: disable=too-many-instance-attributes
             elif isinstance(part, ThinkingPart):
                 yield events_v4.ReasoningPart(reasoning=part.content)
             else:
-                logger.warning("Unknown part type: %s", type(part))
+                logger.warning("unknown_part_type", part_type=type(part).__name__)
 
     async def _handle_streaming_response(self, node, run_ctx):
         """Stream a model node, emitting text/tool/reasoning deltas as events.
@@ -222,7 +222,7 @@ class TurnEventMapper:  # pylint: disable=too-many-instance-attributes
         async with node.stream(run_ctx) as handle_stream:
             async for event in handle_stream:
                 await self._check_stop()
-                logger.debug("Received request_stream event: %s", type(event))
+                logger.debug("request_stream_event", event_type=type(event).__name__)
                 if isinstance(event, FunctionToolCallEvent):
                     if not self.state.tool_is_streaming:
                         yield events_v4.ToolCallPart(
@@ -256,7 +256,7 @@ class TurnEventMapper:  # pylint: disable=too-many-instance-attributes
                 tool_call_id=event.tool_call_id, result=event.part.content
             )
         else:
-            logger.warning("Unexpected tool result type: %s", type(event.part))
+            logger.warning("unexpected_tool_result_type", part_type=type(event.part).__name__)
 
     async def _stream_tool_node(self, node, run_ctx) -> AsyncGenerator[events_v4.Event, None]:
         """Stream a tool-call node, noting that its step owes a snapshot.

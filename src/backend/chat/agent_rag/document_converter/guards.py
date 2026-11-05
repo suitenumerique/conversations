@@ -8,14 +8,15 @@ These guards close that gap; a memory-capped (cgroup) worker remains the
 complete fix for what they cannot see (see limitations on each guard).
 """
 
-import logging
 import zipfile
 from io import BytesIO
 
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 
 class DocumentTooLargeError(Exception):
@@ -54,9 +55,9 @@ def guard_zip_bomb(content: bytes) -> None:
     max_uncompressed = settings.ATTACHMENT_PARSE_MAX_UNCOMPRESSED_SIZE
     if total_uncompressed > max_uncompressed:
         logger.warning(
-            "Rejected document: declared uncompressed size %d bytes exceeds limit %d.",
-            total_uncompressed,
-            max_uncompressed,
+            "document_rejected_uncompressed_size",
+            uncompressed_bytes=total_uncompressed,
+            limit_bytes=max_uncompressed,
         )
         raise DocumentTooLargeError(_("Document expands beyond the allowed size and was rejected."))
 
@@ -65,9 +66,9 @@ def guard_zip_bomb(content: bytes) -> None:
         ratio = total_uncompressed / total_compressed
         if ratio > max_ratio:
             logger.warning(
-                "Rejected document: compression ratio %.1f exceeds limit %d.",
-                ratio,
-                max_ratio,
+                "document_rejected_compression_ratio",
+                ratio=round(ratio, 1),
+                limit=max_ratio,
             )
             raise DocumentTooLargeError(
                 _("Document has a suspicious compression ratio and was rejected.")
@@ -91,8 +92,8 @@ def guard_pdf_page_count(total_pages: int) -> None:
     max_pages = settings.ATTACHMENT_PARSE_MAX_PDF_PAGES
     if total_pages > max_pages:
         logger.warning(
-            "Rejected PDF: page count %d exceeds limit %d.",
-            total_pages,
-            max_pages,
+            "pdf_rejected_page_count",
+            total_pages=total_pages,
+            limit=max_pages,
         )
         raise DocumentTooLargeError(_("Document has too many pages and was rejected."))

@@ -6,6 +6,7 @@ for now.
 """
 
 import asyncio
+import contextvars
 import queue
 import threading
 
@@ -33,7 +34,11 @@ def convert_async_generator_to_sync(async_gen):
     def start_async_loop():
         asyncio.run(run_async_gen())
 
-    thread = threading.Thread(target=start_async_loop, daemon=True)
+    # A new thread starts with an empty context: run it in a copy of the
+    # caller's, so its log lines keep the request and conversation ids.
+    thread = threading.Thread(
+        target=contextvars.copy_context().run, args=(start_async_loop,), daemon=True
+    )
     thread.start()
 
     try:

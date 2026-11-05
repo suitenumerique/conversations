@@ -19,6 +19,7 @@ import logging
 from django.db import transaction
 from django.utils import timezone
 
+import structlog
 from pydantic_ai.messages import (
     ModelMessage,
     ModelMessagesTypeAdapter,
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 # Every line tracing one turn goes to this logger rather than the module's, so
 # following a cycle is one filter (`chat.turn`) across the four modules that
 # take part in it, and its level can be raised or lowered on its own.
-turn_logger = logging.getLogger("chat.turn")
+turn_logger = structlog.get_logger("chat.turn")
 
 
 def describe(conversation, chunks) -> None:
@@ -54,10 +55,10 @@ def describe(conversation, chunks) -> None:
     if not chunks:
         return
     turn_logger.debug(
-        "[read %s] %d pending chunk(s), turn is %s",
-        conversation.pk,
-        len(chunks),
-        "still running" if is_live(chunks) else "over and interrupted",
+        "pending_chunks_read",
+        conversation_id=conversation.pk,
+        chunks=len(chunks),
+        turn_live=is_live(chunks),
     )
 
 
@@ -280,20 +281,18 @@ def _fold_one(conversation, trail) -> bool:
         )
         deleted, _ = conversation.stream_chunks.filter(run_id=run_id).delete()
         if not deleted:
-            turn_logger.info(
-                "[fold %s] run %s was already filed, nothing to do", conversation.pk, run_id
-            )
+            turn_logger.info("trail_already_filed", conversation_id=conversation.pk, run_id=run_id)
             return False
         if ui_messages:
             conversation.messages = list(conversation.messages) + ui_messages
             conversation.pydantic_messages = conversation.pydantic_messages + _dump(messages)
             conversation.save(update_fields=["messages", "pydantic_messages", "updated_at"])
     turn_logger.info(
-        "[fold %s] %d chunk(s) of run %s became %d message(s)",
-        conversation.pk,
-        len(trail),
-        run_id,
-        len(ui_messages),
+        "trail_folded",
+        conversation_id=conversation.pk,
+        run_id=run_id,
+        chunks=len(trail),
+        messages=len(ui_messages),
     )
     return bool(ui_messages)
 

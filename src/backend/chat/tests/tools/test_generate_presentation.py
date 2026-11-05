@@ -20,7 +20,7 @@ import pptx
 import pytest
 from asgiref.sync import sync_to_async
 from pydantic_ai import ModelResponse, RunContext
-from pydantic_ai.exceptions import AgentRunError, ModelRetry
+from pydantic_ai.exceptions import AgentRunError, ModelHTTPError, ModelRetry
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.usage import RunUsage
@@ -246,6 +246,27 @@ async def test_a_transient_agent_error_is_offered_for_retry():
             await generate_presentation(ctx, brief="Un sujet")
 
     assert not isinstance(exc_info.value, ModelCannotRetry)
+
+
+@pytest.mark.asyncio
+async def test_an_agent_error_logs_only_type_and_status(json_logs):
+    """The provider error body can echo the brief: the log line names the error
+    by type and status, without its message or traceback."""
+    ctx, _conversation, _user = await setup_context(max_retries=2)
+    error = ModelHTTPError(status_code=429, model_name="m", body="echoed brief content")
+
+    with mock.patch.object(
+        PresentationAgent, "run", new_callable=mock.AsyncMock, side_effect=error
+    ):
+        with pytest.raises(ModelRetry):
+            await generate_presentation(ctx, brief="Un sujet")
+
+    lines = json_logs()
+    [line] = [line for line in lines if line["event"] == "presentation_agent_failed"]
+    assert line["error_type"] == "ModelHTTPError"
+    assert line["status_code"] == 429
+    assert "exception" not in line
+    assert "echoed brief content" not in str(lines)
 
 
 @pytest.mark.asyncio

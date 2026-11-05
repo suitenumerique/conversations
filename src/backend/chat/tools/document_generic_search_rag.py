@@ -9,12 +9,11 @@ Our use case implies that different users might have access to different documen
 so the tools added to the agent are also user-specific.
 """
 
-import logging
-
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils.module_loading import import_string
 
+import structlog
 from httpx import HTTPStatusError
 from pydantic_ai import Agent, ModelRetry, RunContext, RunUsage
 from pydantic_ai.messages import ToolReturn
@@ -23,7 +22,7 @@ from core.feature_flags.helpers import is_feature_enabled
 
 from chat.tools.utils import last_model_retry_soft_fail
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 User = get_user_model()
 
@@ -75,7 +74,7 @@ def _create_document_search_rag(agent, name, description, backend, ids):
         except HTTPStatusError as exc:
             # str(exc) carries the request url: log the status code only.
             status_code = exc.response.status_code
-            logger.error("RAG document search failed for tool %s (status %s)", name, status_code)
+            logger.error("rag_tool_search_failed", tool_name=name, status_code=status_code)
             raise ModelRetry(
                 f"Document search service is currently unavailable (status {status_code})."
             ) from exc
@@ -115,23 +114,22 @@ def add_document_rag_search_tool_from_setting(agent: Agent, user: User) -> None:
         )
         try:
             document_store_backend = import_string(document_store_backend_name)
-        except ImportError as exc:
+        except ImportError:
             logger.warning(
-                "Could not import RAG backend %s: %s",
-                document_store_backend_name,
-                exc,
+                "rag_tool_backend_import_failed",
+                backend=document_store_backend_name,
                 exc_info=True,
             )
             continue  # Skip if the backend is not available
 
         collection_ids = tool_config.get("collection_ids", [])
         if not collection_ids:
-            logger.warning("No collection IDs provided for tool %s, skipping.", tool_name)
+            logger.warning("rag_tool_skipped", tool_name=tool_name, reason="no_collection_ids")
             continue  # Skip if no collection IDs are provided
 
         tool_description = tool_config.get("tool_description")
         if not tool_description:
-            logger.warning("No tool description provided for tool %s, skipping.", tool_name)
+            logger.warning("rag_tool_skipped", tool_name=tool_name, reason="no_tool_description")
             continue  # Skip if no tool description is provided
 
         _create_document_search_rag(

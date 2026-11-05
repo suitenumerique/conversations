@@ -327,7 +327,11 @@ async def test_request_joins_list_content(albert_model, httpx2_mock, caplog):
         )
 
     assert response.parts == [TextPart(content="Paris is the capital of France.")]
-    assert "Unexpected content part type in completion: <class 'int'>" in caplog.text
+    assert [
+        record.msg["part_type"]
+        for record in caplog.records
+        if record.name == "chat.providers.albert_models"
+    ] == ["int"]
     assert "Paris" not in caplog.text
 
 

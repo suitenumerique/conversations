@@ -1,17 +1,17 @@
 """Tool calling utilities for the chat agent."""
 
 import functools
-import logging
 import uuid
 from typing import Any, Callable, Iterable
 
+import structlog
 from pydantic_ai import ModelRetry, RunContext
 from pydantic_ai.exceptions import ModelHTTPError
 
 from chat import models
 from chat.tools.exceptions import ModelCannotRetry
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def resolve_attachment_by_id(
@@ -59,15 +59,15 @@ def last_model_retry_soft_fail(
         except ModelCannotRetry as exc:
             return str(exc.message)
         except ModelRetry as exc:
-            logger.warning("Tool '%s' raised ModelRetry: %s", ctx.tool_name, exc.message)
+            logger.warning("tool_retry_requested", tool_name=ctx.tool_name, reason=exc.message)
             if (ctx.retries.get(ctx.tool_name, 0) + 1) >= ctx.max_retries:
                 # Only the cause's type and status: its message can carry urls or user content
                 cause = exc.__cause__
                 logger.error(
-                    "Max retries reached for tool '%s' (cause: %s, status: %s).",
-                    ctx.tool_name,
-                    type(cause).__name__ if cause else None,
-                    cause.status_code if isinstance(cause, ModelHTTPError) else None,
+                    "tool_max_retries_reached",
+                    tool_name=ctx.tool_name,
+                    cause=type(cause).__name__ if cause else None,
+                    status_code=cause.status_code if isinstance(cause, ModelHTTPError) else None,
                 )
                 # A bit of a hack to signal that we cannot retry here, while preventing
                 # the LLM to generate an outdated answer.

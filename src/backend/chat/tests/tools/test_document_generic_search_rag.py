@@ -183,7 +183,8 @@ def test_add_document_rag_search_tool_with_invalid_backend(settings, caplog):
 
     # Check that warning was logged
     assert len(caplog.records) == 1
-    assert "Could not import RAG backend non.existent.Backend" in caplog.records[0].message
+    assert caplog.records[0].msg["event"] == "rag_tool_backend_import_failed"
+    assert caplog.records[0].msg["backend"] == "non.existent.Backend"
 
 
 def test_add_document_rag_search_tool_with_missing_collection_ids(settings, caplog):
@@ -206,7 +207,9 @@ def test_add_document_rag_search_tool_with_missing_collection_ids(settings, capl
 
     # Check that warning was logged
     assert len(caplog.records) == 1
-    assert "No collection IDs provided for tool legal_documents" in caplog.records[0].message
+    assert caplog.records[0].msg["event"] == "rag_tool_skipped"
+    assert caplog.records[0].msg["tool_name"] == "legal_documents"
+    assert caplog.records[0].msg["reason"] == "no_collection_ids"
 
 
 def test_add_document_rag_search_tool_with_missing_tool_description(settings, caplog):
@@ -229,7 +232,9 @@ def test_add_document_rag_search_tool_with_missing_tool_description(settings, ca
 
     # Check that warning was logged
     assert len(caplog.records) == 1
-    assert "No tool description provided for tool legal_documents" in caplog.records[0].message
+    assert caplog.records[0].msg["event"] == "rag_tool_skipped"
+    assert caplog.records[0].msg["tool_name"] == "legal_documents"
+    assert caplog.records[0].msg["reason"] == "no_tool_description"
 
 
 @respx.mock
@@ -396,8 +401,13 @@ async def test_document_search_rag_http_status_error(settings, caplog):
     )
 
     # Verify that error was logged
-    assert "RAG document search failed for tool legal_documents" in caplog.records[0].message
-    assert "(cause: HTTPStatusError, status: None)" in caplog.records[1].message
+    search_failed, max_retries = (record.msg for record in caplog.records)
+    assert search_failed["event"] == "rag_tool_search_failed"
+    assert search_failed["tool_name"] == "legal_documents"
+    assert search_failed["status_code"] == 500
+    assert max_retries["event"] == "tool_max_retries_reached"
+    assert max_retries["cause"] == "HTTPStatusError"
+    assert max_retries["status_code"] is None
     # The request url must not reach the logs nor the model
     assert "albert.api.etalab.gouv.fr" not in caplog.text
     assert "albert.api.etalab.gouv.fr" not in tool_result

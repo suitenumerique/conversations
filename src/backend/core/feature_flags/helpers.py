@@ -1,9 +1,9 @@
 """Tooling around feature flags"""
 
-import logging
-
 from django.conf import settings
 from django.contrib.auth import get_user_model
+
+import structlog
 
 User = get_user_model()
 
@@ -12,7 +12,7 @@ try:
 except ImportError:
     posthog = None
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def frontend_feature_name(feature_name: str) -> str:
@@ -42,8 +42,5 @@ def is_feature_enabled(
         )
 
     # No feature flag manager
-    logger.warning(
-        "No feature flag manager found, cannot use dynamic for %s -> disabled",
-        feature_name,
-    )
+    logger.warning("feature_flag_manager_missing", feature_name=feature_name)
     return False

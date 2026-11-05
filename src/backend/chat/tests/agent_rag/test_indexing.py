@@ -168,7 +168,7 @@ def test_index_swallows_backend_errors(project_text_attachment, settings, caplog
 
     index_project_attachment(project_text_attachment)
 
-    assert any("Failed to index project attachment" in record.message for record in caplog.records)
+    assert [record.msg["event"] for record in caplog.records] == ["project_attachment_index_failed"]
     project_text_attachment.refresh_from_db()
     assert project_text_attachment.index_state == AttachmentIndexState.FAILED
     assert project_text_attachment.processing_error
@@ -201,8 +201,9 @@ def test_index_fails_when_backend_returns_no_document_id(project_text_attachment
 
 @respx.mock
 def test_index_failure_captures_albert_response_body(project_text_attachment, settings, caplog):
-    """A failed store logs and stores the Albert response body (the real reason),
-    plus the file identity, instead of a generic exception string."""
+    """A failed store keeps the Albert response body (the real reason) in
+    `processing_error`, and logs only the attachment id, status and error type:
+    neither the body nor the file name reaches the logs."""
     settings.RAG_STORE_RETRY_DELAY_SECONDS = 0  # don't actually sleep between retries
     project_text_attachment.project.collection_id = "999"
     project_text_attachment.project.save(update_fields=["collection_id"])
@@ -221,9 +222,16 @@ def test_index_failure_captures_albert_response_body(project_text_attachment, se
     assert project_text_attachment.index_state == AttachmentIndexState.FAILED
     assert "HTTP 500" in project_text_attachment.processing_error
     assert "model albert-large is overloaded" in project_text_attachment.processing_error
-    # The log line carries the file identity and the response body for triage.
-    assert "hello.txt" in caplog.text
-    assert "model albert-large is overloaded" in caplog.text
+    # The log line carries the attachment id, status and error type for triage;
+    # the response body can echo document content and file names are user data,
+    # so both stay out of the logs (traceback included).
+    [record] = caplog.records
+    assert record.msg["attachment_id"] == project_text_attachment.pk
+    assert record.msg["status_code"] == status.HTTP_500_INTERNAL_SERVER_ERROR
+    assert record.msg["error_type"] == "HTTPStatusError"
+    assert "error" not in record.msg
+    assert "model albert-large is overloaded" not in caplog.text
+    assert "hello.txt" not in caplog.text
 
 
 @respx.mock

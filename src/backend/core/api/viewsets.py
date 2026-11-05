@@ -1,13 +1,13 @@
 """API endpoints"""
 
 import json
-import logging
 
 from django.conf import settings
 from django.core.cache import cache
 from django.utils.text import slugify
 
 import rest_framework as drf
+import structlog
 from pydantic import BaseModel
 from rest_framework import viewsets
 from rest_framework.permissions import AllowAny
@@ -20,7 +20,7 @@ from chat.mcp_servers import DataGouvConnector
 
 from . import serializers
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # pylint: disable=too-many-ancestors
 
@@ -211,13 +211,13 @@ class ConfigView(drf.views.APIView):
                 theme_customization = json.load(f)
         except FileNotFoundError:
             logger.error(
-                "Configuration file not found: %s",
-                settings.THEME_CUSTOMIZATION_FILE_PATH,
+                "theme_customization_file_not_found",
+                path=settings.THEME_CUSTOMIZATION_FILE_PATH,
             )
         except json.JSONDecodeError:
             logger.error(
-                "Configuration file is not a valid JSON: %s",
-                settings.THEME_CUSTOMIZATION_FILE_PATH,
+                "theme_customization_file_invalid_json",
+                path=settings.THEME_CUSTOMIZATION_FILE_PATH,
             )
         else:
             cache.set(
