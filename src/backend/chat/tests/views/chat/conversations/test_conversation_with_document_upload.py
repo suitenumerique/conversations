@@ -659,7 +659,7 @@ def test_post_conversation_with_document_upload_feature_disabled(
         "data: [DONE]\n\n"
     )
     # This behavior must be improved in the future to inform the user properly
-    assert "Document upload feature is disabled, ignoring input documents." in caplog.text
+    assert "input_documents_ignored_upload_disabled" in caplog.text
 
 
 @respx.mock

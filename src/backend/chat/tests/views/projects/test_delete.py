@@ -135,7 +135,9 @@ def test_delete_project_succeeds_when_backend_fails(api_client, albert_settings,
 
     assert response.status_code == status.HTTP_204_NO_CONTENT
     assert not ChatProject.objects.filter(id=project.pk).exists()
-    assert any("Failed to delete RAG collection 42" in record.message for record in caplog.records)
+    [record] = [r for r in caplog.records if r.name == "chat.views.projects"]
+    assert record.msg["event"] == "rag_collection_delete_failed"
+    assert record.msg["collection_id"] == "42"
 
 
 def test_delete_project_cleans_up_companion_s3_blob(api_client):
@@ -226,4 +228,6 @@ def test_delete_project_tolerates_s3_failure(api_client, caplog):
 
     assert response.status_code == status.HTTP_204_NO_CONTENT
     assert not ChatProject.objects.filter(id=project.pk).exists()
-    assert any("Failed to delete S3 object" in record.message for record in caplog.records)
+    assert "s3_object_delete_failed" in [
+        r.msg["event"] for r in caplog.records if r.name == "chat.views.helpers"
+    ]

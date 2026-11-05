@@ -391,7 +391,7 @@ def _force_warnings(caplog):
     return [
         record
         for record in caplog.records
-        if record.name == "chat.mcp_servers" and "forced" in record.getMessage()
+        if record.name == "chat.mcp_servers" and record.msg["event"].startswith("connector_forced")
     ]
 
 
@@ -407,8 +407,8 @@ def test_a_force_the_gates_deny_is_logged(conversation, caplog):
         _toolsets_for(service, opted_in=False, forced=True)
 
     assert [
-        DataGouvConnector.connector_id in record.getMessage() for record in _force_warnings(caplog)
-    ] == [True]
+        (record.msg["event"], record.msg["connector_id"]) for record in _force_warnings(caplog)
+    ] == [("connector_forced_but_not_enabled", DataGouvConnector.connector_id)]
 
 
 def test_an_unavailable_connector_nobody_asked_for_is_silent(conversation, caplog):

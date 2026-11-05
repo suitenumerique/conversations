@@ -1,14 +1,18 @@
 """What `TurnTrail` writes to `ChatStreamChunk` while a turn runs."""
 
 # pylint: disable=protected-access
+import asyncio
+import time
 from unittest.mock import patch
 
 import pytest
+import structlog
 from asgiref.sync import sync_to_async
 from pydantic_ai.messages import ModelRequest, ModelResponse, TextPart, UserPromptPart
 
 from chat import stream_chunks
 from chat.factories import ChatConversationFactory
+from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.models import ChatStreamChunk
 from chat.turn.trail import TurnTrail
 
@@ -20,7 +24,7 @@ async def _chunks(conversation):
     return await sync_to_async(lambda: list(conversation.stream_chunks.all()))()
 
 
-def _ignore_log(*_args) -> None:
+def _ignore_log(*_args, **_fields) -> None:
     """Stand-in for the service's turn log, which these tests do not read."""
 
 
@@ -146,3 +150,52 @@ def test_the_sync_beat_takes_back_its_row_too():
         turn.beat_sync()
 
     assert not conversation.stream_chunks.exists()
+
+
+def _beat_message_ids(json_logs):
+    """The `message_id` of every `chunk_still_running` line, as rendered in production."""
+    return [
+        line.get("message_id") for line in json_logs() if line["event"] == "chunk_still_running"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_beat_line_names_the_answer(settings, json_logs):
+    """The beat runs from the reader's loop, not the producer task that binds
+    `message_id`, so it must name the answer itself."""
+    settings.KEEPALIVE_INTERVAL = 0.01
+    conversation = await sync_to_async(ChatConversationFactory)()
+    turn = TurnTrail(conversation, log=structlog.get_logger("chat.turn").info)
+    turn.message_id = "m-1"
+
+    async def silent():
+        """The producer binds the answer's id in its own context, then blocks."""
+        structlog.contextvars.bind_contextvars(message_id="m-1")
+        await asyncio.sleep(0.05)
+        yield "finally"
+
+    _ = [chunk async for chunk in stream_with_keepalive_async(silent(), turn.beat)]
+
+    message_ids = _beat_message_ids(json_logs)
+    assert message_ids, "the blocked stream never beat"
+    assert message_ids == ["m-1"] * len(message_ids)
+
+
+def test_a_sync_beat_line_names_the_answer(settings, json_logs):
+    """The WSGI path: the source binds `message_id` in its own thread."""
+    settings.KEEPALIVE_INTERVAL = 0.01
+    conversation = ChatConversationFactory()
+    turn = TurnTrail(conversation, log=structlog.get_logger("chat.turn").info)
+    turn.message_id = "m-1"
+
+    def silent():
+        """Blocked long enough for the keepalive thread, which wakes every 0.5s."""
+        structlog.contextvars.bind_contextvars(message_id="m-1")
+        time.sleep(1.2)
+        yield "finally"
+
+    _ = list(stream_with_keepalive_sync(silent(), turn.beat_sync))
+
+    message_ids = _beat_message_ids(json_logs)
+    assert message_ids, "the blocked stream never beat"
+    assert message_ids == ["m-1"] * len(message_ids)

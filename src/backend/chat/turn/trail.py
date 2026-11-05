@@ -9,7 +9,6 @@ into the conversation.
 import copy
 import itertools
 import json
-import logging
 import time
 import uuid
 from typing import Callable, List, Optional
@@ -17,6 +16,7 @@ from typing import Callable, List, Optional
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 
+import structlog
 from asgiref.sync import sync_to_async
 from pydantic_ai.messages import (
     ModelMessage,
@@ -32,7 +32,7 @@ from chat.stream_chunks import close as close_turn_trail
 from chat.turn.persistence import apply_image_actions
 
 # Same logger as the turn's own log lines, so one cycle reads top to bottom.
-turn_logger = logging.getLogger("chat.turn")
+turn_logger = structlog.get_logger("chat.turn")
 
 
 class TurnTrail:  # pylint: disable=too-many-instance-attributes
@@ -106,7 +106,8 @@ class TurnTrail:  # pylint: disable=too-many-instance-attributes
             message_id=self.message_id or "",
             seq=seq,
         )
-        turn_logger.info("chunk %d: still running", seq)
+        # Named here: the keepalive runs outside the context that binds it.
+        self._log("chunk_still_running", seq=seq, message_id=self.message_id)
         if self.landed:  # NOSONAR
             # Landed while this row was being written; see `beat`.
             self._beat_rows(seq).delete()
@@ -163,7 +164,7 @@ class TurnTrail:  # pylint: disable=too-many-instance-attributes
         after the flush. Any of these is raised while the conversation exists.
         """
         if not await self._conversation_exists():
-            self._log("conversation deleted, nothing to file")
+            self._log("turn_conversation_deleted")
             return
         try:
             await self._flush_text()
@@ -171,7 +172,7 @@ class TurnTrail:  # pylint: disable=too-many-instance-attributes
         except ValidationError, IntegrityError, models.ChatConversation.DoesNotExist:
             if await self._conversation_exists():
                 raise
-            self._log("conversation deleted while filing, nothing to file")
+            self._log("turn_conversation_deleted_while_filing")
 
     def drop_rows(self) -> None:
         """Mark the turn landed and delete its rows, inside the transaction storing it."""
@@ -272,7 +273,7 @@ class TurnTrail:  # pylint: disable=too-many-instance-attributes
         )
         superseded, _ = await self._rows_before(seq).adelete()
         if superseded:
-            self._log("chunk %d superseded %d row(s)", seq, superseded)
+            self._log("chunk_superseded", seq=seq, rows=superseded)
 
     async def _write_chunk(
         self, *, text: str = "", parts=None, question_in_messages: bool = False
@@ -296,18 +297,17 @@ class TurnTrail:  # pylint: disable=too-many-instance-attributes
             question_in_messages=question_in_messages,
         )
         if parts is None and not text:
-            turn_logger.info("chunk %d: still running", seq)
+            # Only a beat writes this, from the keepalive's context, which does
+            # not carry the `message_id` the producer binds: name it here.
+            self._log("chunk_still_running", seq=seq, message_id=self.message_id)
         elif parts is None:
             self.text_rows += 1
             turn_logger.debug(
-                "[turn %s] chunk %d: %d characters of text",
-                self.conversation.pk,
-                seq,
-                len(text),
+                "chunk_text", conversation_id=self.conversation.pk, seq=seq, characters=len(text)
             )
         else:
             self.snapshot_rows += 1
-            self._log("chunk %d: snapshot of %d message(s)", seq, len(parts))
+            self._log("chunk_snapshot", seq=seq, messages=len(parts))
         return seq
 
     def _partial_turn_messages(self, run) -> List[ModelMessage]:

@@ -1,7 +1,6 @@
 """Celery tasks for the chat application."""
 
 import io
-import logging
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -10,6 +9,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.utils.module_loading import import_string
 
+import structlog
 from asgiref.sync import async_to_sync
 from pydantic_ai.exceptions import ModelAPIError
 from pydantic_ai.messages import ModelMessagesTypeAdapter
@@ -32,7 +32,7 @@ from chat.llm_configuration import get_model_configuration
 from chat.models import ChatConversation, ChatConversationAttachment
 from conversations.celery_app import app
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Transient provider failures worth retrying: every model-provider API error
 # (HTTP 4xx/5xx, connection and timeout errors) raised by the summarization
@@ -64,10 +64,7 @@ def index_project_attachment_task(attachment_id):
         .first()
     )
     if attachment is None:
-        logger.warning(
-            "index_project_attachment_task: attachment %s no longer exists; skipping.",
-            attachment_id,
-        )
+        logger.warning("project_attachment_gone", attachment_id=attachment_id)
         return
 
     index_project_attachment(attachment)
@@ -144,9 +141,9 @@ def index_conversation_document_task(collection_id, s3_key, name, content_type, 
                     backend.delete_document(rag_document_id)
                 except Exception:  # pylint: disable=broad-except
                     logger.exception(
-                        "Failed to delete RAG document %s from collection %s",
-                        rag_document_id,
-                        collection_id,
+                        "rag_document_delete_failed",
+                        rag_document_id=rag_document_id,
+                        collection_id=collection_id,
                     )
             raise
 
@@ -171,11 +168,11 @@ def summarize_conversation_history(conversation_id: str) -> None:
     try:
         conversation = ChatConversation.objects.get(pk=conversation_id)
     except ChatConversation.DoesNotExist:
-        logger.info("Conversation %s gone before summarization ran.", conversation_id)
+        logger.info("history_summary_conversation_gone", conversation_id=conversation_id)
         return
 
     if not conversation.claim_history_summarization():
-        logger.debug("Conversation %s already claimed, skipping.", conversation_id)
+        logger.debug("history_summary_already_claimed", conversation_id=conversation_id)
         return
 
     try:
@@ -184,9 +181,9 @@ def summarize_conversation_history(conversation_id: str) -> None:
             model_configuration = get_model_configuration(model_hrid)
         except ImproperlyConfigured:
             logger.warning(
-                "Model %s no longer configured, skipping summarization for %s.",
-                model_hrid,
-                conversation_id,
+                "history_summary_model_not_configured",
+                model_hrid=model_hrid,
+                conversation_id=conversation_id,
             )
             return
 
@@ -230,11 +227,11 @@ def fetch_model_health_task(provider):
     try:
         call_command("fetch_model_health", "--provider", provider, stdout=out)
     except CommandError:
-        logger.exception("fetch_model_health_task: provider %s failed.", provider)
+        logger.exception("model_health_fetch_failed", provider=provider)
     finally:
         output = out.getvalue()
         if output:
-            logger.debug(output)
+            logger.debug("model_health_fetch_output", output=output)
 
 
 @app.task(
@@ -247,4 +244,4 @@ def deindex_inactive_collections_task():
     try:
         call_command("deindex_inactive_collections")
     except CommandError:
-        logger.exception("deindex_inactive_collections_task failed.")
+        logger.exception("deindex_inactive_collections_failed")

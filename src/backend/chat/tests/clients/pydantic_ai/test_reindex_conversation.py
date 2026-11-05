@@ -18,6 +18,12 @@ from chat.vercel_ai_sdk.core import events_v4
 
 REINDEXER_LOGGER = "chat.clients.conversation_reindexer"
 
+
+def _reindexer_records(caplog, event):
+    """Reindexer records for `event` (structlog records carry a dict msg)."""
+    return [r for r in caplog.records if r.name == REINDEXER_LOGGER and r.msg["event"] == event]
+
+
 # transaction=True is required so writes done via async threadpool connections
 # (asave, aupdate) commit and are flushed via TRUNCATE between tests instead of
 # leaking across them.
@@ -130,12 +136,12 @@ async def test_reindex_yields_error_event_on_collection_creation_failure(caplog)
     assert events[1].result["state"] == "error"
     assert events[1].result["kind"] == "rag_error"
 
-    create_failures = [r for r in caplog.records if "Failed to create collection" in r.getMessage()]
+    create_failures = _reindexer_records(caplog, "reindex_collection_create_failed")
     assert len(create_failures) == 1
     assert create_failures[0].levelno == logging.ERROR
     # logger.exception attaches exc_info — a plain logger.error would not.
     assert create_failures[0].exc_info is not None
-    assert "rag_error" in create_failures[0].getMessage()
+    assert create_failures[0].msg["error_kind"] == "rag_error"
 
     await conversation.arefresh_from_db()
     assert conversation.collection_id is None
@@ -189,9 +195,7 @@ async def test_reindex_continues_on_individual_attachment_failure(caplog):
     assert events[-1].result["state"] == "partial"
     assert "first.md" in events[-1].result["failed_documents"]
 
-    attachment_failures = [
-        r for r in caplog.records if "Failed to re-index attachment" in r.getMessage()
-    ]
+    attachment_failures = _reindexer_records(caplog, "reindex_attachment_failed")
     assert len(attachment_failures) == 1
     assert attachment_failures[0].levelno == logging.ERROR
     assert attachment_failures[0].exc_info is not None
@@ -606,9 +610,7 @@ async def test_reindex_all_failures_uses_last_failure_kind_in_result(caplog):
     assert tool_result.result["state"] == "error"
     assert tool_result.result["kind"] == "rag_connection_error"
 
-    attachment_failures = [
-        r for r in caplog.records if "Failed to re-index attachment" in r.getMessage()
-    ]
+    attachment_failures = _reindexer_records(caplog, "reindex_attachment_failed")
     assert len(attachment_failures) == 2
     assert all(r.levelno == logging.ERROR for r in attachment_failures)
     assert all(r.exc_info is not None for r in attachment_failures)

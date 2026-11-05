@@ -73,6 +73,8 @@ dependencies = [
     "odfdo==3.27.3",
     "django-solo==2.5.1",
     "tiktoken==0.14.0",
+    "django-structlog==11.0.0",
+    "structlog==26.1.0",
 ]
 
 [project.urls]

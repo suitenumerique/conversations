@@ -1,11 +1,10 @@
 """ViewSet for managing chat projects."""
 
-import logging
-
 from django.conf import settings
 from django.db.models import Prefetch, Q
 from django.utils.module_loading import import_string
 
+import structlog
 from rest_framework import filters, permissions, viewsets
 
 from core.analytics import capture_event
@@ -16,7 +15,7 @@ from chat.rate_limiting import ProjectCreateDailyThrottle, ProjectCreateHourlyTh
 from chat.views.filters import TitleSearchFilter
 from chat.views.helpers import _bulk_delete_s3_blobs
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-ancestors
@@ -104,9 +103,9 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
                 )
             except Exception:  # pylint: disable=broad-except
                 logger.exception(
-                    "Failed to delete RAG collection %s for conversation %s",
-                    conv.collection_id,
-                    conv.pk,
+                    "rag_collection_delete_failed",
+                    collection_id=conv.collection_id,
+                    conversation_id=conv.pk,
                 )
 
         # Collect all S3 keys (project + child conversations) before any DB
@@ -125,9 +124,9 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
                 )
             except Exception:  # pylint: disable=broad-except
                 logger.exception(
-                    "Failed to delete RAG collection %s for project %s",
-                    instance.collection_id,
-                    instance.pk,
+                    "rag_collection_delete_failed",
+                    collection_id=instance.collection_id,
+                    project_id=instance.pk,
                 )
         _bulk_delete_s3_blobs(attachment_keys)
         # Snapshotted first because `instance.delete()` clears `instance.pk`, but

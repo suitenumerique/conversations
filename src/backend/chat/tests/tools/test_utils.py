@@ -134,9 +134,10 @@ async def test_last_model_retry_soft_fail_returns_message_when_max_retries_reach
     # Exhausted retries are logged as an error naming the cause, never its content
     error = caplog.records[-1]
     assert error.levelno == logging.ERROR
-    assert error.getMessage() == (
-        "Max retries reached for tool 'failing_tool' (cause: ModelHTTPError, status: 400)."
-    )
+    assert error.msg["event"] == "tool_max_retries_reached"
+    assert error.msg["tool_name"] == "failing_tool"
+    assert error.msg["cause"] == "ModelHTTPError"
+    assert error.msg["status_code"] == 400
     assert "My secret prompt" not in caplog.text
     assert result == (
         "Please retry with different parameters. "
@@ -192,5 +193,8 @@ async def test_last_model_retry_soft_fail_does_not_log_run_context(caplog):
     with caplog.at_level(logging.WARNING), pytest.raises(ModelRetry):
         await failing_tool(MockContext())
 
-    assert "Tool 'failing_tool' raised ModelRetry: Please retry." in caplog.text
+    [retry] = [record.msg for record in caplog.records]
+    assert retry["event"] == "tool_retry_requested"
+    assert retry["tool_name"] == "failing_tool"
+    assert retry["reason"] == "Please retry."
     assert "My secret prompt" not in caplog.text

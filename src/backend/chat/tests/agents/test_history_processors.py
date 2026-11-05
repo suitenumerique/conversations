@@ -650,7 +650,9 @@ def test_resolve_conversation_budget_logs_warning_when_buffer_exceeds_context(se
         result = history_processors.resolve_conversation_budget(Cfg())
 
     assert result == 0
-    assert "Summarization is disabled" in caplog.text
+    assert [r.msg["event"] for r in caplog.records if r.name == history_processors.__name__] == [
+        "history_summary_disabled_zero_budget"
+    ]
 
 
 def test_resolve_conversation_budget_deducts_system_prompt(settings):

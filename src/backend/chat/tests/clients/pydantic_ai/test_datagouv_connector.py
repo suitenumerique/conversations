@@ -327,7 +327,7 @@ async def test_unreachable_connector_does_not_cost_the_turn(settings, caplog):
         for record in caplog.records
         if record.name == "chat.mcp_servers"
         and record.levelname == "WARNING"
-        and DataGouvConnector.connector_id in record.getMessage()
+        and record.msg["connector_id"] == DataGouvConnector.connector_id
     ]
 
 

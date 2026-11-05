@@ -5,7 +5,6 @@ stored OIDC access token. The action lives in its own mixin so the main viewset
 stays readable.
 """
 
-import logging
 from urllib.parse import urljoin
 
 from django.conf import settings
@@ -13,6 +12,7 @@ from django.utils import formats, timezone
 from django.utils.translation import gettext as _
 
 import httpx
+import structlog
 from rest_framework import decorators, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -23,7 +23,7 @@ from chat import serializers
 from chat.docs_client import DocsClient
 from chat.views.helpers import conditional_refresh_oidc_token
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def _build_doc_title():
@@ -49,7 +49,7 @@ def _docs_http_error_response(exc):
     if docs_status == status.HTTP_401_UNAUTHORIZED:
         # Access token rejected (expired / inactive on introspection). The front
         # can use the code to prompt a fresh login.
-        logger.warning("Docs rejected the access token during edit-in-docs (401)")
+        logger.warning("edit_in_docs_token_rejected", status_code=401)
         return Response(
             {
                 "detail": "Your Docs session has expired. Please sign in again.",
@@ -60,7 +60,7 @@ def _docs_http_error_response(exc):
 
     if docs_status == status.HTTP_403_FORBIDDEN:
         # Token valid but the user is not allowed on the Docs side — re-auth won't help.
-        logger.warning("Docs denied access during edit-in-docs (403)")
+        logger.warning("edit_in_docs_access_denied", status_code=403)
         return Response(
             {"detail": "You are not allowed to create documents in Docs."},
             status=status.HTTP_403_FORBIDDEN,
@@ -70,17 +70,14 @@ def _docs_http_error_response(exc):
         # Docs refused the request itself (e.g. conversion failed, file too big).
         # An integration fault, not user-retryable. Log only the status code for
         # for diagnosis without dumping potentially echoed user content into the logs.
-        logger.error(
-            "Docs rejected the edit-in-docs request (%s).",
-            docs_status,
-        )
+        logger.error("edit_in_docs_request_rejected", status_code=docs_status)
         return Response(
             {"detail": "Could not create the document in Docs."},
             status=status.HTTP_502_BAD_GATEWAY,
         )
 
     # 5xx (or unknown) — transient Docs error.
-    logger.error("Docs returned a server error during edit-in-docs (%s)", docs_status)
+    logger.error("edit_in_docs_server_error", status_code=docs_status)
     return Response(
         {"detail": "Docs service is currently unavailable. Please try again later."},
         status=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -169,7 +166,7 @@ class EditInDocsMixin:
             return _docs_http_error_response(exc)
         except httpx.RequestError as exc:
             # Transport failure (connection refused, timeout, DNS) — Docs unreachable.
-            logger.exception("Docs service unreachable during edit-in-docs: %s", exc)
+            logger.exception("edit_in_docs_unreachable", error_type=type(exc).__name__)
             self._capture_export(request, "docs_unreachable")
             return Response(
                 {"detail": "Docs service is currently unavailable. Please try again later."},
