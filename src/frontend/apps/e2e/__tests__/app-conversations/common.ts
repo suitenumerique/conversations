@@ -117,8 +117,8 @@ export const expectLoginPage = async (page: Page) =>
     page.getByRole('heading', { name: 'Your sovereign AI assistant' }),
   ).toBeVisible();
 
-export const headerUserMenuTrigger = (page: Page) =>
-  page.locator('header').locator('.user-menu__button');
+export const footerUserMenuTrigger = (page: Page) =>
+  page.getByTestId('left-panel-footer').locator('.user-menu__button');
 
 export async function getLanguagePickerTrigger(page: Page): Promise<Locator> {
   const picker = page.locator('.c__language-picker').first();
@@ -126,7 +126,7 @@ export async function getLanguagePickerTrigger(page: Page): Promise<Locator> {
     await picker.waitFor({ state: 'visible', timeout: 5000 });
     return picker;
   } catch {
-    await headerUserMenuTrigger(page).click();
+    await footerUserMenuTrigger(page).click();
     await picker.waitFor({ state: 'visible', timeout: 10_000 });
     return picker;
   }
@@ -140,7 +140,7 @@ export async function clickLanguageDropdownOption(
 }
 
 export const clickUserMenuLogout = async (page: Page) => {
-  await headerUserMenuTrigger(page).click();
+  await footerUserMenuTrigger(page).click();
   await page
     .locator('.user-menu__item')
     .filter({ hasText: /Log ?out/i })

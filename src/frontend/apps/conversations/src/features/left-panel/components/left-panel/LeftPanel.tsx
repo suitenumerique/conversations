@@ -1,15 +1,12 @@
-import { Suspense, lazy, useEffect } from 'react';
+import { useEffect } from 'react';
 import { createGlobalStyle, css } from 'styled-components';
 
-import { Box, SeparatedSection } from '@/components';
-import { useCunninghamTheme } from '@/cunningham';
+import { Box } from '@/components';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
-import { LaGaufre } from '@/features/header/components/LaGaufre';
-import { OnboardingButton } from '@/features/onboarding';
-import { SettingsButton } from '@/features/settings';
 import { useResponsiveStore } from '@/stores';
 
 import { LeftPanelContent } from './LeftPanelContent';
+import { LeftPanelFooter } from './LeftPanelFooter';
 import { LeftPanelHeader } from './LeftPanelHeader';
 
 const MobileLeftPanelStyle = createGlobalStyle`
@@ -18,18 +15,9 @@ const MobileLeftPanelStyle = createGlobalStyle`
   }
 `;
 
-const UserInfo = lazy(() =>
-  import('@/features/auth/components/UserInfo').then((mod) => ({
-    default: mod.UserInfo,
-  })),
-);
-
 export const LeftPanel = () => {
   const { isDesktop } = useResponsiveStore();
 
-  const { spacingsTokens, componentTokens } = useCunninghamTheme();
-  const showLaGaufre =
-    (componentTokens as Record<string, unknown>)['la-gaufre'] === true;
   const { setPanelOpen, isPanelOpen } = useChatPreferencesStore();
 
   useEffect(() => {
@@ -60,15 +48,7 @@ export const LeftPanel = () => {
             <LeftPanelHeader />
           </Box>
           <LeftPanelContent />
-          <SeparatedSection showSeparator={true} />
-          <Box
-            $padding={{ all: 'sm' }}
-            $direction="row"
-            $gap={spacingsTokens.xxs}
-          >
-            <OnboardingButton />
-            <SettingsButton />
-          </Box>
+          <LeftPanelFooter />
         </Box>
       )}
 
@@ -106,38 +86,7 @@ export const LeftPanel = () => {
             >
               <LeftPanelHeader />
               <LeftPanelContent />
-              <SeparatedSection showSeparator={false}></SeparatedSection>
-              <Box
-                $css={css`
-                  display: flex;
-                  bottom: 0;
-                  height: 52px;
-                  width: 100%;
-                  gap: ${spacingsTokens['base']};
-                  border-top: 1px solid
-                    var(--c--contextuals--border--surface--primary);
-                `}
-                $justify="space-between"
-                $align="center"
-                $direction="row"
-                $padding={{ horizontal: 'sm' }}
-                $gap={spacingsTokens['sm']}
-              >
-                <Box $direction="row" $gap={spacingsTokens.sm} $align="center">
-                  <OnboardingButton />
-                  <SettingsButton />
-                </Box>
-                <Box
-                  $direction="row"
-                  $gap={spacingsTokens['sm']}
-                  $align="center"
-                >
-                  {showLaGaufre && <LaGaufre />}
-                  <Suspense fallback={null}>
-                    <UserInfo />
-                  </Suspense>
-                </Box>
-              </Box>
+              <LeftPanelFooter />
             </Box>
           </Box>
         </>
