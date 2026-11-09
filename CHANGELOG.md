@@ -23,6 +23,7 @@ and this project adheres to
 
 ### Fixed
 
+- 💄(front) align the DataGouv item in the input menu
 - 🔒️(back) keep emails, urls and document names out of the logs
 
 ## [0.0.28] - 2026-11-03

@@ -128,7 +128,18 @@ export const InputChatActions = memo(
           { type: 'separator' },
           {
             label: 'DataGouv',
-            icon: <DatagouvIcon width={16} height={16} />,
+            // Same 24px slot as the Material glyphs above, so labels align.
+            icon: (
+              <Box
+                $width="24px"
+                $align="center"
+                $justify="center"
+                $theme="neutral"
+                $variation="tertiary"
+              >
+                <DatagouvIcon width={16} height={16} />
+              </Box>
+            ),
             isChecked: forceDatagouv,
             isDisabled: isUploadingFiles,
             callback: onDatagouvToggle,
