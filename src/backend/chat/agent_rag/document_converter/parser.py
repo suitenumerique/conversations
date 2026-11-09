@@ -4,7 +4,7 @@ import base64
 import time
 from abc import ABC, abstractmethod
 from io import BytesIO
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from django.conf import settings
 
@@ -22,6 +22,16 @@ logger = structlog.get_logger(__name__)
 
 CT_PDF = PDF_MIME_TYPE
 CT_ODT = "application/vnd.oasis.opendocument.text"
+
+
+def log_ocr_usage(parser: "BaseParser", endpoint: str) -> None:
+    """Log which OCR is used. Only the host is logged: the path may hold a project id."""
+    logger.info(
+        "ocr_used",
+        parser=type(parser).__name__,
+        host=urlsplit(endpoint).hostname,
+        model=settings.OCR_MODEL,
+    )
 
 
 class BaseParser(ABC):
@@ -73,6 +83,7 @@ class AlbertParser(OdtParserMixin, BaseParser):
 
     def parse_pdf_document(self, name: str, content_type: str, content: bytes) -> str:
         """Parse PDF document using Albert API."""
+        log_ocr_usage(self, self.endpoint)
         file_data = base64.standard_b64encode(content).decode("utf-8")
         response = httpx.post(
             self.endpoint,
@@ -281,6 +292,7 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
         batch_size = settings.OCR_BATCH_PAGES
 
         logger.info("pdf_ocr_started", total_pages=total_pages, batch_size=batch_size)
+        log_ocr_usage(self, self.endpoint)
 
         results = []
         for start_index in range(0, total_pages, batch_size):
