@@ -223,10 +223,19 @@ def test_parse_document_skips_ocr_for_text_pdf(text_pdf_10_pages):
         ("```\n# Title\n```\n", "# Title"),
         ("```markdown\n# Title\n\nUnclosed", "# Title\n\nUnclosed"),
         ("# Title\n\nBody", "# Title\n\nBody"),
-        ("```python\nprint(1)\n```\n\nText after", "```python\nprint(1)\n```\n\nText after"),
+        ("```python\nx = 1\n```\n\nText after", "```python\nx = 1\n```\n\nText after"),
         ("```\nPage 1\n```\n\n```\n# Page 2\n```", "Page 1\n\n# Page 2"),
         ("```\nPage 1\n```\n\n```\n# Page 2", "Page 1\n\n# Page 2"),
         ("```\n# Title\n```\nText outside", "```\n# Title\n```\nText outside"),
+        # A longer opening fence keeps the shorter nested block as content
+        ("````\n```python\nx = 1\n```\n````", "```python\nx = 1\n```"),
+        # A shorter fence does not close a longer one, so the output stays unclosed
+        ("````\n# Title\n```\nBody", "# Title\n```\nBody"),
+        # A closing fence cannot have trailing text: that line is content
+        ("```\nPage 1\n``` not closing\nPage 2\n```", "Page 1\n``` not closing\nPage 2"),
+        # Early termination still applies after a longer fence
+        ("````\n# Title\n````\nText outside", "````\n# Title\n````\nText outside"),
+        ("````python\nx = 1\n````", "````python\nx = 1\n````"),
         ("", ""),
     ],
 )

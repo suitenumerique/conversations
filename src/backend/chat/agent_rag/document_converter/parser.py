@@ -1,6 +1,7 @@
 """Document parsers for RAG backends."""
 
 import base64
+import re
 import time
 from abc import ABC, abstractmethod
 from io import BytesIO
@@ -200,17 +201,20 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
     def __init__(self):
         super().__init__()
 
-        self.endpoint = urljoin(
-            settings.LLM_CONFIGURATIONS[settings.OCR_HRID].provider.base_url, "/v1/ocr"
-        )
+        provider = settings.LLM_CONFIGURATIONS[settings.OCR_HRID].provider
+        self.endpoint = self.build_ocr_endpoint(provider.base_url)
         self.max_retries = settings.OCR_MAX_RETRIES
         self.retry_delay = settings.OCR_RETRY_DELAY
-        api_key = settings.LLM_CONFIGURATIONS[settings.OCR_HRID].provider.api_key
+        api_key = provider.api_key
 
         self.headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+
+    def build_ocr_endpoint(self, base_url: str) -> str:
+        """Build the Mistral OCR API URL from the provider base URL."""
+        return urljoin(base_url, "/v1/ocr")
 
     def extract_page_batch(self, reader: PdfReader, start_index: int, end_index: int) -> bytes:
         """Extract a range of pages from PDF as a new PDF bytes object."""
@@ -319,6 +323,8 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
 
 
 OCR_WRAPPING_FENCE_LANGUAGES = {"", "text", "markdown", "md"}
+OCR_OPENING_FENCE = re.compile(r"^ {0,3}(`{3,})([^`]*)$")
+OCR_CLOSING_FENCE = re.compile(r"^ {0,3}(`{3,})\s*$")
 
 
 def strip_enclosing_code_fences(content: str) -> str:
@@ -330,21 +336,23 @@ def strip_enclosing_code_fences(content: str) -> str:
     the document into code blocks. Fences are only removed when the output is made of
     such blocks separated by blank lines; real code blocks are kept.
     """
-    lines = content.strip().split("\n")
     kept = []
-    in_fence = False
-    for line in lines:
-        if line.strip().startswith("```"):
-            if (
-                not in_fence
-                and line.strip()[3:].strip().lower() not in OCR_WRAPPING_FENCE_LANGUAGES
-            ):
+    fence_length = 0
+    for line in content.strip().split("\n"):
+        if fence_length:
+            # Per CommonMark, only a bare fence at least as long as the opening one closes it
+            closing = OCR_CLOSING_FENCE.match(line)
+            if closing and len(closing[1]) >= fence_length:
+                fence_length = 0
+            else:
+                kept.append(line)
+        elif line.strip():
+            opening = OCR_OPENING_FENCE.match(line)
+            if not opening or opening[2].strip().lower() not in OCR_WRAPPING_FENCE_LANGUAGES:
                 return content
-            in_fence = not in_fence
-            continue
-        if not in_fence and line.strip():
-            return content
-        kept.append(line)
+            fence_length = len(opening[1])
+        else:
+            kept.append(line)
     return "\n".join(kept).strip()
 
 
@@ -358,13 +366,11 @@ class OpenAICompatibleOcrParser(AdaptivePdfParser):
     General-purpose vision models also need an instruction, set with OCR_PROMPT.
     """
 
-    def __init__(self):
-        super().__init__()
-
+    def build_ocr_endpoint(self, base_url: str) -> str:
+        """Build the chat completions URL from the provider base URL."""
         # The base URL may hold a path (e.g. https://api.scaleway.ai/<project_id>/v1),
         # so it must be extended rather than resolved with urljoin.
-        base_url = settings.LLM_CONFIGURATIONS[settings.OCR_HRID].provider.base_url
-        self.endpoint = f"{base_url.rstrip('/')}/chat/completions"
+        return f"{base_url.rstrip('/')}/chat/completions"
 
     def build_ocr_payload(
         self, name: str, page_content: bytes, start_index: int, end_index: int
