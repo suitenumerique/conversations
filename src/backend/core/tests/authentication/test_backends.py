@@ -824,6 +824,28 @@ def test_verify_claims_user_without_roles_claim_denied():
         klass.verify_claims({"sub": "123"})
 
 
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"], OIDC_ROLES_CLAIM="proconnect:roles")
+def test_verify_claims_custom_roles_claim_allowed():
+    """With a custom roles claim name, the required role is read from that claim."""
+    klass = OIDCAuthenticationBackend()
+
+    assert (
+        klass.verify_claims(
+            {"sub": "123", "proconnect:roles": ["agent_public", "agent_public_etat"]}
+        )
+        is True
+    )
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"], OIDC_ROLES_CLAIM="proconnect:roles")
+def test_verify_claims_custom_roles_claim_ignores_default_claim():
+    """With a custom roles claim name, the default 'roles' claim is not read."""
+    klass = OIDCAuthenticationBackend()
+
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims({"sub": "123", "roles": ["agent_public_etat"]})
+
+
 @override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
 def test_verify_claims_bypass_allows_user_without_role():
     """A role-less user whose email is on the active bypass list is allowed."""

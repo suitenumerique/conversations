@@ -47,6 +47,9 @@ OIDC_RP_SCOPES="openid email"
 # Restrict login/signup to users holding one of these roles in their "roles"
 # claim. Empty (default) disables the restriction. See docs/env.md "Access control".
 #OIDC_ALLOWED_ROLES=agent_public_etat
+# Name of the claim holding the roles ("roles" by default, "proconnect:roles"
+# with Mon compte).
+#OIDC_ROLES_CLAIM=roles
 
 LOGIN_REDIRECT_URL=http://localhost:3000
 LOGIN_REDIRECT_URL_FAILURE=http://localhost:3000

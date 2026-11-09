@@ -130,7 +130,8 @@ These are the environment variables you can set for the `conversations-backend` 
 | THEME_CUSTOMIZATION_CACHE_TIMEOUT               | Cache duration for the customization settings                                                                                     | 86400                                                   |
 | DOCS_BASE_URL                                   | Base URL of the La Suite Docs instance. Enables the "Edit in Docs" feature (the button only appears when set). Requires `OIDC_STORE_ACCESS_TOKEN=true`. See [Interoperability](interoperabilities.md). |                                                         |
 | DOCS_API_TIMEOUT                                | Timeout (seconds) for HTTP calls to the Docs external API                                                                          | 30                                                      |
-| OIDC_ALLOWED_ROLES                              | Comma-separated roles; restrict login to users whose OIDC `roles` claim contains one of them. Empty disables. See "Access control modes" below. | [] (empty, disabled)                                    |
+| OIDC_ALLOWED_ROLES                              | Comma-separated roles; restrict login to users whose OIDC roles claim (see `OIDC_ROLES_CLAIM`) contains one of them. Empty disables. See "Access control modes" below. | [] (empty, disabled)                                    |
+| OIDC_ROLES_CLAIM                                | Name of the userinfo claim holding the roles checked against `OIDC_ALLOWED_ROLES` (e.g. `proconnect:roles` with Mon compte)      | roles                                                   |
 | API_ATTACHMENT_UPLOAD_THROTTLE_RATE             | Rate limit on the attachment upload endpoint, per user                                                                            | 60/minute                                               |
 | API_ATTACHMENT_AUTH_THROTTLE_RATE               | Rate limit on the attachment authorization endpoint, per user                                                                     | 60/minute                                               |
 | API_FILE_STREAM_THROTTLE_RATE                   | Rate limit on the file streaming endpoint, per user                                                                               | 60/minute                                               |
@@ -164,8 +165,8 @@ variable when both are set.
 
 Access can be gated on the OIDC role claim:
 
-- **OIDC role** (`OIDC_ALLOWED_ROLES=<role>`): only users whose OIDC `roles` claim
-  contains one of the listed roles can sign in; everyone else is redirected to the
+- **OIDC role** (`OIDC_ALLOWED_ROLES=<role>`): only users whose OIDC roles claim
+  (`roles` by default, set by `OIDC_ROLES_CLAIM`) contains one of the listed roles can sign in; everyone else is redirected to the
   access-denied page. As a fallback, addresses on the access-bypass email allow-list
   (Django admin, *Access bypass emails*) are let in without the role. The role is
   re-checked on every login, so revoking it in the IdP blocks the user immediately.

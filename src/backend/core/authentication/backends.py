@@ -58,8 +58,9 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
 
         Extends the base essential-claim verification: when
         ``OIDC_ALLOWED_ROLES`` is configured, the user must expose at least one
-        of those roles in the ``roles`` claim (a flat list, the shape used by
-        both Keycloak in dev and ProConnect in production). This gates both
+        of those roles in the claim named by ``OIDC_ROLES_CLAIM`` (``roles`` by
+        default; a flat list, the shape used by Keycloak in dev, ProConnect in
+        production and Mon compte under ``proconnect:roles``). This gates both
         login and account creation, since it runs before either branch in
         ``get_or_create_user``. An empty ``OIDC_ALLOWED_ROLES`` disables the
         restriction (default behavior).
@@ -75,7 +76,7 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         if not allowed_roles:
             return True
 
-        user_roles = claims.get("roles") or []
+        user_roles = claims.get(settings.OIDC_ROLES_CLAIM) or []
         if isinstance(user_roles, str):
             user_roles = user_roles.split()
 

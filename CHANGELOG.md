@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- ✨(back) make the OIDC roles claim name configurable
+
 ### Removed
 
 - 🔥(helm) remove unused console handler log level variable
