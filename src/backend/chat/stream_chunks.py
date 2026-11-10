@@ -28,7 +28,11 @@ from pydantic_ai.messages import (
 )
 
 from chat.ai_sdk_types import UIMessage
-from chat.clients.pydantic_ui_message_converter import merge_by_kind, model_message_to_ui_message
+from chat.clients.pydantic_ui_message_converter import (
+    attach_tool_charts,
+    merge_by_kind,
+    model_message_to_ui_message,
+)
 from chat.constants import STREAM_LIVE_WINDOW_SECONDS
 from chat.models import ChatConversation
 
@@ -177,11 +181,14 @@ def interrupted_messages(chunks) -> list[UIMessage]:
     if not folded:
         return []
 
+    request, response = merge_by_kind(folded)
     ui_messages = []
-    for message in merge_by_kind(folded):
+    for message in (request, response):
         ui_message = model_message_to_ui_message(message)
         if ui_message is not None and ui_message.parts:
             ui_messages.append(ui_message)
+    if ui_messages and ui_messages[-1].role == "assistant":
+        attach_tool_charts(ui_messages[-1], request)
     if not ui_messages:
         return []
 

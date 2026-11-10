@@ -49,7 +49,7 @@ def _xlsx(sheets: dict[str, list[list]], file_name: str = "budget.xlsx") -> Tabu
 def _run(dataset, max_rows=100, max_join_cells=1_000_000, **query) -> str:
     return run_table_query(
         dataset, TableQuery(**query), max_rows=max_rows, max_join_cells=max_join_cells
-    )
+    ).text
 
 
 def test_french_csv_types_are_inferred():
@@ -511,3 +511,166 @@ def test_cap_output_cuts_a_single_long_line():
 
     assert len(capped) <= 300
     assert capped.startswith("xxx")
+
+
+SALES_PER_REGION = {
+    "table": "ventes",
+    "group_by": [{"column": "region"}],
+    "aggregations": [{"func": "sum", "column": "montant"}, {"func": "count"}],
+    "sort": [{"column": "region"}],
+}
+
+
+def test_chart_is_built_from_the_result():
+    """Labels and series come from the result columns, and the model is told not to redraw."""
+    dataset = build_dataset([_csv(FRENCH_CSV)])
+    chart = {"type": "bar", "title": "Sales", "x": "region", "y": ["montant_sum", "count"]}
+
+    result = run_table_query(
+        dataset, TableQuery(**SALES_PER_REGION, chart=chart), max_rows=100, max_join_cells=1_000_000
+    )
+
+    assert result.chart == {
+        "type": "bar",
+        "title": "Sales",
+        "labels": ["Bretagne", "Île-de-France"],
+        "series": [
+            {"name": "montant_sum", "values": [12, 1234.56]},
+            {"name": "count", "values": [2, 1]},
+        ],
+        "total": 2,
+    }
+    assert result.text.startswith("| region | montant_sum | count |")
+    assert result.chart_note.startswith('\n\nThe chart "Sales" is shown to the user')
+
+
+def test_no_chart_unless_asked():
+    """A query without chart returns no chart data and no chart sentence."""
+    dataset = build_dataset([_csv(FRENCH_CSV)])
+
+    result = run_table_query(
+        dataset, TableQuery(**SALES_PER_REGION), max_rows=100, max_join_cells=1_000_000
+    )
+
+    assert result.chart is None
+    assert "chart" not in result.text
+    assert result.chart_note == ""
+
+
+def test_chart_covers_the_rows_shown_and_reports_the_total():
+    """With a limit, the chart has the rows given to the model and the full row count."""
+    dataset = build_dataset([_csv(FRENCH_CSV)])
+    query = {**SALES_PER_REGION, "limit": 1}
+    chart = {"type": "line", "title": "Sales", "x": "region", "y": ["count"]}
+
+    result = run_table_query(
+        dataset, TableQuery(**query, chart=chart), max_rows=100, max_join_cells=1_000_000
+    )
+
+    assert result.chart["labels"] == ["Bretagne"]
+    assert result.chart["total"] == 2
+
+
+def test_chart_labels_are_truncated_and_missing_values_are_null():
+    """Long labels are cut; NaN values become null so the JSON stays valid."""
+    long_name = "x" * 100
+    content = f"name,value\n{long_name},1\nshort,\n".encode()
+    dataset = build_dataset([_csv(content, "data.csv")])
+    chart = {"type": "bar", "title": "T", "x": "name", "y": ["value"]}
+
+    result = run_table_query(
+        dataset, TableQuery(table="data", chart=chart), max_rows=100, max_join_cells=1_000_000
+    )
+
+    assert result.chart["labels"] == ["x" * 80 + "…", "short"]
+    assert result.chart["series"] == [{"name": "value", "values": [1, None]}]
+
+
+@pytest.mark.parametrize(
+    ("chart", "message"),
+    [
+        (
+            {"type": "bar", "title": "T", "x": "nope", "y": ["count"]},
+            "Unknown column(s) nope in chart. Available columns: region, montant_sum, count.",
+        ),
+        (
+            {"type": "bar", "title": "T", "x": "count", "y": ["region"]},
+            'Chart column "region" is not numeric.',
+        ),
+        (
+            {"type": "pie", "title": "T", "x": "region", "y": ["montant_sum", "count"]},
+            "A pie chart takes exactly one y column.",
+        ),
+    ],
+)
+def test_invalid_charts_explain_the_fix(chart, message):
+    """Chart errors are model-fixable, like query errors."""
+    dataset = build_dataset([_csv(FRENCH_CSV)])
+
+    with pytest.raises(TabularError) as exc_info:
+        run_table_query(
+            dataset,
+            TableQuery(**SALES_PER_REGION, chart=chart),
+            max_rows=100,
+            max_join_cells=1_000_000,
+        )
+
+    assert str(exc_info.value) == message
+
+
+def test_chart_series_names_are_truncated():
+    """A long column name is cut in the chart, like a label, but still found in the result."""
+    long_header = "v" * 250
+    content = f"name,{long_header}\na,1\n".encode()
+    dataset = build_dataset([_csv(content, "data.csv")])
+    chart = {"type": "bar", "title": "T", "x": "name", "y": [long_header]}
+
+    result = run_table_query(
+        dataset, TableQuery(table="data", chart=chart), max_rows=100, max_join_cells=1_000_000
+    )
+
+    assert result.chart["series"] == [{"name": "v" * 80 + "…", "values": [1]}]
+
+
+def test_chart_values_are_rounded_like_the_table():
+    """Float noise from sums does not reach the chart."""
+    content = b"name,value\na,0.1\na,0.2\n"
+    dataset = build_dataset([_csv(content, "data.csv")])
+    query = {
+        "table": "data",
+        "group_by": [{"column": "name"}],
+        "aggregations": [{"func": "sum", "column": "value"}],
+        "chart": {"type": "bar", "title": "T", "x": "name", "y": ["value_sum"]},
+    }
+
+    result = run_table_query(dataset, TableQuery(**query), max_rows=100, max_join_cells=1_000_000)
+
+    assert result.chart["series"] == [{"name": "value_sum", "values": [0.3]}]
+
+
+def test_chart_rejects_repeated_labels():
+    """Grouping by two columns repeats the x labels: the chart would be meaningless."""
+    dataset = build_dataset([_csv(FRENCH_CSV)])
+    query = {
+        "table": "ventes",
+        "group_by": [{"column": "region"}, {"column": "date_de_vente", "period": "month"}],
+        "aggregations": [{"func": "count"}],
+        "chart": {"type": "bar", "title": "T", "x": "region", "y": ["count"]},
+    }
+
+    with pytest.raises(TabularError, match='"region" has repeated values'):
+        run_table_query(dataset, TableQuery(**query), max_rows=100, max_join_cells=1_000_000)
+
+
+def test_pie_chart_rejects_negative_values():
+    """A pie of negative shares is meaningless: the model is told to use a bar chart."""
+    dataset = build_dataset([_csv(FRENCH_CSV)])
+    chart = {"type": "pie", "title": "T", "x": "date_de_vente", "y": ["montant"]}
+
+    with pytest.raises(TabularError, match="cannot show negative values"):
+        run_table_query(
+            dataset,
+            TableQuery(table="ventes", columns=["date_de_vente", "montant"], chart=chart),
+            max_rows=100,
+            max_join_cells=1_000_000,
+        )

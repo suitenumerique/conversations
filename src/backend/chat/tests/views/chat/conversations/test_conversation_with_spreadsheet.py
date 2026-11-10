@@ -96,6 +96,87 @@ def test_post_conversation_with_csv_answers_through_query_table(api_client, mock
     assert conversation.collection_id is None
 
 
+CHART_QUERY = {
+    "table": "ventes",
+    "group_by": [{"column": "region"}],
+    "aggregations": [{"func": "sum", "column": "montant"}],
+    "sort": [{"column": "region"}],
+    "chart": {"type": "bar", "title": "Per region", "x": "region", "y": ["montant_sum"]},
+}
+EXPECTED_CHART = {
+    "type": "bar",
+    "title": "Per region",
+    "labels": ["Nord", "Sud"],
+    "series": [{"name": "montant_sum", "values": [1002, 4]}],
+    "total": 2,
+}
+
+
+@respx.mock
+def test_post_conversation_with_chart_streams_and_saves_the_chart(
+    api_client, mock_ai_agent_service
+):
+    """The UI receives the chart as the tool output, and it is still there after a reload."""
+    conversation = ChatConversationFactory(owner__language="en-us")
+    api_client.force_authenticate(user=conversation.owner)
+    attachment = ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=conversation.owner,
+        file_name="ventes.csv",
+        content_type="text/csv",
+        upload_state=AttachmentStatus.READY,
+    )
+    default_storage.save(attachment.key, ContentFile(SALES_CSV))
+
+    tool_results = []
+
+    async def agent_model(messages: list[ModelMessage], _info: AgentInfo):
+        if len(messages) == 1:
+            yield {0: DeltaToolCall(name="query_table", json_args=json.dumps(CHART_QUERY))}
+        else:
+            tool_results.extend(
+                part.content for part in messages[-1].parts if isinstance(part, ToolReturnPart)
+            )
+            yield "Nord leads."
+
+    message = UIMessage(
+        id="1",
+        role="user",
+        content="Chart per region",
+        parts=[TextUIPart(text="Chart per region", type="text")],
+    )
+
+    with mock_ai_agent_service(FunctionModel(stream_function=agent_model)):
+        response = api_client.post(
+            f"/api/v1.0/chats/{conversation.pk}/conversation/",
+            data={"messages": [message.model_dump(mode="json")]},
+            format="json",
+        )
+
+    assert response.status_code == status.HTTP_200_OK
+    content = b"".join(response.streaming_content).decode("utf-8")
+
+    # The model reads the table, never the chart data.
+    assert len(tool_results) == 1
+    tool_result = tool_results[0]
+    assert tool_result.startswith("| region | montant_sum |")
+    assert 'The chart "Per region" is shown to the user' in tool_result
+    events = [
+        json.loads(line.removeprefix("data: "))
+        for line in content.splitlines()
+        if line.startswith("data: {")
+    ]
+    [output_event] = [event for event in events if event["type"] == "tool-output-available"]
+    assert output_event["output"] == {"chart": EXPECTED_CHART}
+
+    conversation.refresh_from_db()
+    [tool_part] = [
+        part for part in conversation.messages[-1].parts if part.type == "tool-query_table"
+    ]
+    assert tool_part.state == "output-available"
+    assert tool_part.output == {"chart": EXPECTED_CHART}
+
+
 # An aggregation query_table does not offer: the model keeps sending it.
 UNSUPPORTED_QUERY = {"table": "ventes", "aggregations": [{"func": "std", "column": "montant"}]}
 

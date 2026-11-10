@@ -1,6 +1,7 @@
 """Celery tasks for the chat application."""
 
 import io
+import json
 import time
 from datetime import timedelta
 from uuid import uuid4
@@ -273,11 +274,11 @@ def deindex_inactive_collections_task():
         logger.exception("deindex_inactive_collections_failed")
 
 
-def _tabular_output(conversation_id: str, query: dict | None) -> tuple[bool, str]:
+def _tabular_output(conversation_id: str, query: dict | None) -> tuple[bool, str, dict | None]:
     """Load the conversation's spreadsheets, then describe them or run `query`.
 
-    Returns `(ok, content)`; when `ok` is False, `content` is a query error meant
-    for the model.
+    Returns `(ok, content, chart)`; when `ok` is False, `content` is a query error
+    meant for the model. `chart` is the chart data of a query that asked for one.
     """
     attachments = ChatConversationAttachment.objects.filter(
         conversation_id=conversation_id,
@@ -291,16 +292,19 @@ def _tabular_output(conversation_id: str, query: dict | None) -> tuple[bool, str
 
     dataset = build_dataset(files)
     if query is None:
-        return True, describe_tables(dataset)
+        return True, describe_tables(dataset), None
     try:
-        return True, run_table_query(
+        result = run_table_query(
             dataset,
             TableQuery.model_validate(query),
             TABULAR_QUERY_MAX_ROWS,
             max_join_cells=settings.TABULAR_JOIN_MAX_CELLS,
         )
     except TabularError as exc:
-        return False, str(exc)
+        return False, str(exc), None
+    # Capped here, before the chart note, so a long table cannot cut the note.
+    text = cap_output(result.text, TABULAR_MAX_OUTPUT_CHARS - len(result.chart_note))
+    return True, text + result.chart_note, result.chart
 
 
 @app.task(soft_time_limit=TABULAR_TASK_SOFT_TIME_LIMIT, time_limit=TABULAR_TASK_TIME_LIMIT)
@@ -312,11 +316,12 @@ def run_tabular_query_task(conversation_id: str, query: dict | None, deadline: f
     Stateless: the files are reloaded on every call. `query` is a `TableQuery`
     dumped to JSON, or None to describe the tables.
 
-    The output (capped in size) is written to storage, never returned: task
-    results go through Redis, where a large value can stall it. Returns
+    The output is written to storage as JSON, never returned: task results go
+    through Redis, where a large value can stall it. It holds `content` (capped
+    in size) and `chart` (the chart data of a query, or None). Returns
     `{"ok": bool, "key": str | None}`; the caller reads the output at `key` and
-    deletes it. When `ok` is False the output is an error message meant for the
-    model. `deadline` (epoch seconds) is when the caller stops waiting: past it
+    deletes it. When `ok` is False its `content` is an error message meant for
+    the model. `deadline` (epoch seconds) is when the caller stops waiting: past it
     nothing is written, as nobody would delete it.
 
     Without an output, `key` is None and `error` says why: `deadline`,
@@ -327,12 +332,13 @@ def run_tabular_query_task(conversation_id: str, query: dict | None, deadline: f
     if time.time() > deadline - TABULAR_RESULT_WRITE_MARGIN_SECONDS:
         return {"ok": False, "key": None, "error": "deadline"}
     try:
-        ok, content = _tabular_output(conversation_id, query)
+        ok, content, chart = _tabular_output(conversation_id, query)
         if time.time() > deadline - TABULAR_RESULT_WRITE_MARGIN_SECONDS:
             return {"ok": False, "key": None, "error": "deadline"}
+        output = {"content": cap_output(content, TABULAR_MAX_OUTPUT_CHARS), "chart": chart}
         key = default_storage.save(
-            f"{TABULAR_RESULTS_PREFIX}{uuid4()}.md",
-            ContentFile(cap_output(content, TABULAR_MAX_OUTPUT_CHARS).encode("utf-8")),
+            f"{TABULAR_RESULTS_PREFIX}{uuid4()}.json",
+            ContentFile(json.dumps(output).encode("utf-8")),
         )
     except SoftTimeLimitExceeded:
         logger.warning("tabular_query_time_limit")

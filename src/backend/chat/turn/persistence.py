@@ -20,7 +20,11 @@ from core.log_fields import safe_error_fields
 from chat import models
 from chat.agents.conversation import TitleGenerationAgent
 from chat.ai_sdk_types import SourceUrlUIPart
-from chat.clients.pydantic_ui_message_converter import merge_by_kind, model_message_to_ui_message
+from chat.clients.pydantic_ui_message_converter import (
+    attach_tool_charts,
+    merge_by_kind,
+    model_message_to_ui_message,
+)
 from chat.clients.schema import ImagePostRunActions
 from chat.turn.usage import AgentUsage
 
@@ -116,6 +120,7 @@ def prepare_update_conversation(  # noqa: PLR0913  # pylint: disable=too-many-ar
     _merged_final_output_request, _merged_final_output_message = merge_by_kind(final_output)
 
     _output_ui_message = model_message_to_ui_message(_merged_final_output_message)
+    attach_tool_charts(_output_ui_message, _merged_final_output_request)
     if ui_sources:
         _output_ui_message.parts += ui_sources
     if model_response_message_id:

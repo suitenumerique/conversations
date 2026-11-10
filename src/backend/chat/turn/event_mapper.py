@@ -24,6 +24,7 @@ from pydantic_ai.messages import (
 from core import instrumentation
 
 from chat.ai_sdk_types import SourceUrlUIPart
+from chat.clients.pydantic_ui_message_converter import tool_chart
 from chat.clients.schema import StreamingState
 from chat.llm_configuration import LLModel
 from chat.mcp_servers import DataGouvConnector
@@ -247,8 +248,11 @@ class TurnEventMapper:  # pylint: disable=too-many-instance-attributes
                         SourceUrlUIPart(type="source-url", sourceId=source_id, url=source_url)
                     )
                     yield events_v4.SourcePart(id=source_id, url=source_url)
+            # The UI gets the chart instead of the text the model reads.
+            chart = tool_chart(event.part)
             yield events_v4.ToolResultPart(
-                tool_call_id=event.tool_call_id, result=event.part.content
+                tool_call_id=event.tool_call_id,
+                result={"chart": chart} if chart else event.part.content,
             )
 
         elif isinstance(event.part, RetryPromptPart):

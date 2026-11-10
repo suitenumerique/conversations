@@ -12,6 +12,7 @@ commas (`1 234,56`), `;` separators, cp1252 encoding and `dd/mm/yyyy` dates.
 
 import csv
 import io
+import math
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -38,6 +39,8 @@ MAX_INTEGER_DIGITS = 15
 # Bounds of the Int64 dtype integer columns are stored with.
 _INT64_RANGE = (-(2**63), 2**63 - 1)
 NUMERIC_AGGREGATIONS = frozenset({"sum", "mean", "median"})
+MAX_CHART_SERIES = 6
+MAX_CHART_LABEL_LENGTH = 80
 
 # Thousands groups separated by a space or the "other" separator, then an optional fraction.
 _NUMBER_PATTERNS = {
@@ -137,6 +140,19 @@ class Join(BaseModel):
     right_on: str = Field(description="Column of the joined table.")
 
 
+class ChartSpec(BaseModel):
+    """A chart of the query result. Its values are read from the result, never from the model."""
+
+    type: Literal["bar", "line", "pie"]
+    title: str = Field(max_length=120)
+    x: str = Field(description="Result column giving the labels (categories or periods).")
+    y: list[str] = Field(
+        min_length=1,
+        max_length=MAX_CHART_SERIES,
+        description="Numeric result columns, one series each. Exactly one for a pie chart.",
+    )
+
+
 class TableQuery(BaseModel):
     """A structured query on one table: join, filter, group/aggregate, select, sort, limit."""
 
@@ -151,6 +167,22 @@ class TableQuery(BaseModel):
     )
     sort: list[SortKey] = Field(default_factory=list)
     limit: int = Field(default=100, ge=1, le=100)
+    chart: ChartSpec | None = Field(
+        default=None, description="Also show the result to the user as a chart."
+    )
+
+
+@dataclass
+class QueryResult:
+    """A query result: the markdown table for the model, the chart data for the UI.
+
+    `chart_note` tells the model the chart is shown. It is kept apart from `text`
+    so that capping a long table cannot cut it: the caller appends it after.
+    """
+
+    text: str
+    chart: dict | None = None
+    chart_note: str = ""
 
 
 def _identifier(raw, fallback: str) -> str:
@@ -591,8 +623,8 @@ def _check_join_size(frame: pd.DataFrame, other: pd.DataFrame, join: Join, max_c
 
 def run_table_query(
     dataset: TabularDataset, query: TableQuery, max_rows: int, max_join_cells: int
-) -> str:
-    """Execute a validated query and return the result as a markdown table.
+) -> QueryResult:
+    """Execute a validated query: the result as a markdown table, plus the chart data if asked.
 
     Raises:
         TabularError: unknown table or column, an operation the column type forbids,
@@ -632,7 +664,7 @@ def run_table_query(
 
     total = len(result)
     if total == 0:
-        return "The query returned no rows."
+        return QueryResult("The query returned no rows.")
     shown = result.head(min(query.limit, max_rows))
     table = _markdown_table(list(shown.columns), shown.itertuples(index=False))
     if total > len(shown):
@@ -640,7 +672,76 @@ def run_table_query(
         if query.limit >= max_rows:
             # Cut by the cap, not by a limit the model chose.
             table += " The list is incomplete: aggregate the data if you need a complete answer."
-    return table
+    if query.chart is None:
+        return QueryResult(table)
+    chart = build_chart(shown, query.chart, total)
+    note = (
+        f'\n\nThe chart "{query.chart.title}" is shown to the user below this result. '
+        "Do not draw it again (no image, code or table meant as a chart): comment on it briefly."
+    )
+    return QueryResult(table, chart, note)
+
+
+def _chart_label(value) -> str:
+    """Render an x value as a chart label."""
+    if value is None or pd.isna(value):
+        return ""
+    if isinstance(value, pd.Timestamp):
+        text = value.date().isoformat() if value == value.normalize() else str(value)
+    else:
+        text = str(value)
+    text = text.replace("\n", " ")
+    if len(text) > MAX_CHART_LABEL_LENGTH:
+        return text[:MAX_CHART_LABEL_LENGTH] + "…"
+    return text
+
+
+def _chart_value(value) -> int | float | None:
+    """A JSON-safe number; None for a missing or infinite value."""
+    if pd.isna(value) or not math.isfinite(value):
+        return None
+    # Same precision as the table the model reads.
+    number = round(float(value), 4)
+    return int(number) if number.is_integer() and abs(number) < 2**53 else number
+
+
+def build_chart(result: pd.DataFrame, spec: ChartSpec, total: int) -> dict:
+    """Build the chart data from the result rows shown to the model.
+
+    `total` is the row count before the limit, so the UI can say the chart is partial.
+
+    Raises:
+        TabularError: unknown column, non-numeric series, or a pie chart that cannot be drawn.
+    """
+    _check_columns(result, [spec.x, *spec.y], "chart")
+    for column in spec.y:
+        series = result[column]
+        if pd.api.types.is_bool_dtype(series) or not pd.api.types.is_numeric_dtype(series):
+            raise TabularError(f'Chart column "{column}" is not numeric.')
+    if result[spec.x].duplicated().any():
+        raise TabularError(
+            f'Chart x column "{spec.x}" has repeated values: group by {spec.x} only, '
+            "or filter the other grouping columns to a single value."
+        )
+    if spec.type == "pie":
+        if len(spec.y) != 1:
+            raise TabularError("A pie chart takes exactly one y column.")
+        if (result[spec.y[0]] < 0).any():
+            raise TabularError("A pie chart cannot show negative values: use a bar chart.")
+    return {
+        "type": spec.type,
+        "title": spec.title,
+        "labels": [_chart_label(value) for value in result[spec.x]],
+        "series": [
+            # The name is cut like a label: column names have no length limit.
+            {
+                "name": _chart_label(column),
+                "values": [_chart_value(value) for value in result[column]],
+            }
+            for column in spec.y
+        ],
+        "total": total,
+    }
 
 
 def cap_output(text: str, max_chars: int) -> str:

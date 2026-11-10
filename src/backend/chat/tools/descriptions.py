@@ -186,11 +186,20 @@ count, total, average, ranking or list from spreadsheet data.
 - For a date column, group_by may set period to year, quarter or month.
 - join adds the columns of a second table (inner join on left_on = right_on).
 - At most 100 rows are returned: aggregate rather than listing rows when you can.
+- When the user asks for a chart or graph, set chart: type bar (compare categories),
+  line (evolution over periods) or pie (shares of a total, one y column); x is the
+  label column of the result and y the numeric result columns. The chart is drawn
+  from the result, so never write chart values yourself.
 
 Example, paid amount per service, highest first:
 table="invoices", filters=[{"column": "status", "op": "==", "value": "Paid"}],
 group_by=[{"column": "service"}], aggregations=[{"func": "sum", "column": "amount"}],
 sort=[{"column": "amount_sum", "descending": true}]
+
+Example, chart of the monthly amount:
+table="invoices", group_by=[{"column": "date", "period": "month"}],
+aggregations=[{"func": "sum", "column": "amount"}], sort=[{"column": "date_month"}],
+chart={"type": "line", "title": "Amount per month", "x": "date_month", "y": ["amount_sum"]}
 """
 
 CALCULATE_SYSTEM_PROMPT = (

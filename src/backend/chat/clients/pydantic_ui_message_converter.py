@@ -98,6 +98,30 @@ def merge_by_kind(messages: List[ModelMessage]) -> tuple[ModelRequest, ModelResp
     )
 
 
+def tool_chart(part: ToolReturnPart) -> dict | None:
+    """The chart data a tool returned in its metadata (query_table), if any."""
+    if isinstance(part.metadata, dict):
+        return part.metadata.get("chart")
+    return None
+
+
+def attach_tool_charts(ui_message: UIMessage, request: ModelRequest) -> None:
+    """Give the tool parts of `ui_message` the chart their tool returned, as output.
+
+    Tool parts are built from the response alone, without their output (the
+    tool returns are in the request), so a chart would be lost on reload.
+    """
+    charts = {
+        part.tool_call_id: chart
+        for part in request.parts
+        if isinstance(part, ToolReturnPart) and (chart := tool_chart(part))
+    }
+    for ui_part in ui_message.parts:
+        if isinstance(ui_part, ToolUIPart) and ui_part.toolCallId in charts:
+            ui_part.state = "output-available"
+            ui_part.output = {"chart": charts[ui_part.toolCallId]}
+
+
 def model_message_to_ui_message(model_message: ModelMessage) -> Optional[UIMessage]:
     """
     Convert a ModelMessage (ModelRequest or ModelResponse) to a UIMessage.

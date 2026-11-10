@@ -1,18 +1,19 @@
 """Query tools over the conversation's spreadsheet attachments (CSV, XLSX)."""
 
 import asyncio
+import json
 import time
 
 from django.core.files.storage import default_storage
 
 import structlog
 from celery.exceptions import TimeoutError as CeleryTimeoutError
-from pydantic_ai import RunContext
+from pydantic_ai import RunContext, ToolReturn
 
 from core.log_fields import safe_error_fields
 
 from chat.constants import TABULAR_RESULT_TIMEOUT_SECONDS
-from chat.tabular import Aggregation, Filter, GroupKey, Join, SortKey, TableQuery
+from chat.tabular import Aggregation, ChartSpec, Filter, GroupKey, Join, SortKey, TableQuery
 from chat.tasks import run_tabular_query_task
 from chat.tools.exceptions import ModelCannotRetry, UserContentModelRetry
 from chat.tools.utils import last_model_retry_soft_fail
@@ -39,17 +40,20 @@ TASK_ERROR_MESSAGES = {
 }
 
 
-def _read_and_delete(key: str) -> str:
-    """Read a task output from storage, then delete it: it is read once."""
+def _read_and_delete(key: str) -> dict:
+    """Read a task output (`content` and `chart`) from storage, then delete it: it is read once."""
     try:
         with default_storage.open(key, "rb") as file:
-            return file.read().decode("utf-8")
+            return json.loads(file.read())
     finally:
         default_storage.delete(key)
 
 
-async def _run_tabular_task(ctx: RunContext, query: dict | None) -> str:
+async def _run_tabular_task(ctx: RunContext, query: dict | None) -> dict:
     """Run the tabular task on a Celery worker, block on it, and read its output.
+
+    Returns the output of a successful task: `content` for the model, `chart`
+    (or None) for the UI.
 
     Same pattern as document parsing: the publish, the wait and the storage
     calls are synchronous round trips, so they run in threads to keep the event
@@ -78,20 +82,20 @@ async def _run_tabular_task(ctx: RunContext, query: dict | None) -> str:
     if result["key"] is None:
         raise ModelCannotRetry(TASK_ERROR_MESSAGES[result["error"]])
     try:
-        content = await asyncio.to_thread(_read_and_delete, result["key"])
+        output = await asyncio.to_thread(_read_and_delete, result["key"])
     except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.error("tabular_output_read_failed", **safe_error_fields(exc))
         raise ModelCannotRetry(FAILED_MESSAGE) from exc
     if not result["ok"]:
         # Tabular errors name the tables and columns of the user's files.
-        raise UserContentModelRetry(content)
-    return content
+        raise UserContentModelRetry(output["content"])
+    return output
 
 
 @last_model_retry_soft_fail
 async def describe_tables(ctx: RunContext) -> str:
     """Describe the tables loaded from the conversation's spreadsheets."""
-    return await _run_tabular_task(ctx, None)
+    return (await _run_tabular_task(ctx, None))["content"]
 
 
 @last_model_retry_soft_fail
@@ -105,7 +109,8 @@ async def query_table(  # pylint: disable=too-many-arguments,too-many-positional
     sort: list[SortKey] | None = None,
     limit: int = 100,
     join: Join | None = None,
-) -> str:
+    chart: ChartSpec | None = None,
+) -> str | ToolReturn:
     """Filter, group, aggregate and sort one spreadsheet table.
 
     Args:
@@ -117,6 +122,7 @@ async def query_table(  # pylint: disable=too-many-arguments,too-many-positional
         sort (list[SortKey] | None): Sort keys of the result.
         limit (int): Maximum number of rows returned (1 to 100).
         join (Join | None): Second table to inner-join before filtering.
+        chart (ChartSpec | None): Also show the result to the user as a chart.
     """
     query = TableQuery(
         table=table,
@@ -127,5 +133,10 @@ async def query_table(  # pylint: disable=too-many-arguments,too-many-positional
         columns=columns or [],
         sort=sort or [],
         limit=min(max(limit, 1), 100),
+        chart=chart,
     )
-    return await _run_tabular_task(ctx, query.model_dump(mode="json"))
+    output = await _run_tabular_task(ctx, query.model_dump(mode="json"))
+    if not output["chart"]:
+        return output["content"]
+    # The metadata never reaches the model: it carries the chart data to the UI.
+    return ToolReturn(return_value=output["content"], metadata={"chart": output["chart"]})

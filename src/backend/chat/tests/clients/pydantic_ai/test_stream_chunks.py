@@ -404,6 +404,53 @@ def test_a_question_already_in_messages_is_not_shown_twice():
     assert [m.kind for m in stream_chunks.fold(trail)] == ["request", "response"]
 
 
+CHART = {
+    "type": "bar",
+    "title": "Per region",
+    "labels": ["Nord"],
+    "series": [{"name": "n", "values": [1]}],
+    "total": 1,
+}
+
+
+def test_an_interrupted_turn_keeps_its_chart():
+    """A chart query_table returned before the cut is shown on the rebuilt answer."""
+    snapshot = [
+        {"kind": "request", "parts": [{"part_kind": "user-prompt", "content": "Chart it"}]},
+        {
+            "kind": "response",
+            "parts": [
+                {
+                    "part_kind": "tool-call",
+                    "tool_name": "query_table",
+                    "args": {"table": "t"},
+                    "tool_call_id": "call-1",
+                }
+            ],
+        },
+        {
+            "kind": "request",
+            "parts": [
+                {
+                    "part_kind": "tool-return",
+                    "tool_name": "query_table",
+                    "content": "| n |",
+                    "tool_call_id": "call-1",
+                    "metadata": {"chart": CHART},
+                }
+            ],
+        },
+        {"kind": "response", "parts": [{"part_kind": "text", "content": "Nord le"}]},
+    ]
+    trail = [ChatStreamChunk(run_id=uuid.uuid4(), message_id="a-1", seq=0, parts=snapshot)]
+
+    [_question, answer] = stream_chunks.interrupted_messages(trail)
+
+    [tool_part] = [part for part in answer.parts if part.type == "tool-query_table"]
+    assert tool_part.state == "output-available"
+    assert tool_part.output == {"chart": CHART}
+
+
 @pytest.mark.asyncio
 async def test_a_turn_is_live_while_its_chunks_keep_coming():
     """Freshness is what tells an answer on its way from one cut short."""

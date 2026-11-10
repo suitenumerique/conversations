@@ -1,6 +1,7 @@
 """Tests for the tabular Celery task, the tabular tools and their wiring in AIAgentService."""
 # pylint: disable=protected-access
 
+import json
 import logging
 import time
 from datetime import timedelta
@@ -14,6 +15,7 @@ import pytest
 from asgiref.sync import sync_to_async
 from celery.exceptions import SoftTimeLimitExceeded, TimeLimitExceeded, WorkerLostError
 from celery.exceptions import TimeoutError as CeleryTimeoutError
+from pydantic_ai import ToolReturn
 
 from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import TABULAR_MAX_OUTPUT_CHARS, TABULAR_RESULT_TIMEOUT_SECONDS
@@ -21,7 +23,7 @@ from chat.factories import ChatConversationAttachmentFactory, ChatConversationFa
 from chat.models import AttachmentStatus
 from chat.tasks import purge_tabular_results_task, run_tabular_query_task
 from chat.tools.exceptions import ModelCannotRetry, UserContentModelRetry
-from chat.tools.tabular import _run_tabular_task
+from chat.tools.tabular import _run_tabular_task, query_table
 
 # transaction=True: async tests create rows through sync_to_async, on another
 # connection than the test transaction, so a rollback would not clean them up.
@@ -48,10 +50,15 @@ def _deadline():
     return time.time() + 60
 
 
-def _read_result(result):
-    """Read the content a task stored, as the tool does."""
+def _read_output(result):
+    """Read the output (content and chart) a task stored, as the tool does."""
     with default_storage.open(result["key"], "rb") as file:
-        return file.read().decode("utf-8")
+        return json.loads(file.read())
+
+
+def _read_result(result):
+    """Read the content a task stored."""
+    return _read_output(result)["content"]
 
 
 def _spreadsheet(conversation, content=SALES_CSV, **kwargs):
@@ -88,6 +95,34 @@ def test_task_runs_query_on_conversation_spreadsheets():
     assert _read_result(result) == (
         "| region | montant_sum |\n|---|---|\n| Nord | 12 |\n| Sud | 4 |"
     )
+
+
+def test_task_stores_the_chart_with_the_content():
+    """A query asking for a chart stores its data next to the content the model reads."""
+    conversation = ChatConversationFactory()
+    _spreadsheet(conversation)
+
+    result = run_tabular_query_task(
+        str(conversation.pk),
+        {
+            "table": "ventes",
+            "group_by": [{"column": "region"}],
+            "aggregations": [{"func": "sum", "column": "montant"}],
+            "chart": {"type": "pie", "title": "Per region", "x": "region", "y": ["montant_sum"]},
+        },
+        _deadline(),
+    )
+
+    assert result == {"ok": True, "key": ANY}
+    output = _read_output(result)
+    assert output["chart"] == {
+        "type": "pie",
+        "title": "Per region",
+        "labels": ["Nord", "Sud"],
+        "series": [{"name": "montant_sum", "values": [12, 4]}],
+        "total": 2,
+    }
+    assert 'The chart "Per region" is shown to the user' in output["content"]
 
 
 def test_task_describes_tables_without_query():
@@ -225,11 +260,34 @@ def test_task_output_is_capped(query):
     assert f"[Output cut at {TABULAR_MAX_OUTPUT_CHARS} characters" in content
 
 
+def test_task_keeps_the_chart_note_when_the_table_is_capped():
+    """A table too long for the cap is cut before the chart note, never the note itself."""
+    conversation = ChatConversationFactory()
+    # The wide headers again, with numbers to chart.
+    wide_numbers = ",".join(WIDE_HEADERS) + "\nlabel," + ",".join("1" for _ in WIDE_HEADERS[1:])
+    _spreadsheet(conversation, content=wide_numbers.encode())
+    first, second = (f"c_{header}" for header in WIDE_HEADERS[:2])
+    query = {
+        "table": "ventes",
+        "chart": {"type": "bar", "title": "Wide", "x": first, "y": [second]},
+    }
+
+    content = _read_result(run_tabular_query_task(str(conversation.pk), query, _deadline()))
+
+    assert len(content) <= TABULAR_MAX_OUTPUT_CHARS
+    # The table got the cap minus the note's length.
+    assert "[Output cut at " in content
+    assert content.endswith("comment on it briefly.")
+    assert 'The chart "Wide" is shown to the user' in content
+
+
 def test_purge_deletes_only_old_tabular_results(caplog):
     """Results left unread past an hour are deleted; recent ones and other keys stay."""
     # A prefix of its own: tests running in parallel share the bucket.
     prefix = f"tabular-results-purge-test-{time.time_ns()}/"
-    result_key = default_storage.save(f"{prefix}orphan.md", ContentFile(b"| n |"))
+    result_key = default_storage.save(
+        f"{prefix}orphan.json", ContentFile(b'{"content": "| n |", "chart": null}')
+    )
     other_key = default_storage.save(f"{prefix[:-1]}-other/keep.csv", ContentFile(b"a"))
 
     with patch("chat.tasks.TABULAR_RESULTS_PREFIX", prefix), caplog.at_level(logging.INFO):
@@ -260,9 +318,10 @@ def _mock_task(get_result=None, get_side_effect=None):
     return task
 
 
-def _stored(content: str) -> str:
+def _stored(content: str, chart: dict | None = None) -> str:
     """Store a task output the way the task does, and return its key."""
-    return default_storage.save("tabular-results/test.md", ContentFile(content.encode("utf-8")))
+    output = json.dumps({"content": content, "chart": chart})
+    return default_storage.save("tabular-results/test.json", ContentFile(output.encode("utf-8")))
 
 
 @pytest.mark.asyncio
@@ -277,13 +336,50 @@ async def test_tool_returns_stored_content_and_deletes_it():
         patch("chat.tools.tabular.time") as tool_time,
     ):
         tool_time.time.return_value = 1000.0
-        assert await _run_tabular_task(_ctx(conversation), {"table": "t"}) == "| n |"
+        output = await _run_tabular_task(_ctx(conversation), {"table": "t"})
+
+    assert output == {"content": "| n |", "chart": None}
 
     task.delay.assert_called_once_with(
         str(conversation.pk), {"table": "t"}, 1000.0 + TABULAR_RESULT_TIMEOUT_SECONDS
     )
     task.delay.return_value.forget.assert_called_once()
     assert not default_storage.exists(key)
+
+
+CHART = {
+    "type": "bar",
+    "title": "T",
+    "labels": ["a"],
+    "series": [{"name": "n", "values": [1]}],
+    "total": 1,
+}
+
+
+@pytest.mark.asyncio
+async def test_query_table_returns_the_chart_as_metadata():
+    """The model gets the content; the chart goes in the metadata, which only the UI reads."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    key = await sync_to_async(_stored)("| n |", CHART)
+    task = _mock_task({"ok": True, "key": key})
+
+    with patch("chat.tools.tabular.run_tabular_query_task", task):
+        result = await query_table(_ctx(conversation), table="t")
+
+    assert isinstance(result, ToolReturn)
+    assert result.return_value == "| n |"
+    assert result.metadata == {"chart": CHART}
+
+
+@pytest.mark.asyncio
+async def test_query_table_without_chart_returns_the_content():
+    """Without a chart, the tool returns the plain content."""
+    conversation = await sync_to_async(ChatConversationFactory)()
+    key = await sync_to_async(_stored)("| n |")
+    task = _mock_task({"ok": True, "key": key})
+
+    with patch("chat.tools.tabular.run_tabular_query_task", task):
+        assert await query_table(_ctx(conversation), table="t") == "| n |"
 
 
 @pytest.mark.asyncio
