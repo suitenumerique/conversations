@@ -31,7 +31,7 @@ from chat.tests.utils import (
     replace_uuids_with_placeholder,
     throttle_rates,
 )
-from chat.tools.descriptions import SELF_DOCUMENTATION_SYSTEM_PROMPT
+from chat.tools.descriptions import CALCULATE_SYSTEM_PROMPT, SELF_DOCUMENTATION_SYSTEM_PROMPT
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -43,6 +43,7 @@ ENGLISH_INSTRUCTIONS = (
     "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
     f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
     f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
+    f"\n\n{CALCULATE_SYSTEM_PROMPT}"
 )
 
 
@@ -137,6 +138,7 @@ def _system_messages(language="english"):
         {"content": f"Answer in {language}.", "role": "system"},
         {"content": PREVENT_URL_HALLUCINATION_INSTRUCTION, "role": "system"},
         {"content": SELF_DOCUMENTATION_SYSTEM_PROMPT, "role": "system"},
+        {"content": CALCULATE_SYSTEM_PROMPT, "role": "system"},
     ]
 
 
@@ -636,7 +638,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
         'putTextDelta":"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n\n'
         'data: {"type":"tool-output-available","toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47'
         '","output":"Unknown tool name: \'get_current_weather\'. '
-        "Available tools: 'generate_presentation', "
+        "Available tools: 'calculate', 'generate_presentation', "
         "'self_documentation'\"}\n\n"
         'data: {"type":"text-start","id":"0"}\n\n'
         'data: {"type":"text-delta","id":"0","delta":"I cannot give you an answer to that."}'
@@ -698,6 +700,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
         "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in french."
         f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
         f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
+        f"\n\n{CALCULATE_SYSTEM_PROMPT}"
     )
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
@@ -741,7 +744,8 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
             "parts": [
                 {
                     "content": "Unknown tool name: 'get_current_weather'. "
-                    "Available tools: 'generate_presentation', 'self_documentation'",
+                    "Available tools: 'calculate', 'generate_presentation', "
+                    "'self_documentation'",
                     "part_kind": "retry-prompt",
                     "timestamp": FROZEN_TIMESTAMP,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
@@ -960,6 +964,7 @@ def test_post_conversation_data_protocol_no_stream(
                 "You are an amazing assistant.\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
                 f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
                 f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
+                f"\n\n{CALCULATE_SYSTEM_PROMPT}"
             ),
             ["Why the sky is blue?"],
         ),

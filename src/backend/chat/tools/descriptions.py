@@ -192,3 +192,24 @@ table="invoices", filters=[{"column": "status", "op": "==", "value": "Paid"}],
 group_by=[{"column": "service"}], aggregations=[{"func": "sum", "column": "amount"}],
 sort=[{"column": "amount_sum", "descending": true}]
 """
+
+CALCULATE_SYSTEM_PROMPT = (
+    "You make arithmetic mistakes when computing in your head. For any calculation "
+    "beyond a single trivial step (sums of several numbers, products, divisions, "
+    "percentages, variations, averages, VAT, rounding, unit conversions), call the "
+    "calculate tool and use its result. Never give a computed number you did not "
+    "get from a tool."
+)
+
+CALCULATE_TOOL_DESCRIPTION = """
+Compute an arithmetic expression exactly (decimal arithmetic, no float errors).
+
+Syntax: numbers with '.' as decimal separator and no thousands separator,
++ - * / // % ** and parentheses, functions round(x, digits), abs, sqrt, min, max, sum.
+round() rounds half up. Percent: write the division, e.g. 15 / 240 * 100.
+
+Examples:
+- Variation in percent: round((1250.40 - 980) / 980 * 100, 2)
+- Price including 20% VAT: 149.90 * 1.2
+- Average: sum(12, 15.5, 9) / 3
+"""

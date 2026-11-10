@@ -38,6 +38,7 @@ from chat.constants import ACCESS_TOOL_CALL_ONLY
 from chat.factories import ChatConversationAttachmentFactory, ChatConversationFactory
 from chat.tests.utils import replace_uuids_with_placeholder
 from chat.tools.descriptions import (
+    CALCULATE_SYSTEM_PROMPT,
     DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
     SELF_DOCUMENTATION_SYSTEM_PROMPT,
@@ -64,6 +65,7 @@ def _expected_document_instructions(
         "Answer in english.\n\n"
         f"{PREVENT_URL_HALLUCINATION_INSTRUCTION}\n\n"
         f"{SELF_DOCUMENTATION_SYSTEM_PROMPT}\n\n"
+        f"{CALCULATE_SYSTEM_PROMPT}\n\n"
         f"{DOCUMENT_SEARCH_RAG_SYSTEM_PROMPT}\n\n"
         f"{DOCUMENT_SUMMARIZE_SYSTEM_PROMPT}\n\n"
         "[Internal context] User documents are attached to this conversation. "
@@ -487,7 +489,8 @@ def test_post_conversation_with_local_document_url_in_history(  # pylint: disabl
         f"Today is {formatted_date}.\n\n"
         "Answer in english.\n\n"
         f"{PREVENT_URL_HALLUCINATION_INSTRUCTION}\n\n"
-        f"{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
+        f"{SELF_DOCUMENTATION_SYSTEM_PROMPT}\n\n"
+        f"{CALCULATE_SYSTEM_PROMPT}"
     )
 
     chat_conversation = ChatConversationFactory(

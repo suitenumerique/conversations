@@ -165,7 +165,10 @@ from chat.mcp_servers import DataGouvConnector, enter_mcp_toolsets
 from chat.rate_limiting import get_cooldown_remaining
 from chat.stream_chunks import persist as persist_leftover_chunks
 from chat.tasks import index_conversation_document_task, summarize_conversation_history
+from chat.tools.calculate import calculate_expression
 from chat.tools.descriptions import (
+    CALCULATE_SYSTEM_PROMPT,
+    CALCULATE_TOOL_DESCRIPTION,
     DESCRIBE_TABLES_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
@@ -314,6 +317,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
         self._web_search_tool_registered = False
         self._self_documentation_tool_registered = False
+        self._calculator_tool_registered = False
         self._history_summary = conversation.history_summary.strip() or None
         self._history_summary_checkpoint = max(conversation.history_summary_checkpoint, 0)
         self._presentation_tool_registered = False
@@ -1268,6 +1272,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self._presentation_tool_registered = True
 
+    def _setup_calculator_tool(self) -> None:
+        """Register the arithmetic tool so the model never computes in its head."""
+        if self._calculator_tool_registered:
+            return
+
+        @self.conversation_agent.instructions
+        def calculator_instruction() -> str:
+            """Inject the calculator system prompt."""
+            return CALCULATE_SYSTEM_PROMPT
+
+        self.conversation_agent.tool(
+            name="calculate", retries=2, description=CALCULATE_TOOL_DESCRIPTION
+        )(calculate_expression)
+        self._calculator_tool_registered = True
+
     def _setup_self_documentation_tool(self) -> None:
         """Register a tool exposing static and runtime self-documentation metadata."""
         if self._self_documentation_tool_registered:
@@ -1532,6 +1551,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     ) -> None:
         """Register the tools this turn is allowed to use."""
         self._setup_self_documentation_tool()
+        self._setup_calculator_tool()
         self._setup_presentation_tool()
         self._setup_web_search_tool()
         self._setup_web_search(force_web_search)
