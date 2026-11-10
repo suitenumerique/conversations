@@ -24,6 +24,7 @@ and this project adheres to
 ### Changed
 
 - ♻️(back) split the agent service into turn modules
+- 💬(back) have the spreadsheet prompt use the calculator for ratios
 - 🔊(back) log structured JSON lines in production
 
 ### Fixed
