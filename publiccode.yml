@@ -1,0 +1,83 @@
+publiccodeYmlVersion: "0"
+
+name: Conversations
+applicationSuite: LaSuite
+url: https://github.com/suitenumerique/conversations
+landingURL: https://github.com/suitenumerique/conversations
+logo: src/frontend/apps/conversations/public/assets/icon-assistant.svg
+
+softwareVersion: 0.0.28
+releaseDate: 2026-11-03
+
+platforms:
+  - web
+
+developmentStatus: beta
+softwareType: standalone/web
+
+organisation:
+  name: DINUM
+  uri: https://www.numerique.gouv.fr
+
+fundedBy:
+  - name: Direction interministérielle du numérique (DINUM)
+    uri: https://www.numerique.gouv.fr
+
+intendedAudience:
+  countries:
+    - FR
+
+description:
+  en:
+    localisedName: Conversations
+    shortDescription: "Open source, self-hosted AI chatbot for public services"
+    longDescription: "Conversations is an open source AI chatbot designed to be
+      simple, secure and privacy-friendly. Organizations host it on their own
+      infrastructure to keep control of their data, and connect it to the
+      language models of their choice (OpenAI-compatible APIs, Mistral,
+      Ollama...). It is built with Django, Pydantic AI, React and the Vercel AI
+      SDK, and is part of the La Suite numérique ecosystem of tools for public
+      services."
+    features:
+      - Chat with configurable LLM providers, with streaming responses
+      - Projects with custom instructions
+      - File attachments with document search (RAG)
+      - Spreadsheet (CSV, XLSX) analysis
+      - Optional web search
+      - OIDC authentication
+      - Self-hosted for data sovereignty
+  fr:
+    localisedName: Conversations
+    shortDescription: "Assistant IA open source et auto-hébergé pour les services publics"
+    longDescription: "Conversations est un assistant IA open source conçu pour
+      être simple, sécurisé et respectueux de la vie privée. Les organisations
+      l'hébergent sur leur propre infrastructure pour garder la maîtrise de
+      leurs données, et le connectent aux modèles de langage de leur choix
+      (API compatibles OpenAI, Mistral, Ollama...). Il repose sur Django,
+      Pydantic AI, React et le Vercel AI SDK, et fait partie de l'écosystème
+      La Suite numérique pour les services publics."
+    features:
+      - Discussion avec des fournisseurs de LLM configurables, réponses en streaming
+      - Projets avec instructions personnalisées
+      - Pièces jointes avec recherche documentaire (RAG)
+      - Analyse de tableurs (CSV, XLSX)
+      - Recherche web optionnelle
+      - Authentification OIDC
+      - Auto-hébergement pour la souveraineté des données
+
+legal:
+  license: MIT
+
+maintenance:
+  type: internal
+  contacts:
+    - name: "Arnaud Robin"
+      email: arnaud.robin@numerique.gouv.fr
+      affiliation: DINUM
+
+localisation:
+  localisationReady: true
+  availableLanguages:
+    - en
+    - fr
+    - nl

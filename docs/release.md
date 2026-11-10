@@ -30,6 +30,9 @@ Whenever we are cooking a new release (e.g. `4.18.1`), we should follow the stan
 
       The new images don't exist _yet_: they will be created automatically later in the process.
 
+    - for `publiccode.yml`, update `softwareVersion` (without the "v" prefix) and `releaseDate`
+      (the same date as the new `Changelog` heading).
+
     The backend and frontend versions must match: the frontend compares its own version with
     the one the backend reports, and asks users to reload when they differ.
 
