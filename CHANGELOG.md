@@ -39,6 +39,7 @@ and this project adheres to
 - 🔒️(back) require strong admin passwords and hash them with Argon2
 - 🔒️(back) add a Content-Security-Policy to backend responses
 - ✨(back) read secrets from files
+- ✨(back) add an OpenAI-compatible OCR parser for PDF documents
 
 ### Changed
 
