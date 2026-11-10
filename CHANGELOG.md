@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(back) add a calculator tool for exact arithmetic
+- 💬(front) show a calculating label while the calculator runs
 - ✨(back) make the OIDC roles claim name configurable
 - ✨(back) analyze csv and xlsx attachments with a structured query tool
 
