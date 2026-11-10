@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- 📝(project) add publiccode.yml
 - ✨(back) add a calculator tool for exact arithmetic
 - 💬(front) show a calculating label while the calculator runs
 - ✨(back) make the OIDC roles claim name configurable
