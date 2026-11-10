@@ -10,6 +10,7 @@ and this project adheres to
 
 ### Added
 
+- ✨(front) draw spreadsheet query charts
 - ✨(back) chart spreadsheet query results on request
 - ✨(back) add a calculator tool for exact arithmetic
 - 💬(front) show a calculating label while the calculator runs

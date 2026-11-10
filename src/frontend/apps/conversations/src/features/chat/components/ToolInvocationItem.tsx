@@ -3,10 +3,12 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Box, Loader, Text } from '@/components';
+import { parseTableChart } from '@/features/chat/utils/tableChart';
 
 import ChatBubblesIllustration from '../assets/chat-bubbles-illustration.svg?react';
 
 import { DocumentParsingErrorBox } from './DocumentParsingErrorBox';
+import { TableChart } from './TableChart';
 
 const ConversationResumeLoader = ({ t }: { t: (key: string) => string }) => {
   return (
@@ -64,6 +66,14 @@ export const ToolInvocationItem: React.FC<ToolInvocationItemProps> = ({
 
     // Intentional: success/error outcomes are handled by the modal in Chat.tsx
     return null;
+  }
+
+  if (toolName === 'query_table') {
+    if (toolInvocation.state !== 'output-available') {
+      return null;
+    }
+    const chart = parseTableChart(toolInvocation.output);
+    return chart ? <TableChart chart={chart} /> : null;
   }
 
   if (toolName === 'document_parsing') {

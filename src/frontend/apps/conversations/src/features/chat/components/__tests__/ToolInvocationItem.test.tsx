@@ -1,9 +1,13 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { ToolInvocationItem } from '../ToolInvocationItem';
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: 'en' },
+  }),
 }));
 
 let mockStatusPageUrl: string | undefined = 'https://status.example.com';
@@ -31,9 +35,97 @@ const renderResultError = (kind?: string) =>
     />,
   );
 
+const CHART = {
+  type: 'bar',
+  title: 'Sales per region',
+  labels: ['Nord', '<img src=x onerror=alert(1)>'],
+  series: [{ name: 'montant_sum', values: [1002.5, 4] }],
+  total: 2,
+};
+
+const renderQueryTable = (output: unknown) =>
+  render(
+    <ToolInvocationItem
+      toolInvocation={{
+        type: 'tool-query_table',
+        toolCallId: 'test-id',
+        state: 'output-available',
+        input: {},
+        output,
+      }}
+    />,
+  );
+
 describe('ToolInvocationItem', () => {
   beforeEach(() => {
     mockStatusPageUrl = 'https://status.example.com';
+  });
+
+  describe('query_table', () => {
+    it('shows the chart title and its data on demand', async () => {
+      renderQueryTable({ chart: CHART });
+
+      expect(screen.getByText('Sales per region')).toBeInTheDocument();
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Show data' }));
+
+      const table = screen.getByRole('table');
+      expect(table).toHaveTextContent('montant_sum');
+      expect(table).toHaveTextContent('1,002.5');
+      // Cell text from the file is rendered as text, never as markup.
+      expect(
+        screen.getByText('<img src=x onerror=alert(1)>'),
+      ).toBeInTheDocument();
+      expect(within(table).queryByRole('img')).not.toBeInTheDocument();
+    });
+
+    it('offers to download the chart as an image', () => {
+      renderQueryTable({ chart: CHART });
+
+      expect(
+        screen.getByRole('button', { name: 'Download chart' }),
+      ).toBeInTheDocument();
+    });
+
+    it('says when the chart only covers part of the result', () => {
+      renderQueryTable({ chart: { ...CHART, total: 340 } });
+
+      expect(
+        screen.getByText(
+          'The chart shows the first {{shown}} of {{total}} rows.',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('renders nothing for a result without chart', () => {
+      const { container } = renderQueryTable('| region | count |');
+
+      expect(container).toBeEmptyDOMElement();
+    });
+
+    it('renders nothing for a malformed chart', () => {
+      const { container } = renderQueryTable({
+        chart: { ...CHART, type: 'scatter' },
+      });
+
+      expect(container).toBeEmptyDOMElement();
+    });
+
+    it('renders nothing before the output is available', () => {
+      const { container } = render(
+        <ToolInvocationItem
+          toolInvocation={{
+            type: 'tool-query_table',
+            toolCallId: 'test-id',
+            state: 'input-available',
+            input: {},
+          }}
+        />,
+      );
+
+      expect(container).toBeEmptyDOMElement();
+    });
   });
 
   describe('conversation_resume', () => {
