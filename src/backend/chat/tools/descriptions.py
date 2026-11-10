@@ -215,7 +215,9 @@ Compute an arithmetic expression exactly (decimal arithmetic, no float errors).
 
 Syntax: numbers with '.' as decimal separator and no thousands separator,
 + - * / // % ** and parentheses, functions round(x, digits), abs, sqrt, min, max, sum.
-round() rounds half up. Percent: write the division, e.g. 15 / 240 * 100.
+round() rounds half up. Percentages, written as divisions:
+- 15 % of 240: 15 / 100 * 240
+- 15 as a percent of 240: 15 / 240 * 100
 
 Examples:
 - Variation in percent: round((1250.40 - 980) / 980 * 100, 2)

@@ -26,7 +26,6 @@ and this project adheres to
 - ⬆️(back) upgrade python dependencies and fix CVEs
 - ⬆️(front,mail) upgrade dependencies and fix CVEs
 - ♻️(back) split the agent service into turn modules
-- 💬(back) have the spreadsheet prompt use the calculator for ratios
 - 🔊(back) log structured JSON lines in production
 
 ### Fixed
