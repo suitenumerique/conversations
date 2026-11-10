@@ -12,6 +12,7 @@ and this project adheres to
 
 - ✨(back) read La Suite Docs documents from pasted Docs links
 - 🔊(back) correlate Sentry, Langfuse and logs through the request id
+- 📝(project) add publiccode.yml
 
 ### Changed
 
@@ -629,7 +630,13 @@ and this project adheres to
 
 [unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.29...main
 
+<<<<<<< HEAD
 [0.0.29]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
+||||||| parent of 02cfca86 (📝(project) add publiccode.yml)
+[0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
+=======
+[0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
+> > > > > > > 02cfca86 (📝(project) add publiccode.yml)
 
 [0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.27...v0.0.28
 
