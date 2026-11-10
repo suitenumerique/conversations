@@ -162,9 +162,9 @@ Never estimate or guess values: base every number in your answer on the results
 of query_table. If a query fails, fix it using the error message and retry.
 query_table cannot compute new columns, ratios or percentages, combine conditions
 on different columns with OR, or keep unmatched rows in a join. For a ratio or a
-percentage, query its parts, compute it from them and say that this last step is
-your own calculation. For anything else it cannot do, say so plainly and give the
-parts you could compute.
+percentage, query its parts with query_table, then compute it with the calculate
+tool. For anything else it cannot do, say so plainly and give the parts you could
+compute.
 """
 
 DESCRIBE_TABLES_TOOL_DESCRIPTION = """
