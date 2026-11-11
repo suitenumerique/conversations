@@ -28,7 +28,11 @@ export const useSynchronizedLanguage = () => {
         [language],
       )[0];
 
-      if (user && user.language !== closestBackendLanguage) {
+      if (
+        user &&
+        closestBackendLanguage &&
+        user.language !== closestBackendLanguage
+      ) {
         await updateUser({ id: user.id, language: closestBackendLanguage });
       }
     },
@@ -42,6 +46,7 @@ export const useSynchronizedLanguage = () => {
         [language],
       )[0];
       if (
+        closestFrontendLanguage &&
         i18n.isInitialized &&
         i18n.resolvedLanguage !== closestFrontendLanguage
       ) {
