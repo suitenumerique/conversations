@@ -588,6 +588,34 @@ describe('MessageItem', () => {
       expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
     });
 
+    it('renders a copy button for user messages', async () => {
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={{ ...defaultProps.message, role: 'user' }}
+          />,
+        );
+      });
+
+      expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
+    });
+
+    it('does not render a copy button for user messages without text', async () => {
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={{ ...defaultProps.message, role: 'user', parts: [] }}
+          />,
+        );
+      });
+
+      expect(
+        screen.queryByRole('button', { name: 'Copy' }),
+      ).not.toBeInTheDocument();
+    });
+
     it('hides copy text on mobile', async () => {
       await act(async () => {
         renderWithProviders(<MessageItem {...defaultProps} isMobile={true} />);
@@ -606,6 +634,25 @@ describe('MessageItem', () => {
         renderWithProviders(
           <MessageItem
             {...defaultProps}
+            onCopyToClipboard={onCopyToClipboard}
+          />,
+        );
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Copy' }));
+
+      expect(onCopyToClipboard).toHaveBeenCalledWith('Hello world');
+    });
+
+    it('calls onCopyToClipboard with the prompt text when the user copy button is clicked', async () => {
+      const user = userEvent.setup();
+      const onCopyToClipboard = vi.fn();
+
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={{ ...defaultProps.message, role: 'user' }}
             onCopyToClipboard={onCopyToClipboard}
           />,
         );
