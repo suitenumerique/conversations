@@ -8,6 +8,7 @@ import {
 } from 'ai';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { css } from 'styled-components';
 
 import CheckmarkIcon from '@/assets/icons/uikit-custom/checkmark.svg?react';
 import ClipboardIcon from '@/assets/icons/uikit-custom/clipboard.svg?react';
@@ -233,6 +234,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   onRetry,
   conversationId,
   isSourceOpen,
+  isMobile,
   onCopyToClipboard,
   onOpenSources,
 }) => {
@@ -429,6 +431,24 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   const handleOpenSources = React.useCallback(() => {
     onOpenSources(message.id);
   }, [onOpenSources, message.id]);
+
+  const copyButton = (
+    <Button
+      size="nano"
+      color="neutral"
+      variant="tertiary"
+      onClick={handleCopy}
+      aria-label={isCopied ? t('Copied') : t('Copy')}
+      icon={
+        isCopied ? (
+          <CheckmarkIcon {...chatActionIconProps} />
+        ) : (
+          <ClipboardIcon {...chatActionIconProps} />
+        )
+      }
+      className="c__button--neutral action-chat-button"
+    ></Button>
+  );
 
   return (
     <Box
@@ -683,6 +703,27 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
               </Box>
             )}
         </Box>
+        {message.role === 'user' && hasTextContent && (
+          <Box
+            $direction="row"
+            $justify="flex-end"
+            $margin={{ top: 'tiny' }}
+            $css={css`
+              clear: both;
+              opacity: ${isMobile ? 1 : 0.5};
+              transition: opacity 0.3s cubic-bezier(1, 0, 0, 1);
+              &:hover,
+              &:focus-within {
+                opacity: 1;
+              }
+              @media (prefers-reduced-motion: reduce) {
+                transition: none;
+              }
+            `}
+          >
+            {copyButton}
+          </Box>
+        )}
       </Box>
     </Box>
   );
