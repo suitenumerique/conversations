@@ -7,10 +7,12 @@ import logging
 import freezegun
 import posthog
 import pytest
+from freezegun.api import FakeDate, FakeDatetime
 from httpcore._backends.anyio import AnyIOBackend
 from httpcore._backends.sync import SyncBackend
 from httpcore2._backends.anyio import AnyIOBackend as AnyIOBackend2
 from httpcore2._backends.sync import SyncBackend as SyncBackend2
+from pydantic_core import core_schema
 from rest_framework.test import APIClient
 from urllib3.connectionpool import HTTPConnectionPool
 
@@ -22,6 +24,17 @@ from conversations.observability_settings import ObservabilitySettings
 # already patched, schema generation for its datetime field breaks
 # permanently for the rest of the worker process. Skip scanning langfuse.
 freezegun.configure(extend_ignore_list=["langfuse"])
+# Since pydantic 2.14, a schema built while time is frozen sees freezegun's
+# FakeDatetime/FakeDate (the patched module attributes) and no longer maps
+# them to the datetime/date schemas (pydantic/pydantic#14055, won't fix).
+# Lazily built schemas (pydantic_ai's message adapters, ...) then fail inside
+# frozen tests. Give the fakes their schemas explicitly.
+FakeDatetime.__get_pydantic_core_schema__ = classmethod(
+    lambda cls, source, handler: core_schema.datetime_schema()
+)
+FakeDate.__get_pydantic_core_schema__ = classmethod(
+    lambda cls, source, handler: core_schema.date_schema()
+)
 
 
 @pytest.fixture(name="json_logs")
