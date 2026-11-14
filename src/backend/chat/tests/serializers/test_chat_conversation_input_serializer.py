@@ -127,7 +127,7 @@ def test_chat_conversation_input_serializer_invalid_role():
             ),
             "type": ErrorDetail(string="literal_error", code="invalid"),
             "url": ErrorDetail(
-                string="https://errors.pydantic.dev/2.13/v/literal_error", code="invalid"
+                string="https://errors.pydantic.dev/2.14/v/literal_error", code="invalid"
             ),
         }
     ]
@@ -165,7 +165,7 @@ def test_chat_conversation_input_serializer_invalid_created_at():
             ),
             "type": ErrorDetail(string="datetime_from_date_parsing", code="invalid"),
             "url": ErrorDetail(
-                string="https://errors.pydantic.dev/2.13/v/datetime_from_date_parsing",
+                string="https://errors.pydantic.dev/2.14/v/datetime_from_date_parsing",
                 code="invalid",
             ),
         }
@@ -277,7 +277,7 @@ def test_chat_conversation_input_serializer_missing_id():
                 "content": ErrorDetail(string="Hello", code="invalid"),
                 "createdAt": ErrorDetail(string="2025-07-03T15:22:17.105Z", code="invalid"),
             },
-            "url": ErrorDetail(string="https://errors.pydantic.dev/2.13/v/missing", code="invalid"),
+            "url": ErrorDetail(string="https://errors.pydantic.dev/2.14/v/missing", code="invalid"),
         }
     ]
 
