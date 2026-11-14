@@ -23,6 +23,7 @@ and this project adheres to
 
 ### Changed
 
+- ⬆️(front,mail) upgrade dependencies and fix CVEs
 - ♻️(back) split the agent service into turn modules
 - 🔊(back) log structured JSON lines in production
 

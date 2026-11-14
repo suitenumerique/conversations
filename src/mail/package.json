@@ -8,7 +8,7 @@
   },
   "resolutions": {
     "lodash": "4.18.1",
-    "brace-expansion": "^2.1.4"
+    "brace-expansion": "^2.1.7"
   },
   "private": true,
   "scripts": {
