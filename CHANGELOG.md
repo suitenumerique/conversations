@@ -24,6 +24,7 @@ and this project adheres to
 ### Changed
 
 - ⬆️(back) upgrade python dependencies and fix CVEs
+- ⬆️(front,mail) upgrade dependencies and fix CVEs
 - ♻️(back) split the agent service into turn modules
 - 🔊(back) log structured JSON lines in production
 
