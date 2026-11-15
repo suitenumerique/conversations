@@ -8,6 +8,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.0.29] - 2026-11-15
+
 ### Added
 
 - ✨(front) draw spreadsheet query charts
@@ -612,8 +614,9 @@ and this project adheres to
 - 💄(chat) add code highlighting for LLM responses #67
 - 🔧(evals) add run_evals management command
 
-[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.28...main
+[unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.29...main
 
+[0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
 [0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.27...v0.0.28
 
 [0.0.27]: https://github.com/suitenumerique/conversations/compare/v0.0.26...v0.0.27
