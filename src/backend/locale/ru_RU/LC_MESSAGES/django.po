@@ -2,8 +2,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: la-suite-conversations\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-11-03 19:01+0000\n"
-"PO-Revision-Date: 2026-11-03 20:48\n"
+"POT-Creation-Date: 2026-11-10 09:59+0000\n"
+"PO-Revision-Date: 2026-11-15 18:42\n"
 "Last-Translator: \n"
 "Language-Team: Russian\n"
 "Language: ru_RU\n"
@@ -94,7 +94,7 @@ msgstr "использовано"
 msgid "Number of times this code has been used"
 msgstr "Сколько раз этот код был использован"
 
-#: activation_codes/models.py:64 core/models.py:159 core/models.py:419
+#: activation_codes/models.py:64 core/models.py:159 core/models.py:416
 msgid "active"
 msgstr "активный"
 
@@ -159,15 +159,15 @@ msgstr "запрос на регистрацию пользователя"
 msgid "user registration requests"
 msgstr "запросы на регистрацию пользователя"
 
-#: chat/agent_rag/document_converter/guards.py:61
+#: chat/agent_rag/document_converter/guards.py:62
 msgid "Document expands beyond the allowed size and was rejected."
 msgstr "Документ выходит за рамки допустимого размера и был отклонён."
 
-#: chat/agent_rag/document_converter/guards.py:73
+#: chat/agent_rag/document_converter/guards.py:74
 msgid "Document has a suspicious compression ratio and was rejected."
 msgstr "Документ имеет сомнительный коэффициент сжатия и был отклонён."
 
-#: chat/agent_rag/document_converter/guards.py:98
+#: chat/agent_rag/document_converter/guards.py:99
 msgid "Document has too many pages and was rejected."
 msgstr "Документ содержит слишком много страниц и был отклонён."
 
@@ -204,16 +204,16 @@ msgstr "Служба недоступна"
 msgid "The service is currently unavailable due to excessive load. The team is working to restore the Assistant as quickly as possible."
 msgstr "В настоящее время сервис недоступен из-за чрезмерной нагрузки. Команда работает над скорейшим восстановлением работы Помощника."
 
-#: chat/clients/pydantic_ai.py:1960
+#: chat/clients/pydantic_ai.py:1318
 msgid "Internal Documentation of the AI Assistant"
 msgstr "Внутренняя документация ИИ помощника"
 
-#: chat/views/attachments.py:305
+#: chat/views/attachments.py:308
 #, python-format
 msgid "This project already has the maximum of %(cap)d images. Remove one before uploading another."
 msgstr "В этом проекте уже больше %(cap)d изображений. Удалите одно перед загрузкой другого."
 
-#: chat/views/attachments.py:321
+#: chat/views/attachments.py:324
 #, python-format
 msgid "This project already has the maximum of %(cap)d files. Remove one before uploading another."
 msgstr "В этом проекте уже больше %(cap)d файлов. Удалите один перед загрузкой другого."
@@ -475,43 +475,43 @@ msgstr "Закончится в"
 msgid "If set, maintenance is inactive after this date."
 msgstr "Если установлено, обслуживание неактивно после этой даты."
 
-#: core/models.py:360
+#: core/models.py:357
 msgid "Maintenance Mode"
 msgstr "Режим обслуживания"
 
-#: core/models.py:414
+#: core/models.py:411
 msgid "email address"
 msgstr "адрес электронной почты"
 
-#: core/models.py:416
+#: core/models.py:413
 msgid "email address allowed to bypass the role requirement"
 msgstr "адрес электронной почты, которому разрешено обходить требование роли"
 
-#: core/models.py:421
+#: core/models.py:418
 msgid "inactive entries are ignored without being deleted"
 msgstr "неактивные записи игнорируются без их удаления"
 
-#: core/models.py:424
+#: core/models.py:421
 msgid "note"
 msgstr "примечание"
 
-#: core/models.py:426
+#: core/models.py:423
 msgid "optional reason for granting this bypass"
 msgstr "необязательная причина предоставления этого обхода"
 
-#: core/models.py:429
+#: core/models.py:426
 msgid "expires on"
 msgstr "истекает"
 
-#: core/models.py:432
+#: core/models.py:429
 msgid "optional date after which this bypass no longer applies"
 msgstr "необязательная дата, после которой этот обход больше не применяется"
 
-#: core/models.py:437
+#: core/models.py:434
 msgid "access bypass email"
 msgstr "эл. адрес обходного доступа"
 
-#: core/models.py:438
+#: core/models.py:435
 msgid "access bypass emails"
 msgstr "эл. почта для доступа с обходом"
 
