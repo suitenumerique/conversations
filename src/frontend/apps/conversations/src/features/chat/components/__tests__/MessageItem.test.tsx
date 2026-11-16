@@ -662,6 +662,54 @@ describe('MessageItem', () => {
 
       expect(onCopyToClipboard).toHaveBeenCalledWith('Hello world');
     });
+
+    it('excludes the screen-reader label from the copied HTML', async () => {
+      const user = userEvent.setup();
+      const writeMock = vi.fn().mockResolvedValue(undefined);
+      const captured: Record<string, Blob> = {};
+      const win = window as unknown as Record<string, unknown>;
+      const clipboardDescriptor = Object.getOwnPropertyDescriptor(
+        navigator,
+        'clipboard',
+      );
+
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { write: writeMock },
+        configurable: true,
+      });
+      win['ClipboardItem'] = class {
+        constructor(data: Record<string, Blob>) {
+          Object.assign(captured, data);
+        }
+      };
+
+      try {
+        await act(async () => {
+          renderWithProviders(
+            <MessageItem
+              {...defaultProps}
+              message={{ ...defaultProps.message, role: 'user' }}
+              onCopyToClipboard={vi.fn()}
+            />,
+          );
+        });
+
+        await user.click(screen.getByRole('button', { name: 'Copy' }));
+
+        expect(writeMock).toHaveBeenCalledTimes(1);
+        expect(await captured['text/plain']?.text()).toBe('Hello world');
+        const html = await captured['text/html']?.text();
+        expect(html).toContain('Hello world');
+        expect(html).not.toContain('You said');
+      } finally {
+        if (clipboardDescriptor) {
+          Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+        } else {
+          delete (navigator as unknown as Record<string, unknown>)['clipboard'];
+        }
+        delete win['ClipboardItem'];
+      }
+    });
   });
 
   describe('streaming state', () => {

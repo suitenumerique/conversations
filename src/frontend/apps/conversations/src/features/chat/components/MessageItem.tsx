@@ -488,34 +488,38 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
         >
           {/* Message content */}
           {textContent && (
-            <Box
-              ref={contentRef}
-              className="mainContent-chat"
-              data-testid={
-                message.role === 'assistant'
-                  ? 'assistant-message-content'
-                  : undefined
-              }
-            >
+            <>
+              {/* Kept outside the copied subtree so rich-text pastes don't
+                  include the accessibility label. */}
               <p className="sr-only">
                 {message.role === 'user'
                   ? t('You said: ')
                   : t('Assistant IA replied: ')}
               </p>
-              {message.role === 'user' ? (
-                <Text
-                  as="p"
-                  $css="white-space: pre-wrap; display: block;"
-                  $theme="greyscale"
-                  $variation="850"
-                >
-                  {textContent}
-                </Text>
-              ) : (
-                // Render completed blocks as markdown, pending block as plain text
-                <BlocksList blocks={completedBlocks} pending={pending} />
-              )}
-            </Box>
+              <Box
+                ref={contentRef}
+                className="mainContent-chat"
+                data-testid={
+                  message.role === 'assistant'
+                    ? 'assistant-message-content'
+                    : undefined
+                }
+              >
+                {message.role === 'user' ? (
+                  <Text
+                    as="p"
+                    $css="white-space: pre-wrap; display: block;"
+                    $theme="greyscale"
+                    $variation="850"
+                  >
+                    {textContent}
+                  </Text>
+                ) : (
+                  // Render completed blocks as markdown, pending block as plain text
+                  <BlocksList blocks={completedBlocks} pending={pending} />
+                )}
+              </Box>
+            </>
           )}
 
           <Box $direction="column" $gap="2">
