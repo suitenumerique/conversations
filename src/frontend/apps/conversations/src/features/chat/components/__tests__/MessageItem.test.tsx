@@ -701,6 +701,7 @@ describe('MessageItem', () => {
         const html = await captured['text/html']?.text();
         expect(html).toContain('Hello world');
         expect(html).not.toContain('You said');
+        expect(html).toContain('pre-wrap');
       } finally {
         if (clipboardDescriptor) {
           Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);

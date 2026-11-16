@@ -509,6 +509,9 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   <Text
                     as="p"
                     $css="white-space: pre-wrap; display: block;"
+                    // Inline so the whitespace rule survives rich-text copy:
+                    // clipboard HTML carries no stylesheet.
+                    style={{ whiteSpace: 'pre-wrap' }}
                     $theme="greyscale"
                     $variation="850"
                   >
