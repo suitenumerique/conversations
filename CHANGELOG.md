@@ -12,6 +12,10 @@ and this project adheres to
 
 - ✨(back) read La Suite Docs documents from pasted Docs links
 
+### Fixed
+
+- 🔒️(back) match emails ignoring the ASCII case only
+
 ## [0.0.29] - 2026-11-15
 
 ### Added
@@ -621,6 +625,7 @@ and this project adheres to
 [unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.29...main
 
 [0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
+
 [0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.27...v0.0.28
 
 [0.0.27]: https://github.com/suitenumerique/conversations/compare/v0.0.26...v0.0.27

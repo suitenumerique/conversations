@@ -11,7 +11,7 @@ from lasuite.oidc_login.backends import (
 )
 
 from core.brevo import add_user_to_brevo_list
-from core.models import AccessBypassEmail, DuplicateEmailError
+from core.models import AccessBypassEmail, DuplicateEmailError, normalize_email
 
 logger = structlog.get_logger(__name__)
 
@@ -104,6 +104,16 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
             return self.UserModel.objects.get_user_by_sub_or_email(sub, email)
         except DuplicateEmailError as err:
             raise SuspiciousOperation(err.message) from err
+
+    def update_user_if_needed(self, user, claims):
+        """Compare the email claim in its stored form.
+
+        Stored emails are normalized, so an identity provider sending another ASCII
+        case would otherwise rewrite the email on every login.
+        """
+        if claims.get("email"):
+            claims = claims | {"email": normalize_email(claims["email"])}
+        super().update_user_if_needed(user, claims)
 
     def create_user(self, claims):
         """
