@@ -15,7 +15,7 @@ and this project adheres to
 ### Changed
 
 - 🔨(project) bump backend, publiccode and changelog on release
- 
+
 ### Fixed
 
 - 🔒️(back) match emails ignoring the ASCII case only
@@ -628,7 +628,7 @@ and this project adheres to
 
 [unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.29...main
 
-[0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
+[0.0.29]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
 
 [0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.27...v0.0.28
 
