@@ -28,13 +28,13 @@ from core.feature_flags.flags import FeatureToggle
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService, DocumentParsingResult
 from chat.clients.schema import ImagePostRunActions
-from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
-from chat.llm_configuration import LLModel, LLMProvider
-from chat.mcp_servers import (
+from chat.connectors import (
     ConnectorToolset,
     DataGouvConnector,
     is_connector_unreachable,
 )
+from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
+from chat.llm_configuration import LLModel, LLMProvider
 from chat.turn.event_mapper import TurnEventMapper
 from chat.turn.prompt import TurnInputs
 
@@ -269,7 +269,7 @@ async def _build_service(settings, url, in_project=False, init_timeout=5.0, read
 async def _run_with_connector(service, prompt):
     """Run the agent the way _run_agent does: connector toolsets passed per turn."""
     async with AsyncExitStack() as stack:
-        toolsets = await service._enter_datagouv_toolsets(stack, force_datagouv=False)
+        toolsets = await service._enter_connector_toolsets(stack, set())
         with service.conversation_agent.override(model=TestModel(), deps=service._context_deps):
             return await service.conversation_agent.run(prompt, toolsets=toolsets)
 
@@ -301,7 +301,7 @@ async def test_connector_instruction_reaches_the_model(settings, mcp_server_url)
 
     result = await _run_with_connector(service, "Hello.")
 
-    assert service._datagouv.instruction() in result.all_messages()[0].instructions
+    assert service._connectors["datagouv"].instruction() in result.all_messages()[0].instructions
 
 
 @pytest.mark.asyncio
@@ -325,7 +325,7 @@ async def test_unreachable_connector_does_not_cost_the_turn(settings, caplog):
     assert [
         record
         for record in caplog.records
-        if record.name == "chat.mcp_servers"
+        if record.name == "chat.connectors.toolset"
         and record.levelname == "WARNING"
         and record.msg["connector_id"] == DataGouvConnector.connector_id
     ]
@@ -454,7 +454,7 @@ async def test_connector_that_accepts_and_stalls_does_not_cost_the_turn(settings
         result = await _run_with_connector(service, "Hello.")
 
         assert result.output
-        assert [r for r in caplog.records if r.name == "chat.mcp_servers"]
+        assert [r for r in caplog.records if r.name == "chat.connectors.toolset"]
     finally:
         listener.close()
 
@@ -478,7 +478,7 @@ async def test_stalled_tool_call_is_cut_off_at_the_read_timeout(settings, stalli
     # The wrapper is only useful if it is actually on the call path: pydantic-ai
     # dispatches through PrefixedToolset, which rewrites the tool's toolset, so
     # this pins that a real failed call still reaches ConnectorToolset.
-    assert service._datagouv.call_failed is True
+    assert service._connectors["datagouv"].call_failed is True
 
 
 @pytest.mark.asyncio
@@ -493,7 +493,7 @@ async def test_a_transport_error_mid_call_does_not_cost_the_turn(settings, mcp_s
         result = await _run_with_connector(service, "Find open data about communes.")
 
     assert result.output
-    assert service._datagouv.call_failed is True
+    assert service._connectors["datagouv"].call_failed is True
 
 
 @pytest.mark.asyncio
@@ -508,4 +508,4 @@ async def test_a_tool_answering_with_an_error_is_not_an_outage(settings, failing
     with contextlib.suppress(UnexpectedModelBehavior):
         await _run_with_connector(service, "Find open data about communes.")
 
-    assert service._datagouv.call_failed is False
+    assert service._connectors["datagouv"].call_failed is False

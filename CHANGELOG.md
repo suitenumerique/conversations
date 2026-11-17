@@ -8,6 +8,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- ♻️(back) generalize the data.gouv connector into a registry
+
 ## [0.0.29] - 2026-11-15
 
 ### Added

@@ -145,6 +145,7 @@ from chat.clients.schema import (
     ImagePostRunActions,
     PreparedHistory,
 )
+from chat.connectors import Connector, connectors_for_user, enter_mcp_toolsets
 from chat.constants import (
     ACCESS_FULL_CONTEXT,
     HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS,
@@ -161,7 +162,6 @@ from chat.document_context_builder import (
 )
 from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
-from chat.mcp_servers import DataGouvConnector, enter_mcp_toolsets
 from chat.rate_limiting import get_cooldown_remaining
 from chat.stream_chunks import persist as persist_leftover_chunks
 from chat.tasks import index_conversation_document_task, summarize_conversation_history
@@ -305,7 +305,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             self.user, "presentation_generation"
         )
         self._is_smart_search_enabled = user.allow_smart_web_search
-        self._datagouv = DataGouvConnector.for_user(self.user, conversation.pk)
+        self._connectors = connectors_for_user(self.user, conversation.pk)
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
         self._context_deps = ContextDeps(
@@ -824,7 +824,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         return True
 
-    def _setup_datagouv_instruction(self) -> None:
+    def _setup_connector_instruction(self, connector: Connector) -> None:
         """Tell the model a forced connector could not be reached.
 
         Only called on a forced turn whose connection failed: whenever the tools
@@ -833,48 +833,49 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
 
         @self.conversation_agent.instructions
-        def datagouv_prompt() -> str:
+        def connector_prompt() -> str:
             """Dynamic system prompt function for the unreachable forced connector."""
-            return self._datagouv.instruction()
+            return connector.instruction()
 
-    async def _enter_datagouv_toolsets(self, stack: AsyncExitStack, force_datagouv: bool):
-        """Record this turn's force, then connect the connector's toolsets.
+    async def _enter_connector_toolsets(self, stack: AsyncExitStack, forced_ids: set[str]):
+        """Record this turn's forces, then connect each connector's toolsets.
 
-        The force is recorded first because it stands in for the opt-in: it
-        decides whether there are toolsets to connect at all.
+        Each force is recorded first because it stands in for the opt-in: it
+        decides whether there are toolsets to connect at all. Each connector
+        carries its own connection budget from its spec.
         """
-        if force_datagouv:
-            self._datagouv.force()
+        entered = []
+        for connector in self._connectors.values():
+            if connector.spec.connector_id in forced_ids:
+                connector.force()
+            entered.extend(
+                await enter_mcp_toolsets(
+                    stack,
+                    connector.toolsets(),
+                    timeout=connector.init_timeout,
+                )
+            )
+        return entered
 
-        return await enter_mcp_toolsets(
-            stack,
-            self._datagouv.toolsets(),
-            # `0` means no limit, which asyncio.timeout spells as None.
-            timeout=settings.DATAGOUV_CONNECTOR_INIT_TIMEOUT or None,
-        )
-
-    async def _settle_datagouv(self, connected: bool):
-        """Report a forced connector this turn, once it is entered.
+    async def _settle_connectors(self, entered):
+        """Report each forced connector this turn, once all are entered.
 
         A forced turn is reported whatever came of it. An unforced turn needs
         nothing here: connected tools bring their own instruction, and a
         connector that failed silently stays silent.
         """
-        # False when the gates denied the force, which stays silent by design.
-        if self._datagouv.forced:
-            async for event in self._report_forced_datagouv(connected):
+        connected_ids = {getattr(toolset, "prefix", "unknown") for toolset in entered}
+        for connector in self._connectors.values():
+            # False when the gates denied the force, which stays silent by design.
+            if not connector.forced:
+                continue
+            async for event in self._report_forced_connector(
+                connector, connector.spec.connector_id in connected_ids
+            ):
                 yield event
 
-    async def _report_forced_datagouv(self, connected: bool):
-        """Settle a forced connector: instruct the model, and tell the user."""
-        self._datagouv.mark_connected(connected)
-        if not connected:
-            self._setup_datagouv_instruction()
-        async for event in self._report_forced_connector(connected):
-            yield event
-
-    async def _report_forced_connector(self, connected: bool):
-        """Record a forced connector, and tell the UI when it was missing.
+    async def _report_forced_connector(self, connector: Connector, connected: bool):
+        """Settle a forced connector: instruct the model, and tell the user.
 
         Button usage is the adoption signal the Settings opt-in cannot give:
         standing consent says a user is willing, forcing says they reached for
@@ -882,15 +883,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         whether we got through, not `available`, which is the standing state of
         the connector for this user.
         """
+        connector.mark_connected(connected)
+        if not connected:
+            self._setup_connector_instruction(connector)
         await acapture_event(
             "connector_forced",
             self.user.pk,
-            properties={"connector_id": self._datagouv.connector_id, "reachable": connected},
+            properties={
+                "connector_id": connector.spec.connector_id,
+                "reachable": connected,
+            },
         )
         if connected:
             return
 
-        yield connector_unavailable_notice()
+        yield connector_unavailable_notice(connector.spec.connector_id)
 
     async def _check_should_enable_rag(self, conversation_has_own_documents: bool) -> bool:
         """Check if RAG should be enabled based on actually-indexed documents.
@@ -1659,9 +1666,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         to `_finalize_conversation`.
         """
         async with AsyncExitStack() as stack:
-            mcp_toolsets = await self._enter_datagouv_toolsets(stack, force_datagouv)
+            # The public turn API still names the one forceable connector; a
+            # future `force_connectors: list[str]` generalizes this translation.
+            forced_ids = {"datagouv"} if force_datagouv else set()
+            mcp_toolsets = await self._enter_connector_toolsets(stack, forced_ids)
 
-            async for event in self._settle_datagouv(connected=bool(mcp_toolsets)):
+            async for event in self._settle_connectors(mcp_toolsets):
                 yield event
 
             append_filler_after_dangling_request(history)
@@ -1700,7 +1710,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     model_configuration=self.conversation_agent.configuration,
                     supports_streaming=self._support_streaming,
                     fake_streaming_delay=self._fake_streaming_delay,
-                    datagouv=self._datagouv,
+                    connectors=list(self._connectors.values()),
                 )
                 try:
                     async for event in mapper.events(run):

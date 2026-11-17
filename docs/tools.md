@@ -244,11 +244,12 @@ three of these hold:
 | The user is in the beta cohort | `FEATURE_FLAG_DATAGOUV_CONNECTOR` |
 | The user allowed it | `User.allow_datagouv_connector` (off by default), **or** the user forced the connector for that turn from the chat box |
 
-`DataGouvConnector` in `chat/mcp_servers.py` holds all three. The first two are
-turn-independent and answered once per request as `enabled`; adding the third
-gives `available`: a connector the user has actually consented to. The third
-depends on the turn, because forcing stands in for the opt-in — which is why
-`toolsets()` asks for `available or forced` rather than `available` alone. A force never satisfies the first two: it is consent,
+`Connector` in `chat/connectors/` holds all three, driven by its `ConnectorSpec`.
+The first two are turn-independent and answered once per request as `enabled`;
+adding the third gives `available`: a connector the user has actually consented
+to. The third depends on the turn, because forcing stands in for the opt-in —
+which is why `toolsets()` asks for `available or forced` rather than `available`
+alone. A force never satisfies the first two: it is consent,
 not configuration, and one the gates deny is logged and dropped.
 
 Two settings bound how long a connector may hold a turn.
@@ -331,6 +332,22 @@ Two PostHog events measure the connector: `connector_toggled` (`connector_id`,
 is the connector's outage rate. It is deliberately not called `available`: that
 word means the standing state of the connector for a user, not whether this turn
 got through.
+
+### Adding a connector
+
+A new connector is a new `ConnectorSpec` plus its gates — no new state machine:
+
+1. Declare the spec in `chat/connectors/` (see `datagouv.py` for the pattern):
+   id, settings names, cohort flag, `User` opt-in attribute, outage message and
+   the three instruction wordings. Register the class in `CONNECTOR_CLASSES` in
+   `chat/connectors/registry.py`.
+2. Configure the deployment: `<ID>_CONNECTOR_URL` and timeouts in
+   `conversations/settings.py`, documented in `docs/env.md`.
+3. Gate the cohort: an `<id>_connector` toggle in `core/feature_flags/flags.py`.
+4. Record consent: an `allow_<id>_connector` boolean on `User` (migration,
+   admin, `UserSerializer`, Settings toggle). The chat-box force and its menu
+   entry follow the `force_datagouv` pattern until the turn API goes generic
+   (`force_connectors`).
 
 ### Trust boundary
 

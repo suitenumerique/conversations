@@ -16,7 +16,7 @@ from core import models, permissions
 from core.analytics import capture_event
 from core.middleware import is_maintenance_active
 
-from chat.mcp_servers import DataGouvConnector
+from chat.connectors import DataGouvConnector
 
 from . import serializers
 
