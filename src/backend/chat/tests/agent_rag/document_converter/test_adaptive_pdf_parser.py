@@ -4,6 +4,8 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from django.core.exceptions import ImproperlyConfigured
+
 import httpx
 import pytest
 from pypdf import PdfReader
@@ -142,6 +144,14 @@ def test_extract_page_batch_last_batch(text_pdf_10_pages):
 
     result_reader = PdfReader(BytesIO(result))
     assert len(result_reader.pages) == 3
+
+
+def test_init_without_provider_raises_improperly_configured(settings):
+    """A model without provider (e.g. 'mistral:...') must fail with a clear config error."""
+    settings.LLM_CONFIGURATIONS = {"test-ocr-hrid": MagicMock(provider=None)}
+
+    with pytest.raises(ImproperlyConfigured, match="test-ocr-hrid"):
+        AdaptivePdfParser()
 
 
 def test_ocr_page_batch_success(text_pdf_1_page):

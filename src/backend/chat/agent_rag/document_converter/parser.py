@@ -8,6 +8,7 @@ from io import BytesIO
 from urllib.parse import urljoin, urlsplit
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 
 import httpx
 import structlog
@@ -202,6 +203,11 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
         super().__init__()
 
         provider = settings.LLM_CONFIGURATIONS[settings.OCR_HRID].provider
+        if provider is None:
+            raise ImproperlyConfigured(
+                f"OCR model '{settings.OCR_HRID}' has no provider. "
+                "Set 'provider_name' or 'provider' for the OCR_HRID model in the LLM configuration."
+            )
         self.endpoint = self.build_ocr_endpoint(provider.base_url)
         self.max_retries = settings.OCR_MAX_RETRIES
         self.retry_delay = settings.OCR_RETRY_DELAY
