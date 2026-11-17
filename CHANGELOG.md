@@ -11,6 +11,7 @@ and this project adheres to
 ### Added
 
 - ✨(back) read La Suite Docs documents from pasted Docs links
+- 🔊(back) correlate Sentry, Langfuse and logs through the request id
 
 ### Changed
 

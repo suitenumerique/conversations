@@ -267,13 +267,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # Finish reason of the last model response, recorded by the truncation hook.
     _last_finish_reason: FinishReason | None = None
 
-    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
         self,
         conversation: models.ChatConversation,
         user,
         session=None,
         model_hrid=None,
         language=None,
+        *,
+        trace_id=None,
     ):
         """
         Initialize the AI agent service.
@@ -281,6 +283,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         Args:
             conversation: The chat conversation instance
             user: The authenticated user instance, only used for dynamic feature flags
+            trace_id: The Langfuse trace id of the turn, Langfuse generates one if None
         """
         self.conversation = conversation
         self.user = user  # authenticated user only
@@ -295,6 +298,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._langfuse_available = settings.LANGFUSE_ENABLED
         self._store_analytics = self._langfuse_available and user.allow_conversation_analytics
         self._langfuse_span = None
+        self._trace_id = trace_id
         self.event_encoder = EventEncoder(CURRENT_EVENT_ENCODER_VERSION)
         # Id of the assistant message of the current stream, announced to the
         # client in the `start` frame and persisted with the message. Set per
@@ -483,7 +487,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     )
                 )
                 self._langfuse_span = stack.enter_context(
-                    get_client().start_as_current_observation(name="conversation", as_type="span")
+                    get_client().start_as_current_observation(
+                        name="conversation",
+                        as_type="span",
+                        trace_context={"trace_id": self._trace_id} if self._trace_id else None,
+                    )
                 )
 
             self._model_response_message_id = self._new_model_response_message_id()

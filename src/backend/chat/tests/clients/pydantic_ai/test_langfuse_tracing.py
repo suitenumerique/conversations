@@ -1,7 +1,13 @@
 """Unit tests for Langfuse tracing in AIAgentService."""
 
+import asyncio
+import json
+
+from django.test import AsyncClient
+
 import pytest
 import responses
+import sentry_sdk
 from asgiref.sync import sync_to_async
 from langfuse import Langfuse
 from langfuse._client.resource_manager import LangfuseResourceManager
@@ -294,3 +300,59 @@ def test_store_analytics_flag_when_langfuse_disabled():
     service = AIAgentService(conversation, user=user)
     assert service._langfuse_available is False
     assert service._store_analytics is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db(transaction=True)
+@responses.activate
+async def test_a_turn_error_in_sentry_names_its_langfuse_trace(
+    settings, monkeypatch, langfuse_client, sentry_events
+):
+    """Sentry tags the error with the request id, which is the turn's Langfuse trace id.
+
+    Emulates Django's ASGI handler, which serves the response from a child task:
+    the error surfaces in its parent, where Sentry captures it.
+    """
+    settings.LANGFUSE_ENABLED = True
+    monkeypatch.setenv("PYTHON_SERVER_MODE", "async")
+    responses.add(responses.POST, "https://langfuse.example.com/api/public/otel/v1/traces")
+
+    async def failing_run(*_args, **_kwargs):
+        raise RuntimeError("agent bug")
+        yield  # pylint: disable=unreachable
+
+    monkeypatch.setattr(AIAgentService, "_run_agent", failing_run)
+    conversation = await sync_to_async(ChatConversationFactory)(owner__language="en-us")
+    client = AsyncClient()
+    await client.aforce_login(conversation.owner)
+    request_id = "634ab47a476a56b0d7d0503950605134"
+    chunks = []
+
+    async def serve():
+        response = await client.post(
+            f"/api/v1.0/chats/{conversation.pk}/conversation/",
+            {
+                "messages": [
+                    {"id": "m-1", "role": "user", "parts": [{"type": "text", "text": "Hi"}]}
+                ]
+            },
+            content_type="application/json",
+            headers={"X-Request-ID": request_id},
+        )
+        async for chunk in response.streaming_content:
+            chunks.append(chunk)
+
+    with sentry_sdk.isolation_scope():
+        try:
+            await asyncio.create_task(serve())
+        except RuntimeError as exc:
+            sentry_sdk.capture_exception(exc)
+
+    # The other event is django-structlog's `streaming_failed` line, ignored in production
+    [event] = [event for event in sentry_events if "logentry" not in event]
+    assert event["tags"]["request_id"] == request_id
+    assert event["tags"]["conversation_id"] == str(conversation.pk)
+    start = json.loads(chunks[0].decode().removeprefix("data: "))
+    assert start["messageId"] == f"trace-{request_id}"
+    langfuse_client.flush()
+    assert bytes.fromhex(request_id) in responses.calls[0].request.body
