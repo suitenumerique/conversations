@@ -470,7 +470,9 @@ When a user sends a message with attachments, the system processes them differen
            "model_name": "lightonocr-3-0.8b",
            "human_readable_name": "Scaleway OCR",
            "provider_name": "scaleway",
-           "is_active": false
+           "is_active": false,
+           "system_prompt": "",
+           "tools": []
          }
        ],
        "providers": [
