@@ -56,10 +56,14 @@ def ai_settings(settings):
     return settings
 
 
-def _chat_completion_response(content):
+def _chat_completion_response(content, finish_reason="stop"):
     """Build a mocked successful chat completions response."""
     return MagicMock(
-        json=MagicMock(return_value={"choices": [{"message": {"content": content}}]}),
+        json=MagicMock(
+            return_value={
+                "choices": [{"message": {"content": content}, "finish_reason": finish_reason}]
+            }
+        ),
         raise_for_status=MagicMock(),
     )
 
@@ -262,3 +266,36 @@ def test_ocr_page_batch_strips_enclosing_code_fences(text_pdf_1_page):
         result = parser.ocr_page_batch("test.pdf", text_pdf_1_page, 0, 1)
 
     assert result == ["# Page 1"]
+
+
+def test_ocr_page_batch_warns_when_output_is_truncated(text_pdf_1_page):
+    """A batch cut by the model output limit should be logged with its page range."""
+    parser = OpenAICompatibleOcrParser()
+
+    with (
+        patch("chat.agent_rag.document_converter.parser.httpx.post") as mock_post,
+        patch("chat.agent_rag.document_converter.parser.logger") as mock_logger,
+    ):
+        mock_post.return_value = _chat_completion_response("# Page 1", finish_reason="length")
+
+        result = parser.ocr_page_batch("test.pdf", text_pdf_1_page, 0, 1)
+
+    assert result == ["# Page 1"]
+    mock_logger.warning.assert_called_once_with(
+        "ocr_batch_truncated", first_page=1, last_page=1, model="lightonocr-3-0.8b"
+    )
+
+
+def test_ocr_page_batch_does_not_warn_when_output_is_complete(text_pdf_1_page):
+    """A batch the model finished normally should not be logged as truncated."""
+    parser = OpenAICompatibleOcrParser()
+
+    with (
+        patch("chat.agent_rag.document_converter.parser.httpx.post") as mock_post,
+        patch("chat.agent_rag.document_converter.parser.logger") as mock_logger,
+    ):
+        mock_post.return_value = _chat_completion_response("# Page 1")
+
+        parser.ocr_page_batch("test.pdf", text_pdf_1_page, 0, 1)
+
+    mock_logger.warning.assert_not_called()
