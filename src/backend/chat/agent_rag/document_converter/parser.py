@@ -245,7 +245,9 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
             "model": settings.OCR_MODEL,
         }
 
-    def extract_ocr_markdown(self, response_data: dict) -> list[str]:
+    def extract_ocr_markdown(
+        self, response_data: dict, start_index: int, end_index: int
+    ) -> list[str]:
         """Extract the markdown of each page from a Mistral OCR API response."""
         return [page.get("markdown", "") for page in response_data.get("pages", [])]
 
@@ -270,7 +272,7 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
                 )
                 response.raise_for_status()
 
-                return self.extract_ocr_markdown(response.json())
+                return self.extract_ocr_markdown(response.json(), start_index, end_index)
 
             except httpx.HTTPError as e:
                 last_exception = e
@@ -411,10 +413,20 @@ class OpenAICompatibleOcrParser(AdaptivePdfParser):
             "stream": False,
         }
 
-    def extract_ocr_markdown(self, response_data: dict) -> list[str]:
+    def extract_ocr_markdown(
+        self, response_data: dict, start_index: int, end_index: int
+    ) -> list[str]:
         """Extract the markdown of the whole batch from a chat completions response."""
         choices = response_data.get("choices") or []
         if not choices:
             return [""]
+        if choices[0].get("finish_reason") == "length":
+            # The model hit its output limit: the batch markdown is truncated
+            logger.warning(
+                "ocr_batch_truncated",
+                first_page=start_index + 1,
+                last_page=end_index,
+                model=settings.OCR_MODEL,
+            )
         content = choices[0].get("message", {}).get("content") or ""
         return [strip_enclosing_code_fences(content)]
