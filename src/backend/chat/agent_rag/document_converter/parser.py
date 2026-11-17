@@ -249,7 +249,17 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
         self, response_data: dict, start_index: int, end_index: int
     ) -> list[str]:
         """Extract the markdown of each page from a Mistral OCR API response."""
-        return [page.get("markdown", "") for page in response_data.get("pages", [])]
+        pages = [page.get("markdown", "") for page in response_data.get("pages", [])]
+        if len(pages) < end_index - start_index:
+            # Fewer pages than sent: the missing ones would be lost silently
+            logger.warning(
+                "ocr_batch_pages_missing",
+                first_page=start_index + 1,
+                last_page=end_index,
+                pages_returned=len(pages),
+                model=settings.OCR_MODEL,
+            )
+        return pages
 
     def ocr_page_batch(
         self,
