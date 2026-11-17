@@ -12,6 +12,10 @@ and this project adheres to
 
 - ✨(back) read La Suite Docs documents from pasted Docs links
 
+### Changed
+
+- 🔨(project) bump backend, publiccode and changelog on release
+ 
 ### Fixed
 
 - 🔒️(back) match emails ignoring the ASCII case only

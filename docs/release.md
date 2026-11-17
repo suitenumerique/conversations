@@ -7,9 +7,10 @@ Whenever we are cooking a new release (e.g. `4.18.1`), we should follow the stan
 2.  Create a new branch named: `release/4.18.1`.
 3.  Bump the release number for the backend project, the frontend projects, and the Helm files:
 
-    - for the backend, update the `version` line by hand in `src/backend/pyproject.toml` and run `uv lock`,
-    - for the frontend, mail, and others, run `make bump-packages-version VERSION_TYPE=patch`
-      (use `minor` or `major` depending on the release type),
+    - run `make bump-packages-version VERSION_TYPE=patch` (use `minor` or `major` depending on
+      the release type). It bumps the frontend and mail packages, the backend `pyproject.toml`
+      and `uv.lock` (needs `uv` on your machine), `softwareVersion` and `releaseDate` in
+      `publiccode.yml`, and adds the new version heading and compare links to the `Changelog`,
     - for Helm, update the Docker image tag in the files located at `src/helm/env.d` for different
       environments. Only bump files pinned to a version: leave `tag: "latest"` untouched.
 
@@ -33,9 +34,9 @@ Whenever we are cooking a new release (e.g. `4.18.1`), we should follow the stan
     The backend and frontend versions must match: the frontend compares its own version with
     the one the backend reports, and asks users to reload when they differ.
 
-4.  Update the project's `Changelog` following the [keepachangelog](https://keepachangelog.com/en/0.3.0/) recommendations.
-    Move the `[unreleased]` items under a new `[4.18.1]` heading, then edit the bottom of the file
-    following this model:
+4.  Check the project's `Changelog` follows the [keepachangelog](https://keepachangelog.com/en/0.3.0/) recommendations.
+    The bump command moved the `[unreleased]` items under a new `[4.18.1]` heading and edited the
+    bottom of the file following this model:
     ```text
     [unreleased]: https://github.com/suitenumerique/conversations/compare/v4.18.1...main
     [4.18.1]: https://github.com/suitenumerique/conversations/compare/v4.18.0...v4.18.1
