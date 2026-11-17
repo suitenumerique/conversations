@@ -97,7 +97,10 @@ def test_ocr_page_batch_success(text_pdf_1_page):
                 "content": [
                     {
                         "type": "file",
-                        "file": {"file_data": f"data:application/pdf;base64,{file_data}"},
+                        "file": {
+                            "filename": "test.pdf_pages_1_to_1.pdf",
+                            "file_data": f"data:application/pdf;base64,{file_data}",
+                        },
                     }
                 ],
             }

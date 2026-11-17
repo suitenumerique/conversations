@@ -395,7 +395,11 @@ class OpenAICompatibleOcrParser(AdaptivePdfParser):
         content = [
             {
                 "type": "file",
-                "file": {"file_data": f"data:application/pdf;base64,{file_data}"},
+                "file": {
+                    # OpenAI requires a filename alongside file_data
+                    "filename": f"{name}_pages_{start_index + 1}_to_{end_index}.pdf",
+                    "file_data": f"data:application/pdf;base64,{file_data}",
+                },
             }
         ]
         # Dedicated OCR models take the file alone, vision LLMs need an instruction
