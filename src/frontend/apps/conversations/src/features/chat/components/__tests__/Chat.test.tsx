@@ -46,7 +46,7 @@ vi.mock('react-i18next', () => ({
 // The markdown stack is ESM-only and irrelevant here: the assertions are about
 // which messages are on screen, not how their text is rendered.
 vi.mock('react-markdown', () => ({
-  MarkdownHooks: ({ children }: { children: string }) => <div>{children}</div>,
+  default: ({ children }: { children: string }) => <div>{children}</div>,
 }));
 vi.mock('@shikijs/rehype/core', () => ({ default: () => {} }));
 vi.mock('../../utils/shiki', () => ({
