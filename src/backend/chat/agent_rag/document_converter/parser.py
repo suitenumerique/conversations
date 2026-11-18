@@ -1,12 +1,14 @@
 """Document parsers for RAG backends."""
 
 import base64
+import re
 import time
 from abc import ABC, abstractmethod
 from io import BytesIO
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 
 import httpx
 import structlog
@@ -22,6 +24,16 @@ logger = structlog.get_logger(__name__)
 
 CT_PDF = PDF_MIME_TYPE
 CT_ODT = "application/vnd.oasis.opendocument.text"
+
+
+def log_ocr_usage(parser: "BaseParser", endpoint: str) -> None:
+    """Log which OCR is used. Only the host is logged: the path may hold a project id."""
+    logger.info(
+        "ocr_used",
+        parser=type(parser).__name__,
+        host=urlsplit(endpoint).hostname,
+        model=settings.OCR_MODEL,
+    )
 
 
 class BaseParser(ABC):
@@ -73,6 +85,7 @@ class AlbertParser(OdtParserMixin, BaseParser):
 
     def parse_pdf_document(self, name: str, content_type: str, content: bytes) -> str:
         """Parse PDF document using Albert API."""
+        log_ocr_usage(self, self.endpoint)
         file_data = base64.standard_b64encode(content).decode("utf-8")
         response = httpx.post(
             self.endpoint,
@@ -189,17 +202,25 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
     def __init__(self):
         super().__init__()
 
-        self.endpoint = urljoin(
-            settings.LLM_CONFIGURATIONS[settings.OCR_HRID].provider.base_url, "/v1/ocr"
-        )
+        provider = settings.LLM_CONFIGURATIONS[settings.OCR_HRID].provider
+        if provider is None:
+            raise ImproperlyConfigured(
+                f"OCR model '{settings.OCR_HRID}' has no provider. "
+                "Set 'provider_name' or 'provider' for the OCR_HRID model in the LLM configuration."
+            )
+        self.endpoint = self.build_ocr_endpoint(provider.base_url)
         self.max_retries = settings.OCR_MAX_RETRIES
         self.retry_delay = settings.OCR_RETRY_DELAY
-        api_key = settings.LLM_CONFIGURATIONS[settings.OCR_HRID].provider.api_key
+        api_key = provider.api_key
 
         self.headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+
+    def build_ocr_endpoint(self, base_url: str) -> str:
+        """Build the Mistral OCR API URL from the provider base URL."""
+        return urljoin(base_url, "/v1/ocr")
 
     def extract_page_batch(self, reader: PdfReader, start_index: int, end_index: int) -> bytes:
         """Extract a range of pages from PDF as a new PDF bytes object."""
@@ -210,16 +231,12 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
         writer.write(output)
         return output.getvalue()
 
-    def ocr_page_batch(
-        self,
-        name: str,
-        page_content: bytes,
-        start_index: int,
-        end_index: int,
-    ) -> list[str]:
-        """Send page batch to Mistral OCR API with static delay retry."""
+    def build_ocr_payload(
+        self, name: str, page_content: bytes, start_index: int, end_index: int
+    ) -> dict:
+        """Build the Mistral OCR API request body for a page batch."""
         file_data = base64.standard_b64encode(page_content).decode("utf-8")
-        payload = {
+        return {
             "document": {
                 "type": "document_url",
                 "document_name": f"{name}_pages_{start_index + 1}_to_{end_index}",
@@ -227,6 +244,32 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
             },
             "model": settings.OCR_MODEL,
         }
+
+    def extract_ocr_markdown(
+        self, response_data: dict, start_index: int, end_index: int
+    ) -> list[str]:
+        """Extract the markdown of each page from a Mistral OCR API response."""
+        pages = [page.get("markdown", "") for page in response_data.get("pages", [])]
+        if len(pages) < end_index - start_index:
+            # Fewer pages than sent: the missing ones would be lost silently
+            logger.warning(
+                "ocr_batch_pages_missing",
+                first_page=start_index + 1,
+                last_page=end_index,
+                pages_returned=len(pages),
+                model=settings.OCR_MODEL,
+            )
+        return pages
+
+    def ocr_page_batch(
+        self,
+        name: str,
+        page_content: bytes,
+        start_index: int,
+        end_index: int,
+    ) -> list[str]:
+        """Send page batch to the OCR API with static delay retry."""
+        payload = self.build_ocr_payload(name, page_content, start_index, end_index)
 
         last_exception = None
         for attempt in range(self.max_retries):
@@ -239,8 +282,7 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
                 )
                 response.raise_for_status()
 
-                pages = response.json().get("pages", [])
-                return [page.get("markdown", "") for page in pages]
+                return self.extract_ocr_markdown(response.json(), start_index, end_index)
 
             except httpx.HTTPError as e:
                 last_exception = e
@@ -272,6 +314,7 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
         batch_size = settings.OCR_BATCH_PAGES
 
         logger.info("pdf_ocr_started", total_pages=total_pages, batch_size=batch_size)
+        log_ocr_usage(self, self.endpoint)
 
         results = []
         for start_index in range(0, total_pages, batch_size):
@@ -295,3 +338,105 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
                 )
                 results.extend([""] * (end_index - start_index))
         return "\n\n".join(results)
+
+
+OCR_WRAPPING_FENCE_LANGUAGES = {"", "text", "markdown", "md"}
+OCR_OPENING_FENCE = re.compile(r"^ {0,3}(`{3,})([^`]*)$")
+OCR_CLOSING_FENCE = re.compile(r"^ {0,3}(`{3,})\s*$")
+
+
+def strip_enclosing_code_fences(content: str) -> str:
+    """
+    Remove the code fences wrapping the OCR output.
+
+    Chat completions OCR models often answer with ```text ... ``` around the whole
+    output or around each page (the last one sometimes left unclosed), which would turn
+    the document into code blocks. Fences are only removed when the output is made of
+    such blocks separated by blank lines; real code blocks are kept.
+    """
+    kept = []
+    fence_length = 0
+    for line in content.strip().split("\n"):
+        if fence_length:
+            # Per CommonMark, only a bare fence at least as long as the opening one closes it
+            closing = OCR_CLOSING_FENCE.match(line)
+            if closing and len(closing[1]) >= fence_length:
+                fence_length = 0
+            else:
+                kept.append(line)
+        elif line.strip():
+            opening = OCR_OPENING_FENCE.match(line)
+            if not opening or opening[2].strip().lower() not in OCR_WRAPPING_FENCE_LANGUAGES:
+                return content
+            fence_length = len(opening[1])
+        else:
+            kept.append(line)
+    return trim_blank_boundary_lines(kept)
+
+
+def trim_blank_boundary_lines(lines: list[str]) -> str:
+    """Join lines without the leading and trailing blank ones, keeping indentation."""
+    # .strip() on the joined text would also eat the first line's indentation
+    nonblank = [index for index, line in enumerate(lines) if line.strip()]
+    if not nonblank:
+        return ""
+    return "\n".join(lines[nonblank[0] : nonblank[-1] + 1])
+
+
+class OpenAICompatibleOcrParser(AdaptivePdfParser):
+    """
+    PDF parser with adaptive text extraction / OCR routing.
+
+    Uses any OpenAI-compatible chat completions endpoint accepting PDF `file` content
+    parts (e.g. Scaleway Generative APIs OCR models such as lightonocr) for scanned/image
+    PDFs. Each batch is sent as a single PDF file and returns a single markdown string.
+    General-purpose vision models also need an instruction, set with OCR_PROMPT.
+    """
+
+    def build_ocr_endpoint(self, base_url: str) -> str:
+        """Build the chat completions URL from the provider base URL."""
+        # The base URL may hold a path (e.g. https://api.scaleway.ai/<project_id>/v1),
+        # so it must be extended rather than resolved with urljoin.
+        return f"{base_url.rstrip('/')}/chat/completions"
+
+    def build_ocr_payload(
+        self, name: str, page_content: bytes, start_index: int, end_index: int
+    ) -> dict:
+        """Build the chat completions request body for a page batch."""
+        file_data = base64.standard_b64encode(page_content).decode("utf-8")
+        content = [
+            {
+                "type": "file",
+                "file": {
+                    # OpenAI requires a filename alongside file_data
+                    "filename": f"{name}_pages_{start_index + 1}_to_{end_index}.pdf",
+                    "file_data": f"data:application/pdf;base64,{file_data}",
+                },
+            }
+        ]
+        # Dedicated OCR models take the file alone, vision LLMs need an instruction
+        if settings.OCR_PROMPT:
+            content.append({"type": "text", "text": settings.OCR_PROMPT})
+        return {
+            "model": settings.OCR_MODEL,
+            "messages": [{"role": "user", "content": content}],
+            "stream": False,
+        }
+
+    def extract_ocr_markdown(
+        self, response_data: dict, start_index: int, end_index: int
+    ) -> list[str]:
+        """Extract the markdown of the whole batch from a chat completions response."""
+        choices = response_data.get("choices") or []
+        if not choices:
+            return [""]
+        if choices[0].get("finish_reason") == "length":
+            # The model hit its output limit: the batch markdown is truncated
+            logger.warning(
+                "ocr_batch_truncated",
+                first_page=start_index + 1,
+                last_page=end_index,
+                model=settings.OCR_MODEL,
+            )
+        content = choices[0].get("message", {}).get("content") or ""
+        return [strip_enclosing_code_fences(content)]
