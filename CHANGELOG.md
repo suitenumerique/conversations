@@ -12,6 +12,7 @@ and this project adheres to
 
 - ✨(back) read La Suite Docs documents from pasted Docs links
 - 🔊(back) correlate Sentry, Langfuse and logs through the request id
+- 🔒️(front) add security headers to frontend responses
 
 ### Changed
 
