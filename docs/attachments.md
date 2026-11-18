@@ -308,11 +308,11 @@ The `deindex_inactive_collections` management command identifies conversations t
 
 ### Transparent re-indexing on resume
 
-When a user sends a message to a conversation whose `index_state` is `DEINDEXED` or `ERROR` but which has `READY` text attachments, the backend automatically rebuilds the collection before running the agent. This is handled by `reindex_conversation` in `chat/clients/conversation_reindexer.py`.
+When a user sends a message to a conversation whose `index_state` is `DEINDEXED` or `ERROR` but which has `READY` text attachments, the backend automatically rebuilds the collection before running the agent. The chat turn (`reindex_conversation` in `chat/clients/conversation_reindexer.py`) claims the row and picks the attachments; the rebuild runs in `reindex_conversation_task` on a Celery worker (`chat/agent_rag/conversation_reindexing.py`), and the turn waits on its result. Because the rebuild runs on a worker, it completes even if the user closes the tab.
 
 #### `reindex_conversation` — behaviour summary
 
-An async generator that brings a conversation's RAG collection up to date before the agent runs. It emits a `conversation_resume`
+An async generator that brings a conversation's RAG collection up to date before the agent runs, by way of `reindex_conversation_task`. It emits a `conversation_resume`
 tool-call/result pair so the UI can show progress.
 
 **Claim (concurrency guard)**
@@ -320,9 +320,11 @@ tool-call/result pair so the UI can show progress.
 Before doing any work it atomically sets `index_state = INDEXING` on the row, but only if the conversation is in a claimable state:
 
 - `DEINDEXED` or `ERROR` → always claimable
-- `INDEXING` with `updated_at` older than `REINDEX_CLAIM_TIMEOUT_SECONDS` → stale lock, also claimable
+- `INDEXING` with `index_claimed_at` older than `REINDEX_CLAIM_TTL_SECONDS` (`REINDEX_TASK_TIME_LIMIT + 60`, 600 s), or unset → the task holding it is dead, also claimable. The claim has its own timestamp because other writes (e.g. the next turn folding an aborted turn's question) move `updated_at` forward and would keep a dead claim alive.
 
-If the row is not updated (another process holds a fresh claim), the generator returns immediately with **no events**.
+If the row is not updated (another turn holds a fresh claim), the turn ends with a `document_parsing` tool result `kind: "concurrent_reindex"` and an error finish.
+
+Known gap: a task started more than the TTL after its claim (worker backlog) is not dead, so it and the new claimer's task can both run. The task skips attachments already indexed, which limits the overlap.
 
 **Early exits (no events emitted)**
 
@@ -333,16 +335,28 @@ If the row is not updated (another process holds a fresh claim), the generator r
 
 **Main path**
 
-1. **Collection**: reuses `conversation.collection_id` if set (so partial-failure retries add only the missing docs to the existing
-collection). Creates a new collection otherwise; on creation failure → `ERROR`, error event, return.
-2. **Per-attachment loop**: reads the file asynchronously (`asyncio.to_thread`), stores it in the document backend, marks `is_indexed =
-True`. Individual failures are caught and collected; the loop always continues.
-3. **Final state transition**:
+The turn emits the `conversation_resume` tool call, enqueues `reindex_conversation_task(conversation_id, attachment_ids)` and waits up to `REINDEX_RESULT_TIMEOUT_SECONDS` (`REINDEX_TASK_TIME_LIMIT + 10`). The task:
+
+1. **Re-checks the claim**: a row no longer `INDEXING` is left alone (`concurrent_reindex` result). Ids deleted or no longer READY since the selection are skipped.
+2. **Collection**: reuses `conversation.collection_id` if set (so partial-failure retries add only the missing docs to the existing
+collection). Creates a new collection otherwise; on creation failure → `ERROR`, error result.
+3. **Per-attachment loop**: reads the file from storage, stores it in the document backend, marks `is_indexed = True`. Individual failures are caught and collected; the loop always continues.
+4. **Final state transition**:
     - Zero failures → `index_state = INDEXED`, `collection_id` updated, `{state: "done"}`
     - Partial failure → `index_state = ERROR`, `collection_id` updated, `{state: "partial", failed_documents: [...]}`
     - Total failure → `index_state = ERROR`, `collection_id` updated (collection exists but is empty), `{state: "error"}`
+    - Soft time limit (`REINDEX_TASK_SOFT_TIME_LIMIT`, 480 s) → `index_state = ERROR`, `collection_id` updated, stored attachments keep `is_indexed`, `{state: "error"}`
 
     The only path that leaves `collection_id=None` is a collection *creation* failure, which returns early before the per-attachment loop.
+
+**When the turn cannot get the result**
+
+| Case | Row afterwards | Turn |
+|---|---|---|
+| Wait times out (task revoked if still queued) | `INDEXING` until the claim TTL | ends, `concurrent_reindex` + error finish |
+| Task failed (crash, hard time limit, worker lost) | `ERROR` | continues, `rag_error` result |
+| Task state unknown (result backend failure) | `INDEXING` until the claim TTL | ends, `concurrent_reindex` + error finish |
+| Enqueue fails (broker down) | `ERROR` | continues, `rag_error` result |
 
 `ERROR` always triggers a retry on the next request, and because successful attachments have `is_indexed = True`, only the failed ones are
   attempted again.

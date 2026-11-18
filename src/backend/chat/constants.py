@@ -35,6 +35,15 @@ SUMMARIZATION_TASK_SOFT_TIME_LIMIT = 110  # seconds, raises SoftTimeLimitExceede
 SUMMARIZATION_TASK_TIME_LIMIT = 120  # seconds, worker is SIGKILLed
 HISTORY_SUMMARY_CLAIM_TTL_SECONDS = SUMMARIZATION_TASK_TIME_LIMIT + 60
 
+# Conversation re-index task limits. A run does one storage read and one RAG
+# call per attachment. Same liveness math as the summarization claim: past the
+# TTL the task is provably dead and another turn may take the claim over. The
+# waiting turn gives up a bit after the hard limit, as the tabular tools do.
+REINDEX_TASK_SOFT_TIME_LIMIT = 480  # seconds, raises SoftTimeLimitExceeded
+REINDEX_TASK_TIME_LIMIT = 540  # seconds, worker is SIGKILLed
+REINDEX_RESULT_TIMEOUT_SECONDS = REINDEX_TASK_TIME_LIMIT + 10
+REINDEX_CLAIM_TTL_SECONDS = REINDEX_TASK_TIME_LIMIT + 60
+
 # De-index task time limits. A run can process DEINDEX_MAX_PER_RUN conversations
 # over HTTP, and the global 180/300 s limits would SIGKILL it mid-run and leave
 # orphan collections. Keep the hard limit below the Redis visibility_timeout of 3600 s.

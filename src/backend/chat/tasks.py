@@ -24,6 +24,7 @@ from pydantic_ai.messages import ModelMessagesTypeAdapter
 
 from core.log_fields import safe_error_fields
 
+from chat.agent_rag.conversation_reindexing import rebuild_conversation_collection
 from chat.agent_rag.indexing import index_project_attachment, parse_and_store_with_retry
 from chat.agents.history_processors import (
     generate_history_summary,
@@ -34,6 +35,8 @@ from chat.agents.history_processors import (
 from chat.constants import (
     DEINDEX_TASK_SOFT_TIME_LIMIT,
     DEINDEX_TASK_TIME_LIMIT,
+    REINDEX_TASK_SOFT_TIME_LIMIT,
+    REINDEX_TASK_TIME_LIMIT,
     SUMMARIZATION_TASK_SOFT_TIME_LIMIT,
     SUMMARIZATION_TASK_TIME_LIMIT,
     TABULAR_MAX_OUTPUT_CHARS,
@@ -175,6 +178,16 @@ def index_conversation_document_task(collection_id, s3_key, name, content_type, 
             raise
 
     return companion_key, rag_document_id
+
+
+@app.task(soft_time_limit=REINDEX_TASK_SOFT_TIME_LIMIT, time_limit=REINDEX_TASK_TIME_LIMIT)
+def reindex_conversation_task(conversation_id: str, attachment_ids: list[str]) -> dict:
+    """Rebuild a de-indexed conversation's collection from `attachment_ids`.
+
+    Enqueued by the chat turn, which holds the re-index claim and waits on the
+    returned `conversation_resume` tool result. Only ids cross the broker.
+    """
+    return rebuild_conversation_collection(conversation_id, attachment_ids)
 
 
 @app.task(
