@@ -16,6 +16,16 @@ from chat.tools.exceptions import ModelCannotRetry, UserContentModelRetry
 logger = structlog.get_logger(__name__)
 
 
+def escape_prompt_text(text: str) -> str:
+    """
+    Stop untrusted text from closing the tags that wrap it in a prompt.
+
+    Escaping every `<` rules out all the variants a model may read as a tag
+    (`< /tag>`, `</ tag>`, any case), where matching tag names would miss some.
+    """
+    return text.replace("<", "&lt;")
+
+
 def resolve_attachment_by_id(
     attachments: Iterable[models.ChatConversationAttachment],
     document_id: str,

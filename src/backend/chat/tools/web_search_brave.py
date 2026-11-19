@@ -21,7 +21,7 @@ from trafilatura.meta import reset_caches
 from core import instrumentation
 
 from chat.tools.exceptions import ModelCannotRetry
-from chat.tools.utils import last_model_retry_soft_fail
+from chat.tools.utils import escape_prompt_text, last_model_retry_soft_fail
 
 logger = structlog.get_logger(__name__)
 
@@ -56,11 +56,11 @@ focusing on the key points regarding the user request.
 The result should be up to 30 lines long.
 
 <user request>
-{query}
+{escape_prompt_text(query)}
 </user request>
 
 <text to summarize>
-{text}
+{escape_prompt_text(text)}
 </text to summarize>
 """
 
