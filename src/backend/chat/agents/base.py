@@ -9,12 +9,12 @@ import httpx2
 import structlog
 from pydantic_ai import Agent, InstructionPart, ModelRequestContext, RunContext
 from pydantic_ai.capabilities import Hooks
-from pydantic_ai.models import get_user_agent
 from pydantic_ai.profiles import ModelProfile
 
 from core import instrumentation
 
 from chat.tools import get_pydantic_tools_by_name
+from chat.user_agent import get_user_agent
 
 logger = structlog.get_logger(__name__)
 
@@ -74,6 +74,23 @@ def get_max_output_tokens(configuration: "chat.llm_configuration.LLModel") -> in
     return _configured or settings.LLM_MAX_OUTPUT_TOKENS_PER_MESSAGE or None
 
 
+async def _set_user_agent(request: httpx2.Request) -> None:
+    """Send our User-Agent, replacing whatever the SDK put on the request."""
+    request.headers["User-Agent"] = get_user_agent()
+
+
+def _http_client() -> httpx2.AsyncClient:
+    """A fresh (not cached) HTTP client for one provider, sending our User-Agent.
+
+    pydantic-ai and the provider SDKs set their own User-Agent on each request,
+    after any client default, so ours is applied by a hook just before sending.
+    """
+    return httpx2.AsyncClient(
+        timeout=httpx2.Timeout(timeout=600, connect=5),
+        event_hooks={"request": [_set_user_agent]},
+    )
+
+
 def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
     """
     Prepare a custom model instance based on the provided configuration.
@@ -105,11 +122,7 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
                 provider=MistralProvider(
                     api_key=configuration.provider.api_key,
                     base_url=configuration.provider.base_url,
-                    # Disable the use of cached client
-                    http_client=httpx2.AsyncClient(
-                        timeout=httpx2.Timeout(timeout=600, connect=5),
-                        headers={"User-Agent": get_user_agent()},
-                    ),
+                    http_client=_http_client(),
                 ),
                 # pydantic-ai serializes these optional fields as explicit null when
                 # unset. Strict Mistral-compatible platforms (e.g. Etalab) reject
@@ -164,6 +177,7 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
                     provider=AlbertOpenAIProvider(
                         base_url=configuration.provider.base_url,
                         api_key=configuration.provider.api_key,
+                        http_client=_http_client(),
                     ),
                     settings=_openai_settings,
                 )
@@ -174,6 +188,7 @@ def prepare_custom_model(configuration: "chat.llm_configuration.LLModel"):
                 provider=OpenAIProvider(
                     base_url=configuration.provider.base_url,
                     api_key=configuration.provider.api_key,
+                    http_client=_http_client(),
                 ),
                 settings=_openai_settings,
             )

@@ -27,6 +27,7 @@ from core.feature_flags.helpers import is_feature_enabled
 from core.models import User
 
 from chat.clients.schema import ContextDeps
+from chat.user_agent import get_user_agent
 
 # How a connector we cannot reach surfaces when its toolset is entered: the MCP
 # client raises a bare RuntimeError for refused connections and handshake
@@ -231,6 +232,7 @@ class DataGouvConnector:
                     # spell as None.
                     init_timeout=settings.DATAGOUV_CONNECTOR_INIT_TIMEOUT or None,
                     read_timeout=settings.DATAGOUV_CONNECTOR_READ_TIMEOUT or None,
+                    headers={"User-Agent": get_user_agent()},
                 ).prefixed(self.connector_id),
                 self.record_call_outage,
                 self.instruction,

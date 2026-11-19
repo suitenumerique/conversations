@@ -12,6 +12,7 @@ and this project adheres to
 
 - ✨(back) read La Suite Docs documents from pasted Docs links
 - 🔊(back) correlate Sentry, Langfuse and logs through the request id
+- ✨(back) name Conversations in the User-Agent of LLM and MCP calls
 
 ### Changed
 

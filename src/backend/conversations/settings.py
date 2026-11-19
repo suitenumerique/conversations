@@ -748,6 +748,10 @@ class Base(
         environ_prefix=None,
     )
 
+    # User-Agent sent on outgoing LLM and MCP calls; empty means
+    # `conversations/<release>`.
+    OUTGOING_USER_AGENT = values.Value("", environ_name="OUTGOING_USER_AGENT", environ_prefix=None)
+
     # Uploaded files
     RAG_FILES_ACCEPTED_FORMATS = values.ListValue(
         default=mime_types.RAG_ACCEPTED_MIME_TYPES,
