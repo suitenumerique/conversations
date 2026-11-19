@@ -13,6 +13,7 @@ and this project adheres to
 - ✨(back) read La Suite Docs documents from pasted Docs links
 - 🔊(back) correlate Sentry, Langfuse and logs through the request id
 - 📝(project) add publiccode.yml
+- ✨(back) build slide decks from attached documents at the requested length
 
 ### Changed
 
@@ -22,6 +23,7 @@ and this project adheres to
 ### Fixed
 
 - 🔒️(back) match emails ignoring the ASCII case only
+- 🐛(back) stop claiming a template or style was applied to a slide deck
 
 ## [0.0.29] - 2026-11-15
 
