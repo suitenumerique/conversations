@@ -17,6 +17,7 @@ and this project adheres to
 ### Changed
 
 - 🔨(project) bump backend, publiccode and changelog on release
+- 📝(doc) redraw the architecture diagram
 
 ### Fixed
 
