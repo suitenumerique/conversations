@@ -27,7 +27,11 @@ from chat.file_generation import GENERIC_TEMPLATE, PresentationBuildError, build
 from chat.tokens import compute_document_budget, count_approx_tokens, truncate_to_tokens
 from chat.tools.document_summarize import read_document_content, summarize_documents
 from chat.tools.exceptions import ModelCannotRetry
-from chat.tools.utils import last_model_retry_soft_fail, resolve_attachment_by_id
+from chat.tools.utils import (
+    last_model_retry_soft_fail,
+    prompt_boundary,
+    resolve_attachment_by_id,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -151,16 +155,6 @@ def _source_budget() -> int:
         settings.DOCUMENT_CONTEXT_BUDGET_RATIO,
         settings.DOCUMENT_CONTEXT_SECURITY_BUFFER_TOKENS,
     )
-
-
-def _source_boundary() -> str:
-    """
-    Draw the secret suffix of the tags wrapping the sources, new for every deck.
-
-    A document cannot close a tag whose name it does not know, so whatever it
-    holds, it stays inside its own tags.
-    """
-    return secrets.token_hex(8)
 
 
 async def condense_sources(ctx: RunContext, documents: list[tuple[str, str]]) -> str:
@@ -302,7 +296,7 @@ async def generate_presentation(
         )
 
     attachments = await get_source_attachments(ctx.deps.conversation, document_ids)
-    boundary = _source_boundary()
+    boundary = prompt_boundary()
     try:
         sources, source_names = await build_sources(ctx, attachments, boundary)
     except ModelRetry, ModelCannotRetry:

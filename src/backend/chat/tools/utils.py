@@ -1,6 +1,7 @@
 """Tool calling utilities for the chat agent."""
 
 import functools
+import secrets
 import uuid
 from typing import Any, Callable, Iterable
 
@@ -14,6 +15,17 @@ from chat import models
 from chat.tools.exceptions import ModelCannotRetry, UserContentModelRetry
 
 logger = structlog.get_logger(__name__)
+
+
+def prompt_boundary() -> str:
+    """
+    Draw the secret suffix of the tags wrapping untrusted text in a prompt.
+
+    Text cannot close a tag whose name it does not know, so whatever it holds
+    (a closing tag, a fence, an instruction), it stays inside its own tags, and
+    it reaches the model unaltered. Draw a new one for every prompt.
+    """
+    return secrets.token_hex(8)
 
 
 def resolve_attachment_by_id(

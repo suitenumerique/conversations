@@ -24,6 +24,7 @@ and this project adheres to
 
 - 🔒️(back) match emails ignoring the ASCII case only
 - 🐛(back) stop claiming a template or style was applied to a slide deck
+- 🔒️(back) keep untrusted text inside its summary prompt blocks
 
 ## [0.0.29] - 2026-11-15
 

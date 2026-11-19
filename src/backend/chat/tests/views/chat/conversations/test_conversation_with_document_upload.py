@@ -752,7 +752,7 @@ def test_post_conversation_with_document_upload_summarize(  # pylint: disable=to
         'data: {"type":"text-delta","id":"0","delta":"The document discusses various topics."'
         "}\n\n"
         'data: {"type":"text-end","id":"0"}\n\n'
-        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":287,"completionTok'
+        'data: {"type":"finish","messageMetadata":{"usage":{"promptTokens":349,"completionTok'
         'ens":19,"co2Impact":0.0}}}\n\n'
         "data: [DONE]\n\n"
     )
