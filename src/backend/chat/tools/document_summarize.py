@@ -1,6 +1,7 @@
 """Summarization tool used for uploaded documents."""
 
 import asyncio
+import html
 
 from django.conf import settings
 from django.core.files.storage import default_storage
@@ -18,7 +19,11 @@ from chat import models
 from chat.agents.summarize import SummarizationAgent
 from chat.constants import TABULAR_MIME_TYPES, TEXT_MIME_PREFIX
 from chat.tools.exceptions import ModelCannotRetry
-from chat.tools.utils import last_model_retry_soft_fail, resolve_attachment_by_id
+from chat.tools.utils import (
+    escape_prompt_text,
+    last_model_retry_soft_fail,
+    resolve_attachment_by_id,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -96,7 +101,7 @@ async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
     sum_prompt = (
         "You are an agent specializing in text summarization. "
         "Generate a clear and concise summary of the following passage "
-        f"(part {idx}/{total_chunks}):\n'''\n{chunk}\n'''\n\n"
+        f"(part {idx}/{total_chunks}):\n<passage>\n{escape_prompt_text(chunk)}\n</passage>\n\n"
     )
 
     logger.debug("summarize_chunk_started", chunk=idx, total_chunks=total_chunks)
@@ -183,8 +188,10 @@ async def _summarize_text_attachments(
         documents_chunks, summarization_agent, ctx
     )
 
+    # Chunk summaries can echo text injected in the document: escape them too.
     context = "\n\n".join(
-        doc_name + "\n\n" + "\n\n".join(summaries)
+        f'<document name="{html.escape(doc_name)}">\n'
+        f"{escape_prompt_text('\n\n'.join(summaries))}\n</document>"
         for doc_name, summaries in zip(
             (doc[0] for doc in documents),
             doc_chunk_summaries,
@@ -195,7 +202,7 @@ async def _summarize_text_attachments(
     # Merge chunk summaries into a single concise summary
     merged_prompt = (
         "Produce a coherent synthesis from the summaries below.\n\n"
-        f"'''\n{context}\n'''\n\n"
+        f"{context}\n\n"
         "Constraints:\n"
         "- Summarize without repetition.\n"
         "- Harmonize style and terminology.\n"
