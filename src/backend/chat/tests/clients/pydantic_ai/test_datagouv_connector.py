@@ -29,11 +29,13 @@ from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService, DocumentParsingResult
 from chat.clients.schema import ImagePostRunActions
 from chat.connectors import (
+    DATAGOUV_SLUG,
     ConnectorToolset,
-    DataGouvConnector,
+    TurnConnectors,
+    UserConnector,
+    datagouv_definition,
     is_connector_unreachable,
 )
-from chat.connectors.datagouv import UNREACHABLE_MESSAGE
 from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.llm_configuration import LLModel, LLMProvider
 from chat.turn.event_mapper import TurnEventMapper
@@ -74,22 +76,27 @@ def connector_configured_fixture(settings):
 
 
 def _connector_for(user):
-    """The connector as it stands for this user. The pk only tags log lines."""
-    return DataGouvConnector.for_user(user, uuid4())
+    """The data.gouv connector as it stands for this user. The pk only tags log lines."""
+    return UserConnector.for_user(datagouv_definition(), user, uuid4())
 
 
-def test_connector_disabled_when_not_configured(settings):
+def _datagouv(service) -> UserConnector:
+    """The service's data.gouv connector for this turn."""
+    return service._connectors.get(DATAGOUV_SLUG)
+
+
+def test_connector_absent_when_not_configured(settings):
     """With no endpoint configured the connector does not exist."""
     settings.DATAGOUV_CONNECTOR_URL = ""
-    user = UserFactory(allow_datagouv_connector=True)
+    user = UserFactory(allowed_connectors=[DATAGOUV_SLUG])
 
-    assert _connector_for(user).enabled is False
+    assert TurnConnectors.for_user(user, uuid4()).get(DATAGOUV_SLUG) is None
 
 
 def test_connector_disabled_outside_the_cohort(_connector_configured, feature_flags):
     """A user outside the beta cohort has no connector, opted in or not."""
     feature_flags.datagouv_connector = FeatureToggle.DISABLED
-    user = UserFactory(allow_datagouv_connector=True)
+    user = UserFactory(allowed_connectors=[DATAGOUV_SLUG])
 
     assert _connector_for(user).enabled is False
 
@@ -99,23 +106,23 @@ def test_being_enabled_ignores_the_opt_in(_connector_configured):
 
     The opt-in is a per-turn decision, because forcing stands in for it.
     """
-    assert _connector_for(UserFactory(allow_datagouv_connector=False)).enabled is True
-    assert _connector_for(UserFactory(allow_datagouv_connector=True)).enabled is True
+    assert _connector_for(UserFactory(allowed_connectors=[])).enabled is True
+    assert _connector_for(UserFactory(allowed_connectors=[DATAGOUV_SLUG])).enabled is True
 
 
 def test_being_available_needs_the_opt_in(_connector_configured):
     """Available is enabled plus the user's opt-in."""
-    assert _connector_for(UserFactory(allow_datagouv_connector=False)).available is False
-    assert _connector_for(UserFactory(allow_datagouv_connector=True)).available is True
+    assert _connector_for(UserFactory(allowed_connectors=[])).available is False
+    assert _connector_for(UserFactory(allowed_connectors=[DATAGOUV_SLUG])).available is True
 
 
 def test_toolsets_returns_one_prefixed_toolset(_connector_configured):
     """An available connector publishes its server under the connector's prefix."""
-    toolsets = _connector_for(UserFactory(allow_datagouv_connector=True)).toolsets()
+    toolsets = _connector_for(UserFactory(allowed_connectors=[DATAGOUV_SLUG])).toolsets()
 
     assert len(toolsets) == 1
     assert isinstance(toolsets[0], ConnectorToolset)
-    assert toolsets[0].prefix == DataGouvConnector.connector_id
+    assert toolsets[0].prefix == DATAGOUV_SLUG
 
 
 def _caused_by(error: Exception, cause: BaseException) -> Exception:
@@ -148,7 +155,7 @@ def _wrapping(call_tool):
         MagicMock(call_tool=call_tool),
         on_unreachable=MagicMock(),
         instructions=lambda: "",
-        unreachable_message=UNREACHABLE_MESSAGE,
+        unreachable_message="gone",
     )
 
 
@@ -264,7 +271,7 @@ async def _build_service(settings, url, in_project=False, init_timeout=5.0, read
     settings.DATAGOUV_CONNECTOR_URL = url
     settings.DATAGOUV_CONNECTOR_INIT_TIMEOUT = init_timeout
     settings.DATAGOUV_CONNECTOR_READ_TIMEOUT = read_timeout
-    user = await sync_to_async(UserFactory)(allow_datagouv_connector=True)
+    user = await sync_to_async(UserFactory)(allowed_connectors=[DATAGOUV_SLUG])
     project = await sync_to_async(ChatProjectFactory)(owner=user) if in_project else None
     conversation = await sync_to_async(ChatConversationFactory)(owner=user, project=project)
     return AIAgentService(conversation, user=user)
@@ -273,7 +280,7 @@ async def _build_service(settings, url, in_project=False, init_timeout=5.0, read
 async def _run_with_connector(service, prompt):
     """Run the agent the way _run_agent does: connector toolsets passed per turn."""
     async with AsyncExitStack() as stack:
-        toolsets = await service._enter_datagouv_toolsets(stack, force_datagouv=False)
+        toolsets = (await service._enter_connector_toolsets(stack, ())).toolsets
         with service.conversation_agent.override(model=TestModel(), deps=service._context_deps):
             return await service.conversation_agent.run(prompt, toolsets=toolsets)
 
@@ -305,7 +312,7 @@ async def test_connector_instruction_reaches_the_model(settings, mcp_server_url)
 
     result = await _run_with_connector(service, "Hello.")
 
-    assert service._datagouv.instruction() in result.all_messages()[0].instructions
+    assert _datagouv(service).instruction() in result.all_messages()[0].instructions
 
 
 @pytest.mark.asyncio
@@ -331,7 +338,7 @@ async def test_unreachable_connector_does_not_cost_the_turn(settings, caplog):
         for record in caplog.records
         if record.name == "chat.connectors.runtime"
         and record.levelname == "WARNING"
-        and record.msg["connector_id"] == DataGouvConnector.connector_id
+        and record.msg["connector_id"] == DATAGOUV_SLUG
     ]
 
 
@@ -482,7 +489,7 @@ async def test_stalled_tool_call_is_cut_off_at_the_read_timeout(settings, stalli
     # The wrapper is only useful if it is actually on the call path: pydantic-ai
     # dispatches through PrefixedToolset, which rewrites the tool's toolset, so
     # this pins that a real failed call still reaches ConnectorToolset.
-    assert service._datagouv.call_failed is True
+    assert _datagouv(service).call_failed is True
 
 
 @pytest.mark.asyncio
@@ -497,7 +504,7 @@ async def test_a_transport_error_mid_call_does_not_cost_the_turn(settings, mcp_s
         result = await _run_with_connector(service, "Find open data about communes.")
 
     assert result.output
-    assert service._datagouv.call_failed is True
+    assert _datagouv(service).call_failed is True
 
 
 @pytest.mark.asyncio
@@ -512,4 +519,61 @@ async def test_a_tool_answering_with_an_error_is_not_an_outage(settings, failing
     with contextlib.suppress(UnexpectedModelBehavior):
         await _run_with_connector(service, "Find open data about communes.")
 
-    assert service._datagouv.call_failed is False
+    assert _datagouv(service).call_failed is False
+
+
+@pytest.fixture(name="second_mcp_server_url")
+def second_mcp_server_url_fixture():
+    """A second, unrelated MCP server, to be declared through MCP_CONNECTORS."""
+    server = FastMCP("legi-connector", stateless_http=True)
+
+    @server.tool()
+    def search_codes(query: str) -> str:
+        """Search French legal codes."""
+        return f"articles for {query}"
+
+    yield from _serve(server)
+
+
+@pytest.mark.asyncio
+async def test_a_declared_connector_reaches_the_agent_beside_datagouv(
+    settings, mcp_server_url, second_mcp_server_url
+):
+    """A connector added by configuration alone is wired like data.gouv, under its prefix."""
+    settings.MCP_CONNECTORS = [
+        {
+            "slug": "legi",
+            "name": "Légifrance",
+            "url": second_mcp_server_url,
+            "instructions": "Use the Légifrance tools for French law.",
+        }
+    ]
+    service = await _build_service(settings, mcp_server_url)
+    service._connectors.get("legi").opted_in = True
+
+    result = await _run_with_connector(service, "Find the law.")
+
+    assert "datagouv_search_datasets" in result.output
+    assert "legi_search_codes" in result.output
+    assert "Use the Légifrance tools for French law." in result.all_messages()[0].instructions
+
+
+@pytest.mark.asyncio
+async def test_a_dead_declared_connector_leaves_datagouv_working(settings, mcp_server_url):
+    """One connector down costs only its own tools."""
+    settings.MCP_CONNECTORS = [
+        {
+            "slug": "legi",
+            "name": "Légifrance",
+            "url": CONNECTOR_URL,
+            "instructions": "Use the Légifrance tools for French law.",
+            "init_timeout": 1,
+        }
+    ]
+    service = await _build_service(settings, mcp_server_url)
+    service._connectors.get("legi").opted_in = True
+
+    result = await _run_with_connector(service, "Find open data about communes.")
+
+    assert "datagouv_search_datasets" in result.output
+    assert "legi_" not in result.output

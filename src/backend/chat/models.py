@@ -4,9 +4,12 @@ import uuid
 from datetime import timedelta
 from typing import Sequence
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils import timezone
+
+from cryptography.fernet import Fernet
 
 from core.file_upload.enums import AttachmentStatus
 from core.models import BaseModel
@@ -496,3 +499,65 @@ class ModelHealth(models.Model):
 
     def __str__(self):
         return f"{self.provider}/{self.model_id}: {self.status}"
+
+
+class ConnectorCredential(BaseModel):
+    """A user's tokens for a connector that authenticates each user (`user_oauth`).
+
+    The tokens are encrypted with `CONNECTORS_TOKEN_ENCRYPTION_KEY`: the
+    columns hold Fernet ciphertext, read and written through `access_token`
+    and `refresh_token`. A row exists only while the user's account is linked:
+    switching the connector off, or a refresh the server refuses, deletes it.
+    """
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="connector_credentials")
+    connector_id = models.CharField(max_length=20)
+    encrypted_access_token = models.TextField()
+    encrypted_refresh_token = models.TextField(blank=True, default="")
+    # None when the server did not say; the token is then used until refused.
+    expires_at = models.DateTimeField(null=True, blank=True)
+    scope = models.CharField(max_length=1000, blank=True, default="")
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        db_table = "chat_connector_credential"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "connector_id"], name="connector_credential_unique_per_user"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.connector_id} credential of {self.user_id}"
+
+    @staticmethod
+    def _fernet():
+        # The key is read on use, so tests and deployments may change it.
+        return Fernet(settings.CONNECTORS_TOKEN_ENCRYPTION_KEY)
+
+    @property
+    def access_token(self) -> str:
+        """The access token, decrypted."""
+        return self._fernet().decrypt(self.encrypted_access_token.encode()).decode()
+
+    @access_token.setter
+    def access_token(self, value: str) -> None:
+        self.encrypted_access_token = self._fernet().encrypt(value.encode()).decode()
+
+    @property
+    def refresh_token(self) -> str | None:
+        """The refresh token, decrypted, or None when the server gave none."""
+        if not self.encrypted_refresh_token:
+            return None
+        return self._fernet().decrypt(self.encrypted_refresh_token.encode()).decode()
+
+    @refresh_token.setter
+    def refresh_token(self, value: str | None) -> None:
+        self.encrypted_refresh_token = (
+            self._fernet().encrypt(value.encode()).decode() if value else ""
+        )
+
+    def expires_within(self, seconds: float) -> bool:
+        """Whether the access token is expired, or will be within `seconds`."""
+        if self.expires_at is None:
+            return False
+        return self.expires_at <= timezone.now() + timedelta(seconds=seconds)

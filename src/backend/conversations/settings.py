@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 """
 # pylint: disable=too-many-lines
 
+import json
 import os
 import stat
 import tempfile
@@ -748,6 +749,28 @@ class Base(
         environ_prefix=None,
     )
 
+    # Other MCP connectors, declared as data: a JSON list of objects, one per
+    # connector (slug, name, url, instructions, and optionally tier,
+    # init_timeout, read_timeout, feature_flag, auth). See docs/tools.md.
+    # An invalid declaration fails `manage.py check` and is left out at runtime.
+    _mcp_connectors_json = values.Value("[]", environ_name="MCP_CONNECTORS", environ_prefix=None)
+    # Connectors that authenticate each user with OAuth (`user_oauth`).
+    # Fernet key encrypting the tokens stored for them; required as soon as one
+    # such connector is declared.
+    CONNECTORS_TOKEN_ENCRYPTION_KEY = values.Value(
+        None, environ_name="CONNECTORS_TOKEN_ENCRYPTION_KEY", environ_prefix=None
+    )
+    # The redirect URI registered with the authorization servers. Built from
+    # the request when unset, which is right unless a proxy rewrites the host.
+    CONNECTORS_OAUTH_REDIRECT_URI = values.Value(
+        None, environ_name="CONNECTORS_OAUTH_REDIRECT_URI", environ_prefix=None
+    )
+    # Where the browser lands once the authorization is over. Falls back to
+    # LOGIN_REDIRECT_URL, the frontend.
+    CONNECTORS_OAUTH_RETURN_URL = values.Value(
+        None, environ_name="CONNECTORS_OAUTH_RETURN_URL", environ_prefix=None
+    )
+
     # Uploaded files
     RAG_FILES_ACCEPTED_FORMATS = values.ListValue(
         default=mime_types.RAG_ACCEPTED_MIME_TYPES,
@@ -1043,6 +1066,18 @@ class Base(
             )
 
         return features
+
+    @property
+    def MCP_CONNECTORS(self):  # pylint: disable=invalid-name
+        """The declared connectors, parsed from `MCP_CONNECTORS`.
+
+        Invalid JSON is handed on unparsed rather than raised here, so the
+        connector registry can report it the way it reports any other mistake.
+        """
+        try:
+            return json.loads(self._mcp_connectors_json)
+        except TypeError, ValueError:
+            return self._mcp_connectors_json
 
     @property
     def LLM_CONFIGURATIONS(self):

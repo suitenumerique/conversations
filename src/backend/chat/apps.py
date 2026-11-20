@@ -10,3 +10,8 @@ class ChatDefaultConfig(AppConfig):
     name = "chat"
     app_label = "chat"
     verbose_name = _("chat application")
+
+    def ready(self):
+        """Register the connector declarations check."""
+        # pylint: disable=import-outside-toplevel,unused-import
+        from chat.connectors import registry  # noqa: PLC0415

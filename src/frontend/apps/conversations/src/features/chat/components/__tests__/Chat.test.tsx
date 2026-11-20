@@ -39,8 +39,12 @@ vi.mock('@/features/chat/api/useConversation', () => ({
   KEY_CONVERSATION: 'conversation',
 }));
 
+// The key itself, with its `{{placeholders}}` filled in, as i18next would.
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, string>) =>
+      key.replace(/{{(\w+)}}/g, (_, name: string) => values?.[name] ?? ''),
+  }),
 }));
 
 // The markdown stack is ESM-only and irrelevant here: the assertions are about
@@ -56,13 +60,17 @@ vi.mock('rehype-katex', () => ({ default: () => {} }));
 vi.mock('remark-gfm', () => ({ default: () => {} }));
 vi.mock('remark-math', () => ({ default: () => {} }));
 
+// The connectors the deployment offers, so a notice can name its connector.
+const CONFIG = {
+  CONNECTORS: [{ slug: 'datagouv', name: 'data.gouv.fr', feature_flag: null }],
+};
 vi.mock('@/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core')>()),
-  useConfig: () => ({ data: {} }),
+  useConfig: () => ({ data: CONFIG }),
 }));
 vi.mock('@/core/config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/config')>()),
-  useConfig: () => ({ data: {} }),
+  useConfig: () => ({ data: CONFIG }),
 }));
 vi.mock('@/features/chat/api/useAssistantHealth', () => ({
   useAssistantHealth: () => ({ data: undefined }),
@@ -477,7 +485,7 @@ describe('Chat connector notices', () => {
       await ask('Force datagouv');
     });
 
-    // `react-i18next` is mocked to `t: (key) => key`, so the translation key
+    // `react-i18next` is mocked to the interpolated key, so the translation key
     // is exactly the rendered, screen-reader-announced text: the toast lives
     // in a `aria-live="polite"` region, and this asserts on what a user (or
     // assistive tech) actually perceives, not on an internal `showToast` call.

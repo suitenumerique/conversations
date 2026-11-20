@@ -11,8 +11,14 @@ import {
   ToggleSwitch,
 } from '@/components';
 import { useUserUpdate } from '@/core/api/useUserUpdate';
-import { useFeatureEnabled } from '@/core/config';
+import { useAvailableConnectors } from '@/core/config';
+import { ConnectorConfig } from '@/core/config/api/useConfig';
 import { useAuthQuery } from '@/features/auth/api';
+import {
+  connectorLinkUrl,
+  connectorNeedsLinking,
+  connectorPresentation,
+} from '@/features/chat/connectors';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { useResponsiveStore } from '@/stores/useResponsiveStore';
 
@@ -28,7 +34,7 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
   const { isMobile } = useResponsiveStore();
   const { data: user } = useAuthQuery();
   const { mutateAsync: updateUser, isPending } = useUserUpdate();
-  const isDatagouvConnectorEnabled = useFeatureEnabled('datagouv-connector');
+  const connectors = useAvailableConnectors();
   const themeModePreference = useChatPreferencesStore(
     (state) => state.themeModePreference,
   );
@@ -37,10 +43,7 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
   );
 
   const handleToggleChange = async (
-    field:
-      | 'allow_conversation_analytics'
-      | 'allow_datagouv_connector'
-      | 'allow_smart_web_search',
+    field: 'allow_conversation_analytics' | 'allow_smart_web_search',
   ) => {
     if (!user) {
       return;
@@ -55,6 +58,42 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
     } catch (error) {
       console.error(`Error updating user settings for ${field}:`, error);
     }
+  };
+
+  const handleConnectorToggle = async (connector: ConnectorConfig) => {
+    if (!user) {
+      return;
+    }
+
+    const { slug } = connector;
+    const allowed = user.allowed_connectors ?? [];
+    // Switching on a connector that authenticates each user means signing in
+    // on its own page: the backend links the account and switches it on.
+    if (!allowed.includes(slug) && connectorNeedsLinking(connector)) {
+      window.location.assign(connectorLinkUrl(slug));
+      return;
+    }
+    try {
+      await updateUser({
+        id: user.id,
+        allowed_connectors: allowed.includes(slug)
+          ? allowed.filter((allowedSlug) => allowedSlug !== slug)
+          : [...allowed, slug],
+      });
+    } catch (error) {
+      console.error(`Error updating connector ${slug}:`, error);
+    }
+  };
+
+  // What each connector lets the Assistant do. Written here, not sent by the
+  // backend, so it can be translated; a connector without one gets a generic line.
+  const connectorDescription = (slug: string, name: string) => {
+    if (slug === 'datagouv') {
+      return t(
+        'Let the Assistant search French public open data published on data.gouv.fr.',
+      );
+    }
+    return t('Let the Assistant use the {{name}} connector.', { name });
   };
 
   const colorModeOptions: DropdownMenuOption[] = useMemo(
@@ -211,18 +250,22 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
           aria-label={t('Automatic web search')}
         />
 
-        {isDatagouvConnectorEnabled && (
-          <SettingsToggleRow
-            title="DataGouv"
-            description={t(
-              'Let the Assistant search French public open data published on data.gouv.fr.',
-            )}
-            checked={user?.allow_datagouv_connector ?? false}
-            disabled={isPending}
-            onToggle={() => void handleToggleChange('allow_datagouv_connector')}
-            aria-label={t('DataGouv connector')}
-          />
-        )}
+        {connectors.map((connector) => {
+          const { label } = connectorPresentation(connector);
+          return (
+            <SettingsToggleRow
+              key={connector.slug}
+              title={label}
+              description={connectorDescription(connector.slug, connector.name)}
+              checked={
+                user?.allowed_connectors?.includes(connector.slug) ?? false
+              }
+              disabled={isPending}
+              onToggle={() => void handleConnectorToggle(connector)}
+              aria-label={t('{{name}} connector', { name: label })}
+            />
+          );
+        })}
       </Box>
     </>
   );

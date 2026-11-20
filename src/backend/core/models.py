@@ -196,13 +196,14 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         help_text=_("Whether the user allows to use smart web search features."),
     )
 
-    allow_datagouv_connector = models.BooleanField(
-        _("allow data.gouv connector"),
-        default=False,
+    allowed_connectors = models.JSONField(
+        _("allowed connectors"),
+        default=list,
+        blank=True,
         help_text=_(
-            "Whether the user asked for the data.gouv connector. This records a "
-            "choice, not an entitlement: the connector also requires the beta "
-            "feature flag and a configured endpoint."
+            "Slugs of the MCP connectors the user switched on. This records a "
+            "choice, not an entitlement: a connector also requires its feature "
+            "flag, if any, and a configured endpoint."
         ),
     )
 
@@ -235,6 +236,10 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         """Normalize the email before saving, so lookups can match it exactly."""
         self.email = normalize_email(self.email)
         super().save(*args, **kwargs)
+
+    def has_allowed_connector(self, slug: str) -> bool:
+        """Whether the user switched the connector with this slug on."""
+        return slug in (self.allowed_connectors or [])
 
     def email_user(self, subject, message, from_email=None, **kwargs):
         """Email this user."""

@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { ConnectorConfig } from '@/core/config/api/useConfig';
 import '@/i18n/initI18n';
 
 import { InputChatActions } from '../InputChatAction';
@@ -77,14 +78,26 @@ vi.mock('@gouvfr-lasuite/ui-kit', () => ({
   ),
 }));
 
+const DATAGOUV: ConnectorConfig = {
+  slug: 'datagouv',
+  name: 'data.gouv.fr',
+  feature_flag: 'datagouv-connector',
+};
+
+const LEGI: ConnectorConfig = {
+  slug: 'legi',
+  name: 'Légifrance',
+  feature_flag: null,
+};
+
 const defaultProps = {
   fileUploadEnabled: true,
   webSearchEnabled: true,
   isUploadingFiles: false,
   isMobile: false,
   forceWebSearch: false,
-  datagouvEnabled: false,
-  forceDatagouv: false,
+  connectors: [] as ConnectorConfig[],
+  forcedConnectors: [] as string[],
   onAttachClick: vi.fn(),
   selectedModel: null,
   status: null,
@@ -302,8 +315,8 @@ describe('InputChatActions', () => {
     render(
       <InputChatActions
         {...defaultProps}
-        datagouvEnabled={false}
-        onDatagouvToggle={vi.fn()}
+        connectors={[]}
+        onConnectorToggle={vi.fn()}
       />,
     );
 
@@ -316,8 +329,8 @@ describe('InputChatActions', () => {
     render(
       <InputChatActions
         {...defaultProps}
-        datagouvEnabled={true}
-        onDatagouvToggle={vi.fn()}
+        connectors={[DATAGOUV]}
+        onConnectorToggle={vi.fn()}
       />,
     );
 
@@ -326,14 +339,14 @@ describe('InputChatActions', () => {
     ).toBeInTheDocument();
   });
 
-  it('should call onDatagouvToggle when the DataGouv option is clicked', async () => {
+  it('should call onConnectorToggle with the slug when the DataGouv option is clicked', async () => {
     const user = userEvent.setup();
     const onDatagouvToggle = vi.fn();
     render(
       <InputChatActions
         {...defaultProps}
-        datagouvEnabled={true}
-        onDatagouvToggle={onDatagouvToggle}
+        connectors={[DATAGOUV]}
+        onConnectorToggle={onDatagouvToggle}
       />,
     );
 
@@ -341,16 +354,16 @@ describe('InputChatActions', () => {
       screen.getByRole('menuitemcheckbox', { name: 'DataGouv' }),
     );
 
-    expect(onDatagouvToggle).toHaveBeenCalledTimes(1);
+    expect(onDatagouvToggle).toHaveBeenCalledExactlyOnceWith('datagouv');
   });
 
-  it('should mark the option as checked and show a chip when forceDatagouv is active', () => {
+  it('should mark the option as checked and show a chip when DataGouv is forced', () => {
     render(
       <InputChatActions
         {...defaultProps}
-        datagouvEnabled={true}
-        forceDatagouv={true}
-        onDatagouvToggle={vi.fn()}
+        connectors={[DATAGOUV]}
+        forcedConnectors={['datagouv']}
+        onConnectorToggle={vi.fn()}
       />,
     );
 
@@ -363,14 +376,14 @@ describe('InputChatActions', () => {
     );
   });
 
-  it('should show "Data" chip text on mobile when forceDatagouv is active', () => {
+  it('should show "Data" chip text on mobile when DataGouv is forced', () => {
     render(
       <InputChatActions
         {...defaultProps}
         isMobile={true}
-        datagouvEnabled={true}
-        forceDatagouv={true}
-        onDatagouvToggle={vi.fn()}
+        connectors={[DATAGOUV]}
+        forcedConnectors={['datagouv']}
+        onConnectorToggle={vi.fn()}
       />,
     );
 
@@ -381,9 +394,9 @@ describe('InputChatActions', () => {
     render(
       <InputChatActions
         {...defaultProps}
-        datagouvEnabled={true}
-        forceDatagouv={true}
-        onDatagouvToggle={vi.fn()}
+        connectors={[DATAGOUV]}
+        forcedConnectors={['datagouv']}
+        onConnectorToggle={vi.fn()}
         onWebSearchToggle={vi.fn()}
       />,
     );
@@ -406,14 +419,66 @@ describe('InputChatActions', () => {
       <InputChatActions
         {...defaultProps}
         isMobile={true}
-        datagouvEnabled={true}
-        forceDatagouv={true}
-        onDatagouvToggle={vi.fn()}
+        connectors={[DATAGOUV]}
+        forcedConnectors={['datagouv']}
+        onConnectorToggle={vi.fn()}
       />,
     );
 
     expect(screen.getByRole('button', { name: 'DataGouv' })).toHaveTextContent(
       'Data',
     );
+  });
+
+  it('should list every available connector, by its name unless it has its own look', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        connectors={[DATAGOUV, LEGI]}
+        onConnectorToggle={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'DataGouv' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Légifrance' }),
+    ).toBeInTheDocument();
+  });
+
+  it('should show one chip per forced connector', async () => {
+    const user = userEvent.setup();
+    const onConnectorToggle = vi.fn();
+    render(
+      <InputChatActions
+        {...defaultProps}
+        connectors={[DATAGOUV, LEGI]}
+        forcedConnectors={['legi', 'datagouv']}
+        onConnectorToggle={onConnectorToggle}
+      />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'DataGouv' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Légifrance' }));
+
+    expect(onConnectorToggle).toHaveBeenCalledExactlyOnceWith('legi');
+  });
+
+  it('should not show a chip for a forced connector that is no longer available', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        connectors={[DATAGOUV]}
+        forcedConnectors={['legi']}
+        onConnectorToggle={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: 'Légifrance' }),
+    ).not.toBeInTheDocument();
   });
 });

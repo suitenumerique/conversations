@@ -20,6 +20,7 @@ from chat.views import (
     LLMConfigurationView,
     ModelHealthView,
 )
+from chat.views.connectors import connector_oauth_callback, connector_oauth_start
 
 # - Main endpoints
 router = DefaultRouter()
@@ -48,6 +49,16 @@ urlpatterns = [
                 path("model-health/", ModelHealthView.as_view(), name="model-health"),
                 path("assistant-health/", AssistantHealthView.as_view(), name="assistant-health"),
                 path("chat-cooldown/", ChatCooldownView.as_view(), name="chat-cooldown"),
+                path(
+                    "connectors/oauth/callback/",
+                    connector_oauth_callback,
+                    name="connector-oauth-callback",
+                ),
+                path(
+                    "connectors/<slug:slug>/oauth/start/",
+                    connector_oauth_start,
+                    name="connector-oauth-start",
+                ),
                 path(
                     "chats/<uuid:conversation_pk>/",
                     include(conversation_router.urls),

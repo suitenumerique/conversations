@@ -1,4 +1,4 @@
-"""Unit tests for forcing the DataGouv connector on a single turn."""
+"""Unit tests for forcing a connector (data.gouv here) on a single turn."""
 
 # pylint: disable=protected-access  # tests intentionally access private members
 
@@ -11,13 +11,19 @@ from pydantic_ai.messages import FunctionToolResultEvent, ToolReturnPart
 
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService
-from chat.connectors import DataGouvConnector
+from chat.connectors import DATAGOUV_SLUG
 from chat.factories import ChatConversationFactory
 from chat.tests.clients.pydantic_ai.test_run_agent_summary import _run_agent_patches
 from chat.turn.event_mapper import CONNECTOR_UNAVAILABLE_EVENT_TYPE, TurnEventMapper
 from chat.vercel_ai_sdk.core import events_v4
 
 pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture(autouse=True)
+def _datagouv_configured(settings):
+    """The deployment offers data.gouv; each test decides whether the gates let it through."""
+    settings.DATAGOUV_CONNECTOR_URL = "https://mcp.data.gouv.fr/mcp"
 
 
 @pytest.fixture(name="conversation")
@@ -33,10 +39,9 @@ def ui_messages_fixture():
 
 
 @pytest.fixture(name="service")
-def service_fixture(conversation, settings):
+def service_fixture(conversation):
     """An agent service for a user the connector is available to."""
-    settings.DATAGOUV_CONNECTOR_URL = "https://mcp.data.gouv.fr/mcp"
-    with patch("chat.connectors.datagouv.is_feature_enabled", return_value=True):
+    with patch("chat.connectors.turn.is_feature_enabled", return_value=True):
         yield AIAgentService(
             conversation=conversation,
             user=conversation.owner,
@@ -45,25 +50,32 @@ def service_fixture(conversation, settings):
         )
 
 
+def _datagouv(service):
+    """The service's data.gouv connector for this turn."""
+    return service._connectors.get(DATAGOUV_SLUG)
+
+
 def _toolsets_for(service, *, opted_in, forced):
     """Resolve the per-turn connector decision the way _run_agent does."""
-    service._datagouv.opted_in = opted_in
+    _datagouv(service).opted_in = opted_in
     if forced:
-        service._datagouv.force()
-    return service._datagouv.toolsets()
+        service._connectors.force([DATAGOUV_SLUG])
+    return _datagouv(service).toolsets()
 
 
 def _force(service, *, connected):
     """Force the connector and settle its reachability, the way _run_agent does."""
-    service._datagouv.force()
-    service._datagouv.mark_connected(connected)
+    connector = _datagouv(service)
+    connector.force()
+    connector.mark_connected(connected)
     if not connected:
-        service._setup_datagouv_instruction()
+        service._connectors.absent.append(connector)
+        service._setup_absent_connectors_instruction()
 
 
 async def _toolset_instruction(service):
     """The instruction the connector's toolset hands the model."""
-    return await service._datagouv.toolsets()[0].get_instructions(None)
+    return await _datagouv(service).toolsets()[0].get_instructions(None)
 
 
 def test_opted_in_user_gets_the_connector(service):
@@ -83,7 +95,7 @@ def test_forcing_stands_in_for_the_opt_in(service):
 
 def test_forcing_cannot_bypass_availability(conversation):
     """A force never conjures a connector the deployment or cohort denies."""
-    with patch("chat.connectors.datagouv.is_feature_enabled", return_value=False):
+    with patch("chat.connectors.turn.is_feature_enabled", return_value=False):
         service = AIAgentService(
             conversation=conversation,
             user=conversation.owner,
@@ -117,7 +129,10 @@ def test_unreachable_forced_connector_tells_the_model_to_say_so(service):
 async def test_an_unreachable_forced_connector_streams_a_notice(service):
     """The user is told the source was missing, without losing the answer."""
     with patch("chat.clients.pydantic_ai.acapture_event", new=AsyncMock()):
-        events = [event async for event in service._report_forced_connector(connected=False)]
+        events = [
+            event
+            async for event in service._report_forced_connector(DATAGOUV_SLUG, connected=False)
+        ]
 
     assert len(events) == 1
     assert isinstance(events[0], events_v4.DataPart)
@@ -134,7 +149,9 @@ async def test_an_unreachable_forced_connector_streams_a_notice(service):
 async def test_a_reachable_forced_connector_streams_nothing(service):
     """Nothing degraded, nothing to say."""
     with patch("chat.clients.pydantic_ai.acapture_event", new=AsyncMock()):
-        events = [event async for event in service._report_forced_connector(connected=True)]
+        events = [
+            event async for event in service._report_forced_connector(DATAGOUV_SLUG, connected=True)
+        ]
 
     assert events == []
 
@@ -143,7 +160,9 @@ async def test_a_reachable_forced_connector_streams_nothing(service):
 async def test_forcing_is_captured(service):
     """Button usage is the adoption signal the Settings opt-in cannot give."""
     with patch("chat.clients.pydantic_ai.acapture_event", new=AsyncMock()) as mock_capture:
-        _ = [event async for event in service._report_forced_connector(connected=True)]
+        _ = [
+            event async for event in service._report_forced_connector(DATAGOUV_SLUG, connected=True)
+        ]
 
     mock_capture.assert_awaited_once_with(
         "connector_forced",
@@ -156,9 +175,9 @@ async def test_forcing_is_captured(service):
 async def test_an_unreachable_forced_tool_call_is_reported_like_an_unreachable_server(service):
     """A connector that answers the handshake and then goes away owes a notice."""
     _force(service, connected=True)
-    service._datagouv.record_call_outage("datagouv_search_datasets")
+    _datagouv(service).record_call_outage("datagouv_search_datasets")
 
-    assert service._datagouv.take_outage() is True
+    assert _datagouv(service).take_outage() is True
     assert "could not" in (await _toolset_instruction(service)).lower()
 
 
@@ -166,11 +185,11 @@ def test_an_unreachable_forced_tool_call_is_reported_once(service):
     """The model retries the call; the user is not told twice."""
     _force(service, connected=True)
 
-    service._datagouv.record_call_outage("datagouv_search_datasets")
-    assert service._datagouv.take_outage() is True
+    _datagouv(service).record_call_outage("datagouv_search_datasets")
+    assert _datagouv(service).take_outage() is True
 
-    service._datagouv.record_call_outage("datagouv_search_datasets")
-    assert service._datagouv.take_outage() is False
+    _datagouv(service).record_call_outage("datagouv_search_datasets")
+    assert _datagouv(service).take_outage() is False
 
 
 def test_an_unreachable_tool_call_nobody_forced_stays_silent(service):
@@ -179,9 +198,9 @@ def test_an_unreachable_tool_call_nobody_forced_stays_silent(service):
     A turn that does not force the connector never records a force, so the
     opted-in user whose tool call fails is told nothing.
     """
-    service._datagouv.record_call_outage("datagouv_search_datasets")
+    _datagouv(service).record_call_outage("datagouv_search_datasets")
 
-    assert service._datagouv.take_outage() is False
+    assert _datagouv(service).take_outage() is False
 
 
 @pytest.mark.asyncio
@@ -194,7 +213,7 @@ async def test_a_retry_that_is_not_an_outage_stays_silent(service):
     """
     _force(service, connected=True)
 
-    assert service._datagouv.take_outage() is False
+    assert _datagouv(service).take_outage() is False
     instruction = (await _toolset_instruction(service)).lower()
     assert "must" in instruction
     assert "could not" not in instruction
@@ -203,7 +222,7 @@ async def test_a_retry_that_is_not_an_outage_stays_silent(service):
 @pytest.mark.asyncio
 async def test_an_available_connector_tells_the_model_when_to_use_it(service):
     """The server's descriptions say how to use its tools, never when."""
-    service._datagouv.opted_in = True
+    _datagouv(service).opted_in = True
 
     instruction = await _toolset_instruction(service)
     assert "data.gouv.fr" in instruction
@@ -215,7 +234,7 @@ async def test_an_available_connector_tells_the_model_when_to_use_it(service):
 async def test_a_failed_tool_result_streams_the_notice(service):
     """An outage reaches the model as a failed result, and the user as a notice."""
     _force(service, connected=True)
-    service._datagouv.record_call_outage("datagouv_search_datasets")
+    _datagouv(service).record_call_outage("datagouv_search_datasets")
     failed = ToolReturnPart(
         tool_name="datagouv_search_datasets",
         content="data.gouv.fr could not be reached.",
@@ -239,7 +258,7 @@ async def test_a_failed_tool_result_streams_the_notice(service):
         model_configuration=service.conversation_agent.configuration,
         supports_streaming=True,
         fake_streaming_delay=0,
-        datagouv=service._datagouv,
+        connectors=service._connectors,
     )
     events = [
         event async for event in mapper._handle_call_tools_node(MagicMock(stream=stream), None)
@@ -271,7 +290,7 @@ async def test_a_forced_connector_the_gates_deny_reports_nothing(conversation, u
     toolset list an unreachable server does. Only the second one is a failure
     the user is owed a word about, and only it belongs in the outage rate.
     """
-    with patch("chat.connectors.datagouv.is_feature_enabled", return_value=False):
+    with patch("chat.connectors.turn.is_feature_enabled", return_value=False):
         service = AIAgentService(
             conversation=conversation,
             user=conversation.owner,
@@ -283,7 +302,10 @@ async def test_a_forced_connector_the_gates_deny_reports_nothing(conversation, u
         _run_agent_patches(service),
         patch("chat.clients.pydantic_ai.acapture_event", new=AsyncMock()) as mock_capture,
     ):
-        events = [event async for event in service._run_agent(ui_messages, force_datagouv=True)]
+        events = [
+            event
+            async for event in service._run_agent(ui_messages, force_connectors=[DATAGOUV_SLUG])
+        ]
 
     assert _notices(events) == []
     mock_capture.assert_not_awaited()
@@ -294,11 +316,14 @@ async def test_a_forced_connector_that_was_built_but_unreachable_reports_it(serv
     """The connector existed for this user and still could not be reached."""
     with (
         _run_agent_patches(service),
-        patch.object(service._datagouv, "toolsets", return_value=[object()]),
-        patch("chat.clients.pydantic_ai.enter_mcp_toolsets", new=AsyncMock(return_value=[])),
+        patch.object(_datagouv(service), "toolsets", return_value=[object()]),
+        patch("chat.connectors.turn.enter_mcp_toolsets", new=AsyncMock(return_value=[])),
         patch("chat.clients.pydantic_ai.acapture_event", new=AsyncMock()) as mock_capture,
     ):
-        events = [event async for event in service._run_agent(ui_messages, force_datagouv=True)]
+        events = [
+            event
+            async for event in service._run_agent(ui_messages, force_connectors=[DATAGOUV_SLUG])
+        ]
 
     assert len(_notices(events)) == 1
     mock_capture.assert_awaited_once_with(
@@ -319,15 +344,15 @@ async def test_forcing_both_sources_demands_both(service, ui_messages):
     """
     with (
         _run_agent_patches(service),
-        patch.object(service._datagouv, "toolsets", return_value=[object()]),
-        patch("chat.clients.pydantic_ai.enter_mcp_toolsets", new=AsyncMock(return_value=[])),
+        patch.object(_datagouv(service), "toolsets", return_value=[object()]),
+        patch("chat.connectors.turn.enter_mcp_toolsets", new=AsyncMock(return_value=[])),
         patch("chat.clients.pydantic_ai.acapture_event", new=AsyncMock()),
-        patch.object(service, "_setup_datagouv_instruction") as setup_datagouv,
+        patch.object(service, "_setup_absent_connectors_instruction") as setup_datagouv,
     ):
         _ = [
             event
             async for event in service._run_agent(
-                ui_messages, force_web_search=True, force_datagouv=True
+                ui_messages, force_web_search=True, force_connectors=[DATAGOUV_SLUG]
             )
         ]
         # The web-search setup is a mock only inside the patch stack.
@@ -342,12 +367,12 @@ async def test_a_connected_unforced_turn_leaves_the_guidance_to_the_toolset(serv
     """The tools carry their own instruction; the agent is not given a second one."""
     with (
         _run_agent_patches(service),
-        patch.object(service._datagouv, "toolsets", return_value=[object()]),
+        patch.object(_datagouv(service), "toolsets", return_value=[object()]),
         patch(
-            "chat.clients.pydantic_ai.enter_mcp_toolsets",
+            "chat.connectors.turn.enter_mcp_toolsets",
             new=AsyncMock(return_value=[object()]),
         ),
-        patch.object(service, "_setup_datagouv_instruction") as setup_datagouv,
+        patch.object(service, "_setup_absent_connectors_instruction") as setup_datagouv,
     ):
         _ = [event async for event in service._run_agent(ui_messages)]
 
@@ -363,8 +388,8 @@ async def test_a_turn_without_the_tools_gets_no_guidance(service, ui_messages):
     """
     with (
         _run_agent_patches(service),
-        patch("chat.clients.pydantic_ai.enter_mcp_toolsets", new=AsyncMock(return_value=[])),
-        patch.object(service, "_setup_datagouv_instruction") as setup_datagouv,
+        patch("chat.connectors.turn.enter_mcp_toolsets", new=AsyncMock(return_value=[])),
+        patch.object(service, "_setup_absent_connectors_instruction") as setup_datagouv,
     ):
         _ = [event async for event in service._run_agent(ui_messages)]
 
@@ -373,7 +398,7 @@ async def test_a_turn_without_the_tools_gets_no_guidance(service, ui_messages):
 
 def _denied_service(conversation):
     """A service for a user the gates deny the connector to."""
-    with patch("chat.connectors.datagouv.is_feature_enabled", return_value=False):
+    with patch("chat.connectors.turn.is_feature_enabled", return_value=False):
         return AIAgentService(
             conversation=conversation,
             user=conversation.owner,
@@ -391,7 +416,7 @@ def _force_warnings(caplog):
     return [
         record
         for record in caplog.records
-        if record.name == "chat.connectors.datagouv"
+        if record.name == "chat.connectors.turn"
         and record.msg["event"].startswith("connector_forced")
     ]
 
@@ -400,23 +425,23 @@ def test_a_force_the_gates_deny_is_logged(conversation, caplog):
     """The user is told nothing, by design — so operators are.
 
     The button is shown on the cohort flag alone, so a deployment that sets
-    the flag without DATAGOUV_CONNECTOR_URL has no other symptom.
+    the flag without its connector's URL has no other symptom.
     """
     service = _denied_service(conversation)
 
-    with caplog.at_level(logging.WARNING, logger="chat.connectors.datagouv"):
+    with caplog.at_level(logging.WARNING, logger="chat.connectors.turn"):
         _toolsets_for(service, opted_in=False, forced=True)
 
     assert [
         (record.msg["event"], record.msg["connector_id"]) for record in _force_warnings(caplog)
-    ] == [("connector_forced_but_not_enabled", DataGouvConnector.connector_id)]
+    ] == [("connector_forced_but_not_enabled", DATAGOUV_SLUG)]
 
 
 def test_an_unavailable_connector_nobody_asked_for_is_silent(conversation, caplog):
     """Most users are outside the cohort; that is not worth a log line."""
     service = _denied_service(conversation)
 
-    with caplog.at_level(logging.WARNING, logger="chat.connectors.datagouv"):
+    with caplog.at_level(logging.WARNING, logger="chat.connectors.turn"):
         _toolsets_for(service, opted_in=True, forced=False)
 
     assert _force_warnings(caplog) == []

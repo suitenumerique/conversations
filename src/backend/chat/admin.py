@@ -336,3 +336,46 @@ class ChatProjectAdmin(admin.ModelAdmin):
         "created_at",
         "updated_at",
     )
+
+
+@admin.register(models.ConnectorCredential)
+class ConnectorCredentialAdmin(admin.ModelAdmin):
+    """Which users linked which connector. The tokens themselves are never shown.
+
+    Deleting a row unlinks the connector for that user — the tokens are
+    forgotten, revoked, and the connector switched off — like switching it off
+    from the user's settings.
+    """
+
+    list_display = ("user", "connector_id", "expires_at", "updated_at")
+    list_filter = ("connector_id",)
+    search_fields = ("user__email", "user__sub", "connector_id")
+    fields = ("user", "connector_id", "scope", "expires_at", "created_at", "updated_at")
+    readonly_fields = fields
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def delete_model(self, request, obj):
+        self._unlink(obj)
+
+    def delete_queryset(self, request, queryset):
+        for credential in queryset.select_related("user"):
+            self._unlink(credential)
+
+    @staticmethod
+    def _unlink(credential):
+        # pylint: disable-next=import-outside-toplevel
+        from chat.connectors.registry import get_connector_definition  # noqa: PLC0415
+
+        definition = get_connector_definition(credential.connector_id)
+        if definition is None:
+            credential.delete()
+            return
+        # pylint: disable-next=import-outside-toplevel
+        from chat.connectors.oauth import unlink  # noqa: PLC0415
+
+        unlink(credential.user, definition)

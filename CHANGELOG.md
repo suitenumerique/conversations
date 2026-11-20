@@ -14,10 +14,14 @@ and this project adheres to
 - 🔊(back) correlate Sentry, Langfuse and logs through the request id
 - 📝(project) add publiccode.yml
 - ✨(back) build slide decks from attached documents at the requested length
+- ✨(back) per-user OAuth for MCP connectors (user_oauth): discovery, PKCE linking, encrypted tokens and refresh
+- ✨(front) authorize a user_oauth connector when switching it on
 
 ### Changed
 
 - ♻️(back) move MCP connectors into chat/connectors with ConnectorDefinition
+- ♻️(back) declare MCP connectors as data in MCP_CONNECTORS, with a generic per-user opt-in (allowed_connectors) and force (force_connectors)
+- ♻️(front) list connectors, chips and settings toggles from the config's CONNECTORS
 - 🔨(project) bump backend, publiccode and changelog on release
 - 📝(doc) redraw the architecture diagram
 

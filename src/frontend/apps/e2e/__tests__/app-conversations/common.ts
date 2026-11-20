@@ -4,6 +4,7 @@ import { expect } from '@playwright/test';
 import packageJson from '../../package.json';
 
 export const CONFIG = {
+  CONNECTORS: [],
   DOCS_BASE_URL: null,
   ENVIRONMENT: 'development',
   FEATURE_FLAGS: {

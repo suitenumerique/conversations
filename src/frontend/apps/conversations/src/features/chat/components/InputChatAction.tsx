@@ -3,10 +3,11 @@ import { DropdownMenu, type DropdownMenuItem } from '@gouvfr-lasuite/ui-kit';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import DatagouvIcon from '@/assets/icons/uikit-custom/datagouv.svg?react';
 import { Box, Icon, Text } from '@/components';
+import { ConnectorConfig } from '@/core/config/api/useConfig';
 import { useCunninghamTheme } from '@/cunningham';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
+import { connectorPresentation } from '@/features/chat/connectors';
 
 import { ModelSelector } from './ModelSelector';
 import { SendButton } from './SendButton';
@@ -22,16 +23,16 @@ interface InputChatActionsProps {
   isMobile: boolean;
   /** Whether web search is forced/active */
   forceWebSearch: boolean;
-  /** Whether the DataGouv connector is available to this user */
-  datagouvEnabled: boolean;
-  /** Whether the DataGouv connector is forced for the next message */
-  forceDatagouv: boolean;
+  /** The connectors available to this user */
+  connectors: ConnectorConfig[];
+  /** Slugs of the connectors forced for the next message */
+  forcedConnectors: string[];
   /** Handler for attach button click */
   onAttachClick: () => void;
   /** Handler for web search toggle - if undefined, option is hidden */
   onWebSearchToggle?: () => void;
-  /** Handler for the DataGouv toggle - if undefined, option is hidden */
-  onDatagouvToggle?: () => void;
+  /** Handler for a connector toggle - if undefined, connectors are hidden */
+  onConnectorToggle?: (slug: string) => void;
   /** Handler for model selection - if undefined, selector is hidden */
   onModelSelect?: (model: LLMModel) => void;
   /** Currently selected model */
@@ -56,7 +57,8 @@ const ACTIONS_OPACITY_CSS = 'opacity: 1;';
 
 const ACTIVE_CHIP_CSS = `
   .research-web-chip,
-  .datagouv-chip {
+  .datagouv-chip,
+  .connector-chip {
     background-color: var(--c--contextuals--background--semantic--brand--secondary) !important;
     color: var(--c--contextuals--content--semantic--brand--secondary) !important;
   }
@@ -64,7 +66,7 @@ const ACTIVE_CHIP_CSS = `
 
 /**
  * Action buttons for the chat input.
- * Includes: Attach/Web-search/DataGouv dropdown, Model selector, Send button.
+ * Includes: Attach/Web-search/connectors dropdown, Model selector, Send button.
  *
  * Memoized to prevent re-renders when parent updates but props haven't changed.
  */
@@ -75,11 +77,11 @@ export const InputChatActions = memo(
     isUploadingFiles,
     isMobile,
     forceWebSearch,
-    datagouvEnabled,
-    forceDatagouv,
+    connectors,
+    forcedConnectors,
     onAttachClick,
     onWebSearchToggle,
-    onDatagouvToggle,
+    onConnectorToggle,
     onModelSelect,
     selectedModel,
     status,
@@ -122,12 +124,13 @@ export const InputChatActions = memo(
         );
       }
 
-      // Hidden outside the beta cohort: no option, no way to force it.
-      if (datagouvEnabled && onDatagouvToggle) {
-        items.push(
-          { type: 'separator' },
-          {
-            label: 'DataGouv',
+      // Only the connectors this user may use: no option, no way to force it.
+      if (onConnectorToggle && connectors.length) {
+        items.push({ type: 'separator' });
+        for (const connector of connectors) {
+          const { label, icon } = connectorPresentation(connector);
+          items.push({
+            label,
             // Same 24px slot as the Material glyphs above, so labels align.
             icon: (
               <Box
@@ -137,14 +140,14 @@ export const InputChatActions = memo(
                 $theme="neutral"
                 $variation="tertiary"
               >
-                <DatagouvIcon width={16} height={16} />
+                {icon}
               </Box>
             ),
-            isChecked: forceDatagouv,
+            isChecked: forcedConnectors.includes(connector.slug),
             isDisabled: isUploadingFiles,
-            callback: onDatagouvToggle,
-          },
-        );
+            callback: () => onConnectorToggle(connector.slug),
+          });
+        }
       }
 
       return items;
@@ -156,9 +159,9 @@ export const InputChatActions = memo(
       onWebSearchToggle,
       forceWebSearch,
       webSearchEnabled,
-      datagouvEnabled,
-      onDatagouvToggle,
-      forceDatagouv,
+      connectors,
+      onConnectorToggle,
+      forcedConnectors,
     ]);
 
     return (
@@ -229,26 +232,33 @@ export const InputChatActions = memo(
             </Box>
           )}
 
-          {forceDatagouv && datagouvEnabled && onDatagouvToggle && (
-            <Box $css={ACTIVE_CHIP_CSS} $shrink="0">
-              <Button
-                size="nano"
-                color="brand"
-                variant="tertiary"
-                type="button"
-                disabled={isUploadingFiles}
-                onClick={onDatagouvToggle}
-                aria-label="DataGouv"
-                aria-pressed={true}
-                className="c__button--neutral datagouv-chip"
-                icon={<DatagouvIcon width={16} height={16} />}
-              >
-                <Text $theme="brand" $variation="tertiary">
-                  {isMobile ? 'Data' : 'DataGouv'}
-                </Text>
-              </Button>
-            </Box>
-          )}
+          {onConnectorToggle &&
+            connectors
+              .filter((connector) => forcedConnectors.includes(connector.slug))
+              .map((connector) => {
+                const { label, shortLabel, icon, chipClassName } =
+                  connectorPresentation(connector);
+                return (
+                  <Box key={connector.slug} $css={ACTIVE_CHIP_CSS} $shrink="0">
+                    <Button
+                      size="nano"
+                      color="brand"
+                      variant="tertiary"
+                      type="button"
+                      disabled={isUploadingFiles}
+                      onClick={() => onConnectorToggle(connector.slug)}
+                      aria-label={label}
+                      aria-pressed={true}
+                      className={`c__button--neutral ${chipClassName}`}
+                      icon={icon}
+                    >
+                      <Text $theme="brand" $variation="tertiary">
+                        {isMobile ? shortLabel : label}
+                      </Text>
+                    </Button>
+                  </Box>
+                );
+              })}
         </Box>
 
         {/* Right side: Model selector + Send */}

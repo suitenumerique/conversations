@@ -11,6 +11,12 @@ from core.api import serializers
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True)
+def _datagouv_offered(settings):
+    """Offer data.gouv, so `allowed_connectors` may name it."""
+    settings.DATAGOUV_CONNECTOR_URL = "https://mcp.data.gouv.fr/mcp"
+
+
 @pytest.fixture(autouse=True, scope="function")
 def reset_user_model():
     """Reset the user model before each test to ensure a clean state."""
@@ -61,7 +67,7 @@ def test_api_users_retrieve_me_authenticated():
     assert response.json() == {
         "id": str(user.id),
         "allow_conversation_analytics": user.allow_conversation_analytics,
-        "allow_datagouv_connector": user.allow_datagouv_connector,
+        "allowed_connectors": user.allowed_connectors,
         "allow_smart_web_search": user.allow_smart_web_search,
         "email": user.email,
         "full_name": user.full_name,
@@ -186,7 +192,7 @@ def test_api_users_update_authenticated_self():
         serializers.UserSerializer(
             instance=factories.UserFactory(
                 allow_conversation_analytics=not user.allow_conversation_analytics,
-                allow_datagouv_connector=not user.allow_datagouv_connector,
+                allowed_connectors=[] if user.allowed_connectors else ["datagouv"],
                 allow_smart_web_search=not user.allow_smart_web_search,
             )
         ).data
@@ -204,7 +210,7 @@ def test_api_users_update_authenticated_self():
     for key, value in user_values.items():
         if key in [
             "allow_conversation_analytics",
-            "allow_datagouv_connector",
+            "allowed_connectors",
             "allow_smart_web_search",
             "language",
             "timezone",
@@ -275,7 +281,7 @@ def test_api_users_patch_authenticated_self():
         serializers.UserSerializer(
             instance=factories.UserFactory(
                 allow_conversation_analytics=not user.allow_conversation_analytics,
-                allow_datagouv_connector=not user.allow_datagouv_connector,
+                allowed_connectors=[] if user.allowed_connectors else ["datagouv"],
                 allow_smart_web_search=not user.allow_smart_web_search,
             )
         ).data
@@ -294,7 +300,7 @@ def test_api_users_patch_authenticated_self():
     for key, value in user_values.items():
         if key in [
             "allow_conversation_analytics",
-            "allow_datagouv_connector",
+            "allowed_connectors",
             "allow_smart_web_search",
             "language",
             "timezone",
@@ -398,3 +404,49 @@ def test_api_users_delete_self():
 
     assert response.status_code == 405
     assert models.User.objects.count() == 1
+
+
+def test_api_users_allowed_connectors_must_be_offered():
+    """A user may only opt in to a connector the deployment offers."""
+    user = factories.UserFactory()
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.patch(
+        f"/api/v1.0/users/{user.id!s}/", {"allowed_connectors": ["nope"]}, format="json"
+    )
+
+    assert response.status_code == 400
+    assert "nope" in str(response.json()["allowed_connectors"])
+
+
+def test_api_users_allowed_connectors_keeps_a_connector_taken_offline(settings):
+    """Consent given to a connector survives the deployment dropping it for a while."""
+    settings.DATAGOUV_CONNECTOR_URL = ""
+    user = factories.UserFactory(allowed_connectors=["datagouv"])
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.patch(
+        f"/api/v1.0/users/{user.id!s}/",
+        {"allowed_connectors": ["datagouv", "datagouv"]},
+        format="json",
+    )
+
+    assert response.status_code == 200
+    user.refresh_from_db()
+    assert user.allowed_connectors == ["datagouv"]
+
+
+@pytest.mark.parametrize("value", ["datagouv", [1], {"datagouv": True}])
+def test_api_users_allowed_connectors_is_a_list_of_slugs(value):
+    """Anything but a list of strings is refused."""
+    user = factories.UserFactory()
+    client = APIClient()
+    client.force_login(user)
+
+    response = client.patch(
+        f"/api/v1.0/users/{user.id!s}/", {"allowed_connectors": value}, format="json"
+    )
+
+    assert response.status_code == 400

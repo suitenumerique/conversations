@@ -11,6 +11,7 @@ import { isAPIError } from '@/api';
 import { ErrorFallback, ToastProvider } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
 import { Auth, KEY_AUTH, setAuthUrl } from '@/features/auth';
+import { ConnectorLinkReturn } from '@/features/settings/components/ConnectorLinkReturn';
 import { useResponsiveStore } from '@/stores';
 
 import { ConfigProvider } from './config';
@@ -75,7 +76,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           <ToastProvider>
             {/* Wraps Auth too: its loading state renders a lazy chunk. */}
             <Sentry.ErrorBoundary fallback={<ErrorFallback />}>
-              <Auth>{children}</Auth>
+              <Auth>
+                <ConnectorLinkReturn />
+                {children}
+              </Auth>
             </Sentry.ErrorBoundary>
           </ToastProvider>
         </ConfigProvider>

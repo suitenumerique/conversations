@@ -20,6 +20,19 @@ export enum FeatureFlagState {
 interface FeatureFlags {
   [key: string]: FeatureFlagState;
 }
+/** A connector (remote MCP server) the deployment offers. */
+export interface ConnectorConfig {
+  slug: string;
+  name: string;
+  /** Feature flag gating it to a cohort, or null for everyone. */
+  feature_flag: string | null;
+  /**
+   * How it authenticates. `user_oauth`: switching it on sends the user to
+   * authorize it on the connector's own sign-in page.
+   */
+  auth?: 'none' | 'user_oauth';
+}
+
 export type BannerLevel = 'info' | 'warning' | 'alert';
 
 export interface StatusBanner {
@@ -37,6 +50,7 @@ export interface ConfigResponse {
   STATUS_PAGE_URL?: string | null;
   ENVIRONMENT: string;
   FEATURE_FLAGS: FeatureFlags;
+  CONNECTORS?: ConnectorConfig[];
   FRONTEND_CSS_URL?: string;
   FRONTEND_CONTACT_EMAIL?: string;
   FRONTEND_DOCUMENTATION_URL?: string;

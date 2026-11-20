@@ -14,7 +14,8 @@ export interface User {
   short_name: string | null;
   language?: string;
   allow_smart_web_search: boolean;
-  allow_datagouv_connector: boolean;
+  /** Slugs of the connectors the user switched on. */
+  allowed_connectors: string[];
   allow_conversation_analytics: boolean;
   sub?: string;
 }

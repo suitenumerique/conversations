@@ -1,14 +1,51 @@
 import { useChatPreferencesStore } from '../useChatPreferencesStore';
 
 describe('useChatPreferencesStore', () => {
-  it('starts with the DataGouv connector unforced', () => {
-    expect(useChatPreferencesStore.getState().forceDatagouv).toBe(false);
+  beforeEach(() => {
+    useChatPreferencesStore.setState({
+      forcedConnectors: [],
+      forceWebSearch: false,
+    });
   });
 
-  it('toggles the DataGouv force independently of web search', () => {
-    useChatPreferencesStore.getState().toggleForceDatagouv();
+  it('starts with no connector forced', () => {
+    expect(useChatPreferencesStore.getState().forcedConnectors).toEqual([]);
+  });
 
-    expect(useChatPreferencesStore.getState().forceDatagouv).toBe(true);
+  it('toggles a connector force independently of web search', () => {
+    useChatPreferencesStore.getState().toggleForcedConnector('datagouv');
+
+    expect(useChatPreferencesStore.getState().forcedConnectors).toEqual([
+      'datagouv',
+    ]);
     expect(useChatPreferencesStore.getState().forceWebSearch).toBe(false);
+  });
+
+  it('toggles each connector on its own', () => {
+    const { toggleForcedConnector } = useChatPreferencesStore.getState();
+    toggleForcedConnector('datagouv');
+    toggleForcedConnector('legi');
+    toggleForcedConnector('datagouv');
+
+    expect(useChatPreferencesStore.getState().forcedConnectors).toEqual([
+      'legi',
+    ]);
+  });
+
+  it('carries a stored DataGouv force over to the connector list', async () => {
+    localStorage.setItem(
+      'chat-preferences',
+      JSON.stringify({
+        state: { forceDatagouv: true, forceWebSearch: true },
+        version: 0,
+      }),
+    );
+
+    await useChatPreferencesStore.persist.rehydrate();
+
+    const state = useChatPreferencesStore.getState();
+    expect(state.forcedConnectors).toEqual(['datagouv']);
+    expect(state.forceWebSearch).toBe(true);
+    expect(state).not.toHaveProperty('forceDatagouv');
   });
 });

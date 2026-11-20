@@ -12,11 +12,12 @@ import { useTranslation } from 'react-i18next';
 import WarningFilledIcon from '@/assets/icons/uikit-custom/warning-filled.svg?react';
 import { Box, Loader, Text } from '@/components';
 import { useToast } from '@/components/ToastProvider';
-import { useConfig, useFeatureEnabled } from '@/core';
+import { useAvailableConnectors, useConfig, useFeatureEnabled } from '@/core';
 import {
   isFileAccepted as isFileTypeAccepted,
   withMarkdownExtensions,
 } from '@/features/attachments/utils/fileTypes';
+import { useAuthQuery } from '@/features/auth/api';
 import { useAssistantHealth } from '@/features/chat/api/useAssistantHealth';
 import { LLMModel } from '@/features/chat/api/useLLMConfiguration';
 import { ChatErrorType } from '@/features/chat/components/ChatError';
@@ -25,6 +26,7 @@ import { InputChatBanner } from '@/features/chat/components/InputChatBanner';
 import { ProjectWelcomeMessage } from '@/features/chat/components/ProjectWelcomeMessage';
 import { SuggestionCarousel } from '@/features/chat/components/SuggestionCarousel';
 import { WelcomeMessage } from '@/features/chat/components/WelcomeMessage';
+import { connectorNeedsLinking } from '@/features/chat/connectors';
 import { useFileDragDrop } from '@/features/chat/hooks/useFileDragDrop';
 import { useFileUrls } from '@/features/chat/hooks/useFileUrls';
 import { useResponsiveStore } from '@/stores';
@@ -54,8 +56,8 @@ interface InputChatProps {
   containerRef?: React.RefObject<HTMLDivElement | null>;
   forceWebSearch?: boolean;
   onToggleWebSearch?: () => void;
-  forceDatagouv?: boolean;
-  onToggleDatagouv?: () => void;
+  forcedConnectors?: string[];
+  onToggleConnector?: (slug: string) => void;
   onStop?: () => void;
   selectedModel?: LLMModel | null;
   onModelSelect?: (model: LLMModel) => void;
@@ -117,6 +119,9 @@ const DRAG_FADE_CSS = `
 
 // The ui-kit ArrowSquarepath draws vertical arrows; the design wants them
 // horizontal (top arrow pointing right, bottom arrow pointing left).
+// Stable default, so the memoized actions do not re-render for nothing.
+const NO_FORCED_CONNECTORS: string[] = [];
+
 const ROTATE_90_STYLE: React.CSSProperties = { transform: 'rotate(90deg)' };
 
 const TEXTAREA_STYLE: React.CSSProperties = {
@@ -154,8 +159,8 @@ export const InputChat = ({
   containerRef,
   forceWebSearch = false,
   onToggleWebSearch,
-  forceDatagouv = false,
-  onToggleDatagouv,
+  forcedConnectors = NO_FORCED_CONNECTORS,
+  onToggleConnector,
   onStop,
   selectedModel,
   onModelSelect,
@@ -177,7 +182,20 @@ export const InputChat = ({
   const { data: conf } = useConfig();
   const fileUploadEnabled = useFeatureEnabled('document-upload');
   const webSearchEnabled = useFeatureEnabled('web-search');
-  const datagouvEnabled = useFeatureEnabled('datagouv-connector');
+  const offeredConnectors = useAvailableConnectors();
+  const { data: user } = useAuthQuery();
+  // A connector that authenticates each user can only be used, even forced,
+  // once the user linked their account, which switches it on.
+  const connectors = useMemo(() => {
+    const linked = offeredConnectors.filter(
+      (connector) =>
+        !connectorNeedsLinking(connector) ||
+        (user?.allowed_connectors ?? []).includes(connector.slug),
+    );
+    return linked.length === offeredConnectors.length
+      ? offeredConnectors
+      : linked;
+  }, [offeredConnectors, user?.allowed_connectors]);
 
   const { data: assistantHealth } = useAssistantHealth();
 
@@ -403,10 +421,13 @@ export const InputChat = ({
     textareaRef.current?.focus();
   }, [onToggleWebSearch]);
 
-  const handleDatagouvToggle = useCallback(() => {
-    onToggleDatagouv?.();
-    textareaRef.current?.focus();
-  }, [onToggleDatagouv]);
+  const handleConnectorToggle = useCallback(
+    (slug: string) => {
+      onToggleConnector?.(slug);
+      textareaRef.current?.focus();
+    },
+    [onToggleConnector],
+  );
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -606,10 +627,10 @@ export const InputChat = ({
                 onWebSearchToggle={
                   onToggleWebSearch ? handleWebSearchToggle : undefined
                 }
-                datagouvEnabled={datagouvEnabled}
-                forceDatagouv={forceDatagouv}
-                onDatagouvToggle={
-                  onToggleDatagouv ? handleDatagouvToggle : undefined
+                connectors={connectors}
+                forcedConnectors={forcedConnectors}
+                onConnectorToggle={
+                  onToggleConnector ? handleConnectorToggle : undefined
                 }
                 onModelSelect={onModelSelect}
                 selectedModel={selectedModel || null}

@@ -14,9 +14,11 @@ from rest_framework.permissions import AllowAny
 
 from core import models, permissions
 from core.analytics import capture_event
+from core.feature_flags.helpers import frontend_feature_name
 from core.middleware import is_maintenance_active
 
-from chat.connectors import DataGouvConnector
+from chat.connectors import connector_definitions
+from chat.connectors.oauth import unlink
 
 from . import serializers
 
@@ -117,17 +119,22 @@ class UserViewSet(drf.mixins.UpdateModelMixin, viewsets.GenericViewSet):
     pagination_class = None
 
     def perform_update(self, serializer):
-        """Save, then report a connector opt-in that actually changed."""
-        was_enabled = serializer.instance.allow_datagouv_connector
+        """Save, then report each connector opt-in that actually changed."""
+        before = set(serializer.instance.allowed_connectors or [])
         user = serializer.save()
-        if user.allow_datagouv_connector != was_enabled:
+        after = set(user.allowed_connectors or [])
+        # Switching off a connector that authenticates each user forgets the
+        # link, so switching it on again goes through the authorization again.
+        definitions = connector_definitions()
+        for connector_id in sorted(before - after):
+            definition = definitions.get(connector_id)
+            if definition is not None and definition.auth.needs_linking:
+                unlink(user, definition)
+        for connector_id in sorted(before ^ after):
             capture_event(
                 "connector_toggled",
                 user.pk,
-                properties={
-                    "connector_id": DataGouvConnector.connector_id,
-                    "enabled": user.allow_datagouv_connector,
-                },
+                properties={"connector_id": connector_id, "enabled": connector_id in after},
             )
 
     @drf.decorators.action(
@@ -188,6 +195,23 @@ class ConfigView(drf.views.APIView):
         dict_settings["project_files_max_count"] = settings.PROJECT_FILES_MAX_COUNT
         dict_settings["project_images_max_count"] = settings.PROJECT_IMAGES_MAX_COUNT
         dict_settings["attachment_max_size"] = settings.ATTACHMENT_MAX_SIZE // (1024 * 1024)
+
+        # The connectors the deployment offers. Whether a user may use one is
+        # its feature flag's call, which the frontend resolves like any other.
+        dict_settings["CONNECTORS"] = [
+            {
+                "slug": definition.slug,
+                "name": definition.name,
+                # Whether switching it on sends the user to authorize it.
+                "auth": str(definition.auth.kind),
+                "feature_flag": (
+                    frontend_feature_name(definition.feature_flag)
+                    if definition.feature_flag
+                    else None
+                ),
+            }
+            for definition in connector_definitions().values()
+        ]
 
         dict_settings["status_banner"] = self._get_banner()
         dict_settings["maintenance"] = self._get_maintenance()

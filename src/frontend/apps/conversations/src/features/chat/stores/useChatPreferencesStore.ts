@@ -5,7 +5,8 @@ interface ChatPreferencesState {
   themeModePreference: 'system' | 'light' | 'dark';
   selectedModelHrid: string | null;
   forceWebSearch: boolean;
-  forceDatagouv: boolean;
+  /** Slugs of the connectors forced for the next messages. */
+  forcedConnectors: string[];
   isDarkModePreference: boolean;
   isPanelOpen: boolean;
   isSourcesPanelOpen: boolean;
@@ -13,7 +14,7 @@ interface ChatPreferencesState {
   setThemeModePreference: (mode: 'system' | 'light' | 'dark') => void;
   toggleDarkModePreferences: () => void;
   toggleForceWebSearch: () => void;
-  toggleForceDatagouv: () => void;
+  toggleForcedConnector: (slug: string) => void;
   setPanelOpen: (isOpen: boolean) => void;
   togglePanel: () => void;
   setSourcesPanelOpen: (isOpen: boolean) => void;
@@ -25,7 +26,7 @@ export const useChatPreferencesStore = create<ChatPreferencesState>()(
       themeModePreference: 'system',
       selectedModelHrid: null,
       forceWebSearch: false,
-      forceDatagouv: false,
+      forcedConnectors: [],
       isDarkModePreference: false,
       isPanelOpen: false,
       isSourcesPanelOpen: false,
@@ -45,19 +46,36 @@ export const useChatPreferencesStore = create<ChatPreferencesState>()(
         }),
       toggleForceWebSearch: () =>
         set((state) => ({ forceWebSearch: !state.forceWebSearch })),
-      toggleForceDatagouv: () =>
-        set((state) => ({ forceDatagouv: !state.forceDatagouv })),
+      toggleForcedConnector: (slug) =>
+        set((state) => ({
+          forcedConnectors: state.forcedConnectors.includes(slug)
+            ? state.forcedConnectors.filter((forced) => forced !== slug)
+            : [...state.forcedConnectors, slug],
+        })),
       setPanelOpen: (isOpen) => set({ isPanelOpen: isOpen }),
       togglePanel: () => set((state) => ({ isPanelOpen: !state.isPanelOpen })),
       setSourcesPanelOpen: (isOpen) => set({ isSourcesPanelOpen: isOpen }),
     }),
     {
       name: 'chat-preferences',
+      // 1: `forceDatagouv: boolean` became `forcedConnectors: string[]`.
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as Record<string, unknown>;
+        if (version < 1) {
+          const { forceDatagouv, ...rest } = state;
+          return {
+            ...rest,
+            forcedConnectors: forceDatagouv ? ['datagouv'] : [],
+          } as unknown as ChatPreferencesState;
+        }
+        return state as unknown as ChatPreferencesState;
+      },
       partialize: (state) => ({
         themeModePreference: state.themeModePreference,
         selectedModelHrid: state.selectedModelHrid,
         forceWebSearch: state.forceWebSearch,
-        forceDatagouv: state.forceDatagouv,
+        forcedConnectors: state.forcedConnectors,
         isDarkModePreference: state.isDarkModePreference,
         isPanelOpen: state.isPanelOpen,
       }),

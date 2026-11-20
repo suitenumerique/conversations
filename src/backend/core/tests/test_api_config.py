@@ -50,6 +50,7 @@ def test_api_config(is_authenticated):
     assert response.json() == {
         "STATUS_PAGE_URL": "https://status.example.com",
         "DOCS_BASE_URL": None,
+        "CONNECTORS": [],
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {
             "datagouv-connector": "enabled",
@@ -238,6 +239,7 @@ async def test_api_config_async(is_authenticated):
     assert response.json() == {
         "STATUS_PAGE_URL": "https://status.example.com",
         "DOCS_BASE_URL": None,
+        "CONNECTORS": [],
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {
             "datagouv-connector": "enabled",
@@ -427,3 +429,24 @@ def test_api_config_status_banner_window(now_offset_hours, expected_visible):
         assert response.json()["status_banner"] is not None
     else:
         assert response.json()["status_banner"] is None
+
+
+@override_settings(
+    DATAGOUV_CONNECTOR_URL="https://mcp.data.gouv.fr/mcp",
+    MCP_CONNECTORS=[
+        {"slug": "legi", "name": "Légifrance", "url": "https://l/mcp", "instructions": "Law."}
+    ],
+)
+def test_api_config_lists_the_offered_connectors():
+    """The frontend learns the connectors and the flag gating each, never their URL."""
+    response = APIClient().get("/api/v1.0/config/")
+
+    assert response.json()["CONNECTORS"] == [
+        {
+            "slug": "datagouv",
+            "name": "data.gouv.fr",
+            "auth": "none",
+            "feature_flag": "datagouv-connector",
+        },
+        {"slug": "legi", "name": "Légifrance", "auth": "none", "feature_flag": None},
+    ]

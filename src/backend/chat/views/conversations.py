@@ -240,7 +240,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         query_params_serializer = ChatConversationRequestSerializer(data=request.query_params)
         query_params_serializer.is_valid(raise_exception=True)
         force_web_search = query_params_serializer.validated_data["force_web_search"]
-        force_datagouv = query_params_serializer.validated_data["force_datagouv"]
+        force_connectors = query_params_serializer.validated_data["force_connectors"]
         requested_model_hrid = query_params_serializer.validated_data["model_hrid"]
 
         # Every line of the turn, whatever module writes it, names the conversation.
@@ -254,6 +254,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
             messages=len(raw_messages) if isinstance(raw_messages, list) else 0,
             model_hrid=requested_model_hrid or "default",
             force_web_search=force_web_search,
+            force_connectors=force_connectors,
         )
 
         conversation = self.get_object()
@@ -352,7 +353,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         if is_async_mode:
             logger.debug("streaming_mode_selected", mode="async")
             base_stream = ai_service.stream_data_async(
-                messages, force_web_search=force_web_search, force_datagouv=force_datagouv
+                messages, force_web_search=force_web_search, force_connectors=force_connectors
             )
             # The keepalive loop ticks while the turn is blocked and producing
             # nothing, which is the only moment a turn can say it is still
@@ -361,7 +362,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         else:
             logger.debug("streaming_mode_selected", mode="sync")
             base_stream = ai_service.stream_data(
-                messages, force_web_search=force_web_search, force_datagouv=force_datagouv
+                messages, force_web_search=force_web_search, force_connectors=force_connectors
             )
             streaming_content = stream_with_keepalive_sync(base_stream, ai_service.beat_sync)
 

@@ -82,7 +82,7 @@ import json
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack, suppress
-from typing import AsyncGenerator, List, Optional
+from typing import AsyncGenerator, List, Optional, Sequence
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -145,7 +145,8 @@ from chat.clients.schema import (
     ImagePostRunActions,
     PreparedHistory,
 )
-from chat.connectors import DataGouvConnector, enter_mcp_toolsets
+from chat.connectors import TurnConnectors
+from chat.connectors.turn import ConnectedToolsets
 from chat.constants import (
     ACCESS_FULL_CONTEXT,
     HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS,
@@ -310,7 +311,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             self._support_streaming = streaming
 
         self._init_feature_flags()
-        self._datagouv = DataGouvConnector.for_user(self.user, conversation.pk)
+        self._connectors = TurnConnectors.for_user(self.user, conversation.pk)
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
         self._context_deps = ContextDeps(
@@ -416,11 +417,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
-        force_datagouv: bool = False,
+        force_connectors: Sequence[str] = (),
     ):
         """Return Vercel-AI-SDK formatted events."""
         return convert_async_generator_to_sync(
-            self.stream_data_async(messages, force_web_search, force_datagouv)
+            self.stream_data_async(messages, force_web_search, force_connectors)
         )
 
     def stop_streaming(self):
@@ -469,7 +470,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
-        force_datagouv: bool = False,
+        force_connectors: Sequence[str] = (),
     ):
         """Stream the agent run as a Vercel AI SDK UI message stream."""
         await self._clean()
@@ -504,7 +505,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             )
 
             try:
-                async for event in self._run_agent(messages, force_web_search, force_datagouv):
+                async for event in self._run_agent(messages, force_web_search, force_connectors):
                     for translated in translator.translate(event):
                         yield self.event_encoder.encode(translated)
             except ModelHTTPError as exc:
@@ -606,11 +607,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
-        force_datagouv: bool = False,
+        force_connectors: Sequence[str] = (),
     ):
         """Return Vercel-AI-SDK formatted events."""
 
-        async for chunk in self._stream_content(messages, force_web_search, force_datagouv):
+        async for chunk in self._stream_content(messages, force_web_search, force_connectors):
             yield chunk
 
     async def _agent_stop_streaming(self, force_cache_check: Optional[bool] = False) -> None:
@@ -847,56 +848,45 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         return True
 
-    def _setup_datagouv_instruction(self) -> None:
-        """Tell the model a forced connector could not be reached.
+    def _setup_absent_connectors_instruction(self) -> None:
+        """Tell the model which forced connectors could not be reached.
 
-        Only called on a forced turn whose connection failed: whenever the tools
-        reach the run, their toolset carries the instruction itself. The wording
-        is the connector's; wiring it onto the agent is ours.
+        Only called on a forced turn where at least one connection failed:
+        whenever the tools reach the run, their toolset carries the instruction
+        itself. The wording is the connectors'; wiring it onto the agent is ours.
         """
 
         @self.conversation_agent.instructions
-        def datagouv_prompt() -> str:
-            """Dynamic system prompt function for the unreachable forced connector."""
-            return self._datagouv.instruction()
+        def absent_connectors_prompt() -> str:
+            """Dynamic system prompt function for unreachable forced connectors."""
+            return self._connectors.unreachable_forced_instructions()
 
-    async def _enter_datagouv_toolsets(self, stack: AsyncExitStack, force_datagouv: bool):
-        """Record this turn's force, then connect the connector's toolsets.
+    async def _enter_connector_toolsets(
+        self, stack: AsyncExitStack, force_connectors: Sequence[str]
+    ) -> ConnectedToolsets:
+        """Record this turn's forces, then connect the connectors' toolsets.
 
-        The force is recorded first because it stands in for the opt-in: it
-        decides whether there are toolsets to connect at all.
+        The forces are recorded first because they stand in for the opt-in:
+        they decide whether there are toolsets to connect at all.
         """
-        if force_datagouv:
-            self._datagouv.force()
+        self._connectors.force(force_connectors)
+        return await self._connectors.enter(stack)
 
-        return await enter_mcp_toolsets(
-            stack,
-            self._datagouv.toolsets(),
-            # `0` means no limit, which asyncio.timeout spells as None.
-            timeout=settings.DATAGOUV_CONNECTOR_INIT_TIMEOUT or None,
-        )
-
-    async def _settle_datagouv(self, connected: bool):
-        """Report a forced connector this turn, once it is entered.
+    async def _settle_connectors(self, connected: ConnectedToolsets):
+        """Report the forced connectors this turn, once they are entered.
 
         A forced turn is reported whatever came of it. An unforced turn needs
         nothing here: connected tools bring their own instruction, and a
-        connector that failed silently stays silent.
+        connector that failed silently stays silent. A force the gates denied
+        never reaches `connected.forced`, which keeps it silent by design.
         """
-        # False when the gates denied the force, which stays silent by design.
-        if self._datagouv.forced:
-            async for event in self._report_forced_datagouv(connected):
+        if self._connectors.absent:
+            self._setup_absent_connectors_instruction()
+        for connector, reachable in connected.forced:
+            async for event in self._report_forced_connector(connector.connector_id, reachable):
                 yield event
 
-    async def _report_forced_datagouv(self, connected: bool):
-        """Settle a forced connector: instruct the model, and tell the user."""
-        self._datagouv.mark_connected(connected)
-        if not connected:
-            self._setup_datagouv_instruction()
-        async for event in self._report_forced_connector(connected):
-            yield event
-
-    async def _report_forced_connector(self, connected: bool):
+    async def _report_forced_connector(self, connector_id: str, connected: bool):
         """Record a forced connector, and tell the UI when it was missing.
 
         Button usage is the adoption signal the Settings opt-in cannot give:
@@ -908,12 +898,12 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         await acapture_event(
             "connector_forced",
             self.user.pk,
-            properties={"connector_id": self._datagouv.connector_id, "reachable": connected},
+            properties={"connector_id": connector_id, "reachable": connected},
         )
         if connected:
             return
 
-        yield connector_unavailable_notice()
+        yield connector_unavailable_notice(connector_id)
 
     async def _check_should_enable_rag(self, conversation_has_own_documents: bool) -> bool:
         """Check if RAG should be enabled based on actually-indexed documents.
@@ -1643,7 +1633,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
-        force_datagouv: bool = False,
+        force_connectors: Sequence[str] = (),
     ) -> AsyncGenerator[events_v4.Event | events_v5.Event, None]:
         """Run the Pydantic AI agent and stream events.
 
@@ -1725,7 +1715,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         async for event in self._stream_agent_run(
             [inputs.user_prompt] + inputs.input_images,
             history,
-            force_datagouv,
+            force_connectors,
             inputs.image_actions,
         ):
             yield event
@@ -1734,7 +1724,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         agent_input: list,
         history: list[ModelMessage],
-        force_datagouv: bool,
+        force_connectors: Sequence[str],
         image_actions: ImagePostRunActions,
     ) -> AsyncGenerator[events_v4.Event | events_v5.Event, None]:
         """Iterate the agent graph and store the turn it produced.
@@ -1744,9 +1734,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         to `_finalize_conversation`.
         """
         async with AsyncExitStack() as stack:
-            mcp_toolsets = await self._enter_datagouv_toolsets(stack, force_datagouv)
+            connected = await self._enter_connector_toolsets(stack, force_connectors)
+            mcp_toolsets = connected.toolsets
 
-            async for event in self._settle_datagouv(connected=bool(mcp_toolsets)):
+            async for event in self._settle_connectors(connected):
                 yield event
 
             append_filler_after_dangling_request(history)
@@ -1785,7 +1776,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     model_configuration=self.conversation_agent.configuration,
                     supports_streaming=self._support_streaming,
                     fake_streaming_delay=self._fake_streaming_delay,
-                    datagouv=self._datagouv,
+                    connectors=self._connectors,
                 )
                 try:
                     async for event in mapper.events(run):

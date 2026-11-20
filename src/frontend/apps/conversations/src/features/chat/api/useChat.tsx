@@ -30,15 +30,15 @@ const fetchAPIAdapter = (input: RequestInfo | URL, init?: RequestInit) => {
 
   // Read at request time, not at render time: the transport is built once but
   // these preferences change between messages.
-  const { forceWebSearch, forceDatagouv, selectedModelHrid } =
+  const { forceWebSearch, forcedConnectors, selectedModelHrid } =
     useChatPreferencesStore.getState();
 
   if (forceWebSearch) {
     searchParams.append('force_web_search', 'true');
   }
 
-  if (forceDatagouv) {
-    searchParams.append('force_datagouv', 'true');
+  for (const slug of forcedConnectors) {
+    searchParams.append('force_connectors', slug);
   }
 
   if (selectedModelHrid) {
@@ -198,9 +198,10 @@ export interface UseChatOptions {
   /** Called for each `images_skipped` notice streamed by the backend. */
   onImagesSkipped?: (kind: ImagesSkippedEventKind) => void;
   /**
-   * Called when a forced connector could not be reached this turn.
+   * Called when a forced connector could not be reached this turn, with the
+   * slug of that connector.
    */
-  onConnectorUnavailable?: () => void;
+  onConnectorUnavailable?: (connectorId: string) => void;
 }
 
 export function useChat({
@@ -243,7 +244,7 @@ export function useChat({
       } else if (isImagesSkippedEvent(item)) {
         onImagesSkippedRef.current?.(item.kind);
       } else if (isConnectorUnavailableEvent(item)) {
-        onConnectorUnavailableRef.current?.();
+        onConnectorUnavailableRef.current?.(item.connector_id);
       }
     },
     [queryClient],

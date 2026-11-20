@@ -3,6 +3,8 @@ Unit tests for the ChatConversationRequestSerializer,
 covering validation of chat conversation request data.
 """
 
+from django.http import QueryDict
+
 import pytest
 from rest_framework.exceptions import ErrorDetail
 
@@ -37,7 +39,7 @@ def test_chat_conversation_request_serializer_default():
     assert serializer.is_valid()
     assert serializer.validated_data == {
         "force_web_search": False,
-        "force_datagouv": False,
+        "force_connectors": [],
         "model_hrid": None,
     }
 
@@ -68,23 +70,36 @@ def test_chat_conversation_request_serializer_force_web_search_invalid():
     }
 
 
-@pytest.mark.parametrize("force_datagouv", [True, False])
-def test_chat_conversation_request_serializer_force_datagouv_valid(force_datagouv):
-    """The serializer accepts valid boolean values for force_datagouv."""
+def test_chat_conversation_request_serializer_force_connectors_from_query_params():
+    """Several connectors are forced by repeating the query parameter."""
     serializer = serializers.ChatConversationRequestSerializer(
-        data={"force_datagouv": force_datagouv}
+        data=QueryDict("force_connectors=datagouv&force_connectors=legi&force_connectors=legi")
     )
 
-    assert serializer.is_valid()
-    assert serializer.validated_data["force_datagouv"] is force_datagouv
+    assert serializer.is_valid(), serializer.errors
+    assert serializer.validated_data["force_connectors"] == ["datagouv", "legi"]
 
 
-def test_chat_conversation_request_serializer_force_datagouv_defaults_to_false():
-    """Omitting it means the connector is not forced."""
-    serializer = serializers.ChatConversationRequestSerializer(data={})
+def test_chat_conversation_request_serializer_deprecated_force_datagouv():
+    """`force_datagouv=true` still works, as `force_connectors=datagouv`."""
+    serializer = serializers.ChatConversationRequestSerializer(
+        data=QueryDict("force_datagouv=true&force_connectors=datagouv")
+    )
 
-    assert serializer.is_valid()
-    assert serializer.validated_data["force_datagouv"] is False
+    assert serializer.is_valid(), serializer.errors
+    assert serializer.validated_data["force_connectors"] == ["datagouv"]
+    assert "force_datagouv" not in serializer.validated_data
+
+
+@pytest.mark.parametrize("slug", ["Not A Slug", "a" * 21, ""])
+def test_chat_conversation_request_serializer_force_connectors_rejects_bad_slugs(slug):
+    """Only well-formed slugs; whether they are offered is the turn's call."""
+    serializer = serializers.ChatConversationRequestSerializer(
+        data=QueryDict(f"force_connectors={slug}")
+    )
+
+    assert not serializer.is_valid()
+    assert "force_connectors" in serializer.errors
 
 
 def test_chat_conversation_request_serializer_model_hrid_valid(llm_configuration):  # pylint: disable=unused-argument

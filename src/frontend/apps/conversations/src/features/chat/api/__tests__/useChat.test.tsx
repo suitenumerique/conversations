@@ -370,7 +370,7 @@ describe('useChat forwards the force toggles', () => {
   afterEach(() => {
     useChatPreferencesStore.setState({
       forceWebSearch: false,
-      forceDatagouv: false,
+      forcedConnectors: [],
     });
   });
 
@@ -404,10 +404,20 @@ describe('useChat forwards the force toggles', () => {
     expect(await postUrlAfterSend()).toBe(CHAT_API);
   });
 
-  it('sends force_datagouv when DataGouv is forced', async () => {
-    useChatPreferencesStore.setState({ forceDatagouv: true });
+  it('sends force_connectors when DataGouv is forced', async () => {
+    useChatPreferencesStore.setState({ forcedConnectors: ['datagouv'] });
 
-    expect(await postUrlAfterSend()).toContain('force_datagouv=true');
+    expect(await postUrlAfterSend()).toContain('force_connectors=datagouv');
+  });
+
+  it('repeats force_connectors for each forced connector', async () => {
+    useChatPreferencesStore.setState({
+      forcedConnectors: ['datagouv', 'legi'],
+    });
+
+    expect(await postUrlAfterSend()).toContain(
+      'force_connectors=datagouv&force_connectors=legi',
+    );
   });
 
   it('sends force_web_search when web search is forced', async () => {
@@ -420,13 +430,13 @@ describe('useChat forwards the force toggles', () => {
   it('sends both forces when both are on', async () => {
     useChatPreferencesStore.setState({
       forceWebSearch: true,
-      forceDatagouv: true,
+      forcedConnectors: ['datagouv'],
     });
 
     const url = await postUrlAfterSend();
 
     expect(url).toContain('force_web_search=true');
-    expect(url).toContain('force_datagouv=true');
+    expect(url).toContain('force_connectors=datagouv');
   });
 });
 

@@ -16,6 +16,8 @@ from core.file_upload.utils import generate_upload_policy
 
 from chat import models, stream_chunks
 from chat.ai_sdk_types import UIMessage
+from chat.connectors.datagouv import DATAGOUV_SLUG
+from chat.connectors.definition import SLUG_PATTERN
 from chat.constants import IMAGE_MIME_PREFIX
 
 
@@ -141,10 +143,20 @@ class ChatConversationRequestSerializer(serializers.Serializer):
         default=False,
         help_text="Force web search.",
     )
+    force_connectors = serializers.ListField(
+        child=serializers.RegexField(SLUG_PATTERN, max_length=20),
+        required=False,
+        default=list,
+        max_length=20,
+        help_text=(
+            "Slugs of the connectors to force for this turn; repeat the query "
+            "parameter for several. Unknown slugs are ignored."
+        ),
+    )
     force_datagouv = serializers.BooleanField(
         required=False,
         default=False,
-        help_text="Force the DataGouv connector.",
+        help_text="Deprecated: use `force_connectors=datagouv`.",
     )
     model_hrid = serializers.CharField(
         required=False,
@@ -170,6 +182,14 @@ class ChatConversationRequestSerializer(serializers.Serializer):
             raise serializers.ValidationError("Invalid model_hrid.")
 
         return value
+
+    def validate(self, attrs):
+        """Fold the deprecated `force_datagouv` into `force_connectors`, deduplicated."""
+        forced = list(attrs.get("force_connectors") or [])
+        if attrs.pop("force_datagouv", False):
+            forced.append(DATAGOUV_SLUG)
+        attrs["force_connectors"] = list(dict.fromkeys(forced))
+        return attrs
 
 
 class LLModelSerializer(serializers.Serializer):  # pylint: disable=abstract-method

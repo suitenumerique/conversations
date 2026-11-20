@@ -17,6 +17,7 @@ vi.mock('@/stores', () => ({
 const mockUseConfig = vi.fn();
 
 vi.mock('@/core', () => ({
+  useAvailableConnectors: () => [],
   useConfig: () => mockUseConfig(),
   useFeatureEnabled: () => true,
 }));
