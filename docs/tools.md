@@ -244,7 +244,16 @@ three of these hold:
 | The user is in the beta cohort | `FEATURE_FLAG_DATAGOUV_CONNECTOR` |
 | The user allowed it | `User.allow_datagouv_connector` (off by default), **or** the user forced the connector for that turn from the chat box |
 
-`DataGouvConnector` in `chat/mcp_servers.py` holds all three. The first two are
+The connector code lives in `chat/connectors/`: `definition.py` describes a
+connector as an immutable `ConnectorDefinition` (slug, name, URL, trust tier,
+instructions, timeouts), `errors.py` decides what counts as an outage,
+`runtime.py` wraps and enters the toolsets, and `datagouv.py` builds data.gouv's
+definition from the settings above (`None` when the URL is empty). That bridge
+is temporary: connectors are meant to be declared as data (see
+[#956](https://github.com/suitenumerique/conversations/issues/956)). `chat/mcp_servers.py` only
+re-exports the old names for one release.
+
+`DataGouvConnector` in `chat/connectors/datagouv.py` holds all three. The first two are
 turn-independent and answered once per request as `enabled`; adding the third
 gives `available`: a connector the user has actually consented to. The third
 depends on the turn, because forcing stands in for the opt-in — which is why

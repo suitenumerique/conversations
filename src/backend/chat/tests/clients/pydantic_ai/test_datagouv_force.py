@@ -11,8 +11,8 @@ from pydantic_ai.messages import FunctionToolResultEvent, ToolReturnPart
 
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService
+from chat.connectors import DataGouvConnector
 from chat.factories import ChatConversationFactory
-from chat.mcp_servers import DataGouvConnector
 from chat.tests.clients.pydantic_ai.test_run_agent_summary import _run_agent_patches
 from chat.turn.event_mapper import CONNECTOR_UNAVAILABLE_EVENT_TYPE, TurnEventMapper
 from chat.vercel_ai_sdk.core import events_v4
@@ -36,7 +36,7 @@ def ui_messages_fixture():
 def service_fixture(conversation, settings):
     """An agent service for a user the connector is available to."""
     settings.DATAGOUV_CONNECTOR_URL = "https://mcp.data.gouv.fr/mcp"
-    with patch("chat.mcp_servers.is_feature_enabled", return_value=True):
+    with patch("chat.connectors.datagouv.is_feature_enabled", return_value=True):
         yield AIAgentService(
             conversation=conversation,
             user=conversation.owner,
@@ -83,7 +83,7 @@ def test_forcing_stands_in_for_the_opt_in(service):
 
 def test_forcing_cannot_bypass_availability(conversation):
     """A force never conjures a connector the deployment or cohort denies."""
-    with patch("chat.mcp_servers.is_feature_enabled", return_value=False):
+    with patch("chat.connectors.datagouv.is_feature_enabled", return_value=False):
         service = AIAgentService(
             conversation=conversation,
             user=conversation.owner,
@@ -271,7 +271,7 @@ async def test_a_forced_connector_the_gates_deny_reports_nothing(conversation, u
     toolset list an unreachable server does. Only the second one is a failure
     the user is owed a word about, and only it belongs in the outage rate.
     """
-    with patch("chat.mcp_servers.is_feature_enabled", return_value=False):
+    with patch("chat.connectors.datagouv.is_feature_enabled", return_value=False):
         service = AIAgentService(
             conversation=conversation,
             user=conversation.owner,
@@ -373,7 +373,7 @@ async def test_a_turn_without_the_tools_gets_no_guidance(service, ui_messages):
 
 def _denied_service(conversation):
     """A service for a user the gates deny the connector to."""
-    with patch("chat.mcp_servers.is_feature_enabled", return_value=False):
+    with patch("chat.connectors.datagouv.is_feature_enabled", return_value=False):
         return AIAgentService(
             conversation=conversation,
             user=conversation.owner,
@@ -391,7 +391,8 @@ def _force_warnings(caplog):
     return [
         record
         for record in caplog.records
-        if record.name == "chat.mcp_servers" and record.msg["event"].startswith("connector_forced")
+        if record.name == "chat.connectors.datagouv"
+        and record.msg["event"].startswith("connector_forced")
     ]
 
 
@@ -403,7 +404,7 @@ def test_a_force_the_gates_deny_is_logged(conversation, caplog):
     """
     service = _denied_service(conversation)
 
-    with caplog.at_level(logging.WARNING, logger="chat.mcp_servers"):
+    with caplog.at_level(logging.WARNING, logger="chat.connectors.datagouv"):
         _toolsets_for(service, opted_in=False, forced=True)
 
     assert [
@@ -415,7 +416,7 @@ def test_an_unavailable_connector_nobody_asked_for_is_silent(conversation, caplo
     """Most users are outside the cohort; that is not worth a log line."""
     service = _denied_service(conversation)
 
-    with caplog.at_level(logging.WARNING, logger="chat.mcp_servers"):
+    with caplog.at_level(logging.WARNING, logger="chat.connectors.datagouv"):
         _toolsets_for(service, opted_in=True, forced=False)
 
     assert _force_warnings(caplog) == []

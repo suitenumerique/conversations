@@ -26,8 +26,8 @@ from core import instrumentation
 from chat.ai_sdk_types import SourceUrlUIPart
 from chat.clients.pydantic_ui_message_converter import tool_chart
 from chat.clients.schema import StreamingState
+from chat.connectors import DataGouvConnector
 from chat.llm_configuration import LLModel
-from chat.mcp_servers import DataGouvConnector
 from chat.turn.trail import TurnTrail
 from chat.turn.usage import TokenMeter
 from chat.vercel_ai_sdk.core import events_v4

@@ -28,13 +28,14 @@ from core.feature_flags.flags import FeatureToggle
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService, DocumentParsingResult
 from chat.clients.schema import ImagePostRunActions
-from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
-from chat.llm_configuration import LLModel, LLMProvider
-from chat.mcp_servers import (
+from chat.connectors import (
     ConnectorToolset,
     DataGouvConnector,
     is_connector_unreachable,
 )
+from chat.connectors.datagouv import UNREACHABLE_MESSAGE
+from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
+from chat.llm_configuration import LLModel, LLMProvider
 from chat.turn.event_mapper import TurnEventMapper
 from chat.turn.prompt import TurnInputs
 
@@ -144,7 +145,10 @@ def test_a_protocol_or_transport_failure_is_an_outage():
 def _wrapping(call_tool):
     """A ConnectorToolset around a toolset whose calls do `call_tool`."""
     return ConnectorToolset(
-        MagicMock(call_tool=call_tool), on_unreachable=MagicMock(), instructions=lambda: ""
+        MagicMock(call_tool=call_tool),
+        on_unreachable=MagicMock(),
+        instructions=lambda: "",
+        unreachable_message=UNREACHABLE_MESSAGE,
     )
 
 
@@ -325,7 +329,7 @@ async def test_unreachable_connector_does_not_cost_the_turn(settings, caplog):
     assert [
         record
         for record in caplog.records
-        if record.name == "chat.mcp_servers"
+        if record.name == "chat.connectors.runtime"
         and record.levelname == "WARNING"
         and record.msg["connector_id"] == DataGouvConnector.connector_id
     ]
@@ -454,7 +458,7 @@ async def test_connector_that_accepts_and_stalls_does_not_cost_the_turn(settings
         result = await _run_with_connector(service, "Hello.")
 
         assert result.output
-        assert [r for r in caplog.records if r.name == "chat.mcp_servers"]
+        assert [r for r in caplog.records if r.name == "chat.connectors.runtime"]
     finally:
         listener.close()
 

@@ -145,6 +145,7 @@ from chat.clients.schema import (
     ImagePostRunActions,
     PreparedHistory,
 )
+from chat.connectors import DataGouvConnector, enter_mcp_toolsets
 from chat.constants import (
     ACCESS_FULL_CONTEXT,
     HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS,
@@ -168,7 +169,6 @@ from chat.document_context_builder import (
 )
 from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
-from chat.mcp_servers import DataGouvConnector, enter_mcp_toolsets
 from chat.rate_limiting import get_cooldown_remaining
 from chat.stream_chunks import persist as persist_leftover_chunks
 from chat.tasks import index_conversation_document_task, summarize_conversation_history
