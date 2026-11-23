@@ -431,6 +431,24 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     onOpenSources(message.id);
   }, [onOpenSources, message.id]);
 
+  const copyButton = (
+    <Button
+      size="nano"
+      color="neutral"
+      variant="tertiary"
+      onClick={handleCopy}
+      aria-label={isCopied ? t('Copied') : t('Copy')}
+      icon={
+        isCopied ? (
+          <CheckmarkIcon {...chatActionIconProps} />
+        ) : (
+          <ClipboardIcon {...chatActionIconProps} />
+        )
+      }
+      className="c__button--neutral action-chat-button"
+    ></Button>
+  );
+
   return (
     <Box
       data-message-id={message.id}
@@ -469,34 +487,46 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
         >
           {/* Message content */}
           {textContent && (
-            <Box
-              ref={contentRef}
-              className="mainContent-chat"
-              data-testid={
-                message.role === 'assistant'
-                  ? 'assistant-message-content'
-                  : undefined
-              }
-            >
+            <>
+              {/* Kept outside the copied subtree so rich-text pastes don't
+                  include the accessibility label. */}
               <p className="sr-only">
                 {message.role === 'user'
                   ? t('You said: ')
                   : t('Assistant IA replied: ')}
               </p>
-              {message.role === 'user' ? (
-                <Text
-                  as="p"
-                  $css="white-space: pre-wrap; display: block;"
-                  $theme="greyscale"
-                  $variation="850"
-                >
-                  {textContent}
-                </Text>
-              ) : (
-                // Render completed blocks as markdown, pending block as plain text
-                <BlocksList blocks={completedBlocks} pending={pending} />
-              )}
-            </Box>
+              <Box
+                ref={contentRef}
+                className="mainContent-chat"
+                data-testid={
+                  message.role === 'assistant'
+                    ? 'assistant-message-content'
+                    : undefined
+                }
+              >
+                {message.role === 'user' ? (
+                  <Text
+                    as="p"
+                    $css="white-space: pre-wrap; display: block;"
+                    $theme="greyscale"
+                    $variation="850"
+                  >
+                    {/* Explicit <br> so line breaks survive rich-text copy:
+                        editors like Docs collapse newlines in pasted HTML
+                        and ignore the white-space style. */}
+                    {textContent.split('\n').map((line, index) => (
+                      <React.Fragment key={index}>
+                        {index > 0 && <br />}
+                        {line}
+                      </React.Fragment>
+                    ))}
+                  </Text>
+                ) : (
+                  // Render completed blocks as markdown, pending block as plain text
+                  <BlocksList blocks={completedBlocks} pending={pending} />
+                )}
+              </Box>
+            </>
           )}
 
           <Box $direction="column" $gap="2">
@@ -623,21 +653,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 $margin={{ top: 'base' }}
               >
                 <Box $direction="row" $gap="4px">
-                  <Button
-                    size="nano"
-                    color="neutral"
-                    variant="tertiary"
-                    onClick={handleCopy}
-                    aria-label={isCopied ? t('Copied') : t('Copy')}
-                    icon={
-                      isCopied ? (
-                        <CheckmarkIcon {...chatActionIconProps} />
-                      ) : (
-                        <ClipboardIcon {...chatActionIconProps} />
-                      )
-                    }
-                    className="c__button--neutral action-chat-button"
-                  ></Button>
+                  {copyButton}
                   {docsBaseUrl &&
                     conversationId &&
                     message.id &&
@@ -684,6 +700,16 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
               </Box>
             )}
         </Box>
+        {message.role === 'user' && hasTextContent && (
+          <Box
+            $direction="row"
+            $justify="flex-end"
+            $margin={{ top: 'tiny' }}
+            $css="clear: both;"
+          >
+            {copyButton}
+          </Box>
+        )}
       </Box>
     </Box>
   );

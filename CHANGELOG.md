@@ -16,6 +16,7 @@ and this project adheres to
 - ✨(back) build slide decks from attached documents at the requested length
 - ✨(back) restyle and edit a generated slide deck from the conversation
 - 🔒️(front) add security headers to frontend responses
+- ✨(front) add a copy button to user messages
 
 ### Changed
 
