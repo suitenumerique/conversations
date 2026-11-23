@@ -4,6 +4,8 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from django.core.exceptions import ImproperlyConfigured
+
 import httpx
 import pytest
 from pypdf import PdfReader
@@ -144,6 +146,14 @@ def test_extract_page_batch_last_batch(text_pdf_10_pages):
     assert len(result_reader.pages) == 3
 
 
+def test_init_without_provider_raises_improperly_configured(settings):
+    """A model without provider (e.g. 'mistral:...') must fail with a clear config error."""
+    settings.LLM_CONFIGURATIONS = {"test-ocr-hrid": MagicMock(provider=None)}
+
+    with pytest.raises(ImproperlyConfigured, match="test-ocr-hrid"):
+        AdaptivePdfParser()
+
+
 def test_ocr_page_batch_success(text_pdf_1_page):
     """Should return markdown content on successful OCR."""
     parser = AdaptivePdfParser()
@@ -160,6 +170,45 @@ def test_ocr_page_batch_success(text_pdf_1_page):
 
         assert result == ["# Page 1 content"]
         mock_post.assert_called_once()
+
+
+def test_ocr_page_batch_warns_when_pages_are_missing(text_pdf_10_pages):
+    """A response with fewer pages than the batch should be logged with its page range."""
+    parser = AdaptivePdfParser()
+
+    with (
+        patch("chat.agent_rag.document_converter.parser.httpx.post") as mock_post,
+        patch("chat.agent_rag.document_converter.parser.logger") as mock_logger,
+    ):
+        mock_post.return_value.json.return_value = {"pages": [{"markdown": "# Page 1"}]}
+        mock_post.return_value.raise_for_status = MagicMock()
+
+        result = parser.ocr_page_batch("test.pdf", text_pdf_10_pages, 0, 3)
+
+    assert result == ["# Page 1"]
+    mock_logger.warning.assert_called_once_with(
+        "ocr_batch_pages_missing",
+        first_page=1,
+        last_page=3,
+        pages_returned=1,
+        model="test-ocr-model",
+    )
+
+
+def test_ocr_page_batch_does_not_warn_when_all_pages_are_returned(text_pdf_1_page):
+    """A response with one markdown per page should not be logged as incomplete."""
+    parser = AdaptivePdfParser()
+
+    with (
+        patch("chat.agent_rag.document_converter.parser.httpx.post") as mock_post,
+        patch("chat.agent_rag.document_converter.parser.logger") as mock_logger,
+    ):
+        mock_post.return_value.json.return_value = {"pages": [{"markdown": "# Page 1"}]}
+        mock_post.return_value.raise_for_status = MagicMock()
+
+        parser.ocr_page_batch("test.pdf", text_pdf_1_page, 0, 1)
+
+    mock_logger.warning.assert_not_called()
 
 
 def test_ocr_page_batch_retry_on_timeout(text_pdf_1_page):

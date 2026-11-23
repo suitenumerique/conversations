@@ -718,6 +718,16 @@ class Base(
     AI_API_KEY = SecretFileValue(None, environ_name="AI_API_KEY", environ_prefix=None)
     AI_BASE_URL = values.Value(None, environ_name="AI_BASE_URL", environ_prefix=None)
     AI_MODEL = values.Value(None, environ_name="AI_MODEL", environ_prefix=None)
+
+    # LLM providers referenced by the default LLM_CONFIGURATIONS (one URL + key pair each)
+    SCALEWAY_API_KEY = SecretFileValue(None, environ_name="SCALEWAY_API_KEY", environ_prefix=None)
+    SCALEWAY_API_URL = values.Value(None, environ_name="SCALEWAY_API_URL", environ_prefix=None)
+    MISTRAL_API_KEY = SecretFileValue(None, environ_name="MISTRAL_API_KEY", environ_prefix=None)
+    # Mistral SDK server URL: no "/v1" suffix, the SDK adds it to every route
+    MISTRAL_API_URL = values.Value(
+        "https://api.mistral.ai", environ_name="MISTRAL_API_URL", environ_prefix=None
+    )
+
     AI_AGENT_INSTRUCTIONS = values.Value(
         prompts.DEFAULT_AGENT_INSTRUCTIONS,
         environ_name="AI_AGENT_INSTRUCTIONS",
@@ -814,16 +824,24 @@ class Base(
         environ_prefix=None,
     )
 
-    # OCR settings for AdaptivePdfParser
+    # OCR settings for AdaptivePdfParser and OpenAICompatibleOcrParser
     OCR_HRID = values.Value(
         default="etalab-plateform-mistral-medium-2508",
         environ_name="OCR_HRID",
         environ_prefix=None,
     )
-    # Specific Mistral OCR model - Designates which Mistral vision model to use for OCR
+    # OCR model name sent to the OCR_HRID provider: a Mistral OCR model for AdaptivePdfParser,
+    # a chat completions OCR or vision model (e.g. lightonocr-3-0.8b) for OpenAICompatibleOcrParser
     OCR_MODEL = values.Value(
         default="mistral-ocr-2512",
         environ_name="OCR_MODEL",
+        environ_prefix=None,
+    )
+    # Optional instruction sent with the PDF by OpenAICompatibleOcrParser. Leave empty for
+    # dedicated OCR models; set it for general-purpose vision models.
+    OCR_PROMPT = values.Value(
+        default=None,
+        environ_name="OCR_PROMPT",
         environ_prefix=None,
     )
     OCR_TIMEOUT = values.PositiveIntegerValue(
@@ -1272,7 +1290,10 @@ class Base(
         # OCR configuration validation
         # Note: we call load_llm_configuration directly because LLM_CONFIGURATIONS is a
         # @property returning a lazy object, which cannot be accessed via cls in a classmethod.
-        if cls.RAG_DOCUMENT_PARSER == "chat.agent_rag.document_converter.parser.AdaptivePdfParser":
+        if cls.RAG_DOCUMENT_PARSER in (
+            "chat.agent_rag.document_converter.parser.AdaptivePdfParser",
+            "chat.agent_rag.document_converter.parser.OpenAICompatibleOcrParser",
+        ):
             llm_configs = load_llm_configuration(cls._llm_configuration_file_path)
             if cls.OCR_HRID not in llm_configs:
                 raise ValueError(
