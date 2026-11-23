@@ -19,6 +19,7 @@ import logging
 from django.db import transaction
 from django.utils import timezone
 
+import structlog
 from pydantic_ai.messages import (
     ModelMessage,
     ModelMessagesTypeAdapter,
@@ -27,7 +28,11 @@ from pydantic_ai.messages import (
 )
 
 from chat.ai_sdk_types import UIMessage
-from chat.clients.pydantic_ui_message_converter import merge_by_kind, model_message_to_ui_message
+from chat.clients.pydantic_ui_message_converter import (
+    attach_tool_charts,
+    merge_by_kind,
+    model_message_to_ui_message,
+)
 from chat.constants import STREAM_LIVE_WINDOW_SECONDS
 from chat.models import ChatConversation
 
@@ -36,7 +41,7 @@ logger = logging.getLogger(__name__)
 # Every line tracing one turn goes to this logger rather than the module's, so
 # following a cycle is one filter (`chat.turn`) across the four modules that
 # take part in it, and its level can be raised or lowered on its own.
-turn_logger = logging.getLogger("chat.turn")
+turn_logger = structlog.get_logger("chat.turn")
 
 
 def describe(conversation, chunks) -> None:
@@ -54,10 +59,10 @@ def describe(conversation, chunks) -> None:
     if not chunks:
         return
     turn_logger.debug(
-        "[read %s] %d pending chunk(s), turn is %s",
-        conversation.pk,
-        len(chunks),
-        "still running" if is_live(chunks) else "over and interrupted",
+        "pending_chunks_read",
+        conversation_id=conversation.pk,
+        chunks=len(chunks),
+        turn_live=is_live(chunks),
     )
 
 
@@ -176,11 +181,14 @@ def interrupted_messages(chunks) -> list[UIMessage]:
     if not folded:
         return []
 
+    request, response = merge_by_kind(folded)
     ui_messages = []
-    for message in merge_by_kind(folded):
+    for message in (request, response):
         ui_message = model_message_to_ui_message(message)
         if ui_message is not None and ui_message.parts:
             ui_messages.append(ui_message)
+    if ui_messages and ui_messages[-1].role == "assistant":
+        attach_tool_charts(ui_messages[-1], request)
     if not ui_messages:
         return []
 
@@ -280,20 +288,18 @@ def _fold_one(conversation, trail) -> bool:
         )
         deleted, _ = conversation.stream_chunks.filter(run_id=run_id).delete()
         if not deleted:
-            turn_logger.info(
-                "[fold %s] run %s was already filed, nothing to do", conversation.pk, run_id
-            )
+            turn_logger.info("trail_already_filed", conversation_id=conversation.pk, run_id=run_id)
             return False
         if ui_messages:
             conversation.messages = list(conversation.messages) + ui_messages
             conversation.pydantic_messages = conversation.pydantic_messages + _dump(messages)
             conversation.save(update_fields=["messages", "pydantic_messages", "updated_at"])
     turn_logger.info(
-        "[fold %s] %d chunk(s) of run %s became %d message(s)",
-        conversation.pk,
-        len(trail),
-        run_id,
-        len(ui_messages),
+        "trail_folded",
+        conversation_id=conversation.pk,
+        run_id=run_id,
+        chunks=len(trail),
+        messages=len(ui_messages),
     )
     return bool(ui_messages)
 

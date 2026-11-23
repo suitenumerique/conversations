@@ -1,6 +1,7 @@
 """Middlewares for the core app."""
 
 import re
+import uuid
 from logging import getLogger
 from secrets import compare_digest
 
@@ -10,6 +11,13 @@ from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
 
+import sentry_sdk
+import structlog
+from django_structlog import signals as structlog_signals
+from django_structlog.middlewares import RequestMiddleware
+from dockerflow.logging import request_id_context
+
+from core.log_fields import redact_file_stream_key
 from core.models import MaintenanceMode
 
 logger = getLogger(__name__)
@@ -105,3 +113,46 @@ class PrometheusAuthMiddleware(MiddlewareMixin):
             return response
 
         return None
+
+
+class RequestLogMiddleware(RequestMiddleware):
+    """django-structlog request logs, without the query string: it carries user input."""
+
+    @staticmethod
+    def format_request(request):
+        """Method and path only (upstream logs get_full_path, ?title=<search> included).
+
+        A file-stream path has its temporary key redacted.
+        """
+        return f"{request.method} {redact_file_stream_key(request.path)}"
+
+
+# The shape of an ingress-nginx request id, and of a Langfuse trace id: the
+# request id is also the id of a chat turn's Langfuse trace.
+REQUEST_ID_PATTERN = re.compile(r"[0-9a-f]{32}")
+
+
+def use_dockerflow_request_id(sender, request, **kwargs):  # pylint: disable=unused-argument
+    """Log under the ingress request id DockerflowMiddleware read.
+
+    django-structlog would otherwise generate a second, unrelated one, so the
+    logs could not be matched with the ingress access log. Runs before
+    `request_started` is logged and before any task is enqueued, so every line
+    of the request, and of the Celery tasks it queues, carries this one.
+
+    An id that does not match REQUEST_ID_PATTERN, such as Dockerflow's own
+    dashed uuid4 when there is no header, is replaced by a generated one.
+
+    The id is also a tag of the request's Sentry events: under ASGI, an error in
+    a streamed response is captured outside the task the log ids are bound in.
+    """
+    request_id = request_id_context.get(None)
+    if not (request_id and REQUEST_ID_PATTERN.fullmatch(request_id)):
+        request_id = uuid.uuid4().hex
+    structlog.contextvars.bind_contextvars(request_id=request_id)
+    sentry_sdk.set_tag("request_id", request_id)
+
+
+structlog_signals.bind_extra_request_metadata.connect(
+    use_dockerflow_request_id, sender=RequestLogMiddleware
+)

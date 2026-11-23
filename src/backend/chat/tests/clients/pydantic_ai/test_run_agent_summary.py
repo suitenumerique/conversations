@@ -14,12 +14,15 @@ from asgiref.sync import sync_to_async
 from chat.agents.history_processors import SummarizationRequiredError
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService, DocumentParsingResult
+from chat.clients.schema import ImagePostRunActions
 from chat.constants import (
     HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS,
     HISTORY_SUMMARY_POLL_INTERVAL_SECONDS,
 )
 from chat.factories import ChatConversationFactory
 from chat.llm_configuration import LLModel, LLMProvider
+from chat.turn.event_mapper import TurnEventMapper
+from chat.turn.prompt import TurnInputs
 from chat.vercel_ai_sdk.core import events_v4
 
 pytestmark = pytest.mark.django_db()
@@ -107,9 +110,16 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
     service = AIAgentService(conversation, user=conversation.owner)
 
     async def fake_prepare(_messages):
-        """Return a stub agent-run preparation tuple."""
-        usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
-        return ("prompt", [], [], [], usage, [], False)
+        """Return stub turn inputs: a bare prompt, nothing attached, no history."""
+        return TurnInputs(
+            user_prompt="prompt",
+            input_images=[],
+            input_documents=[],
+            image_actions=ImagePostRunActions(),
+            history=[],
+            conversation_has_own_documents=False,
+            pre_stream_events=[],
+        )
 
     async def fake_handle_docs(*_args, **_kwargs):
         """Yield a stub document-parsing result with no documents."""
@@ -128,7 +138,7 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
         # The turn opens its chunk trail here. These tests drive _run_agent's
         # orchestration, not its writes, and their conversation is created on
         # the main thread, where an async insert cannot see it.
-        patch.object(service, "_append_question", AsyncMock()),
+        patch.object(service._trail, "append_question", AsyncMock()),
         patch.object(service, "_handle_input_documents", side_effect=fake_handle_docs),
         patch.object(service, "_build_model_history", return_value=[]),
         patch.object(service, "_agent_stop_streaming", AsyncMock()),
@@ -136,7 +146,7 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
         patch.object(service, "_setup_web_search_tool"),
         patch.object(service, "_setup_web_search"),
         patch.object(service, "_check_should_enable_rag", AsyncMock(return_value=False)),
-        patch.object(service, "_process_agent_nodes", side_effect=_empty_async_gen),
+        patch.object(TurnEventMapper, "events", side_effect=_empty_async_gen),
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
         # True at start (phase triggers), False on the re-check (summary landed).
         patch(
@@ -144,7 +154,7 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
             side_effect=[True, False],
         ),
         patch.object(service._datagouv, "toolsets", return_value=[]),
-        patch("chat.clients.pydantic_ai._extract_co2_from_usage", return_value=0),
+        patch("chat.turn.usage._extract_co2_from_usage", return_value=0),
         patch.object(service, "_wait_for_history_summary", side_effect=_empty_async_gen),
     ):
         events = [event async for event in service._run_agent(ui_messages)]
@@ -187,9 +197,16 @@ async def test_run_agent_skips_summary_events_when_summarization_not_triggered(u
     service = AIAgentService(conversation, user=conversation.owner)
 
     async def fake_prepare(_messages):
-        """Return a stub agent-run preparation tuple."""
-        usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
-        return ("prompt", [], [], [], usage, [], False)
+        """Return stub turn inputs: a bare prompt, nothing attached, no history."""
+        return TurnInputs(
+            user_prompt="prompt",
+            input_images=[],
+            input_documents=[],
+            image_actions=ImagePostRunActions(),
+            history=[],
+            conversation_has_own_documents=False,
+            pre_stream_events=[],
+        )
 
     async def fake_handle_docs(*_args, **_kwargs):
         """Yield a stub document-parsing result with no documents."""
@@ -208,7 +225,7 @@ async def test_run_agent_skips_summary_events_when_summarization_not_triggered(u
         # The turn opens its chunk trail here. These tests drive _run_agent's
         # orchestration, not its writes, and their conversation is created on
         # the main thread, where an async insert cannot see it.
-        patch.object(service, "_append_question", AsyncMock()),
+        patch.object(service._trail, "append_question", AsyncMock()),
         patch.object(service, "_handle_input_documents", side_effect=fake_handle_docs),
         patch.object(service, "_build_model_history", return_value=[]),
         patch.object(service, "_agent_stop_streaming", AsyncMock()),
@@ -216,11 +233,11 @@ async def test_run_agent_skips_summary_events_when_summarization_not_triggered(u
         patch.object(service, "_setup_web_search_tool"),
         patch.object(service, "_setup_web_search"),
         patch.object(service, "_check_should_enable_rag", AsyncMock(return_value=False)),
-        patch.object(service, "_process_agent_nodes", side_effect=_empty_async_gen),
+        patch.object(TurnEventMapper, "events", side_effect=_empty_async_gen),
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
         patch("chat.clients.pydantic_ai.should_generate_conversation_summary", return_value=False),
         patch.object(service._datagouv, "toolsets", return_value=[]),
-        patch("chat.clients.pydantic_ai._extract_co2_from_usage", return_value=0),
+        patch("chat.turn.usage._extract_co2_from_usage", return_value=0),
         patch.object(service, "_wait_for_history_summary", side_effect=_empty_async_gen),
     ):
         events = [event async for event in service._run_agent(ui_messages)]
@@ -383,9 +400,16 @@ def _run_agent_patches(service):
     """The boilerplate patch stack for driving the real _run_agent."""
 
     async def fake_prepare(_messages):
-        """Return a stub agent-run preparation tuple."""
-        usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
-        return ("prompt", [], [], [], usage, [], False)
+        """Return stub turn inputs: a bare prompt, nothing attached, no history."""
+        return TurnInputs(
+            user_prompt="prompt",
+            input_images=[],
+            input_documents=[],
+            image_actions=ImagePostRunActions(),
+            history=[],
+            conversation_has_own_documents=False,
+            pre_stream_events=[],
+        )
 
     async def fake_handle_docs(*_args, **_kwargs):
         """Yield a stub document-parsing result with no documents."""
@@ -404,7 +428,7 @@ def _run_agent_patches(service):
         # The turn opens its chunk trail here. These tests drive _run_agent's
         # orchestration, not its writes, and their conversation is created on
         # the main thread, where an async insert cannot see it.
-        patch.object(service, "_append_question", AsyncMock()),
+        patch.object(service._trail, "append_question", AsyncMock()),
         patch.object(service, "_handle_input_documents", side_effect=fake_handle_docs),
         patch.object(service, "_build_model_history", return_value=[]),
         patch.object(service, "_agent_stop_streaming", AsyncMock()),
@@ -412,10 +436,10 @@ def _run_agent_patches(service):
         patch.object(service, "_setup_web_search_tool"),
         patch.object(service, "_setup_web_search"),
         patch.object(service, "_check_should_enable_rag", AsyncMock(return_value=False)),
-        patch.object(service, "_process_agent_nodes", side_effect=_empty_async_gen),
+        patch.object(TurnEventMapper, "events", side_effect=_empty_async_gen),
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
         patch.object(service._datagouv, "toolsets", return_value=[]),
-        patch("chat.clients.pydantic_ai._extract_co2_from_usage", return_value=0),
+        patch("chat.turn.usage._extract_co2_from_usage", return_value=0),
     )
     with ExitStack() as stack:
         for item in patches:

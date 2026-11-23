@@ -7,9 +7,25 @@ from conversations.celery_settings import MODEL_HEALTH_POLL_PROVIDERS, crontab_f
 from conversations.settings import Base
 
 
-def test_default_beat_schedule_is_empty():
-    """Both periodic settings default to off, so the schedule has no entries."""
-    assert not Base().CELERY_BEAT_SCHEDULE
+def test_default_beat_schedule_only_purges_tabular_results():
+    """By default only the purge of unread tabular results runs, every hour."""
+    schedule = Base().CELERY_BEAT_SCHEDULE
+
+    assert list(schedule) == ["purge-tabular-results"]
+    entry = schedule["purge-tabular-results"]
+    assert entry["task"] == "chat.tasks.purge_tabular_results_task"
+    assert entry["schedule"] == crontab(minute="23")
+
+
+def test_tabular_results_purge_can_be_disabled():
+    """An empty TABULAR_RESULTS_PURGE_CRON leaves the schedule empty."""
+
+    class TestSettings(Base):
+        """Fake test settings with every periodic task off."""
+
+        TABULAR_RESULTS_PURGE_CRON = ""
+
+    assert not TestSettings().CELERY_BEAT_SCHEDULE
 
 
 def test_model_health_poll_entry():
@@ -20,6 +36,7 @@ def test_model_health_poll_entry():
 
         MODEL_HEALTH_POLL_PROVIDER = "albert"
         MODEL_HEALTH_POLL_INTERVAL_SECONDS = 30
+        TABULAR_RESULTS_PURGE_CRON = ""
 
     schedule = TestSettings().CELERY_BEAT_SCHEDULE
 
@@ -38,6 +55,7 @@ def test_deindex_entry_maps_cron_fields_to_crontab_kwargs():
         """Fake test settings with de-index cron scheduling enabled."""
 
         DEINDEX_INACTIVE_COLLECTIONS_CRON = "0 3 1 6 *"
+        TABULAR_RESULTS_PURGE_CRON = ""
 
     schedule = TestSettings().CELERY_BEAT_SCHEDULE
 
@@ -55,6 +73,7 @@ def test_both_settings_produce_two_entries():
 
         MODEL_HEALTH_POLL_PROVIDER = "albert"
         DEINDEX_INACTIVE_COLLECTIONS_CRON = "0 2 * * *"
+        TABULAR_RESULTS_PURGE_CRON = ""
 
     schedule = TestSettings().CELERY_BEAT_SCHEDULE
 
@@ -63,11 +82,11 @@ def test_both_settings_produce_two_entries():
 
 def test_crontab_from_string_rejects_wrong_field_count():
     """A cron string without five fields raises ValueError."""
-    with pytest.raises(ValueError):
-        crontab_from_string("0 2 * *")
+    with pytest.raises(ValueError, match="^SOME_CRON must have five"):
+        crontab_from_string("0 2 * *", "SOME_CRON")
 
     with pytest.raises(ValueError):
-        crontab_from_string("0 2 * * * *")
+        crontab_from_string("0 2 * * * *", "SOME_CRON")
 
 
 def test_deindex_property_propagates_crontab_from_string_error():
@@ -78,7 +97,19 @@ def test_deindex_property_propagates_crontab_from_string_error():
 
         DEINDEX_INACTIVE_COLLECTIONS_CRON = "0 2 * *"
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="^DEINDEX_INACTIVE_COLLECTIONS_CRON must"):
+        _ = TestSettings().CELERY_BEAT_SCHEDULE
+
+
+def test_purge_property_names_its_own_setting_in_crontab_error():
+    """A bad TABULAR_RESULTS_PURGE_CRON is reported under its own name."""
+
+    class TestSettings(Base):
+        """Fake test settings with a malformed purge cron string."""
+
+        TABULAR_RESULTS_PURGE_CRON = "23 * *"
+
+    with pytest.raises(ValueError, match="^TABULAR_RESULTS_PURGE_CRON must"):
         _ = TestSettings().CELERY_BEAT_SCHEDULE
 
 

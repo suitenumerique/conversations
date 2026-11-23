@@ -27,6 +27,7 @@ from core.feature_flags.flags import FeatureToggle
 
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService, DocumentParsingResult
+from chat.clients.schema import ImagePostRunActions
 from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.llm_configuration import LLModel, LLMProvider
 from chat.mcp_servers import (
@@ -34,6 +35,8 @@ from chat.mcp_servers import (
     DataGouvConnector,
     is_connector_unreachable,
 )
+from chat.turn.event_mapper import TurnEventMapper
+from chat.turn.prompt import TurnInputs
 
 pytestmark = pytest.mark.django_db()
 
@@ -324,7 +327,7 @@ async def test_unreachable_connector_does_not_cost_the_turn(settings, caplog):
         for record in caplog.records
         if record.name == "chat.mcp_servers"
         and record.levelname == "WARNING"
-        and DataGouvConnector.connector_id in record.getMessage()
+        and record.msg["connector_id"] == DataGouvConnector.connector_id
     ]
 
 
@@ -397,9 +400,16 @@ async def test_run_agent_hands_connector_tools_to_the_agent_run(settings, mcp_se
         yield _FakeRun()
 
     async def fake_prepare(_messages):
-        """Return a stub agent-run preparation tuple."""
-        usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
-        return ("prompt", [], [], [], usage, [], False)
+        """Return stub turn inputs: a bare prompt, nothing attached, no history."""
+        return TurnInputs(
+            user_prompt="prompt",
+            input_images=[],
+            input_documents=[],
+            image_actions=ImagePostRunActions(),
+            history=[],
+            conversation_has_own_documents=False,
+            pre_stream_events=[],
+        )
 
     async def fake_handle_docs(*_args, **_kwargs):
         """Yield a stub document-parsing result with no documents."""
@@ -418,10 +428,10 @@ async def test_run_agent_hands_connector_tools_to_the_agent_run(settings, mcp_se
         patch.object(service, "_setup_web_search_tool"),
         patch.object(service, "_setup_web_search"),
         patch.object(service, "_check_should_enable_rag", AsyncMock(return_value=False)),
-        patch.object(service, "_process_agent_nodes", side_effect=_empty_async_gen),
+        patch.object(TurnEventMapper, "events", side_effect=_empty_async_gen),
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
         patch("chat.clients.pydantic_ai.should_generate_conversation_summary", return_value=False),
-        patch("chat.clients.pydantic_ai._extract_co2_from_usage", return_value=0),
+        patch("chat.turn.usage._extract_co2_from_usage", return_value=0),
         patch.object(service, "_wait_for_history_summary", side_effect=_empty_async_gen),
     ):
         messages = [UIMessage(id="msg-1", role="user", content="Hello", parts=[])]

@@ -1,4 +1,5 @@
 """Unit tests for the Authentication Backends."""
+# pylint: disable=too-many-lines
 
 import json
 import random
@@ -88,6 +89,116 @@ def test_authentication_getter_existing_user_via_email_case_insensitive(
         user = klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
 
     assert user == db_user
+    db_user.refresh_from_db()
+    assert db_user.email == "john.doe@example.com"
+
+
+@pytest.mark.parametrize(
+    "lookalike_email",
+    [
+        "john.doe@dısk.example",  # dotless i: Postgres UPPER() maps it to "I"
+        "john.doe@diſk.example",  # long s: Postgres UPPER() maps it to "S"
+        "john.doe@dis\u212a.example",  # Kelvin sign: Python lower() maps it to "k"
+    ],
+)
+def test_authentication_getter_existing_user_via_email_lookalike_letter(
+    lookalike_email, monkeypatch
+):
+    """
+    If an existing user doesn't match the sub and the email differs from its email
+    by a lookalike non-ASCII letter, a new user should be created instead of
+    logging into the existing account.
+    """
+
+    klass = OIDCAuthenticationBackend()
+    db_user = UserFactory(email="john.doe@disk.example")
+
+    def get_userinfo_mocked(*args):
+        return {"sub": "other-sub", "email": lookalike_email}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "get_userinfo", get_userinfo_mocked)
+
+    user = klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
+
+    assert user != db_user
+    assert user.sub == "other-sub"
+    assert user.email == lookalike_email
+    db_user.refresh_from_db()
+    assert db_user.sub != "other-sub"
+    assert models.User.objects.count() == 2
+
+
+def test_authentication_getter_existing_user_email_claim_in_other_case(
+    django_assert_num_queries, monkeypatch
+):
+    """
+    An email claim differing from the stored email by its ASCII case only
+    should not rewrite the email on every login.
+    """
+    klass = OIDCAuthenticationBackend()
+    user = UserFactory(full_name="John Doe", short_name="John", email="john.doe@example.com")
+
+    def get_userinfo_mocked(*args):
+        return {
+            "sub": user.sub,
+            "email": "John.Doe@Example.com",
+            "first_name": "John",
+            "last_name": "Doe",
+        }
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "get_userinfo", get_userinfo_mocked)
+
+    with django_assert_num_queries(1):  # user by sub, no update
+        authenticated_user = klass.get_or_create_user(
+            access_token="test-token", id_token=None, payload=None
+        )
+
+    assert authenticated_user == user
+    user.refresh_from_db()
+    assert user.email == "john.doe@example.com"
+
+
+def test_authentication_getter_existing_user_via_email_skips_inactive(monkeypatch):
+    """
+    If an active and an inactive user share the email, the active user should be returned.
+    """
+
+    klass = OIDCAuthenticationBackend()
+    UserFactory(email="john.doe@example.com", is_active=False)
+    db_user = UserFactory(email="JOHN.DOE@example.com")
+
+    def get_userinfo_mocked(*args):
+        return {"sub": "123", "email": "john.doe@example.com"}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "get_userinfo", get_userinfo_mocked)
+
+    user = klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
+
+    assert user == db_user
+    db_user.refresh_from_db()
+    assert db_user.sub == "123"
+
+
+def test_authentication_getter_existing_user_via_email_several_active(monkeypatch):
+    """
+    If several active users share the email, the login should be refused.
+    """
+
+    klass = OIDCAuthenticationBackend()
+    UserFactory(email="john.doe@example.com")
+    UserFactory(email="JOHN.DOE@example.com")
+
+    def get_userinfo_mocked(*args):
+        return {"sub": "123", "email": "john.doe@example.com"}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "get_userinfo", get_userinfo_mocked)
+
+    with pytest.raises(
+        SuspiciousOperation, match="Several active users are associated with this email."
+    ):
+        klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
+
+    assert models.User.objects.count() == 2
 
 
 def test_authentication_getter_email_none(monkeypatch):
@@ -780,6 +891,28 @@ def test_verify_claims_user_without_roles_claim_denied():
         klass.verify_claims({"sub": "123"})
 
 
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"], OIDC_ROLES_CLAIM="proconnect:roles")
+def test_verify_claims_custom_roles_claim_allowed():
+    """With a custom roles claim name, the required role is read from that claim."""
+    klass = OIDCAuthenticationBackend()
+
+    assert (
+        klass.verify_claims(
+            {"sub": "123", "proconnect:roles": ["agent_public", "agent_public_etat"]}
+        )
+        is True
+    )
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"], OIDC_ROLES_CLAIM="proconnect:roles")
+def test_verify_claims_custom_roles_claim_ignores_default_claim():
+    """With a custom roles claim name, the default 'roles' claim is not read."""
+    klass = OIDCAuthenticationBackend()
+
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims({"sub": "123", "roles": ["agent_public_etat"]})
+
+
 @override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
 def test_verify_claims_bypass_allows_user_without_role():
     """A role-less user whose email is on the active bypass list is allowed."""
@@ -802,6 +935,16 @@ def test_verify_claims_bypass_is_case_insensitive():
         klass.verify_claims({"sub": "123", "email": "ByPass@Example.COM", "roles": ["user"]})
         is True
     )
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])
+def test_verify_claims_bypass_lookalike_letter_is_denied():
+    """An email differing from a bypass entry by a lookalike non-ASCII letter is denied."""
+    AccessBypassEmailFactory(email="bypass@disk.example")
+    klass = OIDCAuthenticationBackend()
+
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims({"sub": "123", "email": "bypass@dısk.example", "roles": ["user"]})
 
 
 @override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])

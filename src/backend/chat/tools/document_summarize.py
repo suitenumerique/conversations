@@ -1,24 +1,26 @@
 """Summarization tool used for uploaded documents."""
 
 import asyncio
-import logging
 
 from django.conf import settings
 from django.core.files.storage import default_storage
 
 import semchunk
+import structlog
 from asgiref.sync import sync_to_async
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
 
+from core.log_fields import safe_error_fields
+
 from chat import models
 from chat.agents.summarize import SummarizationAgent
-from chat.constants import TEXT_MIME_PREFIX
+from chat.constants import TABULAR_MIME_TYPES, TEXT_MIME_PREFIX
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.utils import last_model_retry_soft_fail, resolve_attachment_by_id
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @sync_to_async
@@ -45,13 +47,7 @@ async def _read_documents_safely(text_attachment, document_id):
         try:
             documents.append(await read_document_content(doc))
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            logger.warning(
-                "Failed to read attachment %s (%s): %s",
-                doc.id,
-                doc.file_name,
-                exc,
-                exc_info=True,
-            )
+            logger.warning("summarize_attachment_read_failed", attachment_id=doc.id, exc_info=True)
             if document_id is not None:
                 # Targeted summarization: there is no other document to fall
                 # back to, so report this specific failure clearly.
@@ -86,10 +82,11 @@ async def _summarize_documents_chunks(documents_chunks, summarization_agent, ctx
             chunk_summaries = await asyncio.gather(*summarization_tasks)
             doc_chunk_summaries.append(chunk_summaries)
     except ModelRetry as exc:
-        logger.warning("Retryable error during chunk summarization: %s", exc, exc_info=True)
+        # The chained cause is the provider error: name it, never render it.
+        logger.warning("summarize_chunks_retryable_error", **safe_error_fields(exc.__cause__))
         raise
     except Exception as exc:
-        logger.warning("Error during chunk summarization: %s", exc, exc_info=True)
+        logger.warning("summarize_chunks_failed", **safe_error_fields(exc))
         raise ModelRetry("An error occurred while processing document chunks.") from exc
     return doc_chunk_summaries
 
@@ -102,12 +99,17 @@ async def summarize_chunk(idx, chunk, total_chunks, summarization_agent, ctx):
         f"(part {idx}/{total_chunks}):\n'''\n{chunk}\n'''\n\n"
     )
 
-    logger.debug("[summarize] CHUNK %s/%s", idx, total_chunks)
+    logger.debug("summarize_chunk_started", chunk=idx, total_chunks=total_chunks)
 
     try:
         resp = await summarization_agent.run(sum_prompt, usage=ctx.usage)
     except Exception as exc:
-        logger.warning("Error during chunk summarization: %s", exc, exc_info=True)
+        logger.warning(
+            "summarize_chunk_failed",
+            chunk=idx,
+            total_chunks=total_chunks,
+            **safe_error_fields(exc),
+        )
         raise ModelRetry(
             "An error occurred while summarizing a part of the document chunk."
         ) from exc
@@ -134,11 +136,6 @@ async def _summarize_text_attachments(
     is empty before reading; this lets each caller produce scope-appropriate
     guidance ("no docs in this conversation" vs. "no project files").
     """
-    instructions_hint = (
-        instructions.strip() if instructions else "The summary should contain 2 or 3 parts."
-    )
-    summarization_agent = SummarizationAgent()
-
     if not text_attachment:
         raise ModelCannotRetry(empty_set_message)
 
@@ -157,6 +154,23 @@ async def _summarize_text_attachments(
             "or provide the documents again."
         )
 
+    final_summary = await summarize_documents(documents, instructions=instructions, ctx=ctx)
+
+    return ToolReturn(
+        return_value=final_summary,
+        metadata={"sources": {doc[0] for doc in documents}},
+    )
+
+
+async def summarize_documents(
+    documents: list[tuple[str, str]], *, instructions: str | None, ctx: RunContext
+) -> str:
+    """Chunk, summarize and merge already-read `(name, content)` documents."""
+    instructions_hint = (
+        instructions.strip() if instructions else "The summary should contain 2 or 3 parts."
+    )
+    summarization_agent = SummarizationAgent()
+
     # Chunk documents and summarize each chunk
     chunk_size = settings.SUMMARIZATION_CHUNK_SIZE
     chunker = semchunk.chunkerify(
@@ -169,9 +183,9 @@ async def _summarize_text_attachments(
     )
 
     logger.info(
-        "[summarize] chunking: %s parts (size~%s)",
-        sum(len(chunks) for chunks in documents_chunks),
-        chunk_size,
+        "summarize_chunked",
+        chunks=sum(len(chunks) for chunks in documents_chunks),
+        chunk_size=chunk_size,
     )
 
     # Parallelize the chunk summarization with a semaphore (inside the
@@ -202,12 +216,12 @@ async def _summarize_text_attachments(
         "Respond directly with the final summary."
     )
 
-    logger.debug("[summarize] MERGE")
+    logger.debug("summarize_merge_started")
 
     try:
         merged_resp = await summarization_agent.run(merged_prompt, usage=ctx.usage)
     except Exception as exc:
-        logger.warning("Error during merge summarization: %s", exc, exc_info=True)
+        logger.warning("summarize_merge_failed", **safe_error_fields(exc))
         raise ModelRetry("An error occurred while generating the final summary.") from exc
 
     final_summary = (merged_resp.output or "").strip()
@@ -215,10 +229,7 @@ async def _summarize_text_attachments(
     if not final_summary:
         raise ModelRetry("The summarization produced an empty result.")
 
-    return ToolReturn(
-        return_value=final_summary,
-        metadata={"sources": {doc[0] for doc in documents}},
-    )
+    return final_summary
 
 
 @last_model_retry_soft_fail
@@ -247,9 +258,12 @@ async def document_summarize(
         If document_id is None, summarize every conversation document.
     """
     try:
-        text_attachment_qs = ctx.deps.conversation.attachments.filter(
-            content_type__startswith=TEXT_MIME_PREFIX
-        ).order_by("created_at", "id")
+        # Spreadsheets are analyzed with the tabular tools, not summarized as text.
+        text_attachment_qs = (
+            ctx.deps.conversation.attachments.filter(content_type__startswith=TEXT_MIME_PREFIX)
+            .exclude(content_type__in=TABULAR_MIME_TYPES)
+            .order_by("created_at", "id")
+        )
         text_attachment = await sync_to_async(list)(text_attachment_qs)
 
         return await _summarize_text_attachments(
@@ -268,7 +282,7 @@ async def document_summarize(
         raise
     except Exception as exc:
         # Unexpected error - stop and inform user
-        logger.exception("Unexpected error in document_summarize: %s", exc)
+        logger.exception("summarize_unexpected_error", scope="conversation")
         raise ModelCannotRetry(
             f"An unexpected error occurred during document summarization: {type(exc).__name__}. "
             "You must explain this to the user and not try to answer based on your knowledge."
@@ -322,7 +336,7 @@ async def document_summarize_project(
     except ModelCannotRetry, ModelRetry:
         raise
     except Exception as exc:
-        logger.exception("Unexpected error in document_summarize_project: %s", exc)
+        logger.exception("summarize_unexpected_error", scope="project")
         raise ModelCannotRetry(
             "An unexpected error occurred during project document summarization: "
             f"{type(exc).__name__}. You must explain this to the user and not try "

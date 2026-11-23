@@ -22,6 +22,12 @@ from chat.agent_rag.document_rag_backends.albert_rag_backend import AlbertRagBac
 # Matches the ALBERT_API_URL default in the Test settings class.
 ALBERT_BASE_URL = "https://albert.api.etalab.gouv.fr"
 SEARCH_URL = f"{ALBERT_BASE_URL}/v1/search"
+ALBERT_LOGGER = "chat.agent_rag.document_rag_backends.albert_rag_backend"
+
+
+def _albert_events(caplog):
+    """Events logged by the Albert backend (structlog records carry a dict msg)."""
+    return [r.msg["event"] for r in caplog.records if r.name == ALBERT_LOGGER]
 
 
 @pytest.fixture(name="albert_backend")
@@ -95,14 +101,16 @@ def test_search_with_filter_empty_returns_empty_no_recursion(albert_backend, cap
     """
     respx.post(SEARCH_URL).mock(return_value=httpx.Response(200, json=_empty_albert_response()))
 
-    with caplog.at_level("INFO", logger="chat.agent_rag.document_rag_backends.albert_rag_backend"):
+    with caplog.at_level("INFO", logger=ALBERT_LOGGER):
         results = albert_backend.search("any query", document_name="missing.pdf")
 
     assert results.data == []
     # Exactly one HTTP call: no recursive unfiltered retry.
     assert len(respx.calls) == 1
-    # And the empty-with-filter case is announced at info level.
-    assert any("returned no results" in r.message for r in caplog.records)
+    # And the empty-with-filter case is announced at info level, without the
+    # document name (user data).
+    assert "rag_filtered_search_empty" in _albert_events(caplog)
+    assert "missing.pdf" not in caplog.text
 
 
 @respx.mock
@@ -110,13 +118,13 @@ def test_search_without_filter_empty_returns_empty(albert_backend, caplog):
     """Unfiltered empty result returns empty RAGWebResults; no info log."""
     respx.post(SEARCH_URL).mock(return_value=httpx.Response(200, json=_empty_albert_response()))
 
-    with caplog.at_level("INFO", logger="chat.agent_rag.document_rag_backends.albert_rag_backend"):
+    with caplog.at_level("INFO", logger=ALBERT_LOGGER):
         results = albert_backend.search("any query")
 
     assert results.data == []
     assert len(respx.calls) == 1
     # The "returned no results" info log is only for filtered searches.
-    assert not any("returned no results" in r.message for r in caplog.records)
+    assert "rag_filtered_search_empty" not in _albert_events(caplog)
 
 
 @respx.mock
@@ -145,12 +153,13 @@ async def test_asearch_with_filter_empty_returns_empty_no_recursion(albert_backe
     """Same regression check as the sync variant, on the async path."""
     route = respx.post(SEARCH_URL).mock(return_value=Response(200, json=_empty_albert_response()))
 
-    with caplog.at_level("INFO", logger="chat.agent_rag.document_rag_backends.albert_rag_backend"):
+    with caplog.at_level("INFO", logger=ALBERT_LOGGER):
         results = await albert_backend.asearch("any query", document_name="missing.pdf")
 
     assert results.data == []
     assert route.call_count == 1  # no recursive retry
-    assert any("returned no results" in r.message for r in caplog.records)
+    assert "rag_filtered_search_empty" in _albert_events(caplog)
+    assert "missing.pdf" not in caplog.text
 
 
 @pytest.mark.asyncio

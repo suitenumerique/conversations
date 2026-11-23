@@ -93,9 +93,8 @@ def test_is_feature_enabled_dynamic_no_posthog(caplog, feature_flags):
     assert len(caplog.records) == 1
     record = caplog.records[0]
     assert record.levelno == logging.WARNING
-    assert record.message == (
-        "No feature flag manager found, cannot use dynamic for web_search -> disabled"
-    )
+    assert record.msg["event"] == "feature_flag_manager_missing"
+    assert record.msg["feature_name"] == "web_search"
 
 
 def test_is_feature_enabled_missing_flag_raises_attribute_error():

@@ -1,6 +1,5 @@
 """Mixin to add attachment upload and access control to a viewset."""
 
-import logging
 import re
 import uuid
 from urllib.parse import quote, urlencode
@@ -9,6 +8,7 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from django.utils.text import get_valid_filename
 
+import structlog
 from botocore.exceptions import ClientError
 from lasuite.malware_detection import malware_detection
 from rest_framework import decorators, exceptions, status
@@ -21,7 +21,7 @@ from .enums import FILE_EXT_REGEX, UUID_REGEX
 from .exceptions import HolderDoesNotExist
 from .serializers import FileUploadSerializer
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class AttachmentUploadThrottle(UserRateThrottle):
@@ -125,7 +125,7 @@ class AttachmentMixin:
         try:
             holder = self.get_holder_from_key(url_params, key)
         except HolderDoesNotExist as err:
-            logger.debug("Attachment holder not found for key '%s': %s", key, err)
+            logger.debug("attachment_holder_not_found", key=key)
             # We raise PermissionDenied instead of Http404 to avoid leaking information
             # about the existence of the attachment.
             raise exceptions.PermissionDenied() from err
@@ -154,7 +154,7 @@ class AttachmentMixin:
         try:
             head_resp = s3_client.head_object(Bucket=bucket_name, Key=key)
         except ClientError as err:
-            logger.error("Client Error fetching file %s metadata: %s", key, err)
+            logger.error("attachment_metadata_fetch_failed", key=key, error=str(err))
             return False
 
         metadata = head_resp.get("Metadata", {})
@@ -288,7 +288,7 @@ class AttachmentMixin:
         try:
             head_resp = s3_client.head_object(Bucket=bucket_name, Key=key)
         except ClientError as err:
-            logger.error("Client Error fetching file %s metadata: %s", key, err)
+            logger.error("attachment_metadata_fetch_failed", key=key, error=str(err))
             return Response(
                 {"detail": "Media not found"},
                 status=status.HTTP_404_NOT_FOUND,

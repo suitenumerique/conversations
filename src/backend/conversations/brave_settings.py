@@ -1,12 +1,13 @@
 """Django configuration mixin for Brave settings."""
 
 from configurations import values
+from lasuite.configuration.values import SecretFileValue
 
 
 class BraveSettings:
     """Brave settings for web_search_brave tool."""
 
-    BRAVE_API_KEY = values.Value(
+    BRAVE_API_KEY = SecretFileValue(
         default=None,
         environ_name="BRAVE_API_KEY",
         environ_prefix=None,

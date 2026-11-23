@@ -1,11 +1,10 @@
 """ViewSet for managing chat projects."""
 
-import logging
-
 from django.conf import settings
 from django.db.models import Prefetch, Q
 from django.utils.module_loading import import_string
 
+import structlog
 from rest_framework import filters, permissions, viewsets
 
 from core.analytics import capture_event
@@ -16,7 +15,7 @@ from chat.rate_limiting import ProjectCreateDailyThrottle, ProjectCreateHourlyTh
 from chat.views.filters import TitleSearchFilter
 from chat.views.helpers import _bulk_delete_s3_blobs
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-ancestors
@@ -88,7 +87,8 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
         S3 blobs for both project-level and child-conversation attachments are
         cleaned up before the DB cascade runs, since Django CASCADE drops
         attachment rows without touching object storage. Markdown companions
-        share their key with the original, so unique keys are deduplicated.
+        have their own `.md` key; unique keys are deduplicated for historical
+        companions that still share their key with the original.
         """
         # Same NULL-or-empty handling as ChatProjectAttachmentViewSet.get_queryset:
         # collection_id is CharField(null=True, blank=True), so both states exist.
@@ -103,9 +103,9 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
                 )
             except Exception:  # pylint: disable=broad-except
                 logger.exception(
-                    "Failed to delete RAG collection %s for conversation %s",
-                    conv.collection_id,
-                    conv.pk,
+                    "rag_collection_delete_failed",
+                    collection_id=conv.collection_id,
+                    conversation_id=conv.pk,
                 )
 
         # Collect all S3 keys (project + child conversations) before any DB
@@ -124,9 +124,9 @@ class ChatProjectViewSet(viewsets.ModelViewSet):  # pylint: disable=too-many-anc
                 )
             except Exception:  # pylint: disable=broad-except
                 logger.exception(
-                    "Failed to delete RAG collection %s for project %s",
-                    instance.collection_id,
-                    instance.pk,
+                    "rag_collection_delete_failed",
+                    collection_id=instance.collection_id,
+                    project_id=instance.pk,
                 )
         _bulk_delete_s3_blobs(attachment_keys)
         # Snapshotted first because `instance.delete()` clears `instance.pk`, but

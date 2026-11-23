@@ -1,10 +1,10 @@
 """History processors for model message cleanup."""
 
 import dataclasses
-import logging
 
 from django.conf import settings
 
+import structlog
 from pydantic_ai import ImageUrl
 from pydantic_ai.messages import (
     BinaryContent,
@@ -24,7 +24,7 @@ from chat.tools.descriptions import CONVERSATION_SUMMARY_TOOL_DESCRIPTION
 
 from .summarize import SummarizationAgent
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 SUMMARY_SYSTEM_PREFIX = (
     "[Conversation summary from previous turns] (context only, not a user request):\n"
@@ -193,8 +193,8 @@ def safe_clean_tool_history(messages: list[ModelMessage]) -> list[ModelMessage]:
         return clean_tool_history(messages)
     except Exception as exc:  # pylint: disable=broad-except
         logger.warning(
-            "Tool history cleanup failed, using raw history: %s",
-            exc,
+            "tool_history_cleanup_failed",
+            error_type=type(exc).__name__,
             exc_info=True,
         )
         return messages
@@ -383,10 +383,10 @@ async def generate_history_summary(
     next_checkpoint = len(messages)
     summary_input = messages[checkpoint:next_checkpoint]
     logger.debug(
-        "generate_history_summary summarizing messages %s:%s (%s message(s)).",
-        checkpoint,
-        next_checkpoint,
-        len(summary_input),
+        "history_summary_generating",
+        checkpoint=checkpoint,
+        next_checkpoint=next_checkpoint,
+        message_count=len(summary_input),
     )
     summary = await summarize_conversation(
         summary_input,
@@ -417,11 +417,10 @@ def resolve_conversation_budget(configuration) -> int:
     )
     if conversation_budget == 0 and max_token_context > 0:
         logger.warning(
-            "Summarization is disabled: conversation budget is 0 "
-            "(max_token_context=%d, security_buffer=%d, budget_ratio=%.2f).",
-            max_token_context,
-            security_buffer,
-            budget_ratio,
+            "history_summary_disabled_zero_budget",
+            max_token_context=max_token_context,
+            security_buffer=security_buffer,
+            budget_ratio=budget_ratio,
         )
     return conversation_budget
 

@@ -1,11 +1,11 @@
 """Token counting and budget utilities shared across chat modules."""
 
 import functools
-import logging
 
+import structlog
 import tiktoken
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @functools.lru_cache(maxsize=1)
@@ -20,11 +20,24 @@ def count_approx_tokens(text: str) -> int:
     try:
         return len(_get_token_encoding().encode(text))
     except Exception:  # pylint: disable=broad-except #noqa: BLE001
-        logger.warning("Failed to estimate tokens with tiktoken, falling back to heuristic.")
+        logger.warning("tiktoken_estimate_failed_using_heuristic")
         non_space_chars = len("".join(text.split()))
         if non_space_chars == 0:
             return 0
         return (non_space_chars + 2) // 3
+
+
+def truncate_to_tokens(text: str, max_tokens: int) -> str:
+    """Cut `text` down to at most `max_tokens` tokens, as counted by count_approx_tokens."""
+    if count_approx_tokens(text) <= max_tokens:
+        return text
+    try:
+        encoding = _get_token_encoding()
+        return encoding.decode(encoding.encode(text)[:max_tokens])
+    except Exception:  # pylint: disable=broad-except #noqa: BLE001
+        logger.warning("tiktoken_truncate_failed_using_heuristic")
+        # Mirror the heuristic of count_approx_tokens: about 3 characters per token.
+        return text[: max_tokens * 3]
 
 
 def compute_document_budget(

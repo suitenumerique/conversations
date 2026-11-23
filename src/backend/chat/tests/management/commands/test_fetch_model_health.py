@@ -228,7 +228,11 @@ def test_unknown_status_skipped_with_warning(settings, caplog):
     assert ModelHealth.objects.get().model_id == "model-b"
     assert cache.get("model_health:albert:model-a") is None
     assert cache.get("model_health:albert:model-b") == "green"
-    assert "purple" in caplog.text
+    [record] = [
+        r for r in caplog.records if r.name == "chat.management.commands.fetch_model_health"
+    ]
+    assert record.msg["event"] == "model_health_unknown_status"
+    assert record.msg["status"] == "purple"
 
 
 @pytest.mark.django_db

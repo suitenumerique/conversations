@@ -1,10 +1,10 @@
 """Module for managing LLM configurations from a JSON configuration file."""
 
-import logging
 import os
 from functools import lru_cache
 from typing import Annotated, Any, Literal, Optional, Self, Sequence
 
+import structlog
 from pydantic import (
     AfterValidator,
     BaseModel,
@@ -16,7 +16,7 @@ from pydantic import (
 )
 from pydantic_ai.profiles import JsonSchemaTransformer
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Legacy tool names that were moved to the `web_search` setting.
 # Kept here for backward compatibility: old configs that still list them
@@ -163,11 +163,8 @@ class LLModel(BaseModel):
         # Strip legacy tool names that are now handled by `web_search`
         legacy_found = LEGACY_TOOL_NAMES.intersection(value)
         if legacy_found:
-            logger.warning(
-                "Ignoring legacy tool(s) %s in model configuration. "
-                "Use the 'web_search' setting instead.",
-                ", ".join(sorted(legacy_found)),
-            )
+            # Use the 'web_search' setting instead.
+            logger.warning("legacy_tools_ignored", tools=sorted(legacy_found))
             value = [t for t in value if t not in LEGACY_TOOL_NAMES]
 
         return value

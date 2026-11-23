@@ -2,8 +2,8 @@
 Declare and configure the models for the conversations core application
 """
 
+import string
 import uuid
-from logging import getLogger
 
 from django.conf import settings
 from django.contrib.auth import models as auth_models
@@ -13,10 +13,26 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+import structlog
 from solo.models import SingletonModel
 from timezone_field import TimeZoneField
 
-logger = getLogger(__name__)
+logger = structlog.get_logger(__name__)
+
+# ASCII only: other characters are kept as received. Unicode-aware case mappings
+# turn lookalike letters into ASCII ones: Postgres UPPER() (behind iexact) maps the
+# dotless "ı" to "I", Python's lower() maps the Kelvin sign "K" to "k". Matching
+# "alice@dısk.example" to "alice@disk.example" would let another identity take over
+# the account through the OIDC email fallback. Same for stripping: a bare strip()
+# also removes Unicode spaces (NBSP, "\u3000"...), so only ASCII whitespace is stripped.
+_ASCII_LOWERCASE_TABLE = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
+
+
+def normalize_email(email):
+    """Strip ASCII whitespace around an email and lowercase its ASCII letters only."""
+    if not email:
+        return email
+    return email.strip(string.whitespace).translate(_ASCII_LOWERCASE_TABLE)
 
 
 class DuplicateEmailError(Exception):
@@ -74,16 +90,22 @@ class UserManager(auth_models.UserManager):
         try:
             return self.get(sub=sub)
         except self.model.DoesNotExist as err:
-            if not email:
+            # Check the normalized form: a blank claim like " " becomes "" and would
+            # match every user stored without an email.
+            normalized_email = normalize_email(email)
+            if not normalized_email:
                 return None
 
             if settings.OIDC_FALLBACK_TO_EMAIL_FOR_IDENTIFICATION:
-                try:
-                    return self.get(email__iexact=email)
-                except self.model.DoesNotExist:
-                    pass
-            elif (
-                self.filter(email__iexact=email).exists()
+                # Active users first, an inactive one is returned so the login is refused
+                users = self.filter(email=normalized_email).order_by("-is_active")[:2]
+                if len(users) == 2 and users[1].is_active:
+                    raise DuplicateEmailError(
+                        _("Several active users are associated with this email.")
+                    ) from err
+                return users[0] if users else None
+            if (
+                self.filter(email=normalized_email).exists()
                 and not settings.OIDC_ALLOW_DUPLICATE_EMAILS
             ):
                 raise DuplicateEmailError(
@@ -208,6 +230,11 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
     def __str__(self):
         """Return a string representation of the user."""
         return self.email or self.admin_email or str(self.id)
+
+    def save(self, *args, **kwargs):
+        """Normalize the email before saving, so lookups can match it exactly."""
+        self.email = normalize_email(self.email)
+        super().save(*args, **kwargs)
 
     def email_user(self, subject, message, from_email=None, **kwargs):
         """Email this user."""
@@ -348,10 +375,7 @@ class MaintenanceMode(SingletonModel):
             previous = None
         super().save(*args, **kwargs)
         if previous is not None and previous != self.enabled:
-            logger.warning(
-                "maintenance mode %s (singleton)",
-                "ENABLED" if self.enabled else "DISABLED",
-            )
+            logger.warning("maintenance_mode_toggled", enabled=self.enabled)
 
     class Meta:
         verbose_name = _("Maintenance Mode")
@@ -439,18 +463,18 @@ class AccessBypassEmail(BaseModel):
         return self.email
 
     def save(self, *args, **kwargs):
-        """Store the email normalized (trimmed, lowercase) for case-insensitive matching."""
-        if self.email:
-            self.email = self.email.strip().lower()
+        """Store the email normalized (trimmed, ASCII lowercase) so lookups match it exactly."""
+        self.email = normalize_email(self.email)
         super().save(*args, **kwargs)
 
     @classmethod
     def is_email_allowed(cls, email):
         """Return True if ``email`` has an active, non-expired bypass entry."""
-        if not email:
+        normalized_email = normalize_email(email)
+        if not normalized_email:
             return False
         return (
-            cls.objects.filter(email__iexact=email.strip(), is_active=True)
+            cls.objects.filter(email=normalized_email, is_active=True)
             .filter(models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now()))
             .exists()
         )

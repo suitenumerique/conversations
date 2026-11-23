@@ -19,7 +19,6 @@ conversation flow:
   reason, so the failure is visible and a future re-index can retry it.
 """
 
-import logging
 import time
 from io import BytesIO
 
@@ -29,14 +28,16 @@ from django.db import transaction
 from django.utils.module_loading import import_string
 
 import httpx
+import structlog
 
 from core.file_upload.enums import AttachmentStatus
+from core.log_fields import safe_error_fields
 
 from chat.constants import IMAGE_MIME_PREFIX, MARKDOWN_MIME_TYPE, TEXT_MIME_PREFIX
 from chat.enums import AttachmentIndexState
 from chat.models import ChatConversationAttachment, ChatProject
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def is_indexable_for_rag(attachment: ChatConversationAttachment) -> bool:
@@ -121,7 +122,7 @@ _ERROR_DETAIL_MAX_CHARS = 2000
 
 
 def _albert_error_detail(exc: Exception) -> str:
-    """Best-effort failure reason for logging and `processing_error`.
+    """Best-effort failure reason for `processing_error` (never logged).
 
     For an HTTP error, `str(exc)` is generic ("500 Server Error ... for url ...")
     and hides the Albert response body, which carries the actual reason (rate
@@ -156,12 +157,11 @@ def parse_and_store_with_retry(
             if attempt == max_attempts or not _is_transient_rag_error(exc):
                 raise
             logger.warning(
-                "Transient RAG store error for %s (attempt %d/%d); retrying in %ss: %s",
-                name,
-                attempt,
-                max_attempts,
-                delay_seconds,
-                exc,
+                "rag_store_retrying",
+                attempt=attempt,
+                max_attempts=max_attempts,
+                delay_seconds=delay_seconds,
+                error=str(exc),
             )
             time.sleep(delay_seconds)
     raise AssertionError("unreachable: loop returns or raises")  # pragma: no cover
@@ -184,20 +184,20 @@ def index_project_attachment(attachment: ChatConversationAttachment) -> None:
 
     if not is_indexable_for_rag(attachment):
         logger.info(
-            "Skipping RAG indexing for project attachment %s (state=%s, type=%s, "
-            "conversion_from=%s)",
-            attachment.pk,
-            attachment.upload_state,
-            attachment.content_type,
-            attachment.conversion_from,
+            "project_attachment_index_skipped",
+            attachment_id=attachment.pk,
+            upload_state=attachment.upload_state,
+            content_type=attachment.content_type,
+            # A bool: the source key is built from the file name
+            is_conversion=bool(attachment.conversion_from),
         )
         return
 
     if attachment.rag_document_id:
         logger.info(
-            "Project attachment %s already indexed (rag_document_id=%s); skipping.",
-            attachment.pk,
-            attachment.rag_document_id,
+            "project_attachment_already_indexed",
+            attachment_id=attachment.pk,
+            rag_document_id=attachment.rag_document_id,
         )
         if (
             attachment.index_state != AttachmentIndexState.INDEXED
@@ -230,17 +230,15 @@ def index_project_attachment(attachment: ChatConversationAttachment) -> None:
                         attachment.file_name, attachment.content_type, file.read()
                     )
                 _write_markdown_companion(attachment, parsed_content)
-                logger.info(
-                    "Rebuilt missing markdown companion for project attachment %s", attachment.pk
-                )
+                logger.info("project_attachment_companion_rebuilt", attachment_id=attachment.pk)
             except Exception:  # pylint: disable=broad-except
                 logger.exception(
-                    "Failed to rebuild markdown companion for project attachment %s", attachment.pk
+                    "project_attachment_companion_rebuild_failed", attachment_id=attachment.pk
                 )
         return
 
     if not attachment.project_id:
-        logger.error("Project attachment %s has no project_id; cannot index.", attachment.pk)
+        logger.error("project_attachment_without_project", attachment_id=attachment.pk)
         return
 
     project = attachment.project
@@ -299,21 +297,21 @@ def index_project_attachment(attachment: ChatConversationAttachment) -> None:
             _write_markdown_companion(attachment, parsed_content)
 
         logger.info(
-            "Indexed project attachment %s (rag_document_id=%s, project=%s).",
-            attachment.pk,
-            rag_document_id,
-            project.pk,
+            "project_attachment_indexed",
+            attachment_id=attachment.pk,
+            rag_document_id=rag_document_id,
+            project_id=project.pk,
         )
     except Exception as exc:  # pylint: disable=broad-except
-        detail = _albert_error_detail(exc)
+        # The Albert response body can echo document content: it goes to
+        # `processing_error` only, the log line keeps the status and type.
         logger.exception(
-            "Failed to index project attachment %s (file=%s, type=%s) in project %s: %s",
-            attachment.pk,
-            attachment.file_name,
-            attachment.content_type,
-            project.pk,
-            detail,
+            "project_attachment_index_failed",
+            attachment_id=attachment.pk,
+            content_type=attachment.content_type,
+            project_id=project.pk,
+            **safe_error_fields(exc),
         )
         attachment.index_state = AttachmentIndexState.FAILED
-        attachment.processing_error = detail
+        attachment.processing_error = _albert_error_detail(exc)
         attachment.save(update_fields=["index_state", "processing_error", "updated_at"])

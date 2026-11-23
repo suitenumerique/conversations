@@ -4,7 +4,8 @@ import { RagErrorKind } from './ragErrorKinds';
 
 export { STATUS_LINK_KINDS } from './ragErrorKinds';
 
-export type DocumentParsingErrorKind = 'concurrent_reindex' | RagErrorKind;
+export type DocumentParsingErrorKind =
+  'concurrent_reindex' | 'docs_links_unreadable' | RagErrorKind;
 
 export const getDocumentParsingErrorMessage = (
   t: TFunction,
@@ -28,6 +29,7 @@ export const getDocumentParsingErrorMessage = (
       'Unable to reach the document service. Please try again later.',
     ),
     rag_error: t('Your document could not be processed. Please try again.'),
+    docs_links_unreadable: t('The linked Docs documents could not be read.'),
   };
   return messages[kind as DocumentParsingErrorKind] ?? messages.rag_error;
 };

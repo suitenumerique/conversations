@@ -31,7 +31,7 @@ from chat.tests.utils import (
     replace_uuids_with_placeholder,
     throttle_rates,
 )
-from chat.tools.descriptions import SELF_DOCUMENTATION_SYSTEM_PROMPT
+from chat.tools.descriptions import CALCULATE_SYSTEM_PROMPT, SELF_DOCUMENTATION_SYSTEM_PROMPT
 
 # enable database transactions for tests:
 # transaction=True ensures that the data are available in the database
@@ -43,6 +43,7 @@ ENGLISH_INSTRUCTIONS = (
     "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
     f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
     f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
+    f"\n\n{CALCULATE_SYSTEM_PROMPT}"
 )
 
 
@@ -137,6 +138,7 @@ def _system_messages(language="english"):
         {"content": f"Answer in {language}.", "role": "system"},
         {"content": PREVENT_URL_HALLUCINATION_INSTRUCTION, "role": "system"},
         {"content": SELF_DOCUMENTATION_SYSTEM_PROMPT, "role": "system"},
+        {"content": CALCULATE_SYSTEM_PROMPT, "role": "system"},
     ]
 
 
@@ -214,7 +216,9 @@ def test_post_conversation_invalid_messages_does_not_log_user_prompt(api_client,
         response = api_client.post(url, {"messages": ["My secret prompt"]}, format="json")
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Frontend input error on fields: ['messages']" in caplog.text
+    [record] = [r for r in caplog.records if r.name == "chat.views.conversations"]
+    assert record.msg["event"] == "frontend_input_invalid"
+    assert record.msg["fields"] == ["messages"]
     assert "My secret prompt" not in caplog.text
 
 
@@ -634,7 +638,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
         'putTextDelta":"{\\"location\\":\\"Paris\\", \\"unit\\":\\"celsius\\"}"}\n\n'
         'data: {"type":"tool-output-available","toolCallId":"xLDcIljdsDrz0idal7tATWSMm2jhMj47'
         '","output":"Unknown tool name: \'get_current_weather\'. '
-        "Available tools: 'generate_presentation', "
+        "Available tools: 'calculate', 'generate_presentation', "
         "'self_documentation'\"}\n\n"
         'data: {"type":"text-start","id":"0"}\n\n'
         'data: {"type":"text-delta","id":"0","delta":"I cannot give you an answer to that."}'
@@ -696,6 +700,7 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
         "You are a helpful test assistant :)\n\nToday is Friday 25/07/2025.\n\nAnswer in french."
         f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
         f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
+        f"\n\n{CALCULATE_SYSTEM_PROMPT}"
     )
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
     assert chat_conversation.pydantic_messages == [
@@ -739,7 +744,8 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
             "parts": [
                 {
                     "content": "Unknown tool name: 'get_current_weather'. "
-                    "Available tools: 'generate_presentation', 'self_documentation'",
+                    "Available tools: 'calculate', 'generate_presentation', "
+                    "'self_documentation'",
                     "part_kind": "retry-prompt",
                     "timestamp": FROZEN_TIMESTAMP,
                     "tool_call_id": "xLDcIljdsDrz0idal7tATWSMm2jhMj47",
@@ -822,7 +828,7 @@ def test_post_conversation_model_selection_new(
     assert json.loads(mock_openai_stream.calls.last.request.content)["model"] == "plop-model"
 
 
-@freeze_time("2025-07-25T10:36:35.297675Z")
+@freeze_time("2025-07-25T10:36:35.297675Z", real_asyncio=True)
 @pytest.mark.parametrize("stream_delay", [None, 0.0001])
 def test_post_conversation_data_protocol_no_stream(
     api_client,
@@ -958,6 +964,7 @@ def test_post_conversation_data_protocol_no_stream(
                 "You are an amazing assistant.\n\nToday is Friday 25/07/2025.\n\nAnswer in english."
                 f"\n\n{PREVENT_URL_HALLUCINATION_INSTRUCTION}"
                 f"\n\n{SELF_DOCUMENTATION_SYSTEM_PROMPT}"
+                f"\n\n{CALCULATE_SYSTEM_PROMPT}"
             ),
             ["Why the sky is blue?"],
         ),
@@ -1008,7 +1015,11 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
 
     assert_data_stream_response(response)
 
-    assert "Using ASYNC streaming for chat conversation" in caplog.text
+    assert {"event": "streaming_mode_selected", "mode": "async"} in [
+        {"event": r.msg["event"], "mode": r.msg.get("mode")}
+        for r in caplog.records
+        if r.name == "chat.views.conversations"
+    ]
 
     # Wait for the streaming content to be fully received => async iterator -> list
     # This fails it the streaming is not an async generator
@@ -1085,7 +1096,11 @@ async def test_post_conversation_async_triggers_keepalive(
 
     assert_data_stream_response(response)
 
-    assert "Using ASYNC streaming for chat conversation" in caplog.text
+    assert {"event": "streaming_mode_selected", "mode": "async"} in [
+        {"event": r.msg["event"], "mode": r.msg.get("mode")}
+        for r in caplog.records
+        if r.name == "chat.views.conversations"
+    ]
 
     # Wait for the streaming content to be fully received => async iterator -> list
     # This fails it the streaming is not an async generator

@@ -1,16 +1,15 @@
 """Temporary-URL file streaming endpoint."""
 
-import logging
-
 from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.http import Http404, StreamingHttpResponse
 
 import magic
+import structlog
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class FileStreamView(APIView):
@@ -47,12 +46,13 @@ class FileStreamView(APIView):
         s3_key = cache.get(cache_key)
 
         if not s3_key:
-            logger.warning("Temporary file access key not found or expired: %s", temporary_key)
+            # The temporary key grants access to the file: never log it
+            logger.warning("temporary_file_key_invalid")
             raise Http404("File access key expired or invalid")
 
         cache.delete(cache_key)  # Delete the key from cache to prevent reuse
 
-        logger.info("Serving file via temporary key: %s", s3_key)
+        logger.info("temporary_file_served", key=s3_key)
 
         try:
             # Open the file from S3
@@ -75,5 +75,5 @@ class FileStreamView(APIView):
             response["Content-Disposition"] = f'inline; filename="{filename}"'
             return response
         except Exception as exc:
-            logger.exception("Failed to serve file via temporary key: %s", temporary_key)
+            logger.exception("temporary_file_serve_failed", key=s3_key)
             raise Http404("Failed to retrieve file") from exc

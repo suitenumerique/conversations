@@ -60,7 +60,9 @@ async def test_a_failing_callback_does_not_take_the_stream_down(settings, caplog
 
     # The stream carried on; see the note above on what is not asserted here.
     assert received
-    assert "Keepalive callback failed" in caplog.text
+    assert "keepalive_callback_failed" in [
+        r.msg["event"] for r in caplog.records if r.name == "chat.keepalive"
+    ]
 
 
 def test_a_silent_sync_stream_ticks_the_callback(settings):
@@ -256,7 +258,9 @@ async def test_a_source_left_alone_that_fails_is_logged(caplog):
     await asyncio.wait_for(failed.wait(), timeout=1)
     await asyncio.sleep(0.02)
 
-    assert "Turn left alone failed" in caplog.text
+    assert "turn_left_alone_failed" in [
+        r.msg["event"] for r in caplog.records if r.name == "chat.keepalive"
+    ]
 
 
 @pytest.mark.asyncio

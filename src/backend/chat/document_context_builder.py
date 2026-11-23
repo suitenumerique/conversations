@@ -3,19 +3,19 @@
 import asyncio
 import dataclasses
 import json
-import logging
 from collections import deque
 from typing import Literal, Sequence
 
 from django.core.files.storage import default_storage
 
+import structlog
 from asgiref.sync import sync_to_async
 
 from chat import models
 from chat.constants import ACCESS_FULL_CONTEXT, ACCESS_TOOL_CALL_ONLY
 from chat.tokens import compute_document_budget, count_approx_tokens
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 @sync_to_async
@@ -175,12 +175,11 @@ def _apply_fifo_inlining(
             continue
         if doc.token_count > document_budget:
             logger.debug(
-                "conversation=%s document=%s (%s tokens) exceeds budget (%s); "
-                "keeping tool_call_only.",
-                conversation_id,
-                doc.document_id,
-                doc.token_count,
-                document_budget,
+                "document_over_budget",
+                conversation_id=conversation_id,
+                document_id=doc.document_id,
+                token_count=doc.token_count,
+                document_budget=document_budget,
             )
             continue
 
@@ -189,9 +188,9 @@ def _apply_fifo_inlining(
             inlined.discard(evicted_idx)
             inlined_total -= docs[evicted_idx].token_count
             logger.debug(
-                "conversation=%s evicted document=%s",
-                conversation_id,
-                docs[evicted_idx].document_id,
+                "document_evicted",
+                conversation_id=conversation_id,
+                document_id=docs[evicted_idx].document_id,
             )
 
         if inlined_total + doc.token_count <= document_budget:
@@ -199,9 +198,9 @@ def _apply_fifo_inlining(
             inlined_order.append(i)
             inlined_total += doc.token_count
             logger.debug(
-                "conversation=%s inlined document=%s",
-                conversation_id,
-                doc.document_id,
+                "document_inlined",
+                conversation_id=conversation_id,
+                document_id=doc.document_id,
             )
 
     result: list[_DocumentEntry] = []
@@ -281,9 +280,9 @@ async def build_documents_listing(  # noqa: PLR0913 # pylint: disable=too-many-a
 
     if not max_token_context:
         logger.warning(
-            "conversation=%s model='%s' has no max_token_context; skipping full document inlining.",
-            conversation_id,
-            model_hrid,
+            "document_inlining_skipped_no_max_token_context",
+            conversation_id=conversation_id,
+            model_hrid=model_hrid,
         )
         return _assemble_documents_listing(
             docs=placeholder_docs,
@@ -293,10 +292,9 @@ async def build_documents_listing(  # noqa: PLR0913 # pylint: disable=too-many-a
 
     if budget_ratio == 0:
         logger.info(
-            "conversation=%s DOCUMENT_CONTEXT_BUDGET_RATIO is 0 for model '%s'; "
-            "disabling full document inlining.",
-            conversation_id,
-            model_hrid,
+            "document_inlining_disabled_zero_budget_ratio",
+            conversation_id=conversation_id,
+            model_hrid=model_hrid,
         )
         return _assemble_documents_listing(
             docs=placeholder_docs,
@@ -317,10 +315,10 @@ async def build_documents_listing(  # noqa: PLR0913 # pylint: disable=too-many-a
             inlineable = True
         except Exception as exc:  # pylint: disable=broad-except
             logger.warning(
-                "conversation=%s could not inline attachment '%s'; keeping it tool_call_only: %s",
-                conversation_id,
-                getattr(attachment, "file_name", "<unknown>"),
-                exc,
+                "document_inline_read_failed",
+                conversation_id=conversation_id,
+                attachment_id=getattr(attachment, "id", None),
+                error_type=type(exc).__name__,
                 exc_info=True,
             )
             title = getattr(attachment, "file_name", None)

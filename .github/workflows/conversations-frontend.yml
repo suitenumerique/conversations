@@ -150,6 +150,10 @@ jobs:
         run: |
           V=$(node -p "require('./src/frontend/apps/e2e/package.json').devDependencies['@playwright/test']")
           echo "version=${V}" >> "$GITHUB_OUTPUT"
+          # Browser builds are per distro release (webkit links the system ICU
+          # and libxml2) but install to the same directory, so the cache key
+          # must change when the runner image moves to a new Ubuntu release.
+          echo "os=$(. /etc/os-release && echo "${ID}${VERSION_ID}")" >> "$GITHUB_OUTPUT"
 
       - name: Resolve the browsers to install
         id: browsers
@@ -170,7 +174,7 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.browsers.outputs.key }}-${{ steps.playwright-version.outputs.version }}
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.os }}-${{ steps.browsers.outputs.key }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright browsers and system dependencies
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -243,6 +247,10 @@ jobs:
         run: |
           V=$(node -p "require('./src/frontend/apps/e2e/package.json').devDependencies['@playwright/test']")
           echo "version=${V}" >> "$GITHUB_OUTPUT"
+          # Browser builds are per distro release (webkit links the system ICU
+          # and libxml2) but install to the same directory, so the cache key
+          # must change when the runner image moves to a new Ubuntu release.
+          echo "os=$(. /etc/os-release && echo "${ID}${VERSION_ID}")" >> "$GITHUB_OUTPUT"
 
       - name: Resolve the browsers to install
         id: browsers
@@ -263,7 +271,7 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.browsers.outputs.key }}-${{ steps.playwright-version.outputs.version }}
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.os }}-${{ steps.browsers.outputs.key }}-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright browsers and system dependencies
         if: steps.playwright-cache.outputs.cache-hit != 'true'

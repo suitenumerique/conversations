@@ -260,7 +260,14 @@ async def test_agent_web_search_brave_client_error_does_not_log_query(mocked_con
     with caplog.at_level(logging.DEBUG):
         await web_search_brave(mocked_context, "my secret question")
 
-    assert f"Brave API client error (status 400) on {BRAVE_WEB_SEARCH_URL}" in caplog.text
+    [client_error] = [
+        record.msg
+        for record in caplog.records
+        if record.name == "chat.tools.web_search_brave"
+        and record.msg["event"] == "brave_api_client_error"
+    ]
+    assert client_error["status_code"] == 400
+    assert client_error["endpoint"] == BRAVE_WEB_SEARCH_URL
     assert "secret" not in caplog.text
 
 
@@ -706,6 +713,26 @@ async def test_fetch_and_extract_http_error():
             mock_fetch.side_effect = httpx.HTTPError("Network error")
             with pytest.raises(DocumentFetchError):
                 await _fetch_and_extract_async("https://example.com/error")
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_fetch_and_extract_http_status_error_logs_status_not_url(caplog):
+    """A failed page fetch logs the status code, never the page url (it reveals the search)."""
+    url = "https://example.com/secret-topic"
+    respx.get(url).mock(return_value=httpx.Response(status_code=404))
+
+    with patch("chat.tools.web_search_brave.cache") as mock_cache:
+        mock_cache.aget = AsyncMock(return_value=None)
+        with caplog.at_level(logging.WARNING), pytest.raises(DocumentFetchError):
+            await _fetch_and_extract_async(url)
+
+    [record] = [r for r in caplog.records if r.name == "chat.tools.web_search_brave"]
+    assert record.msg["event"] == "web_page_fetch_failed"
+    assert record.msg["error"] == "HTTPStatusError"
+    assert record.msg["status_code"] == 404
+    assert "exc_info" not in record.msg
+    assert "secret-topic" not in caplog.text
 
 
 @pytest.mark.asyncio

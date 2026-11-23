@@ -33,7 +33,7 @@ Documents attached to messages go through several stages:
 1. **Upload** : Files are uploaded to object storage with keys
    like `{conversation_pk}/attachments/{filename}`. URLs use `/media-key/` prefix.
 
-2. **Extraction** (`_prepare_prompt`): Documents are extracted from the UIMessage
+2. **Extraction** (`chat.turn.prompt.split_prompt`): Documents are extracted from the UIMessage
    and separated from images. Audio/video attachments are rejected.
 
 3. **Parsing** (`_handle_input_documents` → `_parse_input_documents`):
@@ -62,10 +62,10 @@ Events flow through several layers:
         ↓
     stream_data (sync wrapper)
 
-The `StreamingState` dataclass tracks mutable state across the streaming process:
+`chat.turn.event_mapper.TurnEventMapper` maps the agent's nodes to v4 events.
+Its `StreamingState` tracks mutable state across the streaming process:
 - `tool_is_streaming`: Prevents duplicate tool call events when streaming deltas
 - `ui_sources`: Collects source citations from tool results
-- `model_response_message_id`: Links the response to Langfuse traces
 
 ## Stop Mechanism
 
@@ -75,19 +75,14 @@ and raises `StreamCancelException` to abort the generator.
 """
 
 import asyncio
-import copy
 import dataclasses
 import functools
 import hashlib
-import itertools
 import json
-import logging
-import os
 import time
 import uuid
 from contextlib import AsyncExitStack, ExitStack, suppress
-from io import BytesIO
-from typing import AsyncGenerator, Dict, List, Optional, Tuple, Union
+from typing import AsyncGenerator, List, Optional
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -97,46 +92,33 @@ from django.db import transaction
 from django.utils.module_loading import import_string
 from django.utils.translation import gettext_lazy as _
 
+import structlog
 from asgiref.sync import sync_to_async
 from celery.exceptions import TimeoutError as CeleryTimeoutError
 from langfuse import get_client, propagate_attributes
-from pydantic_ai import Agent, InstrumentationSettings, RunContext, RunUsage
+from pydantic_ai import InstrumentationSettings, RunContext
 from pydantic_ai.capabilities import Hooks, Instrumentation, ProcessHistory
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UnexpectedModelBehavior
 from pydantic_ai.messages import (
     BinaryContent,
     DocumentUrl,
     FinishReason,
-    FunctionToolCallEvent,
-    FunctionToolResultEvent,
-    ImageUrl,
     ModelMessage,
-    ModelMessagesTypeAdapter,
     ModelRequest,
     ModelResponse,
-    PartDeltaEvent,
-    PartStartEvent,
-    RetryPromptPart,
     TextPart,
-    TextPartDelta,
-    ThinkingPart,
-    ThinkingPartDelta,
-    ToolCallPart,
-    ToolCallPartDelta,
     ToolReturn,
-    ToolReturnPart,
-    UserPromptPart,
 )
-from pydantic_ai.models import Model, infer_model_profile
 from pydantic_ai.settings import ModelSettings
 
 from core import instrumentation
 from core.analytics import acapture_event
 from core.feature_flags.helpers import is_feature_enabled
+from core.log_fields import safe_error_fields
 
 from chat import models
 from chat.agents.base import get_max_output_tokens
-from chat.agents.conversation import ConversationAgent, TitleGenerationAgent
+from chat.agents.conversation import ConversationAgent
 from chat.agents.history_processors import (
     SUMMARY_SYSTEM_PREFIX,
     SummarizationRequiredError,
@@ -145,14 +127,7 @@ from chat.agents.history_processors import (
     safe_clean_tool_history,
     should_generate_conversation_summary,
 )
-from chat.agents.local_media_url_processors import (
-    build_project_image_urls,
-    project_has_image_attachments,
-    update_history_local_urls,
-    update_local_urls,
-)
 from chat.ai_sdk_types import (
-    FileUIPart,
     SourceUrlUIPart,
     UIMessage,
 )
@@ -164,28 +139,27 @@ from chat.clients.error_classification import (
     resolve_rag_error_code,
 )
 from chat.clients.exceptions import StreamCancelException
-from chat.clients.pydantic_ui_message_converter import (
-    merge_by_kind,
-    model_message_to_ui_message,
-    ui_message_to_user_content,
-)
 from chat.clients.schema import (
     ContextDeps,
     DocumentParsingResult,
     ImagePostRunActions,
     PreparedHistory,
-    StreamingState,
 )
 from chat.constants import (
     ACCESS_FULL_CONTEXT,
     HISTORY_SUMMARY_CLAIM_DEAD_GRACE_SECONDS,
     HISTORY_SUMMARY_POLL_INTERVAL_SECONDS,
-    IMAGE_MIME_PREFIX,
     MARKDOWN_MIME_TYPE,
-    STREAM_TEXT_FLUSH_CHARS,
-    STREAM_TEXT_FLUSH_INTERVAL_SECONDS,
     SUMMARIZATION_ENQUEUE_CLAIM_GRACE_SECONDS,
+    TABULAR_MIME_TYPES,
     TEXT_MIME_PREFIX,
+)
+from chat.docs_client import docs_document_url, extract_docs_document_ids
+from chat.docs_snapshots import (
+    delete_replaced_snapshots,
+    discard_snapshots,
+    limit_docs_links,
+    store_docs_snapshots,
 )
 from chat.document_context_builder import (
     DocumentsListing,
@@ -195,17 +169,22 @@ from chat.document_context_builder import (
 from chat.enums import CollectionIndexState
 from chat.llm_configuration import get_model_configuration
 from chat.mcp_servers import DataGouvConnector, enter_mcp_toolsets
-from chat.rate_limiting import get_cooldown_remaining, record_and_compute_cooldown
-from chat.stream_chunks import close as close_turn_trail
+from chat.rate_limiting import get_cooldown_remaining
 from chat.stream_chunks import persist as persist_leftover_chunks
-from chat.tasks import parse_and_store_conversation_document_task, summarize_conversation_history
+from chat.tasks import index_conversation_document_task, summarize_conversation_history
+from chat.tools.calculate import calculate_expression
 from chat.tools.descriptions import (
+    CALCULATE_SYSTEM_PROMPT,
+    CALCULATE_TOOL_DESCRIPTION,
+    DESCRIBE_TABLES_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_PROJECT_TOOL_DESCRIPTION,
     DOCUMENT_SUMMARIZE_SYSTEM_PROMPT,
     DOCUMENT_SUMMARIZE_TOOL_DESCRIPTION,
     GENERATE_PRESENTATION_TOOL_DESCRIPTION,
+    QUERY_TABLE_TOOL_DESCRIPTION,
     SELF_DOCUMENTATION_SYSTEM_PROMPT,
     SELF_DOCUMENTATION_TOOL_DESCRIPTION,
+    TABULAR_SYSTEM_PROMPT,
     WEB_SEARCH_TOOL_DESCRIPTION,
 )
 from chat.tools.document_generic_search_rag import add_document_rag_search_tool_from_setting
@@ -213,6 +192,21 @@ from chat.tools.document_search_rag import add_document_rag_search_tool
 from chat.tools.document_summarize import document_summarize, document_summarize_project
 from chat.tools.generate_presentation import generate_presentation
 from chat.tools.self_documentation import build_self_documentation_payload
+from chat.tools.tabular import describe_tables, query_table
+from chat.tools.utils import soft_fail_last_invalid_tool_call
+from chat.turn.event_mapper import TurnEventMapper, connector_unavailable_notice
+from chat.turn.persistence import (
+    generate_title_if_needed,
+    prepare_update_conversation,
+    truncation_annotation,
+)
+from chat.turn.prompt import (
+    TurnInputs,
+    append_filler_after_dangling_request,
+    prepare_turn_inputs,
+)
+from chat.turn.trail import TurnTrail
+from chat.turn.usage import AgentUsage, TokenMeter
 from chat.vercel_ai_sdk.core import events_v4, events_v5
 from chat.vercel_ai_sdk.encoder import CURRENT_EVENT_ENCODER_VERSION, EventEncoder
 from chat.vercel_ai_sdk.encoder.encoder import DONE_FRAME
@@ -221,41 +215,17 @@ from chat.vercel_ai_sdk.encoder.v4_to_v5 import V4ToV5Translator
 # Keep at the top of the file to avoid mocking issues
 document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Every line tracing one turn goes to this logger rather than the module's, so
 # following a cycle is one filter (`chat.turn`) across the four modules that
 # take part in it, and its level can be raised or lowered on its own.
-turn_logger = logging.getLogger("chat.turn")
+turn_logger = structlog.get_logger("chat.turn")
 
 User = get_user_model()
 
 CACHE_TIMEOUT = 30 * 60  # 30 minutes timeout
 DOCUMENT_URL_PREFIX = "/media-key/"
-
-# Stream-protocol contract with the frontend. Mirrored in
-# ``useChat.tsx`` (``IMAGES_SKIPPED_EVENT_TYPE`` /
-# ``IMAGE_SKIP_REASON_TEXT_ONLY``). Keep both sides in sync when adding new
-# reasons or events.
-IMAGES_SKIPPED_EVENT_TYPE = "images_skipped"
-IMAGE_SKIP_REASON_TEXT_ONLY = "model_text_only"
-
-# Stream-protocol contract with the frontend. Mirrored in `useChat.tsx`
-# (CONNECTOR_UNAVAILABLE_EVENT_TYPE). Keep both sides in sync.
-CONNECTOR_UNAVAILABLE_EVENT_TYPE = "connector_unavailable"
-
-
-def _connector_unavailable_notice() -> events_v4.DataPart:
-    """The chat notice for a forced connector this turn could not use."""
-    return events_v4.DataPart(
-        data=[
-            {
-                "type": CONNECTOR_UNAVAILABLE_EVENT_TYPE,
-                "kind": "chat_notice",
-                "connector_id": DataGouvConnector.connector_id,
-            }
-        ]
-    )
 
 
 def _is_error_finish(event) -> bool:
@@ -266,87 +236,9 @@ def _is_error_finish(event) -> bool:
     )
 
 
-def _strip_thinking_parts(history: list[ModelMessage]) -> list[ModelMessage]:
-    """Remove ThinkingPart from ModelResponse history for models that don't support it.
-
-    Some models (e.g. mistral-medium) reject requests when previous assistant
-    messages contain ThinkingPart. This strips those parts before the history
-    is passed to the agent.
-
-    Only called when the current model's pydantic-ai ModelProfile.supports_thinking is False.
-    (no thinking_tags and no openai_supports_encrypted_reasoning_content).
-    """
-    has_thinking = any(
-        isinstance(p, ThinkingPart)
-        for msg in history
-        if isinstance(msg, ModelResponse)
-        for p in msg.parts
-    )
-    if not has_thinking:
-        return history
-
-    result = []
-    for original_message in history:
-        message = original_message
-        if isinstance(message, ModelResponse) and any(
-            isinstance(p, ThinkingPart) for p in message.parts
-        ):
-            message = dataclasses.replace(
-                message, parts=[p for p in message.parts if not isinstance(p, ThinkingPart)]
-            )
-        result.append(message)
-    return result
-
-
-def iter_image_attachments(messages: list[UIMessage]):
-    """Yield each image-like file part across the given messages.
-
-    Single source of truth for the "is this attachment an image?" predicate
-    used by readers (``list_images``) and writers (``_mark_image_attachments_skipped``).
-    """
-    for message in messages:
-        for part in message.parts or []:
-            if isinstance(part, FileUIPart) and (part.mediaType or "").startswith(
-                IMAGE_MIME_PREFIX
-            ):
-                yield part
-
-
-def list_images(messages: list[UIMessage]) -> list[str]:
-    """Return names of every image attachment across the message history."""
-    return [part.filename for part in iter_image_attachments(messages) if part.filename]
-
-
-def _extract_co2_from_usage(usage: RunUsage) -> float:
-    """Extract the CO2 impact from a RunUsage object.
-
-    Reads `co2_impact_factor_20` from usage.details (set by AlbertOpenAIStreamedResponse),
-    reverting the 10^20 integer scaling back to a float in kgCO2eq.
-    Non-Albert providers always return 0 (details key absent).
-    """
-    co2_impact_scale = 10**20
-    if usage_details := usage.details:
-        return usage_details.get("co2_impact_factor_20", 0) / co2_impact_scale
-    return 0
-
-
 # The finish_reason pydantic-ai reports when generation was cut off by the output
 # token limit (one of the pydantic_ai.messages.FinishReason literal values).
 LENGTH_FINISH_REASON: FinishReason = "length"
-
-# Stands in for the answer a turn cut off at the output token limit never wrote, so
-# the question it was asked is not replayed as a second user message in a row.
-TRUNCATED_TURN_FILLER = "[cut off: output token limit reached]"
-
-
-def _truncation_annotation() -> dict[str, bool]:
-    """The flag marking a response cut off at the output token limit.
-
-    Streamed as a v4 message annotation, which the v4->v5 encoder folds into the
-    `finish` message metadata, and persisted directly in the message metadata.
-    One source of truth so the two never drift.
-    """
-    return {"truncated": True}
 
 
 def _keep_truncated_text(messages: list[ModelMessage]) -> list[ModelMessage]:
@@ -375,13 +267,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # Finish reason of the last model response, recorded by the truncation hook.
     _last_finish_reason: FinishReason | None = None
 
-    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments  # noqa: PLR0913
         self,
         conversation: models.ChatConversation,
         user,
         session=None,
         model_hrid=None,
         language=None,
+        *,
+        trace_id=None,
     ):
         """
         Initialize the AI agent service.
@@ -389,6 +283,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         Args:
             conversation: The chat conversation instance
             user: The authenticated user instance, only used for dynamic feature flags
+            trace_id: The Langfuse trace id of the turn, Langfuse generates one if None
         """
         self.conversation = conversation
         self.user = user  # authenticated user only
@@ -396,26 +291,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self.model_configuration = get_model_configuration(self.model_hrid)
         self.language = language  # might be None
         self._last_stop_check = 0
-        # Per-turn chunk state, reset by _clean: where we are in the sequence,
-        # the text produced since the last row, and when each kind of row was
-        # last written.
-        self._chunk_seq = itertools.count()
-        self._last_text_flush = 0
-        self._pending_text = ""
-        self._active_agent_stream = None
-        self._turn_image_actions: Optional[ImagePostRunActions] = None
-        self._tokens_recorded = 0
-        self._turn_started_at, self._text_rows, self._snapshot_rows = 0.0, 0, 0
-        self._turn_run_id = uuid.uuid4()
-        self._turn_landed = self._question_stored = self._tool_step_pending = False
-        # Events queued during _prepare_agent_run for _run_agent to yield before
-        # the model is actually called (e.g. images-skipped notices). The list is
-        # cleared at the start of every stream via _clean.
-        self._pre_stream_events: List[dict] = []
+        self._turn_started_at = 0.0
+        # Per-turn chunk state, replaced by _clean at the start of every stream.
+        self._trail = TurnTrail(conversation, log=self._turn_log)
 
         self._langfuse_available = settings.LANGFUSE_ENABLED
         self._store_analytics = self._langfuse_available and user.allow_conversation_analytics
         self._langfuse_span = None
+        self._trace_id = trace_id
         self.event_encoder = EventEncoder(CURRENT_EVENT_ENCODER_VERSION)
         # Id of the assistant message of the current stream, announced to the
         # client in the `start` frame and persisted with the message. Set per
@@ -426,13 +309,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if (streaming := self.model_configuration.supports_streaming) is not None:
             self._support_streaming = streaming
 
-        # Feature flags
-        self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
-        self._is_web_search_enabled = is_feature_enabled(self.user, "web_search")
-        self._is_presentation_generation_enabled = is_feature_enabled(
-            self.user, "presentation_generation"
-        )
-        self._is_smart_search_enabled = user.allow_smart_web_search
+        self._init_feature_flags()
         self._datagouv = DataGouvConnector.for_user(self.user, conversation.pk)
         self._fake_streaming_delay = settings.FAKE_STREAMING_DELAY
 
@@ -445,6 +322,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         )
         self._web_search_tool_registered = False
         self._self_documentation_tool_registered = False
+        self._calculator_tool_registered = False
         self._history_summary = conversation.history_summary.strip() or None
         self._history_summary_checkpoint = max(conversation.history_summary_checkpoint, 0)
         self._presentation_tool_registered = False
@@ -471,6 +349,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             capabilities=_capabilities + [self._build_truncation_hooks()],
             deps_type=ContextDeps,
         )
+        # Per-turn token charge, replaced by _clean at the start of every stream.
+        self._meter = TokenMeter(user.pk, self.conversation_agent.configuration)
         add_document_rag_search_tool_from_setting(self.conversation_agent, self.user)
         self._conversation_message_token_budget = resolve_conversation_budget(
             self.model_configuration
@@ -496,7 +376,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 return ""
             return f"{SUMMARY_SYSTEM_PREFIX}{self._history_summary.strip()}"
 
-    def _turn_log(self, message: str, *args) -> None:
+    def _init_feature_flags(self) -> None:
+        """Evaluate the user's feature flags once, when the service is built."""
+        self._is_document_upload_enabled = is_feature_enabled(self.user, "document_upload")
+        self._is_web_search_enabled = is_feature_enabled(self.user, "web_search")
+        self._is_presentation_generation_enabled = is_feature_enabled(
+            self.user, "presentation_generation"
+        )
+        self._is_docs_link_fetching_enabled = (
+            bool(settings.DOCS_BASE_URL)
+            and self._is_document_upload_enabled
+            and is_feature_enabled(self.user, "docs_link_fetching")
+        )
+        self._is_smart_search_enabled = self.user.allow_smart_web_search
+
+    def _turn_log(self, event: str, **fields) -> None:
         """Log one step of the turn, stamped with how far into it we are.
 
         The turn is the unit worth following in the logs: a request arrives, a
@@ -506,10 +400,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         elapsed = time.monotonic() - self._turn_started_at if self._turn_started_at else 0.0
         turn_logger.info(
-            "[turn %s +%05.1fs] %s",
-            self.conversation.pk,
-            elapsed,
-            message % args if args else message,
+            event, conversation_id=self.conversation.pk, elapsed_s=round(elapsed, 1), **fields
         )
 
     @property
@@ -538,339 +429,24 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         This method is a placeholder for stopping the streaming operation.
         """
-        logger.info("Stopping streaming for conversation %s", self.conversation.id)
+        logger.info("stream_stop_requested", conversation_id=self.conversation.id)
         cache.set(self._stop_cache_key, "1", timeout=CACHE_TIMEOUT)
 
     # --------------------------------------------------------------------- #
     # Async internals
     # --------------------------------------------------------------------- #
 
-    async def _write_turn_chunks(self, run, event) -> None:
-        """Append what this event added to the turn: its text, and nothing else.
-
-        The question opened the trail with a snapshot, so there is always a
-        request for the answer to belong to, and every structural change takes
-        another one of its own (`snapshot_closed_tool_step`). Nothing is
-        snapshotted on a timer: a snapshot holds the whole turn, so one every
-        few seconds rewrote the answer so far over and over, for a reader that
-        only ever uses the last of them.
-
-        What this gives up: only text is appended, so reasoning (`ReasoningPart`,
-        from a model with `thinking_tags`) reaches no row of its own. A turn cut
-        short while the model is still thinking therefore stores its question
-        and nothing else, and the conversation shows that question with no
-        answer against it. Giving reasoning the same treatment as text means a
-        row that says which of the two it carries, not a timer: that would put
-        it back in the trail without snapshotting the whole turn again.
-        """
-        # Charged as the turn spends them, alongside the rows that record it:
-        # a turn that never lands spent its tokens all the same, and would
-        # otherwise escape the cooldown entirely.
-        await self._record_tokens(self._spent_tokens(run))
-        if isinstance(event, events_v4.TextPart):
-            await self._append_text(event.text)
-
     async def beat(self) -> None:
-        """Prove the turn is still running, when it has nothing to show for it.
+        """Keepalive hook: append a beat row to the current turn's trail.
 
-        A turn blocked on a document parse, a summary or a long tool call
-        produces no rows for minutes, and a trail that stops growing is read as
-        one an interruption left behind. So the keepalive loop - the only thing
-        that ticks while the stream is silent - appends a row that says nothing
-        except when it was written.
-
-        `fold` ignores a row with no text and no parts, and `is_live` already
-        reads the newest row's timestamp, so this needs nothing from either.
-
-        The check and the insert are not one step, so the turn can land in
-        between and take its trail with it. Rechecking afterwards and removing
-        the row is what keeps a landed turn from looking like it is still
-        generating for the length of the liveness window.
+        Bound by the view before the stream starts, so it looks the trail up on
+        every call rather than holding the one in place at the time.
         """
-        if self._turn_landed:
-            return
-        seq = await self._write_chunk()
-        # Not always false, whatever static analysis makes of it: the turn sets this
-        # itself, from its own task or thread, while the insert above is in flight.
-        if self._turn_landed:  # NOSONAR
-            await self._beat_rows(seq).adelete()
+        await self._trail.beat()
 
     def beat_sync(self) -> None:
         """`beat`, for the WSGI path, where the keepalive loop is not async."""
-        if self._turn_landed:
-            return
-        seq = next(self._chunk_seq)
-        models.ChatStreamChunk.objects.create(
-            conversation=self.conversation,
-            run_id=self._turn_run_id,
-            message_id=self._model_response_message_id or "",
-            seq=seq,
-        )
-        turn_logger.info("chunk %d: still running", seq)
-        if self._turn_landed:  # NOSONAR
-            # Landed while this row was being written; see `beat`.
-            self._beat_rows(seq).delete()
-
-    def _beat_rows(self, seq: int):
-        """The one row a beat just wrote, so it can take it back."""
-        return models.ChatStreamChunk.objects.filter(
-            conversation=self.conversation, run_id=self._turn_run_id, seq=seq
-        )
-
-    def _rows_before(self, seq: int):
-        """This turn's rows that a snapshot at `seq` has made unreadable."""
-        return models.ChatStreamChunk.objects.filter(
-            conversation=self.conversation, run_id=self._turn_run_id, seq__lt=seq
-        )
-
-    async def _append_text(self, text: str) -> None:
-        """Append text the model has produced, batched.
-
-        The batching is the whole cost control: a row every quarter second
-        rather than one per token, and each row carries only what is new. A
-        turn cut short loses at most the batch in hand, and only when nothing
-        got the chance to file it: every path that files its own trail flushes
-        first, in `_file_turn_trail`.
-        """
-        self._pending_text += text
-        now = time.monotonic()
-        if (
-            now - self._last_text_flush < STREAM_TEXT_FLUSH_INTERVAL_SECONDS
-            and len(self._pending_text) < STREAM_TEXT_FLUSH_CHARS
-        ):
-            return
-        await self._flush_text()
-
-    async def _file_turn_trail(self) -> None:
-        """Write the text in hand, then file the trail as one exchange.
-
-        The flush comes first because a whole batch of text - up to 200
-        characters, or a quarter second of it - is still in hand when a turn
-        ends this way, and filing without it drops the end of the sentence the
-        reader was already shown.
-
-        One coroutine rather than two awaits at the call site: the cancelled
-        path shields this, and a shield covers one awaitable, so the flush and
-        the fold have to be inside the same one to be ordered at all once the
-        task around them is being torn down.
-        """
-        await self._flush_text()
-        await sync_to_async(close_turn_trail)(self.conversation, self._turn_run_id)
-
-    async def _flush_text(self) -> None:
-        """Write the text in hand, if any."""
-        if not self._pending_text:
-            return
-        text, self._pending_text = self._pending_text, ""
-        self._last_text_flush = time.monotonic()
-        await self._write_chunk(text=text)
-
-    async def _append_snapshot(self, run) -> None:
-        """Append the turn as it stands, structure and all.
-
-        Text rows say what the model wrote; only this says what it was doing.
-        Written when the turn's structure changes and at no other time, since
-        it is the expensive kind of row: the question, and a tool step once its
-        returns are in the run.
-        """
-        # Everything in hand is in the response the snapshot is about to store,
-        # so it is superseded rather than written first.
-        self._pending_text = ""
-        await self._write_snapshot(self._partial_turn_messages(run))
-
-    async def _append_question(self, user_prompt: str, input_images: List) -> None:
-        """Append the question, before anything slow gets the chance to run.
-
-        Everything between the request arriving and the model's first token -
-        preparing the run, re-indexing, parsing an attached document, waiting
-        on a summary - happens before there is any output to snapshot. Leaving
-        it at that would mean a turn cut short in that window stored nothing at
-        all, not even what was asked, and parsing a document alone can hold it
-        open for minutes.
-        """
-        await self._write_snapshot(
-            [
-                ModelRequest(
-                    parts=[UserPromptPart(content=[user_prompt] + list(input_images))],
-                    kind="request",
-                )
-            ]
-        )
-
-    async def _write_snapshot(self, messages: List[ModelMessage]) -> None:
-        """Store `messages` as a snapshot chunk, and drop what it supersedes.
-
-        Copied and rewritten before it is stored: image URLs presigned for the
-        model expire, so what goes on disk carries the durable form. Doing that
-        to the run's own messages would change what the model sees for the rest
-        of the turn.
-
-        Every row before a snapshot is already inside it, because `fold` throws
-        away the text it has collected each time it meets one. Keeping them
-        costs a trail that grows with the square of the steps - each snapshot
-        holds the whole turn so far - for rows no reader can ever reach.
-
-        The delete comes after the insert, never before: the worst a failure
-        between the two can do is leave the rows that would have been left
-        anyway, whereas the other order can leave a trail with no snapshot in
-        it at all.
-
-        `question_in_messages` rides along on every snapshot, not just the
-        question's own. The image-skip path has already put the question in
-        `messages`, markers and all; the snapshot still carries the request,
-        because the history needs it, but a reader must not show it twice, and
-        the row that said so may be one of the rows being dropped here.
-        """
-        if not messages:
-            return
-        messages = copy.deepcopy(messages)
-        self._apply_image_actions(messages, self._turn_image_actions)
-        seq = await self._write_chunk(
-            parts=json.loads(ModelMessagesTypeAdapter.dump_json(messages).decode("utf-8")),
-            question_in_messages=self._question_stored,
-        )
-        superseded, _ = await self._rows_before(seq).adelete()
-        if superseded:
-            self._turn_log("chunk %d superseded %d row(s)", seq, superseded)
-
-    async def _write_chunk(
-        self, *, text: str = "", parts=None, question_in_messages: bool = False
-    ) -> int:
-        """Append one row to the turn's chunks.
-
-        Two writers share this trail: the turn, and the keepalive beating for
-        it while it is blocked. Under ASGI they are two tasks, under WSGI two
-        threads, so `seq = n; n += 1` is read twice either way and collides on
-        the constraint. `next()` on an `itertools.count` is one atomic step in
-        both.
-        """
-        seq = next(self._chunk_seq)
-        await models.ChatStreamChunk.objects.acreate(
-            conversation=self.conversation,
-            run_id=self._turn_run_id,
-            message_id=self._model_response_message_id or "",
-            seq=seq,
-            text=text,
-            parts=parts,
-            question_in_messages=question_in_messages,
-        )
-        if parts is None and not text:
-            turn_logger.info("chunk %d: still running", seq)
-        elif parts is None:
-            self._text_rows += 1
-            turn_logger.debug(
-                "[turn %s] chunk %d: %d characters of text",
-                self.conversation.pk,
-                seq,
-                len(text),
-            )
-        else:
-            self._snapshot_rows += 1
-            self._turn_log("chunk %d: snapshot of %d message(s)", seq, len(parts))
-        return seq
-
-    def _partial_turn_messages(self, run) -> List[ModelMessage]:
-        """The turn as it stands right now.
-
-        `run.new_messages()` holds the steps already closed. The response still
-        being streamed is not among them, but Pydantic AI builds it as it goes
-        and hands it over on `AgentStream.response`.
-        """
-        messages = list(run.new_messages())
-        stream = self._active_agent_stream
-        if stream is not None:
-            response = stream.response
-            if response.parts and not any(message is response for message in messages):
-                messages.append(response)
-        return messages
-
-    @staticmethod
-    def _spent_tokens(run) -> int:
-        """Tokens this turn has run through the model so far."""
-        usage = run.usage
-        return int(usage.input_tokens) + int(usage.output_tokens)
-
-    async def _record_tokens(self, total_tokens: int) -> int:
-        """Charge the tokens this turn has spent since the last call.
-
-        Recorded as it goes, because a turn that never reaches the end spent
-        its tokens all the same. The window adds up, so the increments total
-        what one final call would have charged.
-        """
-        unrecorded = total_tokens - self._tokens_recorded
-        if unrecorded <= 0:
-            return 0
-        self._tokens_recorded = total_tokens
-        return await sync_to_async(record_and_compute_cooldown)(
-            self.user.pk, self.conversation_agent.configuration, unrecorded
-        )
-
-    @staticmethod
-    def _mark_image_attachments_skipped(user_message: UIMessage) -> bool:
-        """Stamp a ``skipped`` marker on every image-like file part.
-
-        Returns True if at least one attachment was marked. The persisted user
-        bubble keeps the image attachments (filenames + URLs) so the frontend
-        can render a "removed: model can't read images" chip on reload; we just
-        flag each so renderers know not to fetch the image and to show the chip
-        instead of the thumbnail.
-        """
-        marked = False
-        for attachment in iter_image_attachments([user_message]):
-            if attachment.skipped is None:
-                attachment.skipped = {"reason": IMAGE_SKIP_REASON_TEXT_ONLY}
-                marked = True
-        return marked
-
-    async def _persist_user_message_for_image_skip(self, user_message: UIMessage) -> None:
-        """Persist the inbound user message early so it carries the skipped marker.
-
-        ``_prepare_update_conversation`` normally rebuilds the user bubble from
-        the agent's final_output; that path silently drops attachments the agent
-        never saw (because we stripped them), losing the filenames the frontend
-        needs to render the "image removed" chip. By saving the original message
-        here (with markers already stamped), the rebuild step short-circuits on
-        ``_question_stored`` and the marked version stands.
-
-        Guarded on that flag rather than on a trailing user message: a
-        question-only turn folded in earlier leaves one too, and reading it as
-        "already stored" skipped the markers this exists to keep.
-        """
-        if self._question_stored:
-            return
-
-        def store():
-            with transaction.atomic():
-                # Re-read under a lock: a turn running in another tab may have
-                # landed since this one loaded the conversation, and appending
-                # to the stale copy would erase it.
-                self.conversation.refresh_from_db(
-                    from_queryset=models.ChatConversation.objects.select_for_update(),
-                    fields=["messages"],
-                )
-                self.conversation.messages = list(self.conversation.messages) + [user_message]
-                self.conversation.save(update_fields=["messages"])
-
-        await sync_to_async(store)()
-        self._question_stored = True
-
-    def _add_unreadable_images_instruction(self, subject: Optional[str]) -> None:
-        """Tell a text-only model an image is present that it cannot read.
-
-        The model receives the image parts but ignores them; this instruction makes
-        it aware an image was provided so it can say it can't read images rather than
-        answer obliviously. ``subject`` names the image(s), e.g. ``"sample.png"`` or
-        ``"an image in the current project"``.
-        """
-
-        @self.conversation_agent.instructions
-        def acknowledge_unreadable_images() -> str:
-            """Instruct the model to tell the user it cannot read attached images."""
-            return (
-                f"This conversation includes {subject or 'some images'}, but you cannot read or "
-                "process images. If a request depends on it, tell the user you "
-                "can't read images."
-            )
+        self._trail.beat_sync()
 
     def _new_model_response_message_id(self) -> str:
         """Build the id of the assistant message about to be streamed.
@@ -889,7 +465,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             return str(uuid.uuid4())
         return f"trace-{trace_id}"
 
-    async def _stream_content(  # noqa: PLR0912  # pylint: disable=too-many-branches,too-many-statements
+    async def _stream_content(  # noqa: PLR0912, PLR0915  # pylint: disable=too-many-branches,too-many-statements
         self,
         messages: List[UIMessage],
         force_web_search: bool = False,
@@ -911,13 +487,18 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     )
                 )
                 self._langfuse_span = stack.enter_context(
-                    get_client().start_as_current_observation(name="conversation", as_type="span")
+                    get_client().start_as_current_observation(
+                        name="conversation",
+                        as_type="span",
+                        trace_context={"trace_id": self._trace_id} if self._trace_id else None,
+                    )
                 )
 
             self._model_response_message_id = self._new_model_response_message_id()
-            self._turn_log(
-                "stream opened, answering as message %s", self._model_response_message_id
-            )
+            self._trail.message_id = self._model_response_message_id
+            # Every later line of the turn, whatever module writes it, names the answer
+            structlog.contextvars.bind_contextvars(message_id=self._model_response_message_id)
+            self._turn_log("stream_opened")
             yield self.event_encoder.encode(
                 events_v5.MessageStartEvent(messageId=self._model_response_message_id)
             )
@@ -933,11 +514,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 log = (
                     logger.warning if exc.status_code in EXPECTED_LLM_STATUS_CODES else logger.error
                 )
+                # Not the message: it carries the provider's response body.
                 log(
-                    "LLM provider HTTP error (status=%s) for conversation %s: %s",
-                    exc.status_code,
-                    self.conversation.pk,
-                    exc,
+                    "llm_http_error",
+                    status_code=exc.status_code,
+                    conversation_id=self.conversation.pk,
                 )
                 observed_stream.outcome = error_code
                 error_event = events_v4.ErrorPart(error=error_code)
@@ -945,9 +526,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     yield self.event_encoder.encode(translated)
             except ModelAPIError as exc:
                 logger.warning(
-                    "LLM provider connection error for conversation %s: %s",
-                    self.conversation.pk,
-                    exc,
+                    "llm_connection_error",
+                    conversation_id=self.conversation.pk,
+                    **safe_error_fields(exc),
                 )
                 observed_stream.outcome = "model_connection_error"
                 error_event = events_v4.ErrorPart(error="model_connection_error")
@@ -955,9 +536,9 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     yield self.event_encoder.encode(translated)
             except SummarizationRequiredError as exc:
                 logger.error(
-                    "Summarization required but failed for conversation %s: %s",
-                    self.conversation.pk,
-                    exc,
+                    "history_summary_required_failed",
+                    conversation_id=self.conversation.pk,
+                    error=str(exc),
                 )
                 observed_stream.outcome = "summarization_failed"
                 error_event = events_v4.ErrorPart(error="summarization_failed")
@@ -970,7 +551,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # here because only the WSGI wrapper handles it; under ASGI it
                 # would escape mid-response. Falling through closes the stream
                 # with the same flush and DONE frame as a normal end.
-                self._turn_log("stopped by the user, keeping what was produced")
+                self._turn_log("turn_stopped_by_user")
                 observed_stream.outcome = "cancelled"
 
             except asyncio.CancelledError:
@@ -995,27 +576,27 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 # scopes are torn down with it, so nothing can be awaited to
                 # file anything. That path keeps the liveness window, as does a
                 # turn whose process dies outright.
-                self._turn_log("cancelled, filing what was produced")
-                if not self._turn_landed:
-                    self._turn_landed = True
+                self._turn_log("turn_cancelled")
+                if not self._trail.landed:
+                    self._trail.landed = True
                     with suppress(asyncio.CancelledError):
-                        await asyncio.shield(self._file_turn_trail())
+                        await asyncio.shield(self._trail.file())
                 raise
 
-            if not self._turn_landed:
+            if not self._trail.landed:
                 # Stop, a handled provider error, an early return: the turn is
                 # over and the code is still running, so file it here rather
                 # than leave it to be found after the liveness window, which
                 # would land it after whatever turn comes next. Marked landed
                 # first so the keepalive stops writing into a trail that is
                 # being filed.
-                self._turn_landed = True
-                await self._file_turn_trail()
+                self._trail.landed = True
+                await self._trail.file()
 
             self._turn_log(
-                "stream closed, %d text rows and %d snapshots written",
-                self._text_rows,
-                self._snapshot_rows,
+                "stream_closed",
+                text_rows=self._trail.text_rows,
+                snapshot_rows=self._trail.snapshot_rows,
             )
             for translated in translator.flush():
                 yield self.event_encoder.encode(translated)
@@ -1044,7 +625,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._last_stop_check = now
 
         if await cache.aget(self._stop_cache_key):
-            logger.info("Streaming stopped by cache key for conversation %s", self.conversation.id)
+            logger.info("stream_stopped", conversation_id=self.conversation.id)
             await cache.adelete(self._stop_cache_key)
             raise StreamCancelException()
         return
@@ -1058,22 +639,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         self._last_stop_check = 0
         self._last_finish_reason = None
-        self._pre_stream_events = []
-        self._chunk_seq = itertools.count()
-        self._pending_text = ""
-        self._last_text_flush = 0
-        self._active_agent_stream = None
-        self._turn_image_actions = None
-        self._tokens_recorded = 0
+        self._meter = TokenMeter(self.user.pk, self.conversation_agent.configuration)
         self._turn_started_at = time.monotonic()
-        self._text_rows = 0
-        self._snapshot_rows = 0
-        # Scopes this turn's chunks, so a turn running at the same time on the
-        # same conversation cannot fold, overwrite or delete them.
-        self._turn_run_id = uuid.uuid4()
-        self._turn_landed = False
-        self._question_stored = False
-        self._tool_step_pending = False
+        # A new run id scopes this turn's chunks, so a turn running at the same
+        # time on the same conversation cannot fold, overwrite or delete them.
+        self._trail = TurnTrail(self.conversation, log=self._turn_log)
         await cache.adelete(self._stop_cache_key)
 
     def _build_truncation_hooks(self) -> Hooks:
@@ -1101,138 +671,20 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     # Core agent runner
     # --------------------------------------------------------------------- #
 
-    async def _prepare_agent_run(
-        self, messages: List[UIMessage]
-    ) -> Tuple[str, List, List, Dict[str, str], Dict[str, Union[int, float]], List, bool]:
-        """
-        Prepare all inputs needed before running the agent.
-
-        This method handles the setup phase before the agent iteration loop:
-        1. Loads and validates conversation history from pydantic_messages
-        2. Pre-signs URLs for any local images in history (S3 signed URLs)
-        3. Infers whether the model supports thinking and strips ThinkingPart if not
-        4. Extracts user prompt, images, and documents from the last message
-        5. Pre-signs URLs for input images
-        6. Updates Langfuse trace with input (if analytics enabled)
-        7. Checks if conversation already has documents in the vector store
-
-        Returns:
-            Tuple containing:
-            - user_prompt: The text content of the user's message
-            - input_images: List of images to send to the model
-            - input_documents: List of documents to parse and store
-            - image_key_mapping: Maps signed URLs back to storage keys (for saving)
-            - usage: Token usage dict (initialized to zero)
-            - history: Validated message history for the agent
-            - conversation_has_own_documents: Whether this
-            conversation has its own (non-project) text attachments
-        """
-        history = ModelMessagesTypeAdapter.validate_python(self.conversation.pydantic_messages)
-        history = update_history_local_urls(
-            self.conversation, history
-        )  # presign URLs for local images
-
-        model = self.conversation_agent.model
-        if isinstance(model, Model):
-            model_supports_thinking = model.profile.get("supports_thinking")
-        else:
-            model_supports_thinking = infer_model_profile(model).get("supports_thinking")
-        if not model_supports_thinking:
-            history = _strip_thinking_parts(history)
-
-        user_prompt, input_images, input_documents = self._prepare_prompt(messages[-1])
-
-        # If the resolved model can't accept images, the model still receives them
-        # but ignores them (these endpoints tolerate image parts), and we instruct
-        # it to say so. We keep the images in the payload so they persist to history
-        # and a later turn on a vision-capable model can read them. We also mark each
-        # image attachment on the persisted user message so the frontend can render
-        # an inline "image ignored" chip naming the file.
-        model_supports_image = self.conversation_agent.configuration.supports_image
-        ignored_images = []
-        if not model_supports_image:
-            image_names = list_images(messages)
-            ignored_images += image_names
-            if await project_has_image_attachments(self.conversation.project_id):
-                ignored_images += ["images in the current project"]
-            if ignored_images:
-                # Single chat-wide notice: any image (project or history) is
-                # ignored by this text-only model.
-                self._pre_stream_events.append(
-                    {
-                        "type": IMAGES_SKIPPED_EVENT_TYPE,
-                        "kind": "chat_notice",
-                        "reason": IMAGE_SKIP_REASON_TEXT_ONLY,
-                    }
-                )
-
-        if ignored_images:
-            logger.info(
-                "Model %s cannot read images; instructing it to ignore %d image(s) "
-                "on conversation %s",
-                self.model_hrid,
-                len(input_images),
-                self.conversation.pk,
-            )
-            self._add_unreadable_images_instruction(", ".join(ignored_images))
-            if self._mark_image_attachments_skipped(messages[-1]):
-                await self._persist_user_message_for_image_skip(messages[-1])
-                self._pre_stream_events.append(
-                    {
-                        "type": IMAGES_SKIPPED_EVENT_TYPE,
-                        "kind": "last_message_marked",
-                        "reason": IMAGE_SKIP_REASON_TEXT_ONLY,
-                    }
-                )
-
-        image_actions = ImagePostRunActions()
-        if input_images:
-            # presign URLs for local images
-            input_images = update_local_urls(
-                self.conversation, input_images, updated_url=image_actions.rewrite
-            )
-
-        # Pin every project image to the prompt so vision-capable models see them
-        # on every turn, the same way conversation-attached images do. Project
-        # images go AFTER conversation-message images: provider hard caps
-        # (Anthropic ~20 images/request, OpenAI varies) clip the trailing entries
-        # first, so a pinned-library overflow never displaces a user's in-message
-        # image. Their presigned URLs land in `image_actions.drop` so the
-        # finalize/persistence path strips them from `new_messages` before
-        # writing to history - otherwise every turn would accumulate them in
-        # `pydantic_messages` and replay them on every reload.
-        if model_supports_image:
-            project_image_urls = await build_project_image_urls(self.conversation.project_id)
-            if project_image_urls:
-                input_images = list(input_images) + project_image_urls
-                image_actions.drop.update(img.url for img in project_image_urls)
-
+    async def _prepare_agent_run(self, messages: List[UIMessage]) -> TurnInputs:
+        """Prepare the turn's inputs, and hand the question to the Langfuse trace."""
+        inputs = await prepare_turn_inputs(
+            messages,
+            conversation=self.conversation,
+            agent=self.conversation_agent,
+            trail=self._trail,
+            document_upload_enabled=self._is_document_upload_enabled,
+        )
         if self._langfuse_available and self._langfuse_span is not None:
             self._langfuse_span.update(
-                input=user_prompt if self._store_analytics else "REDACTED",
+                input=inputs.user_prompt if self._store_analytics else "REDACTED",
             )
-
-        usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
-
-        conversation_has_own_documents = self._is_document_upload_enabled and (
-            bool(self.conversation.collection_id)
-            or bool(
-                await models.ChatConversationAttachment.objects.filter(
-                    conversation=self.conversation,
-                    content_type__startswith=TEXT_MIME_PREFIX,
-                    upload_state=models.AttachmentStatus.READY,
-                ).aexists()
-            )
-        )
-        return (
-            user_prompt,
-            input_images,
-            input_documents,
-            image_actions,
-            usage,
-            history,
-            conversation_has_own_documents,
-        )
+        return inputs
 
     def _build_model_history(self, history: list[ModelMessage]) -> list[ModelMessage]:
         """Compact tool cycles and trim to the runtime window for this turn.
@@ -1379,11 +831,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if not force_web_search:
             return False
         if not self._is_web_search_enabled:
-            logger.warning("Web search is forced but the feature is disabled, ignoring.")
+            logger.warning("forced_web_search_disabled")
             return False
 
         if not self.conversation_agent.is_web_search_configured():
-            logger.warning("Web search is forced but no web search tool is available, ignoring.")
+            logger.warning("forced_web_search_unavailable")
             return False
 
         self._context_deps.web_search_enabled = True
@@ -1461,7 +913,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         if connected:
             return
 
-        yield _connector_unavailable_notice()
+        yield connector_unavailable_notice()
 
     async def _check_should_enable_rag(self, conversation_has_own_documents: bool) -> bool:
         """Check if RAG should be enabled based on actually-indexed documents.
@@ -1508,53 +960,6 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         return False
 
-    async def _process_agent_nodes(
-        self, run, state: StreamingState
-    ) -> AsyncGenerator[events_v4.Event, None]:
-        """
-        Process nodes from the Pydantic-AI agent iteration loop.
-
-        The agent produces a stream of nodes representing different stages:
-
-        - **UserPromptNode**: The user's input was received (no-op, just logged)
-        - **ModelRequestNode**: The model is generating a response
-          - Streaming: Yields text/tool deltas as they arrive
-          - Non-streaming: Waits for full response, then yields parts
-        - **CallToolsNode**: The model requested tool calls
-          - Executes tools and yields results
-          - Collects source citations into state.ui_sources
-        - **EndNode**: The agent run is complete
-          - Sets state.model_response_message_id (minted at stream start) so
-            the persisted message keeps the id the client was given
-
-        This method delegates to specialized handlers for each node type,
-        passing the shared StreamingState to track cross-node state.
-
-        The stop check (_agent_stop_streaming) is called for each node to
-        allow cancel between processing steps.
-        """
-        async for node in run:
-            await self._agent_stop_streaming()
-            if Agent.is_user_prompt_node(node):
-                # A user prompt node => The user has provided input
-                pass
-
-            elif Agent.is_model_request_node(node):
-                # A model request node => agent is asking the model to generate a response
-                async for event in self._handle_model_request_node(node, run.ctx, state):
-                    await self._write_turn_chunks(run, event)
-                    yield event
-
-            elif Agent.is_call_tools_node(node):
-                # A handle-response node => The model returned some data,
-                # potentially calls a tool
-                async for event in self._stream_tool_node(node, run.ctx, state):
-                    yield event
-
-            elif Agent.is_end_node(node):
-                # Once an End node is reached, the agent run is complete
-                self._handle_end_node(state)
-
     async def _fetch_document_data(
         self, document: "BinaryContent | DocumentUrl"
     ) -> tuple[str | None, bytes]:
@@ -1583,12 +988,13 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
              - Enqueues the parse + RAG store on a Celery worker (reading the
                file from storage by key) and blocks on the result
              - Persists the backend document id on the attachment row
-             - Creates a markdown attachment for non-text files (PDF → MD)
+             - Records the markdown companion the task wrote for non-text
+               files (PDF → MD) as an attachment row
 
         Security: Documents are validated to ensure their URLs match the pattern
          `/media-key/{conversation_pk}/...` to prevent cross-conversation access.
 
-        The parse + store runs in the `parse_and_store_conversation_document_task`
+        The parse + store runs in the `index_conversation_document_task`
         Celery task rather than in-process, so the heavy, hostile-input-exposed
         work is off the request process and capped by the Celery task time limits.
         The turn blocks on the task result, so the UX is unchanged.
@@ -1650,7 +1056,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             # thread like the `.get()`/`.forget()` below to keep the event
             # loop free for other streams.
             async_result = await asyncio.to_thread(
-                parse_and_store_conversation_document_task.delay,
+                index_conversation_document_task.delay,
                 self.conversation.collection_id,
                 key,
                 document.identifier,
@@ -1658,7 +1064,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 self.user.sub,
             )
             try:
-                parsed_content, rag_document_id = await asyncio.to_thread(
+                companion_key, rag_document_id = await asyncio.to_thread(
                     async_result.get,
                     timeout=settings.DOCUMENT_PARSE_RESULT_TIMEOUT_SECONDS,
                 )
@@ -1670,11 +1076,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 await asyncio.to_thread(async_result.revoke)
                 raise
             finally:
-                # Drop the (possibly large) parsed-content payload from the result
-                # backend once the task has finished: it has been consumed on
-                # success, and is useless on failure. If the task is still queued
-                # or running (timeout path above), a result written later sits in
-                # Redis until CELERY_RESULT_EXPIRES.
+                # Drop the task result from the result backend once the task has
+                # finished: it has been consumed on success, and is useless on
+                # failure. If the task is still queued or running (timeout path
+                # above), a result written later sits in Redis until
+                # CELERY_RESULT_EXPIRES.
                 await asyncio.to_thread(async_result.forget)
 
             # Persist the backend-side document id on the original attachment row.
@@ -1684,73 +1090,32 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     conversation_id=self.conversation.pk, key=key
                 ).aupdate(rag_document_id=rag_document_id, is_indexed=True)
 
-            if not document.media_type.startswith(TEXT_MIME_PREFIX):
-                md_attachment = await models.ChatConversationAttachment.objects.acreate(
+            if companion_key:
+                # The task wrote the Markdown companion (non-text inputs only) to
+                # a distinct key, so the original file stays intact; record it.
+                await models.ChatConversationAttachment.objects.acreate(
                     conversation=self.conversation,
                     uploaded_by=self.user,
-                    key=key,
+                    key=companion_key,
                     file_name=f"{document.identifier}.md",
                     content_type=MARKDOWN_MIME_TYPE,
                     conversion_from=key,
+                    upload_state=models.AttachmentStatus.READY,
                 )
-                default_storage.save(md_attachment.key, BytesIO(parsed_content.encode("utf8")))
-                md_attachment.upload_state = models.AttachmentStatus.READY
-                await md_attachment.asave(update_fields=["upload_state", "updated_at"])
 
         if any_indexed:
             self.conversation.index_state = CollectionIndexState.INDEXED
             await self.conversation.asave(update_fields=["index_state", "updated_at"])
 
-    def _prepare_prompt(  # noqa: PLR0912  # pylint: disable=too-many-branches
-        self, message: UIMessage
-    ) -> Tuple[str, List[BinaryContent | ImageUrl], List[BinaryContent]]:
-        """
-        Prepare the user prompt for the agent.
+    def _setup_docs_links_instruction(self, notes: List[str]) -> None:
+        """Tell the model what happened to each pasted Docs link this turn."""
+        if not notes:
+            return
 
-        This method is used to convert a UIMessage into a format suitable for the agent.
-        It extracts the user content from the message and returns it as a list of UserContent.
-        """
-        user_content = ui_message_to_user_content(message)
-
-        user_prompt = []
-        attachment_images = []
-        attachment_documents = []
-        attachment_audio = []
-        attachment_video = []
-        for content in user_content:
-            if isinstance(content, str):
-                user_prompt.append(content)
-            elif isinstance(content, BinaryContent):
-                if content.is_audio:
-                    attachment_audio.append(content)
-                elif content.is_video:
-                    attachment_video.append(content)
-                elif content.is_image:
-                    attachment_images.append(content)
-                else:
-                    attachment_documents.append(content)
-            elif isinstance(content, ImageUrl):
-                attachment_images.append(content)
-            elif isinstance(content, DocumentUrl):
-                attachment_documents.append(content)
-            else:
-                # Should never happen, but just in case
-                raise ValueError(f"Unsupported UserContent type: {type(content)}")
-
-        if attachment_audio:
-            # Should be handled by the frontend, but just in case
-            raise ValueError("Audio attachments are not supported in the current implementation.")
-        if attachment_video:
-            # Should be handled by the frontend, but just in case
-            raise ValueError("Video attachments are not supported in the current implementation.")
-
-        if len(user_prompt) != 1:
-            raise ValueError(
-                "User prompt must contain exactly one text part, "
-                f"but got {len(user_prompt)} parts: {user_prompt}"
-            )
-
-        return user_prompt[0], attachment_images, attachment_documents
+        @self.conversation_agent.instructions
+        def docs_links_note() -> str:
+            """Inject the outcome of reading each pasted Docs link."""
+            return "\n".join(notes)
 
     async def _build_documents_listing(self) -> DocumentsListing | None:
         """Assemble the per-turn document listing (inlined vs tool-call-only)."""
@@ -1760,11 +1125,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # SUSPICIOUS rows are not yet usable (still being malware-scanned, or
         # quarantined), and surfacing their UUID in the system-prompt listing
         # would let the model target attachments it cannot actually read.
+        # Spreadsheets are queried through the tabular tools, never inlined.
         text_attachments = await sync_to_async(list)(
             self.conversation.attachments.filter(
                 content_type__startswith=TEXT_MIME_PREFIX,
                 upload_state=models.AttachmentStatus.READY,
-            ).order_by("created_at", "id")
+            )
+            .exclude(content_type__in=TABULAR_MIME_TYPES)
+            .order_by("created_at", "id")
         )
         project_text_attachments: list = []
         if self.conversation.project_id:
@@ -1864,6 +1232,35 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 """Wrap the document_summarize_project tool."""
                 return await document_summarize_project(ctx, *args, **kwargs)
 
+    async def _setup_tabular_tools(self) -> None:
+        """Register the tabular tools when the conversation has READY spreadsheets."""
+        if not self._is_document_upload_enabled:
+            return
+        file_names = [
+            file_name
+            async for file_name in models.ChatConversationAttachment.objects.filter(
+                conversation=self.conversation,
+                content_type__in=TABULAR_MIME_TYPES,
+                upload_state=models.AttachmentStatus.READY,
+            )
+            .order_by("created_at", "id")
+            .values_list("file_name", flat=True)
+        ]
+        if not file_names:
+            return
+
+        @self.conversation_agent.instructions
+        def tabular_instruction() -> str:
+            """Tell the model which spreadsheets are attached and how to query them."""
+            return TABULAR_SYSTEM_PROMPT.format(files=json.dumps(file_names, ensure_ascii=False))
+
+        self.conversation_agent.tool(
+            name="describe_tables", retries=2, description=DESCRIBE_TABLES_TOOL_DESCRIPTION
+        )(describe_tables)
+        self.conversation_agent.tool(
+            name="query_table", retries=3, description=QUERY_TABLE_TOOL_DESCRIPTION
+        )(query_table)
+
     def _setup_web_search_tool(self) -> None:
         """Register model-specific web search tool when configured."""
         if self._web_search_tool_registered:
@@ -1908,6 +1305,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
 
         self._presentation_tool_registered = True
 
+    def _setup_calculator_tool(self) -> None:
+        """Register the arithmetic tool so the model never computes in its head."""
+        if self._calculator_tool_registered:
+            return
+
+        @self.conversation_agent.instructions
+        def calculator_instruction() -> str:
+            """Inject the calculator system prompt."""
+            return CALCULATE_SYSTEM_PROMPT
+
+        self.conversation_agent.tool(
+            name="calculate", retries=2, description=CALCULATE_TOOL_DESCRIPTION
+        )(calculate_expression)
+        self._calculator_tool_registered = True
+
     def _setup_self_documentation_tool(self) -> None:
         """Register a tool exposing static and runtime self-documentation metadata."""
         if self._self_documentation_tool_registered:
@@ -1944,17 +1356,20 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     async def _handle_input_documents(
         self,
         input_documents: List[BinaryContent | DocumentUrl],
+        docs_document_ids: List[uuid.UUID],
         conversation_has_own_documents: bool,
-        usage: Dict[str, Union[int, float]],
     ) -> AsyncGenerator[events_v4.Event | DocumentParsingResult, None]:
         """
         Handle document parsing with streaming progress events.
 
-        This method processes documents attached to the user's message:
+        This method processes documents attached to the user's message and the
+        Docs documents it links to:
         1. Emits a ToolCallPart event to show "document_parsing" in the UI
-        2. Calls _parse_input_documents() to store documents in the vector store
-        3. Emits ToolResultPart with success/error status
-        4. Yields a DocumentParsingResult marker as the final item
+        2. Snapshots the linked Docs documents (failures become model notes)
+        3. Calls _parse_input_documents() to store documents in the vector store
+        4. Replaces the previous Docs snapshots once the new ones are indexed
+        5. Emits ToolResultPart with success/error status
+        6. Yields a DocumentParsingResult marker as the final item
 
         The DocumentParsingResult pattern allows the caller to:
         - Yield all events to the stream in real-time
@@ -1968,10 +1383,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             DocumentParsingResult: Final marker with success status (must be last)
         """
         if not self._is_document_upload_enabled and input_documents:
-            logger.warning("Document upload feature is disabled, ignoring input documents.")
+            logger.warning("input_documents_ignored_upload_disabled")
             input_documents = []
 
-        if not input_documents:
+        if not input_documents and not docs_document_ids:
             yield DocumentParsingResult(success=True, has_documents=conversation_has_own_documents)
             return
 
@@ -1979,14 +1394,58 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         yield events_v4.ToolCallPart(
             tool_call_id=_tool_call_id,
             tool_name="document_parsing",
-            args={"documents": [{"identifier": doc.identifier} for doc in input_documents]},
+            args={
+                "documents": [{"identifier": doc.identifier} for doc in input_documents]
+                + [
+                    {"identifier": docs_document_url(document_id)}
+                    for document_id in docs_document_ids
+                ]
+            },
         )
+
+        snapshots = []
+        if docs_document_ids:
+            snapshots, docs_notes = await store_docs_snapshots(
+                self.conversation, self.user, self._context_deps.session or {}, docs_document_ids
+            )
+            self._turn_log(
+                "docs_links_read",
+                read=len(snapshots),
+                failed=len(docs_document_ids) - len(snapshots),
+            )
+            self._setup_docs_links_instruction(docs_notes)
+            input_documents = [
+                *input_documents,
+                *(
+                    DocumentUrl(
+                        url=f"{DOCUMENT_URL_PREFIX}{snapshot.key}",
+                        identifier=snapshot.file_name,
+                        media_type=MARKDOWN_MIME_TYPE,
+                    )
+                    for snapshot in snapshots
+                ),
+            ]
+        if not input_documents:
+            # Every Docs link failed: the model explains why, the indicator says so too.
+            # The turn goes on, unlike a parsing error.
+            yield events_v4.ToolResultPart(
+                tool_call_id=_tool_call_id,
+                result={"state": "error", "kind": "docs_links_unreadable"},
+            )
+            yield DocumentParsingResult(success=True, has_documents=conversation_has_own_documents)
+            return
 
         try:
             await self._parse_input_documents(input_documents)
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
+            await discard_snapshots(self.conversation, snapshots)
             error_kind = resolve_rag_error_code(exc)
-            logger.exception("Error parsing input documents (%s): %s", error_kind, exc)
+            # No exc_info: the exception text can echo document content.
+            logger.error(
+                "input_documents_parse_failed",
+                error_kind=error_kind,
+                error_type=type(exc).__name__,
+            )
             yield (
                 events_v4.ToolResultPart(
                     tool_call_id=_tool_call_id,
@@ -1996,169 +1455,15 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             yield (
                 events_v4.FinishMessagePart(
                     finish_reason=events_v4.FinishReason.ERROR,
-                    usage=events_v4.Usage(
-                        prompt_tokens=usage["promptTokens"],
-                        completion_tokens=usage["completionTokens"],
-                        co2_impact=usage["co2_impact"],
-                    ),
+                    # Nothing has reached the model yet.
+                    usage=AgentUsage().to_event(),
                 )
             )
             yield DocumentParsingResult(success=False, has_documents=conversation_has_own_documents)
             return
+        await delete_replaced_snapshots(self.conversation, snapshots)
         yield events_v4.ToolResultPart(tool_call_id=_tool_call_id, result={"state": "done"})
         yield DocumentParsingResult(success=True, has_documents=True)
-
-    async def _handle_non_streaming_response(self, node, run_ctx):
-        """Run a model node without streaming, emitting its parts as events."""
-        result = await node.run(run_ctx)
-        for part in result.model_response.parts:
-            if isinstance(part, TextPart):
-                if self._fake_streaming_delay:
-                    for i in range(0, len(part.content), 4):
-                        await self._agent_stop_streaming()
-                        yield events_v4.TextPart(text=part.content[i : i + 4])
-                        if os.environ.get("PYTHON_SERVER_MODE") == "async":
-                            await asyncio.sleep(self._fake_streaming_delay)
-                        else:
-                            # sync mode needed for tests time manipulation
-                            time.sleep(self._fake_streaming_delay)
-                else:
-                    yield events_v4.TextPart(text=part.content)
-            elif isinstance(part, ToolCallPart):
-                yield events_v4.ToolCallPart(
-                    tool_call_id=part.tool_call_id,
-                    tool_name=part.tool_name,
-                    args=part.args_as_dict(),
-                )
-            elif isinstance(part, ThinkingPart):
-                yield events_v4.ReasoningPart(reasoning=part.content)
-            else:
-                logger.warning("Unknown part type: %s", type(part))
-
-    async def _handle_streaming_response(self, node, run_ctx, state: StreamingState):
-        """Stream a model node, emitting text/tool/reasoning deltas as events.
-
-        The stream is held on the service while the node runs: it carries the
-        response Pydantic AI is building, which is what a snapshot chunk
-        stores for the part of the turn not yet closed.
-        """
-        observe = instrumentation.streamed_model_request(self.conversation_agent.configuration)
-        async with node.stream(run_ctx) as request_stream:
-            self._active_agent_stream = request_stream
-            try:
-                async for event in observe(request_stream):
-                    await self._agent_stop_streaming()
-                    if isinstance(event, PartStartEvent):
-                        if isinstance(event.part, TextPart):
-                            yield events_v4.TextPart(text=event.part.content)
-                        elif isinstance(event.part, ToolCallPart):
-                            yield events_v4.ToolCallStreamingStartPart(
-                                tool_call_id=event.part.tool_call_id,
-                                tool_name=event.part.tool_name,
-                            )
-                        elif isinstance(event.part, ThinkingPart):
-                            yield events_v4.ReasoningPart(reasoning=event.part.content)
-                    elif isinstance(event, PartDeltaEvent):
-                        if isinstance(event.delta, TextPartDelta):
-                            yield events_v4.TextPart(text=event.delta.content_delta)
-                        elif isinstance(event.delta, ToolCallPartDelta):
-                            state.tool_is_streaming = True
-                            yield events_v4.ToolCallDeltaPart(
-                                tool_call_id=event.delta.tool_call_id,
-                                args_text_delta=event.delta.args_delta,
-                            )
-                        elif isinstance(event.delta, ThinkingPartDelta):
-                            yield events_v4.ReasoningPart(reasoning=event.delta.content_delta)
-            finally:
-                self._active_agent_stream = None
-
-    async def _handle_model_request_node(
-        self, node, run_ctx, state: StreamingState
-    ) -> AsyncGenerator[events_v4.Event, None]:
-        """Handle model request node - streaming or non-streaming."""
-        state.tool_is_streaming = False
-        if not self._support_streaming:
-            async for event in self._handle_non_streaming_response(node, run_ctx):
-                yield event
-        else:
-            async for event in self._handle_streaming_response(node, run_ctx, state):
-                yield event
-
-    async def _handle_call_tools_node(
-        self, node, run_ctx, state: StreamingState
-    ) -> AsyncGenerator[events_v4.Event, None]:
-        """Stream a tool-call node, emitting tool result/error events."""
-        async with node.stream(run_ctx) as handle_stream:
-            async for event in handle_stream:
-                await self._agent_stop_streaming()
-                logger.debug("Received request_stream event: %s", type(event))
-                if isinstance(event, FunctionToolCallEvent):
-                    if not state.tool_is_streaming:
-                        yield events_v4.ToolCallPart(
-                            tool_call_id=event.tool_call_id,
-                            tool_name=event.part.tool_name,
-                            args=event.part.args_as_dict(),
-                        )
-                elif isinstance(event, FunctionToolResultEvent):
-                    # An outage reaches the model as a failed ToolReturnPart.
-                    if self._datagouv.take_outage():
-                        yield _connector_unavailable_notice()
-                    if isinstance(event.part, ToolReturnPart):
-                        if event.part.metadata and (sources := event.part.metadata.get("sources")):
-                            for source_url in sources:
-                                source_id = str(uuid.uuid4())
-                                state.ui_sources.append(
-                                    SourceUrlUIPart(
-                                        type="source-url", sourceId=source_id, url=source_url
-                                    )
-                                )
-                                yield events_v4.SourcePart(id=source_id, url=source_url)
-                        yield events_v4.ToolResultPart(
-                            tool_call_id=event.tool_call_id, result=event.part.content
-                        )
-
-                    elif isinstance(event.part, RetryPromptPart):
-                        yield events_v4.ToolResultPart(
-                            tool_call_id=event.tool_call_id, result=event.part.content
-                        )
-                    else:
-                        logger.warning("Unexpected tool result type: %s", type(event.part))
-
-    async def _stream_tool_node(
-        self, node, run_ctx, state: StreamingState
-    ) -> AsyncGenerator[events_v4.Event, None]:
-        """Stream a tool-call node, noting that its step owes a snapshot.
-
-        A tool call is structure rather than more of the same text, and only a
-        snapshot carries structure. The snapshot itself waits: Pydantic AI adds
-        the tool's return to the run when the next model request starts, so
-        taking it here would store a call with no answer, which no provider will
-        replay.
-        """
-        async for event in self._handle_call_tools_node(node, run_ctx, state):
-            yield event
-            if isinstance(event, (events_v4.ToolCallPart, events_v4.ToolResultPart)):
-                self._tool_step_pending = True
-
-    def _handle_end_node(self, state: StreamingState) -> None:
-        """Handle end node - set message ID."""
-        if state.model_response_message_id:
-            logger.error("_model_response_message_id already set")
-        # Minted (and streamed) by _stream_content: the persisted message must
-        # carry the same id the client already assigned to the live one.
-        state.model_response_message_id = self._model_response_message_id
-
-    async def _generate_title_if_needed(self) -> str | None:
-        """Generate and set title if auto-title conditions are met."""
-        user_messages_count = sum(1 for msg in self.conversation.messages if msg.role == "user")
-        if user_messages_count != settings.AUTO_TITLE_AFTER_USER_MESSAGES:
-            return None
-        if self.conversation.title_set_by_user_at:
-            return None
-        title = await self._generate_title()
-        if title:
-            self.conversation.title = title
-        return title
 
     def _update_langfuse_trace(self, run_output) -> None:
         """Update the Langfuse trace with the final output, if analytics are enabled."""
@@ -2171,12 +1476,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self,
         new_messages: list,
         run_output,
-        usage: Dict[str, Union[int, float]],
-        state: StreamingState,
+        usage: AgentUsage,
+        ui_sources: List[SourceUrlUIPart],
         image_actions: ImagePostRunActions,
     ) -> AsyncGenerator[events_v4.Event, None]:
         """
         Finalize the conversation after the agent run completes.
+
+        `usage` is this turn's alone.
 
         This method handles all post-processing:
         1. Final stop check (allows late cancellation)
@@ -2197,38 +1504,34 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         await self._agent_stop_streaming(force_cache_check=True)
         self._turn_log(
-            "run finished: %d prompt and %d completion tokens",
-            usage["promptTokens"],
-            usage["completionTokens"],
+            "run_finished",
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
         )
 
         # Total tokens the model processed for this request, across every
         # tool-loop round-trip (RAG/web-search results fed back as input count
         # too): that is the real inference load the cooldown should reflect.
-        # Captured before _prepare_update_conversation folds it into the
-        # conversation's cumulative total.
-        request_tokens = int(usage["promptTokens"]) + int(usage["completionTokens"])
+        request_tokens = usage.prompt_tokens + usage.completion_tokens
 
-        # Per-message CO2 impact, captured before _prepare_update_conversation
-        # folds the conversation's cumulative total into usage["co2_impact"].
-        message_co2_impact = usage["co2_impact"]
-
-        await sync_to_async(self._write_finished_turn)(
+        conversation_usage = await sync_to_async(self._write_finished_turn)(
             final_output=new_messages,
             usage=usage,
-            ui_sources=state.ui_sources,
-            model_response_message_id=state.model_response_message_id,
+            ui_sources=ui_sources,
+            # Minted (and streamed) by _stream_content: the persisted message must
+            # carry the same id the client already assigned to the live one.
+            model_response_message_id=self._model_response_message_id,
             image_actions=image_actions,
         )
 
-        self._turn_log("turn stored and its chunks dropped")
+        self._turn_log("turn_stored")
 
-        generated_title = await self._generate_title_if_needed()
+        generated_title = await generate_title_if_needed(self.conversation, self.language)
         if generated_title:
             await sync_to_async(self.conversation.save)(update_fields=["title", "updated_at"])
-            self._turn_log("named the conversation")
+            self._turn_log("conversation_named")
 
-        await self._record_tokens(request_tokens)
+        await self._meter.charge(request_tokens)
         # Read the cooldown rather than take what that charge returned: the
         # turn charges as it goes, so by now there can be nothing left to
         # charge, and a charge of nothing reports no cooldown even when one is
@@ -2237,7 +1540,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # it is the one the client has to count down.
         cooldown_seconds = await sync_to_async(get_cooldown_remaining)(self.user.pk)
         if cooldown_seconds:
-            self._turn_log("the user owes a %ds cooldown", cooldown_seconds)
+            self._turn_log("cooldown_owed", seconds=cooldown_seconds)
             yield events_v4.DataPart(data=[{"type": "cooldown", "seconds": cooldown_seconds}])
 
         if generated_title:
@@ -2251,25 +1554,22 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 ]
             )
         self._update_langfuse_trace(run_output)
-        # Stream the CO2 annotation _prepare_update_conversation persists, so the
+        # Stream the CO2 annotation prepare_update_conversation persists, so the
         # live message carries it like a reload does. Only that key is stored:
         # the usage in the finish frame below is streamed but never persisted.
-        if message_co2_impact:
-            yield events_v4.MessageAnnotationPart(annotations=[{"co2_impact": message_co2_impact}])
+        if usage.co2_impact:
+            yield events_v4.MessageAnnotationPart(annotations=[{"co2_impact": usage.co2_impact}])
 
         if self._is_truncated:
-            yield events_v4.MessageAnnotationPart(annotations=[_truncation_annotation()])
+            yield events_v4.MessageAnnotationPart(annotations=[truncation_annotation()])
 
-        # Vercel finish message
+        # Vercel finish message. Its usage is the conversation's running total,
+        # this turn included, not the turn's own.
         yield events_v4.FinishMessagePart(
             finish_reason=(
                 events_v4.FinishReason.LENGTH if self._is_truncated else events_v4.FinishReason.STOP
             ),
-            usage=events_v4.Usage(
-                prompt_tokens=usage["promptTokens"],
-                completion_tokens=usage["completionTokens"],
-                co2_impact=usage["co2_impact"],
-            ),
+            usage=conversation_usage.to_event(),
         )
 
     async def _reindex_phase(
@@ -2328,6 +1628,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
     ) -> None:
         """Register the tools this turn is allowed to use."""
         self._setup_self_documentation_tool()
+        self._setup_calculator_tool()
         self._setup_presentation_tool()
         self._setup_web_search_tool()
         self._setup_web_search(force_web_search)
@@ -2336,30 +1637,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             document_context_instruction = await self._build_document_context_instruction()
             self._setup_rag_tools(document_context_instruction=document_context_instruction)
 
-    @staticmethod
-    def _append_filler_after_dangling_request(history: list[ModelMessage]) -> None:
-        """Keep replayed history alternating: Mistral rejects the same role twice.
-
-        A stored turn can end on a request with no response after it, and the next
-        turn's prompt would then follow it as a second message in the same role:
-        a tool return (`Unexpected role 'user' after role 'tool'`), or a question
-        a turn cut off at the output token limit never got to answer.
-        """
-        if not (history and history[-1].kind == "request" and history[-1].parts):
-            return
-        _last_part_kind = history[-1].parts[-1].part_kind
-        if _last_part_kind == "tool-return":
-            history.append(ModelResponse(parts=[TextPart(content="ok")], kind="response"))
-        elif _last_part_kind == "user-prompt":
-            history.append(
-                ModelResponse(parts=[TextPart(content=TRUNCATED_TURN_FILLER)], kind="response")
-            )
-
-    async def _snapshot_closed_tool_step(self, run) -> None:
-        """Snapshot the tool cycle that just closed, if one is waiting for it."""
-        if self._tool_step_pending:
-            self._tool_step_pending = False
-            await self._append_snapshot(run)
+        await self._setup_tabular_tools()
 
     async def _run_agent(
         self,
@@ -2380,43 +1658,45 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         # them before this turn reads the history, so the model sees the
         # interrupted exchange rather than a question with no answer.
         if await sync_to_async(persist_leftover_chunks)(self.conversation):
-            self._turn_log("folded in what a previous turn left behind")
+            self._turn_log("previous_turn_folded")
 
-        (
-            user_prompt,
-            input_images,
-            input_documents,
-            image_actions,
-            usage,
-            history,
-            conversation_has_own_documents,
-        ) = await self._prepare_agent_run(messages)
+        inputs = await self._prepare_agent_run(messages)
+        # Both change as the phases below settle them.
+        history = inputs.history
+        conversation_has_own_documents = inputs.conversation_has_own_documents
 
         self._turn_log(
-            "prepared: %d messages of history, %d image(s), %d document(s)",
-            len(history),
-            len(input_images),
-            len(input_documents),
+            "turn_prepared",
+            history_messages=len(history),
+            images=len(inputs.input_images),
+            documents=len(inputs.input_documents),
         )
 
         # Held for the snapshots, which rewrite presigned image URLs to their
         # durable form before storing them.
-        self._turn_image_actions = image_actions
-        await self._append_question(user_prompt, input_images)
-        self._turn_log("question stored, so the turn survives whatever runs next")
+        self._trail.image_actions = inputs.image_actions
+        await self._trail.append_question(inputs.user_prompt, inputs.input_images)
+        self._turn_log("question_stored")
 
-        for pre_event in self._pre_stream_events:
+        for pre_event in inputs.pre_stream_events:
             yield events_v4.DataPart(data=[pre_event])
-        self._pre_stream_events = []
 
         async for event in self._reindex_phase(conversation_has_own_documents):
             yield event
             if _is_error_finish(event):
                 return
 
+        docs_document_ids = []
+        if self._is_docs_link_fetching_enabled:
+            docs_document_ids, over_limit_notes = limit_docs_links(
+                extract_docs_document_ids(inputs.user_prompt)
+            )
+            self._setup_docs_links_instruction(over_limit_notes)
         parsed: list[DocumentParsingResult] = []
         async for event in self._stream_phase(
-            self._handle_input_documents(input_documents, conversation_has_own_documents, usage),
+            self._handle_input_documents(
+                inputs.input_documents, docs_document_ids, conversation_has_own_documents
+            ),
             DocumentParsingResult,
             parsed,
         ):
@@ -2443,7 +1723,10 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         await self._prepare_tools(force_web_search, conversation_has_own_documents)
 
         async for event in self._stream_agent_run(
-            [user_prompt] + input_images, history, force_datagouv, usage
+            [inputs.user_prompt] + inputs.input_images,
+            history,
+            force_datagouv,
+            inputs.image_actions,
         ):
             yield event
 
@@ -2452,7 +1735,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         agent_input: list,
         history: list[ModelMessage],
         force_datagouv: bool,
-        usage: Dict[str, Union[int, float]],
+        image_actions: ImagePostRunActions,
     ) -> AsyncGenerator[events_v4.Event | events_v5.Event, None]:
         """Iterate the agent graph and store the turn it produced.
 
@@ -2466,7 +1749,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             async for event in self._settle_datagouv(connected=bool(mcp_toolsets)):
                 yield event
 
-            self._append_filler_after_dangling_request(history)
+            append_filler_after_dangling_request(history)
             message_history = history if history else None
             _max_tokens = get_max_output_tokens(self.conversation_agent.configuration)
             model_settings = ModelSettings(max_tokens=_max_tokens) if _max_tokens else None
@@ -2477,22 +1760,35 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 Pydantic AI adds them just before this hook, not when the
                 model request node is handed out, which would be too early.
                 """
-                await self._snapshot_closed_tool_step(run)
+                await self._trail.snapshot_closed_tool_step(run)
                 return request_context
 
-            self._turn_log("calling the model")
+            self._turn_log("model_called")
             async with self.conversation_agent.iter(
                 agent_input,
                 # History passes through the ProcessHistory capability set on the agent.
                 message_history=message_history,
                 deps=self._context_deps,
                 toolsets=mcp_toolsets,
-                capabilities=[Hooks(before_model_request=snapshot_closed_tool_step)],
+                capabilities=[
+                    Hooks(
+                        before_model_request=snapshot_closed_tool_step,
+                        tool_validate_error=soft_fail_last_invalid_tool_call,
+                    )
+                ],
                 model_settings=model_settings,
             ) as run:
-                state = StreamingState()
+                mapper = TurnEventMapper(
+                    trail=self._trail,
+                    meter=self._meter,
+                    check_stop=self._agent_stop_streaming,
+                    model_configuration=self.conversation_agent.configuration,
+                    supports_streaming=self._support_streaming,
+                    fake_streaming_delay=self._fake_streaming_delay,
+                    datagouv=self._datagouv,
+                )
                 try:
-                    async for event in self._process_agent_nodes(run, state):
+                    async for event in mapper.events(run):
                         yield event
                 except UnexpectedModelBehavior:
                     # Pydantic AI raises when the token limit cuts a response before
@@ -2500,133 +1796,21 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                     # truncation notice rather than an error.
                     if not self._is_truncated:
                         raise
-                    self._turn_log("token limit reached before a usable response")
-                    # The run never reached its End node, so carry the streamed
-                    # message id over by hand: the stored message must keep the
-                    # id the client already has.
-                    self._handle_end_node(state)
+                    self._turn_log("token_limit_reached")
                     new_messages = _keep_truncated_text(run.new_messages())
                     run_output = None
                 else:
                     # Extract values from run before exiting the context manager
                     new_messages = run.result.new_messages()
                     run_output = run.result.output
-                final_usage = run.usage
-                usage["promptTokens"] = final_usage.input_tokens
-                usage["completionTokens"] = final_usage.output_tokens
-                usage["co2_impact"] = _extract_co2_from_usage(final_usage)
+                usage = AgentUsage.from_run(run.usage)
 
         async for event in self._finalize_conversation(
-            new_messages, run_output, usage, state, self._turn_image_actions
+            new_messages, run_output, usage, mapper.state.ui_sources, image_actions
         ):
             yield event
 
-    @staticmethod
-    def _apply_image_actions(
-        final_output: List[ModelRequest | ModelMessage],
-        image_actions: Optional[ImagePostRunActions],
-    ) -> None:
-        """Rewrite or drop image URLs in every ``UserPromptPart`` of ``final_output``.
-
-        Mutates in place: the merged views, the UI-message conversion, and
-        the ``pydantic_messages`` JSON dump downstream all read from
-        ``final_output``'s parts, so a single in-place pass covers every
-        persistence path. Replacing ``part.content`` with a new list (rather
-        than mutating it during iteration) keeps Pydantic-AI's validation
-        happy.
-        """
-        if not image_actions or not (image_actions.rewrite or image_actions.drop):
-            return
-        for msg in final_output:
-            if not isinstance(msg, ModelRequest):
-                continue
-            for part in msg.parts:
-                if not isinstance(part, UserPromptPart):
-                    continue
-                new_content = []
-                for content in part.content:
-                    if isinstance(content, (ImageUrl, DocumentUrl)):
-                        if content.url in image_actions.drop:
-                            continue
-                        if rewritten := image_actions.rewrite.get(content.url):
-                            content.url = rewritten
-                    new_content.append(content)
-                part.content = new_content
-
-    def _prepare_update_conversation(
-        self,
-        *,
-        final_output: List[ModelRequest | ModelMessage],
-        usage: Dict[str, Union[int, float]],
-        ui_sources: Optional[List[SourceUrlUIPart]] = None,
-        model_response_message_id: str | None = None,
-        image_actions: Optional[ImagePostRunActions] = None,
-    ):  # pylint: disable=too-many-arguments
-        """
-        Save everything related to the conversation.
-
-        Things to improve here:
-         - The way we need to add the UI sources to the final output message.
-
-        Args:
-            final_output (List[ModelRequest | ModelMessage]): The final output from the agent.
-            usage (Dict[str, Union[int, float]]): Token and CO2 usage statistics
-            (mutated in-place to accumulate across turns).
-            model_response_message_id (str | None): Message ID
-            ui_sources (List[SourceUrlUIPart]): Optional UI sources to include.
-            image_actions (ImagePostRunActions | None): Per-turn image-URL
-            surgery to apply before persistence (rewrite presigned URLs back
-            to durable form for in-message images, drop pinned project
-            images outright). See ``ImagePostRunActions`` for details.
-        """
-        self._apply_image_actions(final_output, image_actions)
-
-        _merged_final_output_request, _merged_final_output_message = merge_by_kind(final_output)
-
-        _output_ui_message = model_message_to_ui_message(_merged_final_output_message)
-        if ui_sources:
-            _output_ui_message.parts += ui_sources
-        if model_response_message_id:
-            _output_ui_message.id = model_response_message_id
-        else:
-            logger.warning("model_response_message_id is None")
-
-        co2_impact = usage["co2_impact"]
-        if co2_impact:
-            _output_ui_message.metadata = {
-                **(_output_ui_message.metadata or {}),
-                "co2_impact": co2_impact,
-            }
-
-        if self._is_truncated:
-            _output_ui_message.metadata = {
-                **(_output_ui_message.metadata or {}),
-                **_truncation_annotation(),
-            }
-
-        usage["co2_impact"] += self.conversation.agent_usage.get("co2_impact", 0)
-        usage["promptTokens"] += self.conversation.agent_usage.get("promptTokens", 0)
-        usage["completionTokens"] += self.conversation.agent_usage.get("completionTokens", 0)
-
-        self.conversation.agent_usage = usage
-
-        # Tracked rather than read off the list: a question-only turn folded in
-        # earlier also leaves a trailing user message, and taking that as "this
-        # turn's question is stored" dropped the question being answered here.
-        if not self._question_stored:
-            _request_ui_message = model_message_to_ui_message(_merged_final_output_request)
-            # None when the request holds nothing renderable (system prompt or
-            # tool return only): there is no user bubble to rebuild.
-            if _request_ui_message:
-                self.conversation.messages += [_request_ui_message]
-        self.conversation.messages += [_output_ui_message]
-
-        final_output_json = json.loads(
-            ModelMessagesTypeAdapter.dump_json(final_output).decode("utf-8")
-        )
-        self.conversation.pydantic_messages += final_output_json
-
-    def _write_finished_turn(self, **kwargs) -> None:
+    def _write_finished_turn(self, **kwargs) -> AgentUsage:
         """Store the turn and drop the chunks it was written from.
 
         One transaction, so the conversation never holds the turn twice: the
@@ -2634,6 +1818,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         The turn is stored before the title is generated, which is an LLM
         round-trip during which a reload would otherwise show the answer
         missing.
+
+        Returns the conversation's usage total, this turn included.
         """
         with transaction.atomic():
             # Re-read under a lock: a turn running in another tab may have
@@ -2643,52 +1829,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 from_queryset=models.ChatConversation.objects.select_for_update(),
                 fields=["messages", "pydantic_messages", "agent_usage"],
             )
-            self._prepare_update_conversation(**kwargs)
+            conversation_usage = prepare_update_conversation(
+                self.conversation,
+                is_truncated=self._is_truncated,
+                question_stored=self._trail.question_stored,
+                **kwargs,
+            )
             self.conversation.save(
                 update_fields=["messages", "pydantic_messages", "agent_usage", "updated_at"]
             )
-            # Before the delete, so a beat that reads it from here on returns
-            # without writing. One already past that check can still insert
-            # after the delete, which is why `beat` rechecks and removes its
-            # own row.
-            self._turn_landed = True
-            # This turn's trail only: another turn may be streaming into the
-            # same conversation from another tab, and its rows are not ours.
-            self.conversation.stream_chunks.filter(run_id=self._turn_run_id).delete()
-
-    async def _generate_title(self) -> str | None:
-        """Generate a title for the conversation using LLM based on first messages."""
-
-        # Build context from messages
-        # Note: We intentionally use only msg.content for title generation.
-        # Parts containing tool invocations or reasoning are excluded as they
-        # don't contribute to a meaningful context here
-        context = "\n".join(
-            f"{msg.role}: {(msg.content or '')[:300]}"  # Limit content length per message
-            for msg in self.conversation.messages
-            if msg.content
-        )
-
-        language = self.language or settings.LANGUAGE_CODE
-        prompt = (
-            "Generate a concise title (3-5 words, max 100 characters) for this conversation.\n\n"
-            "Requirements:\n"
-            "- Capture the main topic or user intent\n"
-            "- The title must be a simple string, no markdown\n"
-            "- Help the user quickly identify the conversation\n"
-            f"- Match the language of the user messages (default: {language})\n"
-            "- Avoid the word 'summary' unless explicitly requested\n\n"
-            "Output: Title text only, no quotes, labels, or explanation.\n\n"
-            f"Conversation:\n{context}"
-        )
-        try:
-            agent = TitleGenerationAgent()
-            result = await agent.run(prompt)
-            title = (result.output or "").strip()[:100]  # Enforce max length (conversation.title)
-            logger.info("Generated title for conversation %s", self.conversation.pk)
-            return title if title else None
-        except Exception as exc:  # pylint: disable=broad-except #noqa: BLE001
-            logger.warning(
-                "Failed to generate title for conversation %s: %s", self.conversation.pk, exc
-            )
-            return None
+            self._trail.drop_rows()
+        return conversation_usage

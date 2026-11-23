@@ -1,6 +1,6 @@
 {
   "name": "app-e2e",
-  "version": "0.0.27",
+  "version": "0.0.29",
   "private": true,
   "scripts": {
     "lint": "eslint .",
@@ -14,7 +14,7 @@
     "test:ui::chromium": "yarn test:ui --project=chromium"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0",
+    "@playwright/test": "1.64.1",
     "@types/node": "*",
     "eslint-config-conversations": "*",
     "typescript": "*"

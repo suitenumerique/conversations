@@ -53,6 +53,7 @@ def test_api_config(is_authenticated):
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {
             "datagouv-connector": "enabled",
+            "docs-link-fetching": "enabled",
             "document-upload": "enabled",
             "presentation-generation": "enabled",
             "web-search": "enabled",
@@ -240,6 +241,7 @@ async def test_api_config_async(is_authenticated):
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {
             "datagouv-connector": "enabled",
+            "docs-link-fetching": "enabled",
             "document-upload": "enabled",
             "presentation-generation": "enabled",
             "web-search": "enabled",

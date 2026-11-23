@@ -128,10 +128,9 @@ async def _collect_handle_input_documents(service, exc):
     """Run _handle_input_documents with a single document and a stubbed parse step."""
     service._parse_input_documents = AsyncMock(side_effect=exc)
     document = BinaryContent(data=b"hello", media_type="text/plain")
-    usage = {"promptTokens": 0, "completionTokens": 0, "co2_impact": 0}
     events = []
     async for event in service._handle_input_documents(
-        [document], conversation_has_own_documents=False, usage=usage
+        [document], docs_document_ids=[], conversation_has_own_documents=False
     ):
         events.append(event)
     return events
@@ -155,13 +154,17 @@ async def test_handle_input_documents_emits_rag_unavailable_on_500(caplog):
     assert result["kind"] == "rag_unavailable"
 
     parse_failures = [
-        r for r in caplog.records if "Error parsing input documents" in r.getMessage()
+        r
+        for r in caplog.records
+        if r.name == PYDANTIC_AI_LOGGER and r.msg["event"] == "input_documents_parse_failed"
     ]
     assert len(parse_failures) == 1
     assert parse_failures[0].levelno == logging.ERROR
-    # logger.exception attaches exc_info — a plain logger.error would not.
-    assert parse_failures[0].exc_info is not None
-    assert "rag_unavailable" in parse_failures[0].getMessage()
+    # No exc_info and no exception text: they can echo document content.
+    assert parse_failures[0].exc_info is None
+    assert parse_failures[0].msg["error_kind"] == "rag_unavailable"
+    assert parse_failures[0].msg["error_type"] == "HTTPStatusError"
+    assert "error" not in parse_failures[0].msg
 
 
 @pytest.mark.asyncio

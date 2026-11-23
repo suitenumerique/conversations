@@ -1,7 +1,6 @@
 """Document parsers for RAG backends."""
 
 import base64
-import logging
 import time
 from abc import ABC, abstractmethod
 from io import BytesIO
@@ -10,6 +9,7 @@ from urllib.parse import urljoin
 from django.conf import settings
 
 import httpx
+import structlog
 from pypdf import PdfReader, PdfWriter
 
 from chat.agent_rag.document_converter.guards import guard_pdf_page_count, guard_zip_bomb
@@ -18,7 +18,7 @@ from chat.constants import PDF_MIME_TYPE
 
 from .odt import OdtToMd
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 CT_PDF = PDF_MIME_TYPE
 CT_ODT = "application/vnd.oasis.opendocument.text"
@@ -104,7 +104,7 @@ def analyze_pdf(pdf_data: bytes) -> dict:
     total_pages = len(reader.pages)
     guard_pdf_page_count(total_pages)
     if total_pages == 0:
-        logger.info("No page found in pdf")
+        logger.info("pdf_without_pages")
         return {
             "total_pages": 0,
             "pages_with_text": 0,
@@ -155,12 +155,11 @@ class AdaptivePdfParserMixin:
         analysis = analyze_pdf(content)
 
         logger.info(
-            "Pdf analysis - pages: %s, pages with text: %s, text_coverage: %s, "
-            "recommended method: %s",
-            analysis["total_pages"],
-            analysis["pages_with_text"],
-            analysis["text_coverage"],
-            analysis["recommended_method"],
+            "pdf_analyzed",
+            total_pages=analysis["total_pages"],
+            pages_with_text=analysis["pages_with_text"],
+            text_coverage=analysis["text_coverage"],
+            recommended_method=analysis["recommended_method"],
         )
 
         method = analysis["recommended_method"]
@@ -170,7 +169,7 @@ class AdaptivePdfParserMixin:
 
     def extract_text_from_pdf(self, name: str, content_type: str, content: bytes) -> str:
         """Extract text directly from PDF without OCR (for text-based PDFs)."""
-        logger.info("Parsing pdf with text extraction")
+        logger.info("pdf_text_extraction_started")
         return DocumentConverter().convert_raw(
             name=name, content_type=content_type, content=content
         )
@@ -247,22 +246,22 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
                 last_exception = e
                 if attempt < self.max_retries - 1:
                     logger.warning(
-                        "OCR attempt %d/%d failed for pages %d-%d: %s. Retrying in %.1fs...",
-                        attempt + 1,
-                        self.max_retries,
-                        start_index + 1,
-                        end_index,
-                        str(e),
-                        self.retry_delay,
+                        "ocr_batch_retrying",
+                        attempt=attempt + 1,
+                        max_retries=self.max_retries,
+                        first_page=start_index + 1,
+                        last_page=end_index,
+                        error=str(e),
+                        retry_delay_s=self.retry_delay,
                     )
                     time.sleep(self.retry_delay)
 
         logger.error(
-            "OCR failed for pages %d-%d after %d attempts: %s",
-            start_index + 1,
-            end_index,
-            self.max_retries,
-            str(last_exception),
+            "ocr_batch_failed",
+            first_page=start_index + 1,
+            last_page=end_index,
+            attempts=self.max_retries,
+            error=str(last_exception),
         )
         raise last_exception
 
@@ -272,7 +271,7 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
         total_pages = len(reader.pages)
         batch_size = settings.OCR_BATCH_PAGES
 
-        logger.info("Parsing pdf with OCR (%d pages, batch size %d)", total_pages, batch_size)
+        logger.info("pdf_ocr_started", total_pages=total_pages, batch_size=batch_size)
 
         results = []
         for start_index in range(0, total_pages, batch_size):
@@ -282,9 +281,17 @@ class AdaptivePdfParser(AdaptivePdfParserMixin, OdtParserMixin, BaseParser):
                 batch_results = self.ocr_page_batch(name, batch_content, start_index, end_index)
                 results.extend(batch_results)
                 logger.debug(
-                    "Completed OCR for pages %d-%d/%d", start_index + 1, end_index, total_pages
+                    "ocr_batch_completed",
+                    first_page=start_index + 1,
+                    last_page=end_index,
+                    total_pages=total_pages,
                 )
             except Exception as e:  # pylint: disable=broad-except #noqa: BLE001
-                logger.error("Failed to OCR pages %d-%d: %s", start_index + 1, end_index, str(e))
+                logger.error(
+                    "ocr_batch_skipped",
+                    first_page=start_index + 1,
+                    last_page=end_index,
+                    error=str(e),
+                )
                 results.extend([""] * (end_index - start_index))
         return "\n\n".join(results)

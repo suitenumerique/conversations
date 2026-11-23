@@ -26,7 +26,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
-from core.file_upload.mime_types import resolve_markdown_content_type
+from core.file_upload.mime_types import resolve_csv_content_type, resolve_markdown_content_type
 
 from chat.ai_sdk_types import (
     TOOL_PART_PREFIX,
@@ -71,8 +71,9 @@ def _file_part_to_user_content(part: FileUIPart) -> UserContent:
         )
     if (part.mediaType or "").startswith(IMAGE_MIME_PREFIX):
         return ImageUrl(url=part.url, media_type=part.mediaType, identifier=part.filename)
-    # The browser may send a markdown file as application/octet-stream: trust its name.
+    # The browser may send a markdown or CSV file with a generic type: trust its name.
     media_type = resolve_markdown_content_type(part.filename, part.mediaType)
+    media_type = resolve_csv_content_type(part.filename, media_type)
     return DocumentUrl(url=part.url, media_type=media_type, identifier=part.filename)
 
 
@@ -95,6 +96,30 @@ def merge_by_kind(messages: List[ModelMessage]) -> tuple[ModelRequest, ModelResp
             kind="response",
         ),
     )
+
+
+def tool_chart(part: ToolReturnPart) -> dict | None:
+    """The chart data a tool returned in its metadata (query_table), if any."""
+    if isinstance(part.metadata, dict):
+        return part.metadata.get("chart")
+    return None
+
+
+def attach_tool_charts(ui_message: UIMessage, request: ModelRequest) -> None:
+    """Give the tool parts of `ui_message` the chart their tool returned, as output.
+
+    Tool parts are built from the response alone, without their output (the
+    tool returns are in the request), so a chart would be lost on reload.
+    """
+    charts = {
+        part.tool_call_id: chart
+        for part in request.parts
+        if isinstance(part, ToolReturnPart) and (chart := tool_chart(part))
+    }
+    for ui_part in ui_message.parts:
+        if isinstance(ui_part, ToolUIPart) and ui_part.toolCallId in charts:
+            ui_part.state = "output-available"
+            ui_part.output = {"chart": charts[ui_part.toolCallId]}
 
 
 def model_message_to_ui_message(model_message: ModelMessage) -> Optional[UIMessage]:

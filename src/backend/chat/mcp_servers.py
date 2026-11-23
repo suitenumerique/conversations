@@ -7,7 +7,6 @@ owns none of the streaming, the analytics or the agent wiring around that.
 """
 
 import asyncio
-import logging
 from collections.abc import Callable
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
@@ -17,6 +16,7 @@ from uuid import UUID
 from django.conf import settings
 
 import httpx
+import structlog
 from mcp.shared.exceptions import McpError
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ToolFailed
@@ -39,7 +39,7 @@ UNREACHABLE_MESSAGE = (
     "data.gouv.fr could not be reached. Do not call its tools again for this request."
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def is_connector_unreachable(error: BaseException) -> bool:
@@ -195,11 +195,11 @@ class DataGouvConnector:
         that sets the flag without DATAGOUV_CONNECTOR_URL has no other symptom.
         """
         if not self.enabled:
+            # The deployment does not configure it, or the user is outside its cohort.
             logger.warning(
-                "%s was forced for conversation %s but is not enabled: the "
-                "deployment does not configure it, or the user is outside its cohort.",
-                self.connector_id,
-                self.conversation_pk,
+                "connector_forced_but_not_enabled",
+                connector_id=self.connector_id,
+                conversation_id=self.conversation_pk,
             )
             return
 
@@ -247,8 +247,9 @@ class DataGouvConnector:
         self.unreachable = not connected
         if not connected:
             logger.warning(
-                "DataGouv was forced but could not be reached for conversation %s",
-                self.conversation_pk,
+                "connector_forced_but_unreachable",
+                connector_id=self.connector_id,
+                conversation_id=self.conversation_pk,
             )
 
     def record_call_outage(self, tool_name: str) -> None:
@@ -259,9 +260,10 @@ class DataGouvConnector:
         the tool result the model is about to be shown.
         """
         logger.warning(
-            "DataGouv could not be reached by its tool %s for conversation %s",
-            tool_name,
-            self.conversation_pk,
+            "connector_tool_call_unreachable",
+            connector_id=self.connector_id,
+            tool_name=tool_name,
+            conversation_id=self.conversation_pk,
         )
         self.call_failed = True
 
@@ -350,8 +352,8 @@ async def enter_mcp_toolsets(
                 connected.append(await stack.enter_async_context(toolset))
         except CONNECTOR_UNAVAILABLE_ERRORS:
             logger.warning(
-                "Connector %s unavailable, continuing without it",
-                getattr(toolset, "prefix", "unknown"),
+                "connector_unavailable",
+                connector_id=getattr(toolset, "prefix", "unknown"),
                 exc_info=True,
             )
     return connected

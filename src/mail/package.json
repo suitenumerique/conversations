@@ -8,7 +8,7 @@
   },
   "resolutions": {
     "lodash": "4.18.1",
-    "brace-expansion": "^2.1.4"
+    "brace-expansion": "^2.1.7"
   },
   "private": true,
   "scripts": {
@@ -22,5 +22,5 @@
   "repository": "https://github.com/numerique-gouv/conversations",
   "author": "DINUM",
   "license": "MIT",
-  "version": "0.0.27"
+  "version": "0.0.29"
 }

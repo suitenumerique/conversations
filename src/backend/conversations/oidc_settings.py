@@ -1,6 +1,7 @@
 """Django configuration mixin for OIDC authorization code flow and userinfo mapping."""
 
 from configurations import values
+from lasuite.configuration.values import SecretFileValue
 
 
 class OIDCSettings:
@@ -16,7 +17,7 @@ class OIDCSettings:
     OIDC_RP_CLIENT_ID = values.Value(
         "conversations", environ_name="OIDC_RP_CLIENT_ID", environ_prefix=None
     )
-    OIDC_RP_CLIENT_SECRET = values.Value(
+    OIDC_RP_CLIENT_SECRET = SecretFileValue(
         None,
         environ_name="OIDC_RP_CLIENT_SECRET",
         environ_prefix=None,
@@ -44,10 +45,14 @@ class OIDCSettings:
         "openid email", environ_name="OIDC_RP_SCOPES", environ_prefix=None
     )
     # Restrict login and account creation to users exposing one of these roles
-    # in their OIDC "roles" claim. Empty (default) disables the restriction.
+    # in their OIDC roles claim (named by OIDC_ROLES_CLAIM). Empty (default)
+    # disables the restriction.
     OIDC_ALLOWED_ROLES = values.ListValue(
         [], environ_name="OIDC_ALLOWED_ROLES", environ_prefix=None
     )
+    # Name of the userinfo claim holding the roles checked against
+    # OIDC_ALLOWED_ROLES (e.g. "proconnect:roles" with Mon compte).
+    OIDC_ROLES_CLAIM = values.Value("roles", environ_name="OIDC_ROLES_CLAIM", environ_prefix=None)
     LOGIN_REDIRECT_URL = values.Value(None, environ_name="LOGIN_REDIRECT_URL", environ_prefix=None)
     LOGIN_REDIRECT_URL_FAILURE = values.Value(
         None, environ_name="LOGIN_REDIRECT_URL_FAILURE", environ_prefix=None
@@ -89,7 +94,7 @@ class OIDCSettings:
     OIDC_STORE_REFRESH_TOKEN = values.BooleanValue(
         default=False, environ_name="OIDC_STORE_REFRESH_TOKEN", environ_prefix=None
     )
-    OIDC_STORE_REFRESH_TOKEN_KEY = values.Value(
+    OIDC_STORE_REFRESH_TOKEN_KEY = SecretFileValue(
         default=None,
         environ_name="OIDC_STORE_REFRESH_TOKEN_KEY",
         environ_prefix=None,

@@ -1,14 +1,28 @@
 """Global fixtures for the backend tests."""
 
+import io
+import json
+import logging
+
 import freezegun
 import posthog
 import pytest
+import sentry_sdk
+from freezegun.api import FakeDate, FakeDatetime
 from httpcore._backends.anyio import AnyIOBackend
 from httpcore._backends.sync import SyncBackend
 from httpcore2._backends.anyio import AnyIOBackend as AnyIOBackend2
 from httpcore2._backends.sync import SyncBackend as SyncBackend2
+from pydantic_core import core_schema
 from rest_framework.test import APIClient
+from sentry_sdk.transport import Transport
 from urllib3.connectionpool import HTTPConnectionPool
+
+from conversations.observability_settings import (
+    ObservabilitySettings,
+    scrub_sentry_breadcrumb,
+    scrub_sentry_event,
+)
 
 # freeze_time() scans every loaded module's attributes via getattr(), which
 # triggers langfuse.api's lazy __getattr__-based submodule imports. If that
@@ -16,6 +30,67 @@ from urllib3.connectionpool import HTTPConnectionPool
 # already patched, schema generation for its datetime field breaks
 # permanently for the rest of the worker process. Skip scanning langfuse.
 freezegun.configure(extend_ignore_list=["langfuse"])
+# Since pydantic 2.14, a schema built while time is frozen sees freezegun's
+# FakeDatetime/FakeDate (the patched module attributes) and no longer maps
+# them to the datetime/date schemas (pydantic/pydantic#14055, won't fix).
+# Lazily built schemas (pydantic_ai's message adapters, ...) then fail inside
+# frozen tests. Give the fakes their schemas explicitly.
+FakeDatetime.__get_pydantic_core_schema__ = classmethod(
+    lambda cls, source, handler: core_schema.datetime_schema()
+)
+FakeDate.__get_pydantic_core_schema__ = classmethod(
+    lambda cls, source, handler: core_schema.date_schema()
+)
+
+
+@pytest.fixture(name="json_logs")
+def json_logs_fixture():
+    """Render root logger records with the production JSON formatter; yield the parsed lines."""
+    config = dict(ObservabilitySettings.LOGGING["formatters"]["json"])
+    formatter_class = config.pop("()")
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(formatter_class(**config))
+    root = logging.getLogger()
+    root.addHandler(handler)
+
+    def parsed_lines():
+        return [json.loads(line) for line in stream.getvalue().splitlines()]
+
+    yield parsed_lines
+    root.removeHandler(handler)
+
+
+class CaptureTransport(Transport):
+    """Keep the events Sentry would send, instead of sending them."""
+
+    def __init__(self, options=None):
+        super().__init__(options)
+        self.events = []
+
+    def capture_envelope(self, envelope):
+        self.events.extend(item.payload.json for item in envelope.items if item.type == "event")
+
+
+@pytest.fixture(name="sentry_events")
+def sentry_events_fixture():
+    """A Sentry client configured like production's hooks; yield what it captures."""
+    transport = CaptureTransport()
+    # Drop the tags and breadcrumbs earlier tests left on the shared scopes
+    sentry_sdk.get_isolation_scope().clear()
+    sentry_sdk.get_current_scope().clear()
+    sentry_sdk.init(
+        dsn="https://key@sentry.invalid/1",
+        transport=transport,
+        before_send=scrub_sentry_event,
+        before_breadcrumb=scrub_sentry_breadcrumb,
+        # Their patches outlive the client, even an inactive one: pydantic-ai's
+        # adds a capability to every agent the later tests build
+        auto_enabling_integrations=False,
+    )
+    yield transport.events
+    # empty, not None: SENTRY_DSN is not read back
+    sentry_sdk.init(dsn="", auto_enabling_integrations=False)
 
 
 @pytest.fixture
