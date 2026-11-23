@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.utils.module_loading import import_string
 
 import langfuse
+import sentry_sdk
 import structlog
 from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
@@ -242,8 +243,11 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         force_datagouv = query_params_serializer.validated_data["force_datagouv"]
         requested_model_hrid = query_params_serializer.validated_data["model_hrid"]
 
-        # Every line of the turn, whatever module writes it, names the conversation
+        # Every line of the turn, whatever module writes it, names the conversation.
+        # So does a Sentry event: under ASGI, an error in the streamed response
+        # is captured outside the task these log ids are bound in.
         structlog.contextvars.bind_contextvars(conversation_id=pk)
+        sentry_sdk.set_tag("conversation_id", pk)
         raw_messages = request.data.get("messages")
         turn_logger.info(
             "turn_requested",
@@ -336,6 +340,8 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
                 self.request.user.language
                 or self.request.LANGUAGE_CODE  # from the LocaleMiddleware
             ),
+            # One id for the turn's log lines, Sentry events and Langfuse trace
+            trace_id=structlog.contextvars.get_contextvars().get("request_id"),
         )
 
         # This environment variable allows switching between sync and async streaming modes

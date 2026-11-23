@@ -1,7 +1,6 @@
-"""Request log lines carry Dockerflow's request id, not a second one of their own."""
+"""Request log lines carry the ingress request id, not a second one of their own."""
 
-import uuid
-from unittest.mock import patch
+import re
 
 from django.test import AsyncClient, Client
 
@@ -10,8 +9,7 @@ import pytest
 pytestmark = pytest.mark.django_db
 
 CONFIG_URL = "/api/v1.0/config/"
-INGRESS_REQUEST_ID = "ingress-request-id-1"
-GENERATED_REQUEST_ID = "dockerflow-generated-id-1"
+INGRESS_REQUEST_ID = "634ab47a476a56b0d7d0503950605134"
 
 
 def _request_ids(json_logs):
@@ -33,37 +31,23 @@ def test_request_lines_carry_the_ingress_request_id(json_logs):
     }
 
 
-def test_request_lines_carry_the_id_dockerflow_generated(json_logs):
-    """Without the header, Dockerflow's generated id is used, not a second one."""
-    with patch(
-        "dockerflow.django.middleware.get_or_generate_request_id",
-        return_value=GENERATED_REQUEST_ID,
-    ):
-        Client().get(CONFIG_URL)
-
-    assert _request_ids(json_logs) == {
-        "request_started": GENERATED_REQUEST_ID,
-        "request_finished": GENERATED_REQUEST_ID,
-    }
-
-
 @pytest.mark.parametrize(
     "header",
     [
-        "a" * 65,  # too long to be an ingress or uuid id
-        "id with spaces",
+        None,  # Dockerflow generates a dashed uuid4
+        INGRESS_REQUEST_ID.upper(),
         'id"},{"injected":"1',
     ],
 )
-def test_an_untrusted_request_id_header_is_not_logged(header, json_logs):
-    """A client-chosen id that cannot be an ingress one keeps the generated id."""
-    Client().get(CONFIG_URL, headers={"X-Request-ID": header})
+def test_a_request_id_not_shaped_like_an_ingress_one_is_replaced(header, json_logs):
+    """The request gets a generated 32-hex id, the shape of a Langfuse trace id."""
+    Client().get(CONFIG_URL, headers={"X-Request-ID": header} if header else {})
 
     request_ids = _request_ids(json_logs)
     assert request_ids["request_started"] == request_ids["request_finished"]
-    # django-structlog's own uuid4, not the header.
-    assert uuid.UUID(request_ids["request_started"]).version == 4
-    assert header not in str(json_logs())
+    assert re.fullmatch(r"[0-9a-f]{32}", request_ids["request_started"])
+    if header:
+        assert header not in str(json_logs())
 
 
 @pytest.mark.asyncio

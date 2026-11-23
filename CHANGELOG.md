@@ -11,6 +11,19 @@ and this project adheres to
 ### Added
 
 - ✨(back) read La Suite Docs documents from pasted Docs links
+- 🔊(back) correlate Sentry, Langfuse and logs through the request id
+- 📝(project) add publiccode.yml
+- ✨(back) build slide decks from attached documents at the requested length
+
+### Changed
+
+- 🔨(project) bump backend, publiccode and changelog on release
+- 📝(doc) redraw the architecture diagram
+
+### Fixed
+
+- 🔒️(back) match emails ignoring the ASCII case only
+- 🐛(back) stop claiming a template or style was applied to a slide deck
 
 ## [0.0.29] - 2026-11-15
 
@@ -621,7 +634,14 @@ and this project adheres to
 
 [unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.29...main
 
+<<<<<<< HEAD
+[0.0.29]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
+||||||| parent of 02cfca86 (📝(project) add publiccode.yml)
 [0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
+=======
+[0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
+> > > > > > > 02cfca86 (📝(project) add publiccode.yml)
+
 [0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.27...v0.0.28
 
 [0.0.27]: https://github.com/suitenumerique/conversations/compare/v0.0.26...v0.0.27

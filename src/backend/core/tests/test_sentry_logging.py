@@ -2,43 +2,14 @@
 
 import json
 
-import pytest
 import sentry_sdk
 import structlog
 from pydantic_ai.exceptions import ModelHTTPError, ModelRetry
-from sentry_sdk.transport import Transport
-
-from conversations.observability_settings import scrub_sentry_breadcrumb, scrub_sentry_event
 
 # A provider error body echoing the input, which must never reach Sentry.
 PROVIDER_BODY = "echoed secret document passage"
 
 logger = structlog.get_logger("chat.tools.example")
-
-
-class CaptureTransport(Transport):
-    """Keep the events Sentry would send, instead of sending them."""
-
-    def __init__(self, options=None):
-        super().__init__(options)
-        self.events = []
-
-    def capture_envelope(self, envelope):
-        self.events.extend(item.payload.json for item in envelope.items if item.type == "event")
-
-
-@pytest.fixture(name="sentry_events")
-def sentry_events_fixture():
-    """A Sentry client configured like production's hooks; yield what it captures."""
-    transport = CaptureTransport()
-    sentry_sdk.init(
-        dsn="https://key@sentry.invalid/1",
-        transport=transport,
-        before_send=scrub_sentry_event,
-        before_breadcrumb=scrub_sentry_breadcrumb,
-    )
-    yield transport.events
-    sentry_sdk.init()  # no DSN: back to an inactive client
 
 
 def _provider_error():

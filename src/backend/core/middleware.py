@@ -1,6 +1,7 @@
 """Middlewares for the core app."""
 
 import re
+import uuid
 from logging import getLogger
 from secrets import compare_digest
 
@@ -10,6 +11,7 @@ from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
 
+import sentry_sdk
 import structlog
 from django_structlog import signals as structlog_signals
 from django_structlog.middlewares import RequestMiddleware
@@ -125,28 +127,30 @@ class RequestLogMiddleware(RequestMiddleware):
         return f"{request.method} {redact_file_stream_key(request.path)}"
 
 
-# What an upstream request id may look like: ingress-nginx generates 32 hex
-# characters and Dockerflow a uuid4. The ingress passes a client-sent
-# X-Request-ID through unchanged, so anything else (arbitrary length or
-# characters) is not trusted onto every log line.
-REQUEST_ID_PATTERN = re.compile(r"[A-Za-z0-9._-]{1,64}")
+# The shape of an ingress-nginx request id, and of a Langfuse trace id: the
+# request id is also the id of a chat turn's Langfuse trace.
+REQUEST_ID_PATTERN = re.compile(r"[0-9a-f]{32}")
 
 
 def use_dockerflow_request_id(sender, request, **kwargs):  # pylint: disable=unused-argument
-    """Log under the request id DockerflowMiddleware already settled on.
+    """Log under the ingress request id DockerflowMiddleware read.
 
-    It takes the ingress `X-Request-ID`, or generates one. django-structlog would
-    otherwise generate a second, unrelated one, so the logs could not be matched
-    with the ingress or anything else keyed on Dockerflow's id. Runs before
+    django-structlog would otherwise generate a second, unrelated one, so the
+    logs could not be matched with the ingress access log. Runs before
     `request_started` is logged and before any task is enqueued, so every line
     of the request, and of the Celery tasks it queues, carries this one.
 
-    An id that does not match REQUEST_ID_PATTERN is ignored: the request keeps
-    the one django-structlog generated.
+    An id that does not match REQUEST_ID_PATTERN, such as Dockerflow's own
+    dashed uuid4 when there is no header, is replaced by a generated one.
+
+    The id is also a tag of the request's Sentry events: under ASGI, an error in
+    a streamed response is captured outside the task the log ids are bound in.
     """
     request_id = request_id_context.get(None)
-    if request_id and REQUEST_ID_PATTERN.fullmatch(request_id):
-        structlog.contextvars.bind_contextvars(request_id=request_id)
+    if not (request_id and REQUEST_ID_PATTERN.fullmatch(request_id)):
+        request_id = uuid.uuid4().hex
+    structlog.contextvars.bind_contextvars(request_id=request_id)
+    sentry_sdk.set_tag("request_id", request_id)
 
 
 structlog_signals.bind_extra_request_metadata.connect(

@@ -442,5 +442,17 @@ bump-packages-version: ## bump the version of the project - VERSION_TYPE can be 
 	cd ./src/frontend/apps/conversations/ && yarn version --no-git-tag-version --$(VERSION_TYPE)
 	cd ./src/frontend/packages/eslint-config-conversations/ && yarn version --no-git-tag-version --$(VERSION_TYPE)
 	cd ./src/frontend/packages/i18n/ && yarn version --no-git-tag-version --$(VERSION_TYPE)
+	@# pyproject.toml still holds the previous version: the JS packages are the source of the new one
+	@# each substitution dies when it matches nothing, so a partial bump never reports success
+	@PREVIOUS=$$(sed -n 's/^version = "\(.*\)"$$/\1/p' src/backend/pyproject.toml); \
+	VERSION=$$(node -p "require('./src/frontend/package.json').version"); \
+	TODAY=$$(date +%F); \
+	export PREVIOUS VERSION TODAY; \
+	perl -0777 -pi -e 's/^version = "\Q$$ENV{PREVIOUS}\E"$$/version = "$$ENV{VERSION}"/m or die "pyproject.toml: version not found\n"' src/backend/pyproject.toml && \
+	(cd src/backend && uv lock) && \
+	perl -0777 -pi -e 's/^## \[Unreleased\]$$/## [Unreleased]\n\n## [$$ENV{VERSION}] - $$ENV{TODAY}/m or die "CHANGELOG.md: Unreleased heading not found\n"' CHANGELOG.md && \
+	perl -0777 -pi -e 's{^\[unreleased\]: (.*)/compare/v\Q$$ENV{PREVIOUS}\E\.\.\.main$$}{[unreleased]: $$1/compare/v$$ENV{VERSION}...main\n\n[$$ENV{VERSION}]: $$1/compare/v$$ENV{PREVIOUS}...v$$ENV{VERSION}}m or die "CHANGELOG.md: [unreleased] link to v$$ENV{PREVIOUS} not found\n"' CHANGELOG.md && \
+	perl -0777 -pi -e '(s/^softwareVersion: .*/softwareVersion: $$ENV{VERSION}/m and s/^releaseDate: .*/releaseDate: $$ENV{TODAY}/m) or die "publiccode.yml: softwareVersion or releaseDate not found\n"' publiccode.yml && \
+	echo "Bumped $$PREVIOUS -> $$VERSION"
 .PHONY: bump-packages-version
 

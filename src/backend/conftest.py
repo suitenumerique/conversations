@@ -7,6 +7,7 @@ import logging
 import freezegun
 import posthog
 import pytest
+import sentry_sdk
 from freezegun.api import FakeDate, FakeDatetime
 from httpcore._backends.anyio import AnyIOBackend
 from httpcore._backends.sync import SyncBackend
@@ -14,9 +15,14 @@ from httpcore2._backends.anyio import AnyIOBackend as AnyIOBackend2
 from httpcore2._backends.sync import SyncBackend as SyncBackend2
 from pydantic_core import core_schema
 from rest_framework.test import APIClient
+from sentry_sdk.transport import Transport
 from urllib3.connectionpool import HTTPConnectionPool
 
-from conversations.observability_settings import ObservabilitySettings
+from conversations.observability_settings import (
+    ObservabilitySettings,
+    scrub_sentry_breadcrumb,
+    scrub_sentry_event,
+)
 
 # freeze_time() scans every loaded module's attributes via getattr(), which
 # triggers langfuse.api's lazy __getattr__-based submodule imports. If that
@@ -53,6 +59,38 @@ def json_logs_fixture():
 
     yield parsed_lines
     root.removeHandler(handler)
+
+
+class CaptureTransport(Transport):
+    """Keep the events Sentry would send, instead of sending them."""
+
+    def __init__(self, options=None):
+        super().__init__(options)
+        self.events = []
+
+    def capture_envelope(self, envelope):
+        self.events.extend(item.payload.json for item in envelope.items if item.type == "event")
+
+
+@pytest.fixture(name="sentry_events")
+def sentry_events_fixture():
+    """A Sentry client configured like production's hooks; yield what it captures."""
+    transport = CaptureTransport()
+    # Drop the tags and breadcrumbs earlier tests left on the shared scopes
+    sentry_sdk.get_isolation_scope().clear()
+    sentry_sdk.get_current_scope().clear()
+    sentry_sdk.init(
+        dsn="https://key@sentry.invalid/1",
+        transport=transport,
+        before_send=scrub_sentry_event,
+        before_breadcrumb=scrub_sentry_breadcrumb,
+        # Their patches outlive the client, even an inactive one: pydantic-ai's
+        # adds a capability to every agent the later tests build
+        auto_enabling_integrations=False,
+    )
+    yield transport.events
+    # empty, not None: SENTRY_DSN is not read back
+    sentry_sdk.init(dsn="", auto_enabling_integrations=False)
 
 
 @pytest.fixture

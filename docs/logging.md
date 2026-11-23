@@ -14,7 +14,7 @@ The handlers and formatters are defined in `conversations/observability_settings
 A production line looks like:
 
 ```json
-{"code": 200, "request": "GET /api/v1.0/config/", "event": "request_finished", "request_id": "03618b74-1826-46f0-9331-778d5bf224cd", "user_id": null, "logger": "django_structlog.middlewares.request", "level": "info", "timestamp": "2026-11-05T14:07:33.287270Z"}
+{"code": 200, "request": "GET /api/v1.0/config/", "event": "request_finished", "request_id": "634ab47a476a56b0d7d0503950605134", "user_id": null, "logger": "django_structlog.middlewares.request", "level": "info", "timestamp": "2026-11-05T14:07:33.287270Z"}
 ```
 
 Every line has `event`, `logger`, `level` and `timestamp` (ISO 8601, UTC). Libraries that log through the standard `logging` module (Django, Celery, uvicorn...) go through the same formatters, so they come out as JSON too, with their message as `event`.
@@ -58,9 +58,9 @@ Every line logged during the request, whatever module writes it, carries:
 | `request_id` | the request's id, see below |
 | `user_id` | the user's primary key, `null` when anonymous |
 
-**Where `request_id` comes from.** `DockerflowMiddleware` takes the `X-Request-ID` header set by the ingress, or generates a uuid4 when there is none, and the request logs reuse that id. So a request can be matched with the ingress access log, which logs the same id.
+**Where `request_id` comes from.** `DockerflowMiddleware` reads the `X-Request-ID` header set by the ingress, and the request logs reuse that id. So a request can be matched with the ingress access log, which logs the same id. It is also the id of a chat turn's Langfuse trace.
 
-ingress-nginx forwards a client-sent `X-Request-ID` unchanged. An id that does not look like one (more than 64 characters, or characters other than letters, digits, `.`, `_` and `-`) is ignored, and the request gets a generated id instead. A well-formed id chosen by a client is still used as is.
+The id must have the shape of an ingress-nginx id, which is also the one of a Langfuse trace id: 32 lowercase hex characters. Without the header, or with one of another shape, the request gets a generated id of that shape. ingress-nginx forwards a client-sent `X-Request-ID` unchanged, so a client sending the same well-formed id twice puts two turns in one Langfuse trace, and gives their assistant messages the same id.
 
 ### Chat turns
 
@@ -159,14 +159,20 @@ When `SENTRY_DSN` is set, `ERROR` and `CRITICAL` lines become Sentry events, and
 - a logged exception is attached with its stack trace, unless it involves a provider error: the line was scrubbed first, so the event only has `error_type` and `status_code` in `extra`;
 - in any event, including the exceptions the Django and Celery integrations capture, a provider error's message is replaced by `status_code: <status>`.
 
+Every event of a request, including the exceptions the Django integration captures, is tagged with the request's `request_id`, and every event of a chat turn with its `conversation_id`. They are set on the Sentry scope rather than read from the log context: under ASGI, an error in a streamed response is captured outside the task the log ids are bound in.
+
 Request bodies and stack frame local variables are not sent (`max_request_body_size="never"`, `include_local_variables=False`), and `django_structlog.middlewares.request` is ignored: Sentry already captures failed requests.
+
+## From Sentry to Langfuse and back
+
+A chat turn's `request_id` is the id of its Langfuse trace: search it in the logs, in Sentry (`request_id:<id>`) and in Langfuse (Tracing, search by id). The trace's session is the `conversation_id`.
 
 ## Querying in Loki
 
 The fields are not Loki labels: parse the line with `json`, then filter. With your own stream selector:
 
 ```logql
-{<stream selector>} | json | request_id = "03618b74-1826-46f0-9331-778d5bf224cd"
+{<stream selector>} | json | request_id = "634ab47a476a56b0d7d0503950605134"
 {<stream selector>} | json | logger = "chat.turn" | conversation_id = "<conversation uuid>"
 {<stream selector>} | json | event = "task_failed"
 ```

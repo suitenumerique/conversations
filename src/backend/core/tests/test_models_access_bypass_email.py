@@ -37,6 +37,13 @@ def test_models_access_bypass_email_is_normalized_on_save():
     assert entry.email == "mixed@example.com"
 
 
+def test_models_access_bypass_email_keeps_non_ascii_case_on_save():
+    """Only ASCII letters should be lowercased, other characters are kept as received."""
+    entry = factories.AccessBypassEmailFactory(email="Alice@CAFÉ.example")
+
+    assert entry.email == "alice@cafÉ.example"
+
+
 def test_models_access_bypass_email_unique():
     """Two entries cannot share the same email."""
     factories.AccessBypassEmailFactory(email="dup@example.com")
@@ -70,6 +77,24 @@ def test_is_email_allowed_is_case_insensitive():
     assert models.AccessBypassEmail.is_email_allowed("  OK@Example.COM  ") is True
 
 
+@pytest.mark.parametrize(
+    "lookalike_email",
+    [
+        "ok@dısk.example",  # dotless i: Postgres UPPER() maps it to "I"
+        "ok@diſk.example",  # long s: Postgres UPPER() maps it to "S"
+        "ok@dis\u212a.example",  # Kelvin sign: Python lower() maps it to "k"
+        "ok@disk.example\u3000",  # ideographic space: a bare strip() removes it
+        "\u00a0ok@disk.example",  # no-break space: a bare strip() removes it
+    ],
+)
+def test_is_email_allowed_ignores_ascii_case_only(lookalike_email):
+    """An email differing by a lookalike non-ASCII letter must not be allowed."""
+    factories.AccessBypassEmailFactory(email="ok@disk.example")
+
+    assert models.AccessBypassEmail.is_email_allowed(lookalike_email) is False
+    assert models.AccessBypassEmail.is_email_allowed("OK@Disk.example") is True
+
+
 def test_is_email_allowed_inactive():
     """An inactive entry does not allow its email."""
     factories.AccessBypassEmailFactory(email="off@example.com", is_active=False)
@@ -92,7 +117,7 @@ def test_is_email_allowed_unknown_email():
     assert models.AccessBypassEmail.is_email_allowed("nobody@example.com") is False
 
 
-@pytest.mark.parametrize("value", ["", None])
+@pytest.mark.parametrize("value", ["", " ", None])
 def test_is_email_allowed_empty(value):
     """An empty or missing email is not allowed."""
     assert models.AccessBypassEmail.is_email_allowed(value) is False
