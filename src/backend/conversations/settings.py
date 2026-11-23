@@ -718,6 +718,16 @@ class Base(
     AI_API_KEY = SecretFileValue(None, environ_name="AI_API_KEY", environ_prefix=None)
     AI_BASE_URL = values.Value(None, environ_name="AI_BASE_URL", environ_prefix=None)
     AI_MODEL = values.Value(None, environ_name="AI_MODEL", environ_prefix=None)
+
+    # LLM providers referenced by the default LLM_CONFIGURATIONS (one URL + key pair each)
+    SCALEWAY_API_KEY = SecretFileValue(None, environ_name="SCALEWAY_API_KEY", environ_prefix=None)
+    SCALEWAY_API_URL = values.Value(None, environ_name="SCALEWAY_API_URL", environ_prefix=None)
+    MISTRAL_API_KEY = SecretFileValue(None, environ_name="MISTRAL_API_KEY", environ_prefix=None)
+    # Mistral SDK server URL: no "/v1" suffix, the SDK adds it to every route
+    MISTRAL_API_URL = values.Value(
+        "https://api.mistral.ai", environ_name="MISTRAL_API_URL", environ_prefix=None
+    )
+
     AI_AGENT_INSTRUCTIONS = values.Value(
         prompts.DEFAULT_AGENT_INSTRUCTIONS,
         environ_name="AI_AGENT_INSTRUCTIONS",

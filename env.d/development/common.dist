@@ -62,6 +62,11 @@ OIDC_AUTH_REQUEST_EXTRA_PARAMS={"acr_values": "eidas1"}
 # AI_BASE_URL=https://openaiendpoint.com
 AI_API_KEY=password
 # AI_MODEL=llama
+# LLM providers of the default LLM configuration
+# SCALEWAY_API_URL=https://api.scaleway.ai/<project-id>/v1
+# SCALEWAY_API_KEY=changeme
+# MISTRAL_API_URL=https://api.mistral.ai
+# MISTRAL_API_KEY=changeme
 
 # Staan web search — required by the web_search_staan tool
 # STAAN_API_KEY=changeme

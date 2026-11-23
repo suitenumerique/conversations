@@ -2,9 +2,9 @@
   "models": [
     {
       "hrid": "default-model",
-      "model_name": "settings.AI_MODEL",
+      "model_name": "mistral-medium-latest",
       "human_readable_name": "Mistral Medium 3.5",
-      "provider_name": "default-provider",
+      "provider_name": "mistral",
       "profile": null,
       "settings": {},
       "is_active": true,
@@ -24,10 +24,23 @@
       "hrid": "glm-5.3",
       "model_name": "glm-5.3",
       "human_readable_name": "GLM 5.3",
-      "provider_name": "default-provider",
+      "provider_name": "scaleway",
       "profile": null,
       "settings": {},
       "is_active": true,
+      "supports_image": false,
+      "icon": null,
+      "system_prompt": "settings.AI_AGENT_INSTRUCTIONS",
+      "tools": "settings.AI_AGENT_TOOLS"
+    },
+    {
+      "hrid": "lightonocr-3-0",
+      "model_name": "lightonocr-3-0.8b",
+      "human_readable_name": "LightOn OCR",
+      "provider_name": "scaleway",
+      "profile": null,
+      "settings": {},
+      "is_active": false,
       "supports_image": true,
       "icon": null,
       "system_prompt": "settings.AI_AGENT_INSTRUCTIONS",
@@ -35,12 +48,12 @@
     },
     {
       "hrid": "default-summarization-model",
-      "model_name": "settings.AI_MODEL",
-      "human_readable_name": "Default Summarization Model",
-      "provider_name": "default-provider",
+      "model_name": "mistral-medium-latest",
+      "human_readable_name": "Mistral Medium 3.5 (résumés)",
+      "provider_name": "mistral",
       "profile": null,
       "settings": {},
-      "is_active": true,
+      "is_active": false,
       "icon": null,
       "system_prompt": "settings.SUMMARIZATION_SYSTEM_PROMPT",
       "tools": []
@@ -48,9 +61,16 @@
   ],
   "providers": [
     {
-      "hrid": "default-provider",
-      "base_url": "settings.AI_BASE_URL",
-      "api_key": "settings.AI_API_KEY",
+      "hrid": "mistral",
+      "base_url": "settings.MISTRAL_API_URL",
+      "api_key": "settings.MISTRAL_API_KEY",
+      "kind": "mistral",
+      "co2_handling": null
+    },
+    {
+      "hrid": "scaleway",
+      "base_url": "settings.SCALEWAY_API_URL",
+      "api_key": "settings.SCALEWAY_API_KEY",
       "kind": "openai",
       "co2_handling": null
     }
