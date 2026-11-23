@@ -1,13 +1,13 @@
 """Product event capture towards PostHog."""
 
 import asyncio
-import logging
 
 from django.conf import settings
 
 import posthog
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def capture_event(event: str, user_id, properties: dict | None = None) -> None:
@@ -27,7 +27,7 @@ def capture_event(event: str, user_id, properties: dict | None = None) -> None:
     try:
         posthog.capture(event, distinct_id=str(user_id), properties=properties)
     except Exception:  # pylint: disable=broad-except
-        logger.exception("Failed to capture the PostHog event %s", event)
+        logger.exception("posthog_capture_failed", posthog_event=event)
 
 
 async def acapture_event(event: str, user_id, properties: dict | None = None) -> None:

@@ -128,7 +128,11 @@ def test_build_pydantic_agent_with_legacy_tools(settings, caplog, legacy_tool):
     settings.AI_AGENT_TOOLS = [legacy_tool]
     with caplog.at_level(logging.WARNING, logger="chat.llm_configuration"):
         agent = ConversationAgent(model_hrid="default-model")
-    assert "Ignoring legacy tool(s)" in caplog.text
+    assert [legacy_tool] in [
+        record.msg["tools"]
+        for record in caplog.records
+        if record.name == "chat.llm_configuration" and record.msg["event"] == "legacy_tools_ignored"
+    ]
     assert isinstance(agent, Agent)
 
     assert_base_instructions(agent._instructions, date_str="Today is Friday 25/07/2025.")

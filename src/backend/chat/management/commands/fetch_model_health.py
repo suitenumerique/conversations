@@ -1,19 +1,18 @@
 """Management command to fetch model health status from external providers."""
 
-import logging
-
 from django.conf import settings
 from django.core.cache import cache
 from django.core.management.base import BaseCommand, CommandError
 
 import httpx
+import structlog
 
 from core.models import ModelHealthSettings
 
 from chat.model_health import model_health_cache_key, set_model_health
 from chat.models import ModelHealth
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 PROVIDERS = {
     "albert": {
@@ -47,24 +46,21 @@ class Command(BaseCommand):
             payload = response.json()
         except ValueError:
             logger.exception(
-                "Invalid JSON from provider %s (HTTP %s): %s",
-                provider,
-                response.status_code,
-                response.text[:200],
+                "model_health_invalid_json", provider=provider, status_code=response.status_code
             )
             raise CommandError("Invalid JSON response from provider") from None
 
         if not isinstance(payload, dict):
             logger.error(
-                "Unexpected response shape from provider %s: expected dict, got %s",
-                provider,
-                type(payload).__name__,
+                "model_health_unexpected_shape",
+                provider=provider,
+                payload_type=type(payload).__name__,
             )
             raise CommandError("Unexpected response shape from provider")
 
         data = payload.get("data", [])
         if not isinstance(data, list):
-            logger.error("'data' field is not a list in provider %s response", provider)
+            logger.error("model_health_data_not_a_list", provider=provider)
             raise CommandError("'data' field is not a list")
 
         return data
@@ -90,7 +86,9 @@ class Command(BaseCommand):
                 response = httpx.get(url, headers=headers, timeout=timeout)
                 response.raise_for_status()
             except httpx.HTTPError as exc:
-                logger.exception("Failed to fetch model health for provider %s: %s", provider, exc)
+                logger.exception(
+                    "model_health_fetch_failed", provider=provider, error_type=type(exc).__name__
+                )
                 raise CommandError(str(exc)) from exc
 
             data = self._parse_response(response, provider)
@@ -105,14 +103,14 @@ class Command(BaseCommand):
             for item in data:
                 model_id = item.get("id")
                 if not model_id:
-                    logger.warning("Skipping malformed item (missing 'id'): %r", item)
+                    logger.warning("model_health_item_without_id", provider=provider)
                     continue
                 seen_model_ids.add(model_id)
                 status = item.get("status")
                 status = STATUS_ALIASES.get(status, status)
 
                 if status not in ModelHealth.Status.values:
-                    logger.warning("Unknown status %r for model %s, skipping", status, model_id)
+                    logger.warning("model_health_unknown_status", status=status, model_id=model_id)
                     continue
 
                 latest = (

@@ -79,9 +79,9 @@ class ChatConversationSerializer(serializers.ModelSerializer):
             if has_project_image:
                 return True
         # History side: short-circuit on the first image found in the messages.
-        # Local import: the client module pulls heavy LLM deps we don't want at
+        # Local import: the turn modules pull heavy LLM deps we don't want at
         # serializer import time.
-        from chat.clients.pydantic_ai import (  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
+        from chat.turn.prompt import (  # noqa: PLC0415 # pylint: disable=import-outside-toplevel
             iter_image_attachments,
         )
 

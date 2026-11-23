@@ -1,7 +1,6 @@
 """Standalone async generator for re-indexing a conversation's RAG collection."""
 
 import asyncio
-import logging
 import uuid
 from datetime import timedelta
 from typing import AsyncGenerator
@@ -12,15 +11,17 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.module_loading import import_string
 
+import structlog
+
 from core.file_upload.enums import AttachmentStatus
 
 from chat import models
 from chat.clients.error_classification import RAG_ERROR, resolve_rag_error_code
-from chat.constants import TEXT_MIME_PREFIX
+from chat.constants import TABULAR_MIME_TYPES, TEXT_MIME_PREFIX
 from chat.enums import CollectionIndexState
 from chat.vercel_ai_sdk.core import events_v4
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 document_store_backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)
 
 
@@ -106,6 +107,7 @@ async def reindex_conversation(  # pylint: disable=too-many-locals
         a
         for a in ready_attachments
         if a.content_type.startswith(TEXT_MIME_PREFIX)
+        and a.content_type not in TABULAR_MIME_TYPES
         and str(a.id) not in in_context_ids
         and not a.is_indexed
     ]
@@ -141,9 +143,9 @@ async def reindex_conversation(  # pylint: disable=too-many-locals
         except Exception as exc:  # pylint: disable=broad-except
             error_kind = resolve_rag_error_code(exc)
             logger.exception(
-                "Failed to create collection for conversation %s (%s)",
-                conversation.pk,
-                error_kind,
+                "reindex_collection_create_failed",
+                conversation_id=conversation.pk,
+                error_kind=error_kind,
             )
             await models.ChatConversation.objects.filter(pk=conversation.pk).aupdate(
                 index_state=CollectionIndexState.ERROR,
@@ -181,10 +183,10 @@ async def reindex_conversation(  # pylint: disable=too-many-locals
             failed_documents.append(attachment.file_name)
             last_failure_kind = resolve_rag_error_code(exc)
             logger.exception(
-                "Failed to re-index attachment %s for conversation %s (%s)",
-                attachment.pk,
-                conversation.pk,
-                last_failure_kind,
+                "reindex_attachment_failed",
+                attachment_id=attachment.pk,
+                conversation_id=conversation.pk,
+                error_kind=last_failure_kind,
             )
 
     any_failed = bool(failed_documents)

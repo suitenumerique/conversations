@@ -1,11 +1,11 @@
 """Authentication Backends for the Conversations core app."""
 
-import logging
 import re
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation
 
+import structlog
 from lasuite.oidc_login.backends import (
     OIDCAuthenticationBackend as LaSuiteOIDCAuthenticationBackend,
 )
@@ -13,7 +13,7 @@ from lasuite.oidc_login.backends import (
 from core.brevo import add_user_to_brevo_list
 from core.models import AccessBypassEmail, DuplicateEmailError
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # NB: deliberately NOT a SuspiciousOperation/PermissionDenied subclass. Both
@@ -58,8 +58,9 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
 
         Extends the base essential-claim verification: when
         ``OIDC_ALLOWED_ROLES`` is configured, the user must expose at least one
-        of those roles in the ``roles`` claim (a flat list, the shape used by
-        both Keycloak in dev and ProConnect in production). This gates both
+        of those roles in the claim named by ``OIDC_ROLES_CLAIM`` (``roles`` by
+        default; a flat list, the shape used by Keycloak in dev, ProConnect in
+        production and Mon compte under ``proconnect:roles``). This gates both
         login and account creation, since it runs before either branch in
         ``get_or_create_user``. An empty ``OIDC_ALLOWED_ROLES`` disables the
         restriction (default behavior).
@@ -75,7 +76,7 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         if not allowed_roles:
             return True
 
-        user_roles = claims.get("roles") or []
+        user_roles = claims.get(settings.OIDC_ROLES_CLAIM) or []
         if isinstance(user_roles, str):
             user_roles = user_roles.split()
 
@@ -89,10 +90,10 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
             return True
 
         logger.warning(
-            "OIDC access denied for sub %s: roles %s do not include any of %s",
-            claims.get("sub"),
-            user_roles,
-            allowed_roles,
+            "oidc_access_denied_missing_role",
+            sub=claims.get("sub"),
+            roles=user_roles,
+            allowed_roles=allowed_roles,
         )
         raise OIDCRoleAccessDenied("User does not have a role required to access the application.")
 

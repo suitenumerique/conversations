@@ -7,7 +7,6 @@ storing the messages in the database.
 """
 
 import base64
-import logging
 import mimetypes
 import secrets
 from typing import Dict, Iterable, List
@@ -16,6 +15,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.files.storage import default_storage
 
+import structlog
 from asgiref.sync import sync_to_async
 from pydantic_ai import DocumentUrl, ImageUrl, ModelMessage, ModelRequest, UserPromptPart
 
@@ -25,7 +25,7 @@ from core.file_upload.utils import generate_retrieve_policy
 from chat.constants import IMAGE_MIME_PREFIX
 from chat.models import ChatConversation, ChatConversationAttachment
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def generate_temporary_url(key: str) -> str:
@@ -54,7 +54,7 @@ def generate_temporary_url(key: str) -> str:
     cache_key = f"file_access:{temporary_key}"
     cache.set(cache_key, key, timeout=settings.FILE_BACKEND_TEMPORARY_URL_EXPIRATION)
 
-    logger.info("Generated temporary file access key for S3 key: %s", key)
+    logger.info("temporary_file_access_key_generated", key=key)
 
     # Return the URL that the LLM will use to access the file
     return f"{settings.FILE_BACKEND_URL}/api/v1.0/file-stream/{temporary_key}/"
@@ -94,9 +94,7 @@ def _get_file_url_for_llm(key: str, mode: str | None = None) -> str:
                 return f"data:{mime_type};base64,{b64_content}"
         except Exception:  # pylint: disable=broad-except
             # Fall back to presigned URL on error
-            logger.exception(
-                "Failed to read file for base64 encoding, falling back to presigned URL"
-            )
+            logger.exception("file_base64_read_failed_using_presigned_url", key=key)
             return generate_retrieve_policy(key)
 
     elif mode == FileToLLMMode.BACKEND_TEMPORARY_URL:

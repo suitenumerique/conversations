@@ -1,7 +1,6 @@
 """Web search tool using Brave for the chat agent."""
 
 import asyncio
-import logging
 import uuid
 from typing import List
 
@@ -11,6 +10,7 @@ from django.utils.module_loading import import_string
 from django.utils.text import slugify
 
 import httpx
+import structlog
 from asgiref.sync import sync_to_async
 from pydantic_ai import RunContext, RunUsage
 from pydantic_ai.exceptions import ModelRetry
@@ -23,7 +23,7 @@ from core import instrumentation
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.utils import last_model_retry_soft_fail
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class WebSearchError(Exception):
@@ -98,10 +98,15 @@ async def _fetch_and_extract_async(url: str) -> str:
         return document
 
     except httpx.HTTPError as e:
-        logger.warning("HTTP error fetching %s: %s", url, e, exc_info=True)
+        # No traceback: str(e) carries the page url, which tells what the user searched
+        logger.warning(
+            "web_page_fetch_failed",
+            error=type(e).__name__,
+            status_code=e.response.status_code if isinstance(e, httpx.HTTPStatusError) else None,
+        )
         raise DocumentFetchError(f"Failed to fetch {url}: {e}") from e
     except Exception as e:
-        logger.warning("Error extracting content from %s: %s", url, e, exc_info=True)
+        logger.warning("web_page_extract_failed", error=type(e).__name__)
         raise DocumentFetchError(f"Failed to extract content from {url}: {e}") from e
 
 
@@ -121,8 +126,8 @@ async def _extract_and_summarize_snippets_async(query: str, url: str) -> List[st
         try:
             snippet = await llm_summarize_async(query, document)
             return [snippet] if snippet else []
-        except Exception as e:  # pylint: disable=broad-except
-            logger.exception("Summarization failed for %s: %s", url, e)
+        except Exception:  # pylint: disable=broad-except
+            logger.exception("web_page_summarize_failed")
             # Fallback to raw document if summarization fails
             return [document]
 
@@ -137,12 +142,12 @@ async def _fetch_and_store_async(url: str, document_store, **kwargs) -> None:
     try:
         document = await _fetch_and_extract_async(url)
 
-        logger.debug("Fetched document: %s characters", len(document or ""))
+        logger.debug("web_page_fetched", characters=len(document or ""))
 
         if document:
             await document_store.astore_document(url, document, **kwargs)
     except DocumentFetchError as e:
-        logger.warning("Failed to fetch and store %s: %s", url, e)
+        logger.warning("web_page_store_skipped", error=type(e.__cause__ or e).__name__)
         # Continue with other documents
 
 
@@ -200,36 +205,38 @@ async def _query_brave_api_with_endpoint_async(url: str, operation: str, data: d
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 429:
             # Rate limit - retryable
-            logger.warning("Brave API rate limited (status 429) on %s", url)
+            logger.warning("brave_api_rate_limited", status_code=429, endpoint=url)
             raise ModelRetry(
                 "The search API is rate limited. Please wait a moment and try again."
             ) from e
         if e.response.status_code >= 500:
             # Server error - retryable
-            logger.warning("Brave API server error (status %s) on %s", e.response.status_code, url)
+            logger.warning(
+                "brave_api_server_error", status_code=e.response.status_code, endpoint=url
+            )
             raise ModelRetry(
                 "The search service is temporarily unavailable due to a server error. Retrying..."
             ) from e
 
         # Client error (4xx) - not retryable, stop and inform user
-        logger.error("Brave API client error (status %s) on %s", e.response.status_code, url)
+        logger.error("brave_api_client_error", status_code=e.response.status_code, endpoint=url)
         raise ModelCannotRetry(
             f"Web search failed with a client error (status {e.response.status_code}). "
             "You must explain this to the user and not try to answer based on your knowledge."
         ) from e
     except httpx.TimeoutException as e:
         # Timeout - retryable
-        logger.warning("Brave API timeout on %s", url)
+        logger.warning("brave_api_timeout", endpoint=url)
         raise ModelRetry("The search request timed out. Retrying with a fresh attempt...") from e
     except httpx.HTTPError as e:
         # Other HTTP errors - retryable
-        logger.warning("Brave API connection error on %s: %s", url, type(e).__name__)
+        logger.warning("brave_api_connection_error", endpoint=url, error=type(e).__name__)
         raise ModelRetry(
             f"Connection error while searching the web: {type(e).__name__}. Retrying..."
         ) from e
     except Exception as e:
         # Unexpected errors - not retryable, stop completely
-        logger.exception("Unexpected error querying Brave API: %s", e)
+        logger.exception("brave_api_unexpected_error")
         raise ModelCannotRetry(
             f"An unexpected error occurred with the search service: {type(e).__name__}. "
             "You must explain this to the user and not try to answer based on your knowledge."
@@ -238,7 +245,7 @@ async def _query_brave_api_with_endpoint_async(url: str, operation: str, data: d
 
 async def _query_brave_llm_context_api_async(query: str) -> List[dict]:
     """Query Brave LLM context endpoint and return normalized results."""
-    logger.debug("Using LLM context endpoint")
+    logger.debug("brave_endpoint_selected", endpoint_type="llm_context")
     return await _query_brave_api_with_endpoint_async(
         "https://api.search.brave.com/res/v1/llm/context",
         "llm_context",
@@ -261,7 +268,7 @@ async def _query_brave_llm_context_api_async(query: str) -> List[dict]:
 
 async def _query_brave_web_search_api_async(query: str) -> List[dict]:
     """Query Brave classic web search endpoint and return normalized results."""
-    logger.debug("Using classic web search endpoint")
+    logger.debug("brave_endpoint_selected", endpoint_type="web_search")
     return await _query_brave_api_with_endpoint_async(
         "https://api.search.brave.com/res/v1/web/search",
         "web_search",
@@ -318,7 +325,7 @@ async def web_search_brave(_ctx: RunContext, query: str) -> ToolReturn:
         _ctx (RunContext): The run context, used by the wrapper.
         query (str): The query to search for.
     """
-    logger.debug("Starting classic web search without RAG backend")
+    logger.debug("web_search_started", mode="classic")
     try:
         raw_search_results = await _query_brave_web_search_api_async(query)
 
@@ -359,7 +366,7 @@ async def web_search_brave(_ctx: RunContext, query: str) -> ToolReturn:
         raise
     except Exception as exc:
         # Unexpected error in our code - stop and inform user
-        logger.exception("Unexpected error in web_search_brave: %s", exc)
+        logger.exception("web_search_unexpected_error", mode="classic")
         raise ModelCannotRetry(
             f"An unexpected error occurred during web search: {type(exc).__name__}. "
             "You must explain this to the user and not try to answer based on your knowledge."
@@ -373,7 +380,7 @@ async def web_search_brave_llm_context(_ctx: RunContext, query: str) -> ToolRetu
     This function use the LLM context endpoint of the Brave API.
     The results are then formatted and returned.
     """
-    logger.debug("Starting web search with LLM context endpoint")
+    logger.debug("web_search_started", mode="llm_context")
     try:
         raw_search_results = await _query_brave_llm_context_api_async(query)
         formatted_result = format_tool_return(raw_search_results)
@@ -383,7 +390,7 @@ async def web_search_brave_llm_context(_ctx: RunContext, query: str) -> ToolRetu
     except ModelCannotRetry, ModelRetry:
         raise
     except Exception as exc:
-        logger.exception("Unexpected error in web_search_brave_llm_context: %s", exc)
+        logger.exception("web_search_unexpected_error", mode="llm_context")
         raise ModelCannotRetry(
             f"An unexpected error occurred during web search: {type(exc).__name__}. "
             "You must explain this to the user and not try to answer based on your knowledge."
@@ -402,7 +409,7 @@ async def web_search_brave_with_document_backend(ctx: RunContext, query: str) ->
         ctx (RunContext): The run context containing the conversation.
         query (str): The query to search for.
     """
-    logger.debug("Starting web search with RAG backend")
+    logger.debug("web_search_started", mode="rag")
     try:
         raw_search_results = await _query_brave_web_search_api_async(query)
 
@@ -438,7 +445,7 @@ async def web_search_brave_with_document_backend(ctx: RunContext, query: str) ->
                     session=ctx.deps.session,
                     user_sub=ctx.deps.user.sub,
                 )
-                logger.debug("RAG search returned %s chunks", len(rag_results.data))
+                logger.debug("web_search_rag_results", chunks=len(rag_results.data))
 
                 ctx.usage += RunUsage(
                     input_tokens=rag_results.usage.prompt_tokens,
@@ -453,7 +460,7 @@ async def web_search_brave_with_document_backend(ctx: RunContext, query: str) ->
                             break
 
         except Exception as exc:
-            logger.exception("Error with document store: %s", exc)
+            logger.exception("web_search_document_store_failed")
             raise ModelRetry(
                 f"Document storage temporarily failed: {type(exc).__name__}. "
                 "Retrying the operation..."
@@ -471,7 +478,7 @@ async def web_search_brave_with_document_backend(ctx: RunContext, query: str) ->
         raise
     except Exception as e:
         # Unexpected error - stop and inform user
-        logger.exception("Unexpected error in web_search_brave_with_document_backend: %s", e)
+        logger.exception("web_search_unexpected_error", mode="rag")
         raise ModelCannotRetry(
             f"An unexpected error occurred during web search with RAG: {type(e).__name__}. "
             "You must explain this to the user and not try to answer based on your knowledge."

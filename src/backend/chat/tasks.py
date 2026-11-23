@@ -1,18 +1,28 @@
 """Celery tasks for the chat application."""
 
 import io
-import logging
+import json
+import time
+from datetime import timedelta
+from uuid import uuid4
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.utils import timezone
 from django.utils.module_loading import import_string
 
+import structlog
 from asgiref.sync import async_to_sync
+from botocore.exceptions import BotoCoreError, ClientError
+from celery.exceptions import SoftTimeLimitExceeded
 from pydantic_ai.exceptions import ModelAPIError
 from pydantic_ai.messages import ModelMessagesTypeAdapter
+
+from core.log_fields import safe_error_fields
 
 from chat.agent_rag.indexing import index_project_attachment, parse_and_store_with_retry
 from chat.agents.history_processors import (
@@ -26,12 +36,30 @@ from chat.constants import (
     DEINDEX_TASK_TIME_LIMIT,
     SUMMARIZATION_TASK_SOFT_TIME_LIMIT,
     SUMMARIZATION_TASK_TIME_LIMIT,
+    TABULAR_MAX_OUTPUT_CHARS,
+    TABULAR_MIME_TYPES,
+    TABULAR_QUERY_MAX_ROWS,
+    TABULAR_RESULT_WRITE_MARGIN_SECONDS,
+    TABULAR_RESULTS_MAX_AGE_SECONDS,
+    TABULAR_RESULTS_PREFIX,
+    TABULAR_TASK_SOFT_TIME_LIMIT,
+    TABULAR_TASK_TIME_LIMIT,
+    TEXT_MIME_PREFIX,
 )
 from chat.llm_configuration import get_model_configuration
-from chat.models import ChatConversation, ChatConversationAttachment
+from chat.models import AttachmentStatus, ChatConversation, ChatConversationAttachment
+from chat.tabular import (
+    TableQuery,
+    TabularError,
+    TabularFile,
+    build_dataset,
+    cap_output,
+    describe_tables,
+    run_table_query,
+)
 from conversations.celery_app import app
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Transient provider failures worth retrying: every model-provider API error
 # (HTTP 4xx/5xx, connection and timeout errors) raised by the summarization
@@ -63,26 +91,20 @@ def index_project_attachment_task(attachment_id):
         .first()
     )
     if attachment is None:
-        logger.warning(
-            "index_project_attachment_task: attachment %s no longer exists; skipping.",
-            attachment_id,
-        )
+        logger.warning("project_attachment_gone", attachment_id=attachment_id)
         return
 
     index_project_attachment(attachment)
 
 
+# Kept unchanged only so workers on this release can still serve web pods from the
+# previous release during a rolling deploy. Remove it in the next release.
 @app.task
 def parse_and_store_conversation_document_task(collection_id, s3_key, name, content_type, user_sub):
-    """Parse a conversation document and store it in the conversation's RAG collection.
+    """Deprecated: superseded by `index_conversation_document_task`.
 
-    Enqueued by `AIAgentService._parse_input_documents` during a chat turn, which
-    blocks on the result. The heavy, hostile-input-exposed work (parsing the file,
-    storing chunks in the RAG backend) runs here, off the web worker and under the
-    Celery task time limits, so a malformed or malicious file cannot hang or exhaust
-    the request process. The caller passes only the storage key; the task reads the
-    file bytes itself so nothing large crosses the broker. Returns
-    `(parsed_content, rag_document_id)`; the caller does the DB and companion writes.
+    Returns `(parsed_content, rag_document_id)` through the result backend, which
+    puts whole parsed documents in Redis.
     """
     backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)(collection_id=collection_id)
     with default_storage.open(s3_key, "rb") as file:
@@ -95,6 +117,64 @@ def parse_and_store_conversation_document_task(collection_id, s3_key, name, cont
         content=content,
         user_sub=user_sub,
     )
+
+
+@app.task
+def index_conversation_document_task(collection_id, s3_key, name, content_type, user_sub):
+    """Parse a conversation document and store it in the conversation's RAG collection.
+
+    Enqueued by `AIAgentService._parse_input_documents` during a chat turn, which
+    blocks on the result. The heavy, hostile-input-exposed work (parsing the file,
+    storing chunks in the RAG backend) runs here, off the web worker and under the
+    Celery task time limits, so a malformed or malicious file cannot hang or exhaust
+    the request process. The caller passes only the storage key; the task reads the
+    file bytes itself so nothing large crosses the broker.
+
+    For a non-text input the task also writes the Markdown companion to storage, so
+    the parsed content never goes through the result backend either: a large parsed
+    document (e.g. a big spreadsheet) written to Redis in one shot can stall it, and
+    Celery logs task return values. Returns `(companion_key, rag_document_id)`, with
+    `companion_key` None for text inputs; the caller does the DB writes.
+
+    Registered under a different name than `parse_and_store_conversation_document_task`
+    because the return value differs: during a rolling deploy, a worker that does not
+    know this task rejects it instead of returning a result the caller misreads.
+    """
+    backend = import_string(settings.RAG_DOCUMENT_SEARCH_BACKEND)(collection_id=collection_id)
+    with default_storage.open(s3_key, "rb") as file:
+        content = file.read()
+
+    parsed_content, rag_document_id = parse_and_store_with_retry(
+        backend,
+        name=name,
+        content_type=content_type,
+        content=content,
+        user_sub=user_sub,
+    )
+
+    companion_key = None
+    if not content_type.startswith(TEXT_MIME_PREFIX):
+        # A distinct key keeps the original file intact, as the project indexing
+        # does (see agent_rag.indexing._write_markdown_companion).
+        try:
+            companion_key = default_storage.save(
+                f"{s3_key}.md", io.BytesIO(parsed_content.encode("utf-8"))
+            )
+        except Exception:
+            # The caller never gets the id if this task fails, so nothing would
+            # reference the chunks just stored: remove them before failing.
+            if rag_document_id:
+                try:
+                    backend.delete_document(rag_document_id)
+                except Exception:  # pylint: disable=broad-except
+                    logger.exception(
+                        "rag_document_delete_failed",
+                        rag_document_id=rag_document_id,
+                        collection_id=collection_id,
+                    )
+            raise
+
+    return companion_key, rag_document_id
 
 
 @app.task(
@@ -115,11 +195,11 @@ def summarize_conversation_history(conversation_id: str) -> None:
     try:
         conversation = ChatConversation.objects.get(pk=conversation_id)
     except ChatConversation.DoesNotExist:
-        logger.info("Conversation %s gone before summarization ran.", conversation_id)
+        logger.info("history_summary_conversation_gone", conversation_id=conversation_id)
         return
 
     if not conversation.claim_history_summarization():
-        logger.debug("Conversation %s already claimed, skipping.", conversation_id)
+        logger.debug("history_summary_already_claimed", conversation_id=conversation_id)
         return
 
     try:
@@ -128,9 +208,9 @@ def summarize_conversation_history(conversation_id: str) -> None:
             model_configuration = get_model_configuration(model_hrid)
         except ImproperlyConfigured:
             logger.warning(
-                "Model %s no longer configured, skipping summarization for %s.",
-                model_hrid,
-                conversation_id,
+                "history_summary_model_not_configured",
+                model_hrid=model_hrid,
+                conversation_id=conversation_id,
             )
             return
 
@@ -174,11 +254,11 @@ def fetch_model_health_task(provider):
     try:
         call_command("fetch_model_health", "--provider", provider, stdout=out)
     except CommandError:
-        logger.exception("fetch_model_health_task: provider %s failed.", provider)
+        logger.exception("model_health_fetch_failed", provider=provider)
     finally:
         output = out.getvalue()
         if output:
-            logger.debug(output)
+            logger.debug("model_health_fetch_output", output=output)
 
 
 @app.task(
@@ -191,4 +271,105 @@ def deindex_inactive_collections_task():
     try:
         call_command("deindex_inactive_collections")
     except CommandError:
-        logger.exception("deindex_inactive_collections_task failed.")
+        logger.exception("deindex_inactive_collections_failed")
+
+
+def _tabular_output(conversation_id: str, query: dict | None) -> tuple[bool, str, dict | None]:
+    """Load the conversation's spreadsheets, then describe them or run `query`.
+
+    Returns `(ok, content, chart)`; when `ok` is False, `content` is a query error
+    meant for the model. `chart` is the chart data of a query that asked for one.
+    """
+    attachments = ChatConversationAttachment.objects.filter(
+        conversation_id=conversation_id,
+        content_type__in=TABULAR_MIME_TYPES,
+        upload_state=AttachmentStatus.READY,
+    ).order_by("created_at", "id")
+    files = []
+    for attachment in attachments:
+        with default_storage.open(attachment.key, "rb") as file:
+            files.append(TabularFile(attachment.file_name, attachment.content_type, file.read()))
+
+    dataset = build_dataset(files)
+    if query is None:
+        return True, describe_tables(dataset), None
+    try:
+        result = run_table_query(
+            dataset,
+            TableQuery.model_validate(query),
+            TABULAR_QUERY_MAX_ROWS,
+            max_join_cells=settings.TABULAR_JOIN_MAX_CELLS,
+        )
+    except TabularError as exc:
+        return False, str(exc), None
+    # Capped here, before the chart note, so a long table cannot cut the note.
+    text = cap_output(result.text, TABULAR_MAX_OUTPUT_CHARS - len(result.chart_note))
+    return True, text + result.chart_note, result.chart
+
+
+@app.task(soft_time_limit=TABULAR_TASK_SOFT_TIME_LIMIT, time_limit=TABULAR_TASK_TIME_LIMIT)
+def run_tabular_query_task(conversation_id: str, query: dict | None, deadline: float) -> dict:
+    """Load the conversation's spreadsheets into DataFrames, then describe them or run `query`.
+
+    Enqueued by the tabular tools, which block on the result. Loading untrusted
+    files happens here, off the web worker and under the task time limits.
+    Stateless: the files are reloaded on every call. `query` is a `TableQuery`
+    dumped to JSON, or None to describe the tables.
+
+    The output is written to storage as JSON, never returned: task results go
+    through Redis, where a large value can stall it. It holds `content` (capped
+    in size) and `chart` (the chart data of a query, or None). Returns
+    `{"ok": bool, "key": str | None}`; the caller reads the output at `key` and
+    deletes it. When `ok` is False its `content` is an error message meant for
+    the model. `deadline` (epoch seconds) is when the caller stops waiting: past it
+    nothing is written, as nobody would delete it.
+
+    Without an output, `key` is None and `error` says why: `deadline`,
+    `time_limit` (soft time limit hit) or `failed`. The task never raises: a
+    raised exception would put its message in Redis and in the Celery failure
+    log, and a pandas or parser message can quote cells of the file.
+    """
+    if time.time() > deadline - TABULAR_RESULT_WRITE_MARGIN_SECONDS:
+        return {"ok": False, "key": None, "error": "deadline"}
+    try:
+        ok, content, chart = _tabular_output(conversation_id, query)
+        if time.time() > deadline - TABULAR_RESULT_WRITE_MARGIN_SECONDS:
+            return {"ok": False, "key": None, "error": "deadline"}
+        output = {"content": cap_output(content, TABULAR_MAX_OUTPUT_CHARS), "chart": chart}
+        key = default_storage.save(
+            f"{TABULAR_RESULTS_PREFIX}{uuid4()}.json",
+            ContentFile(json.dumps(output).encode("utf-8")),
+        )
+    except SoftTimeLimitExceeded:
+        logger.warning("tabular_query_time_limit")
+        return {"ok": False, "key": None, "error": "time_limit"}
+    except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # Type only: the message and traceback can quote the file's cells.
+        logger.error("tabular_query_failed", **safe_error_fields(exc))
+        return {"ok": False, "key": None, "error": "failed"}
+    return {"ok": ok, "key": key}
+
+
+@app.task
+def purge_tabular_results_task():
+    """Delete the tabular outputs nobody will read. Run by Celery beat.
+
+    The tabular tool deletes each output once read, and the task writes none
+    after the tool's deadline. An output older than TABULAR_RESULTS_MAX_AGE_SECONDS
+    was left by a web process that died between the write and the read. Deleting a
+    conversation would not remove it: storage is cleaned by attachment key.
+    """
+    cutoff = timezone.now() - timedelta(seconds=TABULAR_RESULTS_MAX_AGE_SECONDS)
+    _dirs, names = default_storage.listdir(TABULAR_RESULTS_PREFIX)
+    deleted = 0
+    for name in names:
+        key = f"{TABULAR_RESULTS_PREFIX}{name}"
+        try:
+            if default_storage.get_modified_time(key) < cutoff:
+                default_storage.delete(key)
+                deleted += 1
+        except BotoCoreError, ClientError, OSError:
+            # Read and deleted by its tool since the listing, or a storage error:
+            # the next run retries.
+            continue
+    logger.info("tabular_results_purged", deleted=deleted)

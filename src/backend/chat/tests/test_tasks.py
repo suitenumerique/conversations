@@ -25,6 +25,7 @@ from chat.factories import ChatConversationFactory
 from chat.llm_configuration import LLModel, LLMProvider
 from chat.tasks import (
     RETRYABLE_SUMMARIZATION_ERRORS,
+    index_conversation_document_task,
     index_project_attachment_task,
     parse_and_store_conversation_document_task,
     summarize_conversation_history,
@@ -78,8 +79,106 @@ def test_index_project_attachment_task_ignores_missing_attachment():
 
 
 @respx.mock
+def test_index_conversation_document_task_text_returns_no_companion():
+    """A text input is stored as-is: the task returns only the backend id, no companion."""
+    saved_name = default_storage.save(
+        "conv-task-test.txt", ContentFile(b"Hello conversation content")
+    )
+    try:
+        respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+            return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 7})
+        )
+
+        result = index_conversation_document_task.delay(
+            "42",
+            saved_name,
+            "hello.txt",
+            "text/plain",
+            "user-sub-123",
+        ).get()
+
+        assert result == (None, "7")
+        assert not default_storage.exists(f"{saved_name}.md")
+    finally:
+        default_storage.delete(saved_name)
+
+
+@respx.mock
+def test_index_conversation_document_task_writes_companion_not_content():
+    """A non-text input gets its Markdown companion written by the task.
+
+    The task returns the companion key, never the parsed content: a large parsed
+    document must not travel through the Redis result backend.
+    """
+    saved_name = default_storage.save(
+        "conv-task-test.json", ContentFile(b'{"greeting": "Hello conversation content"}')
+    )
+    companion_key = None
+    try:
+        respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+            return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 7})
+        )
+
+        companion_key, rag_document_id = index_conversation_document_task.delay(
+            "42",
+            saved_name,
+            "hello.json",
+            "application/json",
+            "user-sub-123",
+        ).get()
+
+        assert rag_document_id == "7"
+        assert companion_key == f"{saved_name}.md"
+        with default_storage.open(companion_key, "rb") as companion:
+            assert b"Hello conversation content" in companion.read()
+    finally:
+        default_storage.delete(saved_name)
+        if companion_key:
+            default_storage.delete(companion_key)
+
+
+@respx.mock
+def test_index_conversation_document_task_removes_stored_document_when_companion_fails():
+    """A failed companion write deletes the stored RAG document before failing.
+
+    The caller never receives the id of a failed task, so the chunks would
+    otherwise stay in the collection with nothing referencing them.
+    """
+    saved_name = default_storage.save(
+        "conv-task-test.json", ContentFile(b'{"greeting": "Hello conversation content"}')
+    )
+    try:
+        respx.post("https://albert.api.etalab.gouv.fr/v1/documents").mock(
+            return_value=httpx.Response(status.HTTP_201_CREATED, json={"id": 7})
+        )
+        delete_route = respx.delete("https://albert.api.etalab.gouv.fr/v1/documents/7").mock(
+            return_value=httpx.Response(status.HTTP_204_NO_CONTENT)
+        )
+
+        with (
+            patch.object(default_storage, "save", side_effect=OSError("storage down")),
+            pytest.raises(OSError, match="storage down"),
+        ):
+            index_conversation_document_task.delay(
+                "42",
+                saved_name,
+                "hello.json",
+                "application/json",
+                "user-sub-123",
+            ).get()
+
+        assert delete_route.call_count == 1
+    finally:
+        default_storage.delete(saved_name)
+
+
+@respx.mock
 def test_parse_and_store_conversation_document_task_returns_parsed_and_id():
-    """The task reads the file from storage, parses + stores it, and returns (content, id)."""
+    """The deprecated task keeps its contract: it returns (content, id).
+
+    Workers on this release still serve web pods from the previous release during a
+    rolling deploy.
+    """
     saved_name = default_storage.save(
         "conv-task-test.txt", ContentFile(b"Hello conversation content")
     )

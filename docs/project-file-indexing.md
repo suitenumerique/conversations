@@ -142,12 +142,12 @@ Because the indexer is idempotent, a retry after a partial success (chunks store
 
 When indexing finally fails, the terminal `except` in `index_project_attachment`:
 
-- Logs at **ERROR** via `logger.exception`, so the **full traceback** is captured (and forwarded to **Sentry** when `SENTRY_DSN` is set - the SDK's default logging integration captures ERROR logs as events).
-- Includes the **file identity** in the message: attachment id, `file_name`, `content_type`, and project id.
-- Captures the **Albert response body** through `_albert_error_detail`: for an `HTTPError`, `str(exc)` is generic (`"500 Server Error ... for url ..."`) and hides the actual reason, so the helper surfaces `HTTP <status>: <response body>` (truncated to 2000 chars). For non-HTTP errors it falls back to `str(exc)`.
-- Persists that same detail into `processing_error`, so the reason is queryable on the row.
+- Logs `project_attachment_index_failed` at **ERROR** via `logger.exception`, and so creates a **Sentry** event when `SENTRY_DSN` is set.
+- Identifies the file by attachment id, `content_type` and project id. The file name is user data and is not logged.
+- Logs the error by `error_type` and, for an HTTP error, `status_code`. The traceback is kept for other errors; for an Albert HTTP error it is dropped, along with the message, because the response body can echo document content (see [Logging](logging.md)).
+- Captures the **Albert response body** through `_albert_error_detail` and persists it into `processing_error` only, so the reason is queryable on the row: for an `HTTPError`, `str(exc)` is generic (`"500 Server Error ... for url ..."`) and hides the actual reason, so the helper surfaces `HTTP <status>: <response body>` (truncated to 2000 chars). For non-HTTP errors it falls back to `str(exc)`.
 
-Net: on a terminal failure you get a traceback, the file identity, the real Albert error payload, a Sentry event, and a persisted reason - plus a `WARNING` line per transient retry that preceded it.
+Net: on a terminal failure you get the file's ids, the error type and status, a Sentry event, and the real Albert error payload persisted on the row - plus a `WARNING` line per transient retry that preceded it.
 
 ---
 

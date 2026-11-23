@@ -8,6 +8,7 @@ export const CONFIG = {
   ENVIRONMENT: 'development',
   FEATURE_FLAGS: {
     'datagouv-connector': 'disabled',
+    'docs-link-fetching': 'disabled',
     'document-upload': 'enabled',
     'presentation-generation': 'disabled',
     'web-search': 'enabled',

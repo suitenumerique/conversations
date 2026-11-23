@@ -1,12 +1,12 @@
 """Base module for PydanticAI agents."""
 
 import dataclasses
-import logging
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
 import httpx2
+import structlog
 from pydantic_ai import Agent, InstructionPart, ModelRequestContext, RunContext
 from pydantic_ai.capabilities import Hooks
 from pydantic_ai.models import get_user_agent
@@ -16,7 +16,7 @@ from core import instrumentation
 
 from chat.tools import get_pydantic_tools_by_name
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def _patch_openai_streaming_list_content():
@@ -53,8 +53,8 @@ def _patch_openai_streaming_list_content():
                     text_parts.append(item.get("text") or "")
                 else:
                     logger.info(
-                        "Unexpected content part type in streaming delta: %s",
-                        type(item),
+                        "unexpected_streaming_delta_part_type",
+                        part_type=type(item).__name__,
                     )
             choice.delta.content = "".join(text_parts) or None
         yield from _original_map_text_delta(self, choice)

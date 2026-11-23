@@ -1,6 +1,5 @@
 """Management command to de-index RAG collections from inactive conversations."""
 
-import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from functools import partial
@@ -12,11 +11,12 @@ from django.utils import timezone
 from django.utils.module_loading import import_string
 
 import httpx
+import structlog
 
 from chat.enums import CollectionIndexState
 from chat.models import ChatConversation, ChatConversationAttachment
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def _deindex_one(conv, *, backend_cls, threshold):
@@ -61,10 +61,9 @@ def _deindex_one_unsafe(conv, *, backend_cls, threshold):
                 # .update() calls already cleared our state, so treat it as
                 # a successful de-index.
                 logger.info(
-                    "Collection %s for conversation %s already deleted (404), "
-                    "treating as de-indexed",
-                    conv.collection_id,
-                    conv.pk,
+                    "collection_already_deleted",
+                    collection_id=conv.collection_id,
+                    conversation_id=conv.pk,
                 )
                 return True
         # Conditional restore: only write back if the row is still NULL so we
@@ -77,10 +76,10 @@ def _deindex_one_unsafe(conv, *, backend_cls, threshold):
             ChatConversationAttachment.objects.filter(pk=pk, rag_document_id__isnull=True).update(
                 is_indexed=prev_is_indexed, rag_document_id=rag_id
             )
-        logger.exception("Failed to de-index collection for conversation %s", conv.pk)
+        logger.exception("collection_deindex_failed", conversation_id=conv.pk)
         return False
 
-    logger.info("De-indexed collection %s for conversation %s", conv.collection_id, conv.pk)
+    logger.info("collection_deindexed", collection_id=conv.collection_id, conversation_id=conv.pk)
     return True
 
 

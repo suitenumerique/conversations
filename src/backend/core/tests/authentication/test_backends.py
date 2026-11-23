@@ -1,4 +1,5 @@
 """Unit tests for the Authentication Backends."""
+# pylint: disable=too-many-lines
 
 import json
 import random
@@ -88,6 +89,49 @@ def test_authentication_getter_existing_user_via_email_case_insensitive(
         user = klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
 
     assert user == db_user
+
+
+def test_authentication_getter_existing_user_via_email_skips_inactive(monkeypatch):
+    """
+    If an active and an inactive user share the email, the active user should be returned.
+    """
+
+    klass = OIDCAuthenticationBackend()
+    UserFactory(email="john.doe@example.com", is_active=False)
+    db_user = UserFactory(email="JOHN.DOE@example.com")
+
+    def get_userinfo_mocked(*args):
+        return {"sub": "123", "email": "john.doe@example.com"}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "get_userinfo", get_userinfo_mocked)
+
+    user = klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
+
+    assert user == db_user
+    db_user.refresh_from_db()
+    assert db_user.sub == "123"
+
+
+def test_authentication_getter_existing_user_via_email_several_active(monkeypatch):
+    """
+    If several active users share the email, the login should be refused.
+    """
+
+    klass = OIDCAuthenticationBackend()
+    UserFactory(email="john.doe@example.com")
+    UserFactory(email="JOHN.DOE@example.com")
+
+    def get_userinfo_mocked(*args):
+        return {"sub": "123", "email": "john.doe@example.com"}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "get_userinfo", get_userinfo_mocked)
+
+    with pytest.raises(
+        SuspiciousOperation, match="Several active users are associated with this email."
+    ):
+        klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
+
+    assert models.User.objects.count() == 2
 
 
 def test_authentication_getter_email_none(monkeypatch):
@@ -778,6 +822,28 @@ def test_verify_claims_user_without_roles_claim_denied():
 
     with pytest.raises(OIDCRoleAccessDenied):
         klass.verify_claims({"sub": "123"})
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"], OIDC_ROLES_CLAIM="proconnect:roles")
+def test_verify_claims_custom_roles_claim_allowed():
+    """With a custom roles claim name, the required role is read from that claim."""
+    klass = OIDCAuthenticationBackend()
+
+    assert (
+        klass.verify_claims(
+            {"sub": "123", "proconnect:roles": ["agent_public", "agent_public_etat"]}
+        )
+        is True
+    )
+
+
+@override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"], OIDC_ROLES_CLAIM="proconnect:roles")
+def test_verify_claims_custom_roles_claim_ignores_default_claim():
+    """With a custom roles claim name, the default 'roles' claim is not read."""
+    klass = OIDCAuthenticationBackend()
+
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims({"sub": "123", "roles": ["agent_public_etat"]})
 
 
 @override_settings(OIDC_ALLOWED_ROLES=["agent_public_etat"])

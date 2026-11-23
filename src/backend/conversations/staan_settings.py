@@ -1,12 +1,13 @@
 """Django configuration mixin for Staan settings."""
 
 from configurations import values
+from lasuite.configuration.values import SecretFileValue
 
 
 class StaanSettings:
     """Staan settings for web_search_staan tool."""
 
-    STAAN_API_KEY = values.Value(
+    STAAN_API_KEY = SecretFileValue(
         default=None,
         environ_name="STAAN_API_KEY",
         environ_prefix=None,

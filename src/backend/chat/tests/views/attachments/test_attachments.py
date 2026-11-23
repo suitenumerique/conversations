@@ -301,6 +301,9 @@ def test_upload_ended_not_owner(api_client):
         ("test.aaaaaa", b"test", "txt", "text/plain"),
         ("test.txt", PIXEL_PNG, "txt", "image/png"),
         ("test.py", b"#!/usr/bin/python", "py", "text/plain"),
+        # libmagic sniffs a `;`-separated CSV as text/plain: the .csv name wins.
+        ("ventes.csv", "région;montant\nNord;1,5\n".encode("cp1252"), "csv", "text/csv"),
+        ("fake.csv", PIXEL_PNG, "csv", "image/png"),
     ],
 )
 def test_upload_ended_fix_extension(api_client, name, content, _extension, content_type):

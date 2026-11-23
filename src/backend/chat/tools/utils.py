@@ -1,16 +1,19 @@
 """Tool calling utilities for the chat agent."""
 
 import functools
-import logging
 import uuid
 from typing import Any, Callable, Iterable
 
+import structlog
+from pydantic import ValidationError
 from pydantic_ai import ModelRetry, RunContext
+from pydantic_ai.exceptions import ModelHTTPError, ToolFailed
+from pydantic_ai.messages import ToolCallPart
 
 from chat import models
-from chat.tools.exceptions import ModelCannotRetry
+from chat.tools.exceptions import ModelCannotRetry, UserContentModelRetry
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def resolve_attachment_by_id(
@@ -58,9 +61,18 @@ def last_model_retry_soft_fail(
         except ModelCannotRetry as exc:
             return str(exc.message)
         except ModelRetry as exc:
-            logger.error("Tool '%s' raised ModelRetry: %s", ctx.tool_name, exc.message)
+            # A user-content message would put the user's data in the logs
+            reason = None if isinstance(exc, UserContentModelRetry) else exc.message
+            logger.warning("tool_retry_requested", tool_name=ctx.tool_name, reason=reason)
             if (ctx.retries.get(ctx.tool_name, 0) + 1) >= ctx.max_retries:
-                logger.error("Max retries reached for tool '%s'.", ctx.tool_name)
+                # Only the cause's type and status: its message can carry urls or user content
+                cause = exc.__cause__
+                logger.error(
+                    "tool_max_retries_reached",
+                    tool_name=ctx.tool_name,
+                    cause=type(cause).__name__ if cause else None,
+                    status_code=cause.status_code if isinstance(cause, ModelHTTPError) else None,
+                )
                 # A bit of a hack to signal that we cannot retry here, while preventing
                 # the LLM to generate an outdated answer.
                 # We may define a more specific exception later base on ModelRetry which
@@ -72,3 +84,34 @@ def last_model_retry_soft_fail(
             raise  # Re-raise to allow retrying
 
     return wrapper
+
+
+def soft_fail_last_invalid_tool_call(
+    ctx: RunContext,
+    *,
+    call: ToolCallPart,
+    error: ValidationError | ModelRetry,
+    **_kwargs,
+) -> Any:
+    """`on_tool_validate_error` hook: on a tool's last try, report invalid arguments.
+
+    pydantic-ai checks the arguments before calling the tool, so
+    `last_model_retry_soft_fail` never sees these failures. Once the retries are
+    used up it raises UnexpectedModelBehavior and the turn ends with an error,
+    e.g. when the model keeps asking query_table for an operation it does not
+    offer. On the last try this hands the model a failed tool result instead.
+    """
+    if (ctx.retries.get(call.tool_name, 0) + 1) < ctx.max_retries:
+        raise error
+    # The type only: the error quotes the model's arguments, which can carry user content
+    logger.error(
+        "tool_max_retries_reached",
+        tool_name=call.tool_name,
+        cause=type(error).__name__,
+        status_code=None,
+    )
+    raise ToolFailed(
+        f"The {call.tool_name} tool could not be called with valid arguments. The request "
+        "probably needs something this tool cannot do. You must explain this to the user "
+        "and not try to answer based on your knowledge."
+    )

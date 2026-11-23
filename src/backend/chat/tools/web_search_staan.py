@@ -1,10 +1,9 @@
 """Web search tool using Staan for the chat agent."""
 
-import logging
-
 from django.conf import settings
 
 import httpx
+import structlog
 from pydantic_ai import RunContext
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.messages import ToolReturn
@@ -14,7 +13,7 @@ from core import instrumentation
 from chat.tools.exceptions import ModelCannotRetry
 from chat.tools.utils import last_model_retry_soft_fail
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 STAAN_SEARCH_URL = "https://api.staan.ai/v2/search/web"
 
@@ -92,29 +91,31 @@ async def staan_search(query: str, market: str) -> dict:
         status_code = exc.response.status_code
         if status_code == 429:
             logger.warning(
-                "Staan API rate limited (status %s) on %s", status_code, STAAN_SEARCH_URL
+                "staan_api_rate_limited", status_code=status_code, endpoint=STAAN_SEARCH_URL
             )
             raise ModelRetry(
                 "The search API is rate limited. Please wait a moment and try again."
             ) from exc
         if status_code >= 500:
             logger.warning(
-                "Staan API server error (status %s) on %s", status_code, STAAN_SEARCH_URL
+                "staan_api_server_error", status_code=status_code, endpoint=STAAN_SEARCH_URL
             )
             raise ModelRetry(
                 "The search service is temporarily unavailable due to a server error. Retrying..."
             ) from exc
 
-        logger.error("Staan API client error (status %s) on %s", status_code, STAAN_SEARCH_URL)
+        logger.error("staan_api_client_error", status_code=status_code, endpoint=STAAN_SEARCH_URL)
         raise ModelCannotRetry(
             f"Web search failed with a client error (status {status_code}). "
             "You must explain this to the user and not try to answer based on your knowledge."
         ) from exc
     except httpx.TimeoutException as exc:
-        logger.warning("Staan API timeout on %s", STAAN_SEARCH_URL)
+        logger.warning("staan_api_timeout", endpoint=STAAN_SEARCH_URL)
         raise ModelRetry("The search request timed out. Retrying with a fresh attempt...") from exc
     except httpx.HTTPError as exc:
-        logger.warning("Staan API connection error on %s: %s", STAAN_SEARCH_URL, type(exc).__name__)
+        logger.warning(
+            "staan_api_connection_error", endpoint=STAAN_SEARCH_URL, error=type(exc).__name__
+        )
         raise ModelRetry(
             f"Connection error while searching the web: {type(exc).__name__}. Retrying..."
         ) from exc
@@ -188,13 +189,13 @@ async def web_search_staan(ctx: RunContext, query: str) -> ToolReturn:
         ToolReturn: Result of the search.
     """
     market = resolve_staan_market(ctx.deps.language)
-    logger.debug("Starting Staan web search for market %s", market)
+    logger.debug("web_search_started", mode="staan", market=market)
     try:
         payload = await staan_search(query, market)
         logger.debug(
-            "Staan API confirmed market=%s (requested=%s)",
-            (payload.get("query") or {}).get("market"),
-            market,
+            "staan_market_confirmed",
+            market=(payload.get("query") or {}).get("market"),
+            requested_market=market,
         )
 
         formatted_results = format_staan(payload)
@@ -212,7 +213,7 @@ async def web_search_staan(ctx: RunContext, query: str) -> ToolReturn:
     except ModelCannotRetry, ModelRetry:
         raise
     except Exception as exc:
-        logger.exception("Unexpected error in web_search_staan: %s", exc)
+        logger.exception("web_search_unexpected_error", mode="staan")
         raise ModelCannotRetry(
             f"An unexpected error occurred during web search: {type(exc).__name__}. "
             "You must explain this to the user and not try to answer based on your knowledge."

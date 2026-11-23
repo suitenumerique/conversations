@@ -3,7 +3,6 @@ Declare and configure the models for the conversations core application
 """
 
 import uuid
-from logging import getLogger
 
 from django.conf import settings
 from django.contrib.auth import models as auth_models
@@ -13,10 +12,11 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+import structlog
 from solo.models import SingletonModel
 from timezone_field import TimeZoneField
 
-logger = getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 class DuplicateEmailError(Exception):
@@ -78,11 +78,14 @@ class UserManager(auth_models.UserManager):
                 return None
 
             if settings.OIDC_FALLBACK_TO_EMAIL_FOR_IDENTIFICATION:
-                try:
-                    return self.get(email__iexact=email)
-                except self.model.DoesNotExist:
-                    pass
-            elif (
+                # Active users first, an inactive one is returned so the login is refused
+                users = self.filter(email__iexact=email).order_by("-is_active")[:2]
+                if len(users) == 2 and users[1].is_active:
+                    raise DuplicateEmailError(
+                        _("Several active users are associated with this email.")
+                    ) from err
+                return users[0] if users else None
+            if (
                 self.filter(email__iexact=email).exists()
                 and not settings.OIDC_ALLOW_DUPLICATE_EMAILS
             ):
@@ -348,10 +351,7 @@ class MaintenanceMode(SingletonModel):
             previous = None
         super().save(*args, **kwargs)
         if previous is not None and previous != self.enabled:
-            logger.warning(
-                "maintenance mode %s (singleton)",
-                "ENABLED" if self.enabled else "DISABLED",
-            )
+            logger.warning("maintenance_mode_toggled", enabled=self.enabled)
 
     class Meta:
         verbose_name = _("Maintenance Mode")

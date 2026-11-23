@@ -42,13 +42,10 @@ class StreamingState:
             since the tool call was already streamed incrementally.
         ui_sources: Accumulates source citations from tool results (e.g., URLs
             from web search or RAG). These are appended to the final UI message.
-        model_response_message_id: Set when the agent reaches the end node.
-            Used to link the UI message to the Langfuse trace for scoring.
     """
 
     tool_is_streaming: bool = False
     ui_sources: List[SourceUrlUIPart] = dataclasses.field(default_factory=list)
-    model_response_message_id: Optional[str] = None
 
 
 @dataclasses.dataclass

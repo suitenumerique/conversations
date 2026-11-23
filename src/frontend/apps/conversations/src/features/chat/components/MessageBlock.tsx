@@ -17,36 +17,44 @@ const REMARK_PLUGINS: any[] = [remarkGfm, remarkMath];
 
 import { getHighlighter } from '../utils/shiki';
 
-const highlighterPromise = getHighlighter();
+// Browsers with WebAssembly disabled (locked-down workstations) cannot load the
+// highlighter: render code blocks unhighlighted rather than failing the message.
+const highlighterPromise = getHighlighter().catch(() => null);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rehypePluginsDarkPromise: Promise<any[]> = highlighterPromise.then(
-  (highlighter) => [
-    rehypeKatex,
-    [
-      rehypeShikiFromHighlighter,
-      highlighter,
-      {
-        theme: 'ayu-dark',
-        fallbackLanguage: 'plaintext',
-      },
-    ],
-  ],
+  (highlighter) =>
+    highlighter
+      ? [
+          rehypeKatex,
+          [
+            rehypeShikiFromHighlighter,
+            highlighter,
+            {
+              theme: 'ayu-dark',
+              fallbackLanguage: 'plaintext',
+            },
+          ],
+        ]
+      : [rehypeKatex],
 );
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rehypePluginsLightPromise: Promise<any[]> = highlighterPromise.then(
-  (highlighter) => [
-    rehypeKatex,
-    [
-      rehypeShikiFromHighlighter,
-      highlighter,
-      {
-        theme: 'ayu-light',
-        fallbackLanguage: 'plaintext',
-      },
-    ],
-  ],
+  (highlighter) =>
+    highlighter
+      ? [
+          rehypeKatex,
+          [
+            rehypeShikiFromHighlighter,
+            highlighter,
+            {
+              theme: 'ayu-light',
+              fallbackLanguage: 'plaintext',
+            },
+          ],
+        ]
+      : [rehypeKatex],
 );
 
 // Memoized markdown components - created once at module level

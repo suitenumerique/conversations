@@ -458,7 +458,9 @@ def test_project_attachment_delete_succeeds_when_backend_fails(api_client, alber
 
     assert response.status_code == 204
     assert not models.ChatConversationAttachment.objects.filter(pk=attachment.pk).exists()
-    assert any("Failed to delete RAG document 123" in record.message for record in caplog.records)
+    [record] = [r for r in caplog.records if r.name == "chat.views.attachments"]
+    assert record.msg["event"] == "rag_document_delete_failed"
+    assert record.msg["rag_document_id"] == "123"
 
 
 @respx.mock
