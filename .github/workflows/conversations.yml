@@ -86,6 +86,30 @@ jobs:
             exit 1
           fi
 
+  lint-conflict-markers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Check for leftover merge conflict markers
+        # The last alternative matches a ">>>>>>>" marker that a markdown
+        # formatter rewrote as a nested blockquote ("> > > > > > >").
+        # The "=======" separator is not checked: it is also a valid markdown
+        # heading underline, and a real conflict always has the other markers.
+        # git grep exits 1 when nothing matches; any status above 1 is an error.
+        run: |
+          status=0
+          git grep -nE '^(<{7}|\|{7}|>{7}|(> ){6}>)( |$)' || status=$?
+          if [ "$status" -eq 0 ]; then
+            echo "ERROR: leftover merge conflict markers found."
+            exit 1
+          elif [ "$status" -ne 1 ]; then
+            echo "ERROR: git grep failed with status $status."
+            exit "$status"
+          fi
+
   lint-spell-mistakes:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
