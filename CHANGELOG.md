@@ -142,6 +142,7 @@ and this project adheres to
 - ✨(back) add the data.gouv connector for a beta cohort
 - ✨(back) add Staan web search tool
 - ✨(front) let users activate or force the DataGouv connector
+- 🔧(evals) add run_evals management command
 
 ### Changed
 
@@ -629,17 +630,10 @@ and this project adheres to
 - ✨(langfuse) allow user to score messages from LLM #6
 - ✨(onboarding) add activation code logic for launch #62
 - 💄(chat) add code highlighting for LLM responses #67
-- 🔧(evals) add run_evals management command
 
 [unreleased]: https://github.com/suitenumerique/conversations/compare/v0.0.29...main
 
-<<<<<<< HEAD
 [0.0.29]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
-||||||| parent of 02cfca86 (📝(project) add publiccode.yml)
-[0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
-=======
-[0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.28...v0.0.29
-> > > > > > > 02cfca86 (📝(project) add publiccode.yml)
 
 [0.0.28]: https://github.com/suitenumerique/conversations/compare/v0.0.27...v0.0.28
 
