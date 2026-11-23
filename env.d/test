@@ -38,6 +38,9 @@ OIDC_OP_LOGOUT_ENDPOINT=http://oidc.test/logout
 AI_BASE_URL=https://www.external-ai-service.com/
 AI_API_KEY=test-api-key
 AI_MODEL=test-model
+# Tests run against the upstream single-provider configuration (default-model on
+# AI_*), not the ANCT default.json (mistral + scaleway providers).
+LLM_CONFIGURATION_FILE_PATH=/app/conversations/configuration/llm/default.test.json
 
 # External RAG / search providers (Base defaults are None)
 ALBERT_API_KEY=test-key
