@@ -216,3 +216,4 @@ The requirement levels follow [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119)
     ```
 
     The same event must never contain `Authorization: Bearer eyJ…`.
+
