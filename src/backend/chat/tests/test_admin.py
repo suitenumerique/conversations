@@ -40,7 +40,13 @@ def test_conversation_admin_changelist_ranks_by_stored_size():
     light = ChatConversationFactory(pydantic_messages=[{"content": "hi"}])
     heavy = ChatConversationFactory(pydantic_messages=HEAVY_HISTORY)
 
-    queryset = ChatConversationAdmin(ChatConversation, AdminSite()).get_queryset(request=None)
+    # Scoped to these two rows: the changelist queryset spans the whole table, which
+    # may hold conversations left behind by other tests.
+    queryset = (
+        ChatConversationAdmin(ChatConversation, AdminSite())
+        .get_queryset(request=None)
+        .filter(pk__in=[light.pk, heavy.pk])
+    )
     sizes = {conversation.pk: conversation.stored_size for conversation in queryset}
 
     assert sizes[heavy.pk] > sizes[light.pk] > 0
