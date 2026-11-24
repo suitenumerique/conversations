@@ -15,6 +15,7 @@ from pydantic_ai.messages import BinaryContent
 from chat import models as chat_models
 from chat.ai_sdk_types import TextUIPart, UIMessage
 from chat.clients.pydantic_ai import AIAgentService
+from chat.constants import REINDEX_CLAIM_TTL_SECONDS
 from chat.enums import CollectionIndexState
 from chat.factories import ChatConversationFactory
 from chat.vercel_ai_sdk.core import events_v4
@@ -50,6 +51,7 @@ async def test_busy_error_emitted_when_indexing():
     """index_state=INDEXING (fresh claim held by another request) → busy error emitted."""
     conversation = await sync_to_async(ChatConversationFactory)(
         index_state=CollectionIndexState.INDEXING,
+        index_claimed_at=timezone.now(),
         collection_id="col-being-rebuilt",
     )
     service = AIAgentService(conversation, user=conversation.owner)
@@ -95,11 +97,11 @@ async def test_no_busy_error_when_indexing_claim_timed_out():
         index_state=CollectionIndexState.INDEXING,
         collection_id="col-stale",
     )
-    # Simulate a timed-out claim (updated_at older than REINDEX_CLAIM_TIMEOUT_SECONDS)
+    # Simulate a timed-out claim (index_claimed_at older than REINDEX_CLAIM_TTL_SECONDS)
     await chat_models.ChatConversation.objects.filter(pk=conversation.pk).aupdate(
-        updated_at=timezone.now() - timedelta(seconds=601)
+        index_claimed_at=timezone.now() - timedelta(seconds=REINDEX_CLAIM_TTL_SECONDS + 1)
     )
-    await conversation.arefresh_from_db(fields=["updated_at"])
+    await conversation.arefresh_from_db(fields=["index_claimed_at"])
     service = AIAgentService(conversation, user=conversation.owner)
 
     events = await _run(service)

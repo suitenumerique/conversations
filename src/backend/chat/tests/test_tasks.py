@@ -28,6 +28,7 @@ from chat.tasks import (
     index_conversation_document_task,
     index_project_attachment_task,
     parse_and_store_conversation_document_task,
+    reindex_conversation_task,
     summarize_conversation_history,
 )
 
@@ -305,3 +306,14 @@ def test_retryable_errors_exclude_deterministic_failures():
 def test_task_ignores_deleted_conversation():
     """Task exits silently for a non-existent conversation PK."""
     summarize_conversation_history("00000000-0000-0000-0000-000000000000")
+
+
+def test_reindex_conversation_task_delegates():
+    """The task runs the re-index core and returns its result for the waiting turn."""
+    with patch(
+        "chat.tasks.rebuild_conversation_collection", return_value={"state": "done"}
+    ) as rebuild:
+        result = reindex_conversation_task.delay("conv-id", ["att-1"]).get()
+
+    assert result == {"state": "done"}
+    rebuild.assert_called_once_with("conv-id", ["att-1"])

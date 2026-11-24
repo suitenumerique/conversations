@@ -19,8 +19,8 @@ Django app  --.delay()-->  Redis (broker, db 0)  -->  Celery worker  -->  runs t
   comes from `CELERY_BEAT_SCHEDULE`, built from env settings. See
   [Periodic tasks](#periodic-tasks).
 - **Result backend** — Redis db 0 (`CELERY_RESULT_BACKEND`). Results expire
-  after `CELERY_RESULT_EXPIRES` seconds. Only the conversation document-parse
-  task reads it. The summarization and debug tasks still write a result; the
+  after `CELERY_RESULT_EXPIRES` seconds. The conversation document-parse,
+  tabular query and conversation re-index tasks read it. The summarization and debug tasks still write a result; the
   index and periodic tasks set `ignore_result=True`. See
   [Tasks and results](#tasks-and-results).
 
@@ -98,8 +98,10 @@ and `on_failure` callbacks all work without a result backend.
 
 A result backend exists (`CELERY_RESULT_BACKEND`), but a task returns a value
 only when a caller awaits it with `AsyncResult.get()`. The conversation
-document-parse task is the only one that does this: the chat turn blocks on
-its result to get the parsed content back. The summarization and debug tasks
+document-parse, tabular query and conversation re-index tasks do this: the chat
+turn blocks on their result. `reindex_conversation_task` sets its own time
+limits, `REINDEX_TASK_SOFT_TIME_LIMIT` (480 s) and `REINDEX_TASK_TIME_LIMIT`
+(540 s), in `chat/constants.py`; the turn waits 10 s past the hard limit. The summarization and debug tasks
 are fire-and-forget but still write a result that expires unread. The index
 and periodic tasks set `ignore_result=True`, so they never write a
 `celery-task-meta-*` result. Those tasks track their outcome where the rest of

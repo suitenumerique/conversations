@@ -175,6 +175,13 @@ class ChatConversation(BaseModel):
         help_text="Current indexing state of this conversation's RAG collection",
     )
 
+    index_claimed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When a turn took the re-index claim; read only while index_state is "
+        "INDEXING, claims expire after REINDEX_CLAIM_TTL_SECONDS (dead-task liveness bound)",
+    )
+
     project = models.ForeignKey(
         ChatProject,
         related_name="conversations",

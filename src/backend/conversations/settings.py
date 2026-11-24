@@ -792,12 +792,6 @@ class Base(
         environ_name="RAG_COLLECTION_INACTIVITY_DAYS",
         environ_prefix=None,
     )
-    # 10 min: reindex iterates over attachments (storage read + HTTP per doc); 120 s is too tight.
-    REINDEX_CLAIM_TIMEOUT_SECONDS = values.PositiveIntegerValue(
-        default=600,
-        environ_name="REINDEX_CLAIM_TIMEOUT_SECONDS",
-        environ_prefix=None,
-    )
     DEINDEX_MAX_PER_RUN = values.PositiveIntegerValue(
         default=100,
         environ_name="DEINDEX_MAX_PER_RUN",

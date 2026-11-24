@@ -19,6 +19,7 @@ and this project adheres to
 
 - 🔨(project) bump backend, publiccode and changelog on release
 - 📝(doc) redraw the architecture diagram
+- ⚡️(back) re-index conversations in a Celery task, drop REINDEX_CLAIM_TIMEOUT_SECONDS
 
 ### Fixed
 
