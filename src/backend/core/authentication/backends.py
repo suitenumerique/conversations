@@ -3,7 +3,8 @@
 import re
 
 from django.conf import settings
-from django.core.exceptions import SuspiciousOperation
+from django.core.exceptions import SuspiciousOperation, ValidationError
+from django.core.validators import validate_email
 
 import structlog
 from lasuite.oidc_login.backends import (
@@ -34,11 +35,15 @@ def is_email_domain_allowed(email, allowed_domains):
     ``example.org`` itself. Matching ignores ASCII case.
     """
     normalized_email = normalize_email(email)
-    if not normalized_email or "@" not in normalized_email:
+    if not normalized_email:
+        return False
+    # Reject malformed addresses (several "@", empty local part, invalid domain)
+    # before reading the domain, so "x@y@allowed.org" cannot pass as allowed.
+    try:
+        validate_email(normalized_email)
+    except ValidationError:
         return False
     domain = normalized_email.rsplit("@", 1)[1]
-    if not domain:
-        return False
 
     for raw_entry in allowed_domains:
         entry = normalize_email(raw_entry)
