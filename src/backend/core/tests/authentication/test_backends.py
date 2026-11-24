@@ -1110,3 +1110,103 @@ def test_existing_user_siret_is_refreshed_on_signin(monkeypatch):
     user = klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
 
     assert user.organization_siret == "22222222222222"
+
+
+@pytest.mark.parametrize(
+    "email",
+    [
+        "agent@anct.gouv.fr",
+        "agent@interieur.gouv.fr",
+        "agent@sub.domain.gouv.fr",
+        "Agent@ANCT.Gouv.FR",
+    ],
+)
+@override_settings(OIDC_ALLOWED_EMAIL_DOMAINS=["*.gouv.fr"])
+def test_verify_claims_wildcard_email_domain_allowed(email):
+    """A wildcard entry allows any subdomain, ignoring ASCII case."""
+    klass = OIDCAuthenticationBackend()
+
+    assert klass.verify_claims({"sub": "123", "email": email}) is True
+
+
+@pytest.mark.parametrize(
+    "email",
+    [
+        "agent@gouv.fr",
+        "agent@example.com",
+        "agent@notgouv.fr",
+        "agent@anct.gouv.fr.example.com",
+        "agent@anct.gouv.fr@example.com",
+        "agent@anct.gouv.fr.",
+        "agent@",
+        "not-an-email",
+        "",
+        None,
+    ],
+)
+@override_settings(OIDC_ALLOWED_EMAIL_DOMAINS=["*.gouv.fr"])
+def test_verify_claims_wildcard_email_domain_denied(email):
+    """Domains outside the wildcard, look-alike suffixes and malformed emails are denied."""
+    klass = OIDCAuthenticationBackend()
+
+    claims = {"sub": "123"}
+    if email is not None:
+        claims["email"] = email
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims(claims)
+
+
+@override_settings(OIDC_ALLOWED_EMAIL_DOMAINS=["anct.gouv.fr"])
+def test_verify_claims_exact_email_domain():
+    """An entry without wildcard matches that exact domain only."""
+    klass = OIDCAuthenticationBackend()
+
+    assert klass.verify_claims({"sub": "123", "email": "agent@anct.gouv.fr"}) is True
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims({"sub": "123", "email": "agent@sub.anct.gouv.fr"})
+
+
+@override_settings(OIDC_ALLOWED_EMAIL_DOMAINS=["*.gouv.fr"])
+def test_verify_claims_bypass_allows_email_outside_domains():
+    """An email outside the allowed domains is allowed when on the bypass list."""
+    AccessBypassEmailFactory(email="prestataire@example.com")
+    klass = OIDCAuthenticationBackend()
+
+    assert klass.verify_claims({"sub": "123", "email": "prestataire@example.com"}) is True
+
+
+@override_settings(
+    OIDC_ALLOWED_ROLES=["agent_public_etat"], OIDC_ALLOWED_EMAIL_DOMAINS=["*.gouv.fr"]
+)
+def test_verify_claims_roles_and_domains_both_required():
+    """With both gates configured, the user must satisfy both."""
+    klass = OIDCAuthenticationBackend()
+
+    assert (
+        klass.verify_claims(
+            {"sub": "123", "email": "agent@anct.gouv.fr", "roles": ["agent_public_etat"]}
+        )
+        is True
+    )
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims({"sub": "123", "email": "agent@anct.gouv.fr", "roles": ["other"]})
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.verify_claims(
+            {"sub": "123", "email": "agent@example.com", "roles": ["agent_public_etat"]}
+        )
+
+
+@override_settings(OIDC_ALLOWED_EMAIL_DOMAINS=["*.gouv.fr"])
+def test_new_user_outside_allowed_domains_is_not_created(monkeypatch):
+    """A user outside the allowed domains is denied before any account is created."""
+    klass = OIDCAuthenticationBackend()
+
+    def get_userinfo_mocked(*args):
+        return {"sub": "123", "email": "someone@example.com"}
+
+    monkeypatch.setattr(OIDCAuthenticationBackend, "get_userinfo", get_userinfo_mocked)
+
+    with pytest.raises(OIDCRoleAccessDenied):
+        klass.get_or_create_user(access_token="test-token", id_token=None, payload=None)
+
+    assert not models.User.objects.filter(email="someone@example.com").exists()
