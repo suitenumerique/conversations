@@ -2,7 +2,7 @@
 import { CunninghamProvider } from '@gouvfr-lasuite/cunningham-react';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Suspense } from 'react';
+import { ComponentProps, Suspense } from 'react';
 
 import { ToastProvider } from '@/components/ToastProvider';
 import { stampImagesSkippedOnLatestUserMessage } from '@/features/chat/api/useChat';
@@ -740,6 +740,153 @@ describe('MessageItem', () => {
       expect(
         screen.getByTestId('assistant-message-content'),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe('thinking loader', () => {
+    const FINISHED_SEARCH = {
+      type: 'tool-web_search' as const,
+      toolCallId: 'call-1',
+      state: 'output-available' as const,
+      input: {},
+      output: {},
+    };
+
+    const renderStreaming = async (
+      parts: unknown[],
+      overrides: Partial<ComponentProps<typeof MessageItem>> = {},
+    ) => {
+      await act(async () => {
+        renderWithProviders(
+          <MessageItem
+            {...defaultProps}
+            message={{
+              ...defaultProps.message,
+              parts: parts as typeof defaultProps.message.parts,
+            }}
+            status="streaming"
+            isLastAssistantMessage={true}
+            {...overrides}
+          />,
+        );
+      });
+    };
+
+    it.each([
+      ['no part yet', [{ type: 'step-start' }]],
+      ['an empty text part', [{ type: 'text', text: '' }]],
+      ['reasoning only', [{ type: 'reasoning', text: 'Let me think' }]],
+      ['a finished tool, no text yet', [FINISHED_SEARCH]],
+      [
+        'text, then a finished tool',
+        [
+          { type: 'text', text: 'Let me search.' },
+          FINISHED_SEARCH,
+          { type: 'step-start' },
+        ],
+      ],
+    ])('shows while streaming %s', async (_label, parts) => {
+      await renderStreaming(parts);
+
+      expect(screen.getByText('Thinking...')).toBeInTheDocument();
+    });
+
+    it('hides once text is the latest content', async () => {
+      await renderStreaming([
+        FINISHED_SEARCH,
+        { type: 'text', text: 'Here is the answer' },
+        { type: 'source-url', sourceId: 's1', url: 'https://example.org' },
+      ]);
+
+      expect(screen.queryByText('Thinking...')).not.toBeInTheDocument();
+    });
+
+    it('leaves a running tool to its own loader', async () => {
+      await renderStreaming([
+        { ...FINISHED_SEARCH, state: 'input-available', output: undefined },
+      ]);
+
+      expect(screen.queryByText('Thinking...')).not.toBeInTheDocument();
+    });
+
+    it('leaves the submitted phase to the conversation loader', async () => {
+      await renderStreaming([], { status: 'submitted' });
+
+      expect(screen.queryByText('Thinking...')).not.toBeInTheDocument();
+    });
+
+    it('does not show on an earlier answer', async () => {
+      await renderStreaming([FINISHED_SEARCH], {
+        isLastAssistantMessage: false,
+      });
+
+      expect(screen.queryByText('Thinking...')).not.toBeInTheDocument();
+    });
+
+    describe('when the text stops growing', () => {
+      const streamingText = (
+        text: string,
+        status: 'streaming' | 'ready' = 'streaming',
+      ) =>
+        withProviders(
+          <MessageItem
+            {...defaultProps}
+            message={{
+              ...defaultProps.message,
+              parts: [{ type: 'text' as const, text }],
+            }}
+            status={status}
+            isLastAssistantMessage={true}
+          />,
+        );
+
+      beforeEach(() => {
+        vi.useFakeTimers();
+      });
+
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it('shows once the text has not changed for a while', () => {
+        render(streamingText('The answer so far'));
+
+        act(() => {
+          vi.advanceTimersByTime(2999);
+        });
+        expect(screen.queryByText('Thinking...')).not.toBeInTheDocument();
+
+        act(() => {
+          vi.advanceTimersByTime(1);
+        });
+        expect(screen.getByText('Thinking...')).toBeInTheDocument();
+      });
+
+      it('hides as soon as a new token arrives, and waits again', () => {
+        const { rerender } = render(streamingText('The answer so far'));
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+        expect(screen.getByText('Thinking...')).toBeInTheDocument();
+
+        rerender(streamingText('The answer so far, and more'));
+        expect(screen.queryByText('Thinking...')).not.toBeInTheDocument();
+
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+        expect(screen.getByText('Thinking...')).toBeInTheDocument();
+      });
+
+      it('does not show once the answer is complete', () => {
+        const { rerender } = render(streamingText('The full answer'));
+        rerender(streamingText('The full answer', 'ready'));
+
+        act(() => {
+          vi.advanceTimersByTime(3000);
+        });
+        expect(screen.queryByText('Thinking...')).not.toBeInTheDocument();
+      });
     });
   });
 

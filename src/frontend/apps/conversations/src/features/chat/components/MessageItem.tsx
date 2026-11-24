@@ -47,6 +47,10 @@ const chatActionIconProps = {
 
 type TruncationMetadata = { truncated?: boolean };
 
+// How long streaming text may stay unchanged before the answer says it is
+// still working.
+const TEXT_STALL_MS = 3000;
+
 const isMessageTruncated = (message: UIMessage): boolean =>
   (message.metadata as TruncationMetadata | undefined)?.truncated === true;
 
@@ -379,15 +383,57 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
     [],
   );
 
-  // Once the summary lands, the turn keeps streaming with an empty bubble until
-  // the model emits its first answer token. Without this the progress bar just
-  // vanishes and nothing replaces it, which reads as a stall.
-  const showPostSummarizationLoader =
+  // v5 flips the status to 'streaming' on the first chunk that touches the
+  // message, which is often not visible text: reasoning (never rendered), a
+  // tool that has finished while the model reads its output, or an empty text
+  // part. The conversation-level "Thinking..." is gone by then, so the turn
+  // must say it is still working until text is the latest thing on screen.
+  // The same holds once the summary lands: the progress bar vanishes and
+  // nothing else replaces it.
+  const isWaitingForText = React.useMemo(() => {
+    const lastContentPart = [...message.parts]
+      .reverse()
+      .find(
+        (part) =>
+          part.type === 'text' ||
+          part.type === 'reasoning' ||
+          isToolUIPart(part),
+      );
+    return !(lastContentPart?.type === 'text' && lastContentPart.text.trim());
+  }, [message.parts]);
+
+  // A running tool shows its own loader, and so does the summary bar until it
+  // hides itself.
+  const hasToolLoader = toolInvocationParts.some(
+    (part) => part.state !== 'output-available',
+  );
+  const isSummarizationBarVisible =
+    !!conversationSummarizeInvocation && !isSummarizationBarHidden;
+
+  // Streaming text is its own progress signal, until it stops growing: a
+  // provider slowdown mid-answer otherwise reads as a frozen, finished reply.
+  // Holds the text the timer last fired on, so any new token clears it.
+  const [stalledText, setStalledText] = React.useState<string | null>(null);
+  const isStreamingText =
+    isCurrentlyStreaming && status === 'streaming' && !isWaitingForText;
+  React.useEffect(() => {
+    if (!isStreamingText) {
+      return;
+    }
+    const timeout = window.setTimeout(
+      () => setStalledText(textContent),
+      TEXT_STALL_MS,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [isStreamingText, textContent]);
+  const isTextStalled = isStreamingText && stalledText === textContent;
+
+  const showThinkingLoader =
     isCurrentlyStreaming &&
     status === 'streaming' &&
-    isSummarizationBarHidden &&
-    !textContent &&
-    !activeToolInvocation;
+    (isWaitingForText || isTextStalled) &&
+    !hasToolLoader &&
+    !isSummarizationBarVisible;
 
   // Memoize the streaming content split to avoid recreating components in JSX
   const { completedBlocks, pending } = React.useMemo(() => {
@@ -552,7 +598,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   />
                 </Box>
               )}
-            {showPostSummarizationLoader && (
+            {showThinkingLoader && (
               <Box
                 $direction="row"
                 $align="center"
