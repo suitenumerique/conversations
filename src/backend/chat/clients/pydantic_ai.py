@@ -295,6 +295,8 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         self._turn_started_at = 0.0
         # Per-turn chunk state, replaced by _clean at the start of every stream.
         self._trail = TurnTrail(conversation, log=self._turn_log)
+        # Docs documents read before the run: sources no tool result reports.
+        self._docs_link_sources: List[SourceUrlUIPart] = []
 
         self._langfuse_available = settings.LANGFUSE_ENABLED
         self._store_analytics = self._langfuse_available and user.allow_conversation_analytics
@@ -640,6 +642,7 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
         """
         self._last_stop_check = 0
         self._last_finish_reason = None
+        self._docs_link_sources = []
         self._meter = TokenMeter(self.user.pk, self.conversation_agent.configuration)
         self._turn_started_at = time.monotonic()
         # A new run id scopes this turn's chunks, so a turn running at the same
@@ -1473,6 +1476,14 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
             yield DocumentParsingResult(success=False, has_documents=conversation_has_own_documents)
             return
         await delete_replaced_snapshots(self.conversation, snapshots)
+        for snapshot in snapshots:
+            source = SourceUrlUIPart(
+                type="source-url",
+                sourceId=str(uuid.uuid4()),
+                url=docs_document_url(snapshot.docs_document_id),
+            )
+            self._docs_link_sources.append(source)
+            yield events_v4.SourcePart(id=source.sourceId, url=source.url)
         yield events_v4.ToolResultPart(tool_call_id=_tool_call_id, result={"state": "done"})
         yield DocumentParsingResult(success=True, has_documents=True)
 
@@ -1817,7 +1828,11 @@ class AIAgentService:  # pylint: disable=too-many-instance-attributes
                 usage = AgentUsage.from_run(run.usage)
 
         async for event in self._finalize_conversation(
-            new_messages, run_output, usage, mapper.state.ui_sources, image_actions
+            new_messages,
+            run_output,
+            usage,
+            self._docs_link_sources + mapper.state.ui_sources,
+            image_actions,
         ):
             yield event
 

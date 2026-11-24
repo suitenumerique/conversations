@@ -1,6 +1,7 @@
 """Conversation endpoint tests for reading pasted La Suite Docs links."""
 
 import asyncio
+import json
 import uuid
 from io import BytesIO
 from unittest import mock
@@ -337,7 +338,7 @@ def test_docs_links_mixed_success_and_failure(
     model_instructions,
     json_logs,
 ):
-    """A readable link is used even when another link of the same message fails."""
+    """A readable link is used, and cited, even when another link of the same message fails."""
     respx.get(_formatted_content_url(DOCUMENT_ID)).mock(return_value=_docs_response())
     respx.get(_formatted_content_url(OTHER_DOCUMENT_ID)).mock(
         return_value=httpx.Response(status.HTTP_404_NOT_FOUND)
@@ -353,6 +354,20 @@ def test_docs_links_mixed_success_and_failure(
     assert '"output":{"state":"done"}' in content
     attachment = ChatConversationAttachment.objects.get(conversation=conversation)
     assert attachment.docs_document_id == DOCUMENT_ID
+    # Only the document that was read is a source, streamed and stored.
+    read_url = f"{DOCS_BASE_URL}docs/{DOCUMENT_ID}/"
+    streamed_sources = [
+        frame["url"]
+        for line in content.splitlines()
+        if line.startswith("data: {")
+        and (frame := json.loads(line.removeprefix("data: ")))["type"] == "source-url"
+    ]
+    assert streamed_sources == [read_url]
+    conversation.refresh_from_db()
+    stored_sources = [
+        part.url for part in conversation.messages[-1].parts if part.type == "source-url"
+    ]
+    assert stored_sources == [read_url]
     assert "The budget is 42 euros." in model_instructions[0]
     assert (
         f"{DOCS_BASE_URL}docs/{OTHER_DOCUMENT_ID}/ could not be read: "
