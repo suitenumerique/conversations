@@ -53,6 +53,13 @@ class OIDCSettings:
     # Name of the userinfo claim holding the roles checked against
     # OIDC_ALLOWED_ROLES (e.g. "proconnect:roles" with Mon compte).
     OIDC_ROLES_CLAIM = values.Value("roles", environ_name="OIDC_ROLES_CLAIM", environ_prefix=None)
+    # Restrict login and account creation to users whose email domain matches
+    # one of these entries: "example.org" matches that exact domain,
+    # "*.example.org" matches any of its subdomains. Empty (default) disables
+    # the restriction. Combined with OIDC_ALLOWED_ROLES, both must be satisfied.
+    OIDC_ALLOWED_EMAIL_DOMAINS = values.ListValue(
+        [], environ_name="OIDC_ALLOWED_EMAIL_DOMAINS", environ_prefix=None
+    )
     LOGIN_REDIRECT_URL = values.Value(None, environ_name="LOGIN_REDIRECT_URL", environ_prefix=None)
     LOGIN_REDIRECT_URL_FAILURE = values.Value(
         None, environ_name="LOGIN_REDIRECT_URL_FAILURE", environ_prefix=None

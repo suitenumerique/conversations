@@ -136,6 +136,7 @@ These are the environment variables you can set for the `conversations-backend` 
 | FEATURE_FLAG_DOCS_LINK_FETCHING                 | Read the Docs documents whose links users paste (`DISABLED`, `DYNAMIC` or `ENABLED`). Requires `DOCS_BASE_URL` and `FEATURE_FLAG_DOCUMENT_UPLOAD`, and the `formatted_content` action allowed in Docs' `EXTERNAL_API`. See [Interoperability](interoperabilities.md#read-a-docs-link). | DISABLED |
 | OIDC_ALLOWED_ROLES                              | Comma-separated roles; restrict login to users whose OIDC roles claim (see `OIDC_ROLES_CLAIM`) contains one of them. Empty disables. See "Access control modes" below. | [] (empty, disabled)                                    |
 | OIDC_ROLES_CLAIM                                | Name of the userinfo claim holding the roles checked against `OIDC_ALLOWED_ROLES` (e.g. `proconnect:roles` with Mon compte)      | roles                                                   |
+| OIDC_ALLOWED_EMAIL_DOMAINS                      | Comma-separated email domains; restrict login to users whose email domain matches one of them (`example.org` exact, `*.example.org` any subdomain). Empty disables. See "Access control modes" below. | [] (empty, disabled) |
 | API_ATTACHMENT_UPLOAD_THROTTLE_RATE             | Rate limit on the attachment upload endpoint, per user                                                                            | 60/minute                                               |
 | API_ATTACHMENT_AUTH_THROTTLE_RATE               | Rate limit on the attachment authorization endpoint, per user                                                                     | 60/minute                                               |
 | API_FILE_STREAM_THROTTLE_RATE                   | Rate limit on the file streaming endpoint, per user                                                                               | 60/minute                                               |
@@ -167,15 +168,20 @@ variable when both are set.
 
 ## Access control
 
-Access can be gated on the OIDC role claim:
+Access can be gated on the OIDC role claim and/or the email domain:
 
 - **OIDC role** (`OIDC_ALLOWED_ROLES=<role>`): only users whose OIDC roles claim
   (`roles` by default, set by `OIDC_ROLES_CLAIM`) contains one of the listed roles can sign in; everyone else is redirected to the
   access-denied page. As a fallback, addresses on the access-bypass email allow-list
   (Django admin, *Access bypass emails*) are let in without the role. The role is
   re-checked on every login, so revoking it in the IdP blocks the user immediately.
-- **Open (no gate)**: leave `OIDC_ALLOWED_ROLES` empty (the default); any user the IdP
-  authenticates can sign in.
+- **Email domain** (`OIDC_ALLOWED_EMAIL_DOMAINS=*.gouv.fr`): only users whose `email`
+  claim belongs to one of the listed domains can sign in. `example.org` matches that
+  exact domain, `*.example.org` any of its subdomains (but not `example.org` itself).
+  The access-bypass email allow-list applies here too. When combined with
+  `OIDC_ALLOWED_ROLES`, users must satisfy both.
+- **Open (no gate)**: leave `OIDC_ALLOWED_ROLES` and `OIDC_ALLOWED_EMAIL_DOMAINS` empty
+  (the default); any user the IdP authenticates can sign in.
 
 The activation-code gate that used to be configured here has been removed. The
 `activation_codes` Django admin section survives read-only so past redemptions stay

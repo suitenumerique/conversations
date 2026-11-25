@@ -3,7 +3,8 @@
 import re
 
 from django.conf import settings
-from django.core.exceptions import SuspiciousOperation
+from django.core.exceptions import SuspiciousOperation, ValidationError
+from django.core.validators import validate_email
 
 import structlog
 from lasuite.oidc_login.backends import (
@@ -23,7 +24,37 @@ logger = structlog.get_logger(__name__)
 # A plain exception propagates up to OIDCAuthenticationCallbackView, which turns
 # it into a redirect to the access-denied page.
 class OIDCRoleAccessDenied(Exception):
-    """Raised when an authenticated user lacks a role required to access the app."""
+    """Raised when an authenticated user fails the access policy (role or email domain)."""
+
+
+def is_email_domain_allowed(email, allowed_domains):
+    """Return True if the domain of ``email`` matches one of ``allowed_domains``.
+
+    An entry ``example.org`` matches that exact domain; an entry ``*.example.org``
+    matches any subdomain of it (``a.example.org``, ``a.b.example.org``) but not
+    ``example.org`` itself. Matching ignores ASCII case.
+    """
+    normalized_email = normalize_email(email)
+    if not normalized_email:
+        return False
+    # Reject malformed addresses (several "@", empty local part, invalid domain)
+    # before reading the domain, so "x@y@allowed.org" cannot pass as allowed.
+    try:
+        validate_email(normalized_email)
+    except ValidationError:
+        return False
+    domain = normalized_email.rsplit("@", 1)[1]
+
+    for raw_entry in allowed_domains:
+        entry = normalize_email(raw_entry)
+        if not entry:
+            continue
+        if entry.startswith("*."):
+            if domain.endswith(entry[1:]):
+                return True
+        elif domain == entry:
+            return True
+    return False
 
 
 class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
@@ -54,48 +85,64 @@ class OIDCAuthenticationBackend(LaSuiteOIDCAuthenticationBackend):
         }
 
     def verify_claims(self, claims):
-        """Allow authentication only for users holding a required role.
+        """Allow authentication only for users satisfying the access policy.
 
-        Extends the base essential-claim verification: when
-        ``OIDC_ALLOWED_ROLES`` is configured, the user must expose at least one
-        of those roles in the claim named by ``OIDC_ROLES_CLAIM`` (``roles`` by
-        default; a flat list, the shape used by Keycloak in dev, ProConnect in
-        production and Mon compte under ``proconnect:roles``). This gates both
-        login and account creation, since it runs before either branch in
-        ``get_or_create_user``. An empty ``OIDC_ALLOWED_ROLES`` disables the
-        restriction (default behavior).
+        Extends the base essential-claim verification with two optional gates,
+        each disabled when its setting is empty (default behavior):
 
-        As a fallback, a user who lacks the required role is still allowed in if
-        their email is on the :class:`~core.models.AccessBypassEmail` allow-list
+        - ``OIDC_ALLOWED_ROLES``: the user must expose at least one of those
+          roles in the claim named by ``OIDC_ROLES_CLAIM`` (``roles`` by
+          default; a flat list, the shape used by Keycloak in dev, ProConnect in
+          production and Mon compte under ``proconnect:roles``).
+        - ``OIDC_ALLOWED_EMAIL_DOMAINS``: the domain of the ``email`` claim must
+          match one of those entries (see :func:`is_email_domain_allowed`).
+
+        When both are configured, both must be satisfied. This gates both login
+        and account creation, since it runs before either branch in
+        ``get_or_create_user``.
+
+        As a fallback, a user failing the policy is still allowed in if their
+        email is on the :class:`~core.models.AccessBypassEmail` allow-list
         (active and not expired).
         """
         if not super().verify_claims(claims):
             return False
 
         allowed_roles = settings.OIDC_ALLOWED_ROLES
-        if not allowed_roles:
+        allowed_domains = settings.OIDC_ALLOWED_EMAIL_DOMAINS
+        if not allowed_roles and not allowed_domains:
             return True
 
+        email = claims.get("email")
         user_roles = claims.get(settings.OIDC_ROLES_CLAIM) or []
         if isinstance(user_roles, str):
             user_roles = user_roles.split()
 
-        if set(allowed_roles) & set(user_roles):
+        role_ok = not allowed_roles or bool(set(allowed_roles) & set(user_roles))
+        domain_ok = not allowed_domains or is_email_domain_allowed(email, allowed_domains)
+        if role_ok and domain_ok:
             return True
 
         # Fallback: allow users explicitly added to the access bypass list,
-        # even though they lack the required role.
-        email = claims.get("email")
+        # even though they fail the policy.
         if AccessBypassEmail.is_email_allowed(email):
             return True
 
-        logger.warning(
-            "oidc_access_denied_missing_role",
-            sub=claims.get("sub"),
-            roles=user_roles,
-            allowed_roles=allowed_roles,
-        )
-        raise OIDCRoleAccessDenied("User does not have a role required to access the application.")
+        if not role_ok:
+            logger.warning(
+                "oidc_access_denied_missing_role",
+                sub=claims.get("sub"),
+                roles=user_roles,
+                allowed_roles=allowed_roles,
+            )
+        if not domain_ok:
+            logger.warning(
+                "oidc_access_denied_email_domain",
+                sub=claims.get("sub"),
+                email_domain=(normalize_email(email) or "").rpartition("@")[2],
+                allowed_domains=allowed_domains,
+            )
+        raise OIDCRoleAccessDenied("User does not satisfy the application access policy.")
 
     def get_existing_user(self, sub, email):
         """Fetch existing user by sub or email."""
