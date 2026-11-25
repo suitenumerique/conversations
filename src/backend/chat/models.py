@@ -215,6 +215,14 @@ class ChatConversation(BaseModel):
             ),
             # Global "most recently updated first" listing, used by the admin changelist.
             models.Index(fields=["-updated_at", "-id"]),
+            # De-index job: the oldest conversations that still hold a RAG
+            # collection. Without it, the planner walks the updated_at index
+            # above through every old conversation that has none.
+            models.Index(
+                fields=["updated_at"],
+                condition=models.Q(collection_id__isnull=False),
+                name="chat_conv_collection_upd_idx",
+            ),
         ]
 
     def __str__(self):

@@ -23,6 +23,7 @@ and this project adheres to
 - 🔨(project) bump backend, publiccode and changelog on release
 - 📝(doc) redraw the architecture diagram
 - ⚡️(back) speed up the sidebar conversation list
+- ⚡️(back) speed up the job that de-indexes inactive collections
 
 ### Fixed
 
