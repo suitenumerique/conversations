@@ -4,6 +4,7 @@ import { css } from 'styled-components';
 import { Box, StyledLink } from '@/components';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { useResponsiveStore } from '@/stores';
+import { spacingValue } from '@/utils';
 
 type ConversationRowProps = {
   conversationId: string;
@@ -12,10 +13,17 @@ type ConversationRowProps = {
   actions?: ReactNode;
 };
 
+const ROW_PADDING_X = spacingValue('xs');
+
 const linkStyles = css`
   overflow: auto;
   flex-grow: 1;
   flex-shrink: 1;
+  /* Extend the click area over the row padding without changing its size */
+  align-self: stretch;
+  align-items: center;
+  margin: -4px 0 -4px calc(-1 * ${ROW_PADDING_X});
+  padding: 4px 0 4px ${ROW_PADDING_X};
   color: var(--c--theme--colors--greyscale-900);
 `;
 

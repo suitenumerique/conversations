@@ -143,7 +143,7 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
           $direction="row"
           $align="center"
           $gap="2px"
-          $css="min-width: 0; flex: 1;"
+          $css="min-width: 0; flex: 1; align-self: stretch;"
         >
           <Box
             as="button"
@@ -168,30 +168,21 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
           </Box>
 
           <Box
-            $display="flex"
-            $align="center"
-            $justify="center"
-            $width="18px"
-            $height="18px"
-            style={{ color: iconColor, marginRight: '4px', flexShrink: 0 }}
-          >
-            <IconComponent
-              width={18}
-              height={18}
-              style={{ fill: 'currentColor', display: 'block' }}
-            />
-          </Box>
-          <Box
             as="button"
             type="button"
             onClick={handleNewConversation}
             aria-label={`Start new conversation in ${project.title}`}
+            $direction="row"
+            $align="center"
+            $gap="2px"
             $css={css`
-              ${titleTextStyles}
+              min-width: 0;
+              align-self: stretch;
               border: none;
               background: transparent;
-              padding: 0;
-              margin: 0;
+              /* Extend the click area over the header padding without changing its size */
+              padding: 4px 0;
+              margin: -4px 0;
               width: 100%;
               text-align: left;
               cursor: pointer;
@@ -199,6 +190,20 @@ export const LeftPanelProjectItem = memo(function LeftPanelProjectItem({
               color: inherit;
             `}
           >
+            <Box
+              $display="flex"
+              $align="center"
+              $justify="center"
+              $width="18px"
+              $height="18px"
+              style={{ color: iconColor, marginRight: '4px', flexShrink: 0 }}
+            >
+              <IconComponent
+                width={18}
+                height={18}
+                style={{ fill: 'currentColor', display: 'block' }}
+              />
+            </Box>
             <Text
               $css={css`
                 ${titleTextStyles}
