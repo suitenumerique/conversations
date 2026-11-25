@@ -54,7 +54,7 @@ def test_is_feature_enabled_dynamic_posthog_true(feature_flags, settings):
     posthog.host = settings.POSTHOG_KEY["host"]
 
     responses.post(
-        f"{posthog.host}/flags/?v=2", json={"flags": {"web-search": {"enabled": True}}}, status=200
+        f"{posthog.host}/flags/?v=4", json={"flags": {"web-search": {"enabled": True}}}, status=200
     )
 
     feature_flags.web_search = FeatureToggle.DYNAMIC

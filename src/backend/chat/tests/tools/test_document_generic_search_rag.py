@@ -96,7 +96,7 @@ def test_get_specific_rag_search_tool_config_with_dynamic_features(settings, pos
     user = UserFactory()
 
     responses.post(
-        f"{posthog.host}/flags/?v=2",
+        f"{posthog.host}/flags/?v=4",
         json={"flags": {"legal-documents": {"enabled": True}}},
         status=200,
     )

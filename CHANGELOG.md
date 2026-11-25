@@ -25,6 +25,7 @@ and this project adheres to
 - ⚡️(back) speed up the sidebar conversation list
 - ⚡️(back) speed up the job that de-indexes inactive collections
 - 🚸(front) make the whole sidebar row clickable
+- ⬆️(back) upgrade python dependencies
 
 ### Fixed
 
