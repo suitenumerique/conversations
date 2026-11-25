@@ -4,7 +4,7 @@ import { css } from 'styled-components';
 
 import { Box, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
-import { ChatConversation } from '@/features/chat/types';
+import { ChatConversationListItem } from '@/features/chat/types';
 import { PROJECT_ICONS } from '@/features/left-panel/components/projects/project-constants';
 import { getRelativeTime } from '@/utils';
 
@@ -16,7 +16,7 @@ const descriptionCss = css`
 `;
 
 type QuickSearchResultItemProps = {
-  conversation: ChatConversation;
+  conversation: ChatConversationListItem;
 };
 
 export const QuickSearchResultItem = memo(function QuickSearchResultItem({
@@ -25,7 +25,9 @@ export const QuickSearchResultItem = memo(function QuickSearchResultItem({
   const { t, i18n } = useTranslation();
   const { spacingsTokens, colorsTokens } = useCunninghamTheme();
   const title = conversation.title || t('Untitled conversation');
-  const project = conversation.project;
+  // Only title search results nest the project; the default list sends its id.
+  const project =
+    typeof conversation.project === 'object' ? conversation.project : null;
   const projectTitle = project?.title?.trim();
 
   const updatedAtLabel = useMemo(

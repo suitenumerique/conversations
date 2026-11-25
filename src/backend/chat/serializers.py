@@ -63,8 +63,8 @@ class ChatConversationSerializer(serializers.ModelSerializer):
         model_config = settings.LLM_CONFIGURATIONS.get(obj.model_hrid)
         if not model_config or model_config.supports_image:
             return False
-        # Project side: list/retrieve views pre-compute this via an EXISTS
-        # annotation to avoid an N+1; fall back to a per-row query otherwise.
+        # Project side: the retrieve view pre-computes this via an EXISTS
+        # annotation; fall back to a per-row query otherwise.
         if obj.project_id is not None:
             cached = getattr(obj, "_has_project_image", None)
             has_project_image = (
@@ -387,6 +387,20 @@ class ChatConversationRetrieveSerializer(ChatConversationSerializer):
     def get_is_streaming(self, obj) -> bool:
         """True while a turn keeps appending chunks for this conversation."""
         return stream_chunks.is_live(self._chunks(obj))
+
+
+class ChatConversationListSerializer(serializers.ModelSerializer):
+    """Default list: the fields the sidebar shows, without the message history.
+
+    Leaving `messages` and `images_skipped` out lets the view skip loading the
+    large JSON columns of every listed conversation; a client reads both from
+    the retrieve endpoint when it opens a conversation.
+    """
+
+    class Meta:  # pylint: disable=missing-class-docstring
+        model = models.ChatConversation
+        fields = ["id", "title", "created_at", "updated_at", "project"]
+        read_only_fields = ["id", "title", "created_at", "updated_at", "project"]
 
 
 class ChatConversationSearchSerializer(serializers.ModelSerializer):

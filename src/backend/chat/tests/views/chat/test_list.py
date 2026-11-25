@@ -1,5 +1,8 @@
 """Unit tests for listing chat conversations in the chat API view."""
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+
 import pytest
 from rest_framework import status
 
@@ -221,3 +224,61 @@ def test_list_without_title_filter_does_not_nest_project(api_client):
     # project should be a flat UUID, not a nested dict
     assert not isinstance(result["project"], dict)
     assert str(result["project"]) == str(project.pk)
+
+
+def test_list_leaves_message_history_out(api_client):
+    """The sidebar list returns the listing fields only, not the history."""
+    user = UserFactory()
+    conversation = ChatConversationFactory(owner=user)
+
+    api_client.force_login(user)
+    response = api_client.get("/api/v1.0/chats/?project=none")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["results"] == [
+        {
+            "id": str(conversation.pk),
+            "title": conversation.title,
+            "created_at": conversation.created_at.isoformat().replace("+00:00", "Z"),
+            "updated_at": conversation.updated_at.isoformat().replace("+00:00", "Z"),
+            "project": None,
+        }
+    ]
+
+
+def test_list_does_not_load_heavy_columns(api_client):
+    """Listing reads neither the JSON columns nor the project-image subquery."""
+    user = UserFactory()
+    project = ChatProjectFactory(owner=user)
+    ChatConversationFactory.create_batch(3, owner=user)
+    ChatConversationFactory.create_batch(2, owner=user, project=project)
+
+    api_client.force_login(user)
+    with CaptureQueriesContext(connection) as queries:
+        response = api_client.get("/api/v1.0/chats/?ordering=-updated_at&project=none")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert len(response.json()["results"]) == 3
+    listing = [q["sql"] for q in queries if 'FROM "chat_chatconversation"' in q["sql"]]
+    assert listing
+    for sql in listing:
+        # Same predicate as the partial owner/updated_at index
+        assert '"chat_chatconversation"."project_id" IS NULL' in sql
+        for column in ("ui_messages", "pydantic_messages", '"messages"', "agent_usage"):
+            assert column not in sql
+        assert "chat_chatconversationattachment" not in sql
+
+
+def test_search_list_loads_nested_project_without_extra_queries(api_client):
+    """Title search keeps its nested project while deferring the heavy columns."""
+    user = UserFactory()
+    project = ChatProjectFactory(owner=user, title="Proj")
+    ChatConversationFactory.create_batch(3, owner=user, project=project, title="Match me")
+
+    api_client.force_login(user)
+    with CaptureQueriesContext(connection) as queries:
+        response = api_client.get("/api/v1.0/chats/?title=match")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert [result["project"]["title"] for result in response.json()["results"]] == ["Proj"] * 3
+    assert not any('"chat_chatproject"."id" = ' in q["sql"] for q in queries)

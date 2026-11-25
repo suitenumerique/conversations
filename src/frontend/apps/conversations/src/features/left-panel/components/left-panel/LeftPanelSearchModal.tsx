@@ -14,7 +14,7 @@ import {
   QuickSearchResultItem,
 } from '@/components/quick-search';
 import { useInfiniteConversations } from '@/features/chat/api/useConversations';
-import { ChatConversation } from '@/features/chat/types';
+import { ChatConversationListItem } from '@/features/chat/types';
 
 type LeftPanelSearchModalProps = {
   onClose: () => void;
@@ -82,7 +82,7 @@ export const LeftPanelSearchModal = ({
   }, [isFetching]);
 
   const handleSelect = useCallback(
-    (conversation: ChatConversation) => {
+    (conversation: ChatConversationListItem) => {
       void navigate(`/chat/${conversation.id}`);
       handleClose();
     },
@@ -90,7 +90,7 @@ export const LeftPanelSearchModal = ({
   );
 
   const renderElement = useCallback(
-    (conversation: ChatConversation) => (
+    (conversation: ChatConversationListItem) => (
       <QuickSearchResultItem conversation={conversation} />
     ),
     [],
@@ -116,16 +116,17 @@ export const LeftPanelSearchModal = ({
     [hasNextPage, fetchNextPage],
   );
 
-  const conversationsData: QuickSearchData<ChatConversation> = useMemo(() => {
-    const conversations = data?.pages.flatMap((page) => page.results) || [];
+  const conversationsData: QuickSearchData<ChatConversationListItem> =
+    useMemo(() => {
+      const conversations = data?.pages.flatMap((page) => page.results) || [];
 
-    return {
-      groupName: conversations.length > 0 ? t('Select a chat') : '',
-      elements: searchQuery ? conversations : [],
-      emptyString: t('No conversation found'),
-      endActions: endActionsContent,
-    };
-  }, [data, searchQuery, t, endActionsContent]);
+      return {
+        groupName: conversations.length > 0 ? t('Select a chat') : '',
+        elements: searchQuery ? conversations : [],
+        emptyString: t('No conversation found'),
+        endActions: endActionsContent,
+      };
+    }, [data, searchQuery, t, endActionsContent]);
 
   return (
     <Modal

@@ -4,7 +4,7 @@ import { css } from 'styled-components';
 
 import { Box, Text } from '@/components';
 import { useCunninghamTheme } from '@/cunningham';
-import { ChatConversation } from '@/features/chat/types';
+import { ChatConversationListItem } from '@/features/chat/types';
 import { getRelativeTime } from '@/utils';
 
 const ItemTextCss = css`
@@ -23,7 +23,7 @@ const descriptionCss = css`
 `;
 
 type SimpleConversationItemProps = {
-  conversation: ChatConversation;
+  conversation: ChatConversationListItem;
   showAccesses?: boolean;
   showUpdatedAt?: boolean;
 };

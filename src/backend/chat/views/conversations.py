@@ -12,7 +12,7 @@ from django.utils.module_loading import import_string
 import langfuse
 import sentry_sdk
 import structlog
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import PolymorphicProxySerializer, extend_schema
 from rest_framework import decorators, filters, mixins, permissions, status, viewsets
 from rest_framework.exceptions import MethodNotAllowed, PermissionDenied, ValidationError
 from rest_framework.response import Response
@@ -118,11 +118,20 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
     queryset = models.ChatConversation.objects  # defined to be used in AttachmentMixin
 
     @extend_schema(
-        responses=serializers.ChatConversationSearchSerializer(many=True),
+        responses=PolymorphicProxySerializer(
+            component_name="ChatConversationListItem",
+            serializers=[
+                serializers.ChatConversationListSerializer,
+                serializers.ChatConversationSearchSerializer,
+            ],
+            resource_type_field_name=None,
+            many=True,
+        ),
         description=(
             "When the `title` query parameter is provided, returns search results "
             "with nested project info (id, title, icon) and no messages. "
-            "Without `title`, returns the default conversation list."
+            "Without `title`, returns the default conversation list (bare project id, "
+            "no messages: read them from the retrieve endpoint)."
         ),
     )
     def list(self, request, *args, **kwargs):
@@ -134,6 +143,8 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         # Search results only include nested project info
         if self.action == "list" and self.request.query_params.get("title"):
             return serializers.ChatConversationSearchSerializer
+        if self.action == "list":
+            return serializers.ChatConversationListSerializer
         # A single retrieval nests project (id, title, icon) so the client can
         # read the conversation's project without a second request.
         if self.action == "retrieve":
@@ -155,9 +166,17 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         ):
             qs = qs.select_related("project")
 
-        # Avoid an N+1 on the images_skipped serializer field: pre-compute
-        # the existence check in a single EXISTS subquery for list/retrieve.
-        if self.action in ("list", "retrieve") and not self.request.query_params.get("title"):
+        # Both list serializers only read these columns: skip loading the
+        # large JSON ones (message history, usage) of every listed row.
+        if self.action == "list":
+            fields = ["id", "title", "created_at", "updated_at", "project"]
+            if self.request.query_params.get("title"):
+                fields += ["project__id", "project__title", "project__icon"]
+            qs = qs.only(*fields)
+
+        # Avoid an extra query on the images_skipped serializer field: pre-compute
+        # the existence check in an EXISTS subquery for retrieve.
+        if self.action == "retrieve":
             qs = qs.annotate(
                 _has_project_image=Exists(
                     models.ChatConversationAttachment.objects.filter(

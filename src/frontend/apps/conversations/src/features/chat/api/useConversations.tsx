@@ -6,7 +6,7 @@ import {
   fetchAPI,
   useAPIInfiniteQuery,
 } from '@/api';
-import { ChatConversation } from '@/features/chat/types';
+import { ChatConversationListItem } from '@/features/chat/types';
 
 const _conversationsOrdering = [
   'created_at',
@@ -23,7 +23,7 @@ export type ConversationsParams = {
   title?: string;
 };
 
-export type ConversationsResponse = APIList<ChatConversation>;
+export type ConversationsResponse = APIList<ChatConversationListItem>;
 
 export const getConversations = async (
   params: ConversationsParams,

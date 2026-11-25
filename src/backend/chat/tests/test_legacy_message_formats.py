@@ -146,8 +146,8 @@ def test_retrieve_upconverts_a_conversation_mixing_both_formats(api_client):
 
 
 def test_sidebar_lists_conversations_stored_in_both_formats(api_client):
-    """The sidebar serializes every conversation's history, so one legacy row
-    left unparsed would take the whole list down, not just its own entry."""
+    """The sidebar list leaves message histories out, so a legacy row lists
+    like any other; its history is read when the conversation is opened."""
     owner = UserFactory()
     legacy = ChatConversationFactory(owner=owner)
     store_raw_messages(legacy, [V4_USER_MESSAGE, V4_ASSISTANT_MESSAGE])
@@ -160,27 +160,22 @@ def test_sidebar_lists_conversations_stored_in_both_formats(api_client):
     response = api_client.get("/api/v1.0/chats/?project=none")
 
     assert response.status_code == status.HTTP_200_OK
-    histories = {result["id"]: result["messages"] for result in response.json()["results"]}
-    assert [message["parts"] for message in histories[str(legacy.pk)]] == [
-        UPCONVERTED_V4_USER_PARTS,
-        UPCONVERTED_V4_ASSISTANT_PARTS,
-    ]
-    assert [message["parts"] for message in histories[str(current.pk)]] == [
-        [{"type": "text", "text": "hi"}]
-    ]
+    results = response.json()["results"]
+    assert sorted(result["id"] for result in results) == sorted([str(legacy.pk), str(current.pk)])
+    assert not any("messages" in result for result in results)
 
 
-def test_sidebar_flags_images_skipped_on_a_v4_attachment(api_client, text_only_model):
+def test_retrieve_flags_images_skipped_on_a_v4_attachment(api_client, text_only_model):
     """`images_skipped` reads v5 file parts only: a legacy image has to be
     upconverted for the banner to still show on an old conversation."""
     conversation = ChatConversationFactory(model_hrid=text_only_model)
     store_raw_messages(conversation, [V4_USER_MESSAGE])
 
     api_client.force_login(conversation.owner)
-    response = api_client.get("/api/v1.0/chats/?project=none")
+    response = api_client.get(f"/api/v1.0/chats/{conversation.pk}/")
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.json()["results"][0]["images_skipped"] is True
+    assert response.json()["images_skipped"] is True
 
 
 def test_admin_change_form_loads_a_conversation_mixing_both_formats():

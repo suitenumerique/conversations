@@ -1,12 +1,12 @@
 import { memo } from 'react';
 
-import { ChatConversation } from '@/features/chat/types';
+import { ChatConversationListItem } from '@/features/chat/types';
 import { ConversationItemActions } from '@/features/left-panel/components/ConversationItemActions';
 import { ConversationRow } from '@/features/left-panel/components/ConversationRow';
 import { SimpleConversationItem } from '@/features/left-panel/components/SimpleConversationItem';
 
 type LeftPanelConversationItemProps = {
-  conversation: ChatConversation;
+  conversation: ChatConversationListItem;
   isCurrentConversation: boolean;
   /** Displays the time since the last message (e.g., in the search modal) */
   showUpdatedAt?: boolean;

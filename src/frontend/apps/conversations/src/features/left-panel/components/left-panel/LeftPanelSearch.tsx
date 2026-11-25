@@ -11,7 +11,7 @@ import {
   QuickSearchGroup,
 } from '@/components/quick-search';
 import { useInfiniteConversations } from '@/features/chat/api/useConversations';
-import { ChatConversation } from '@/features/chat/types';
+import { ChatConversationListItem } from '@/features/chat/types';
 import { LeftPanelConversationItem } from '@/features/left-panel/components/left-panel/LeftPanelConversationItem';
 import { useResponsiveStore } from '@/stores';
 import { useConversationRouteId } from '@/utils';
@@ -38,34 +38,35 @@ export const LeftPanelSearch = ({ onSearchChange }: LeftPanelSearchProps) => {
     onSearchChange?.(value.length > 0);
   }, 300);
 
-  const handleSelect = (conversation: ChatConversation) => {
+  const handleSelect = (conversation: ChatConversationListItem) => {
     void navigate(`/chat/${conversation.id}`);
   };
 
-  const conversationsData: QuickSearchData<ChatConversation> = useMemo(() => {
-    const conversations = data?.pages.flatMap((page) => page.results) || [];
+  const conversationsData: QuickSearchData<ChatConversationListItem> =
+    useMemo(() => {
+      const conversations = data?.pages.flatMap((page) => page.results) || [];
 
-    return {
-      groupName: conversations.length > 0 ? t('Search results') : '',
-      elements: search ? conversations : [],
-      emptyString: t('No conversation found'),
-      endActions: hasNextPage
-        ? [
-            {
-              content: (
-                <InView
-                  onChange={(inView) => {
-                    if (inView) {
-                      void fetchNextPage();
-                    }
-                  }}
-                />
-              ),
-            },
-          ]
-        : [],
-    };
-  }, [data, hasNextPage, fetchNextPage, t, search]);
+      return {
+        groupName: conversations.length > 0 ? t('Search results') : '',
+        elements: search ? conversations : [],
+        emptyString: t('No conversation found'),
+        endActions: hasNextPage
+          ? [
+              {
+                content: (
+                  <InView
+                    onChange={(inView) => {
+                      if (inView) {
+                        void fetchNextPage();
+                      }
+                    }}
+                  />
+                ),
+              },
+            ]
+          : [],
+      };
+    }, [data, hasNextPage, fetchNextPage, t, search]);
 
   return (
     <QuickSearch

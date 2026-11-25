@@ -205,6 +205,14 @@ class ChatConversation(BaseModel):
         indexes = [
             models.Index(fields=["owner", "-created_at"]),
             models.Index(fields=["owner", "project"]),
+            # Sidebar listing: a user's conversations outside any project, most
+            # recently updated first. Without it, the planner walks the global
+            # updated_at index below and filters out other users' rows.
+            models.Index(
+                fields=["owner", "-updated_at"],
+                condition=models.Q(project__isnull=True),
+                name="chat_conv_owner_noproj_upd_idx",
+            ),
             # Global "most recently updated first" listing, used by the admin changelist.
             models.Index(fields=["-updated_at", "-id"]),
         ]

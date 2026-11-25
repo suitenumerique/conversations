@@ -24,6 +24,17 @@ export interface ChatConversation {
   // the backend stored apart from an answer that really was interrupted.
   is_streaming?: boolean;
 }
+// An item of the conversation list (`chats/`). It carries no message history:
+// read it from the retrieve endpoint. Title search results nest the project
+// as {id, title, icon}; the default list returns the bare project id.
+export interface ChatConversationListItem {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  title?: string;
+  project?: ChatConversationProject | string | null;
+}
+
 export interface ChatProjectConversation {
   id: string;
   title?: string;
