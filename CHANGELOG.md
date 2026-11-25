@@ -26,6 +26,7 @@ and this project adheres to
 - ⚡️(back) speed up the job that de-indexes inactive collections
 - 🚸(front) make the whole sidebar row clickable
 - ⬆️(back) upgrade python dependencies
+- ⬆️(front) upgrade javascript dependencies
 
 ### Fixed
 
