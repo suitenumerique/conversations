@@ -37,6 +37,10 @@ and this project adheres to
 - ✅(back) scope the admin stored size test to its own rows
 - 🐛(front) show the thinking spinner whenever the answer is not moving
 
+### Removed
+
+- 🔥(back) drop the unused raw copy of the messages sent by the frontend
+
 ## [0.0.29] - 2026-11-15
 
 ### Added

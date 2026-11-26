@@ -327,11 +327,9 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         if not messages:
             return Response({"error": "No messages provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Warning: the messages should be stored more securely in production
-        conversation.ui_messages = request.data.get("messages", [])
         # `updated_at` is auto_now; Django skips auto_now fields when
         # update_fields is set, so list it explicitly to preserve the bump.
-        update_fields = ["ui_messages", "updated_at"]
+        update_fields = ["updated_at"]
 
         # Pin the model the first time the conversation is exercised. Existing
         # conversations keep their pinned model so a recovered main model never

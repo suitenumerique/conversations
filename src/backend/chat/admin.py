@@ -181,8 +181,8 @@ class ChatConversationAdmin(admin.ModelAdmin):
         """
         Leave the large text payloads out of the query.
 
-        A conversation carries its whole message history in `messages`,
-        `pydantic_messages` and `ui_messages`, plus its generated recap in
+        A conversation carries its whole message history in `messages`
+        and `pydantic_messages`, plus its generated recap in
         `history_summary`. Selecting them means reading (and, for `messages`,
         running Pydantic validation on) megabytes of JSON per page while the
         changelist displays none of it. The change form still loads them lazily,
@@ -200,7 +200,6 @@ class ChatConversationAdmin(admin.ModelAdmin):
             super()
             .get_queryset(request)
             .defer(
-                "ui_messages",
                 "pydantic_messages",
                 "messages",
                 "agent_usage",
@@ -213,7 +212,6 @@ class ChatConversationAdmin(admin.ModelAdmin):
                 stored_size=(
                     _stored_size("messages")
                     + _stored_size("pydantic_messages")
-                    + _stored_size("ui_messages")
                     + _stored_size("agent_usage")
                     + _stored_size("history_summary")
                 ),

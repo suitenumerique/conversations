@@ -342,18 +342,7 @@ def test_post_conversation_data_protocol_with_history(
 
     # Verify the conversation still has its history plus the new messages
     history_conversation.refresh_from_db()
-    # The UI messages should only include the most recent one (sent from frontend)
-    assert history_conversation.ui_messages == [
-        {
-            "content": "Hello",
-            "createdAt": "2025-07-03T15:22:17.105Z",
-            "id": "yuPoOuBkKA4FnKvk",
-            "parts": [{"text": "Hello", "type": "text"}],
-            "role": "user",
-        }
-    ]
-
-    # But the history should now have 6 messages - 4 from history + 2 new ones
+    # The history should now have 6 messages - 4 from history + 2 new ones
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent message is the new one
@@ -452,29 +441,7 @@ def test_post_conversation_with_image_with_history(
 
     # Verify the conversation still has its history plus the new messages
     history_conversation.refresh_from_db()
-    # The UI messages should only include the most recent one (sent from frontend)
-    assert history_conversation.ui_messages == [
-        {
-            "content": "Hello, what do you see on this picture?",
-            "createdAt": "2025-07-07T15:52:27.822Z",
-            "experimental_attachments": [
-                {
-                    "contentType": "image/png",
-                    "name": "FELV-cat.jpg",
-                    "url": (
-                        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAA"
-                        "ABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5C"
-                        "YII="
-                    ),
-                }
-            ],
-            "id": "7x3hLsq6rB3xp91T",
-            "parts": [{"text": "Hello, what do you see on this picture?", "type": "text"}],
-            "role": "user",
-        }
-    ]
-
-    # But the messages field should have 6 messages - 4 from history + 2 new ones
+    # The messages field should have 6 messages - 4 from history + 2 new ones
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent message has the image attachment
@@ -575,18 +542,7 @@ def test_post_conversation_tool_call_with_history(
     assert body["messages"][-1]["content"][0]["text"] == "Weather in Paris?"
 
     history_conversation.refresh_from_db()
-    # The UI messages should only include the most recent one (sent from frontend)
-    assert history_conversation.ui_messages == [
-        {
-            "content": "Weather in Paris?",
-            "createdAt": "2025-07-18T12:00:00Z",
-            "id": "tool-msg-1",
-            "parts": [{"text": "Weather in Paris?", "type": "text"}],
-            "role": "user",
-        }
-    ]
-
-    # But the messages field should have 6 messages - 4 from history + 2 new ones
+    # The messages field should have 6 messages - 4 from history + 2 new ones
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent message is the new one with tool invocation
@@ -676,18 +632,7 @@ def test_post_conversation_tool_call_fails_with_history(
     assert body["messages"][-1]["content"][0]["text"] == "Weather in Paris?"
 
     history_conversation.refresh_from_db()
-    # The UI messages should only include the most recent one (sent from frontend)
-    assert history_conversation.ui_messages == [
-        {
-            "content": "Weather in Paris?",
-            "createdAt": "2025-07-18T12:00:00Z",
-            "id": "tool-msg-1",
-            "parts": [{"text": "Weather in Paris?", "type": "text"}],
-            "role": "user",
-        }
-    ]
-
-    # But the messages field should have 6 messages - 4 from history + 2 new ones
+    # The messages field should have 6 messages - 4 from history + 2 new ones
     assert len(history_conversation.messages) == 6
 
     # Verify the most recent message is the new one with tool invocation

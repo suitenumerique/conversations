@@ -48,12 +48,8 @@ def test_list_conversations_anonymous(api_client):
 def test_filter_conversations_by_title(api_client):
     """Test filtering conversations by title substring."""
     user = UserFactory(sub="testuser", email="test@example.com")
-    ChatConversation.objects.create(
-        owner=user,
-        title="Test Conversation",
-        ui_messages=[{"role": "user", "content": "Test message"}],
-    )
-    ChatConversation.objects.create(owner=user, title="Another Conversation", ui_messages=[])
+    ChatConversation.objects.create(owner=user, title="Test Conversation")
+    ChatConversation.objects.create(owner=user, title="Another Conversation")
     url = "/api/v1.0/chats/?title=Test"
     api_client.force_login(user)
     response = api_client.get(url)
@@ -66,8 +62,8 @@ def test_filter_conversations_by_title(api_client):
 def test_ordering_conversations(api_client):
     """Test ordering conversations by creation date."""
     user = UserFactory(sub="testuser", email="test@example.com")
-    conv1 = ChatConversation.objects.create(owner=user, title="First Conversation", ui_messages=[])
-    conv2 = ChatConversation.objects.create(owner=user, title="Second Conversation", ui_messages=[])
+    conv1 = ChatConversation.objects.create(owner=user, title="First Conversation")
+    conv2 = ChatConversation.objects.create(owner=user, title="Second Conversation")
     url = "/api/v1.0/chats/"
     api_client.force_login(user)
     response = api_client.get(url)
@@ -264,7 +260,7 @@ def test_list_does_not_load_heavy_columns(api_client):
     for sql in listing:
         # Same predicate as the partial owner/updated_at index
         assert '"chat_chatconversation"."project_id" IS NULL' in sql
-        for column in ("ui_messages", "pydantic_messages", '"messages"', "agent_usage"):
+        for column in ("pydantic_messages", '"messages"', "agent_usage"):
             assert column not in sql
         assert "chat_chatconversationattachment" not in sql
 

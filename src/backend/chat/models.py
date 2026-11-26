@@ -103,8 +103,6 @@ class ChatConversation(BaseModel):
     - `owner`: The user who owns the conversation.
     - `title`: An optional title for the conversation, provided by frontend,
       the 100 first characters of the first user input message.
-    - `ui_messages`: A JSON field of UI messages sent by the frontend, all content is
-      overridden at each new request from the frontend.
     - `pydantic_messages`: A JSON field of PydanticAI messages, used to store conversation history.
     - `messages`: A JSON field of stored messages for the conversation, sent to frontend
        when loading the conversation.
@@ -129,11 +127,6 @@ class ChatConversation(BaseModel):
         null=True,
         help_text="Timestamp when the user manually set the title. If set, prevent automatic "
         "title generation.",
-    )
-    ui_messages = NulSafeJSONField(
-        default=list,
-        blank=True,
-        help_text="UI messages for the chat conversation, sent by frontend, not used",
     )
     pydantic_messages = NulSafeJSONField(
         default=list,

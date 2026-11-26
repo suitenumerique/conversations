@@ -47,18 +47,6 @@ ENGLISH_INSTRUCTIONS = (
 )
 
 
-def _assert_hello_ui_messages(chat_conversation):
-    assert chat_conversation.ui_messages == [
-        {
-            "content": "Hello",
-            "createdAt": "2025-07-03T15:22:17.105Z",
-            "id": "yuPoOuBkKA4FnKvk",
-            "parts": [{"text": "Hello", "type": "text"}],
-            "role": "user",
-        }
-    ]
-
-
 def _assert_hello_messages(chat_conversation, frozen_now):
     assert len(chat_conversation.messages) == 2
     assert chat_conversation.messages[0].id == IsUUID(4)
@@ -243,7 +231,6 @@ def test_post_conversation_data_protocol(api_client, mock_openai_stream, hello_c
     _assert_english_system_prompts(json.loads(mock_openai_stream.calls.last.request.content))
 
     chat_conversation.refresh_from_db()
-    _assert_hello_ui_messages(chat_conversation)
     _assert_hello_messages(chat_conversation, timezone.now())
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
@@ -290,7 +277,6 @@ def test_post_conversation_data_protocol_drops_keepalive_after_the_terminator(
     assert mock_openai_stream.called
 
     chat_conversation.refresh_from_db()
-    _assert_hello_ui_messages(chat_conversation)
     _assert_hello_messages(chat_conversation, timezone.now())
 
     _run_id = chat_conversation.pydantic_messages[0]["run_id"]
@@ -375,26 +361,6 @@ def test_post_conversation_with_image(api_client, mock_openai_stream_image):
     assert body["stream"] is True
 
     chat_conversation.refresh_from_db()
-    assert chat_conversation.ui_messages == [
-        {
-            "content": "Hello, what do you see on this picture?",
-            "createdAt": "2025-07-07T15:52:27.822Z",
-            "experimental_attachments": [
-                {
-                    "contentType": "image/png",
-                    "name": "FELV-cat.jpg",
-                    "url": (
-                        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAIAQMAAAD+wSzIAAA"
-                        "ABlBMVEX///+/v7+jQ3Y5AAAADklEQVQI12P4AIX8EAgALgAD/aNpbtEAAAAASUVORK5C"
-                        "YII="
-                    ),
-                }
-            ],
-            "id": "7x3hLsq6rB3xp91T",
-            "parts": [{"text": "Hello, what do you see on this picture?", "type": "text"}],
-            "role": "user",
-        }
-    ]
 
     assert len(chat_conversation.messages) == 2
 
@@ -503,15 +469,6 @@ def test_post_conversation_tool_call(api_client, mock_openai_stream_tool, settin
     ]
 
     chat_conversation.refresh_from_db()
-    assert chat_conversation.ui_messages == [
-        {
-            "content": "Weather in Paris?",
-            "createdAt": "2025-07-18T12:00:00Z",
-            "id": "tool-msg-1",
-            "parts": [{"text": "Weather in Paris?", "type": "text"}],
-            "role": "user",
-        }
-    ]
 
     assert len(chat_conversation.messages) == 2
 
@@ -658,15 +615,6 @@ def test_post_conversation_tool_call_fails(api_client, mock_openai_stream_tool):
     ]
 
     chat_conversation.refresh_from_db()
-    assert chat_conversation.ui_messages == [
-        {
-            "content": "Weather in Paris?",
-            "createdAt": "2025-07-18T12:00:00Z",
-            "id": "tool-msg-1",
-            "parts": [{"text": "Weather in Paris?", "type": "text"}],
-            "role": "user",
-        }
-    ]
 
     assert len(chat_conversation.messages) == 2
 
@@ -921,15 +869,6 @@ def test_post_conversation_data_protocol_no_stream(
     assert mock_openai_no_stream.called
 
     chat_conversation.refresh_from_db()
-    assert chat_conversation.ui_messages == [
-        {
-            "content": "Why the sky is blue?",
-            "createdAt": "2025-07-03T15:22:17.105Z",
-            "id": "yuPoOuBkKA4FnKvk",
-            "parts": [{"text": "Why the sky is blue?", "type": "text"}],
-            "role": "user",
-        }
-    ]
 
     assert len(chat_conversation.messages) == 2
 
@@ -1034,7 +973,6 @@ async def test_post_conversation_async(api_client, mock_openai_stream, monkeypat
     assert mock_openai_stream.called
 
     await chat_conversation.arefresh_from_db()
-    _assert_hello_ui_messages(chat_conversation)
 
     assert len(chat_conversation.messages) == 2
 
@@ -1125,7 +1063,6 @@ async def test_post_conversation_async_triggers_keepalive(
     assert mock_openai_stream_slow.called
 
     await chat_conversation.arefresh_from_db()
-    _assert_hello_ui_messages(chat_conversation)
 
     assert len(chat_conversation.messages) == 2
 
@@ -1213,7 +1150,6 @@ def test_post_conversation_oidc_refresh_enabled(  # pylint: disable=unused-argum
     _assert_english_system_prompts(json.loads(mock_openai_stream.calls.last.request.content))
 
     chat_conversation.refresh_from_db()
-    _assert_hello_ui_messages(chat_conversation)
 
     assert len(chat_conversation.messages) == 2
     assert len(chat_conversation.pydantic_messages) == 2
