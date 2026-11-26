@@ -1,0 +1,1 @@
+export const LEFT_PANEL_FOOTER_HEIGHT_PX = 52;
