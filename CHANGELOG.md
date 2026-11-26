@@ -37,6 +37,7 @@ and this project adheres to
 - 🔒️(back) keep untrusted text inside its summary prompt blocks
 - ✅(back) scope the admin stored size test to its own rows
 - 🐛(front) show the thinking spinner whenever the answer is not moving
+- 🐛(front) translate the user menu in the user's language
 
 ## [0.0.29] - 2026-11-15
 

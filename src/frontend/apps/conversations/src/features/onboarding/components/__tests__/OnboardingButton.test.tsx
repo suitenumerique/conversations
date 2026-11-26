@@ -36,7 +36,8 @@ vi.mock('../OnboardingModal', () => ({
 
 // Render the dropdown options inline so visibility/callbacks can be asserted
 // without dealing with the real popover portal.
-vi.mock('@gouvfr-lasuite/ui-kit', () => ({
+vi.mock('@gouvfr-lasuite/ui-kit', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@gouvfr-lasuite/ui-kit')>()),
   DropdownMenu: ({
     options,
     children,

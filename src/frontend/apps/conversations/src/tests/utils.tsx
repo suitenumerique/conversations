@@ -1,7 +1,7 @@
-import { CunninghamProvider } from '@gouvfr-lasuite/cunningham-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PropsWithChildren, useState } from 'react';
 
+import { CunninghamLocaleProvider } from '@/core/CunninghamLocaleProvider';
 import '@/i18n/initI18n';
 
 export const AppWrapper = ({ children }: PropsWithChildren) => {
@@ -18,7 +18,9 @@ export const AppWrapper = ({ children }: PropsWithChildren) => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <CunninghamProvider theme="default">{children}</CunninghamProvider>
+      <CunninghamLocaleProvider theme="default">
+        {children}
+      </CunninghamLocaleProvider>
     </QueryClientProvider>
   );
 };

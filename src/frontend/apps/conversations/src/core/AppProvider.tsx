@@ -1,4 +1,3 @@
-import { CunninghamProvider } from '@gouvfr-lasuite/cunningham-react';
 import * as Sentry from '@sentry/react';
 import {
   QueryCache,
@@ -13,6 +12,7 @@ import { useCunninghamTheme } from '@/cunningham';
 import { Auth, KEY_AUTH, setAuthUrl } from '@/features/auth';
 import { useResponsiveStore } from '@/stores';
 
+import { CunninghamLocaleProvider } from './CunninghamLocaleProvider';
 import { ConfigProvider } from './config';
 import { KEY_CONFIG } from './config/api/useConfig';
 
@@ -70,7 +70,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <CunninghamProvider theme={theme}>
+      <CunninghamLocaleProvider theme={theme}>
         <ConfigProvider>
           <ToastProvider>
             {/* Wraps Auth too: its loading state renders a lazy chunk. */}
@@ -79,7 +79,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             </Sentry.ErrorBoundary>
           </ToastProvider>
         </ConfigProvider>
-      </CunninghamProvider>
+      </CunninghamLocaleProvider>
     </QueryClientProvider>
   );
 }
