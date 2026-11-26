@@ -1,8 +1,8 @@
 // Imported first in main.tsx, before any dependency runs.
 
 // Object.hasOwn: Chrome 93, Firefox 92, Safari 15.4. Older browsers are still
-// found on locked-down workstations, and react-markdown, the HTML sanitizer and
-// lottie-react call it.
+// found on locked-down workstations, and react-markdown and the HTML sanitizer
+// call it.
 if (typeof Object.hasOwn !== 'function') {
   Object.defineProperty(Object, 'hasOwn', {
     value: (object: object, key: PropertyKey) =>
