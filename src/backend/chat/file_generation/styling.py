@@ -14,7 +14,7 @@ from pptx.slide import Slide as PptxSlide
 from pptx.util import Emu, Pt
 
 from chat.file_generation.entities import PresentationStyle
-from chat.file_generation.renderer import INDENT_PER_LEVEL
+from chat.file_generation.renderer import INDENT_PER_LEVEL, MONO_FONT
 
 # The slide field styled as a title; every other field is styled as text.
 TITLE_FIELD = "title"
@@ -39,31 +39,47 @@ def apply_background(pptx_slide: PptxSlide, style: PresentationStyle) -> None:
         fill.fore_color.rgb = _rgb(style.background_color)
 
 
-def apply_text_style(shape: BaseShape, field: str, style: PresentationStyle) -> None:
+def text_style_of(style: PresentationStyle, field: str) -> tuple:
+    """The colour, font and size a style sets for a title or for body text."""
+    if field == TITLE_FIELD:
+        return style.title_color, style.title_font, style.title_size
+    return style.text_color, style.text_font, style.text_size
+
+
+def apply_text_style(
+    shape: BaseShape, field: str, style: PresentationStyle, fit: bool = True
+) -> None:
     """
     Style the text a shape holds, as a title or as body text depending on ``field``,
-    and set it to shrink to fit the shape, storing the scale body text needs.
+    and, with ``fit``, set it to shrink to fit the shape, storing the scale body
+    text needs.
 
     A font or size the renderer set on purpose (inline code) is kept, and a
     table keeps its colours, designed for its cells' fills.
     """
-    if field == TITLE_FIELD:
-        color, font, size = style.title_color, style.title_font, style.title_size
-    else:
-        color, font, size = style.text_color, style.text_font, style.text_size
+    color, font, size = text_style_of(style, field)
 
-    if not shape.has_table:
+    if fit and not shape.has_table:
         shape.text_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
     for run in _runs(shape):
         if color and not shape.has_table:
             run.font.color.rgb = _rgb(color)
-        if font and run.font.name is None:
+        if run.font.name == MONO_FONT:
+            continue
+        if font:
             run.font.name = font
-        if size and run.font.size is None:
+        if size:
             run.font.size = Pt(size)
 
-    if field != TITLE_FIELD:
-        _shrink_to_fit(shape, size or DEFAULT_TEXT_SIZE)
+    if fit and field != TITLE_FIELD:
+        # The text's own size, not the small one inline code is given. The size
+        # asked for comes first: with Consolas as the text font, every run looks
+        # like inline code.
+        first_size = next(
+            (run.font.size for run in _runs(shape) if run.font.size and run.font.name != MONO_FONT),
+            None,
+        )
+        _shrink_to_fit(shape, size or (first_size.pt if first_size else DEFAULT_TEXT_SIZE))
 
 
 def _shrink_to_fit(shape: BaseShape, size: float) -> None:
@@ -74,6 +90,8 @@ def _shrink_to_fit(shape: BaseShape, size: float) -> None:
     the scale stored in the file, so that scale is estimated here. Tables never
     shrink on their own, so their text is given the reduced size directly.
     """
+    if shape.width is None or shape.height is None:
+        return  # A shape with no size of its own: there is nothing to fit the text to.
     if shape.has_table:
         table = shape.table
         rows = [
@@ -114,8 +132,9 @@ def _fitting_scale(rows: list[list[tuple[str, float]]], height: float, size: flo
 
 def _row_height(row: list[tuple[str, float]], font_size: float) -> float:
     """Estimate the height of texts laid side by side, the tallest one setting it."""
+    # A cell or shape narrower than its insets is taken to hold a point of text.
     line_count = max(
-        math.ceil(len(text) * CHAR_WIDTH * font_size / width) or 1 for text, width in row
+        math.ceil(len(text) * CHAR_WIDTH * font_size / max(width, 1)) or 1 for text, width in row
     )
     return (line_count * LINE_HEIGHT + PARAGRAPH_GAP) * font_size
 

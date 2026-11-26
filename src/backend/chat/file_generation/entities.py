@@ -7,6 +7,10 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field, model_validator
 
+# Beyond this, a deck no longer fits the agent's output and keeps failing the
+# slide count check. Also caps decks the agent is not given a count for.
+MAX_SLIDE_COUNT = 50
+
 
 class SlideType(StrEnum):
     """Layout kinds a generated slide can use."""
@@ -42,7 +46,7 @@ class Presentation(BaseModel):
     """A whole deck, as produced by the presentation agent."""
 
     title: str
-    slides: list[Slide] = Field(min_length=1)
+    slides: list[Slide] = Field(min_length=1, max_length=MAX_SLIDE_COUNT)
 
     @model_validator(mode="after")
     def check_cover_first(self):
@@ -50,6 +54,29 @@ class Presentation(BaseModel):
         if self.slides[0].type != SlideType.COVER:
             raise ValueError("The first slide must be a cover slide.")
         return self
+
+
+class TemplatedSlide(BaseModel):
+    """A slide copied from one of the user's own slides or layouts, with new texts."""
+
+    template_slide: int | None = Field(
+        default=None, description="Number of the user's slide to copy, from 1"
+    )
+    layout: str | None = Field(
+        default=None, description="Name of the user's layout to make a new slide from instead"
+    )
+    texts: dict[int, str] = Field(
+        default_factory=dict,
+        description="New Markdown text of the copied slide's text shapes, by shape id",
+    )
+    slide_notes: str = ""
+
+
+class TemplatedPresentation(BaseModel):
+    """A whole deck built out of the user's own slides."""
+
+    title: str
+    slides: list[TemplatedSlide] = Field(min_length=1, max_length=MAX_SLIDE_COUNT)
 
 
 HexColor = Annotated[

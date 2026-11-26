@@ -23,6 +23,7 @@ from chat.file_generation import (
     SlideType,
     build_presentation,
 )
+from chat.file_generation.styling import DEFAULT_TEXT_SIZE
 
 STYLE = PresentationStyle(
     title_color="#000091",
@@ -135,6 +136,12 @@ def test_tables_take_the_text_font_keep_their_colours_and_shrink():
     assert {run.font.size for run in table_runs(short, PresentationStyle(text_size=16))} == {Pt(16)}
     (long_size,) = {run.font.size for run in table_runs(long, PresentationStyle(text_size=16))}
     assert Pt(8) <= long_size < Pt(16)
+    # Inline code is set in a small size: the table's text is not sized after it.
+    code_first = "| `id` | B |\n|---|---|\n| 1 | 2 |"
+    assert {run.font.size for run in table_runs(code_first, None)} == {Pt(DEFAULT_TEXT_SIZE)}
+    # Unless that is the text font: the size asked for is kept.
+    consolas = PresentationStyle(text_font="Consolas", text_size=18)
+    assert {run.font.size for run in table_runs(short, consolas)} == {Pt(18)}
 
 
 def test_unset_fields_keep_the_template_styling():

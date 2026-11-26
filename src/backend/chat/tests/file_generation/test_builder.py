@@ -165,10 +165,13 @@ def test_slides_keep_their_order():
 
 
 def test_presenter_notes_are_attached():
-    """Slide notes land on the slide's notes page."""
-    deck = build_deck([Slide(type=SlideType.COVER, title="Titre", slide_notes="À dire à l'oral")])
+    """Slide notes land on the slide's notes page, a table as lines of text."""
+    notes = "À dire à l'oral\n\n| Poste | Montant |\n|---|---|\n| Total | 2 M€ |"
+    deck = build_deck([Slide(type=SlideType.COVER, title="Titre", slide_notes=notes)])
 
-    assert deck.slides[0].notes_slide.notes_text_frame.text == "À dire à l'oral"
+    assert deck.slides[0].notes_slide.notes_text_frame.text == (
+        "À dire à l'oral\nPoste | Montant\nTotal | 2 M€"
+    )
 
 
 def test_slides_without_notes_are_left_alone():

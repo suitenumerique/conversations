@@ -47,7 +47,12 @@ from chat.factories import (
     ChatProjectFactory,
     UserFactory,
 )
-from chat.file_generation import Presentation, PresentationBuildError, PresentationStyle
+from chat.file_generation import (
+    Presentation,
+    PresentationBuildError,
+    PresentationStyle,
+    outline_template,
+)
 from chat.llm_configuration import LLModel, LLMProvider
 from chat.tokens import count_approx_tokens
 from chat.tools.exceptions import ModelCannotRetry
@@ -471,14 +476,13 @@ async def test_a_storage_failure_soft_fails():
 async def test_tells_the_model_what_was_not_applied():
     """
     The return value spells out what the deck cannot do, so the model does not
-    claim to the user that a template or a style instruction was followed.
+    claim to the user that it was done.
     """
     ctx, _conversation, _user = await setup_context()
 
     result = await run_tool(ctx)
 
-    assert "template" in result.return_value
-    assert "NOT applied" in result.return_value
+    assert "charts and diagrams were NOT added" in result.return_value
     assert "never claim otherwise" in result.return_value
 
 
@@ -822,6 +826,37 @@ async def test_an_out_of_range_slide_count_is_offered_for_retry(slide_count):
         await run_tool(ctx, slide_count=slide_count)
 
 
+@pytest.mark.asyncio
+async def test_a_deck_longer_than_the_cap_is_retried_without_a_slide_count():
+    """
+    Asked for no count, the agent still cannot return more slides than the cap,
+    and the model is told when a deck was held to it, to tell the user.
+    """
+    ctx, _conversation, _user = await setup_context()
+    too_long = {**DECK, "slides": [DECK["slides"][0]] * (MAX_SLIDE_COUNT + 1)}
+    at_cap = {**DECK, "slides": [DECK["slides"][0]] * MAX_SLIDE_COUNT}
+    calls = []
+
+    def respond(messages, info):
+        calls.append(messages)
+        return model_returns_deck(too_long if len(calls) == 1 else at_cap)(messages, info)
+
+    result = await run_tool(ctx, respond=respond)
+
+    assert len(calls) == 2
+    assert f"at most {MAX_SLIDE_COUNT} items" in str(calls[1][-1])
+    assert f"{MAX_SLIDE_COUNT} slides is the most a deck can hold" in result.return_value
+
+
+@pytest.mark.asyncio
+async def test_a_slide_count_beyond_the_maximum_is_offered_for_retry():
+    """A deck of thousands of slides is refused before costing anything."""
+    ctx, _conversation, _user = await setup_context()
+
+    with pytest.raises(ModelRetry, match="slide_count"):
+        await run_tool(ctx, slide_count=1000)
+
+
 def test_generated_key_cannot_be_served_through_the_media_proxy(settings):
     """
     The download must be reachable ONLY via the presigned URL, never through the
@@ -1046,3 +1081,207 @@ async def test_undo_steps_back_one_version_at_a_time():
 
     await persist_tool_returns(conversation, *history)
     assert "no earlier version" in await run_update(ctx, revert=True)
+
+
+TEMPLATED_DECK = {
+    "title": "Plan vélo",
+    "slides": [
+        {"template_slide": 1, "texts": {"2": "Plan vélo", "3": ""}},
+        {"template_slide": 2, "texts": {"2": "Constats", "3": "- Plus de cyclistes"}},
+    ],
+}
+
+
+@sync_to_async
+def add_template(conversation):
+    """Attach a pptx as an upload leaves it: the file, and its Markdown companion."""
+    deck = pptx.Presentation()
+    deck.slides.add_slide(deck.slide_layouts[0]).shapes.title.text = "Titre de la présentation"
+    content = deck.slides.add_slide(deck.slide_layouts[1])
+    content.shapes.title.text = "Titre de contenu"
+    blob = BytesIO()
+    deck.save(blob)
+
+    template = ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=conversation.owner,
+        file_name="gabarit.pptx",
+        # As browsers often send it, rather than the pptx content type.
+        content_type="application/octet-stream",
+        upload_state=AttachmentStatus.READY,
+    )
+    default_storage.save(template.key, ContentFile(blob.getvalue()))
+    companion = ChatConversationAttachmentFactory(
+        conversation=conversation,
+        uploaded_by=conversation.owner,
+        file_name="gabarit.md",
+        content_type="text/markdown",
+        upload_state=AttachmentStatus.READY,
+        conversion_from=template.key,
+    )
+    default_storage.save(companion.key, ContentFile(b"Titre de la presentation"))
+    return template, companion
+
+
+@pytest.mark.asyncio
+async def test_a_template_id_builds_the_deck_out_of_the_user_slides():
+    """
+    The agent is shown the user's slides, its deck copies them, and the template
+    is kept for later edits rather than read as a source document.
+    """
+    ctx, conversation, _user = await setup_context()
+    template, companion = await add_template(conversation)
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(TEMPLATED_DECK)(messages, info)
+
+    result = await run_tool(ctx, respond=respond, template_id=str(companion.id))
+
+    assert "## User's deck\n\nSlide 1, layout 'Title Slide':" in received[0]
+    assert "Source documents" not in received[0]
+    stored = StoredPresentation.model_validate(result.metadata["presentation"])
+    assert stored.template_key == template.key
+    assert "out of the slides of the user's pptx" in result.return_value
+
+    deck = await sync_to_async(read_deck)(result.metadata["url"])
+    assert [slide.shapes.title.text for slide in deck.slides] == ["Plan vélo", "Constats"]
+
+
+@pytest.mark.asyncio
+async def test_the_user_slides_count_against_the_source_budget():
+    """The sources only get the budget the user's slides leave in the prompt."""
+    ctx, conversation, _user = await setup_context()
+    template, companion = await add_template(conversation)
+    await add_document(conversation, "Un rapport sur le plan vélo")
+    blob = await sync_to_async(lambda: default_storage.open(template.key).read())()
+    slides_tokens = count_approx_tokens(outline_template(blob).description)
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(TEMPLATED_DECK)(messages, info)
+
+    with mock_source_budget(slides_tokens):
+        result = await run_tool(ctx, respond=respond, template_id=str(companion.id))
+
+    assert "## User's deck" in received[0]
+    assert "Source documents" not in received[0]
+    assert "built from the brief and the user's pptx" in result.return_value
+
+
+@pytest.mark.asyncio
+async def test_a_template_id_not_pointing_to_a_pptx_is_offered_for_retry():
+    """Only an attached pptx can serve as a template."""
+    ctx, conversation, _user = await setup_context()
+    document = await add_document(conversation, "Un rapport")
+
+    with pytest.raises(ModelRetry, match="attached pptx"):
+        await run_tool(ctx, template_id=str(document.id))
+
+
+@pytest.mark.asyncio
+async def test_a_template_with_too_much_text_is_refused():
+    """The user's whole deck goes into the prompt: one too large for it is refused."""
+    ctx, conversation, _user = await setup_context()
+    _template, companion = await add_template(conversation)
+
+    with mock_source_budget(10):
+        result = await run_tool(ctx, template_id=str(companion.id))
+
+    assert "too much text to be used as a template" in result
+
+
+@pytest.mark.asyncio
+async def test_a_templated_deck_is_edited_on_its_template():
+    """An edit shows the agent the user's slides again, and keeps building on them."""
+    ctx, conversation, _user = await setup_context()
+    template, _companion = await add_template(conversation)
+    await persist_tool_returns(
+        conversation,
+        {
+            "presentation": StoredPresentation(
+                presentation=TEMPLATED_DECK, template_key=template.key
+            ).model_dump(mode="json")
+        },
+    )
+    received = []
+
+    def respond(messages, info):
+        received.extend(prompts_of(messages))
+        return model_returns_deck(TEMPLATED_DECK)(messages, info)
+
+    result = await run_update(ctx, respond=respond, instructions="Raccourcis le titre")
+
+    assert "## User's deck" in received[0]
+    assert StoredPresentation.model_validate(result.metadata["presentation"]).template_key == (
+        template.key
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_deleted_or_oversized_template_is_reported_as_such(settings):
+    """
+    A pptx too large for uploads, whatever size its upload declared, or once
+    unzipped, is refused, as is a deck too heavy with copies of its charts, and
+    a deck whose pptx was deleted cannot be rebuilt: the user is told which it is.
+    """
+    ctx, conversation, _user = await setup_context()
+    template, companion = await add_template(conversation)
+    await persist_tool_returns(
+        conversation,
+        {
+            "presentation": StoredPresentation(
+                presentation=TEMPLATED_DECK, template_key=template.key
+            ).model_dump(mode="json")
+        },
+    )
+
+    settings.ATTACHMENT_MAX_SIZE = 10
+    assert "too large to be used as a template" in await run_tool(
+        ctx, template_id=str(companion.id)
+    )
+    settings.ATTACHMENT_MAX_SIZE = 10 * 2**20
+    with mock.patch("chat.file_generation.from_template.MAX_COPIED_SIZE", -1):
+        result = await run_update(ctx, style=PresentationStyle(text_size=20))
+    assert "it would be too large" in result
+    # As is one that would expand too much once unzipped.
+    settings.ATTACHMENT_PARSE_MAX_UNCOMPRESSED_SIZE = 10
+    assert "too large to be used as a template" in await run_tool(
+        ctx, template_id=str(companion.id)
+    )
+    await sync_to_async(default_storage.delete)(template.key)
+    result = await run_update(ctx, style=PresentationStyle(text_size=20))
+    assert "this presentation is built from was deleted" in result
+
+
+@pytest.mark.asyncio
+async def test_a_damaged_template_is_reported_without_logging_its_content(json_logs):
+    """A file that is no pptx is refused, read or built, and logged by error type only."""
+    ctx, conversation, _user = await setup_context()
+    template, companion = await add_template(conversation)
+    await sync_to_async(default_storage.delete)(template.key)
+    await sync_to_async(default_storage.save)(template.key, ContentFile(b"Contenu confidentiel"))
+    await persist_tool_returns(
+        conversation,
+        {
+            "presentation": StoredPresentation(
+                presentation=TEMPLATED_DECK, template_key=template.key
+            ).model_dump(mode="json")
+        },
+    )
+
+    assert "it may be damaged" in await run_tool(ctx, template_id=str(companion.id))
+    result = await run_update(ctx, style=PresentationStyle(text_size=20))
+    assert "could not be used as a template" in result
+
+    lines = [
+        line
+        for line in json_logs()
+        if line["event"]
+        in ("presentation_template_unreadable", "presentation_template_build_failed")
+    ]
+    assert len(lines) == 2
+    assert all(line["error_type"] and "exception" not in line for line in lines)
+    assert not any("Contenu confidentiel" in str(line) for line in json_logs())
