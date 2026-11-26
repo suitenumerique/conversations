@@ -28,6 +28,7 @@ and this project adheres to
 - 🚸(front) make the whole sidebar row clickable
 - ⬆️(back) upgrade python dependencies
 - ⬆️(front) upgrade javascript dependencies
+- ➖(front) draw the loading spinner as an svg and drop lottie-react
 
 ### Fixed
 
