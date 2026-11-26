@@ -8,6 +8,7 @@ import { PostHogConf } from '@/services';
 
 interface ThemeCustomization {
   footer?: FooterType;
+  terms_of_service_url?: string;
   translations?: Resource;
 }
 

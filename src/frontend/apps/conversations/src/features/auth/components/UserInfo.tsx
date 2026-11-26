@@ -2,6 +2,7 @@ import { Button } from '@gouvfr-lasuite/cunningham-react';
 import { UserMenu } from '@gouvfr-lasuite/ui-kit';
 import { useTranslation } from 'react-i18next';
 
+import { useConfig } from '@/core/config';
 import { LanguagePicker } from '@/features/language';
 
 import { useAuth } from '../hooks';
@@ -10,6 +11,7 @@ import { getUserEmail, getUserFullName, gotoLogin, gotoLogout } from '../utils';
 export const UserInfo = () => {
   const { t } = useTranslation();
   const { authenticated, user } = useAuth();
+  const { data: config } = useConfig();
 
   if (!authenticated) {
     return (
@@ -31,7 +33,7 @@ export const UserInfo = () => {
       }}
       logout={gotoLogout}
       actions={<LanguagePicker />}
-      termOfServiceUrl="https://docs.numerique.gouv.fr/docs/7b118d32-7f3c-4226-a3d0-92d2f33c5f0a/"
+      termOfServiceUrl={config?.theme_customization?.terms_of_service_url}
     />
   );
 };

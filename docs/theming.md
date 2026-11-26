@@ -44,9 +44,28 @@ THEME_CUSTOMIZATION_FILE_PATH=<path>
 
 ### Example of JSON
 
-The json must follow some rules: https://github.com/suitenumerique/conversations/blob/main/src/helm/env.d/dev/configuration/theme/demo.json
+The json must follow some rules: https://github.com/suitenumerique/conversations/blob/main/src/helm/env.d/common/configuration/theme/demo.json
 
 `footer.default` is the fallback if the language is not supported.
+
+
+# **Terms of Service Link** 📝
+
+The "Terms of Service" link of the user menu is set from the theme customization file. The link is hidden when it is not set.
+
+### Settings 🔧
+
+```ini
+THEME_CUSTOMIZATION_FILE_PATH=<path>
+```
+
+### Example of JSON
+
+```json
+{
+  "terms_of_service_url": "https://example.com/terms-of-service"
+}
+```
 
 
 # **Custom Translations** 📝
@@ -61,4 +80,4 @@ THEME_CUSTOMIZATION_FILE_PATH=<path>
 
 ### Example of JSON
 
-The json must follow some rules: https://github.com/suitenumerique/conversations/blob/main/src/helm/env.d/dev/configuration/theme/demo.json
+The json must follow some rules: https://github.com/suitenumerique/conversations/blob/main/src/helm/env.d/common/configuration/theme/demo.json

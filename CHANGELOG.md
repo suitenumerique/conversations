@@ -38,6 +38,7 @@ and this project adheres to
 - ✅(back) scope the admin stored size test to its own rows
 - 🐛(front) show the thinking spinner whenever the answer is not moving
 - 🐛(front) translate the user menu in the user's language
+- 🐛(front) read the terms of service link from the theme customization
 
 ## [0.0.29] - 2026-11-15
 
