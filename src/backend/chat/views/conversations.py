@@ -27,6 +27,7 @@ from chat.clients.pydantic_ai import AIAgentService
 from chat.constants import IMAGE_MIME_PREFIX, SSE_MIME_TYPE
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.model_routing import resolve_effective_model_hrid
+from chat.parsers import SizeLimitedJSONParser
 from chat.rate_limiting import (
     ChatCooldownThrottle,
     ConversationCreateDailyThrottle,
@@ -244,6 +245,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         detail=True,
         url_path="conversation",
         url_name="conversation",
+        parser_classes=[SizeLimitedJSONParser],
     )
     def post_conversation(self, request, pk):  # pylint: disable=unused-argument
         """Handle POST requests to the chat endpoint.
