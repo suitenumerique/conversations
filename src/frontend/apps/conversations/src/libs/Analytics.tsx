@@ -21,7 +21,11 @@ type AnalyticEventUser = {
  *
  * Properties must stay free of user content (no titles, file names, prompts).
  */
-export type AnalyticFeatureEventName = 'carbon_footprint_opened';
+export type AnalyticFeatureEventName =
+  | 'carbon_footprint_opened'
+  // The chat-box force of a connector, switched on or off: client-side state,
+  // sent on the next message only (`connector_id`, `enabled`).
+  | 'connector_force_toggled';
 
 export type AnalyticEventProperties = Record<
   string,

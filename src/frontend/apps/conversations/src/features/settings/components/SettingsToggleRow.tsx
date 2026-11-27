@@ -2,7 +2,8 @@ import { Box, Text, ToggleSwitch } from '@/components';
 
 interface SettingsToggleRowProps {
   title: string;
-  description: string;
+  /** Left out when there is nothing to say, as for a connector without one. */
+  description?: string;
   checked: boolean;
   disabled: boolean;
   onToggle: () => void;
@@ -23,18 +24,20 @@ export const SettingsToggleRow = ({
     </Text>
     <Box $direction="row" $justify="space-between" $align="flex-start">
       <Box $css="max-width: 70%;">
-        <Text
-          $css={`
+        {description && (
+          <Text
+            $css={`
             display: inline-block;
           `}
-          $size="xs"
-          $theme="greyscale"
-          $variation="600"
-          $weight="400"
-          $padding={{ bottom: 'sm' }}
-        >
-          {description}
-        </Text>
+            $size="xs"
+            $theme="greyscale"
+            $variation="600"
+            $weight="400"
+            $padding={{ bottom: 'sm' }}
+          >
+            {description}
+          </Text>
+        )}
       </Box>
       <ToggleSwitch
         checked={checked}

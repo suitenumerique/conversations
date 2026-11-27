@@ -50,6 +50,7 @@ def test_api_config(is_authenticated):
     assert response.json() == {
         "STATUS_PAGE_URL": "https://status.example.com",
         "DOCS_BASE_URL": None,
+        "connectors": [],
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {
             "datagouv-connector": "enabled",
@@ -238,6 +239,7 @@ async def test_api_config_async(is_authenticated):
     assert response.json() == {
         "STATUS_PAGE_URL": "https://status.example.com",
         "DOCS_BASE_URL": None,
+        "connectors": [],
         "ENVIRONMENT": "test",
         "FEATURE_FLAGS": {
             "datagouv-connector": "enabled",

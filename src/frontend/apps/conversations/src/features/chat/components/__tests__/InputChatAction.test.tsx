@@ -1,9 +1,25 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import type { ConnectorConfig } from '@/core/config/api/useConfig';
 import '@/i18n/initI18n';
 
 import { InputChatActions } from '../InputChatAction';
+
+const DATAGOUV: ConnectorConfig = {
+  slug: 'datagouv',
+  name: 'data.gouv.fr',
+  description: null,
+  icon: '/assets/connectors/datagouv.svg',
+  feature_flag: 'datagouv-connector',
+};
+const SOFIA: ConnectorConfig = {
+  slug: 'sofia',
+  name: 'SofIA',
+  description: null,
+  icon: null,
+  feature_flag: null,
+};
 
 vi.mock('../ModelSelector', () => ({
   ModelSelector: ({ onModelSelect }: { onModelSelect: () => void }) => (
@@ -83,8 +99,8 @@ const defaultProps = {
   isUploadingFiles: false,
   isMobile: false,
   forceWebSearch: false,
-  datagouvEnabled: false,
-  forceDatagouv: false,
+  connectors: [],
+  forcedConnectors: [],
   onAttachClick: vi.fn(),
   selectedModel: null,
   status: null,
@@ -298,92 +314,149 @@ describe('InputChatActions', () => {
       'submitted',
     );
   });
-  it('should not render the DataGouv option outside the cohort', () => {
-    render(
-      <InputChatActions
-        {...defaultProps}
-        datagouvEnabled={false}
-        onDatagouvToggle={vi.fn()}
-      />,
-    );
+  it('should offer no connector when none is available', () => {
+    render(<InputChatActions {...defaultProps} onConnectorToggle={vi.fn()} />);
 
     expect(
-      screen.queryByRole('menuitemcheckbox', { name: 'DataGouv' }),
+      screen.queryByRole('menuitemcheckbox', { name: 'data.gouv.fr' }),
     ).not.toBeInTheDocument();
   });
 
-  it('should render the DataGouv option inside the cohort', () => {
+  it('should offer one option per available connector, by its name', () => {
     render(
       <InputChatActions
         {...defaultProps}
-        datagouvEnabled={true}
-        onDatagouvToggle={vi.fn()}
+        connectors={[DATAGOUV, SOFIA]}
+        onConnectorToggle={vi.fn()}
       />,
     );
 
     expect(
-      screen.getByRole('menuitemcheckbox', { name: 'DataGouv' }),
+      screen.getByRole('menuitemcheckbox', { name: 'data.gouv.fr' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'SofIA' }),
     ).toBeInTheDocument();
   });
 
-  it('should call onDatagouvToggle when the DataGouv option is clicked', async () => {
+  it('should hide the connector options without a toggle handler', () => {
+    render(<InputChatActions {...defaultProps} connectors={[DATAGOUV]} />);
+
+    expect(
+      screen.queryByRole('menuitemcheckbox', { name: 'data.gouv.fr' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('should toggle the connector whose option is clicked', async () => {
     const user = userEvent.setup();
-    const onDatagouvToggle = vi.fn();
+    const onConnectorToggle = vi.fn();
     render(
       <InputChatActions
         {...defaultProps}
-        datagouvEnabled={true}
-        onDatagouvToggle={onDatagouvToggle}
+        connectors={[DATAGOUV, SOFIA]}
+        onConnectorToggle={onConnectorToggle}
       />,
     );
 
-    await user.click(
-      screen.getByRole('menuitemcheckbox', { name: 'DataGouv' }),
-    );
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'SofIA' }));
 
-    expect(onDatagouvToggle).toHaveBeenCalledTimes(1);
+    expect(onConnectorToggle).toHaveBeenCalledExactlyOnceWith('sofia');
   });
 
-  it('should mark the option as checked and show a chip when forceDatagouv is active', () => {
+  it('should check and show a chip for each forced connector only', () => {
     render(
       <InputChatActions
         {...defaultProps}
-        datagouvEnabled={true}
-        forceDatagouv={true}
-        onDatagouvToggle={vi.fn()}
+        connectors={[DATAGOUV, SOFIA]}
+        forcedConnectors={['sofia']}
+        onConnectorToggle={vi.fn()}
       />,
     );
 
     expect(
-      screen.getByRole('menuitemcheckbox', { name: 'DataGouv' }),
+      screen.getByRole('menuitemcheckbox', { name: 'SofIA' }),
     ).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByRole('button', { name: 'DataGouv' })).toHaveAttribute(
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'data.gouv.fr' }),
+    ).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('button', { name: 'SofIA' })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
+    expect(
+      screen.queryByRole('button', { name: 'data.gouv.fr' }),
+    ).not.toBeInTheDocument();
   });
 
-  it('should show "Data" chip text on mobile when forceDatagouv is active', () => {
+  it('should release a forced connector from its chip', async () => {
+    const user = userEvent.setup();
+    const onConnectorToggle = vi.fn();
     render(
       <InputChatActions
         {...defaultProps}
-        isMobile={true}
-        datagouvEnabled={true}
-        forceDatagouv={true}
-        onDatagouvToggle={vi.fn()}
+        connectors={[SOFIA]}
+        forcedConnectors={['sofia']}
+        onConnectorToggle={onConnectorToggle}
       />,
     );
 
-    expect(screen.getByText('Data')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'SofIA' }));
+
+    expect(onConnectorToggle).toHaveBeenCalledExactlyOnceWith('sofia');
   });
 
-  it('should leave web search alone when DataGouv is forced', () => {
+  it('should show no chip for a forced connector that is not available', () => {
     render(
       <InputChatActions
         {...defaultProps}
-        datagouvEnabled={true}
-        forceDatagouv={true}
-        onDatagouvToggle={vi.fn()}
+        connectors={[SOFIA]}
+        forcedConnectors={['datagouv']}
+        onConnectorToggle={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole('button', { name: 'data.gouv.fr' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('should show the declared icon, or the generic one', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        connectors={[DATAGOUV, SOFIA]}
+        forcedConnectors={['datagouv', 'sofia']}
+        onConnectorToggle={vi.fn()}
+      />,
+    );
+
+    // Drawn as a mask filled with the text colour, like the inline icons it
+    // replaces: grey in the menu, the brand colour in the chip.
+    const declared = within(
+      screen.getByRole('button', { name: 'data.gouv.fr' }),
+    ).getByTestId('connector-icon');
+    expect(declared).toHaveStyle({ width: '16px', height: '16px' });
+    expect(declared.style.getPropertyValue('background-color')).toBe(
+      'currentcolor',
+    );
+    expect(declared.style.getPropertyValue('mask-image')).toBe(
+      'url("/assets/connectors/datagouv.svg")',
+    );
+    expect(declared).toHaveAttribute('aria-hidden', 'true');
+    expect(
+      within(screen.getByRole('button', { name: 'SofIA' })).getByTestId(
+        'connector-icon-generic',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('should leave web search alone when a connector is forced', () => {
+    render(
+      <InputChatActions
+        {...defaultProps}
+        connectors={[DATAGOUV]}
+        forcedConnectors={['datagouv']}
+        onConnectorToggle={vi.fn()}
         onWebSearchToggle={vi.fn()}
       />,
     );
@@ -395,25 +468,7 @@ describe('InputChatActions', () => {
       screen.queryByRole('button', { name: 'Research on the web' }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'DataGouv' }),
+      screen.getByRole('button', { name: 'data.gouv.fr' }),
     ).toBeInTheDocument();
-  });
-
-  // The mobile chip reads "Data" to fit; the connector is still named in full
-  // to anyone not reading the screen.
-  it('should keep the mobile chip reachable by its full name', () => {
-    render(
-      <InputChatActions
-        {...defaultProps}
-        isMobile={true}
-        datagouvEnabled={true}
-        forceDatagouv={true}
-        onDatagouvToggle={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole('button', { name: 'DataGouv' })).toHaveTextContent(
-      'Data',
-    );
   });
 });

@@ -1,5 +1,8 @@
 """Connector declarations the tests share, as a deployment writes them in `MCP_CONNECTORS`."""
 
+# data.gouv's slug: opt-ins, tool names and analytics are keyed on it.
+DATAGOUV_SLUG = "datagouv"
+
 # What the model was told about data.gouv before it moved into the declaration,
 # verbatim. docs/tools.md gives operators the same text: the move must not
 # change a word of what the model reads.

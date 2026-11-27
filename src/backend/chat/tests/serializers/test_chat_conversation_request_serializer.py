@@ -3,6 +3,8 @@ Unit tests for the ChatConversationRequestSerializer,
 covering validation of chat conversation request data.
 """
 
+from django.http import QueryDict
+
 import pytest
 from rest_framework.exceptions import ErrorDetail
 
@@ -37,7 +39,7 @@ def test_chat_conversation_request_serializer_default():
     assert serializer.is_valid()
     assert serializer.validated_data == {
         "force_web_search": False,
-        "force_datagouv": False,
+        "force_connectors": [],
         "model_hrid": None,
     }
 
@@ -68,23 +70,46 @@ def test_chat_conversation_request_serializer_force_web_search_invalid():
     }
 
 
-@pytest.mark.parametrize("force_datagouv", [True, False])
-def test_chat_conversation_request_serializer_force_datagouv_valid(force_datagouv):
-    """The serializer accepts valid boolean values for force_datagouv."""
+def test_chat_conversation_request_serializer_force_connectors_from_query_params():
+    """One query parameter per forced connector, as the frontend sends them."""
     serializer = serializers.ChatConversationRequestSerializer(
-        data={"force_datagouv": force_datagouv}
+        data=QueryDict("force_connectors=datagouv&force_connectors=sofia")
     )
 
     assert serializer.is_valid()
-    assert serializer.validated_data["force_datagouv"] is force_datagouv
+    assert serializer.validated_data["force_connectors"] == ["datagouv", "sofia"]
 
 
-def test_chat_conversation_request_serializer_force_datagouv_defaults_to_false():
-    """Omitting it means the connector is not forced."""
-    serializer = serializers.ChatConversationRequestSerializer(data={})
+def test_chat_conversation_request_serializer_force_connectors_defaults_to_none():
+    """Omitting it forces nothing."""
+    serializer = serializers.ChatConversationRequestSerializer(data=QueryDict(""))
 
     assert serializer.is_valid()
-    assert serializer.validated_data["force_datagouv"] is False
+    assert serializer.validated_data["force_connectors"] == []
+
+
+def test_chat_conversation_request_serializer_force_connectors_is_bounded():
+    """A slug is at most 20 characters, and a turn forces a handful at most."""
+    too_long = serializers.ChatConversationRequestSerializer(
+        data=QueryDict("force_connectors=" + "a" * 21)
+    )
+    too_many = serializers.ChatConversationRequestSerializer(
+        data=QueryDict("&".join(f"force_connectors=c{i}" for i in range(21)))
+    )
+
+    assert not too_long.is_valid()
+    assert not too_many.is_valid()
+
+
+def test_chat_conversation_request_serializer_force_datagouv_is_gone():
+    """The data.gouv-only parameter forces nothing any more."""
+    serializer = serializers.ChatConversationRequestSerializer(
+        data=QueryDict("force_datagouv=true")
+    )
+
+    assert serializer.is_valid()
+    assert "force_datagouv" not in serializer.validated_data
+    assert serializer.validated_data["force_connectors"] == []
 
 
 def test_chat_conversation_request_serializer_model_hrid_valid(llm_configuration):  # pylint: disable=unused-argument

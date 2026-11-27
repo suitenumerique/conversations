@@ -3,8 +3,8 @@
 - **Status:** Proposed
 - **Date:** 2026-11-19, updated 2026-11-27 with the review decisions of #967
 - **Issue:** [#956](https://github.com/suitenumerique/conversations/issues/956), follows [#847](https://github.com/suitenumerique/conversations/issues/847)
-- **Delivered by:** #1005 (connector model, `MCP_CONNECTORS`), #985 (consent, force, UI),
-  #986 (lifecycle), #987 (per-user authentication)
+- **Delivered by:** #1005 (connector model, `MCP_CONNECTORS`), #985 (consent, force,
+  UI); still open: #986 (lifecycle), #987 (per-user authentication)
 
 This record states decisions. Where a decision is delivered by an issue still
 open, the text names it; everything else describes the code as it is.
@@ -114,8 +114,9 @@ fields, never write them.
 | Identity | `slug` (`^[a-z0-9_]{1,20}$`), `name` (one string, shown as-is in every language) | tool prefix, events, analytics, opt-in, UI |
 | Endpoint | `url` (http or https streamable-HTTP endpoint), `tier`, `init_timeout` (default 5 s), `read_timeout` (default 30 s); `0` means no limit | `turn.py`, `runtime.py` |
 | Model | `instructions`, written by us, never taken from the server; the forced and unreachable wordings are derived from `name` | `ConnectorToolset`, `UserConnector.instruction()` |
-| Access | `feature_flag`: a `FeatureFlags` toggle gating the connector to a cohort, or absent for everyone | `UserConnector.for_user` |
-| Added by later issues | `description` with per-language values (#985), `retired` (#986), `auth` (#987) | UI, lifecycle task, `auth.py` |
+| Access | `feature_flag`: a `FeatureFlags` toggle gating the connector to a cohort, or absent for everyone | `UserConnector.for_user`, users API, UI |
+| UI | `description`: one text per language code, read-only; `icon`: an http(s) URL or a path the frontend serves, drawn as a one-colour mask that follows the theme, a generic icon without one | `GET /config/`, Settings, chat box |
+| Added by later issues | `retired` (#986), `auth` (#987) | lifecycle task, `auth.py` |
 
 Per-turn state lives in `UserConnector` (one connector) and `TurnConnectors`
 (all of them), never in the definition.
@@ -208,30 +209,40 @@ connector's shape.
 Any kind that sends the user's identity to a partner makes personal data
 flow, so it brings the DPA condition with it.
 
-### 6. Consent (#985)
-
-Today the only opt-in is data.gouv's `User.allow_datagouv_connector`, and the
-force is the `force_datagouv` request parameter. #985 makes both generic:
+### 6. Consent
 
 - **Opt-in.** `User.allowed_connectors`, a JSON array of slugs, migrated from
-  the old field. It records a choice, not an entitlement: the cohort gate
-  still applies. New connectors need no migration, but there is no foreign key
-  to the declarations, so orphaned slugs are handled by #986.
-- **Users API.** It accepts only slugs the deployment offers, but keeps a slug
-  the user already had, so a connector taken offline for a while keeps its
-  users' consent.
-- **Force.** A `force_connectors` request parameter, remembered in the
-  browser's `localStorage`; never stored on the message or the conversation.
-- **Analytics.** `connector_toggled` and `connector_force_toggled` (PostHog),
+  `User.allow_datagouv_connector` (`core.0017_user_allowed_connectors` carries
+  each data.gouv opt-in over as the `datagouv` slug, and can be reversed). It
+  records a choice, not an entitlement: the cohort gate still applies. New
+  connectors need no migration, but there is no foreign key to the
+  declarations, so orphaned slugs are handled by #986.
+- **Keyed on the slug alone**, not on `(slug, url)`: a URL the same operator
+  moves keeps its users' consent, a new operator means a new slug, and #987
+  binds credentials to the server they were issued for, so a slug pointed
+  elsewhere cannot reuse them.
+- **Users API.** It accepts only slugs offered to the user (declared, and in
+  their cohort), but keeps a slug the user already had, so a connector taken
+  offline for a while keeps its users' consent.
+- **Force.** A `force_connectors` request parameter, one per connector,
+  remembered in the browser's `localStorage`; never stored on the message or
+  the conversation. A slug the user may not use is dropped by the turn, not
+  refused, so a stale force never fails a message.
+- **Analytics.** `connector_toggled` (backend, on each Settings change) and
+  `connector_force_toggled` (frontend, since the force is client-side state),
   with `connector_id` and `enabled`. `connector_forced` keeps recording each
   forced turn and whether it was reachable.
-- **UI.** `GET /config/` lists the offered connectors (never the URL), and the
-  UI is built from it with generic strings in the translation files, so a new
-  connector needs no frontend release. The declaration's `description`
-  carries its per-language values for the same reason.
-
-Still open in #985: the language of the model-facing wordings, and whether
-opt-ins are tied to `(slug, url)`.
+- **UI.** `GET /config/` lists the declared connectors (slug, name,
+  description, icon, feature flag; never the URL), and the UI is built from
+  it, applying each flag like any other feature flag. Strings are generic
+  (`{{name}} could not be reached`) and live in the translation files, so a
+  new connector needs no frontend release.
+- **Languages.** `name` is one string, shown as-is, and the same string the
+  model reads: there is no separate display label. data.gouv is declared as
+  `DataGouv`, the label its UI always had. `description` carries a text per
+  language. The model-facing wordings derived from `name` are in
+  English, like the rest of the system prompt; the model answers in the
+  user's language either way.
 
 The opt-in is **not versioned**: changing a connector's operator, URL or the
 data it receives does not invalidate existing opt-ins. Changing those is a
@@ -310,10 +321,11 @@ the connector's shape to change.
 - The `DATAGOUV_CONNECTOR_*` settings are gone. A deployment that used them
   declares data.gouv in `MCP_CONNECTORS` instead, keeping the `datagouv` slug
   so existing opt-ins still apply.
-- `chat/mcp_servers.py` only re-exports the runtime names, for one release;
-  #985 removes it.
-- Until #985, only data.gouv has an opt-in and a UI; another declared
-  connector can only be forced through the API.
+- `User.allow_datagouv_connector`, the `force_datagouv` parameter and the
+  `chat/mcp_servers.py` shim are gone. The users API now takes
+  `allowed_connectors`, and a chat request `force_connectors`.
+- A new connector gets its Settings switch and chat-box option from the
+  declaration alone, without a frontend release.
 - The trust boundary in `docs/tools.md` applies to the `partner` tier and
   links here.
 - Supporting `user` connectors later means a way for users to declare one,
@@ -346,4 +358,13 @@ the connector's shape to change.
   optional per-connector tool policy, not as the default.
 - **Translations of connector texts in `translations.json`.** Would need a
   frontend release for each connector; per-language values in the
-  declaration were chosen instead (#985).
+  declaration were chosen instead.
+- **Opt-ins tied to `(slug, url)`.** Would catch a slug pointed at another
+  server, but also switch everyone off when the same operator moves its URL.
+  The slug alone is the key; #987 protects the credentials.
+- **Separate display labels** (`display_name`, `short_name`). Would let the UI
+  say `DataGouv` (`Data` on a narrow screen) while the model reads
+  `data.gouv.fr`, at the cost of two more fields. Rejected: one `name` serves
+  both, and the mobile chip shows it in full.
+- **Model wordings in the user's language.** Would mix languages in an
+  English system prompt and need backend strings per language.

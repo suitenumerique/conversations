@@ -245,3 +245,88 @@ def test_a_malformed_url_is_refused(url):
 def test_a_well_formed_url_is_accepted(url):
     """Including plain http and a port, which local servers use."""
     assert ConnectorDefinition.from_dict(_declaration(url=url)).url == url
+
+
+def test_description_and_icon_are_optional():
+    """A connector needs neither to be offered."""
+    definition = ConnectorDefinition.from_dict(_declaration())
+
+    assert definition.description is None
+    assert definition.icon is None
+
+
+def test_a_description_carries_one_value_per_language():
+    """Shown in the user's language; `name` stays one string."""
+    description = {"en": "French public data.", "fr": "Données publiques françaises."}
+
+    definition = ConnectorDefinition.from_dict(_declaration(description=description))
+
+    assert definition.description == description
+
+
+def test_a_description_is_frozen_with_the_definition():
+    """Other modules read it, none may write it."""
+    definition = ConnectorDefinition.from_dict(_declaration(description={"en": "Data."}))
+
+    with pytest.raises(TypeError):
+        definition.description["en"] = "Something else."
+
+
+@pytest.mark.parametrize(
+    "description",
+    [
+        "French public data.",
+        {},
+        {"en": ""},
+        {"en": 3},
+        {"english": "Data."},
+        {"EN": "Data."},
+        {"": "Data."},
+        ["en", "Data."],
+    ],
+    ids=[
+        "plain string",
+        "empty",
+        "empty value",
+        "value not a string",
+        "not a language code",
+        "uppercase code",
+        "empty code",
+        "list",
+    ],
+)
+def test_a_bad_description_is_refused(description):
+    """One non-empty text per language code, such as `en`, `fr` or `fr-fr`."""
+    with pytest.raises(ValueError, match="description"):
+        ConnectorDefinition.from_dict(_declaration(description=description))
+
+
+@pytest.mark.parametrize(
+    "icon",
+    [
+        "https://www.data.gouv.fr/favicon.svg",
+        "http://localhost:3000/icon.svg",
+        "/assets/connectors/datagouv.svg",
+    ],
+)
+def test_an_icon_is_an_http_url_or_a_path_on_the_frontend(icon):
+    """A path is served by the frontend itself; a URL by the operator's choice of host."""
+    assert ConnectorDefinition.from_dict(_declaration(icon=icon)).icon == icon
+
+
+@pytest.mark.parametrize(
+    "icon",
+    [
+        "",
+        "javascript:alert(1)",
+        "data:image/svg+xml;base64,PHN2Zz4=",
+        "//evil.example.org/icon.svg",
+        "assets/icon.svg",
+        "https://exa mple.org/icon.svg",
+        3,
+    ],
+)
+def test_a_bad_icon_is_refused(icon):
+    """Nothing the browser would run, and no protocol-relative URL."""
+    with pytest.raises(ValueError, match="icon"):
+        ConnectorDefinition.from_dict(_declaration(icon=icon))

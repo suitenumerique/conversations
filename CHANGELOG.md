@@ -17,6 +17,14 @@ shown in [Declaring a connector](docs/tools.md#declaring-a-connector), keeping
 the `datagouv` slug so existing opt-ins still apply. Without it the connector
 is no longer offered.
 
+The users API takes `allowed_connectors`, a list of connector slugs, in place
+of `allow_datagouv_connector`, and a chat request takes `force_connectors`, one
+query parameter per connector, in place of `force_datagouv`. Migration
+`core.0017_user_allowed_connectors` carries existing data.gouv opt-ins over as
+the `datagouv` slug. The UI now takes data.gouv's label, description and icon
+from its declaration: declare it as in `docs/tools.md` (`"name": "DataGouv"`,
+its `description` and `icon`) for it to look as before.
+
 ### Added
 
 - ✨(back) read La Suite Docs documents from pasted Docs links
@@ -28,6 +36,8 @@ is no longer offered.
 - 🔒️(front) add security headers to frontend responses
 - ✨(front) add a copy button to user messages
 - ✨(back) declare MCP connectors in the MCP_CONNECTORS setting
+- ✨(back) let users opt in to and force any declared MCP connector
+- ✨(front) build the connector settings and chat-box options from the config
 
 ### Changed
 
@@ -43,6 +53,7 @@ is no longer offered.
 ### Removed
 
 - 🔥(back) remove the DATAGOUV_CONNECTOR_* settings
+- 🔥(back) remove allow_datagouv_connector, force_datagouv and the mcp_servers shim
 
 ### Fixed
 

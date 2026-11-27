@@ -24,7 +24,6 @@ from core.file_upload.mixins import AttachmentMixin
 
 from chat import models, serializers
 from chat.clients.pydantic_ai import AIAgentService
-from chat.connectors.datagouv import DATAGOUV_SLUG
 from chat.constants import IMAGE_MIME_PREFIX, SSE_MIME_TYPE
 from chat.keepalive import stream_with_keepalive_async, stream_with_keepalive_sync
 from chat.model_routing import resolve_effective_model_hrid
@@ -260,10 +259,7 @@ class ChatViewSet(  # pylint: disable=too-many-ancestors, abstract-method
         query_params_serializer = ChatConversationRequestSerializer(data=request.query_params)
         query_params_serializer.is_valid(raise_exception=True)
         force_web_search = query_params_serializer.validated_data["force_web_search"]
-        # The request still names data.gouv alone; #985 makes it a list of slugs.
-        force_connectors = (
-            [DATAGOUV_SLUG] if query_params_serializer.validated_data["force_datagouv"] else []
-        )
+        force_connectors = query_params_serializer.validated_data["force_connectors"]
         requested_model_hrid = query_params_serializer.validated_data["model_hrid"]
 
         # Every line of the turn, whatever module writes it, names the conversation.

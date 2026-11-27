@@ -11,10 +11,9 @@ from pydantic_ai.messages import FunctionToolResultEvent, ToolReturnPart
 
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService
-from chat.connectors.datagouv import DATAGOUV_SLUG
 from chat.factories import ChatConversationFactory
 from chat.tests.clients.pydantic_ai.test_run_agent_summary import _run_agent_patches
-from chat.tests.connectors.declarations import datagouv_declaration
+from chat.tests.connectors.declarations import DATAGOUV_SLUG, datagouv_declaration
 from chat.turn.event_mapper import CONNECTOR_UNAVAILABLE_EVENT_TYPE, TurnEventMapper
 from chat.vercel_ai_sdk.core import events_v4
 

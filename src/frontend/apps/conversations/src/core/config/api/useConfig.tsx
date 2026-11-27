@@ -34,6 +34,19 @@ export interface MaintenanceConfig {
   message?: string | null;
 }
 
+/**
+ * A connector the deployment declares, as `/config/` lists it: never its URL.
+ * `feature_flag` is the frontend name of the flag gating it, or null for
+ * everyone; `description` holds one text per language code.
+ */
+export interface ConnectorConfig {
+  slug: string;
+  name: string;
+  description: Record<string, string> | null;
+  icon: string | null;
+  feature_flag: string | null;
+}
+
 export interface ConfigResponse {
   STATUS_PAGE_URL?: string | null;
   ENVIRONMENT: string;
@@ -59,6 +72,7 @@ export interface ConfigResponse {
   project_files_max_count?: number;
   project_images_max_count?: number;
   attachment_max_size?: number;
+  connectors?: ConnectorConfig[];
 }
 
 const LOCAL_STORAGE_KEY = 'conversations_config';

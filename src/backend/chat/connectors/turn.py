@@ -19,13 +19,34 @@ from core.feature_flags.helpers import is_feature_enabled
 from core.models import User
 
 from chat.clients.schema import ContextDeps
-from chat.connectors.datagouv import user_opted_in
 from chat.connectors.definition import ConnectorDefinition
 from chat.connectors.registry import declared_connectors
 from chat.connectors.runtime import ConnectorToolset
 
 # Not __name__: the name connector log lines have always had.
 logger = structlog.get_logger("chat.mcp_servers")
+
+
+def user_opted_in(user: User, definition: ConnectorDefinition) -> bool:
+    """Whether the user gave their standing consent to this connector, by its slug.
+
+    A choice, not an entitlement: the declaration and the cohort still decide
+    whether the connector exists for this user.
+    """
+    return definition.slug in (user.allowed_connectors or [])
+
+
+def in_cohort(user: User, definition: ConnectorDefinition) -> bool:
+    """Whether the connector's feature flag lets this user have it; no flag lets everyone.
+
+    May reach the analytics provider for a dynamic flag, so it blocks.
+    """
+    return definition.feature_flag is None or is_feature_enabled(user, definition.feature_flag)
+
+
+def offered_connectors(user: User) -> list[ConnectorDefinition]:
+    """The connectors this user may switch on: declared, and in their cohort."""
+    return [definition for definition in declared_connectors() if in_cohort(user, definition)]
 
 
 @dataclass
@@ -67,8 +88,7 @@ class UserConnector:
         return cls(
             definition=definition,
             conversation_pk=conversation_pk,
-            enabled=definition.feature_flag is None
-            or is_feature_enabled(user, definition.feature_flag),
+            enabled=in_cohort(user, definition),
             opted_in=user_opted_in(user, definition),
         )
 

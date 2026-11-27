@@ -86,10 +86,18 @@ AI_API_KEY=password
 # MCP_CONNECTORS='[
 #   {
 #     "slug": "datagouv",
-#     "name": "data.gouv.fr",
+#     "name": "DataGouv",
 #     "url": "https://mcp.data.gouv.fr/mcp",
 #     "tier": "partner",
 #     "feature_flag": "datagouv_connector",
+#     "icon": "/assets/connectors/datagouv.svg",
+#     "description": {
+#       "en": "Let the Assistant search French public open data published on data.gouv.fr.",
+#       "fr": "Autoriser l\u0027Assistant à rechercher dans les données publiques françaises publiées sur data.gouv.fr.",
+#       "nl": "Laat de Assistant zoeken naar Franse openbare gegevens die zijn gepubliceerd op data.gouv.fr.",
+#       "ru": "Пусть помощник ищет открытые данные на сайте data.gouv.fr, связанные с франкоязычным регионом.",
+#       "uk": "Нехай помічник виконує пошук публічних відкритих даних, опублікованих на data.gouv.fr, для франкомовного регіону."
+#     },
 #     "init_timeout": 5,
 #     "read_timeout": 30,
 #     "instructions": "The data.gouv.fr tools search France’s open-data catalogue: datasets, the organisations that publish them, and public APIs. Use them when the answer depends on official French public data (statistics, registries, local facilities, prices, figures for a commune or département), or when the user asks for a dataset, a file or an API. Prefer them over answering such figures from memory. Do not use them for questions about other countries, general knowledge, administrative procedures, writing or coding tasks, or questions about the user’s attached documents."

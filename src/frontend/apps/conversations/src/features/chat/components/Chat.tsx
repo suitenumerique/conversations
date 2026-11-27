@@ -62,7 +62,7 @@ import { useSourcePanelAnchor } from '@/features/sources-panel';
 import { useClipboard } from '@/hook';
 import { useResponsiveStore } from '@/stores';
 
-import { useSourceMetadataCache } from '../hooks';
+import { useSourceMetadataCache, useToggleForceConnector } from '../hooks';
 import { useAprilFools } from '../hooks/useAprilFools';
 import { useChatPreferencesStore } from '../stores/useChatPreferencesStore';
 import { usePendingChatStore } from '../stores/usePendingChatStore';
@@ -108,11 +108,11 @@ export const Chat = ({
   const { isMobile, isDesktop } = useResponsiveStore();
   const sourcesPanelAnchorEl = useSourcePanelAnchor();
 
+  const toggleForceConnector = useToggleForceConnector();
   const {
     forceWebSearch,
     toggleForceWebSearch,
-    forceDatagouv,
-    toggleForceDatagouv,
+    forcedConnectors,
     selectedModelHrid,
     setSelectedModelHrid,
     setSourcesPanelOpen,
@@ -365,8 +365,16 @@ export const Chat = ({
   // The connector the user asked for was down this turn. The answer still
   // arrives, and says so — this only makes the degradation visible while the
   // user is looking at it.
-  const onConnectorUnavailable = () => {
-    showToast('error', t('DataGouv could not be reached'), 'error', 5000);
+  const onConnectorUnavailable = (connectorId: string) => {
+    const name =
+      config?.connectors?.find(({ slug }) => slug === connectorId)?.name ??
+      connectorId;
+    showToast(
+      'error',
+      t('{{name}} could not be reached', { name }),
+      'error',
+      5000,
+    );
   };
 
   const {
@@ -405,10 +413,6 @@ export const Chat = ({
 
   const toggleWebSearch = () => {
     toggleForceWebSearch();
-  };
-
-  const toggleDatagouv = () => {
-    toggleForceDatagouv();
   };
 
   const handleStop = () => {
@@ -1282,8 +1286,8 @@ export const Chat = ({
           onStop={handleStop}
           forceWebSearch={forceWebSearch}
           onToggleWebSearch={toggleWebSearch}
-          forceDatagouv={forceDatagouv}
-          onToggleDatagouv={toggleDatagouv}
+          forcedConnectors={forcedConnectors}
+          onToggleConnector={toggleForceConnector}
           selectedModel={selectedModel}
           onModelSelect={handleModelSelect}
           isUploadingFiles={isUploadingFiles}

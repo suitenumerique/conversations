@@ -19,6 +19,7 @@ const mockUseConfig = vi.fn();
 vi.mock('@/core', () => ({
   useConfig: () => mockUseConfig(),
   useFeatureEnabled: () => true,
+  useAvailableConnectors: () => [],
 }));
 
 vi.mock('@/components/ToastProvider', () => ({

@@ -176,12 +176,12 @@ nextjs-portal {
 }
 
 .c__button--neutral.research-web-chip,
-.c__button--neutral.datagouv-chip {
+.c__button--neutral.connector-chip {
   padding: 9px !important;
 }
 
 .c__button--neutral.research-web-chip:disabled,
-.c__button--neutral.datagouv-chip:disabled {
+.c__button--neutral.connector-chip:disabled {
   background-color: inherit !important;
   opacity: 0.4;
   cursor: not-allowed !important;
@@ -298,7 +298,7 @@ ul a:hover {
 }
 
 .research-web-chip:focus:not(:focus-visible),
-.datagouv-chip:focus:not(:focus-visible) {
+.connector-chip:focus:not(:focus-visible) {
   box-shadow: none !important;
 }
 

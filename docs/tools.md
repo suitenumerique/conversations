@@ -244,7 +244,7 @@ hold:
 |------|-------|
 | The deployment declares it | `MCP_CONNECTORS` (empty by default — nothing is then built and nothing contacted) |
 | The user is in its cohort | the declaration's `feature_flag`, e.g. `FEATURE_FLAG_DATAGOUV_CONNECTOR` for data.gouv; no flag means everyone |
-| The user allowed it | `User.allow_datagouv_connector` for data.gouv (off by default), **or** the user forced the connector for that turn from the chat box |
+| The user allowed it | its slug in `User.allowed_connectors` (empty by default), set from Settings, **or** the user forced the connector for that turn from the chat box |
 
 `UserConnector` in `chat/connectors/turn.py` holds all three for one connector,
 and `TurnConnectors` holds every declared connector for the turn. The first two
@@ -325,10 +325,18 @@ declared like any other:
 [
   {
     "slug": "datagouv",
-    "name": "data.gouv.fr",
+    "name": "DataGouv",
     "url": "https://mcp.data.gouv.fr/mcp",
     "tier": "partner",
     "feature_flag": "datagouv_connector",
+    "icon": "/assets/connectors/datagouv.svg",
+    "description": {
+      "en": "Let the Assistant search French public open data published on data.gouv.fr.",
+      "fr": "Autoriser l'Assistant à rechercher dans les données publiques françaises publiées sur data.gouv.fr.",
+      "nl": "Laat de Assistant zoeken naar Franse openbare gegevens die zijn gepubliceerd op data.gouv.fr.",
+      "ru": "Пусть помощник ищет открытые данные на сайте data.gouv.fr, связанные с франкоязычным регионом.",
+      "uk": "Нехай помічник виконує пошук публічних відкритих даних, опублікованих на data.gouv.fr, для франкомовного регіону."
+    },
     "init_timeout": 5,
     "read_timeout": 30,
     "instructions": "The data.gouv.fr tools search France's open-data catalogue: datasets, the organisations that publish them, and public APIs. Use them when the answer depends on official French public data (statistics, registries, local facilities, prices, figures for a commune or département), or when the user asks for a dataset, a file or an API. Prefer them over answering such figures from memory. Do not use them for questions about other countries, general knowledge, administrative procedures, writing or coding tasks, or questions about the user's attached documents."
@@ -339,17 +347,20 @@ declared like any other:
 | Field | Required | Meaning |
 |-------|----------|---------|
 | `slug` | yes | `^[a-z0-9_]{1,20}$`. Tool prefix and key of opt-ins, events and history: **never change it** once users opted in. A new operator or URL means a new slug. |
-| `name` | yes | How the user and the model read it. |
+| `name` | yes | How the user and the model read it: one string, shown as-is in every language, with no separate display label. |
 | `url` | yes | The server's streamable-HTTP endpoint. |
 | `tier` | yes | `internal`, `partner` or `user` ([ADR 0001](adr/0001-connector-trust-tiers.md)). Recorded, not enforced yet. |
-| `instructions` | yes | When the model should use the tools. Written by us, never taken from the server. |
+| `instructions` | yes | When the model should use the tools. Written by us, never taken from the server. The wordings derived from `name` for a forced or unreachable connector are in English, like the rest of the system prompt. |
 | `feature_flag` | no | A `FeatureFlags` field gating the connector to a cohort. Absent: everyone. |
+| `description` | no | What the connector does, shown under its switch in Settings: one text per language code (`en`, `fr`, `fr-fr`...). The user's language is used, then its base language, then English, then any text given. |
+| `icon` | no | An http(s) URL, or a path the frontend serves (`/assets/connectors/...`). Only its shape is used: it is drawn in the text colour, like the other icons, so a multicoloured logo comes out in one colour. Absent: a generic icon. A remote URL is fetched by every user's browser, so prefer the frontend or your own host. |
 | `init_timeout`, `read_timeout` | no | Seconds, defaults `5` and `30`; `0` means no limit. |
 
 Any other field is refused. A declaration the registry
 (`chat/connectors/registry.py`) cannot use — invalid JSON, not a list, an
-unknown field, a missing or unknown `tier`, a bad or duplicate slug, an unknown
-feature flag, a negative timeout — is:
+unknown field, a missing or unknown `tier`, a bad, duplicate or overlapping
+slug, an unknown feature flag, a malformed URL, description or icon, a negative
+or non-finite timeout — is:
 
 - reported as `chat.E101` by `manage.py check`, and by `migrate`, so the Helm
   migrate job fails and shows the error;
@@ -357,17 +368,32 @@ feature flag, a negative timeout — is:
   typo never costs every user their turn. It is never offered with a weaker
   setting.
 
-The declarations are read again on every turn.
+The declarations are read again on every turn. `GET /config/` lists them for
+the UI (`slug`, `name`, `description`, `icon` and the frontend name of
+`feature_flag`; never the URL), so the Settings switches and the chat-box
+options need no frontend release for a new connector.
+
+### Opting in
+
+`User.allowed_connectors` is the list of slugs a user switched on in Settings.
+The users API accepts only connectors offered to that user (declared, and in
+their cohort), but keeps a slug the user already had, so a connector taken
+offline for a while keeps its users' consent. Opt-ins are keyed on the slug
+alone: a connector whose URL changes keeps them, which is why a new operator
+means a new slug.
 
 ### Forcing a connector
 
-`POST /chats/{id}/conversation/` takes a `force_datagouv` query parameter (boolean,
-default `false`), alongside the existing `force_web_search`. It applies to that
-turn only, and stands in for `User.allow_datagouv_connector`.
+`POST /chats/{id}/conversation/` takes a `force_connectors` query parameter, one
+per forced connector (`?force_connectors=datagouv&force_connectors=sofia`),
+alongside the existing `force_web_search`. It applies to that turn only, stands
+in for the opt-in, and is never stored on the message or the conversation.
 
 The request is per turn; the UI control is not reset by sending. A force the
-user switches on stays on until they switch it off, surviving a reload, as
-`force_web_search` already does. Every message sent meanwhile carries it.
+user switches on stays on until they switch it off, kept in the browser's
+`localStorage` so it survives a reload, as `force_web_search` already does.
+Every message sent meanwhile carries it. A slug the user may no longer use is
+dropped by the turn rather than refused, so a stale force never fails a message.
 
 A force the gates deny — the deployment does not declare the connector, or
 the user is outside its cohort — contacts nothing, so the user is told nothing
@@ -375,9 +401,11 @@ and no `connector_forced` event is recorded. It is logged instead: the chat
 button is shown on the cohort flag alone, so a deployment that sets the flag
 without declaring the connector has no other symptom.
 
-Two PostHog events measure the connector: `connector_toggled` (`connector_id`,
-`enabled`) when a user changes the Settings opt-in, and `connector_forced`
-(`connector_id`, `reachable`) once per forced turn, whose `reachable` property
+Three PostHog events measure the connectors, each with the `connector_id` slug:
+`connector_toggled` (`enabled`), sent by the backend for each connector a user
+switches in Settings; `connector_force_toggled` (`enabled`), sent by the frontend
+when a user switches a chat-box force, which the backend never sees on its own;
+and `connector_forced` (`reachable`), sent by the backend once per forced turn, whose `reachable` property
 is the connector's outage rate. It is deliberately not called `available`: that
 word means the standing state of the connector for a user, not whether this turn
 got through.

@@ -11,7 +11,7 @@ import {
   ToggleSwitch,
 } from '@/components';
 import { useUserUpdate } from '@/core/api/useUserUpdate';
-import { useFeatureEnabled } from '@/core/config';
+import { connectorDescription, useAvailableConnectors } from '@/core/config';
 import { useAuthQuery } from '@/features/auth/api';
 import { useChatPreferencesStore } from '@/features/chat/stores/useChatPreferencesStore';
 import { useResponsiveStore } from '@/stores/useResponsiveStore';
@@ -24,11 +24,11 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { isMobile } = useResponsiveStore();
   const { data: user } = useAuthQuery();
   const { mutateAsync: updateUser, isPending } = useUserUpdate();
-  const isDatagouvConnectorEnabled = useFeatureEnabled('datagouv-connector');
+  const connectors = useAvailableConnectors();
   const themeModePreference = useChatPreferencesStore(
     (state) => state.themeModePreference,
   );
@@ -37,10 +37,7 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
   );
 
   const handleToggleChange = async (
-    field:
-      | 'allow_conversation_analytics'
-      | 'allow_datagouv_connector'
-      | 'allow_smart_web_search',
+    field: 'allow_conversation_analytics' | 'allow_smart_web_search',
   ) => {
     if (!user) {
       return;
@@ -54,6 +51,26 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
       });
     } catch (error) {
       console.error(`Error updating user settings for ${field}:`, error);
+    }
+  };
+
+  // Switch one connector on or off, keeping every other slug the user has,
+  // including those of connectors not offered right now.
+  const handleConnectorToggle = async (slug: string) => {
+    if (!user) {
+      return;
+    }
+
+    const allowed = user.allowed_connectors ?? [];
+    try {
+      await updateUser({
+        id: user.id,
+        allowed_connectors: allowed.includes(slug)
+          ? allowed.filter((allowedSlug) => allowedSlug !== slug)
+          : [...allowed, slug],
+      });
+    } catch (error) {
+      console.error(`Error updating the ${slug} connector opt-in:`, error);
     }
   };
 
@@ -211,18 +228,19 @@ export const SettingsModal = ({ onClose, isOpen }: SettingsModalProps) => {
           aria-label={t('Automatic web search')}
         />
 
-        {isDatagouvConnectorEnabled && (
+        {connectors.map((connector) => (
           <SettingsToggleRow
-            title="DataGouv"
-            description={t(
-              'Let the Assistant search French public open data published on data.gouv.fr.',
-            )}
-            checked={user?.allow_datagouv_connector ?? false}
+            key={connector.slug}
+            title={connector.name}
+            description={connectorDescription(connector, i18n.language)}
+            checked={
+              user?.allowed_connectors?.includes(connector.slug) ?? false
+            }
             disabled={isPending}
-            onToggle={() => void handleToggleChange('allow_datagouv_connector')}
-            aria-label={t('DataGouv connector')}
+            onToggle={() => void handleConnectorToggle(connector.slug)}
+            aria-label={t('{{name}} connector', { name: connector.name })}
           />
-        )}
+        ))}
       </Box>
     </>
   );

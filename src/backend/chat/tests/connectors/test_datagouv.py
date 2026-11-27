@@ -3,10 +3,14 @@
 import pytest
 
 from chat.connectors import Tier
-from chat.connectors.datagouv import DATAGOUV_SLUG, user_opted_in
 from chat.connectors.registry import declared_connectors
+from chat.connectors.turn import user_opted_in
 from chat.factories import UserFactory
-from chat.tests.connectors.declarations import DATAGOUV_INSTRUCTIONS, datagouv_declaration
+from chat.tests.connectors.declarations import (
+    DATAGOUV_INSTRUCTIONS,
+    DATAGOUV_SLUG,
+    datagouv_declaration,
+)
 
 # What the model was shown before the abstraction, verbatim.
 FORCED_BEFORE = "You must use the data.gouv.fr tools before answering the user request."
@@ -70,9 +74,9 @@ def test_the_old_settings_are_gone(settings):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("allowed", [True, False])
-def test_the_opt_in_is_still_the_data_gouv_field(datagouv, allowed):
-    """Until `allowed_connectors` (#985), the opt-in is read where it always was."""
-    user = UserFactory(allow_datagouv_connector=allowed)
+@pytest.mark.parametrize(("allowed", "opted_in"), [(["datagouv"], True), ([], False)])
+def test_the_opt_in_is_the_slug_in_allowed_connectors(datagouv, allowed, opted_in):
+    """data.gouv is opted in like any other connector: by its slug."""
+    user = UserFactory(allowed_connectors=allowed)
 
-    assert user_opted_in(user, datagouv) is allowed
+    assert user_opted_in(user, datagouv) is opted_in

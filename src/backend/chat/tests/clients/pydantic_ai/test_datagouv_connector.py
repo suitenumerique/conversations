@@ -28,14 +28,13 @@ from core.feature_flags.flags import FeatureToggle
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService, DocumentParsingResult
 from chat.clients.schema import ImagePostRunActions
-from chat.connectors.datagouv import DATAGOUV_SLUG
 from chat.connectors.errors import is_connector_unreachable
 from chat.connectors.registry import declared_connectors
 from chat.connectors.runtime import ConnectorToolset
 from chat.connectors.turn import UserConnector
 from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.llm_configuration import LLModel, LLMProvider
-from chat.tests.connectors.declarations import datagouv_declaration
+from chat.tests.connectors.declarations import DATAGOUV_SLUG, datagouv_declaration
 from chat.turn.event_mapper import TurnEventMapper
 from chat.turn.prompt import TurnInputs
 
@@ -86,7 +85,7 @@ def _connector_for(user):
 def test_connector_disabled_when_not_configured(settings):
     """With no endpoint configured the connector does not exist."""
     settings.MCP_CONNECTORS = []
-    user = UserFactory(allow_datagouv_connector=True)
+    user = UserFactory(allowed_connectors=[DATAGOUV_SLUG])
 
     assert _connector_for(user).enabled is False
 
@@ -94,7 +93,7 @@ def test_connector_disabled_when_not_configured(settings):
 def test_connector_disabled_outside_the_cohort(_connector_configured, feature_flags):
     """A user outside the beta cohort has no connector, opted in or not."""
     feature_flags.datagouv_connector = FeatureToggle.DISABLED
-    user = UserFactory(allow_datagouv_connector=True)
+    user = UserFactory(allowed_connectors=[DATAGOUV_SLUG])
 
     assert _connector_for(user).enabled is False
 
@@ -104,19 +103,19 @@ def test_being_enabled_ignores_the_opt_in(_connector_configured):
 
     The opt-in is a per-turn decision, because forcing stands in for it.
     """
-    assert _connector_for(UserFactory(allow_datagouv_connector=False)).enabled is True
-    assert _connector_for(UserFactory(allow_datagouv_connector=True)).enabled is True
+    assert _connector_for(UserFactory(allowed_connectors=[])).enabled is True
+    assert _connector_for(UserFactory(allowed_connectors=[DATAGOUV_SLUG])).enabled is True
 
 
 def test_being_available_needs_the_opt_in(_connector_configured):
     """Available is enabled plus the user's opt-in."""
-    assert _connector_for(UserFactory(allow_datagouv_connector=False)).available is False
-    assert _connector_for(UserFactory(allow_datagouv_connector=True)).available is True
+    assert _connector_for(UserFactory(allowed_connectors=[])).available is False
+    assert _connector_for(UserFactory(allowed_connectors=[DATAGOUV_SLUG])).available is True
 
 
 def test_toolsets_returns_one_prefixed_toolset(_connector_configured):
     """An available connector publishes its server under the connector's prefix."""
-    toolsets = _connector_for(UserFactory(allow_datagouv_connector=True)).toolsets()
+    toolsets = _connector_for(UserFactory(allowed_connectors=[DATAGOUV_SLUG])).toolsets()
 
     assert len(toolsets) == 1
     assert isinstance(toolsets[0], ConnectorToolset)
@@ -269,7 +268,7 @@ async def _build_service(settings, url, in_project=False, init_timeout=5.0, read
     settings.MCP_CONNECTORS = [
         datagouv_declaration(url, init_timeout=init_timeout, read_timeout=read_timeout)
     ]
-    user = await sync_to_async(UserFactory)(allow_datagouv_connector=True)
+    user = await sync_to_async(UserFactory)(allowed_connectors=[DATAGOUV_SLUG])
     project = await sync_to_async(ChatProjectFactory)(owner=user) if in_project else None
     conversation = await sync_to_async(ChatConversationFactory)(owner=user, project=project)
     return AIAgentService(conversation, user=user)

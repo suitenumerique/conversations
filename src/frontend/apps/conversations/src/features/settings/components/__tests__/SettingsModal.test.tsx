@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
+import type { ConnectorConfig } from '@/core/config/api/useConfig';
 import { User } from '@/features/auth/api/types';
 import '@/i18n/initI18n';
 import { AppWrapper } from '@/tests/utils';
@@ -40,10 +41,29 @@ vi.mock('@/core/api/useUserUpdate', () => ({
   useUserUpdate: () => ({ mutateAsync: mockUpdateUser, isPending: false }),
 }));
 
-const mockFeatureEnabled = vi.fn();
-vi.mock('@/core/config', () => ({
-  useFeatureEnabled: (key: string) => mockFeatureEnabled(key) as boolean,
+const mockAvailableConnectors = vi.fn();
+vi.mock('@/core/config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/config')>()),
+  useAvailableConnectors: () => mockAvailableConnectors() as ConnectorConfig[],
 }));
+
+const DATAGOUV: ConnectorConfig = {
+  slug: 'datagouv',
+  name: 'data.gouv.fr',
+  description: {
+    en: 'Let the Assistant search French public open data.',
+    fr: 'Autoriser l’Assistant à rechercher dans les données publiques.',
+  },
+  icon: null,
+  feature_flag: 'datagouv-connector',
+};
+const SOFIA: ConnectorConfig = {
+  slug: 'sofia',
+  name: 'SofIA',
+  description: null,
+  icon: null,
+  feature_flag: null,
+};
 
 const user: User = {
   id: 'user-1',
@@ -52,13 +72,13 @@ const user: User = {
   short_name: 'Jane',
   allow_smart_web_search: true,
   allow_conversation_analytics: false,
-  allow_datagouv_connector: false,
+  allowed_connectors: [],
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockUser.mockReturnValue(user);
-  mockFeatureEnabled.mockReturnValue(false);
+  mockAvailableConnectors.mockReturnValue([]);
 });
 
 // The General tab holds a StyledLink, which needs a router in context.
@@ -72,10 +92,10 @@ const renderModal = () =>
   render(<SettingsModal isOpen onClose={vi.fn()} />, { wrapper: Wrapper });
 
 describe('SettingsModal connectors tab', () => {
-  it('hides the data.gouv row when the feature flag is off', () => {
+  it('shows no connector row when none is available', () => {
     renderModal();
     expect(
-      screen.queryByLabelText('DataGouv connector'),
+      screen.queryByLabelText('data.gouv.fr connector'),
     ).not.toBeInTheDocument();
     expect(
       within(screen.getByTestId('tab-connectors')).getByLabelText(
@@ -84,31 +104,53 @@ describe('SettingsModal connectors tab', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows the data.gouv row reflecting the user opt-in when the flag is on', () => {
-    mockFeatureEnabled.mockReturnValue(true);
-    mockUser.mockReturnValue({ ...user, allow_datagouv_connector: true });
+  it('shows one row per available connector, by its name', () => {
+    mockAvailableConnectors.mockReturnValue([DATAGOUV, SOFIA]);
     renderModal();
-    expect(screen.getByLabelText('DataGouv connector')).toBeChecked();
+    const tab = within(screen.getByTestId('tab-connectors'));
+    expect(tab.getByText('data.gouv.fr')).toBeInTheDocument();
+    expect(tab.getByText('SofIA')).toBeInTheDocument();
+    expect(tab.getByLabelText('SofIA connector')).toBeInTheDocument();
   });
 
-  it('turns the connector on', async () => {
-    mockFeatureEnabled.mockReturnValue(true);
+  it('describes a connector in the user language', () => {
+    mockAvailableConnectors.mockReturnValue([DATAGOUV]);
     renderModal();
-    await userEvent.click(screen.getByLabelText('DataGouv connector'));
+    expect(
+      screen.getByText('Let the Assistant search French public open data.'),
+    ).toBeInTheDocument();
+  });
+
+  it('reflects each connector opt-in', () => {
+    mockAvailableConnectors.mockReturnValue([DATAGOUV, SOFIA]);
+    mockUser.mockReturnValue({ ...user, allowed_connectors: ['sofia'] });
+    renderModal();
+    expect(screen.getByLabelText('SofIA connector')).toBeChecked();
+    expect(screen.getByLabelText('data.gouv.fr connector')).not.toBeChecked();
+  });
+
+  it('turns a connector on, keeping the others', async () => {
+    mockAvailableConnectors.mockReturnValue([DATAGOUV, SOFIA]);
+    mockUser.mockReturnValue({ ...user, allowed_connectors: ['sofia'] });
+    renderModal();
+    await userEvent.click(screen.getByLabelText('data.gouv.fr connector'));
     expect(mockUpdateUser).toHaveBeenCalledWith({
       id: 'user-1',
-      allow_datagouv_connector: true,
+      allowed_connectors: ['sofia', 'datagouv'],
     });
   });
 
-  it('turns the connector back off', async () => {
-    mockFeatureEnabled.mockReturnValue(true);
-    mockUser.mockReturnValue({ ...user, allow_datagouv_connector: true });
+  it('turns a connector back off, keeping the others', async () => {
+    mockAvailableConnectors.mockReturnValue([DATAGOUV, SOFIA]);
+    mockUser.mockReturnValue({
+      ...user,
+      allowed_connectors: ['datagouv', 'gone', 'sofia'],
+    });
     renderModal();
-    await userEvent.click(screen.getByLabelText('DataGouv connector'));
+    await userEvent.click(screen.getByLabelText('data.gouv.fr connector'));
     expect(mockUpdateUser).toHaveBeenCalledWith({
       id: 'user-1',
-      allow_datagouv_connector: false,
+      allowed_connectors: ['gone', 'sofia'],
     });
   });
 });

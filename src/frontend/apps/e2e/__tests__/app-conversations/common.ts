@@ -5,6 +5,7 @@ import packageJson from '../../package.json';
 
 export const CONFIG = {
   DOCS_BASE_URL: null,
+  connectors: [],
   ENVIRONMENT: 'development',
   FEATURE_FLAGS: {
     'datagouv-connector': 'disabled',

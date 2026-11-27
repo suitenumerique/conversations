@@ -141,10 +141,16 @@ class ChatConversationRequestSerializer(serializers.Serializer):
         default=False,
         help_text="Force web search.",
     )
-    force_datagouv = serializers.BooleanField(
+    force_connectors = serializers.ListField(
+        # A slug is at most 20 characters; a turn forces a handful at most.
+        child=serializers.CharField(max_length=20),
+        max_length=20,
         required=False,
-        default=False,
-        help_text="Force the DataGouv connector.",
+        default=list,
+        help_text=(
+            "Slugs of the connectors to force for this turn, one query parameter "
+            "each. Never stored. A slug the user may not use is dropped by the turn."
+        ),
     )
     model_hrid = serializers.CharField(
         required=False,

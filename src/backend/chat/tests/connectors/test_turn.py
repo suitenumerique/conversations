@@ -312,3 +312,29 @@ async def test_a_failed_tool_result_streams_the_notice_of_its_connector(_declare
         and event.data[0]["type"] == CONNECTOR_UNAVAILABLE_EVENT_TYPE
     ]
     assert notices == ["sofia"]
+
+
+# --- The standing opt-in -----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("allowed", "available"),
+    [(["sofia"], True), (["docs"], False), ([], False), (["datagouv"], False)],
+)
+def test_any_connector_is_opted_in_by_its_slug(allowed, available):
+    """`allowed_connectors` is read for every connector, not only data.gouv."""
+    user = UserFactory(allowed_connectors=allowed)
+
+    assert UserConnector.for_user(SOFIA, user, uuid4()).available is available
+
+
+def test_an_opt_in_never_stands_in_for_the_cohort():
+    """Opted in, outside the cohort: not available, and a force does not change that."""
+    user = UserFactory(allowed_connectors=["docs"])
+    with patch("chat.connectors.turn.is_feature_enabled", return_value=False):
+        connector = UserConnector.for_user(DOCS, user, uuid4())
+
+    connector.force()
+
+    assert connector.available is False
+    assert not connector.toolsets()

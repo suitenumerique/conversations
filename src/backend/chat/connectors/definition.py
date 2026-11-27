@@ -10,7 +10,8 @@ catalogue later) and shared freely. See docs/adr/0001-connector-trust-tiers.md.
 import enum
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -20,8 +21,8 @@ import httpx
 # lowercase and safe to use as a tool-name prefix.
 SLUG_PATTERN = re.compile(r"^[a-z0-9_]{1,20}$")
 
-# Seconds, for a declaration that does not say: data.gouv's long-standing
-# defaults. The library's own read timeout, five minutes, is long enough for a
+# Seconds, for a declaration that does not say: the first connector's
+# long-standing defaults. The library's own read timeout, five minutes, is long enough for a
 # stalled server to cost the user their turn.
 DEFAULT_INIT_TIMEOUT = 5.0
 DEFAULT_READ_TIMEOUT = 30.0
@@ -36,8 +37,13 @@ _FIELDS = frozenset(
         "init_timeout",
         "read_timeout",
         "feature_flag",
+        "description",
+        "icon",
     }
 )
+
+# A language code as the frontend names it: `en`, `fr`, or a regional `fr-fr`.
+LANGUAGE_CODE_PATTERN = re.compile(r"^[a-z]{2}(-[a-z]{2})?$")
 _REQUIRED_FIELDS = frozenset({"slug", "name", "url", "tier", "instructions"})
 
 
@@ -83,6 +89,36 @@ def _is_http_url(url: str) -> bool:
     return parts.scheme in {"http", "https"} and bool(parts.hostname)
 
 
+def _is_icon(icon: Any) -> bool:
+    """An http(s) URL, or an absolute path the frontend serves itself.
+
+    No other scheme (`javascript:`, `data:`) and no protocol-relative `//host`,
+    which a browser would fetch from another site.
+    """
+    if not isinstance(icon, str) or not icon:
+        return False
+    if icon.startswith("/"):
+        return not icon.startswith("//") and not any(
+            char.isspace() or not char.isprintable() for char in icon
+        )
+    return _is_http_url(icon)
+
+
+def _is_description(description: Any) -> bool:
+    """One non-empty text per language code, and at least one."""
+    return (
+        isinstance(description, (dict, MappingProxyType))
+        and bool(description)
+        and all(
+            isinstance(code, str)
+            and LANGUAGE_CODE_PATTERN.match(code)
+            and isinstance(text, str)
+            and text
+            for code, text in description.items()
+        )
+    )
+
+
 @dataclass(frozen=True, kw_only=True)
 class ConnectorDefinition:  # pylint: disable=too-many-instance-attributes
     """One connector, as an immutable value.
@@ -110,6 +146,13 @@ class ConnectorDefinition:  # pylint: disable=too-many-instance-attributes
     # The `FeatureFlags` field gating the connector to a cohort, or None for
     # everyone the deployment serves.
     feature_flag: str | None = None
+    # What the connector does, as the user reads it in Settings: one text per
+    # language code, shown in the user's language. `name` stays one string.
+    # Held read-only, so the definition stays immutable; left out of the hash.
+    description: MappingProxyType | None = field(default=None, hash=False)
+    # An http(s) URL or a path on the frontend; the UI falls back to a generic
+    # icon without one.
+    icon: str | None = None
 
     def __post_init__(self):
         """Refuse a definition the rest of the code could not use safely."""
@@ -141,6 +184,18 @@ class ConnectorDefinition:  # pylint: disable=too-many-instance-attributes
             not isinstance(self.feature_flag, str) or not self.feature_flag
         ):
             raise ValueError(f"Connector {self.slug!r}: feature_flag must be a flag name, or None.")
+        if self.description is not None:
+            if not _is_description(self.description):
+                raise ValueError(
+                    f"Connector {self.slug!r}: description must map language codes "
+                    "(such as en, fr or fr-fr) to non-empty texts."
+                )
+            object.__setattr__(self, "description", MappingProxyType(dict(self.description)))
+        if self.icon is not None and not _is_icon(self.icon):
+            raise ValueError(
+                f"Connector {self.slug!r}: icon must be an http or https URL, or a path "
+                "starting with a single /."
+            )
 
     @property
     def forced_instruction(self) -> str:
@@ -205,5 +260,7 @@ class ConnectorDefinition:  # pylint: disable=too-many-instance-attributes
             tier=tier,
             instructions=data["instructions"],
             feature_flag=data.get("feature_flag"),
+            description=data.get("description"),
+            icon=data.get("icon"),
             **timeouts,
         )

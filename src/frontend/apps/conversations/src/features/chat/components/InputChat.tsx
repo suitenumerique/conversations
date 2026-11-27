@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 import WarningFilledIcon from '@/assets/icons/uikit-custom/warning-filled.svg?react';
 import { Box, Loader, Text } from '@/components';
 import { useToast } from '@/components/ToastProvider';
-import { useConfig, useFeatureEnabled } from '@/core';
+import { useAvailableConnectors, useConfig, useFeatureEnabled } from '@/core';
 import {
   isFileAccepted as isFileTypeAccepted,
   withMarkdownExtensions,
@@ -35,6 +35,9 @@ import { AttachmentList } from './AttachmentList';
 import { ScrollDown } from './ScrollDown';
 import { getChatErrorMessage } from './chatErrorMessages';
 
+// Stable default, so the memoized actions do not re-render for nothing.
+const NO_FORCED_CONNECTORS: string[] = [];
+
 const INPUT_ENABLED_STATUSES = [
   'ready',
   'streaming',
@@ -54,8 +57,8 @@ interface InputChatProps {
   containerRef?: React.RefObject<HTMLDivElement | null>;
   forceWebSearch?: boolean;
   onToggleWebSearch?: () => void;
-  forceDatagouv?: boolean;
-  onToggleDatagouv?: () => void;
+  forcedConnectors?: string[];
+  onToggleConnector?: (slug: string) => void;
   onStop?: () => void;
   selectedModel?: LLMModel | null;
   onModelSelect?: (model: LLMModel) => void;
@@ -154,8 +157,8 @@ export const InputChat = ({
   containerRef,
   forceWebSearch = false,
   onToggleWebSearch,
-  forceDatagouv = false,
-  onToggleDatagouv,
+  forcedConnectors = NO_FORCED_CONNECTORS,
+  onToggleConnector,
   onStop,
   selectedModel,
   onModelSelect,
@@ -177,7 +180,7 @@ export const InputChat = ({
   const { data: conf } = useConfig();
   const fileUploadEnabled = useFeatureEnabled('document-upload');
   const webSearchEnabled = useFeatureEnabled('web-search');
-  const datagouvEnabled = useFeatureEnabled('datagouv-connector');
+  const connectors = useAvailableConnectors();
 
   const { data: assistantHealth } = useAssistantHealth();
 
@@ -403,10 +406,13 @@ export const InputChat = ({
     textareaRef.current?.focus();
   }, [onToggleWebSearch]);
 
-  const handleDatagouvToggle = useCallback(() => {
-    onToggleDatagouv?.();
-    textareaRef.current?.focus();
-  }, [onToggleDatagouv]);
+  const handleConnectorToggle = useCallback(
+    (slug: string) => {
+      onToggleConnector?.(slug);
+      textareaRef.current?.focus();
+    },
+    [onToggleConnector],
+  );
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -606,10 +612,10 @@ export const InputChat = ({
                 onWebSearchToggle={
                   onToggleWebSearch ? handleWebSearchToggle : undefined
                 }
-                datagouvEnabled={datagouvEnabled}
-                forceDatagouv={forceDatagouv}
-                onDatagouvToggle={
-                  onToggleDatagouv ? handleDatagouvToggle : undefined
+                connectors={connectors}
+                forcedConnectors={forcedConnectors}
+                onConnectorToggle={
+                  onToggleConnector ? handleConnectorToggle : undefined
                 }
                 onModelSelect={onModelSelect}
                 selectedModel={selectedModel || null}

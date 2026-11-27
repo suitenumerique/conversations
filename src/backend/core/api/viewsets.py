@@ -14,9 +14,10 @@ from rest_framework.permissions import AllowAny
 
 from core import models, permissions
 from core.analytics import capture_event
+from core.feature_flags.helpers import frontend_feature_name
 from core.middleware import is_maintenance_active
 
-from chat.connectors.datagouv import DATAGOUV_SLUG
+from chat.connectors.registry import declared_connectors
 
 from . import serializers
 
@@ -117,17 +118,18 @@ class UserViewSet(drf.mixins.UpdateModelMixin, viewsets.GenericViewSet):
     pagination_class = None
 
     def perform_update(self, serializer):
-        """Save, then report a connector opt-in that actually changed."""
-        was_enabled = serializer.instance.allow_datagouv_connector
+        """Save, then report each connector opt-in that actually changed."""
+        before = set(serializer.instance.allowed_connectors or [])
         user = serializer.save()
-        if user.allow_datagouv_connector != was_enabled:
+        after = set(user.allowed_connectors or [])
+        for slug, enabled in [
+            *((slug, False) for slug in sorted(before - after)),
+            *((slug, True) for slug in sorted(after - before)),
+        ]:
             capture_event(
                 "connector_toggled",
                 user.pk,
-                properties={
-                    "connector_id": DATAGOUV_SLUG,
-                    "enabled": user.allow_datagouv_connector,
-                },
+                properties={"connector_id": slug, "enabled": enabled},
             )
 
     @drf.decorators.action(
@@ -195,7 +197,32 @@ class ConfigView(drf.views.APIView):
         # Expose Docs integration URL so the frontend can show/hide the "Edit in Docs" button
         dict_settings["DOCS_BASE_URL"] = settings.DOCS_BASE_URL
 
+        dict_settings["connectors"] = self._get_connectors()
+
         return drf.response.Response(dict_settings)
+
+    @staticmethod
+    def _get_connectors():
+        """The declared connectors, as the UI shows them: never the URL.
+
+        The cohort is not resolved here, since the endpoint is anonymous: the
+        frontend reads each `feature_flag` like the other feature flags, under
+        its frontend name.
+        """
+        return [
+            {
+                "slug": definition.slug,
+                "name": definition.name,
+                "description": dict(definition.description) if definition.description else None,
+                "icon": definition.icon,
+                "feature_flag": (
+                    frontend_feature_name(definition.feature_flag)
+                    if definition.feature_flag
+                    else None
+                ),
+            }
+            for definition in declared_connectors()
+        ]
 
     def _load_theme_customization(self):
         if not settings.THEME_CUSTOMIZATION_FILE_PATH:

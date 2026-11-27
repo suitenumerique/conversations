@@ -61,7 +61,7 @@ def test_api_users_retrieve_me_authenticated():
     assert response.json() == {
         "id": str(user.id),
         "allow_conversation_analytics": user.allow_conversation_analytics,
-        "allow_datagouv_connector": user.allow_datagouv_connector,
+        "allowed_connectors": user.allowed_connectors,
         "allow_smart_web_search": user.allow_smart_web_search,
         "email": user.email,
         "full_name": user.full_name,
@@ -186,7 +186,6 @@ def test_api_users_update_authenticated_self():
         serializers.UserSerializer(
             instance=factories.UserFactory(
                 allow_conversation_analytics=not user.allow_conversation_analytics,
-                allow_datagouv_connector=not user.allow_datagouv_connector,
                 allow_smart_web_search=not user.allow_smart_web_search,
             )
         ).data
@@ -204,7 +203,7 @@ def test_api_users_update_authenticated_self():
     for key, value in user_values.items():
         if key in [
             "allow_conversation_analytics",
-            "allow_datagouv_connector",
+            "allowed_connectors",
             "allow_smart_web_search",
             "language",
             "timezone",
@@ -275,7 +274,6 @@ def test_api_users_patch_authenticated_self():
         serializers.UserSerializer(
             instance=factories.UserFactory(
                 allow_conversation_analytics=not user.allow_conversation_analytics,
-                allow_datagouv_connector=not user.allow_datagouv_connector,
                 allow_smart_web_search=not user.allow_smart_web_search,
             )
         ).data
@@ -294,7 +292,7 @@ def test_api_users_patch_authenticated_self():
     for key, value in user_values.items():
         if key in [
             "allow_conversation_analytics",
-            "allow_datagouv_connector",
+            "allowed_connectors",
             "allow_smart_web_search",
             "language",
             "timezone",

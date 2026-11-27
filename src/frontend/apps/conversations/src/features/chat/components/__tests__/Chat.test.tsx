@@ -39,8 +39,12 @@ vi.mock('@/features/chat/api/useConversation', () => ({
   KEY_CONVERSATION: 'conversation',
 }));
 
+// Keys come back as-is, with `{{placeholders}}` filled in, as i18next would.
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, values?: Record<string, string>) =>
+      key.replace(/{{(\w+)}}/g, (_, name: string) => values?.[name] ?? ''),
+  }),
 }));
 
 // The markdown stack is ESM-only and irrelevant here: the assertions are about
@@ -56,13 +60,31 @@ vi.mock('rehype-katex', () => ({ default: () => {} }));
 vi.mock('remark-gfm', () => ({ default: () => {} }));
 vi.mock('remark-math', () => ({ default: () => {} }));
 
+// The connectors the deployment declares, as /config/ lists them. Hoisted:
+// the mock factories below run before the module's own constants.
+const { CONFIG } = vi.hoisted(() => ({
+  CONFIG: {
+    connectors: [
+      {
+        slug: 'datagouv',
+        name: 'data.gouv.fr',
+        description: null,
+        icon: null,
+        feature_flag: null,
+      },
+    ],
+  },
+}));
+
 vi.mock('@/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core')>()),
-  useConfig: () => ({ data: {} }),
+  useConfig: () => ({ data: CONFIG }),
+  useAvailableConnectors: () => CONFIG.connectors,
 }));
 vi.mock('@/core/config', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/core/config')>()),
-  useConfig: () => ({ data: {} }),
+  useConfig: () => ({ data: CONFIG }),
+  useAvailableConnectors: () => CONFIG.connectors,
 }));
 vi.mock('@/features/chat/api/useAssistantHealth', () => ({
   useAssistantHealth: () => ({ data: undefined }),
@@ -482,7 +504,7 @@ describe('Chat connector notices', () => {
     // in a `aria-live="polite"` region, and this asserts on what a user (or
     // assistive tech) actually perceives, not on an internal `showToast` call.
     expect(
-      await screen.findByText('DataGouv could not be reached'),
+      await screen.findByText('data.gouv.fr could not be reached'),
     ).toBeInTheDocument();
   });
 
@@ -510,7 +532,7 @@ describe('Chat connector notices', () => {
       ]),
     );
     expect(
-      screen.queryByText('DataGouv could not be reached'),
+      screen.queryByText('data.gouv.fr could not be reached'),
     ).not.toBeInTheDocument();
   });
 });

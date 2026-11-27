@@ -196,13 +196,14 @@ class User(AbstractBaseUser, BaseModel, auth_models.PermissionsMixin):
         help_text=_("Whether the user allows to use smart web search features."),
     )
 
-    allow_datagouv_connector = models.BooleanField(
-        _("allow data.gouv connector"),
-        default=False,
+    allowed_connectors = models.JSONField(
+        _("allowed connectors"),
+        default=list,
+        blank=True,
         help_text=_(
-            "Whether the user asked for the data.gouv connector. This records a "
-            "choice, not an entitlement: the connector also requires the beta "
-            "feature flag and a configured endpoint."
+            "Slugs of the MCP connectors the user switched on. This records a "
+            "choice, not an entitlement: a connector also has to be declared, "
+            "and the user has to be in its cohort."
         ),
     )
 
