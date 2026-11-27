@@ -16,7 +16,7 @@ from core import models, permissions
 from core.analytics import capture_event
 from core.middleware import is_maintenance_active
 
-from chat.mcp_servers import DataGouvConnector
+from chat.connectors.datagouv import DATAGOUV_SLUG
 
 from . import serializers
 
@@ -125,7 +125,7 @@ class UserViewSet(drf.mixins.UpdateModelMixin, viewsets.GenericViewSet):
                 "connector_toggled",
                 user.pk,
                 properties={
-                    "connector_id": DataGouvConnector.connector_id,
+                    "connector_id": DATAGOUV_SLUG,
                     "enabled": user.allow_datagouv_connector,
                 },
             )

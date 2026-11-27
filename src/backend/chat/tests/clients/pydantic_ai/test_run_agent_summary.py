@@ -153,7 +153,7 @@ async def test_run_agent_emits_summary_events_when_summarization_triggers(ui_mes
             "chat.clients.pydantic_ai.should_generate_conversation_summary",
             side_effect=[True, False],
         ),
-        patch.object(service._datagouv, "toolsets", return_value=[]),
+        patch.object(service._connectors, "connectors", []),
         patch("chat.turn.usage._extract_co2_from_usage", return_value=0),
         patch.object(service, "_wait_for_history_summary", side_effect=_empty_async_gen),
     ):
@@ -177,7 +177,7 @@ async def test_stream_content_emits_summarization_failed_error(ui_messages):
     conversation = await sync_to_async(ChatConversationFactory)()
     service = AIAgentService(conversation, user=conversation.owner)
 
-    async def failing_run_agent(_messages, _force_web_search=False, _force_datagouv=False):
+    async def failing_run_agent(_messages, _force_web_search=False, _force_connectors=()):
         """Fake agent run that raises SummarizationRequiredError."""
         raise SummarizationRequiredError("model down")
         yield  # pragma: no cover - makes this an async generator
@@ -236,7 +236,7 @@ async def test_run_agent_skips_summary_events_when_summarization_not_triggered(u
         patch.object(TurnEventMapper, "events", side_effect=_empty_async_gen),
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
         patch("chat.clients.pydantic_ai.should_generate_conversation_summary", return_value=False),
-        patch.object(service._datagouv, "toolsets", return_value=[]),
+        patch.object(service._connectors, "connectors", []),
         patch("chat.turn.usage._extract_co2_from_usage", return_value=0),
         patch.object(service, "_wait_for_history_summary", side_effect=_empty_async_gen),
     ):
@@ -438,7 +438,10 @@ def _run_agent_patches(service):
         patch.object(service, "_check_should_enable_rag", AsyncMock(return_value=False)),
         patch.object(TurnEventMapper, "events", side_effect=_empty_async_gen),
         patch.object(service, "_finalize_conversation", side_effect=_empty_async_gen),
-        patch.object(service._datagouv, "toolsets", return_value=[]),
+        *(
+            patch.object(connector, "toolsets", return_value=[])
+            for connector in service._connectors
+        ),
         patch("chat.turn.usage._extract_co2_from_usage", return_value=0),
     )
     with ExitStack() as stack:

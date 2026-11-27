@@ -78,3 +78,20 @@ AI_API_KEY=password
 # OIDC_STORE_REFRESH_TOKEN=True
 # Required for refresh token encryption; must be a valid Fernet key (32 url-safe base64-encoded bytes)
 # OIDC_STORE_REFRESH_TOKEN_KEY=
+
+# MCP connectors — remote MCP servers whose tools the assistant may use.
+# A JSON list, one object per connector; see docs/tools.md "Declaring a connector".
+# Example: data.gouv.fr, gated by its feature flag (users still opt in in Settings).
+# FEATURE_FLAG_DATAGOUV_CONNECTOR=ENABLED
+# MCP_CONNECTORS='[
+#   {
+#     "slug": "datagouv",
+#     "name": "data.gouv.fr",
+#     "url": "https://mcp.data.gouv.fr/mcp",
+#     "tier": "partner",
+#     "feature_flag": "datagouv_connector",
+#     "init_timeout": 5,
+#     "read_timeout": 30,
+#     "instructions": "The data.gouv.fr tools search France’s open-data catalogue: datasets, the organisations that publish them, and public APIs. Use them when the answer depends on official French public data (statistics, registries, local facilities, prices, figures for a commune or département), or when the user asks for a dataset, a file or an API. Prefer them over answering such figures from memory. Do not use them for questions about other countries, general knowledge, administrative procedures, writing or coding tasks, or questions about the user’s attached documents."
+#   }
+# ]'

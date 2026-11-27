@@ -235,44 +235,48 @@ Everything above describes tools built in this repository. A **connector** is
 different: it is one remote MCP server a user has switched on for themselves,
 and it *contributes* tools to the assistant rather than being one.
 
-Today there is exactly one, data.gouv.fr. It reaches the agent only when all
-three of these hold:
+Connectors are declared by the deployment in `MCP_CONNECTORS` (see
+[Declaring a connector](#declaring-a-connector)); the code lives in
+`chat/connectors/`. A connector reaches the agent only when all three of these
+hold:
 
 | Gate | Where |
 |------|-------|
-| The deployment configures an endpoint | `DATAGOUV_CONNECTOR_URL` (empty by default — the connector is then never built and never contacted) |
-| The user is in the beta cohort | `FEATURE_FLAG_DATAGOUV_CONNECTOR` |
-| The user allowed it | `User.allow_datagouv_connector` (off by default), **or** the user forced the connector for that turn from the chat box |
+| The deployment declares it | `MCP_CONNECTORS` (empty by default — nothing is then built and nothing contacted) |
+| The user is in its cohort | the declaration's `feature_flag`, e.g. `FEATURE_FLAG_DATAGOUV_CONNECTOR` for data.gouv; no flag means everyone |
+| The user allowed it | `User.allow_datagouv_connector` for data.gouv (off by default), **or** the user forced the connector for that turn from the chat box |
 
-`DataGouvConnector` in `chat/mcp_servers.py` holds all three. The first two are
-turn-independent and answered once per request as `enabled`; adding the third
+`UserConnector` in `chat/connectors/turn.py` holds all three for one connector,
+and `TurnConnectors` holds every declared connector for the turn. The first two
+are turn-independent and answered once per request as `enabled`; adding the third
 gives `available`: a connector the user has actually consented to. The third
 depends on the turn, because forcing stands in for the opt-in — which is why
 `toolsets()` asks for `available or forced` rather than `available` alone. A force never satisfies the first two: it is consent,
 not configuration, and one the gates deny is logged and dropped.
 
-Two settings bound how long a connector may hold a turn.
-`DATAGOUV_CONNECTOR_INIT_TIMEOUT` (default `5.0` seconds) bounds the whole
+Two fields of the declaration bound how long a connector may hold a turn.
+`init_timeout` (default `5` seconds) bounds the whole
 connection: `enter_mcp_toolsets` is handed that budget and holds it itself rather
 than leaving it to the MCP client, whose own `init_timeout` covers the protocol handshake but
-not the transport connect underneath it. `DATAGOUV_CONNECTOR_READ_TIMEOUT`
-(default `30.0` seconds) then bounds each individual tool call, because a server
+not the transport connect underneath it. `read_timeout`
+(default `30` seconds) then bounds each individual tool call, because a server
 can complete the handshake and still stall on the call itself — the library's
 own default there is five minutes. A call that times out reaches the model as a
 failed tool result, so the model answers without it.
 
-Setting either to `0` disables that bound, the way `0` and `None` mean "no
+Setting either to `0` disables that bound (a negative value is refused), the way `0` and `None` mean "no
 limit" elsewhere in Django and in the HTTP stack underneath.
 
 Its tools reach the model under the connector's prefix, so the server's
-`search_datasets` is offered to the agent as `datagouv_search_datasets`.
+`search_datasets` is offered to the agent as `datagouv_search_datasets`, the
+prefix being the connector's `slug`.
 
 The server's tool descriptions say how to use each tool, never when. So the
 connector's toolset carries our own instruction on when to reach for them:
 official French public data, or a request for a dataset, a file or an API. It is
 supplied through the toolset's `get_instructions`, so it reaches the model
-exactly when the tools do. The wording belongs to
-`DataGouvConnector.instruction()`, never to the server (see
+exactly when the tools do. The wording is the
+declaration's `instructions`, never the server's (see
 `include_instructions=False` below).
 
 The connector's toolsets are attached per turn, inside `_run_agent`'s
@@ -284,9 +288,11 @@ What the user is told about that depends on whether they asked for it. A
 connector the assistant merely *may* consult stays silent. A connector the user
 **forced** and that we could not reach still produces an answer, but the model
 is instructed to say what it could not consult, and the turn streams a
-`connector_unavailable` notice the frontend raises as a toast. The event type is
+`connector_unavailable` notice, naming the connector's slug, that the frontend
+raises as a toast. The model's forced and unreachable wordings are derived from
+the connector's `name`. The event type is
 mirrored as a constant on both sides (`CONNECTOR_UNAVAILABLE_EVENT_TYPE`, in
-`chat/clients/pydantic_ai.py` and `useChat.tsx`); changing one without the other
+`chat/turn/event_mapper.py` and `useChat.tsx`); changing one without the other
 silently drops the notice.
 
 A connector the gates deny is not an outage: nothing was contacted, so forcing
@@ -309,6 +315,50 @@ retries would cost the user their turn. The turn continues, the notice is
 streamed alongside that result, and the connector is not called again for the
 rest of the turn.
 
+### Declaring a connector
+
+`MCP_CONNECTORS` is a JSON list, one object per connector. Adding a partner
+connector is a configuration change: no code, no migration. data.gouv is
+declared like any other:
+
+```json
+[
+  {
+    "slug": "datagouv",
+    "name": "data.gouv.fr",
+    "url": "https://mcp.data.gouv.fr/mcp",
+    "tier": "partner",
+    "feature_flag": "datagouv_connector",
+    "init_timeout": 5,
+    "read_timeout": 30,
+    "instructions": "The data.gouv.fr tools search France's open-data catalogue: datasets, the organisations that publish them, and public APIs. Use them when the answer depends on official French public data (statistics, registries, local facilities, prices, figures for a commune or département), or when the user asks for a dataset, a file or an API. Prefer them over answering such figures from memory. Do not use them for questions about other countries, general knowledge, administrative procedures, writing or coding tasks, or questions about the user's attached documents."
+  }
+]
+```
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| `slug` | yes | `^[a-z0-9_]{1,20}$`. Tool prefix and key of opt-ins, events and history: **never change it** once users opted in. A new operator or URL means a new slug. |
+| `name` | yes | How the user and the model read it. |
+| `url` | yes | The server's streamable-HTTP endpoint. |
+| `tier` | yes | `internal`, `partner` or `user` ([ADR 0001](adr/0001-connector-trust-tiers.md)). Recorded, not enforced yet. |
+| `instructions` | yes | When the model should use the tools. Written by us, never taken from the server. |
+| `feature_flag` | no | A `FeatureFlags` field gating the connector to a cohort. Absent: everyone. |
+| `init_timeout`, `read_timeout` | no | Seconds, defaults `5` and `30`; `0` means no limit. |
+
+Any other field is refused. A declaration the registry
+(`chat/connectors/registry.py`) cannot use — invalid JSON, not a list, an
+unknown field, a missing or unknown `tier`, a bad or duplicate slug, an unknown
+feature flag, a negative timeout — is:
+
+- reported as `chat.E101` by `manage.py check`, and by `migrate`, so the Helm
+  migrate job fails and shows the error;
+- logged as `connector_declaration_refused` and left out at runtime, so one
+  typo never costs every user their turn. It is never offered with a weaker
+  setting.
+
+The declarations are read again on every turn.
+
 ### Forcing a connector
 
 `POST /chats/{id}/conversation/` takes a `force_datagouv` query parameter (boolean,
@@ -319,11 +369,11 @@ The request is per turn; the UI control is not reset by sending. A force the
 user switches on stays on until they switch it off, surviving a reload, as
 `force_web_search` already does. Every message sent meanwhile carries it.
 
-A force the gates deny — the deployment does not configure the connector, or
+A force the gates deny — the deployment does not declare the connector, or
 the user is outside its cohort — contacts nothing, so the user is told nothing
 and no `connector_forced` event is recorded. It is logged instead: the chat
 button is shown on the cohort flag alone, so a deployment that sets the flag
-without `DATAGOUV_CONNECTOR_URL` has no other symptom.
+without declaring the connector has no other symptom.
 
 Two PostHog events measure the connector: `connector_toggled` (`connector_id`,
 `enabled`) when a user changes the Settings opt-in, and `connector_forced`
@@ -348,7 +398,8 @@ freezes a connector's capabilities and depends on a maintainer noticing when
 the server publishes new ones.
 
 This boundary was set for a government-run server and is the precedent for
-every connector that follows. Reconsider it before shipping a connector this
+every `partner` connector that follows (see
+[ADR 0001](adr/0001-connector-trust-tiers.md)). Reconsider it before shipping a connector this
 team does not operate or trust.
 
 ## See Also

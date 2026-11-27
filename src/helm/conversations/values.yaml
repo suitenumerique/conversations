@@ -198,7 +198,9 @@ backend:
       - /bin/sh
       - "-c"
       - |
-        while ! python manage.py check --database default > /dev/null 2>&1
+        # Connect, and run no system check: a configuration error (chat.E101)
+        # must fail the command below, not keep this loop waiting forever.
+        while ! python manage.py shell -c "from django.db import connection; connection.ensure_connection()" > /dev/null 2>&1
         do
           echo "Database not ready"
           sleep 2
@@ -216,7 +218,9 @@ backend:
       - "/bin/sh"
       - "-c"
       - |
-        while ! python manage.py check --database default > /dev/null 2>&1
+        # Connect, and run no system check: a configuration error (chat.E101)
+        # must fail the command below, not keep this loop waiting forever.
+        while ! python manage.py shell -c "from django.db import connection; connection.ensure_connection()" > /dev/null 2>&1
         do
           echo "Database not ready"
           sleep 2

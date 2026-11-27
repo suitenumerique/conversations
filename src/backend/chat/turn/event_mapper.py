@@ -26,8 +26,8 @@ from core import instrumentation
 from chat.ai_sdk_types import SourceUrlUIPart
 from chat.clients.pydantic_ui_message_converter import tool_chart
 from chat.clients.schema import StreamingState
+from chat.connectors.turn import TurnConnectors
 from chat.llm_configuration import LLModel
-from chat.mcp_servers import DataGouvConnector
 from chat.turn.trail import TurnTrail
 from chat.turn.usage import TokenMeter
 from chat.vercel_ai_sdk.core import events_v4
@@ -42,14 +42,14 @@ logger = structlog.get_logger("chat.clients.pydantic_ai")
 CONNECTOR_UNAVAILABLE_EVENT_TYPE = "connector_unavailable"
 
 
-def connector_unavailable_notice() -> events_v4.DataPart:
+def connector_unavailable_notice(connector_id: str) -> events_v4.DataPart:
     """The chat notice for a forced connector this turn could not use."""
     return events_v4.DataPart(
         data=[
             {
                 "type": CONNECTOR_UNAVAILABLE_EVENT_TYPE,
                 "kind": "chat_notice",
-                "connector_id": DataGouvConnector.connector_id,
+                "connector_id": connector_id,
             }
         ]
     )
@@ -71,7 +71,7 @@ class TurnEventMapper:  # pylint: disable=too-many-instance-attributes
         model_configuration: LLModel,
         supports_streaming: bool,
         fake_streaming_delay: float,
-        datagouv: DataGouvConnector,
+        connectors: TurnConnectors,
     ):
         self._trail = trail
         self._meter = meter
@@ -79,7 +79,7 @@ class TurnEventMapper:  # pylint: disable=too-many-instance-attributes
         self._model_configuration = model_configuration
         self._supports_streaming = supports_streaming
         self._fake_streaming_delay = fake_streaming_delay
-        self._datagouv = datagouv
+        self._connectors = connectors
         self.state = StreamingState()
 
     async def events(self, run) -> AsyncGenerator[events_v4.Event, None]:
@@ -238,8 +238,8 @@ class TurnEventMapper:  # pylint: disable=too-many-instance-attributes
     def _tool_result_events(self, event: FunctionToolResultEvent) -> Iterator[events_v4.Event]:
         """The events for one tool result: outage notice, sources, then the result."""
         # An outage reaches the model as a failed ToolReturnPart.
-        if self._datagouv.take_outage():
-            yield connector_unavailable_notice()
+        for connector in self._connectors.take_outages():
+            yield connector_unavailable_notice(connector.slug)
         if isinstance(event.part, ToolReturnPart):
             if event.part.metadata and (sources := event.part.metadata.get("sources")):
                 for source_url in sources:

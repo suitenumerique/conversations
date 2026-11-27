@@ -8,6 +8,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Upgrade
+
+`DATAGOUV_CONNECTOR_URL`, `DATAGOUV_CONNECTOR_INIT_TIMEOUT` and
+`DATAGOUV_CONNECTOR_READ_TIMEOUT` are removed. A deployment that set
+`DATAGOUV_CONNECTOR_URL` declares data.gouv in `MCP_CONNECTORS` instead, as
+shown in [Declaring a connector](docs/tools.md#declaring-a-connector), keeping
+the `datagouv` slug so existing opt-ins still apply. Without it the connector
+is no longer offered.
+
 ### Added
 
 - ✨(back) read La Suite Docs documents from pasted Docs links
@@ -18,9 +27,11 @@ and this project adheres to
 - ✨(back) restyle and edit a generated slide deck from the conversation
 - 🔒️(front) add security headers to frontend responses
 - ✨(front) add a copy button to user messages
+- ✨(back) declare MCP connectors in the MCP_CONNECTORS setting
 
 ### Changed
 
+- ♻️(back) replace the hard-wired data.gouv connector with generic connector code
 - 🔨(project) bump backend, publiccode and changelog on release
 - 📝(doc) redraw the architecture diagram
 - ⚡️(back) speed up the sidebar conversation list
@@ -29,8 +40,13 @@ and this project adheres to
 - ⬆️(back) upgrade python dependencies
 - ⬆️(front) upgrade javascript dependencies
 
+### Removed
+
+- 🔥(back) remove the DATAGOUV_CONNECTOR_* settings
+
 ### Fixed
 
+- 🐛(helm) fail the migrate job on a configuration error instead of waiting forever
 - 🐛(back) list pasted Docs links that were read as sources of the answer
 - 🔒️(back) match emails ignoring the ASCII case only
 - 🐛(back) stop claiming a template or style was applied to a slide deck

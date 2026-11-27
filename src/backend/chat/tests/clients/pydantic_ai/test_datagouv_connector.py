@@ -28,13 +28,14 @@ from core.feature_flags.flags import FeatureToggle
 from chat.ai_sdk_types import UIMessage
 from chat.clients.pydantic_ai import AIAgentService, DocumentParsingResult
 from chat.clients.schema import ImagePostRunActions
+from chat.connectors.datagouv import DATAGOUV_SLUG
+from chat.connectors.errors import is_connector_unreachable
+from chat.connectors.registry import declared_connectors
+from chat.connectors.runtime import ConnectorToolset
+from chat.connectors.turn import UserConnector
 from chat.factories import ChatConversationFactory, ChatProjectFactory, UserFactory
 from chat.llm_configuration import LLModel, LLMProvider
-from chat.mcp_servers import (
-    ConnectorToolset,
-    DataGouvConnector,
-    is_connector_unreachable,
-)
+from chat.tests.connectors.declarations import datagouv_declaration
 from chat.turn.event_mapper import TurnEventMapper
 from chat.turn.prompt import TurnInputs
 
@@ -68,18 +69,23 @@ def llm_config_fixture(settings):
 @pytest.fixture(name="_connector_configured")
 def connector_configured_fixture(settings):
     """Configure a connector endpoint for the deployment."""
-    settings.DATAGOUV_CONNECTOR_URL = CONNECTOR_URL
-    settings.DATAGOUV_CONNECTOR_INIT_TIMEOUT = 1.0
+    settings.MCP_CONNECTORS = [datagouv_declaration(CONNECTOR_URL, init_timeout=1.0)]
 
 
 def _connector_for(user):
-    """The connector as it stands for this user. The pk only tags log lines."""
-    return DataGouvConnector.for_user(user, uuid4())
+    """The connector as it stands for this user. The pk only tags log lines.
+
+    `enabled` is False when the deployment does not declare it at all.
+    """
+    definition = next((d for d in declared_connectors() if d.slug == DATAGOUV_SLUG), None)
+    if definition is None:
+        return MagicMock(enabled=False)
+    return UserConnector.for_user(definition, user, uuid4())
 
 
 def test_connector_disabled_when_not_configured(settings):
     """With no endpoint configured the connector does not exist."""
-    settings.DATAGOUV_CONNECTOR_URL = ""
+    settings.MCP_CONNECTORS = []
     user = UserFactory(allow_datagouv_connector=True)
 
     assert _connector_for(user).enabled is False
@@ -114,7 +120,7 @@ def test_toolsets_returns_one_prefixed_toolset(_connector_configured):
 
     assert len(toolsets) == 1
     assert isinstance(toolsets[0], ConnectorToolset)
-    assert toolsets[0].prefix == DataGouvConnector.connector_id
+    assert toolsets[0].prefix == DATAGOUV_SLUG
 
 
 def _caused_by(error: Exception, cause: BaseException) -> Exception:
@@ -144,7 +150,10 @@ def test_a_protocol_or_transport_failure_is_an_outage():
 def _wrapping(call_tool):
     """A ConnectorToolset around a toolset whose calls do `call_tool`."""
     return ConnectorToolset(
-        MagicMock(call_tool=call_tool), on_unreachable=MagicMock(), instructions=lambda: ""
+        MagicMock(call_tool=call_tool),
+        on_unreachable=MagicMock(),
+        instructions=lambda: "",
+        unreachable_message="data.gouv.fr could not be reached.",
     )
 
 
@@ -257,9 +266,9 @@ def stalling_mcp_server_url_fixture():
 
 async def _build_service(settings, url, in_project=False, init_timeout=5.0, read_timeout=30.0):
     """Build an AIAgentService for an opted-in cohort user against `url`."""
-    settings.DATAGOUV_CONNECTOR_URL = url
-    settings.DATAGOUV_CONNECTOR_INIT_TIMEOUT = init_timeout
-    settings.DATAGOUV_CONNECTOR_READ_TIMEOUT = read_timeout
+    settings.MCP_CONNECTORS = [
+        datagouv_declaration(url, init_timeout=init_timeout, read_timeout=read_timeout)
+    ]
     user = await sync_to_async(UserFactory)(allow_datagouv_connector=True)
     project = await sync_to_async(ChatProjectFactory)(owner=user) if in_project else None
     conversation = await sync_to_async(ChatConversationFactory)(owner=user, project=project)
@@ -269,7 +278,7 @@ async def _build_service(settings, url, in_project=False, init_timeout=5.0, read
 async def _run_with_connector(service, prompt):
     """Run the agent the way _run_agent does: connector toolsets passed per turn."""
     async with AsyncExitStack() as stack:
-        toolsets = await service._enter_datagouv_toolsets(stack, force_datagouv=False)
+        toolsets = await service._enter_connector_toolsets(stack)
         with service.conversation_agent.override(model=TestModel(), deps=service._context_deps):
             return await service.conversation_agent.run(prompt, toolsets=toolsets)
 
@@ -301,7 +310,10 @@ async def test_connector_instruction_reaches_the_model(settings, mcp_server_url)
 
     result = await _run_with_connector(service, "Hello.")
 
-    assert service._datagouv.instruction() in result.all_messages()[0].instructions
+    assert (
+        service._connectors.get(DATAGOUV_SLUG).instruction()
+        in result.all_messages()[0].instructions
+    )
 
 
 @pytest.mark.asyncio
@@ -327,7 +339,7 @@ async def test_unreachable_connector_does_not_cost_the_turn(settings, caplog):
         for record in caplog.records
         if record.name == "chat.mcp_servers"
         and record.levelname == "WARNING"
-        and record.msg["connector_id"] == DataGouvConnector.connector_id
+        and record.msg["connector_id"] == DATAGOUV_SLUG
     ]
 
 
@@ -478,7 +490,7 @@ async def test_stalled_tool_call_is_cut_off_at_the_read_timeout(settings, stalli
     # The wrapper is only useful if it is actually on the call path: pydantic-ai
     # dispatches through PrefixedToolset, which rewrites the tool's toolset, so
     # this pins that a real failed call still reaches ConnectorToolset.
-    assert service._datagouv.call_failed is True
+    assert service._connectors.get(DATAGOUV_SLUG).call_failed is True
 
 
 @pytest.mark.asyncio
@@ -493,7 +505,7 @@ async def test_a_transport_error_mid_call_does_not_cost_the_turn(settings, mcp_s
         result = await _run_with_connector(service, "Find open data about communes.")
 
     assert result.output
-    assert service._datagouv.call_failed is True
+    assert service._connectors.get(DATAGOUV_SLUG).call_failed is True
 
 
 @pytest.mark.asyncio
@@ -508,4 +520,4 @@ async def test_a_tool_answering_with_an_error_is_not_an_outage(settings, failing
     with contextlib.suppress(UnexpectedModelBehavior):
         await _run_with_connector(service, "Find open data about communes.")
 
-    assert service._datagouv.call_failed is False
+    assert service._connectors.get(DATAGOUV_SLUG).call_failed is False
