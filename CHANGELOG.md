@@ -40,6 +40,10 @@ and this project adheres to
 - 🐛(front) translate the user menu in the user's language
 - 🐛(front) read the terms of service link from the theme customization
 
+### Removed
+
+- 🔥(back) drop the unused raw copy of the messages sent by the frontend
+
 ## [0.0.29] - 2026-11-15
 
 ### Added
