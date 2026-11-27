@@ -15,7 +15,6 @@ export type LanguagePickerProps = {
   compact?: boolean;
 };
 
-const ENABLED_LANGUAGE_ISO_CODES = new Set(['fr', 'en']);
 const toIsoCode = (locale: string) => locale.split(/[-_]/)[0].toLowerCase();
 const toUiLocale = (locale: string) => {
   const [lang, region] = locale.split(/[-_]/);
@@ -36,18 +35,13 @@ export const LanguagePicker = ({
 
   const availableLanguages = useMemo(() => {
     const fromConfig = config?.LANGUAGES?.map(([locale]) => locale) ?? [];
-    const source =
-      fromConfig.length > 0
-        ? fromConfig
-        : Object.keys(i18n?.options?.resources || { en: true });
+    if (fromConfig.length > 0) {
+      return fromConfig;
+    }
 
-    const filtered = source.filter((locale) => {
-      const isoCode = locale.split(/[-_]/)[0]?.toLowerCase();
-      return ENABLED_LANGUAGE_ISO_CODES.has(isoCode);
-    });
-
-    if (filtered.length > 0) {
-      return filtered;
+    const fromResources = Object.keys(i18n?.options?.resources || {});
+    if (fromResources.length > 0) {
+      return fromResources;
     }
 
     return ['fr-fr', 'en-us'];
