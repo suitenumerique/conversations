@@ -33,6 +33,7 @@ and this project adheres to
 
 - 🐛(back) list pasted Docs links that were read as sources of the answer
 - 🔒️(back) match emails ignoring the ASCII case only
+- 🔒️(back) cap the size of the chat request body
 - 🐛(back) stop claiming a template or style was applied to a slide deck
 - 🔒️(back) keep untrusted text inside its summary prompt blocks
 - ✅(back) scope the admin stored size test to its own rows

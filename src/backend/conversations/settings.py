@@ -204,6 +204,13 @@ class Base(
         environ_name="ATTACHMENT_MAX_SIZE",
         environ_prefix=None,
     )
+    # The chat endpoint receives the conversation history from the frontend on
+    # every turn; this bounds the request body it will read and store.
+    CHAT_REQUEST_MAX_BODY_SIZE = values.PositiveIntegerValue(
+        10 * (2**20),  # 10MB
+        environ_name="CHAT_REQUEST_MAX_BODY_SIZE",
+        environ_prefix=None,
+    )
     # Resource-exhaustion guards for the document parser (guards.py). The upload
     # cap above bounds compressed bytes; these bound how much a ZIP-container
     # document (DOCX/XLSX/PPTX/ODT) may expand and how many pages an in-process
